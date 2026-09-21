@@ -28,6 +28,7 @@ Stand up a greenfield Rust crate that parses the MVP 0.1 Bork surface into a cle
 | `val` / `var` | Explicit `BindingKind::Val \| Var` on decls; assignability checked later |
 | Nullability | Kotlin-style `T?` on types only; **no `null` value/keyword** (Rust-like) |
 | Trailing closures | Attached to `Call` as optional trailing lambda after `)` |
+| Range `..` | Infix binary op (`BinOp::RangeTo`), not a dedicated `Expr::Range`; later may map to builtin infix `..(a, b)` |
 
 ## Crate layout
 
@@ -75,12 +76,12 @@ Expr           = Int(i64)
                | Binary { op: BinOp, lhs: Box<Expr>, rhs: Box<Expr> }
                | Call { callee: Box<Expr>, args: Vec<Expr>, trailing: Option<Closure> }
                | If { cond: Box<Expr>, then_block: Block, else_block: Block }
-               | Range { start: Box<Expr>, end: Box<Expr> }
 
 Closure        = params: Vec<String>, body: Block
 
 BinOp          = Add | Sub | Mul | Div
                | Gt | Lt | Ge | Le | Eq | Ne
+               | RangeTo   // infix `..`  (a .. b)
 ```
 
 Notes:
@@ -88,7 +89,8 @@ Notes:
 - No spans in MVP.
 - No `Expr::Block` unless grammar needs it; statement bare blocks cover region braces.
 - `Assign` is parseable for any ident; rejecting `val` targets is a later semantic pass.
-- `Range` is intended as the `for`-in iterable form for MVP.
+- `for (i in 0..10)` uses any `Expr` as the iterable; `0..10` is `Binary { op: RangeTo, ... }`. There is no `for (1..10)` form without `in` + binder.
+- User-defined infix functions are out of MVP; `..` is a fixed operator token that fits the infix mental model.
 
 ## Grammar sketch
 
@@ -123,7 +125,7 @@ Notes:
 3. `*` `/`
 4. `+` `-`
 5. Comparisons `>` `<` `>=` `<=` `==` `!=`
-6. Range `Expr ".." Expr`
+6. Infix range-to `Expr ".." Expr` → `BinOp::RangeTo`
 
 Unary `-` omitted in MVP (sample does not use it).
 
