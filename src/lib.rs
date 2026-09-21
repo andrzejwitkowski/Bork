@@ -41,3 +41,21 @@ fun main() {
         }
 }
 "#;
+
+pub const PROCESS_USER_SAMPLE: &str = r#"
+fun processUser(name: String?, score: i32): i32 {
+    val fallbackName: String = name ?: "Guest"
+    val finalScore = score ?: 0
+
+    {
+        val verifiedUser: String? = Some(fallbackName)
+        val emptyMiddle: String? = None
+
+        if (verifiedUser?.length > 0) {
+            return finalScore
+        }
+    }
+
+    return 0
+}
+"#;
