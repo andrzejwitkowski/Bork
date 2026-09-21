@@ -5,36 +5,14 @@ use crate::ast::{
 grammar;
 
 match {
-    r"[ \t\r\f]+" => { },
+    r"\s+" => { },
     r"//[^\n\r]*" => { },
-    r"\n+" => "NL",
 } else {
     _
 }
 
 pub Program: Program = {
-    => Program { functions: vec![] },
-    "NL" => Program { functions: vec![] },
-    <funcs:FunctionList> => Program { functions: funcs },
-    "NL" <funcs:FunctionList> => Program { functions: funcs },
-};
-
-FunctionList: Vec<Function> = {
-    <f:Function> <rest:FunctionRest> => {
-        let mut funcs = vec![f];
-        funcs.extend(rest);
-        funcs
-    },
-};
-
-FunctionRest: Vec<Function> = {
-    => vec![],
-    "NL" => vec![],
-    "NL" <f:Function> <rest:FunctionRest> => {
-        let mut funcs = vec![f];
-        funcs.extend(rest);
-        funcs
-    },
+    <functions:Function*> => Program { functions },
 };
 
 Function: Function = {
@@ -70,25 +48,15 @@ Param: Param = {
 };
 
 Type: Type = {
-    <t:TypePrimary> <q:"?"?> => match t {
-        Type::Named { name, .. } => Type::Named {
-            name,
-            nullable: q.is_some(),
-        },
-        Type::Func { params, ret, .. } => Type::Func {
-            params,
-            ret,
-            nullable: q.is_some(),
-        },
-    },
+    <t:TypePrimary> => t,
 };
 
 TypePrimary: Type = {
-    <name:Ident> => Type::Named {
+    <name:Ident> <q:"?"?> => Type::Named {
         name,
-        nullable: false,
+        nullable: q.is_some(),
     },
-    "(" <params:TypeList?> ")" "->" <ret:TypePrimary> => Type::Func {
+    "(" <params:TypeList?> ")" "->" <ret:Type> => Type::Func {
         params: params.unwrap_or_default(),
         ret: Box::new(ret),
         nullable: false,
@@ -110,31 +78,16 @@ Block: Block = {
 
 BlockBody: Vec<Stmt> = {
     => vec![],
-    "NL" => vec![],
-    <first:Stmt> <rest:StmtRest> => {
-        let mut stmts = vec![first];
-        stmts.extend(rest);
+    <stmts:NonFinalStmt+> => stmts,
+    <mut stmts:NonFinalStmt*> "return" <value:Expr?> => {
+        stmts.push(Stmt::Return(value));
         stmts
     },
-    "NL" <first:Stmt> <rest:StmtRest> => {
-        let mut stmts = vec![first];
-        stmts.extend(rest);
-        stmts
-    },
+    <b:Block> => vec![Stmt::Block(b)],
+    <e:Expr> => vec![Stmt::Expr(e)],
 };
 
-StmtRest: Vec<Stmt> = {
-    => vec![],
-    "NL" => vec![],
-    "NL" <stmt:Stmt> <rest:StmtRest> => {
-        let mut stmts = vec![stmt];
-        stmts.extend(rest);
-        stmts
-    },
-};
-
-Stmt: Stmt = {
-    <b:Block> => Stmt::Block(b),
+NonFinalStmt: Stmt = {
     "val" <name:Ident> "=" <value:Expr> => Stmt::VarDecl {
         kind: BindingKind::Val,
         name,
@@ -151,8 +104,6 @@ Stmt: Stmt = {
         iter,
         body,
     },
-    "return" <value:Expr?> => Stmt::Return(value),
-    <e:Expr> => Stmt::Expr(e),
 };
 
 Expr: Expr = {

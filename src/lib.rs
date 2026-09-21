@@ -63,4 +63,30 @@ mod tests {
         ));
         assert!(matches!(prog.functions[1].body.stmts[2], Stmt::For { .. }));
     }
+
+    #[test]
+    fn parses_statements_without_newline_separators() {
+        let prog = parse("fun main(): Unit { val x = 1 var y = 2 }")
+            .expect("whitespace should separate statements");
+
+        assert_eq!(prog.functions[0].body.stmts.len(), 2);
+    }
+
+    #[test]
+    fn nullable_function_return_belongs_to_return_type() {
+        let prog = parse("fun f(): () -> Int? { return 1 }")
+            .expect("nullable function return type should parse");
+
+        assert_eq!(
+            prog.functions[0].return_type,
+            Type::Func {
+                params: vec![],
+                ret: Box::new(Type::Named {
+                    name: "Int".into(),
+                    nullable: true,
+                }),
+                nullable: false,
+            }
+        );
+    }
 }
