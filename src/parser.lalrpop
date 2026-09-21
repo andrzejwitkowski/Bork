@@ -1,13 +1,13 @@
 use crate::ast::{
     BindingKind, BinOp, Block, Closure, Expr, Function, Param, Program, Stmt, Type,
 };
+use lalrpop_util::ParseError;
 
 grammar;
 
 match {
     r"\s+" => { },
     r"//[^\n\r]*" => { },
-    r"\)\?" => NullableFuncEnd,
 } else {
     _
 }
@@ -49,36 +49,56 @@ Param: Param = {
 };
 
 Type: Type = {
-    <tp:TypeParam> => tp,
-    "(" <f:TypeParam> <_end:NullableFuncEnd> => match f {
-        Type::Func { params, ret, .. } => Type::Func {
-            params,
-            ret,
-            nullable: true,
-        },
-        _ => unreachable!(),
-    },
-};
-
-TypeParam: Type = {
     <name:Ident> <q:"?"?> => Type::Named {
         name,
         nullable: q.is_some(),
     },
-    "(" <params:TypeList?> ")" "->" <ret:TypeRet> => Type::Func {
-        params: params.unwrap_or_default(),
+    "(" <ty:ParenType> => ty,
+};
+
+ParenType: Type = {
+    ")" "->" <ret:Type> => Type::Func {
+        params: vec![],
         ret: Box::new(ret),
         nullable: false,
     },
+    <mut types:TypeList> ")" <ret:ParenTypeSuffix> =>? match ret {
+        Some(ret) => Ok(Type::Func {
+            params: types,
+            ret: Box::new(ret),
+            nullable: false,
+        }),
+        None => {
+            let inner = types.pop().ok_or(ParseError::User {
+                error: "nullable parentheses require one function type",
+            })?;
+            if !types.is_empty() {
+                return Err(ParseError::User {
+                    error: "nullable parentheses require one function type",
+                });
+            }
+            match inner {
+                Type::Func { params, ret, .. } => Ok(Type::Func {
+                    params,
+                    ret,
+                    nullable: true,
+                }),
+                Type::Named { .. } => Err(ParseError::User {
+                    error: "only function types may be parenthesized for nullability",
+                }),
+            }
+        }
+    },
 };
 
-TypeRet: Type = {
-    <tp:TypeParam> => tp,
+ParenTypeSuffix: Option<Type> = {
+    "->" <ret:Type> => Some(ret),
+    "?" => None,
 };
 
 TypeList: Vec<Type> = {
-    <t:TypeParam> => vec![t],
-    <ts:TypeList> "," <t:TypeParam> => {
+    <t:Type> => vec![t],
+    <ts:TypeList> "," <t:Type> => {
         let mut ts = ts;
         ts.push(t);
         ts

@@ -110,4 +110,40 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn nullable_function_type_allows_space_before_question_mark() {
+        let prog = parse("fun f(x: ((Int) -> Int) ?): Int { return 1 }")
+            .expect("whitespace before function nullability should be insignificant");
+
+        assert!(matches!(
+            prog.functions[0].params[0].ty,
+            Type::Func { nullable: true, .. }
+        ));
+    }
+
+    #[test]
+    fn nullable_function_types_compose_in_lists_and_returns() {
+        let prog = parse(
+            "fun f(x: (((Int) -> Int) ?, Int) -> ((Int) -> Int) ?): Int { return 1 }",
+        )
+        .expect("nullable function types should compose recursively");
+
+        let Type::Func { params, ret, .. } = &prog.functions[0].params[0].ty else {
+            panic!("outer parameter type should be a function");
+        };
+        assert!(matches!(
+            params[0],
+            Type::Func { nullable: true, .. }
+        ));
+        assert!(matches!(
+            ret.as_ref(),
+            Type::Func { nullable: true, .. }
+        ));
+    }
+
+    #[test]
+    fn nullable_parenthesized_named_type_is_a_parse_error_not_a_panic() {
+        assert!(parse("fun f(x: (Int)?): Int { return 1 }").is_err());
+    }
 }
