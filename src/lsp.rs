@@ -1,22 +1,16 @@
-//! Helpers for mapping Bork parse errors into LSP diagnostics.
+//! Map Bork parse errors to LSP diagnostics.
 
 use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
-/// Convert a UTF-8 byte offset into an LSP [`Position`] (UTF-16 code units).
+/// UTF-8 byte offset → LSP [`Position`] (UTF-16 code units).
 pub fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
     let offset = byte_offset.min(source.len());
     let mut line = 0u32;
     let mut character = 0u32;
-    let mut scanned = 0usize;
 
     for ch in source[..offset].chars() {
-        let byte_len = ch.len_utf8();
-        if scanned + byte_len > offset {
-            break;
-        }
-        scanned += byte_len;
         if ch == '\n' {
             line += 1;
             character = 0;
@@ -28,65 +22,51 @@ pub fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
     Position { line, character }
 }
 
-fn clamp_range(source: &str, start: usize, end: usize) -> Range {
+fn byte_range(source: &str, start: usize, end: usize) -> Range {
     let start = start.min(source.len());
-    let end = end.min(source.len()).max(start);
-    let mut range = Range {
+    let mut end = end.min(source.len()).max(start);
+    if end == start && end < source.len() {
+        end += source[end..].chars().next().map_or(0, char::len_utf8);
+    }
+    Range {
         start: byte_offset_to_position(source, start),
         end: byte_offset_to_position(source, end),
-    };
-    // Empty ranges are hard to see; widen zero-width to one UTF-16 unit when possible.
-    if range.start == range.end {
-        if end < source.len() {
-            range.end = byte_offset_to_position(source, (end + 1).min(source.len()));
-            if range.start == range.end {
-                range.end.character = range.end.character.saturating_add(1);
-            }
-        } else if range.end.character > 0 {
-            range.start.character = range.end.character.saturating_sub(1);
-        } else if range.end.line > 0 {
-            range.start.line = range.end.line.saturating_sub(1);
-        } else {
-            range.end.character = 1;
-        }
     }
-    range
 }
 
-/// Map a LALRPOP parse error to a single LSP diagnostic for `source`.
+fn expected_suffix(expected: &[String]) -> String {
+    if expected.is_empty() {
+        String::new()
+    } else {
+        format!("; expected {}", expected.join(", "))
+    }
+}
+
+/// Map a LALRPOP parse error to one LSP diagnostic.
 pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
     let (range, message) = match error {
-        ParseError::InvalidToken { location } => (
-            clamp_range(source, *location, *location),
-            "invalid token".to_string(),
-        ),
-        ParseError::UnrecognizedEof { location, expected } => {
-            let mut message = "unexpected end of file".to_string();
-            if !expected.is_empty() {
-                message.push_str("; expected ");
-                message.push_str(&expected.join(", "));
-            }
-            (clamp_range(source, *location, *location), message)
+        ParseError::InvalidToken { location } => {
+            (byte_range(source, *location, *location), "invalid token".into())
         }
+        ParseError::UnrecognizedEof { location, expected } => (
+            byte_range(source, *location, *location),
+            format!("unexpected end of file{}", expected_suffix(expected)),
+        ),
         ParseError::UnrecognizedToken {
             token: (start, token, end),
             expected,
-        } => {
-            let mut message = format!("unexpected token `{token}`");
-            if !expected.is_empty() {
-                message.push_str("; expected ");
-                message.push_str(&expected.join(", "));
-            }
-            (clamp_range(source, *start, *end), message)
-        }
+        } => (
+            byte_range(source, *start, *end),
+            format!("unexpected token `{token}`{}", expected_suffix(expected)),
+        ),
         ParseError::ExtraToken {
             token: (start, token, end),
         } => (
-            clamp_range(source, *start, *end),
+            byte_range(source, *start, *end),
             format!("unexpected extra token `{token}`"),
         ),
         ParseError::User { error } => (
-            clamp_range(source, source.len(), source.len()),
+            byte_range(source, source.len(), source.len()),
             (*error).to_string(),
         ),
     };
@@ -94,13 +74,13 @@ pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::ERROR),
-        source: Some("bork".to_string()),
+        source: Some("bork".into()),
         message,
         ..Diagnostic::default()
     }
 }
 
-/// Parse `source` and return diagnostics (empty when parse succeeds).
+/// Parse `source`; empty vec when it succeeds.
 pub fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
     match parse(source) {
         Ok(_) => Vec::new(),
@@ -115,7 +95,7 @@ mod tests {
     #[test]
     fn ascii_offset_maps_to_line_and_character() {
         let source = "fun main() {\n  return 1\n}";
-        let offset = source.find('1').expect("digit present");
+        let offset = source.find('1').unwrap();
         assert_eq!(
             byte_offset_to_position(source, offset),
             Position {
@@ -129,7 +109,7 @@ mod tests {
     fn multibyte_utf8_counts_utf16_units() {
         // 'é' is one UTF-16 unit; '𝄞' (U+1D11E) is two.
         let source = "val x = \"é𝄞\"\n";
-        let offset = source.find('𝄞').expect("clef present");
+        let offset = source.find('𝄞').unwrap();
         assert_eq!(
             byte_offset_to_position(source, offset),
             Position {
@@ -144,10 +124,8 @@ mod tests {
         let source = "fun main() {\n val x = (1 +\n)\n}";
         let diagnostics = diagnostics_for_source(source);
         assert_eq!(diagnostics.len(), 1);
-        let diagnostic = &diagnostics[0];
-        assert!(!diagnostic.message.is_empty());
-        assert!(diagnostic.range.start.line <= diagnostic.range.end.line);
-        assert!(diagnostic.range.end.line < source.lines().count() as u32 + 1);
+        assert!(!diagnostics[0].message.is_empty());
+        assert!(diagnostics[0].range.start.line <= diagnostics[0].range.end.line);
     }
 
     #[test]

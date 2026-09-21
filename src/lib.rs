@@ -1,5 +1,6 @@
 pub mod ast;
 mod layout;
+#[cfg(feature = "lsp")]
 pub mod lsp;
 
 use lalrpop_util::lalrpop_mod;
