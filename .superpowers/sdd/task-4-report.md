@@ -189,3 +189,22 @@ Finished successfully
 git diff --check
 Passed
 ```
+
+## Important fix: integer literal overflow
+
+Status: **GREEN**.
+
+- `Num` in `src/parser.lalrpop` uses `=>?` with `ParseError::User` instead of
+  `.parse().unwrap()`, matching other fallible grammar actions.
+- Added `oversized_integer_literal_is_parse_error_not_panic` regression
+  (`i64::MAX + 1` returns `Err`, no panic).
+
+Verification:
+
+```text
+cargo test
+running 15 tests
+test result: ok. 15 passed; 0 failed
+```
+
+Commit: `083fe4d Return parse errors for i64 integer literals that overflow.`
