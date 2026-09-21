@@ -13,6 +13,22 @@ match {
     _
 }
 
+BinTier<Op, Next>: Expr = {
+    <lhs:BinTier<Op, Next>> <op:Op> <rhs:Next> => Expr::Binary {
+        op,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <e:Next> => e,
+};
+
+Comma<T>: Vec<T> = {
+    <mut items:(<T> ",")*> <last:T> => {
+        items.push(last);
+        items
+    },
+};
+
 pub Program: Program = {
     => Program { functions: vec![] },
     "NL" => Program { functions: vec![] },
@@ -31,7 +47,7 @@ FunctionList: Vec<Function> = {
 };
 
 Function: Function = {
-    "fun" <name:Ident> "(" <params:ParamList?> ")" <ret:ReturnType> <body:Block> => {
+    "fun" <name:Ident> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <body:Block> => {
         Function {
             name,
             params: params.unwrap_or_default(),
@@ -46,15 +62,6 @@ ReturnType: Type = {
     => Type::Named {
         name: "Unit".into(),
         nullable: false,
-    },
-};
-
-ParamList: Vec<Param> = {
-    <p:Param> => vec![p],
-    <ps:ParamList> "," <p:Param> => {
-        let mut ps = ps;
-        ps.push(p);
-        ps
     },
 };
 
@@ -76,7 +83,7 @@ ParenType: Type = {
         ret: Box::new(ret),
         nullable: false,
     },
-    <mut types:TypeList> ")" <ret:ParenTypeSuffix> =>? match ret {
+    <mut types:Comma<Type>> ")" <ret:ParenTypeSuffix> =>? match ret {
         Some(ret) => Ok(Type::Func {
             params: types,
             ret: Box::new(ret),
@@ -108,15 +115,6 @@ ParenType: Type = {
 ParenTypeSuffix: Option<Type> = {
     "->" <ret:Type> => Some(ret),
     "?" => None,
-};
-
-TypeList: Vec<Type> = {
-    <t:Type> => vec![t],
-    <ts:TypeList> "," <t:Type> => {
-        let mut ts = ts;
-        ts.push(t);
-        ts
-    },
 };
 
 Block: Block = {
@@ -174,79 +172,31 @@ Expr: Expr = {
     <e:ExprRange> => e,
 };
 
-ExprRange: Expr = {
-    <lhs:ExprRange> ".." <rhs:ExprCompare> => Expr::Binary {
-        op: BinOp::RangeTo,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <e:ExprCompare> => e,
-};
+ExprRange = BinTier<RangeOp, ExprCompare>;
+ExprCompare = BinTier<CompareOp, ExprAdd>;
+ExprAdd = BinTier<AddOp, ExprMul>;
+ExprMul = BinTier<MulOp, ExprCall>;
 
-ExprCompare: Expr = {
-    <lhs:ExprCompare> ">" <rhs:ExprAdd> => Expr::Binary {
-        op: BinOp::Gt,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprCompare> "<" <rhs:ExprAdd> => Expr::Binary {
-        op: BinOp::Lt,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprCompare> ">=" <rhs:ExprAdd> => Expr::Binary {
-        op: BinOp::Ge,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprCompare> "<=" <rhs:ExprAdd> => Expr::Binary {
-        op: BinOp::Le,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprCompare> "==" <rhs:ExprAdd> => Expr::Binary {
-        op: BinOp::Eq,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprCompare> "!=" <rhs:ExprAdd> => Expr::Binary {
-        op: BinOp::Ne,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <e:ExprAdd> => e,
+RangeOp: BinOp = { ".." => BinOp::RangeTo };
+CompareOp: BinOp = {
+    ">" => BinOp::Gt,
+    "<" => BinOp::Lt,
+    ">=" => BinOp::Ge,
+    "<=" => BinOp::Le,
+    "==" => BinOp::Eq,
+    "!=" => BinOp::Ne,
 };
-
-ExprAdd: Expr = {
-    <lhs:ExprAdd> "+" <rhs:ExprMul> => Expr::Binary {
-        op: BinOp::Add,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprAdd> "-" <rhs:ExprMul> => Expr::Binary {
-        op: BinOp::Sub,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <e:ExprMul> => e,
+AddOp: BinOp = {
+    "+" => BinOp::Add,
+    "-" => BinOp::Sub,
 };
-
-ExprMul: Expr = {
-    <lhs:ExprMul> "*" <rhs:ExprCall> => Expr::Binary {
-        op: BinOp::Mul,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <lhs:ExprMul> "/" <rhs:ExprCall> => Expr::Binary {
-        op: BinOp::Div,
-        lhs: Box::new(lhs),
-        rhs: Box::new(rhs),
-    },
-    <e:ExprCall> => e,
+MulOp: BinOp = {
+    "*" => BinOp::Mul,
+    "/" => BinOp::Div,
 };
 
 ExprCall: Expr = {
-    <callee:ExprCall> "(" <args:ExprList?> ")" <trailing:TrailingClosure?> => Expr::Call {
+    <callee:ExprCall> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
         callee: Box::new(callee),
         args: args.unwrap_or_default(),
         trailing,
@@ -255,27 +205,9 @@ ExprCall: Expr = {
 };
 
 TrailingClosure: Closure = {
-    "{" <params:ClosureParamList?> "->" <stmts:BlockBody> "}" => Closure {
+    "{" <params:Comma<Ident>?> "->" <stmts:BlockBody> "}" => Closure {
         params: params.unwrap_or_default(),
         body: Block { stmts },
-    },
-};
-
-ClosureParamList: Vec<String> = {
-    <n:Ident> => vec![n],
-    <ns:ClosureParamList> "," <n:Ident> => {
-        let mut ns = ns;
-        ns.push(n);
-        ns
-    },
-};
-
-ExprList: Vec<Expr> = {
-    <e:Expr> => vec![e],
-    <es:ExprList> "," <e:Expr> => {
-        let mut es = es;
-        es.push(e);
-        es
     },
 };
 
@@ -283,16 +215,19 @@ Atom: Expr = {
     <n:Num> => Expr::Int(n),
     <id:Ident> => Expr::Ident(id),
     "(" <e:Expr> ")" => e,
-    "if" "(" <cond:Expr> ")" <then_block:Block> "else" <else_block:Block> => Expr::If {
-        cond: Box::new(cond),
-        then_block,
-        else_block,
+    "if" "(" <cond:Expr> ")" <then_block:Block> <sep:ElseSep> "else" <else_block:Block> => {
+        let () = sep;
+        Expr::If {
+            cond: Box::new(cond),
+            then_block,
+            else_block,
+        }
     },
-    "if" "(" <cond:Expr> ")" <then_block:Block> "NL" "else" <else_block:Block> => Expr::If {
-        cond: Box::new(cond),
-        then_block,
-        else_block,
-    },
+};
+
+ElseSep: () = {
+    => (),
+    "NL" => (),
 };
 
 Ident: String = {
