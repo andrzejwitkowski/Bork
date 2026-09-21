@@ -1,5 +1,6 @@
 pub mod ast;
 mod layout;
+pub mod lsp;
 
 use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub parser);
