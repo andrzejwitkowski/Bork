@@ -1,6 +1,6 @@
 //! Compile-time region / ownership analysis for MVP 0.3 arenas.
 
-use crate::ast::{Block, Expr, Function, Program, Stmt, Type};
+use crate::ast::{BindingKind, Block, Expr, Function, Program, Stmt, Type};
 use crate::span::{Span, SpannedName};
 use std::collections::{HashMap, HashSet};
 
@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 pub enum Ownership {
     Local,
     Copy,
+    Shared { from: String },
     Moved { from: String },
 }
 
@@ -44,6 +45,7 @@ struct EnvBinding {
     arena_id: usize,
     arena_label: String,
     ty: Option<Type>,
+    kind: BindingKind,
     moved: bool,
 }
 
@@ -205,6 +207,7 @@ fn open_region(
                 arena_id: id,
                 arena_label: label.clone(),
                 ty: ty.clone(),
+                kind: BindingKind::Val,
                 moved: false,
             },
         ));
@@ -239,6 +242,7 @@ fn open_region(
                         arena_id: id,
                         arena_label: label.clone(),
                         ty: b.ty.clone(),
+                        kind: BindingKind::Val,
                         moved: false,
                     },
                 ));
@@ -310,7 +314,13 @@ fn walk_stmt(
                 RegionKind::Move,
             ));
         }
-        Stmt::VarDecl { name, ty, value, .. } => {
+        Stmt::VarDecl {
+            kind,
+            name,
+            ty,
+            value,
+            ..
+        } => {
             walk_expr(az, value, node);
             let inferred = ty.clone().or_else(|| infer_type(value));
             az.env.insert(
@@ -319,6 +329,7 @@ fn walk_stmt(
                     arena_id: node.id,
                     arena_label: node.label.clone(),
                     ty: inferred.clone(),
+                    kind: kind.clone(),
                     moved: false,
                 },
             );
@@ -440,6 +451,18 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
             node.bindings.push(BindingInfo {
                 name: name.to_string(),
                 ownership: Ownership::Copy,
+                ty: b.ty,
+            });
+        }
+        return;
+    }
+    if matches!(b.kind, BindingKind::Val) {
+        if !node.bindings.iter().any(|x| x.name == name) {
+            node.bindings.push(BindingInfo {
+                name: name.to_string(),
+                ownership: Ownership::Shared {
+                    from: b.arena_label,
+                },
                 ty: b.ty,
             });
         }
@@ -644,10 +667,10 @@ fun main() {
     }
 
     #[test]
-    fn non_copy_without_move_errors() {
+    fn non_copy_var_without_move_errors() {
         let src = r#"
 fun main() {
-    val s: String = "hi"
+    var s: String = "hi"
     {
         val t = s
     }
@@ -658,6 +681,29 @@ fun main() {
         assert!(
             errs.iter().any(|e| e.message.contains("not Copy")),
             "{errs:?}"
+        );
+    }
+
+    #[test]
+    fn val_string_shared_across_arenas() {
+        let src = r#"
+fun main() {
+    val s: String = "hi"
+    {
+        val t = s
+    }
+}
+"#;
+        let prog = parse(src).expect("parse");
+        let (report, errs) = analyze(&prog);
+        assert!(errs.is_empty(), "{errs:?}");
+        let block = &report.roots[0].children[0];
+        assert!(
+            block.bindings.iter().any(|b| {
+                b.name == "s" && matches!(b.ownership, Ownership::Shared { .. })
+            }),
+            "{:?}",
+            block.bindings
         );
     }
 

@@ -37,6 +37,7 @@ fn dump_node(out: &mut String, node: &ArenaNode, prefix: &str, is_last: bool) {
         let own = match &b.ownership {
             Ownership::Local => "[Local]".to_string(),
             Ownership::Copy => "[Copy]".to_string(),
+            Ownership::Shared { from } => format!("[Shared ← {from}]"),
             Ownership::Moved { from } => format!("[Moved ← {from}]"),
         };
         out.push_str(&child_prefix);

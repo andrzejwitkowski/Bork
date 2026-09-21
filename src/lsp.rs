@@ -202,6 +202,7 @@ pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
             let own = match &info.ownership {
                 Ownership::Local => "Local".to_string(),
                 Ownership::Copy => "Copy".to_string(),
+                Ownership::Shared { from } => format!("Shared ← {from}"),
                 Ownership::Moved { from } => format!("Moved ← {from}"),
             };
             return Some(format!("`{name}` in arena `{arena}`\nOwnership: {own}"));
@@ -258,7 +259,7 @@ mod tests {
     fn move_error_produces_sema_diagnostic() {
         let source = r#"
 fun main() {
-    val s: String = "hi"
+    var s: String = "hi"
     {
         val t = s
     }
@@ -279,7 +280,7 @@ fun main() {
 
     #[test]
     fn sema_diagnostic_points_at_use_not_decl() {
-        let source = "fun main() {\n    val s: String = \"a\"\n    val s2: String = \"b\"\n    {\n        val t = s\n    }\n}\n";
+        let source = "fun main() {\n    var s: String = \"a\"\n    val s2: String = \"b\"\n    {\n        val t = s\n    }\n}\n";
         let diags = diagnostics_for_source(source);
         let d = diags
             .iter()

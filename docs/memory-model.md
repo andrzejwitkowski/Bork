@@ -8,7 +8,7 @@ Bork manages memory with **hierarchical arenas** tied to curly-brace regions (`{
 - Allocations inside a region are a pointer bump: check `offset + size ≤ 4096`, then advance `offset`.
 - Exiting the region sets `offset = 0` — instant bulk deallocation.
 - Loop bodies reset their arena each iteration so memory stays O(1) across iterations.
-- Cross-region data flow uses **Copy** (safe duplicates) or **Move** (ownership transfer). No dangling pointers into a dead arena.
+- Cross-region data flow uses **Copy** (primitives), **Shared** (parent `val` reads), or **Move** (`var` / explicit consume / escape). No dangling pointers into a dead arena.
 
 The 4 KB size matches common OS/database **page** granularity so hot working sets stay cache-friendly when LLVM codegen lands.
 
@@ -27,12 +27,22 @@ The 4 KB size matches common OS/database **page** granularity so hot working set
 
 Scalars and control live on the stack/registers. Heap-like payloads for a region live in that region’s bump buffer.
 
-## Copy vs Move
+## Copy, Shared, and Move
 
 | Kind | Cross-arena behavior |
 |------|----------------------|
 | **Copy** | Non-null primitives (`Int`/`i32`, `bool`, `unit`, …). Reading from a parent arena duplicates the value; parent stays live. |
-| **Move** | Named types, function types, nullable values. Ownership transfers into the child; parent binding is **Moved** (unusable). |
+| **Shared** | Parent **`val`** of a non-Copy type. Child observes the value in place (stack nesting: parent outlives child). Parent binding stays live. |
+| **Move** | Parent **`var`** of a non-Copy type (required), or explicit `move` / future escape into a longer-lived arena. Ownership transfers; parent binding is **Moved** (unusable). |
+
+```text
+Parent A (val s)                   Child A'
+┌──────────────────┐               ┌────────────┐
+│ s  ──────────────┼── Shared ────►│  reads s   │  OK: A outlives A'
+└──────────────────┘               └────────────┘
+```
+
+Moving a `val` *into* a shorter-lived child is rarely useful; Shared is the default. Explicit `move (s)` on a `val` is still allowed when you want to consume it.
 
 Move does **not** punch a hole in the parent arena. Old bytes stay as unreachable dead storage until the parent arena resets. The compiler marks the **binding** dead so use-after-move is a hard error.
 
@@ -46,7 +56,7 @@ Parent A                         Child A'
 
 ### The `move` keyword
 
-Transfer ownership into a child block or trailing closure:
+Transfer ownership into a child block or trailing closure (typical for `var`, or to consume a `val`):
 
 ```bork
 move (user, score) {
@@ -63,7 +73,7 @@ action(1, 2) move { x, y ->
 }
 ```
 
-The compiler enforces: non-Copy values may not be observed from a child arena without `move`. After a move, using the parent name is an error.
+The compiler enforces: non-Copy **`var`** values may not be observed from a child arena without `move`. Parent **`val`** may be Shared. After a move, using the parent name is an error.
 
 ## Nested braces
 
@@ -95,7 +105,8 @@ Arenas
 Labels:
 
 - **Local** — declared in this arena
-- **Copy** — read from a parent arena via Copy
+- **Copy** — read from a parent arena via Copy (primitives)
+- **Shared ← …** — parent `val` observed in place
 - **Moved ← …** — ownership transferred from a parent (parent binding dead)
 
 ### Editor
