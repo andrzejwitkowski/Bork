@@ -89,4 +89,25 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn nullable_function_type_as_param() {
+        let prog = parse("fun f(x: ((Int) -> Int)?): Int { return 1 }")
+            .expect("nullable function type param should parse");
+
+        assert_eq!(
+            prog.functions[0].params[0].ty,
+            Type::Func {
+                params: vec![Type::Named {
+                    name: "Int".into(),
+                    nullable: false,
+                }],
+                ret: Box::new(Type::Named {
+                    name: "Int".into(),
+                    nullable: false,
+                }),
+                nullable: true,
+            }
+        );
+    }
 }

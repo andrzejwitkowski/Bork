@@ -7,6 +7,7 @@ grammar;
 match {
     r"\s+" => { },
     r"//[^\n\r]*" => { },
+    r"\)\?" => NullableFuncEnd,
 } else {
     _
 }
@@ -48,24 +49,36 @@ Param: Param = {
 };
 
 Type: Type = {
-    <t:TypePrimary> => t,
+    <tp:TypeParam> => tp,
+    "(" <f:TypeParam> <_end:NullableFuncEnd> => match f {
+        Type::Func { params, ret, .. } => Type::Func {
+            params,
+            ret,
+            nullable: true,
+        },
+        _ => unreachable!(),
+    },
 };
 
-TypePrimary: Type = {
+TypeParam: Type = {
     <name:Ident> <q:"?"?> => Type::Named {
         name,
         nullable: q.is_some(),
     },
-    "(" <params:TypeList?> ")" "->" <ret:Type> => Type::Func {
+    "(" <params:TypeList?> ")" "->" <ret:TypeRet> => Type::Func {
         params: params.unwrap_or_default(),
         ret: Box::new(ret),
         nullable: false,
     },
 };
 
+TypeRet: Type = {
+    <tp:TypeParam> => tp,
+};
+
 TypeList: Vec<Type> = {
-    <t:Type> => vec![t],
-    <ts:TypeList> "," <t:Type> => {
+    <t:TypeParam> => vec![t],
+    <ts:TypeList> "," <t:TypeParam> => {
         let mut ts = ts;
         ts.push(t);
         ts
