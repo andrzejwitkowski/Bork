@@ -251,4 +251,10 @@ mod tests {
     fn nullable_parenthesized_named_type_is_a_parse_error_not_a_panic() {
         assert!(parse("fun f(x: (Int)?): Int { return 1 }").is_err());
     }
+
+    #[test]
+    fn oversized_integer_literal_is_parse_error_not_panic() {
+        let too_large = i64::MAX as u128 + 1;
+        assert!(parse(&format!("fun main() {{ return {too_large} }}")).is_err());
+    }
 }

@@ -300,5 +300,7 @@ Ident: String = {
 };
 
 Num: i64 = {
-    r"[0-9]+" => <>.parse().unwrap(),
+    r"[0-9]+" =>? <>.parse().map_err(|_| ParseError::User {
+        error: "integer literal out of range for i64",
+    }),
 };
