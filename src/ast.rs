@@ -74,7 +74,7 @@ pub struct Block {
     pub stmts: Vec<Stmt>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BindingKind {
     Val,
     Var,

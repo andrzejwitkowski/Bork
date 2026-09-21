@@ -1,4 +1,4 @@
-//! Compile-time region / ownership analysis for MVP 0.3 arenas.
+//! Compile-time region / ownership analysis.
 
 use crate::ast::{BindingKind, Block, Expr, Function, Program, Stmt, Type};
 use crate::span::{Span, SpannedName};
@@ -10,6 +10,26 @@ pub enum Ownership {
     Copy,
     Shared { from: String },
     Moved { from: String },
+}
+
+impl Ownership {
+    pub fn dump_tag(&self) -> String {
+        match self {
+            Ownership::Local => "[Local]".into(),
+            Ownership::Copy => "[Copy]".into(),
+            Ownership::Shared { from } => format!("[Shared ← {from}]"),
+            Ownership::Moved { from } => format!("[Moved ← {from}]"),
+        }
+    }
+
+    pub fn hover_label(&self) -> String {
+        match self {
+            Ownership::Local => "Local".into(),
+            Ownership::Copy => "Copy".into(),
+            Ownership::Shared { from } => format!("Shared ← {from}"),
+            Ownership::Moved { from } => format!("Moved ← {from}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,6 +111,27 @@ fn shadow_insert(az: &mut Analyzer, name: String, binding: EnvBinding) -> Shadow
     Shadow(name, prev)
 }
 
+fn bind(
+    az: &mut Analyzer,
+    name: &str,
+    arena_id: usize,
+    arena_label: &str,
+    ty: Option<Type>,
+    kind: BindingKind,
+) -> Shadow {
+    shadow_insert(
+        az,
+        name.to_string(),
+        EnvBinding {
+            arena_id,
+            arena_label: arena_label.to_string(),
+            ty,
+            kind,
+            moved: false,
+        },
+    )
+}
+
 fn shadow_restore(az: &mut Analyzer, Shadow(name, prev): Shadow) {
     match prev {
         Some(prev) => {
@@ -126,9 +167,7 @@ pub fn collapse_block(block: Block) -> (Block, usize) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RegionKind {
-    /// Cross-arena uses checked during walk via `note_use`.
     Ordinary,
-    /// Ownership transfer; captures resolved before walk.
     Move,
 }
 
@@ -200,16 +239,13 @@ fn open_region(
     let mut moved_parents = Vec::new();
 
     for (name, ty) in params {
-        shadows.push(shadow_insert(
+        shadows.push(bind(
             az,
-            name.clone(),
-            EnvBinding {
-                arena_id: id,
-                arena_label: label.clone(),
-                ty: ty.clone(),
-                kind: BindingKind::Val,
-                moved: false,
-            },
+            name,
+            id,
+            &label,
+            ty.clone(),
+            BindingKind::Val,
         ));
         node.bindings.push(BindingInfo {
             name: name.clone(),
@@ -235,16 +271,13 @@ fn open_region(
             ),
             Some(b) => {
                 moved_parents.push(cap.name.clone());
-                shadows.push(shadow_insert(
+                shadows.push(bind(
                     az,
-                    cap.name.clone(),
-                    EnvBinding {
-                        arena_id: id,
-                        arena_label: label.clone(),
-                        ty: b.ty.clone(),
-                        kind: BindingKind::Val,
-                        moved: false,
-                    },
+                    &cap.name,
+                    id,
+                    &label,
+                    b.ty.clone(),
+                    BindingKind::Val,
                 ));
                 node.bindings.push(BindingInfo {
                     name: cap.name.clone(),
@@ -329,7 +362,7 @@ fn walk_stmt(
                     arena_id: node.id,
                     arena_label: node.label.clone(),
                     ty: inferred.clone(),
-                    kind: kind.clone(),
+                    kind: *kind,
                     moved: false,
                 },
             );
@@ -447,25 +480,18 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
         None => true,
     };
     if is_copy {
-        if !node.bindings.iter().any(|x| x.name == name) {
-            node.bindings.push(BindingInfo {
-                name: name.to_string(),
-                ownership: Ownership::Copy,
-                ty: b.ty,
-            });
-        }
+        record_obs(node, name, Ownership::Copy, b.ty);
         return;
     }
     if matches!(b.kind, BindingKind::Val) {
-        if !node.bindings.iter().any(|x| x.name == name) {
-            node.bindings.push(BindingInfo {
-                name: name.to_string(),
-                ownership: Ownership::Shared {
-                    from: b.arena_label,
-                },
-                ty: b.ty,
-            });
-        }
+        record_obs(
+            node,
+            name,
+            Ownership::Shared {
+                from: b.arena_label,
+            },
+            b.ty,
+        );
         return;
     }
     az.error(
@@ -476,6 +502,17 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
         Some(name.to_string()),
         span,
     );
+}
+
+fn record_obs(node: &mut ArenaNode, name: &str, ownership: Ownership, ty: Option<Type>) {
+    if node.bindings.iter().any(|x| x.name == name) {
+        return;
+    }
+    node.bindings.push(BindingInfo {
+        name: name.to_string(),
+        ownership,
+        ty,
+    });
 }
 
 fn infer_type(expr: &Expr) -> Option<Type> {

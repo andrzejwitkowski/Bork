@@ -30,13 +30,7 @@ Scalars and control live on the stack/registers. Heap-like payloads for a region
 
 ### Arena pool
 
-Released arenas are not thrown away. A process-wide (or thread-local) **free list** of 4 KiB slabs feeds new regions:
-
-- **Nested live regions** still hold distinct slabs (parent and child overlap in time).
-- **Sequential siblings** (and re-entered depths after unwind) `acquire` from the pool so fresh page allocation is avoided.
-- `release` always `reset`s the slab before parking it on the free list.
-
-This is the intended LLVM runtime shape; the Rust `ArenaPool` type models it for tests ahead of codegen.
+Released 4 KiB slabs go on a free list (`ArenaPool`). Nested live regions keep distinct slabs; sequential siblings `acquire` recycled ones. `release` resets before parking.
 
 ## Copy, Shared, and Move
 

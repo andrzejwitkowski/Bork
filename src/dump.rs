@@ -1,6 +1,6 @@
 //! ASCII arena dump for `--dump-arenas`.
 
-use crate::sema::{ArenaNode, ArenaReport, Ownership};
+use crate::sema::{ArenaNode, ArenaReport};
 
 pub fn dump_arenas(report: &ArenaReport) -> String {
     let mut out = String::from("Arenas\n");
@@ -34,12 +34,7 @@ fn dump_node(out: &mut String, node: &ArenaNode, prefix: &str, is_last: bool) {
         idx += 1;
         let last = idx == total;
         let br = if last { "└── " } else { "├── " };
-        let own = match &b.ownership {
-            Ownership::Local => "[Local]".to_string(),
-            Ownership::Copy => "[Copy]".to_string(),
-            Ownership::Shared { from } => format!("[Shared ← {from}]"),
-            Ownership::Moved { from } => format!("[Moved ← {from}]"),
-        };
+        let own = b.ownership.dump_tag();
         out.push_str(&child_prefix);
         out.push_str(br);
         out.push_str(&b.name);

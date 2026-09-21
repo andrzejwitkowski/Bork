@@ -1,7 +1,7 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaReport, BindingInfo, Ownership, SemaError};
+use crate::sema::{analyze, ArenaReport, BindingInfo, SemaError};
 use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
@@ -199,12 +199,7 @@ pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
     };
     for root in &report.roots {
         if let Some((arena, info)) = find_binding(root, &name) {
-            let own = match &info.ownership {
-                Ownership::Local => "Local".to_string(),
-                Ownership::Copy => "Copy".to_string(),
-                Ownership::Shared { from } => format!("Shared ← {from}"),
-                Ownership::Moved { from } => format!("Moved ← {from}"),
-            };
+            let own = info.ownership.hover_label();
             return Some(format!("`{name}` in arena `{arena}`\nOwnership: {own}"));
         }
     }
