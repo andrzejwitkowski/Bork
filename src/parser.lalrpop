@@ -6,14 +6,28 @@ use lalrpop_util::ParseError;
 grammar;
 
 match {
-    r"\s+" => { },
+    r"[ \t\r\f]+" => { },
     r"//[^\n\r]*" => { },
+    r"\n+" => "NL",
 } else {
     _
 }
 
 pub Program: Program = {
-    <functions:Function*> => Program { functions },
+    => Program { functions: vec![] },
+    "NL" => Program { functions: vec![] },
+    <functions:FunctionList> => Program { functions },
+    "NL" <functions:FunctionList> => Program { functions },
+};
+
+FunctionList: Vec<Function> = {
+    <function:Function> => vec![function],
+    <function:Function> "NL" <rest:FunctionList> => {
+        let mut functions = vec![function];
+        functions.extend(rest);
+        functions
+    },
+    <function:Function> "NL" => vec![function],
 };
 
 Function: Function = {
@@ -111,16 +125,31 @@ Block: Block = {
 
 BlockBody: Vec<Stmt> = {
     => vec![],
-    <stmts:NonFinalStmt+> => stmts,
-    <mut stmts:NonFinalStmt*> "return" <value:Expr?> => {
-        stmts.push(Stmt::Return(value));
+    "NL" => vec![],
+    <first:Stmt> <rest:StmtRest> => {
+        let mut stmts = vec![first];
+        stmts.extend(rest);
         stmts
     },
-    <b:Block> => vec![Stmt::Block(b)],
-    <e:Expr> => vec![Stmt::Expr(e)],
+    "NL" <first:Stmt> <rest:StmtRest> => {
+        let mut stmts = vec![first];
+        stmts.extend(rest);
+        stmts
+    },
 };
 
-NonFinalStmt: Stmt = {
+StmtRest: Vec<Stmt> = {
+    => vec![],
+    "NL" => vec![],
+    "NL" <stmt:Stmt> <rest:StmtRest> => {
+        let mut stmts = vec![stmt];
+        stmts.extend(rest);
+        stmts
+    },
+};
+
+Stmt: Stmt = {
+    <b:Block> => Stmt::Block(b),
     "val" <name:Ident> "=" <value:Expr> => Stmt::VarDecl {
         kind: BindingKind::Val,
         name,
@@ -137,6 +166,8 @@ NonFinalStmt: Stmt = {
         iter,
         body,
     },
+    "return" <value:Expr?> => Stmt::Return(value),
+    <e:Expr> => Stmt::Expr(e),
 };
 
 Expr: Expr = {
@@ -253,6 +284,11 @@ Atom: Expr = {
     <id:Ident> => Expr::Ident(id),
     "(" <e:Expr> ")" => e,
     "if" "(" <cond:Expr> ")" <then_block:Block> "else" <else_block:Block> => Expr::If {
+        cond: Box::new(cond),
+        then_block,
+        else_block,
+    },
+    "if" "(" <cond:Expr> ")" <then_block:Block> "NL" "else" <else_block:Block> => Expr::If {
         cond: Box::new(cond),
         then_block,
         else_block,

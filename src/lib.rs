@@ -11,7 +11,50 @@ use parser::Token;
 pub type Error<'input> = ParseError<usize, Token<'input>, &'static str>;
 
 pub fn parse(source: &str) -> Result<Program, Error<'_>> {
-    parser::ProgramParser::new().parse(source)
+    match normalize_parenthesized_newlines(source) {
+        Some(normalized) => parser::ProgramParser::new()
+            .parse(&normalized)
+            .map_err(|_| ParseError::User {
+                error: "parse error in parenthesized expression",
+            }),
+        None => parser::ProgramParser::new().parse(source),
+    }
+}
+
+fn normalize_parenthesized_newlines(source: &str) -> Option<String> {
+    let mut bytes = source.as_bytes().to_vec();
+    let mut paren_brace_depths = Vec::new();
+    let mut brace_depth = 0usize;
+    let mut in_line_comment = false;
+    let mut changed = false;
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\n' => {
+                if paren_brace_depths.last() == Some(&brace_depth) {
+                    bytes[index] = b'\r';
+                    changed = true;
+                }
+                in_line_comment = false;
+            }
+            b'\r' => in_line_comment = false,
+            b'/' if !in_line_comment && bytes.get(index + 1).copied() == Some(b'/') => {
+                in_line_comment = true;
+                index += 1;
+            }
+            b'(' if !in_line_comment => paren_brace_depths.push(brace_depth),
+            b')' if !in_line_comment => {
+                paren_brace_depths.pop();
+            }
+            b'{' if !in_line_comment => brace_depth += 1,
+            b'}' if !in_line_comment => brace_depth = brace_depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    changed.then(|| String::from_utf8(bytes).expect("source was valid UTF-8"))
 }
 
 pub const MVP_SAMPLE: &str = r#"
@@ -65,11 +108,73 @@ mod tests {
     }
 
     #[test]
-    fn parses_statements_without_newline_separators() {
-        let prog = parse("fun main(): Unit { val x = 1 var y = 2 }")
-            .expect("whitespace should separate statements");
+    fn same_line_statements_require_a_separator() {
+        assert!(parse("fun main(): Unit { val x = 1 var y = 2 }").is_err());
+    }
 
-        assert_eq!(prog.functions[0].body.stmts.len(), 2);
+    #[test]
+    fn parses_final_expression_after_declaration() {
+        let prog = parse("fun main() { val x = 1\n x }")
+            .expect("newline should separate declaration and final expression");
+
+        assert!(matches!(
+            prog.functions[0].body.stmts.as_slice(),
+            [Stmt::VarDecl { .. }, Stmt::Expr(Expr::Ident(name))] if name == "x"
+        ));
+    }
+
+    #[test]
+    fn parses_return_after_declaration() {
+        let prog = parse("fun main() { val x = 1\n return x }")
+            .expect("newline should separate declaration and return");
+
+        assert!(matches!(
+            prog.functions[0].body.stmts.as_slice(),
+            [Stmt::VarDecl { .. }, Stmt::Return(Some(Expr::Ident(name)))] if name == "x"
+        ));
+    }
+
+    #[test]
+    fn parses_else_on_following_line() {
+        parse("fun main() { if (c) { a }\n else { b } }")
+            .expect("else may follow the if block on the next line");
+    }
+
+    #[test]
+    fn parses_newlines_inside_parentheses() {
+        parse(
+            "fun apply(\n f: (Int,\n Int) -> Int,\n x: Int\n) {\n\
+             val y = f(\n x,\n x\n)\n\
+             if (\n y >\n x\n) { y } else { x }\n\
+             for (\n i\n in\n 0..\n y\n) { i }\n}",
+        )
+        .expect("newlines inside parentheses should be insignificant");
+    }
+
+    #[test]
+    fn newlines_in_blocks_nested_inside_parentheses_still_end_statements() {
+        let prog = parse("fun main() { f(if (c) {\n val x = 1\n x\n} else { 0 }) }")
+            .expect("a block nested in call arguments keeps statement newlines");
+
+        let Stmt::Expr(Expr::Call { args, .. }) = &prog.functions[0].body.stmts[0] else {
+            panic!("body should contain a call");
+        };
+        let Expr::If { then_block, .. } = &args[0] else {
+            panic!("call argument should be an if expression");
+        };
+        assert_eq!(then_block.stmts.len(), 2);
+    }
+
+    #[test]
+    fn newline_before_call_parenthesis_ends_statement() {
+        let prog = parse("fun main() { val x = f\n (y) }")
+            .expect("parenthesized expression should start the next statement");
+
+        assert!(matches!(
+            prog.functions[0].body.stmts.as_slice(),
+            [Stmt::VarDecl { value: Expr::Ident(name), .. }, Stmt::Expr(Expr::Ident(y))]
+                if name == "f" && y == "y"
+        ));
     }
 
     #[test]
