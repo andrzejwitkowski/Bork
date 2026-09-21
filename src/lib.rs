@@ -50,5 +50,17 @@ mod tests {
         assert_eq!(prog.functions.len(), 2);
         assert_eq!(prog.functions[0].name, "action");
         assert_eq!(prog.functions[1].name, "main");
+        assert_eq!(
+            prog.functions[1].return_type,
+            Type::Named {
+                name: "Unit".into(),
+                nullable: false,
+            }
+        );
+        assert!(matches!(
+            prog.functions[0].params[2].ty,
+            Type::Func { .. }
+        ));
+        assert!(matches!(prog.functions[1].body.stmts[2], Stmt::For { .. }));
     }
 }

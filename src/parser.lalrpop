@@ -1,8 +1,284 @@
-use crate::ast::Program;
+use crate::ast::{
+    BindingKind, BinOp, Block, Closure, Expr, Function, Param, Program, Stmt, Type,
+};
 
 grammar;
 
+match {
+    r"[ \t\r\f]+" => { },
+    r"//[^\n\r]*" => { },
+    r"\n+" => "NL",
+} else {
+    _
+}
+
 pub Program: Program = {
     => Program { functions: vec![] },
-    r"__never__" => Program { functions: vec![] },
+    "NL" => Program { functions: vec![] },
+    <funcs:FunctionList> => Program { functions: funcs },
+    "NL" <funcs:FunctionList> => Program { functions: funcs },
+};
+
+FunctionList: Vec<Function> = {
+    <f:Function> <rest:FunctionRest> => {
+        let mut funcs = vec![f];
+        funcs.extend(rest);
+        funcs
+    },
+};
+
+FunctionRest: Vec<Function> = {
+    => vec![],
+    "NL" => vec![],
+    "NL" <f:Function> <rest:FunctionRest> => {
+        let mut funcs = vec![f];
+        funcs.extend(rest);
+        funcs
+    },
+};
+
+Function: Function = {
+    "fun" <name:Ident> "(" <params:ParamList?> ")" <ret:ReturnType> <body:Block> => {
+        Function {
+            name,
+            params: params.unwrap_or_default(),
+            return_type: ret,
+            body,
+        }
+    },
+};
+
+ReturnType: Type = {
+    ":" <ty:Type> => ty,
+    => Type::Named {
+        name: "Unit".into(),
+        nullable: false,
+    },
+};
+
+ParamList: Vec<Param> = {
+    <p:Param> => vec![p],
+    <ps:ParamList> "," <p:Param> => {
+        let mut ps = ps;
+        ps.push(p);
+        ps
+    },
+};
+
+Param: Param = {
+    <name:Ident> ":" <ty:Type> => Param { name, ty },
+};
+
+Type: Type = {
+    <t:TypePrimary> <q:"?"?> => match t {
+        Type::Named { name, .. } => Type::Named {
+            name,
+            nullable: q.is_some(),
+        },
+        Type::Func { params, ret, .. } => Type::Func {
+            params,
+            ret,
+            nullable: q.is_some(),
+        },
+    },
+};
+
+TypePrimary: Type = {
+    <name:Ident> => Type::Named {
+        name,
+        nullable: false,
+    },
+    "(" <params:TypeList?> ")" "->" <ret:TypePrimary> => Type::Func {
+        params: params.unwrap_or_default(),
+        ret: Box::new(ret),
+        nullable: false,
+    },
+};
+
+TypeList: Vec<Type> = {
+    <t:Type> => vec![t],
+    <ts:TypeList> "," <t:Type> => {
+        let mut ts = ts;
+        ts.push(t);
+        ts
+    },
+};
+
+Block: Block = {
+    "{" <stmts:BlockBody> "}" => Block { stmts },
+};
+
+BlockBody: Vec<Stmt> = {
+    => vec![],
+    "NL" => vec![],
+    <first:Stmt> <rest:StmtRest> => {
+        let mut stmts = vec![first];
+        stmts.extend(rest);
+        stmts
+    },
+    "NL" <first:Stmt> <rest:StmtRest> => {
+        let mut stmts = vec![first];
+        stmts.extend(rest);
+        stmts
+    },
+};
+
+StmtRest: Vec<Stmt> = {
+    => vec![],
+    "NL" => vec![],
+    "NL" <stmt:Stmt> <rest:StmtRest> => {
+        let mut stmts = vec![stmt];
+        stmts.extend(rest);
+        stmts
+    },
+};
+
+Stmt: Stmt = {
+    <b:Block> => Stmt::Block(b),
+    "val" <name:Ident> "=" <value:Expr> => Stmt::VarDecl {
+        kind: BindingKind::Val,
+        name,
+        value,
+    },
+    "var" <name:Ident> "=" <value:Expr> => Stmt::VarDecl {
+        kind: BindingKind::Var,
+        name,
+        value,
+    },
+    <name:Ident> "=" <value:Expr> => Stmt::Assign { name, value },
+    "for" "(" <name:Ident> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
+        name,
+        iter,
+        body,
+    },
+    "return" <value:Expr?> => Stmt::Return(value),
+    <e:Expr> => Stmt::Expr(e),
+};
+
+Expr: Expr = {
+    <e:ExprRange> => e,
+};
+
+ExprRange: Expr = {
+    <lhs:ExprRange> ".." <rhs:ExprCompare> => Expr::Binary {
+        op: BinOp::RangeTo,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <e:ExprCompare> => e,
+};
+
+ExprCompare: Expr = {
+    <lhs:ExprCompare> ">" <rhs:ExprAdd> => Expr::Binary {
+        op: BinOp::Gt,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprCompare> "<" <rhs:ExprAdd> => Expr::Binary {
+        op: BinOp::Lt,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprCompare> ">=" <rhs:ExprAdd> => Expr::Binary {
+        op: BinOp::Ge,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprCompare> "<=" <rhs:ExprAdd> => Expr::Binary {
+        op: BinOp::Le,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprCompare> "==" <rhs:ExprAdd> => Expr::Binary {
+        op: BinOp::Eq,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprCompare> "!=" <rhs:ExprAdd> => Expr::Binary {
+        op: BinOp::Ne,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <e:ExprAdd> => e,
+};
+
+ExprAdd: Expr = {
+    <lhs:ExprAdd> "+" <rhs:ExprMul> => Expr::Binary {
+        op: BinOp::Add,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprAdd> "-" <rhs:ExprMul> => Expr::Binary {
+        op: BinOp::Sub,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <e:ExprMul> => e,
+};
+
+ExprMul: Expr = {
+    <lhs:ExprMul> "*" <rhs:ExprCall> => Expr::Binary {
+        op: BinOp::Mul,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <lhs:ExprMul> "/" <rhs:ExprCall> => Expr::Binary {
+        op: BinOp::Div,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
+    <e:ExprCall> => e,
+};
+
+ExprCall: Expr = {
+    <callee:ExprCall> "(" <args:ExprList?> ")" <trailing:TrailingClosure?> => Expr::Call {
+        callee: Box::new(callee),
+        args: args.unwrap_or_default(),
+        trailing,
+    },
+    <e:Atom> => e,
+};
+
+TrailingClosure: Closure = {
+    "{" <params:ClosureParamList?> "->" <stmts:BlockBody> "}" => Closure {
+        params: params.unwrap_or_default(),
+        body: Block { stmts },
+    },
+};
+
+ClosureParamList: Vec<String> = {
+    <n:Ident> => vec![n],
+    <ns:ClosureParamList> "," <n:Ident> => {
+        let mut ns = ns;
+        ns.push(n);
+        ns
+    },
+};
+
+ExprList: Vec<Expr> = {
+    <e:Expr> => vec![e],
+    <es:ExprList> "," <e:Expr> => {
+        let mut es = es;
+        es.push(e);
+        es
+    },
+};
+
+Atom: Expr = {
+    <n:Num> => Expr::Int(n),
+    <id:Ident> => Expr::Ident(id),
+    "(" <e:Expr> ")" => e,
+    "if" "(" <cond:Expr> ")" <then_block:Block> "else" <else_block:Block> => Expr::If {
+        cond: Box::new(cond),
+        then_block,
+        else_block,
+    },
+};
+
+Ident: String = {
+    r"[a-zA-Z_][a-zA-Z0-9_]*" => <>.to_string(),
+};
+
+Num: i64 = {
+    r"[0-9]+" => <>.parse().unwrap(),
 };
