@@ -68,7 +68,7 @@ Run: `npm install --omit=dev` in `tools/bork-lsp-extension`.
 
 - [ ] **Step 2: Package the extension**
 
-Run: `npx @vscode/vsce package --no-dependencies` in `tools/bork-lsp-extension`.
+Run: `npx @vscode/vsce package --allow-missing-repository` in `tools/bork-lsp-extension`.
 
 Expected: a `.vsix` containing the manifest, client, selector, language configuration, and runtime dependency.
 
