@@ -1,5 +1,6 @@
 use crate::ast::{
-    BindingKind, BinOp, Block, Closure, Expr, Function, Param, Program, Stmt, Type,
+    unescape_string_literal, BindingKind, BinOp, Block, Closure, Expr, Function, Param, Program,
+    Stmt, Type, UnaryOp,
 };
 use lalrpop_util::ParseError;
 
@@ -8,7 +9,18 @@ grammar;
 match {
     r"[ \t\r\f]+" => { },
     r"//[^\n\r]*" => { },
+    // Fold optional NL/comments before `else` so Ident cannot claim the keyword.
+    r"(([ \t\r\f]*(//[^\n\r]*)?\n)+[ \t]*)?else" => "else",
     r"([ \t\r\f]*(//[^\n\r]*)?\n)+" => "NL",
+    "if" => "if",
+    "fun" => "fun",
+    "val" => "val",
+    "var" => "var",
+    "for" => "for",
+    "in" => "in",
+    "return" => "return",
+    "Some" => "Some",
+    "None" => "None",
 } else {
     _
 }
@@ -59,10 +71,7 @@ Function: Function = {
 
 ReturnType: Type = {
     ":" <ty:Type> => ty,
-    => Type::Named {
-        name: "Unit".into(),
-        nullable: false,
-    },
+    => Type::unit(false),
 };
 
 Param: Param = {
@@ -70,10 +79,7 @@ Param: Param = {
 };
 
 Type: Type = {
-    <name:Ident> <q:"?"?> => Type::Named {
-        name,
-        nullable: q.is_some(),
-    },
+    <name:Ident> <q:"?"?> => Type::from_ident(&name, q.is_some()),
     "(" <ty:ParenType> => ty,
 };
 
@@ -83,6 +89,7 @@ ParenType: Type = {
         ret: Box::new(ret),
         nullable: false,
     },
+    ")" <q:"?"?> => Type::unit(q.is_some()),
     <mut types:Comma<Type>> ")" <ret:ParenTypeSuffix> =>? match ret {
         Some(ret) => Ok(Type::Func {
             params: types,
@@ -104,7 +111,7 @@ ParenType: Type = {
                     ret,
                     nullable: true,
                 }),
-                Type::Named { .. } => Err(ParseError::User {
+                Type::Named { .. } | Type::Primitive { .. } => Err(ParseError::User {
                     error: "only function types may be parenthesized for nullability",
                 }),
             }
@@ -148,14 +155,10 @@ StmtRest: Vec<Stmt> = {
 
 Stmt: Stmt = {
     <b:Block> => Stmt::Block(b),
-    "val" <name:Ident> "=" <value:Expr> => Stmt::VarDecl {
-        kind: BindingKind::Val,
+    <kind:Binding> <name:Ident> <ty:(":" <Type>)?> "=" <value:Expr> => Stmt::VarDecl {
+        kind,
         name,
-        value,
-    },
-    "var" <name:Ident> "=" <value:Expr> => Stmt::VarDecl {
-        kind: BindingKind::Var,
-        name,
+        ty,
         value,
     },
     <name:Ident> "=" <value:Expr> => Stmt::Assign { name, value },
@@ -168,14 +171,28 @@ Stmt: Stmt = {
     <e:Expr> => Stmt::Expr(e),
 };
 
+Binding: BindingKind = {
+    "val" => BindingKind::Val,
+    "var" => BindingKind::Var,
+};
+
 Expr: Expr = {
+    <e:ExprElvis> => e,
+};
+
+ExprElvis: Expr = {
+    <lhs:ExprRange> "?:" <rhs:ExprElvis> => Expr::Binary {
+        op: BinOp::Elvis,
+        lhs: Box::new(lhs),
+        rhs: Box::new(rhs),
+    },
     <e:ExprRange> => e,
 };
 
 ExprRange = BinTier<RangeOp, ExprCompare>;
 ExprCompare = BinTier<CompareOp, ExprAdd>;
 ExprAdd = BinTier<AddOp, ExprMul>;
-ExprMul = BinTier<MulOp, ExprCall>;
+ExprMul = BinTier<MulOp, ExprSuffix>;
 
 RangeOp: BinOp = { ".." => BinOp::RangeTo };
 CompareOp: BinOp = {
@@ -195,13 +212,27 @@ MulOp: BinOp = {
     "/" => BinOp::Div,
 };
 
-ExprCall: Expr = {
-    <callee:ExprCall> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
+ExprSuffix: Expr = {
+    <callee:ExprSuffix> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
         callee: Box::new(callee),
         args: args.unwrap_or_default(),
         trailing,
     },
+    <receiver:ExprSuffix> <safe:FieldOp> <name:Ident> => Expr::Field {
+        receiver: Box::new(receiver),
+        name,
+        safe,
+    },
+    <expr:ExprSuffix> "!!" => Expr::Unary {
+        op: UnaryOp::NotNullAssert,
+        expr: Box::new(expr),
+    },
     <e:Atom> => e,
+};
+
+FieldOp: bool = {
+    "." => false,
+    "?." => true,
 };
 
 TrailingClosure: Closure = {
@@ -213,21 +244,20 @@ TrailingClosure: Closure = {
 
 Atom: Expr = {
     <n:Num> => Expr::Int(n),
+    <s:StrLit> => Expr::Str(s),
+    "None" => Expr::None,
+    "Some" "(" <e:Expr> ")" => Expr::Some(Box::new(e)),
     <id:Ident> => Expr::Ident(id),
     "(" <e:Expr> ")" => e,
-    "if" "(" <cond:Expr> ")" <then_block:Block> <sep:ElseSep> "else" <else_block:Block> => {
-        let () = sep;
-        Expr::If {
-            cond: Box::new(cond),
-            then_block,
-            else_block,
-        }
+    "if" "(" <cond:Expr> ")" <then_block:Block> <else_block:ElseClause?> => Expr::If {
+        cond: Box::new(cond),
+        then_block,
+        else_block,
     },
 };
 
-ElseSep: () = {
-    => (),
-    "NL" => (),
+ElseClause: Block = {
+    "else" <b:Block> => b,
 };
 
 Ident: String = {
@@ -238,4 +268,8 @@ Num: i64 = {
     r"[0-9]+" =>? <>.parse().map_err(|_| ParseError::User {
         error: "integer literal out of range for i64",
     }),
+};
+
+StrLit: String = {
+    r#""([^"\\]|\\.)*""# => unescape_string_literal(<>),
 };

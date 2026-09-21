@@ -6,18 +6,30 @@
 /// blocks nested inside parentheses retain their newlines because those newlines
 /// delimit statements.
 ///
-/// This scanner handles line comments, but not strings because strings are not
-/// part of the MVP language yet. It must be extended when strings are added.
+/// Line comments and string literals are skipped so parentheses and newlines
+/// inside them do not affect layout.
 pub(crate) fn normalize_parenthesized_newlines(source: &str) -> Option<String> {
     let mut bytes = source.as_bytes().to_vec();
     let mut paren_brace_depths = Vec::new();
     let mut brace_depth = 0usize;
     let mut in_line_comment = false;
+    let mut in_string = false;
     let mut changed = false;
     let mut index = 0;
 
     while index < bytes.len() {
-        match bytes[index] {
+        let byte = bytes[index];
+        if in_string {
+            match byte {
+                b'\\' => index += 1,
+                b'"' => in_string = false,
+                _ => {}
+            }
+            index += 1;
+            continue;
+        }
+
+        match byte {
             b'\n' => {
                 if paren_brace_depths.last() == Some(&brace_depth) {
                     bytes[index] = b'\r';
@@ -30,6 +42,7 @@ pub(crate) fn normalize_parenthesized_newlines(source: &str) -> Option<String> {
                 in_line_comment = true;
                 index += 1;
             }
+            b'"' if !in_line_comment => in_string = true,
             b'(' if !in_line_comment => paren_brace_depths.push(brace_depth),
             b')' if !in_line_comment => {
                 paren_brace_depths.pop();
@@ -67,5 +80,19 @@ mod tests {
             normalize_parenthesized_newlines("f(// ) ignored\nx)\ny"),
             Some("f(// ) ignored\rx)\ny".into())
         );
+    }
+
+    #[test]
+    fn parentheses_in_strings_do_not_affect_layout() {
+        assert_eq!(
+            normalize_parenthesized_newlines("f(\")\",\nx)"),
+            Some("f(\")\",\rx)".into())
+        );
+    }
+
+    #[test]
+    fn newlines_inside_strings_are_preserved() {
+        assert_eq!(normalize_parenthesized_newlines("\"a\nb\""), None);
+        assert_eq!(normalize_parenthesized_newlines("f(\"a\nb\")"), None);
     }
 }

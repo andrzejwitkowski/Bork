@@ -23,7 +23,7 @@ Stand up a greenfield Rust crate that parses the MVP 0.1 Bork surface into a cle
 |--------|--------|
 | Lexer | LALRPOP built-in lexer |
 | Statement separation | **Option C:** newlines end statements; spaces alone do not separate adjacent statements |
-| `if` | Expression-only (Kotlin-style); `else` required in MVP so if always yields a value |
+| `if` | Always an expression that yields a value. `if (c) { a }` has type `T?` (Option-like nullable). `if (c) { a } else { b }` has type `T`. No separate `Stmt::If`. |
 | Bare `{ ... }` | Allowed as `Stmt::Block` (nested braces preserved in AST) |
 | Region collapse | **Parse faithfully; collapse later** — nested `{{{{ }}}}` stay nested AST nodes; a future pass collapses brace wrappers that only wrap another bare block. Control-flow blocks (`fun`/`if`/`for`/closure) each count as regions. Example intent: `main {{{{ }}}}` → one region after collapse; `main { if {} }` → two regions |
 | `val` / `var` | Explicit `BindingKind::Val \| Var` on decls; assignability checked later |
@@ -77,7 +77,7 @@ Expr           = Int(i64)
                | Ident(String)
                | Binary { op: BinOp, lhs: Box<Expr>, rhs: Box<Expr> }
                | Call { callee: Box<Expr>, args: Vec<Expr>, trailing: Option<Closure> }
-               | If { cond: Box<Expr>, then_block: Block, else_block: Block }
+               | If { cond: Box<Expr>, then_block: Block, else_block: Option<Block> }
 
 Closure        = params: Vec<String>, body: Block
 
@@ -123,7 +123,7 @@ Notes:
 
 **Expression precedence (tight → loose):**
 
-1. Atom — int, ident, `( Expr )`, `if "(" Expr ")" Block "else" Block`
+1. Atom — int, ident, `( Expr )`, `if "(" Expr ")" Block ("else" Block)?`
 2. Call — `Atom "(" Args? ")" TrailingClosure?`
 3. `*` `/`
 4. `+` `-`
@@ -178,3 +178,40 @@ fun main() {
 2. Sample program parses successfully.
 3. AST distinguishes `val` vs `var`, nullable vs non-nullable types, trailing closures, `for` ranges, and if-expressions.
 4. No `null` literal in the language surface for this MVP.
+
+## Amendment — type system & null-safety surface (2026-09-21)
+
+Parser/AST only (still no typechecker / LLVM / `null` keyword).
+
+### Types
+
+| Syntax | AST |
+|--------|-----|
+| `i8`…`i64`, `u8`…`u64`, `f32`, `f64`, `bool`, `unit` | `Primitive { name: lowercase, .. }` |
+| `Int` / `Long` / `Byte` / `Float` / `Double` | `Primitive` (`i32` / `i64` / `u8` / `f32` / `f64`) |
+| `()` in type position (no `->`) | `Primitive { name: "unit", .. }` |
+| `String` and other idents | `Named` (spelling preserved) |
+| `T?` | same variant with `nullable: true` |
+
+Omitted function return type defaults to `Primitive { name: "unit", nullable: false }` (not `Named "Unit"`).
+
+`VarDecl` gains `ty: Option<Type>` for `val`/`var Ident (":" Type)? "=" Expr`.
+
+### Expressions & operators
+
+- String literals → `Expr::Str` (simple escapes `\n` `\r` `\t` `\\` `\"`)
+- `None` / `Some(Expr)` → `Expr::None` / `Expr::Some`
+- Postfix: `.name` / `?.name` → `Expr::Field { safe }`; `!!` → `UnaryOp::NotNullAssert`
+- Elvis `?:` → `BinOp::Elvis` (looser than range/compare)
+- `if` is always `Expr::If` with `else_block: Option<Block>` (no `Stmt::If`). Typing (deferred to typechecker):
+  - no `else` → value type is `T?` (Option-like), where `T` is the then-branch type
+  - with `else` → value type is `T` (unified then/else type)
+
+### Lexer notes
+
+Keywords (`if`, `else`, `fun`, …, `Some`, `None`) live in the `match` block so `Ident` does not claim them. Optional insignificant newlines/comments immediately before `else` are folded into the `else` token. The parenthesized-newline layout pass skips string literals (and line comments) so `(` / `)` / newlines inside them do not change layout.
+
+### Canonical null-safety sample
+
+`PROCESS_USER_SAMPLE` / `parses_process_user_sample` — `String?`, typed vals, `?:`, `?.`, `Some`/`None`, and `if` without `else`.
+

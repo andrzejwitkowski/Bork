@@ -14,8 +14,15 @@ fn parses_mvp_sample() {
     assert_eq!(prog.functions[1].name, "main");
     assert_eq!(
         prog.functions[1].return_type,
-        Type::Named {
-            name: "Unit".into(),
+        Type::Primitive {
+            name: "unit".into(),
+            nullable: false,
+        }
+    );
+    assert_eq!(
+        prog.functions[0].return_type,
+        Type::Primitive {
+            name: "i32".into(),
             nullable: false,
         }
     );
@@ -141,8 +148,8 @@ fn nullable_function_return_belongs_to_return_type() {
         prog.functions[0].return_type,
         Type::Func {
             params: vec![],
-            ret: Box::new(Type::Named {
-                name: "Int".into(),
+            ret: Box::new(Type::Primitive {
+                name: "i32".into(),
                 nullable: true,
             }),
             nullable: false,
@@ -158,12 +165,12 @@ fn nullable_function_type_as_param() {
     assert_eq!(
         prog.functions[0].params[0].ty,
         Type::Func {
-            params: vec![Type::Named {
-                name: "Int".into(),
+            params: vec![Type::Primitive {
+                name: "i32".into(),
                 nullable: false,
             }],
-            ret: Box::new(Type::Named {
-                name: "Int".into(),
+            ret: Box::new(Type::Primitive {
+                name: "i32".into(),
                 nullable: false,
             }),
             nullable: true,
@@ -240,4 +247,87 @@ fn nested_bare_blocks_are_not_flattened() {
 fn oversized_integer_literal_is_parse_error_not_panic() {
     let too_large = i64::MAX as u128 + 1;
     assert!(parse(&format!("fun main() {{ return {too_large} }}")).is_err());
+}
+
+#[test]
+fn if_without_else_parses_in_value_position() {
+    parse("fun f() { val x = if (c) { 1 } }").expect("if without else is a value expression");
+}
+
+#[test]
+fn parses_process_user_sample() {
+    let prog = parse(PROCESS_USER_SAMPLE).expect("processUser sample should parse");
+    let f = &prog.functions[0];
+    assert_eq!(f.name, "processUser");
+    assert_eq!(
+        f.params[0].ty,
+        Type::Named {
+            name: "String".into(),
+            nullable: true,
+        }
+    );
+    assert_eq!(
+        f.params[1].ty,
+        Type::Primitive {
+            name: "i32".into(),
+            nullable: false,
+        }
+    );
+    assert_eq!(
+        f.return_type,
+        Type::Primitive {
+            name: "i32".into(),
+            nullable: false,
+        }
+    );
+
+    assert!(matches!(
+        &f.body.stmts[0],
+        Stmt::VarDecl {
+            ty: Some(Type::Named { name, nullable: false }),
+            value: Expr::Binary {
+                op: BinOp::Elvis,
+                rhs,
+                ..
+            },
+            ..
+        } if name == "String" && matches!(rhs.as_ref(), Expr::Str(s) if s == "Guest")
+    ));
+
+    let Stmt::Block(inner) = &f.body.stmts[2] else {
+        panic!("expected bare block");
+    };
+    assert!(matches!(
+        &inner.stmts[0],
+        Stmt::VarDecl {
+            ty: Some(Type::Named { name, nullable: true }),
+            value: Expr::Some(_),
+            ..
+        } if name == "String"
+    ));
+    assert!(matches!(
+        &inner.stmts[1],
+        Stmt::VarDecl {
+            value: Expr::None,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &inner.stmts[2],
+        Stmt::Expr(Expr::If {
+            else_block: None,
+            cond,
+            ..
+        }) if matches!(
+            cond.as_ref(),
+            Expr::Binary {
+                op: BinOp::Gt,
+                lhs,
+                ..
+            } if matches!(
+                lhs.as_ref(),
+                Expr::Field { name, safe: true, .. } if name == "length"
+            )
+        )
+    ));
 }

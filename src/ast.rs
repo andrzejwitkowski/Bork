@@ -19,12 +19,44 @@ pub struct Param {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
+    Primitive { name: String, nullable: bool },
     Named { name: String, nullable: bool },
     Func {
         params: Vec<Type>,
         ret: Box<Type>,
         nullable: bool,
     },
+}
+
+impl Type {
+    pub fn from_ident(name: &str, nullable: bool) -> Self {
+        let canonical = match name {
+            "Int" => "i32",
+            "Long" => "i64",
+            "Byte" => "u8",
+            "Float" => "f32",
+            "Double" => "f64",
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
+            | "bool" | "unit" => name,
+            _ => {
+                return Type::Named {
+                    name: name.to_string(),
+                    nullable,
+                };
+            }
+        };
+        Type::Primitive {
+            name: canonical.to_string(),
+            nullable,
+        }
+    }
+
+    pub fn unit(nullable: bool) -> Self {
+        Type::Primitive {
+            name: "unit".into(),
+            nullable,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +76,7 @@ pub enum Stmt {
     VarDecl {
         kind: BindingKind,
         name: String,
+        ty: Option<Type>,
         value: Expr,
     },
     Assign {
@@ -62,11 +95,23 @@ pub enum Stmt {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Int(i64),
+    Str(String),
     Ident(String),
+    None,
+    Some(Box<Expr>),
     Binary {
         op: BinOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+    },
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expr>,
+    },
+    Field {
+        receiver: Box<Expr>,
+        name: String,
+        safe: bool,
     },
     Call {
         callee: Box<Expr>,
@@ -76,7 +121,7 @@ pub enum Expr {
     If {
         cond: Box<Expr>,
         then_block: Block,
-        else_block: Block,
+        else_block: Option<Block>,
     },
 }
 
@@ -99,4 +144,35 @@ pub enum BinOp {
     Eq,
     Ne,
     RangeTo,
+    Elvis,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnaryOp {
+    NotNullAssert,
+}
+
+pub fn unescape_string_literal(raw: &str) -> String {
+    let inner = &raw[1..raw.len() - 1];
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('t') => out.push('\t'),
+                Some('\\') => out.push('\\'),
+                Some('"') => out.push('"'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
