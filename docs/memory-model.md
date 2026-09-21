@@ -6,8 +6,8 @@ Bork manages memory with **hierarchical arenas** tied to curly-brace regions (`{
 
 - Each meaningful `{ … }` region owns a fixed arena (MVP model: **4 KB / 4096 bytes**).
 - Allocations inside a region are a pointer bump: check `offset + size ≤ 4096`, then advance `offset`.
-- Exiting the region sets `offset = 0` — instant bulk deallocation.
-- Loop bodies reset their arena each iteration so memory stays O(1) across iterations.
+- Exiting the region sets `offset = 0` — instant bulk deallocation — and returns the slab to an **arena pool** for reuse by later regions.
+- Loop bodies reset their arena each iteration so memory stays O(1) across iterations (same slab, no pool round-trip required).
 - Cross-region data flow uses **Copy** (primitives), **Shared** (parent `val` reads), or **Move** (`var` / explicit consume / escape). No dangling pointers into a dead arena.
 
 The 4 KB size matches common OS/database **page** granularity so hot working sets stay cache-friendly when LLVM codegen lands.
@@ -22,10 +22,21 @@ The 4 KB size matches common OS/database **page** granularity so hot working set
   │                 │                  │ capacity = 4096 bytes    │
   └─────────────────┘                  └──────────────────────────┘
 
-  leave B  ──►  arena.reset()  ──►  entire buffer reusable
+  leave B  ──►  arena.reset()  ──►  slab returned to ArenaPool
+  enter C  ──►  pool.acquire() ──►  often reuses B's slab (if C is not live with B)
 ```
 
 Scalars and control live on the stack/registers. Heap-like payloads for a region live in that region’s bump buffer.
+
+### Arena pool
+
+Released arenas are not thrown away. A process-wide (or thread-local) **free list** of 4 KiB slabs feeds new regions:
+
+- **Nested live regions** still hold distinct slabs (parent and child overlap in time).
+- **Sequential siblings** (and re-entered depths after unwind) `acquire` from the pool so fresh page allocation is avoided.
+- `release` always `reset`s the slab before parking it on the free list.
+
+This is the intended LLVM runtime shape; the Rust `ArenaPool` type models it for tests ahead of codegen.
 
 ## Copy, Shared, and Move
 
