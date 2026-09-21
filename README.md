@@ -47,3 +47,19 @@ fun main() {
     } 
     // End of main block -> entire arena memory released instantly in bulk.
 }
+```
+
+---
+
+## Editor / LSP
+
+Parse diagnostics are available through a stdio language server:
+
+```bash
+cargo build --bin bork-lsp
+# Point your editor's LSP client at: target/debug/bork-lsp
+# Language id: bork
+# (requires the default `lsp` Cargo feature)
+```
+
+On document open/change the server runs `bork::parse` and publishes errors as squiggles. Hover, completion, and go-to-definition are not implemented yet.
