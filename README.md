@@ -63,3 +63,19 @@ cargo build --bin bork-lsp
 ```
 
 On document open/change the server runs `bork::parse` and publishes errors as squiggles. Hover, completion, and go-to-definition are not implemented yet.
+
+### Cursor
+
+Build and install the local Cursor extension from the repository root:
+
+```bash
+cargo build --bin bork-lsp
+cd tools/bork-lsp-extension
+npm install --omit=dev
+npx @vscode/vsce package --allow-missing-repository
+cursor --install-extension bork-language-support-0.0.1.vsix --force
+```
+
+Open the repository in Cursor and edit `.bork` files. The extension starts
+`target/debug/bork-lsp`; if it is missing, it falls back to `cargo run --quiet
+--bin bork-lsp`.

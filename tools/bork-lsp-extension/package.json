@@ -1,0 +1,29 @@
+{
+  "name": "bork-language-support",
+  "displayName": "Bork Language Support",
+  "description": "Bork language support backed by bork-lsp",
+  "version": "0.0.1",
+  "publisher": "andrzejwitkowski",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andrzejwitkowski/Bork.git"
+  },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:bork"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "bork",
+        "aliases": ["Bork", "bork"],
+        "extensions": [".bork"],
+        "configuration": "./language-configuration.json"
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

@@ -25,3 +25,6 @@ target
 
 # Local agent scratch reports
 .superpowers/
+.codegraph/
+tools/bork-lsp-extension/node_modules/
+tools/bork-lsp-extension/*.vsix
