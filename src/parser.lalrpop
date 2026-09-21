@@ -3,5 +3,6 @@ use crate::ast::Program;
 grammar;
 
 pub Program: Program = {
-    r"\s*" => Program { functions: vec![] },
+    => Program { functions: vec![] },
+    r"__never__" => Program { functions: vec![] },
 };
