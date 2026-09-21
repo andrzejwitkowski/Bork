@@ -1,10 +1,11 @@
-//! Map Bork parse errors to LSP diagnostics.
+//! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
+use crate::dump::dump_arenas;
+use crate::sema::{analyze, ArenaReport, BindingInfo, Ownership, SemaError};
 use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
-/// UTF-8 byte offset → LSP [`Position`] (UTF-16 code units).
 pub fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
     let offset = byte_offset.min(source.len());
     let mut line = 0u32;
@@ -42,7 +43,6 @@ fn expected_suffix(expected: &[String]) -> String {
     }
 }
 
-/// Map a LALRPOP parse error to one LSP diagnostic.
 pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
     let (range, message) = match error {
         ParseError::InvalidToken { location } => {
@@ -80,12 +80,134 @@ pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
     }
 }
 
-/// Parse `source`; empty vec when it succeeds.
-pub fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
-    match parse(source) {
-        Ok(_) => Vec::new(),
-        Err(error) => vec![parse_error_to_diagnostic(source, &error)],
+fn sema_error_to_diagnostic(source: &str, error: &SemaError) -> Diagnostic {
+    let range = error
+        .span
+        .map(|s| byte_range(source, s.start, s.end))
+        .unwrap_or_else(|| byte_range(source, 0, 0));
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::ERROR),
+        source: Some("bork".into()),
+        message: error.message.clone(),
+        ..Diagnostic::default()
     }
+}
+
+pub enum Analysis {
+    ParseError { diagnostics: Vec<Diagnostic> },
+    Ok {
+        report: ArenaReport,
+        diagnostics: Vec<Diagnostic>,
+    },
+}
+
+pub fn analyze_source(source: &str) -> Analysis {
+    match parse(source) {
+        Err(error) => Analysis::ParseError {
+            diagnostics: vec![parse_error_to_diagnostic(source, &error)],
+        },
+        Ok(program) => {
+            let (report, errors) = analyze(&program);
+            Analysis::Ok {
+                report,
+                diagnostics: errors
+                    .iter()
+                    .map(|e| sema_error_to_diagnostic(source, e))
+                    .collect(),
+            }
+        }
+    }
+}
+
+pub fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
+    match analyze_source(source) {
+        Analysis::ParseError { diagnostics } | Analysis::Ok { diagnostics, .. } => diagnostics,
+    }
+}
+
+pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
+    match analyze_source(source) {
+        Analysis::ParseError { diagnostics } => Err(diagnostics
+            .first()
+            .map(|d| d.message.clone())
+            .unwrap_or_else(|| "parse error".into())),
+        Analysis::Ok {
+            report,
+            diagnostics,
+        } => {
+            let mut text = dump_arenas(&report);
+            if !diagnostics.is_empty() {
+                text.push_str("\n# semantic errors\n");
+                for d in &diagnostics {
+                    text.push_str(&format!("# {}\n", d.message));
+                }
+            }
+            Ok(text)
+        }
+    }
+}
+
+fn word_at(source: &str, position: Position) -> Option<String> {
+    let line = source.split('\n').nth(position.line as usize)?;
+    let mut utf16 = 0u32;
+    let mut byte = 0usize;
+    for ch in line.chars() {
+        if utf16 >= position.character {
+            break;
+        }
+        utf16 += ch.len_utf16() as u32;
+        byte += ch.len_utf8();
+    }
+    let mut s = byte.min(line.len());
+    while s > 0 {
+        let prev = line[..s].chars().next_back()?;
+        if prev.is_ascii_alphanumeric() || prev == '_' {
+            s -= prev.len_utf8();
+        } else {
+            break;
+        }
+    }
+    let mut e = byte.min(line.len());
+    while e < line.len() {
+        let c = line[e..].chars().next()?;
+        if c.is_ascii_alphanumeric() || c == '_' {
+            e += c.len_utf8();
+        } else {
+            break;
+        }
+    }
+    (s < e).then(|| line[s..e].to_string())
+}
+
+fn find_binding<'a>(
+    node: &'a crate::sema::ArenaNode,
+    name: &str,
+) -> Option<(&'a str, &'a BindingInfo)> {
+    for b in &node.bindings {
+        if b.name == name {
+            return Some((node.label.as_str(), b));
+        }
+    }
+    node.children.iter().find_map(|c| find_binding(c, name))
+}
+
+pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
+    let name = word_at(source, position)?;
+    let Analysis::Ok { report, .. } = analyze_source(source) else {
+        return None;
+    };
+    for root in &report.roots {
+        if let Some((arena, info)) = find_binding(root, &name) {
+            let own = match &info.ownership {
+                Ownership::Local => "Local".to_string(),
+                Ownership::Copy => "Copy".to_string(),
+                Ownership::Moved { from } => format!("Moved ← {from}"),
+            };
+            return Some(format!("`{name}` in arena `{arena}`\nOwnership: {own}"));
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -107,7 +229,6 @@ mod tests {
 
     #[test]
     fn multibyte_utf8_counts_utf16_units() {
-        // 'é' is one UTF-16 unit; '𝄞' (U+1D11E) is two.
         let source = "val x = \"é𝄞\"\n";
         let offset = source.find('𝄞').unwrap();
         assert_eq!(
@@ -131,5 +252,39 @@ mod tests {
     #[test]
     fn valid_sample_has_no_diagnostics() {
         assert!(diagnostics_for_source(crate::MVP_SAMPLE).is_empty());
+    }
+
+    #[test]
+    fn move_error_produces_sema_diagnostic() {
+        let source = r#"
+fun main() {
+    val s: String = "hi"
+    {
+        val t = s
+    }
+}
+"#;
+        let diags = diagnostics_for_source(source);
+        assert!(
+            diags.iter().any(|d| d.message.contains("not Copy")),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn dump_arenas_for_sample_ok() {
+        let text = dump_arenas_for_source(crate::MVP_SAMPLE).unwrap();
+        assert!(text.contains("fun main"));
+    }
+
+    #[test]
+    fn sema_diagnostic_points_at_use_not_decl() {
+        let source = "fun main() {\n    val s: String = \"a\"\n    val s2: String = \"b\"\n    {\n        val t = s\n    }\n}\n";
+        let diags = diagnostics_for_source(source);
+        let d = diags
+            .iter()
+            .find(|d| d.message.contains("not Copy"))
+            .expect("err");
+        assert_eq!(d.range.start.line, 4, "{d:?}");
     }
 }

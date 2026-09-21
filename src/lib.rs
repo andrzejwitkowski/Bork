@@ -1,5 +1,9 @@
+pub mod arena;
 pub mod ast;
+pub mod dump;
 mod layout;
+pub mod sema;
+pub mod span;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 
@@ -7,6 +11,7 @@ use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub parser);
 
 pub use ast::*;
+pub use span::{Span, SpannedName};
 
 use lalrpop_util::ParseError;
 use layout::normalize_parenthesized_newlines;

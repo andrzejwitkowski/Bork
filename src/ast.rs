@@ -57,6 +57,16 @@ impl Type {
             nullable,
         }
     }
+
+    pub fn is_copy(&self) -> bool {
+        matches!(
+            self,
+            Type::Primitive {
+                nullable: false,
+                ..
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,16 +86,22 @@ pub enum Stmt {
     VarDecl {
         kind: BindingKind,
         name: String,
+        name_span: crate::span::Span,
         ty: Option<Type>,
         value: Expr,
     },
     Assign {
         name: String,
+        name_span: crate::span::Span,
         value: Expr,
     },
     For {
         name: String,
         iter: Expr,
+        body: Block,
+    },
+    MoveBlock {
+        captures: Vec<crate::span::SpannedName>,
         body: Block,
     },
     Return(Option<Expr>),
@@ -96,7 +112,10 @@ pub enum Stmt {
 pub enum Expr {
     Int(i64),
     Str(String),
-    Ident(String),
+    Ident {
+        name: String,
+        span: crate::span::Span,
+    },
     None,
     Some(Box<Expr>),
     Binary {
@@ -127,8 +146,10 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Closure {
-    pub params: Vec<String>,
+    pub params: Vec<crate::span::SpannedName>,
     pub body: Block,
+    pub is_move: bool,
+    pub captures: Vec<crate::span::SpannedName>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

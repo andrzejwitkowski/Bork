@@ -51,6 +51,15 @@ fun main() {
 
 ---
 
+## Compiler CLI
+
+```bash
+cargo run --bin bork -- path/to/file.bork
+cargo run --bin bork -- --dump-arenas path/to/file.bork
+```
+
+`--dump-arenas` prints the compile-time arena / ownership tree (see [docs/memory-model.md](docs/memory-model.md)).
+
 ## Editor / LSP
 
 Parse diagnostics are available through a stdio language server:
@@ -62,7 +71,11 @@ cargo build --bin bork-lsp
 # (requires the default `lsp` Cargo feature)
 ```
 
-On document open/change the server runs `bork::parse` and publishes errors as squiggles. Hover, completion, and go-to-definition are not implemented yet.
+On document open/change the server runs `bork::parse` plus arena ownership analysis and
+publishes errors as squiggles. Hover shows arena + ownership for bindings. Use
+**Bork: Dump Arenas** for the ASCII arena tree (same as `bork --dump-arenas`).
+
+See [docs/memory-model.md](docs/memory-model.md) for Copy/Move and region semantics.
 
 ### Cursor
 

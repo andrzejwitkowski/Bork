@@ -21,6 +21,12 @@
         "extensions": [".bork"],
         "configuration": "./language-configuration.json"
       }
+    ],
+    "commands": [
+      {
+        "command": "bork.dumpArenas",
+        "title": "Bork: Dump Arenas"
+      }
     ]
   },
   "dependencies": {

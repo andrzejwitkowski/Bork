@@ -42,7 +42,7 @@ fn parses_final_expression_after_declaration() {
 
     assert!(matches!(
         prog.functions[0].body.stmts.as_slice(),
-        [Stmt::VarDecl { .. }, Stmt::Expr(Expr::Ident(name))] if name == "x"
+        [Stmt::VarDecl { .. }, Stmt::Expr(Expr::Ident { name, .. })] if name == "x"
     ));
 }
 
@@ -53,7 +53,7 @@ fn parses_return_after_declaration() {
 
     assert!(matches!(
         prog.functions[0].body.stmts.as_slice(),
-        [Stmt::VarDecl { .. }, Stmt::Return(Some(Expr::Ident(name)))] if name == "x"
+        [Stmt::VarDecl { .. }, Stmt::Return(Some(Expr::Ident { name, .. }))] if name == "x"
     ));
 }
 
@@ -134,7 +134,7 @@ fn newline_before_call_parenthesis_ends_statement() {
 
     assert!(matches!(
         prog.functions[0].body.stmts.as_slice(),
-        [Stmt::VarDecl { value: Expr::Ident(name), .. }, Stmt::Expr(Expr::Ident(y))]
+        [Stmt::VarDecl { value: Expr::Ident { name, .. }, .. }, Stmt::Expr(Expr::Ident { name: y, .. })]
             if name == "f" && y == "y"
     ));
 }
@@ -330,4 +330,82 @@ fn parses_process_user_sample() {
             )
         )
     ));
+}
+
+#[test]
+fn parses_move_block_with_captures() {
+    let prog = parse(
+        r#"
+fun main() {
+    val a = 1
+    val b = 2
+    move (a, b) {
+        return a
+    }
+}
+"#,
+    )
+    .expect("move block should parse");
+    assert!(matches!(
+        &prog.functions[0].body.stmts[2],
+        Stmt::MoveBlock { captures, .. }
+            if captures.iter().map(|c| c.name.as_str()).eq(["a", "b"])
+    ));
+}
+
+#[test]
+fn parses_trailing_move_closure() {
+    let prog = parse(
+        r#"
+fun action(block: (Int) -> Int): Int {
+    return block(1)
+}
+
+fun main() {
+    val acc = 0
+    action() move (acc) { x ->
+        acc + x
+    }
+}
+"#,
+    )
+    .expect("trailing move should parse");
+    let Stmt::Expr(Expr::Call { trailing: Some(c), .. }) = &prog.functions[1].body.stmts[1]
+    else {
+        panic!("expected call with trailing");
+    };
+    assert!(c.is_move);
+    assert_eq!(
+        c.captures.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+        vec!["acc"]
+    );
+    assert_eq!(
+        c.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+        vec!["x"]
+    );
+}
+
+#[test]
+fn parses_trailing_move_without_capture_list() {
+    let prog = parse(
+        r#"
+fun action(block: () -> Int): Int {
+    return block()
+}
+
+fun main() {
+    val acc = 0
+    action() move {
+        acc
+    }
+}
+"#,
+    )
+    .expect("move bare trailing should parse");
+    let Stmt::Expr(Expr::Call { trailing: Some(c), .. }) = &prog.functions[1].body.stmts[1]
+    else {
+        panic!("expected call");
+    };
+    assert!(c.is_move);
+    assert!(c.captures.is_empty());
 }
