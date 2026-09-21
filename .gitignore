@@ -22,3 +22,6 @@ target
 
 # Git worktrees
 .worktrees/
+
+# Local agent scratch reports
+.superpowers/

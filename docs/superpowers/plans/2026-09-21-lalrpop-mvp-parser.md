@@ -1,5 +1,10 @@
 # Bork MVP 0.1 LALRPOP Parser Implementation Plan
 
+> **Amendment (2026-09-21):** The shipped parser uses Option C layout:
+> newlines terminate statements, while newlines directly inside parentheses are
+> insignificant. An omitted function return type defaults to `Unit`. See the
+> design spec for the authoritative shipped grammar.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up crate `bork` that parses the MVP 0.1 sample program into a Debug-printable AST via LALRPOP’s built-in lexer.

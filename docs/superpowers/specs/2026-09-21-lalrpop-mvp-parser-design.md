@@ -22,6 +22,7 @@ Stand up a greenfield Rust crate that parses the MVP 0.1 Bork surface into a cle
 | Topic | Choice |
 |--------|--------|
 | Lexer | LALRPOP built-in lexer |
+| Statement separation | **Option C:** newlines end statements; spaces alone do not separate adjacent statements |
 | `if` | Expression-only (Kotlin-style); `else` required in MVP so if always yields a value |
 | Bare `{ ... }` | Allowed as `Stmt::Block` (nested braces preserved in AST) |
 | Region collapse | **Parse faithfully; collapse later** — nested `{{{{ }}}}` stay nested AST nodes; a future pass collapses brace wrappers that only wrap another bare block. Control-flow blocks (`fun`/`if`/`for`/closure) each count as regions. Example intent: `main {{{{ }}}}` → one region after collapse; `main { if {} }` → two regions |
@@ -29,6 +30,7 @@ Stand up a greenfield Rust crate that parses the MVP 0.1 Bork surface into a cle
 | Nullability | Kotlin-style `T?` on types only; **no `null` value/keyword** (Rust-like) |
 | Trailing closures | Attached to `Call` as optional trailing lambda after `)` |
 | Range `..` | Infix binary op (`BinOp::RangeTo`), not a dedicated `Expr::Range`; later may map to builtin infix `..(a, b)` |
+| Omitted return type | Defaults to the named, non-nullable `Unit` type |
 
 ## Crate layout
 
@@ -96,7 +98,7 @@ Notes:
 
 **Program:** `Function*`
 
-**Function:** `fun Ident "(" ParamList? ")" ":" Type Block`
+**Function:** `fun Ident "(" ParamList? ")" (":" Type)? Block` (omission yields `Unit`)
 
 **Param:** `Ident ":" Type`
 
@@ -104,6 +106,7 @@ Notes:
 
 - `TypePrimary "?"?`
 - `TypePrimary → Ident | "(" TypeList? ")" "->" Type`
+- Nullable function types use the parenthesized form `((T) -> U)?` (generally `((T*) -> U)?`)
 
 **Block:** `"{" Stmt* "}"`
 
@@ -129,7 +132,7 @@ Notes:
 
 Unary `-` omitted in MVP (sample does not use it).
 
-**Lexer:** keywords (`fun`, `val`, `var`, `for`, `in`, `return`, `if`, `else`), idents, ints, operators, punctuation including `->` and `..`, skip whitespace and `//` line comments. Do **not** add a `null` keyword.
+**Lexer:** keywords (`fun`, `val`, `var`, `for`, `in`, `return`, `if`, `else`), idents, ints, operators, punctuation including `->` and `..`. Spaces and `//` line comments are skipped; newlines are significant statement separators (Option C), including comment-only lines. Newlines directly inside parentheses are layout-normalized to insignificant whitespace. Do **not** add a `null` keyword.
 
 ## Region semantics (documented for later; not implemented in 0.1)
 
