@@ -1,4 +1,5 @@
 pub mod ast;
+mod layout;
 
 use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub parser);
@@ -6,55 +7,19 @@ lalrpop_mod!(pub parser);
 pub use ast::*;
 
 use lalrpop_util::ParseError;
-use parser::Token;
+use layout::normalize_parenthesized_newlines;
 
-pub type Error<'input> = ParseError<usize, Token<'input>, &'static str>;
+pub type Error = ParseError<usize, String, &'static str>;
 
-pub fn parse(source: &str) -> Result<Program, Error<'_>> {
+pub fn parse(source: &str) -> Result<Program, Error> {
     match normalize_parenthesized_newlines(source) {
         Some(normalized) => parser::ProgramParser::new()
             .parse(&normalized)
-            .map_err(|_| ParseError::User {
-                error: "parse error in parenthesized expression",
-            }),
-        None => parser::ProgramParser::new().parse(source),
+            .map_err(|err| err.map_token(|token| token.to_string())),
+        None => parser::ProgramParser::new()
+            .parse(source)
+            .map_err(|err| err.map_token(|token| token.to_string())),
     }
-}
-
-fn normalize_parenthesized_newlines(source: &str) -> Option<String> {
-    let mut bytes = source.as_bytes().to_vec();
-    let mut paren_brace_depths = Vec::new();
-    let mut brace_depth = 0usize;
-    let mut in_line_comment = false;
-    let mut changed = false;
-    let mut index = 0;
-
-    while index < bytes.len() {
-        match bytes[index] {
-            b'\n' => {
-                if paren_brace_depths.last() == Some(&brace_depth) {
-                    bytes[index] = b'\r';
-                    changed = true;
-                }
-                in_line_comment = false;
-            }
-            b'\r' => in_line_comment = false,
-            b'/' if !in_line_comment && bytes.get(index + 1).copied() == Some(b'/') => {
-                in_line_comment = true;
-                index += 1;
-            }
-            b'(' if !in_line_comment => paren_brace_depths.push(brace_depth),
-            b')' if !in_line_comment => {
-                paren_brace_depths.pop();
-            }
-            b'{' if !in_line_comment => brace_depth += 1,
-            b'}' if !in_line_comment => brace_depth = brace_depth.saturating_sub(1),
-            _ => {}
-        }
-        index += 1;
-    }
-
-    changed.then(|| String::from_utf8(bytes).expect("source was valid UTF-8"))
 }
 
 pub const MVP_SAMPLE: &str = r#"
@@ -100,10 +65,7 @@ mod tests {
                 nullable: false,
             }
         );
-        assert!(matches!(
-            prog.functions[0].params[2].ty,
-            Type::Func { .. }
-        ));
+        assert!(matches!(prog.functions[0].params[2].ty, Type::Func { .. }));
         assert!(matches!(prog.functions[1].body.stmts[2], Stmt::For { .. }));
     }
 
@@ -141,6 +103,28 @@ mod tests {
     }
 
     #[test]
+    fn standalone_comment_between_statements_is_part_of_the_separator() {
+        let prog = parse("fun main() {\n val x = 1\n // explanation\n val y = 2\n}")
+            .expect("a standalone comment should not create an extra separator");
+
+        assert_eq!(prog.functions[0].body.stmts.len(), 2);
+    }
+
+    #[test]
+    fn standalone_comment_between_functions_is_part_of_the_separator() {
+        let prog = parse("fun first() {}\n// next function\nfun second() {}")
+            .expect("a standalone comment should separate functions");
+
+        assert_eq!(prog.functions.len(), 2);
+    }
+
+    #[test]
+    fn standalone_comment_between_then_block_and_else_parses() {
+        parse("fun main() { if (c) { a }\n // alternate\n else { b } }")
+            .expect("comments may appear between a then block and else");
+    }
+
+    #[test]
     fn parses_newlines_inside_parentheses() {
         parse(
             "fun apply(\n f: (Int,\n Int) -> Int,\n x: Int\n) {\n\
@@ -163,6 +147,23 @@ mod tests {
             panic!("call argument should be an if expression");
         };
         assert_eq!(then_block.stmts.len(), 2);
+    }
+
+    #[test]
+    fn multiline_parenthesized_syntax_error_preserves_parse_error_location() {
+        let source = "fun main() {\n val x = (1 +\n)\n}";
+        let expected_location = source
+            .rfind(')')
+            .expect("test source has a closing parenthesis");
+
+        match parse(source).expect_err("incomplete addition should fail") {
+            ParseError::InvalidToken { location } => assert_eq!(location, expected_location),
+            ParseError::UnrecognizedToken {
+                token: (start, _, _),
+                ..
+            } => assert_eq!(start, expected_location),
+            other => panic!("expected a located lexer/parser error, got {other:?}"),
+        }
     }
 
     #[test]
@@ -229,27 +230,56 @@ mod tests {
 
     #[test]
     fn nullable_function_types_compose_in_lists_and_returns() {
-        let prog = parse(
-            "fun f(x: (((Int) -> Int) ?, Int) -> ((Int) -> Int) ?): Int { return 1 }",
-        )
-        .expect("nullable function types should compose recursively");
+        let prog = parse("fun f(x: (((Int) -> Int) ?, Int) -> ((Int) -> Int) ?): Int { return 1 }")
+            .expect("nullable function types should compose recursively");
 
         let Type::Func { params, ret, .. } = &prog.functions[0].params[0].ty else {
             panic!("outer parameter type should be a function");
         };
-        assert!(matches!(
-            params[0],
-            Type::Func { nullable: true, .. }
-        ));
-        assert!(matches!(
-            ret.as_ref(),
-            Type::Func { nullable: true, .. }
-        ));
+        assert!(matches!(params[0], Type::Func { nullable: true, .. }));
+        assert!(matches!(ret.as_ref(), Type::Func { nullable: true, .. }));
     }
 
     #[test]
     fn nullable_parenthesized_named_type_is_a_parse_error_not_a_panic() {
         assert!(parse("fun f(x: (Int)?): Int { return 1 }").is_err());
+    }
+
+    #[test]
+    fn multiplication_binds_tighter_than_addition() {
+        let prog = parse("fun main() { 1 + 2 * 3 }").expect("expression should parse");
+
+        assert!(matches!(
+            &prog.functions[0].body.stmts[0],
+            Stmt::Expr(Expr::Binary {
+                op: BinOp::Add,
+                lhs,
+                rhs,
+            }) if matches!(lhs.as_ref(), Expr::Int(1))
+                && matches!(
+                    rhs.as_ref(),
+                    Expr::Binary {
+                        op: BinOp::Mul,
+                        lhs,
+                        rhs,
+                    } if matches!(lhs.as_ref(), Expr::Int(2))
+                        && matches!(rhs.as_ref(), Expr::Int(3))
+                )
+        ));
+    }
+
+    #[test]
+    fn nested_bare_blocks_are_not_flattened() {
+        let prog = parse("fun main() {{{{ }}}}").expect("nested blocks should parse");
+        let mut stmts = prog.functions[0].body.stmts.as_slice();
+
+        for _ in 0..3 {
+            let [Stmt::Block(block)] = stmts else {
+                panic!("each brace pair should produce one nested block");
+            };
+            stmts = &block.stmts;
+        }
+        assert!(stmts.is_empty());
     }
 
     #[test]
