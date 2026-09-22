@@ -173,7 +173,7 @@ Stmt: Stmt = {
         name_span: name.span,
         value,
     },
-    "for" "(" <name:Ident> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
+    "for" "(" <name:SpannedIdent> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
         name,
         iter,
         body,

@@ -43,9 +43,7 @@ pub struct ArenaNode {
     pub id: usize,
     pub label: String,
     pub compacted_braces: usize,
-    /// Decls and move captures.
     pub bindings: Vec<BindingInfo>,
-    /// Use sites (hover) and cross-arena Copy/Shared (dump).
     pub observations: Vec<BindingInfo>,
     pub children: Vec<ArenaNode>,
 }

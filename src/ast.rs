@@ -108,7 +108,7 @@ pub enum Stmt {
         value: Expr,
     },
     For {
-        name: String,
+        name: crate::span::SpannedName,
         iter: Expr,
         body: Block,
     },

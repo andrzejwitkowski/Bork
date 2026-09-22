@@ -121,13 +121,13 @@ fn walk_stmt(
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
             let params = [RegionParam {
-                name: name.clone(),
+                name: name.name.clone(),
                 ty: Ty::Known(Type::from_ident("Int", false)),
-                span: None,
+                span: Some(name.span),
             }];
             node.children.push(open_ordinary(
                 az,
-                &format!("ForLoop ({name})"),
+                &format!("ForLoop ({})", name.name),
                 body,
                 &params,
             ));
@@ -212,10 +212,10 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
 }
 
 fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaNode) {
-    let Some(b) = az.env.get(name).cloned() else {
+    let Some(b) = az.env.get(name) else {
         return;
     };
-    match classify_use(&b, node.id, &node.label, name) {
+    match classify_use(b, node.id, &node.label, name) {
         UseOutcome::Observe(ownership) => {
             record_observation(node, name, ownership, b.ty.as_option(), span)
         }

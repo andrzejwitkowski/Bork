@@ -33,6 +33,14 @@ impl<'a> SourceMap<'a> {
         Some((start, end))
     }
 
+    fn line_body(&self, line: usize) -> Option<(usize, &'a str)> {
+        let (start, end) = self.line_range(line)?;
+        let body = self.source[start..end]
+            .strip_suffix('\n')
+            .unwrap_or(&self.source[start..end]);
+        Some((start, body))
+    }
+
     pub fn offset_to_position(&self, byte_offset: usize) -> Position {
         let offset = byte_offset.min(self.source.len());
         let line = match self.line_starts.binary_search(&offset) {
@@ -54,10 +62,7 @@ impl<'a> SourceMap<'a> {
     }
 
     pub fn position_to_offset(&self, position: Position) -> Option<usize> {
-        let (start, end) = self.line_range(position.line as usize)?;
-        let line_body = self.source[start..end]
-            .strip_suffix('\n')
-            .unwrap_or(&self.source[start..end]);
+        let (start, line_body) = self.line_body(position.line as usize)?;
         let mut utf16 = 0u32;
         for (i, ch) in line_body.char_indices() {
             if utf16 >= position.character {
@@ -75,10 +80,7 @@ impl<'a> SourceMap<'a> {
     }
 
     pub fn word_at(&self, position: Position) -> Option<String> {
-        let (start, end) = self.line_range(position.line as usize)?;
-        let line_text = self.source[start..end]
-            .strip_suffix('\n')
-            .unwrap_or(&self.source[start..end]);
+        let (_, line_text) = self.line_body(position.line as usize)?;
         let mut utf16 = 0u32;
         let mut byte = 0usize;
         for ch in line_text.chars() {
@@ -385,6 +387,15 @@ fun main() {
         let x_off = source.find('x').unwrap();
         let pos = byte_offset_to_position(source, x_off);
         let hover = hover_for_analysis(&report, source, pos).expect("hover");
+        assert!(hover.contains("Ownership"), "{hover}");
+    }
+
+    #[test]
+    fn hover_resolves_for_loop_binder() {
+        let source = "fun main() {\n    for (i in 0..3) {\n        val x = i\n    }\n}\n";
+        let i_off = source.find("(i ").unwrap() + 1;
+        let pos = byte_offset_to_position(source, i_off);
+        let hover = hover_for_source(source, pos).expect("hover");
         assert!(hover.contains("Ownership"), "{hover}");
     }
 }

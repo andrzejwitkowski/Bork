@@ -66,7 +66,7 @@ fn collect_stmt(
         Stmt::For { name, iter, body } => {
             collect_expr(iter, free, bound);
             let mut inner = bound.clone();
-            inner.insert(name.clone());
+            inner.insert(name.name.clone());
             collect_block(body, free, &mut inner);
         }
         Stmt::Return(Some(e)) | Stmt::Expr(e) => collect_expr(e, free, bound),
