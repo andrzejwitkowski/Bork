@@ -1,7 +1,7 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaReport, BindingInfo, SemaError};
+use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
 use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
@@ -201,59 +201,47 @@ fn position_to_byte_offset(source: &str, position: Position) -> Option<usize> {
 }
 
 fn span_contains(span: crate::span::Span, offset: usize) -> bool {
-    offset >= span.start && offset < span.end.max(span.start.saturating_add(1))
+    let end = span.end.max(span.start.saturating_add(1));
+    offset >= span.start && offset < end
 }
 
 fn find_binding<'a>(
-    node: &'a crate::sema::ArenaNode,
+    node: &'a ArenaNode,
     name: &str,
     offset: usize,
 ) -> Option<(&'a str, &'a BindingInfo)> {
-    if let Some(hit) = find_binding_at_offset(node, name, offset) {
+    if let Some(hit) = find_span_hit(node, name, offset) {
         return Some(hit);
     }
-    find_binding_by_decl(node, name, offset)
+    let mut best: Option<(&'a str, &'a BindingInfo, usize)> = None;
+    walk_local_decls(node, name, offset, &mut best);
+    best.map(|(label, info, _)| (label, info))
 }
 
-fn find_binding_at_offset<'a>(
-    node: &'a crate::sema::ArenaNode,
+fn find_span_hit<'a>(
+    node: &'a ArenaNode,
     name: &str,
     offset: usize,
 ) -> Option<(&'a str, &'a BindingInfo)> {
     for child in &node.children {
-        if let Some(hit) = find_binding_at_offset(child, name, offset) {
+        if let Some(hit) = find_span_hit(child, name, offset) {
             return Some(hit);
         }
     }
     node.bindings.iter().find_map(|b| {
-        if b.name == name {
-            b.span
-                .filter(|s| span_contains(*s, offset))
-                .map(|_| (node.label.as_str(), b))
-        } else {
-            None
-        }
+        (b.name == name && b.span.is_some_and(|s| span_contains(s, offset)))
+            .then_some((node.label.as_str(), b))
     })
 }
 
-fn find_binding_by_decl<'a>(
-    node: &'a crate::sema::ArenaNode,
-    name: &str,
-    offset: usize,
-) -> Option<(&'a str, &'a BindingInfo)> {
-    let mut best: Option<(&'a str, &'a BindingInfo, usize)> = None;
-    collect_decl_candidates(node, name, offset, &mut best);
-    best.map(|(label, info, _)| (label, info))
-}
-
-fn collect_decl_candidates<'a>(
-    node: &'a crate::sema::ArenaNode,
+fn walk_local_decls<'a>(
+    node: &'a ArenaNode,
     name: &str,
     offset: usize,
     best: &mut Option<(&'a str, &'a BindingInfo, usize)>,
 ) {
     for b in &node.bindings {
-        if b.name != name || !matches!(b.ownership, crate::sema::Ownership::Local) {
+        if b.name != name || !matches!(b.ownership, Ownership::Local) {
             continue;
         }
         let Some(span) = b.span else {
@@ -262,16 +250,12 @@ fn collect_decl_candidates<'a>(
         if span.start > offset {
             continue;
         }
-        let replace = match best {
-            None => true,
-            Some((_, _, start)) => span.start >= *start,
-        };
-        if replace {
+        if best.is_none_or(|(_, _, start)| span.start >= start) {
             *best = Some((node.label.as_str(), b, span.start));
         }
     }
     for child in &node.children {
-        collect_decl_candidates(child, name, offset, best);
+        walk_local_decls(child, name, offset, best);
     }
 }
 

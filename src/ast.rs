@@ -67,6 +67,18 @@ impl Type {
             }
         )
     }
+
+    pub fn with_nullable(self, nullable: bool) -> Self {
+        match self {
+            Type::Primitive { name, .. } => Type::Primitive { name, nullable },
+            Type::Named { name, .. } => Type::Named { name, nullable },
+            Type::Func { params, ret, .. } => Type::Func {
+                params,
+                ret,
+                nullable,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
