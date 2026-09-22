@@ -1,7 +1,4 @@
-//! Fixed-size bump arena model for future LLVM region runtime.
-//!
-//! Not used by compile-time `sema` ownership analysis — this module models
-//! bump allocation for a future executing runtime.
+//! Fixed-size bump arena for a future LLVM runtime (unused by `sema`).
 
 pub const ARENA_CAPACITY: usize = 4096;
 

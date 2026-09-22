@@ -5,7 +5,6 @@ use crate::ast::{BindingKind, Type};
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
 
-/// Env-side type: explicit unknown vs known AST type.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Ty {
     Known(Type),
@@ -46,6 +45,27 @@ pub(super) fn moved_names(env: &HashMap<String, EnvBinding>) -> HashSet<String> 
         .filter(|(_, b)| b.moved)
         .map(|(n, _)| n.clone())
         .collect()
+}
+
+pub(super) fn restore_moved_flags(env: &mut HashMap<String, EnvBinding>, moved: &HashSet<String>) {
+    for (name, binding) in env.iter_mut() {
+        binding.moved = moved.contains(name);
+    }
+}
+
+pub(super) fn apply_moved_merge(
+    env: &mut HashMap<String, EnvBinding>,
+    before_moved: &HashSet<String>,
+    then_moved: &HashSet<String>,
+    else_moved: Option<&HashSet<String>>,
+) {
+    for (name, binding) in env.iter_mut() {
+        let then = then_moved.contains(name);
+        binding.moved = match else_moved {
+            Some(else_set) => before_moved.contains(name) || (then && else_set.contains(name)),
+            None => before_moved.contains(name),
+        };
+    }
 }
 
 pub(super) struct Analyzer {

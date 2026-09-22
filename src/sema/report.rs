@@ -28,12 +28,10 @@ impl Ownership {
     pub fn hover_label(&self) -> String {
         self.label()
     }
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BindingRole {
-    Decl,
-    Use,
+    pub fn is_dump_line(&self) -> bool {
+        !matches!(self, Ownership::Local)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +40,6 @@ pub struct BindingInfo {
     pub ownership: Ownership,
     pub ty: Option<Type>,
     pub span: Option<Span>,
-    pub role: BindingRole,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,7 +47,10 @@ pub struct ArenaNode {
     pub id: usize,
     pub label: String,
     pub compacted_braces: usize,
+    /// Declarations and move captures (always shown in dump).
     pub bindings: Vec<BindingInfo>,
+    /// Use sites and cross-arena Copy/Shared (dump shows non-Local only).
+    pub observations: Vec<BindingInfo>,
     pub children: Vec<ArenaNode>,
 }
 

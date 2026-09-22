@@ -1,20 +1,25 @@
-//! Region entry: ordinary vs move arenas.
+//! Region frame and move-capture resolution.
 
 use super::env::{bind, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
-use super::peel_blocks;
-use super::report::{ArenaNode, BindingInfo, BindingRole, Ownership};
+use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block};
-use crate::span::SpannedName;
+use crate::span::{Span, SpannedName};
+
+pub(super) struct RegionParam {
+    pub(super) name: String,
+    pub(super) ty: Ty,
+    pub(super) span: Option<Span>,
+}
 
 pub(super) struct RegionFrame {
-    shadows: Vec<Shadow>,
+    pub(super) shadows: Vec<Shadow>,
     moved_parents: Vec<String>,
-    node: ArenaNode,
+    pub(super) node: ArenaNode,
 }
 
 impl RegionFrame {
-    fn new(id: usize, label: String, compacted: usize) -> Self {
+    pub(super) fn new(id: usize, label: String, compacted: usize) -> Self {
         Self {
             shadows: Vec::new(),
             moved_parents: Vec::new(),
@@ -23,26 +28,32 @@ impl RegionFrame {
                 label,
                 compacted_braces: compacted,
                 bindings: Vec::new(),
+                observations: Vec::new(),
                 children: Vec::new(),
             },
         }
     }
 
-    fn bind_param(&mut self, az: &mut Analyzer, name: &str, ty: Ty, span: Option<crate::span::Span>) {
+    pub(super) fn bind_param(&mut self, az: &mut Analyzer, param: &RegionParam) {
         let label = self.node.label.clone();
         let id = self.node.id;
-        self.shadows
-            .push(bind(az, name, id, &label, ty.clone(), BindingKind::Val));
+        self.shadows.push(bind(
+            az,
+            &param.name,
+            id,
+            &label,
+            param.ty.clone(),
+            BindingKind::Val,
+        ));
         self.node.bindings.push(BindingInfo {
-            name: name.to_string(),
+            name: param.name.clone(),
             ownership: Ownership::Local,
-            ty: ty.as_option(),
-            span,
-            role: BindingRole::Decl,
+            ty: param.ty.as_option(),
+            span: param.span,
         });
     }
 
-    fn bind_capture(&mut self, az: &mut Analyzer, cap: &SpannedName) {
+    pub(super) fn bind_capture(&mut self, az: &mut Analyzer, cap: &SpannedName) {
         match az.env.get(&cap.name).cloned() {
             None => az.error(
                 format!("cannot move unknown name `{}`", cap.name),
@@ -70,13 +81,12 @@ impl RegionFrame {
                     },
                     ty: b.ty.as_option(),
                     span: Some(cap.span),
-                    role: BindingRole::Decl,
                 });
             }
         }
     }
 
-    fn finish(self, az: &mut Analyzer) -> ArenaNode {
+    pub(super) fn finish(self, az: &mut Analyzer) -> ArenaNode {
         restore_shadows(az, self.shadows);
         for cap in self.moved_parents {
             if let Some(b) = az.env.get_mut(&cap) {
@@ -87,7 +97,7 @@ impl RegionFrame {
     }
 }
 
-fn resolve_move_captures(
+pub(super) fn resolve_move_captures(
     az: &Analyzer,
     body: &Block,
     explicit_captures: Option<&[SpannedName]>,
@@ -101,46 +111,4 @@ fn resolve_move_captures(
             .filter(|n| az.env.get(&n.name).is_some_and(|b| !b.moved))
             .collect(),
     }
-}
-
-pub(super) type RegionParam = (String, Ty, Option<crate::span::Span>);
-
-pub(super) fn open_ordinary(
-    az: &mut Analyzer,
-    label: &str,
-    body: &Block,
-    params: &[RegionParam],
-    walk: impl FnOnce(&mut Analyzer, &Block, &mut ArenaNode, &mut Vec<Shadow>),
-) -> ArenaNode {
-    let (body, compacted) = peel_blocks(body);
-    let id = az.alloc_id();
-    let mut frame = RegionFrame::new(id, label.to_string(), compacted);
-    for (name, ty, span) in params {
-        frame.bind_param(az, name, ty.clone(), *span);
-    }
-    walk(az, body, &mut frame.node, &mut frame.shadows);
-    frame.finish(az)
-}
-
-pub(super) fn open_move(
-    az: &mut Analyzer,
-    label: &str,
-    body: &Block,
-    explicit_captures: Option<&[SpannedName]>,
-    params: &[RegionParam],
-    walk: impl FnOnce(&mut Analyzer, &Block, &mut ArenaNode, &mut Vec<Shadow>),
-) -> ArenaNode {
-    let (peeled, compacted) = peel_blocks(body);
-    let id = az.alloc_id();
-    let param_names: Vec<String> = params.iter().map(|(n, _, _)| n.clone()).collect();
-    let captures = resolve_move_captures(az, peeled, explicit_captures, &param_names);
-    let mut frame = RegionFrame::new(id, format!("{label} (move)"), compacted);
-    for (name, ty, span) in params {
-        frame.bind_param(az, name, ty.clone(), *span);
-    }
-    for cap in &captures {
-        frame.bind_capture(az, cap);
-    }
-    walk(az, peeled, &mut frame.node, &mut frame.shadows);
-    frame.finish(az)
 }

@@ -1,6 +1,6 @@
 //! ASCII arena dump for `--dump-arenas`.
 
-use crate::sema::{ArenaNode, ArenaReport, BindingRole};
+use crate::sema::{ArenaNode, ArenaReport};
 
 pub fn dump_arenas(report: &ArenaReport) -> String {
     let mut out = String::from("Arenas\n");
@@ -9,6 +9,16 @@ pub fn dump_arenas(report: &ArenaReport) -> String {
         dump_node(&mut out, root, "", i + 1 == n);
     }
     out
+}
+
+fn dump_lines(node: &ArenaNode) -> Vec<&crate::sema::BindingInfo> {
+    let mut lines: Vec<_> = node.bindings.iter().collect();
+    lines.extend(
+        node.observations
+            .iter()
+            .filter(|b| b.ownership.is_dump_line()),
+    );
+    lines
 }
 
 fn dump_node(out: &mut String, node: &ArenaNode, prefix: &str, is_last: bool) {
@@ -27,24 +37,19 @@ fn dump_node(out: &mut String, node: &ArenaNode, prefix: &str, is_last: bool) {
     out.push('\n');
 
     let child_prefix = format!("{prefix}{}", if is_last { "    " } else { "│   " });
-    let dump_bindings: Vec<_> = node
-        .bindings
-        .iter()
-        .filter(|b| b.role == BindingRole::Decl)
-        .collect();
-    let total = dump_bindings.len() + node.children.len();
+    let lines = dump_lines(node);
+    let total = lines.len() + node.children.len();
     let mut idx = 0;
 
-    for b in dump_bindings {
+    for b in lines {
         idx += 1;
         let last = idx == total;
         let br = if last { "└── " } else { "├── " };
-        let own = b.ownership.dump_tag();
         out.push_str(&child_prefix);
         out.push_str(br);
         out.push_str(&b.name);
         out.push(' ');
-        out.push_str(&own);
+        out.push_str(&b.ownership.dump_tag());
         out.push('\n');
     }
 

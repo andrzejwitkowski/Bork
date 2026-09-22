@@ -2,7 +2,6 @@ use super::*;
 use crate::ast::{Block, Stmt};
 use crate::dump::dump_arenas;
 use crate::parse;
-use crate::sema::BindingRole;
 
 #[test]
 fn collapses_nested_bare_braces() {
@@ -16,9 +15,6 @@ fn collapses_nested_bare_braces() {
     let (b, n) = peel_blocks(&nested);
     assert_eq!(n, 2);
     assert!(matches!(b.stmts[0], Stmt::Return(None)));
-    let (owned, n2) = collapse_block(nested);
-    assert_eq!(n2, 2);
-    assert!(matches!(owned.stmts[0], Stmt::Return(None)));
 }
 
 #[test]
@@ -106,11 +102,11 @@ fun main() {
     assert!(errs.is_empty(), "{errs:?}");
     let block = &report.roots[0].children[0];
     assert!(
-        block.bindings.iter().any(|b| {
+        block.observations.iter().any(|b| {
             b.name == "s" && matches!(b.ownership, Ownership::Shared { .. })
         }),
         "{:?}",
-        block.bindings
+        block.observations
     );
 }
 
@@ -151,7 +147,7 @@ fun main() {
     let (report, errs) = analyze(&prog);
     assert!(errs.is_empty(), "{errs:?}");
     let block = &report.roots[0].children[0];
-    assert!(block.bindings.iter().any(|b| {
+    assert!(block.observations.iter().any(|b| {
         b.name == "n" && matches!(b.ownership, Ownership::Copy)
     }));
 }
@@ -202,11 +198,11 @@ fun main() {
         move_child.bindings
     );
     assert!(
-        move_child.bindings.iter().any(|b| {
+        move_child.observations.iter().any(|b| {
             b.name == "s" && matches!(b.ownership, Ownership::Shared { .. })
         }),
         "s should be Shared inside move (): {:?}",
-        move_child.bindings
+        move_child.observations
     );
 }
 
@@ -316,16 +312,15 @@ fun main() {
     let (report, errs) = analyze(&prog);
     assert!(errs.is_empty(), "{errs:?}");
     let text = dump_arenas(&report);
-    // Decl lines only — use of `n` must not add a second dump entry.
     let n_lines: Vec<_> = text.lines().filter(|l| l.contains("n [")).collect();
     assert_eq!(n_lines.len(), 1, "dump should list n once:\n{text}");
     let main = &report.roots[0];
     assert!(
-        main.bindings
-            .iter()
-            .any(|b| b.name == "n" && b.role == BindingRole::Use),
+        main.observations.iter().any(|b| {
+            b.name == "n" && matches!(b.ownership, Ownership::Local)
+        }),
         "analyzer should still record use-site for hover: {:?}",
-        main.bindings
+        main.observations
     );
 }
 

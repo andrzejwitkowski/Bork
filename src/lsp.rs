@@ -1,12 +1,12 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, BindingRole, Ownership, SemaError};
+use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, SemaError};
 use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
-/// Line-start index for UTF-16 LSP positions and identifier extraction.
+/// Line starts for LSP UTF-16 positions.
 pub struct SourceMap<'a> {
     source: &'a str,
     line_starts: Vec<usize>,
@@ -23,44 +23,51 @@ impl<'a> SourceMap<'a> {
         Self { source, line_starts }
     }
 
-    pub fn offset_to_position(&self, byte_offset: usize) -> Position {
-        let offset = byte_offset.min(self.source.len());
-        let mut line = 0u32;
-        let mut character = 0u32;
-        for ch in self.source[..offset].chars() {
-            if ch == '\n' {
-                line += 1;
-                character = 0;
-            } else {
-                character += ch.len_utf16() as u32;
-            }
-        }
-        Position { line, character }
-    }
-
-    pub fn position_to_offset(&self, position: Position) -> Option<usize> {
-        let line = position.line as usize;
+    fn line_range(&self, line: usize) -> Option<(usize, usize)> {
         let start = *self.line_starts.get(line)?;
         let end = self
             .line_starts
             .get(line + 1)
             .copied()
             .unwrap_or(self.source.len());
-        let line_text = &self.source[start..end];
-        let line_body = line_text.strip_suffix('\n').unwrap_or(line_text);
+        Some((start, end))
+    }
+
+    pub fn offset_to_position(&self, byte_offset: usize) -> Position {
+        let offset = byte_offset.min(self.source.len());
+        let line = match self.line_starts.binary_search(&offset) {
+            Ok(i) => i,
+            Err(i) => i.saturating_sub(1),
+        };
+        let start = self.line_starts[line];
+        let mut character = 0u32;
+        for ch in self.source[start..offset].chars() {
+            if ch == '\n' {
+                break;
+            }
+            character += ch.len_utf16() as u32;
+        }
+        Position {
+            line: line as u32,
+            character,
+        }
+    }
+
+    pub fn position_to_offset(&self, position: Position) -> Option<usize> {
+        let (start, end) = self.line_range(position.line as usize)?;
+        let line_body = self.source[start..end]
+            .strip_suffix('\n')
+            .unwrap_or(&self.source[start..end]);
         let mut utf16 = 0u32;
         for (i, ch) in line_body.char_indices() {
-            if utf16 == position.character {
-                return Some(start + i);
-            }
-            if utf16 > position.character {
+            if utf16 >= position.character {
                 return Some(start + i);
             }
             utf16 += ch.len_utf16() as u32;
         }
         if position.character <= utf16 {
             Some(start + line_body.len())
-        } else if line + 1 >= self.line_starts.len() {
+        } else if position.line as usize + 1 >= self.line_starts.len() {
             Some(self.source.len())
         } else {
             None
@@ -68,35 +75,38 @@ impl<'a> SourceMap<'a> {
     }
 
     pub fn word_at(&self, position: Position) -> Option<String> {
-        let line = self.source.split('\n').nth(position.line as usize)?;
+        let (start, end) = self.line_range(position.line as usize)?;
+        let line_text = self.source[start..end]
+            .strip_suffix('\n')
+            .unwrap_or(&self.source[start..end]);
         let mut utf16 = 0u32;
         let mut byte = 0usize;
-        for ch in line.chars() {
+        for ch in line_text.chars() {
             if utf16 >= position.character {
                 break;
             }
             utf16 += ch.len_utf16() as u32;
             byte += ch.len_utf8();
         }
-        let mut s = byte.min(line.len());
+        let mut s = byte.min(line_text.len());
         while s > 0 {
-            let prev = line[..s].chars().next_back()?;
+            let prev = line_text[..s].chars().next_back()?;
             if prev.is_ascii_alphanumeric() || prev == '_' {
                 s -= prev.len_utf8();
             } else {
                 break;
             }
         }
-        let mut e = byte.min(line.len());
-        while e < line.len() {
-            let c = line[e..].chars().next()?;
+        let mut e = byte.min(line_text.len());
+        while e < line_text.len() {
+            let c = line_text[e..].chars().next()?;
             if c.is_ascii_alphanumeric() || c == '_' {
                 e += c.len_utf8();
             } else {
                 break;
             }
         }
-        (s < e).then(|| line[s..e].to_string())
+        (s < e).then(|| line_text[s..e].to_string())
     }
 }
 
@@ -250,12 +260,7 @@ fn find_binding<'a>(
     name: &str,
     offset: usize,
 ) -> Option<(&'a str, &'a BindingInfo)> {
-    if let Some(hit) = find_span_hit(node, name, offset) {
-        return Some(hit);
-    }
-    let mut best: Option<(&'a str, &'a BindingInfo, usize)> = None;
-    walk_local_decls(node, name, offset, &mut best);
-    best.map(|(label, info, _)| (label, info))
+    find_span_hit(node, name, offset)
 }
 
 fn find_span_hit<'a>(
@@ -268,39 +273,15 @@ fn find_span_hit<'a>(
             return Some(hit);
         }
     }
-    node.bindings.iter().find_map(|b| {
-        (b.name == name && b.span.is_some_and(|s| span_contains(s, offset)))
-            .then_some((node.label.as_str(), b))
-    })
+    let in_list = |list: &'a [BindingInfo]| {
+        list.iter().find_map(|b| {
+            (b.name == name && b.span.is_some_and(|s| span_contains(s, offset)))
+                .then_some((node.label.as_str(), b))
+        })
+    };
+    in_list(&node.observations).or_else(|| in_list(&node.bindings))
 }
 
-fn walk_local_decls<'a>(
-    node: &'a ArenaNode,
-    name: &str,
-    offset: usize,
-    best: &mut Option<(&'a str, &'a BindingInfo, usize)>,
-) {
-    for b in &node.bindings {
-        if b.name != name || b.role != BindingRole::Decl || !matches!(b.ownership, Ownership::Local)
-        {
-            continue;
-        }
-        let Some(span) = b.span else {
-            continue;
-        };
-        if span.start > offset {
-            continue;
-        }
-        if best.is_none_or(|(_, _, start)| span.start >= start) {
-            *best = Some((node.label.as_str(), b, span.start));
-        }
-    }
-    for child in &node.children {
-        walk_local_decls(child, name, offset, best);
-    }
-}
-
-/// Hover using a precomputed analysis (no re-parse / re-sema).
 pub fn hover_for_analysis(
     report: &ArenaReport,
     source: &str,
