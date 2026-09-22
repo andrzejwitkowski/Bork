@@ -3,6 +3,7 @@
 mod analyze;
 mod env;
 mod free_vars;
+mod region;
 mod report;
 
 #[cfg(test)]

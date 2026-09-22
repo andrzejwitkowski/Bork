@@ -1,13 +1,10 @@
 //! Region walk and ownership checking.
 
-use super::peel_blocks;
-use super::env::{
-    bind, restore_shadows, shadow_insert, Analyzer, EnvBinding, Shadow,
-};
-use super::free_vars::free_vars_in_block;
+use super::env::{shadow_insert, Analyzer, EnvBinding, Shadow};
+use super::region::{open_move, open_ordinary};
 use super::report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
 use crate::ast::{BindingKind, Block, Expr, Function, Program, Stmt, Type};
-use crate::span::{Span, SpannedName};
+use crate::span::Span;
 use std::collections::HashMap;
 
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
@@ -21,142 +18,19 @@ pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
     (ArenaReport { roots }, az.errors)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RegionKind {
-    Ordinary,
-    Move,
-}
-
 fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
     let params: Vec<(String, Option<Type>)> = func
         .params
         .iter()
         .map(|p| (p.name.clone(), Some(p.ty.clone())))
         .collect();
-    open_region(
+    open_ordinary(
         az,
         &format!("fun {}", func.name),
         &func.body,
-        None,
         &params,
-        RegionKind::Ordinary,
+        walk_block,
     )
-}
-
-fn resolve_move_captures(
-    az: &Analyzer,
-    body: &Block,
-    explicit_captures: Option<&[SpannedName]>,
-    param_names: &[String],
-) -> Vec<SpannedName> {
-    match explicit_captures {
-        Some(caps) => caps.to_vec(),
-        None => free_vars_in_block(body)
-            .into_iter()
-            .filter(|n| !param_names.contains(&n.name))
-            .filter(|n| az.env.get(&n.name).is_some_and(|b| !b.moved))
-            .collect(),
-    }
-}
-
-fn open_region(
-    az: &mut Analyzer,
-    label: &str,
-    body: &Block,
-    explicit_captures: Option<&[SpannedName]>,
-    params: &[(String, Option<Type>)],
-    kind: RegionKind,
-) -> ArenaNode {
-    let (body, compacted) = peel_blocks(body);
-    let id = az.alloc_id();
-    let is_move = matches!(kind, RegionKind::Move);
-    let label = if is_move {
-        format!("{label} (move)")
-    } else {
-        label.to_string()
-    };
-
-    let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-    let captures = if is_move {
-        resolve_move_captures(az, &body, explicit_captures, &param_names)
-    } else {
-        Vec::new()
-    };
-
-    let mut node = ArenaNode {
-        id,
-        label: label.clone(),
-        compacted_braces: compacted,
-        bindings: Vec::new(),
-        children: Vec::new(),
-    };
-
-    let mut shadows = Vec::new();
-    let mut moved_parents = Vec::new();
-
-    for (name, ty) in params {
-        shadows.push(bind(
-            az,
-            name,
-            id,
-            &label,
-            ty.clone(),
-            BindingKind::Val,
-        ));
-        node.bindings.push(BindingInfo {
-            name: name.clone(),
-            ownership: Ownership::Local,
-            ty: ty.clone(),
-            span: None,
-        });
-    }
-
-    for cap in &captures {
-        match az.env.get(&cap.name).cloned() {
-            None => az.error(
-                format!("cannot move unknown name `{}`", cap.name),
-                Some(cap.name.clone()),
-                Some(cap.span),
-            ),
-            Some(b) if b.moved => az.error(
-                format!(
-                    "cannot move `{}`: already moved from {}",
-                    cap.name, b.arena_label
-                ),
-                Some(cap.name.clone()),
-                Some(cap.span),
-            ),
-            Some(b) => {
-                moved_parents.push(cap.name.clone());
-                shadows.push(bind(
-                    az,
-                    &cap.name,
-                    id,
-                    &label,
-                    b.ty.clone(),
-                    BindingKind::Val,
-                ));
-                node.bindings.push(BindingInfo {
-                    name: cap.name.clone(),
-                    ownership: Ownership::Moved {
-                        from: b.arena_label,
-                    },
-                    ty: b.ty,
-                    span: Some(cap.span),
-                });
-            }
-        }
-    }
-
-    walk_block(az, &body, &mut node, &mut shadows);
-    restore_shadows(az, shadows);
-    for cap in moved_parents {
-        if let Some(b) = az.env.get_mut(&cap) {
-            b.moved = true;
-        }
-    }
-
-    node
 }
 
 fn walk_block(
@@ -178,23 +52,17 @@ fn walk_stmt(
 ) {
     match stmt {
         Stmt::Block(body) => {
-            node.children.push(open_region(
-                az,
-                "Block",
-                body,
-                None,
-                &[],
-                RegionKind::Ordinary,
-            ));
+            node.children
+                .push(open_ordinary(az, "Block", body, &[], walk_block));
         }
         Stmt::MoveBlock { captures, body } => {
-            node.children.push(open_region(
+            node.children.push(open_move(
                 az,
                 "MoveBlock",
                 body,
                 captures.as_deref(),
                 &[],
-                RegionKind::Move,
+                walk_block,
             ));
         }
         Stmt::VarDecl {
@@ -231,13 +99,12 @@ fn walk_stmt(
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
             let params = [(name.clone(), Some(Type::from_ident("Int", false)))];
-            node.children.push(open_region(
+            node.children.push(open_ordinary(
                 az,
                 &format!("ForLoop ({name})"),
                 body,
-                None,
                 &params,
-                RegionKind::Ordinary,
+                walk_block,
             ));
         }
         Stmt::Return(Some(e)) => walk_expr(az, e, node),
@@ -268,18 +135,19 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             if let Some(c) = trailing {
                 let params: Vec<(String, Option<Type>)> =
                     c.params.iter().map(|p| (p.name.clone(), None)).collect();
-                node.children.push(open_region(
-                    az,
-                    "Closure",
-                    &c.body,
-                    c.captures.as_deref(),
-                    &params,
-                    if c.is_move {
-                        RegionKind::Move
-                    } else {
-                        RegionKind::Ordinary
-                    },
-                ));
+                if c.is_move {
+                    node.children.push(open_move(
+                        az,
+                        "Closure",
+                        &c.body,
+                        c.captures.as_deref(),
+                        &params,
+                        walk_block,
+                    ));
+                } else {
+                    node.children
+                        .push(open_ordinary(az, "Closure", &c.body, &params, walk_block));
+                }
             }
         }
         Expr::If {
@@ -289,25 +157,13 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
         } => {
             walk_expr(az, cond, node);
             let env_before = az.env.clone();
-            node.children.push(open_region(
-                az,
-                "IfThen",
-                then_block,
-                None,
-                &[],
-                RegionKind::Ordinary,
-            ));
+            node.children
+                .push(open_ordinary(az, "IfThen", then_block, &[], walk_block));
             let env_after_then = az.env.clone();
             az.env = env_before.clone();
             let env_after_else = if let Some(else_b) = else_block {
-                node.children.push(open_region(
-                    az,
-                    "IfElse",
-                    else_b,
-                    None,
-                    &[],
-                    RegionKind::Ordinary,
-                ));
+                node.children
+                    .push(open_ordinary(az, "IfElse", else_b, &[], walk_block));
                 Some(az.env.clone())
             } else {
                 None
