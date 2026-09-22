@@ -5,11 +5,38 @@ use crate::ast::{BindingKind, Type};
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
 
+/// Env-side type: explicit unknown vs known AST type.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum Ty {
+    Known(Type),
+    Unknown,
+}
+
+impl Ty {
+    pub(super) fn from_option(ty: Option<Type>) -> Self {
+        match ty {
+            Some(t) => Ty::Known(t),
+            None => Ty::Unknown,
+        }
+    }
+
+    pub(super) fn as_option(&self) -> Option<Type> {
+        match self {
+            Ty::Known(t) => Some(t.clone()),
+            Ty::Unknown => None,
+        }
+    }
+
+    pub(super) fn is_copy(&self) -> bool {
+        matches!(self, Ty::Known(t) if t.is_copy())
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct EnvBinding {
     pub(super) arena_id: usize,
     pub(super) arena_label: String,
-    pub(super) ty: Option<Type>,
+    pub(super) ty: Ty,
     pub(super) kind: BindingKind,
     pub(super) moved: bool,
 }
@@ -68,7 +95,7 @@ pub(super) fn bind(
     name: &str,
     arena_id: usize,
     arena_label: &str,
-    ty: Option<Type>,
+    ty: Ty,
     kind: BindingKind,
 ) -> Shadow {
     shadow_insert(

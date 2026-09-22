@@ -1,10 +1,10 @@
 //! Region entry: ordinary vs move arenas.
 
-use super::env::{bind, restore_shadows, Analyzer, Shadow};
+use super::env::{bind, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
 use super::peel_blocks;
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::{BindingKind, Block, Type};
+use crate::ast::{BindingKind, Block};
 use crate::span::SpannedName;
 
 pub(super) struct RegionFrame {
@@ -28,7 +28,7 @@ impl RegionFrame {
         }
     }
 
-    fn bind_param(&mut self, az: &mut Analyzer, name: &str, ty: Option<Type>) {
+    fn bind_param(&mut self, az: &mut Analyzer, name: &str, ty: Ty) {
         let label = self.node.label.clone();
         let id = self.node.id;
         self.shadows
@@ -36,7 +36,7 @@ impl RegionFrame {
         self.node.bindings.push(BindingInfo {
             name: name.to_string(),
             ownership: Ownership::Local,
-            ty,
+            ty: ty.as_option(),
             span: None,
         });
     }
@@ -67,7 +67,7 @@ impl RegionFrame {
                     ownership: Ownership::Moved {
                         from: b.arena_label,
                     },
-                    ty: b.ty,
+                    ty: b.ty.as_option(),
                     span: Some(cap.span),
                 });
             }
@@ -105,7 +105,7 @@ pub(super) fn open_ordinary(
     az: &mut Analyzer,
     label: &str,
     body: &Block,
-    params: &[(String, Option<Type>)],
+    params: &[(String, Ty)],
     walk: impl FnOnce(&mut Analyzer, &Block, &mut ArenaNode, &mut Vec<Shadow>),
 ) -> ArenaNode {
     let (body, compacted) = peel_blocks(body);
@@ -123,7 +123,7 @@ pub(super) fn open_move(
     label: &str,
     body: &Block,
     explicit_captures: Option<&[SpannedName]>,
-    params: &[(String, Option<Type>)],
+    params: &[(String, Ty)],
     walk: impl FnOnce(&mut Analyzer, &Block, &mut ArenaNode, &mut Vec<Shadow>),
 ) -> ArenaNode {
     let (peeled, compacted) = peel_blocks(body);

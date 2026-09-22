@@ -1,6 +1,6 @@
 //! Region walk and ownership checking.
 
-use super::env::{moved_names, shadow_insert, Analyzer, EnvBinding, Shadow};
+use super::env::{moved_names, shadow_insert, Analyzer, EnvBinding, Shadow, Ty};
 use super::policy::{classify_use, UseOutcome};
 use super::region::{open_move, open_ordinary};
 use super::report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
@@ -20,10 +20,10 @@ pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
 }
 
 fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
-    let params: Vec<(String, Option<Type>)> = func
+    let params: Vec<(String, Ty)> = func
         .params
         .iter()
-        .map(|p| (p.name.clone(), Some(p.ty.clone())))
+        .map(|p| (p.name.clone(), Ty::Known(p.ty.clone())))
         .collect();
     open_ordinary(
         az,
@@ -74,7 +74,7 @@ fn walk_stmt(
             value,
         } => {
             walk_expr(az, value, node);
-            let inferred = ty.clone().or_else(|| infer_type(az, value));
+            let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
             shadows.push(shadow_insert(
                 az,
                 name.clone(),
@@ -89,7 +89,7 @@ fn walk_stmt(
             node.bindings.push(BindingInfo {
                 name: name.clone(),
                 ownership: Ownership::Local,
-                ty: inferred,
+                ty: inferred.as_option(),
                 span: Some(*name_span),
             });
         }
@@ -99,7 +99,7 @@ fn walk_stmt(
         }
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
-            let params = [(name.clone(), Some(Type::from_ident("Int", false)))];
+            let params = [(name.clone(), Ty::Known(Type::from_ident("Int", false)))];
             node.children.push(open_ordinary(
                 az,
                 &format!("ForLoop ({name})"),
@@ -134,8 +134,8 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
                 walk_expr(az, a, node);
             }
             if let Some(c) = trailing {
-                let params: Vec<(String, Option<Type>)> =
-                    c.params.iter().map(|p| (p.name.clone(), None)).collect();
+                let params: Vec<(String, Ty)> =
+                    c.params.iter().map(|p| (p.name.clone(), Ty::Unknown)).collect();
                 if c.is_move {
                     node.children.push(open_move(
                         az,
@@ -199,7 +199,9 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
     };
     match classify_use(&b, node.id, &node.label, name) {
         UseOutcome::Ignore => {}
-        UseOutcome::Observe(ownership) => record_obs(node, name, ownership, b.ty, span),
+        UseOutcome::Observe(ownership) => {
+            record_obs(node, name, ownership, b.ty.as_option(), span)
+        }
         UseOutcome::Error { message } => {
             az.error(message, Some(name.to_string()), span);
         }
@@ -231,7 +233,7 @@ fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
             name: "String".into(),
             nullable: false,
         }),
-        Expr::Ident { name, .. } => az.env.get(name).and_then(|b| b.ty.clone()),
+        Expr::Ident { name, .. } => az.env.get(name).and_then(|b| b.ty.as_option()),
         Expr::Some(inner) => infer_type(az, inner).map(|ty| ty.with_nullable(true)),
         _ => None,
     }
