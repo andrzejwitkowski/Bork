@@ -124,4 +124,4 @@ In Cursor/VS Code with the Bork extension:
 
 ## What comes next
 
-LLVM will emit real per-region bump arenas using this model. MVP 0.3 validates layout and ownership in the compiler only — programs are not executed yet.
+LLVM will emit real per-region bump arenas using this model (`src/arena.rs`). MVP 0.3 validates layout and ownership in the compiler (`sema`) only — the bump allocator module is unused by compile-time analysis, and programs are not executed yet.

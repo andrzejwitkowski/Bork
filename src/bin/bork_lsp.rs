@@ -1,4 +1,4 @@
-use bork::lsp::{dump_arenas_for_source, hover_for_source, diagnostics_for_source};
+use bork::lsp::{analyze_source, dump_from_analysis, hover_for_analysis, Analysis};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tower_lsp::jsonrpc::{Error, Result};
@@ -7,29 +7,32 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 const DUMP_ARENAS_CMD: &str = "bork.dumpArenas";
 
-#[derive(Debug)]
+struct DocState {
+    text: String,
+    analysis: Analysis,
+}
+
 struct Backend {
     client: Client,
-    docs: Mutex<HashMap<Url, String>>,
+    docs: Mutex<HashMap<Url, DocState>>,
 }
 
 impl Backend {
-    fn doc(&self, uri: &Url) -> Result<Option<String>> {
-        Ok(self
-            .docs
-            .lock()
-            .map_err(|_| Error::internal_error())?
-            .get(uri)
-            .cloned())
-    }
-
     async fn publish_for(&self, uri: Url, text: &str) {
+        let analysis = analyze_source(text);
+        let diagnostics = analysis.diagnostics().to_vec();
         {
             let mut docs = self.docs.lock().expect("docs mutex");
-            docs.insert(uri.clone(), text.to_string());
+            docs.insert(
+                uri.clone(),
+                DocState {
+                    text: text.to_string(),
+                    analysis,
+                },
+            );
         }
         self.client
-            .publish_diagnostics(uri, diagnostics_for_source(text), None)
+            .publish_diagnostics(uri, diagnostics, None)
             .await;
     }
 }
@@ -82,10 +85,15 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
-        let Some(text) = self.doc(uri)? else {
+        let docs = self.docs.lock().map_err(|_| Error::internal_error())?;
+        let Some(doc) = docs.get(uri) else {
             return Ok(None);
         };
-        Ok(hover_for_source(&text, pos).map(|value| Hover {
+        let value = match &doc.analysis {
+            Analysis::Ok { report, .. } => hover_for_analysis(report, &doc.text, pos),
+            Analysis::ParseError { .. } => None,
+        };
+        Ok(value.map(|value| Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
                 value,
@@ -101,24 +109,30 @@ impl LanguageServer for Backend {
         if params.command != DUMP_ARENAS_CMD {
             return Err(Error::method_not_found());
         }
-        let text = match params
-            .arguments
-            .first()
-            .and_then(|v| v.as_str())
-            .and_then(|s| Url::parse(s).ok())
-        {
-            Some(uri) => self.doc(&uri)?,
-            None => {
-                let docs = self.docs.lock().map_err(|_| Error::internal_error())?;
-                docs.values().next().cloned()
+        let dump_result = match self.docs.lock() {
+            Err(_) => return Err(Error::internal_error()),
+            Ok(docs) => {
+                let doc = match params
+                    .arguments
+                    .first()
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| Url::parse(s).ok())
+                {
+                    Some(uri) => docs.get(&uri),
+                    None => docs.values().next(),
+                };
+                match doc {
+                    None => None,
+                    Some(doc) => Some(dump_from_analysis(&doc.analysis)),
+                }
             }
         };
-        let Some(text) = text else {
+        let Some(result) = dump_result else {
             return Ok(Some(serde_json::json!({
                 "error": "no open Bork document"
             })));
         };
-        match dump_arenas_for_source(&text) {
+        match result {
             Ok(dump) => {
                 self.client
                     .log_message(MessageType::INFO, dump.clone())

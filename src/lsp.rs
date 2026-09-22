@@ -6,32 +6,114 @@ use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
-pub fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
-    let offset = byte_offset.min(source.len());
-    let mut line = 0u32;
-    let mut character = 0u32;
+/// Line-start index for UTF-16 LSP positions and identifier extraction.
+pub struct SourceMap<'a> {
+    source: &'a str,
+    line_starts: Vec<usize>,
+}
 
-    for ch in source[..offset].chars() {
-        if ch == '\n' {
-            line += 1;
-            character = 0;
+impl<'a> SourceMap<'a> {
+    pub fn new(source: &'a str) -> Self {
+        let mut line_starts = vec![0];
+        for (i, ch) in source.char_indices() {
+            if ch == '\n' {
+                line_starts.push(i + ch.len_utf8());
+            }
+        }
+        Self { source, line_starts }
+    }
+
+    pub fn offset_to_position(&self, byte_offset: usize) -> Position {
+        let offset = byte_offset.min(self.source.len());
+        let mut line = 0u32;
+        let mut character = 0u32;
+        for ch in self.source[..offset].chars() {
+            if ch == '\n' {
+                line += 1;
+                character = 0;
+            } else {
+                character += ch.len_utf16() as u32;
+            }
+        }
+        Position { line, character }
+    }
+
+    pub fn position_to_offset(&self, position: Position) -> Option<usize> {
+        let line = position.line as usize;
+        let start = *self.line_starts.get(line)?;
+        let end = self
+            .line_starts
+            .get(line + 1)
+            .copied()
+            .unwrap_or(self.source.len());
+        let line_text = &self.source[start..end];
+        let line_body = line_text.strip_suffix('\n').unwrap_or(line_text);
+        let mut utf16 = 0u32;
+        for (i, ch) in line_body.char_indices() {
+            if utf16 == position.character {
+                return Some(start + i);
+            }
+            if utf16 > position.character {
+                return Some(start + i);
+            }
+            utf16 += ch.len_utf16() as u32;
+        }
+        if position.character <= utf16 {
+            Some(start + line_body.len())
+        } else if line + 1 >= self.line_starts.len() {
+            Some(self.source.len())
         } else {
-            character += ch.len_utf16() as u32;
+            None
         }
     }
 
-    Position { line, character }
+    pub fn word_at(&self, position: Position) -> Option<String> {
+        let line = self.source.split('\n').nth(position.line as usize)?;
+        let mut utf16 = 0u32;
+        let mut byte = 0usize;
+        for ch in line.chars() {
+            if utf16 >= position.character {
+                break;
+            }
+            utf16 += ch.len_utf16() as u32;
+            byte += ch.len_utf8();
+        }
+        let mut s = byte.min(line.len());
+        while s > 0 {
+            let prev = line[..s].chars().next_back()?;
+            if prev.is_ascii_alphanumeric() || prev == '_' {
+                s -= prev.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let mut e = byte.min(line.len());
+        while e < line.len() {
+            let c = line[e..].chars().next()?;
+            if c.is_ascii_alphanumeric() || c == '_' {
+                e += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+        (s < e).then(|| line[s..e].to_string())
+    }
+}
+
+pub fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
+    SourceMap::new(source).offset_to_position(byte_offset)
 }
 
 fn byte_range(source: &str, start: usize, end: usize) -> Range {
+    let map = SourceMap::new(source);
     let start = start.min(source.len());
     let mut end = end.min(source.len()).max(start);
     if end == start && end < source.len() {
         end += source[end..].chars().next().map_or(0, char::len_utf8);
     }
     Range {
-        start: byte_offset_to_position(source, start),
-        end: byte_offset_to_position(source, end),
+        start: map.offset_to_position(start),
+        end: map.offset_to_position(end),
     }
 }
 
@@ -102,6 +184,14 @@ pub enum Analysis {
     },
 }
 
+impl Analysis {
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        match self {
+            Analysis::ParseError { diagnostics } | Analysis::Ok { diagnostics, .. } => diagnostics,
+        }
+    }
+}
+
 pub fn analyze_source(source: &str) -> Analysis {
     match parse(source) {
         Err(error) => Analysis::ParseError {
@@ -121,13 +211,11 @@ pub fn analyze_source(source: &str) -> Analysis {
 }
 
 pub fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
-    match analyze_source(source) {
-        Analysis::ParseError { diagnostics } | Analysis::Ok { diagnostics, .. } => diagnostics,
-    }
+    analyze_source(source).diagnostics().to_vec()
 }
 
-pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
-    match analyze_source(source) {
+pub fn dump_from_analysis(analysis: &Analysis) -> Result<String, String> {
+    match analysis {
         Analysis::ParseError { diagnostics } => Err(diagnostics
             .first()
             .map(|d| d.message.clone())
@@ -136,10 +224,10 @@ pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
             report,
             diagnostics,
         } => {
-            let mut text = dump_arenas(&report);
+            let mut text = dump_arenas(report);
             if !diagnostics.is_empty() {
                 text.push_str("\n# semantic errors\n");
-                for d in &diagnostics {
+                for d in diagnostics {
                     text.push_str(&format!("# {}\n", d.message));
                 }
             }
@@ -148,56 +236,8 @@ pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
     }
 }
 
-fn word_at(source: &str, position: Position) -> Option<String> {
-    let line = source.split('\n').nth(position.line as usize)?;
-    let mut utf16 = 0u32;
-    let mut byte = 0usize;
-    for ch in line.chars() {
-        if utf16 >= position.character {
-            break;
-        }
-        utf16 += ch.len_utf16() as u32;
-        byte += ch.len_utf8();
-    }
-    let mut s = byte.min(line.len());
-    while s > 0 {
-        let prev = line[..s].chars().next_back()?;
-        if prev.is_ascii_alphanumeric() || prev == '_' {
-            s -= prev.len_utf8();
-        } else {
-            break;
-        }
-    }
-    let mut e = byte.min(line.len());
-    while e < line.len() {
-        let c = line[e..].chars().next()?;
-        if c.is_ascii_alphanumeric() || c == '_' {
-            e += c.len_utf8();
-        } else {
-            break;
-        }
-    }
-    (s < e).then(|| line[s..e].to_string())
-}
-
-fn position_to_byte_offset(source: &str, position: Position) -> Option<usize> {
-    let mut line = 0u32;
-    let mut character = 0u32;
-    for (i, ch) in source.char_indices() {
-        if line == position.line && character == position.character {
-            return Some(i);
-        }
-        if ch == '\n' {
-            if line == position.line {
-                return Some(i);
-            }
-            line += 1;
-            character = 0;
-        } else {
-            character += ch.len_utf16() as u32;
-        }
-    }
-    (line == position.line && character >= position.character).then_some(source.len())
+pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
+    dump_from_analysis(&analyze_source(source))
 }
 
 fn span_contains(span: crate::span::Span, offset: usize) -> bool {
@@ -260,12 +300,15 @@ fn walk_local_decls<'a>(
     }
 }
 
-pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
-    let name = word_at(source, position)?;
-    let offset = position_to_byte_offset(source, position)?;
-    let Analysis::Ok { report, .. } = analyze_source(source) else {
-        return None;
-    };
+/// Hover using a precomputed analysis (no re-parse / re-sema).
+pub fn hover_for_analysis(
+    report: &ArenaReport,
+    source: &str,
+    position: Position,
+) -> Option<String> {
+    let map = SourceMap::new(source);
+    let name = map.word_at(position)?;
+    let offset = map.position_to_offset(position)?;
     for root in &report.roots {
         if let Some((arena, info)) = find_binding(root, &name, offset) {
             let own = info.ownership.hover_label();
@@ -273,6 +316,13 @@ pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
         }
     }
     None
+}
+
+pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
+    let Analysis::Ok { report, .. } = analyze_source(source) else {
+        return None;
+    };
+    hover_for_analysis(&report, source, position)
 }
 
 #[cfg(test)]
@@ -354,12 +404,14 @@ fun main() {
     }
 
     #[test]
-    fn hover_resolves_function_param() {
+    fn hover_for_analysis_uses_cached_report() {
         let source = "fun add(x: Int): Int {\n    return x\n}\n";
+        let Analysis::Ok { report, .. } = analyze_source(source) else {
+            panic!("expected ok analysis");
+        };
         let x_off = source.find('x').unwrap();
         let pos = byte_offset_to_position(source, x_off);
-        let hover = hover_for_source(source, pos).expect("hover");
-        assert!(hover.contains('`'), "{hover}");
+        let hover = hover_for_analysis(&report, source, pos).expect("hover");
         assert!(hover.contains("Ownership"), "{hover}");
     }
 }
