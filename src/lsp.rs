@@ -352,4 +352,14 @@ fun main() {
             .expect("err");
         assert_eq!(d.range.start.line, 4, "{d:?}");
     }
+
+    #[test]
+    fn hover_resolves_function_param() {
+        let source = "fun add(x: Int): Int {\n    return x\n}\n";
+        let x_off = source.find('x').unwrap();
+        let pos = byte_offset_to_position(source, x_off);
+        let hover = hover_for_source(source, pos).expect("hover");
+        assert!(hover.contains('`'), "{hover}");
+        assert!(hover.contains("Ownership"), "{hover}");
+    }
 }

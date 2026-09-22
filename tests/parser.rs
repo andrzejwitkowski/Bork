@@ -31,6 +31,16 @@ fn parses_mvp_sample() {
 }
 
 #[test]
+fn function_param_names_have_spans() {
+    let src = "fun add(x: Int, y: Int): Int { return x + y }";
+    let prog = parse(src).expect("parse");
+    let x = &prog.functions[0].params[0].name;
+    assert_eq!(x.name, "x");
+    assert!(x.span.end > x.span.start, "{:?}", x.span);
+    assert_eq!(&src[x.span.start..x.span.end], "x");
+}
+
+#[test]
 fn same_line_statements_require_a_separator() {
     assert!(parse("fun main(): Unit { val x = 1 var y = 2 }").is_err());
 }

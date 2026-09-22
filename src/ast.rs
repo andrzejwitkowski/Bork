@@ -13,7 +13,7 @@ pub struct Function {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
-    pub name: String,
+    pub name: crate::span::SpannedName,
     pub ty: Type,
 }
 

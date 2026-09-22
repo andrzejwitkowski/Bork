@@ -20,10 +20,16 @@ pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
 }
 
 fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
-    let params: Vec<(String, Ty)> = func
+    let params: Vec<(String, Ty, Option<Span>)> = func
         .params
         .iter()
-        .map(|p| (p.name.clone(), Ty::Known(p.ty.clone())))
+        .map(|p| {
+            (
+                p.name.name.clone(),
+                Ty::Known(p.ty.clone()),
+                Some(p.name.span),
+            )
+        })
         .collect();
     open_ordinary(
         az,
@@ -100,7 +106,11 @@ fn walk_stmt(
         }
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
-            let params = [(name.clone(), Ty::Known(Type::from_ident("Int", false)))];
+            let params = [(
+                name.clone(),
+                Ty::Known(Type::from_ident("Int", false)),
+                None,
+            )];
             node.children.push(open_ordinary(
                 az,
                 &format!("ForLoop ({name})"),
@@ -135,8 +145,11 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
                 walk_expr(az, a, node);
             }
             if let Some(c) = trailing {
-                let params: Vec<(String, Ty)> =
-                    c.params.iter().map(|p| (p.name.clone(), Ty::Unknown)).collect();
+                let params: Vec<(String, Ty, Option<Span>)> = c
+                    .params
+                    .iter()
+                    .map(|p| (p.name.clone(), Ty::Unknown, Some(p.span)))
+                    .collect();
                 if c.is_move {
                     node.children.push(open_move(
                         az,

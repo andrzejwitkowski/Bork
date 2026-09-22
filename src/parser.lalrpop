@@ -77,7 +77,7 @@ ReturnType: Type = {
 };
 
 Param: Param = {
-    <name:Ident> ":" <ty:Type> => Param { name, ty },
+    <name:SpannedIdent> ":" <ty:Type> => Param { name, ty },
 };
 
 Type: Type = {

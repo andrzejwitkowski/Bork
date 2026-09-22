@@ -28,7 +28,7 @@ impl RegionFrame {
         }
     }
 
-    fn bind_param(&mut self, az: &mut Analyzer, name: &str, ty: Ty) {
+    fn bind_param(&mut self, az: &mut Analyzer, name: &str, ty: Ty, span: Option<crate::span::Span>) {
         let label = self.node.label.clone();
         let id = self.node.id;
         self.shadows
@@ -37,7 +37,7 @@ impl RegionFrame {
             name: name.to_string(),
             ownership: Ownership::Local,
             ty: ty.as_option(),
-            span: None,
+            span,
             role: BindingRole::Decl,
         });
     }
@@ -103,18 +103,20 @@ fn resolve_move_captures(
     }
 }
 
+pub(super) type RegionParam = (String, Ty, Option<crate::span::Span>);
+
 pub(super) fn open_ordinary(
     az: &mut Analyzer,
     label: &str,
     body: &Block,
-    params: &[(String, Ty)],
+    params: &[RegionParam],
     walk: impl FnOnce(&mut Analyzer, &Block, &mut ArenaNode, &mut Vec<Shadow>),
 ) -> ArenaNode {
     let (body, compacted) = peel_blocks(body);
     let id = az.alloc_id();
     let mut frame = RegionFrame::new(id, label.to_string(), compacted);
-    for (name, ty) in params {
-        frame.bind_param(az, name, ty.clone());
+    for (name, ty, span) in params {
+        frame.bind_param(az, name, ty.clone(), *span);
     }
     walk(az, body, &mut frame.node, &mut frame.shadows);
     frame.finish(az)
@@ -125,16 +127,16 @@ pub(super) fn open_move(
     label: &str,
     body: &Block,
     explicit_captures: Option<&[SpannedName]>,
-    params: &[(String, Ty)],
+    params: &[RegionParam],
     walk: impl FnOnce(&mut Analyzer, &Block, &mut ArenaNode, &mut Vec<Shadow>),
 ) -> ArenaNode {
     let (peeled, compacted) = peel_blocks(body);
     let id = az.alloc_id();
-    let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+    let param_names: Vec<String> = params.iter().map(|(n, _, _)| n.clone()).collect();
     let captures = resolve_move_captures(az, peeled, explicit_captures, &param_names);
     let mut frame = RegionFrame::new(id, format!("{label} (move)"), compacted);
-    for (name, ty) in params {
-        frame.bind_param(az, name, ty.clone());
+    for (name, ty, span) in params {
+        frame.bind_param(az, name, ty.clone(), *span);
     }
     for cap in &captures {
         frame.bind_capture(az, cap);
