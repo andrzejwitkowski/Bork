@@ -1,6 +1,6 @@
 //! Region walk and ownership checking.
 
-use super::collapse_block;
+use super::peel_blocks;
 use super::env::{
     bind, restore_shadows, shadow_insert, Analyzer, EnvBinding, Shadow,
 };
@@ -67,7 +67,7 @@ fn open_region(
     params: &[(String, Option<Type>)],
     kind: RegionKind,
 ) -> ArenaNode {
-    let (body, compacted) = collapse_block(body.clone());
+    let (body, compacted) = peel_blocks(body);
     let id = az.alloc_id();
     let is_move = matches!(kind, RegionKind::Move);
     let label = if is_move {

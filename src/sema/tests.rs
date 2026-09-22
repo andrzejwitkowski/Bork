@@ -5,15 +5,19 @@ use crate::parse;
 
 #[test]
 fn collapses_nested_bare_braces() {
-    let (b, n) = collapse_block(Block {
+    let nested = Block {
         stmts: vec![Stmt::Block(Block {
             stmts: vec![Stmt::Block(Block {
                 stmts: vec![Stmt::Return(None)],
             })],
         })],
-    });
+    };
+    let (b, n) = peel_blocks(&nested);
     assert_eq!(n, 2);
     assert!(matches!(b.stmts[0], Stmt::Return(None)));
+    let (owned, n2) = collapse_block(nested);
+    assert_eq!(n2, 2);
+    assert!(matches!(owned.stmts[0], Stmt::Return(None)));
 }
 
 #[test]
