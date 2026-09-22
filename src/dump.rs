@@ -1,6 +1,6 @@
 //! ASCII arena dump for `--dump-arenas`.
 
-use crate::sema::{ArenaNode, ArenaReport};
+use crate::sema::{ArenaNode, ArenaReport, BindingInfo, Ownership};
 
 pub fn dump_arenas(report: &ArenaReport) -> String {
     let mut out = String::from("Arenas\n");
@@ -11,12 +11,12 @@ pub fn dump_arenas(report: &ArenaReport) -> String {
     out
 }
 
-fn dump_lines(node: &ArenaNode) -> Vec<&crate::sema::BindingInfo> {
+fn dump_lines(node: &ArenaNode) -> Vec<&BindingInfo> {
     let mut lines: Vec<_> = node.bindings.iter().collect();
     lines.extend(
         node.observations
             .iter()
-            .filter(|b| b.ownership.is_dump_line()),
+            .filter(|b| !matches!(b.ownership, Ownership::Local)),
     );
     lines
 }

@@ -17,7 +17,8 @@ pub(super) fn open_ordinary(
     body: &Block,
     params: &[RegionParam],
 ) -> ArenaNode {
-    open_frame(az, label.to_string(), body, params, &[])
+    let (body, compacted) = peel_blocks(body);
+    open_frame(az, label.to_string(), body, compacted, params, &[])
 }
 
 pub(super) fn open_move(
@@ -27,20 +28,27 @@ pub(super) fn open_move(
     explicit_captures: Option<&[SpannedName]>,
     params: &[RegionParam],
 ) -> ArenaNode {
-    let (peeled, _) = peel_blocks(body);
+    let (body, compacted) = peel_blocks(body);
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
-    let captures = resolve_move_captures(az, peeled, explicit_captures, &param_names);
-    open_frame(az, format!("{label} (move)"), body, params, &captures)
+    let captures = resolve_move_captures(az, body, explicit_captures, &param_names);
+    open_frame(
+        az,
+        format!("{label} (move)"),
+        body,
+        compacted,
+        params,
+        &captures,
+    )
 }
 
 fn open_frame(
     az: &mut Analyzer,
     label: String,
     body: &Block,
+    compacted: usize,
     params: &[RegionParam],
     captures: &[SpannedName],
 ) -> ArenaNode {
-    let (body, compacted) = peel_blocks(body);
     let id = az.alloc_id();
     let mut frame = RegionFrame::new(id, label, compacted);
     for p in params {
@@ -224,19 +232,16 @@ fn record_observation(
     ty: Option<Type>,
     span: Option<Span>,
 ) {
-    if ownership.is_dump_line()
-        && node
-            .observations
-            .iter()
-            .any(|x| x.name == name && x.ownership.is_dump_line())
-    {
-        return;
-    }
-    if matches!(ownership, Ownership::Local)
-        && node.observations.iter().any(|x| {
-            matches!(x.ownership, Ownership::Local) && x.name == name && x.span == span
-        })
-    {
+    let dup = node.observations.iter().any(|x| {
+        if x.name != name {
+            return false;
+        }
+        match ownership {
+            Ownership::Local => matches!(x.ownership, Ownership::Local) && x.span == span,
+            _ => !matches!(x.ownership, Ownership::Local),
+        }
+    });
+    if dup {
         return;
     }
     node.observations.push(BindingInfo {

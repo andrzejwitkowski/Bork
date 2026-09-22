@@ -255,14 +255,6 @@ fn span_contains(span: crate::span::Span, offset: usize) -> bool {
     offset >= span.start && offset < end
 }
 
-fn find_binding<'a>(
-    node: &'a ArenaNode,
-    name: &str,
-    offset: usize,
-) -> Option<(&'a str, &'a BindingInfo)> {
-    find_span_hit(node, name, offset)
-}
-
 fn find_span_hit<'a>(
     node: &'a ArenaNode,
     name: &str,
@@ -291,7 +283,7 @@ pub fn hover_for_analysis(
     let name = map.word_at(position)?;
     let offset = map.position_to_offset(position)?;
     for root in &report.roots {
-        if let Some((arena, info)) = find_binding(root, &name, offset) {
+        if let Some((arena, info)) = find_span_hit(root, &name, offset) {
             let own = info.ownership.hover_label();
             return Some(format!("`{name}` in arena `{arena}`\nOwnership: {own}"));
         }

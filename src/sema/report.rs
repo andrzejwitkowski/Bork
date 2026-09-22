@@ -28,10 +28,6 @@ impl Ownership {
     pub fn hover_label(&self) -> String {
         self.label()
     }
-
-    pub fn is_dump_line(&self) -> bool {
-        !matches!(self, Ownership::Local)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,9 +43,9 @@ pub struct ArenaNode {
     pub id: usize,
     pub label: String,
     pub compacted_braces: usize,
-    /// Declarations and move captures (always shown in dump).
+    /// Decls and move captures.
     pub bindings: Vec<BindingInfo>,
-    /// Use sites and cross-arena Copy/Shared (dump shows non-Local only).
+    /// Use sites (hover) and cross-arena Copy/Shared (dump).
     pub observations: Vec<BindingInfo>,
     pub children: Vec<ArenaNode>,
 }
