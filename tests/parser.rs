@@ -348,8 +348,10 @@ fun main() {
     .expect("move block should parse");
     assert!(matches!(
         &prog.functions[0].body.stmts[2],
-        Stmt::MoveBlock { captures, .. }
-            if captures.iter().map(|c| c.name.as_str()).eq(["a", "b"])
+        Stmt::MoveBlock {
+            captures: Some(captures),
+            ..
+        } if captures.iter().map(|c| c.name.as_str()).eq(["a", "b"])
     ));
 }
 
@@ -376,7 +378,12 @@ fun main() {
     };
     assert!(c.is_move);
     assert_eq!(
-        c.captures.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+        c.captures
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>(),
         vec!["acc"]
     );
     assert_eq!(
@@ -407,5 +414,27 @@ fun main() {
         panic!("expected call");
     };
     assert!(c.is_move);
-    assert!(c.captures.is_empty());
+    assert!(c.captures.is_none());
+}
+
+#[test]
+fn parses_move_with_explicit_empty_captures() {
+    let prog = parse(
+        r#"
+fun main() {
+    val s = "hi"
+    move () {
+        return 1
+    }
+}
+"#,
+    )
+    .expect("explicit empty move captures should parse");
+    assert!(matches!(
+        &prog.functions[0].body.stmts[1],
+        Stmt::MoveBlock {
+            captures: Some(captures),
+            ..
+        } if captures.is_empty()
+    ));
 }

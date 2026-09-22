@@ -3,9 +3,14 @@ use std::env;
 use std::fs;
 use std::process;
 
-fn usage() -> ! {
-    eprintln!("Usage: bork [--dump-arenas] <file.bork>");
-    process::exit(2);
+fn usage(status: i32) -> ! {
+    let msg = "Usage: bork [--dump-arenas] <file.bork>";
+    if status == 0 {
+        println!("{msg}");
+    } else {
+        eprintln!("{msg}");
+    }
+    process::exit(status);
 }
 
 fn main() {
@@ -15,15 +20,15 @@ fn main() {
     for arg in env::args().skip(1) {
         match arg.as_str() {
             "--dump-arenas" => dump = true,
-            "-h" | "--help" => usage(),
+            "-h" | "--help" => usage(0),
             other if other.starts_with('-') => {
                 eprintln!("unknown flag: {other}");
-                usage();
+                usage(2);
             }
             other => {
                 if file.is_some() {
                     eprintln!("unexpected argument: {other}");
-                    usage();
+                    usage(2);
                 }
                 file = Some(other.to_string());
             }
@@ -31,7 +36,7 @@ fn main() {
     }
 
     let Some(path) = file else {
-        usage();
+        usage(2);
     };
 
     let source = match fs::read_to_string(&path) {

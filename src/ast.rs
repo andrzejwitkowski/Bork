@@ -101,7 +101,8 @@ pub enum Stmt {
         body: Block,
     },
     MoveBlock {
-        captures: Vec<crate::span::SpannedName>,
+        /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
+        captures: Option<Vec<crate::span::SpannedName>>,
         body: Block,
     },
     Return(Option<Expr>),
@@ -149,7 +150,8 @@ pub struct Closure {
     pub params: Vec<crate::span::SpannedName>,
     pub body: Block,
     pub is_move: bool,
-    pub captures: Vec<crate::span::SpannedName>,
+    /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
+    pub captures: Option<Vec<crate::span::SpannedName>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

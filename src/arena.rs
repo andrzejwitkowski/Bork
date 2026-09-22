@@ -26,7 +26,14 @@ impl Arena {
     /// Bump-allocate `size` bytes. `align` must be a power of two. Panics if full.
     pub fn alloc(&mut self, size: usize, align: usize) -> *mut u8 {
         assert!(align.is_power_of_two(), "align must be a power of two");
-        let aligned = (self.offset + align - 1) & !(align - 1);
+        let base = self.buf.as_mut_ptr() as usize;
+        let addr = base
+            .checked_add(self.offset)
+            .expect("allocation address overflow");
+        let aligned_addr = (addr + align - 1) & !(align - 1);
+        let aligned = aligned_addr
+            .checked_sub(base)
+            .expect("aligned offset underflow");
         let end = aligned
             .checked_add(size)
             .expect("allocation size overflow");
@@ -34,7 +41,7 @@ impl Arena {
             panic!("arena overflow: need {end} bytes, capacity {ARENA_CAPACITY}");
         }
         self.offset = end;
-        unsafe { self.buf.as_mut_ptr().add(aligned) }
+        aligned_addr as *mut u8
     }
 
     pub fn reset(&mut self) {
@@ -119,6 +126,13 @@ mod tests {
         let p = arena.alloc(8, 8);
         assert_eq!(p as usize % 8, 0);
         assert_eq!(arena.offset(), 16);
+    }
+
+    #[test]
+    fn aligns_from_buffer_address() {
+        let mut arena = Arena::new();
+        let p = arena.alloc(1, 32);
+        assert_eq!(p as usize % 32, 0);
     }
 
     #[test]

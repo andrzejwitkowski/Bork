@@ -158,7 +158,7 @@ StmtRest: Vec<Stmt> = {
 Stmt: Stmt = {
     <b:Block> => Stmt::Block(b),
     "move" <captures:("(" <Comma<SpannedIdent>?> ")")?> <body:Block> => Stmt::MoveBlock {
-        captures: captures.flatten().unwrap_or_default(),
+        captures: captures.map(|c| c.unwrap_or_default()),
         body,
     },
     <kind:Binding> <name:SpannedIdent> <ty:(":" <Type>)?> "=" <value:Expr> => Stmt::VarDecl {
@@ -251,13 +251,13 @@ TrailingClosure: Closure = {
         params: c.0,
         body: c.1,
         is_move: true,
-        captures: captures.flatten().unwrap_or_default(),
+        captures: captures.map(|c| c.unwrap_or_default()),
     },
     "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" => Closure {
         params: params.unwrap_or_default(),
         body: Block { stmts },
         is_move: false,
-        captures: vec![],
+        captures: None,
     },
 };
 

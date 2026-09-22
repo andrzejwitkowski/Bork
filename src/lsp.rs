@@ -180,25 +180,109 @@ fn word_at(source: &str, position: Position) -> Option<String> {
     (s < e).then(|| line[s..e].to_string())
 }
 
+fn position_to_byte_offset(source: &str, position: Position) -> Option<usize> {
+    let mut line = 0u32;
+    let mut character = 0u32;
+    for (i, ch) in source.char_indices() {
+        if line == position.line && character == position.character {
+            return Some(i);
+        }
+        if ch == '\n' {
+            if line == position.line {
+                return Some(i);
+            }
+            line += 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16() as u32;
+        }
+    }
+    (line == position.line && character >= position.character).then_some(source.len())
+}
+
+fn span_contains(span: crate::span::Span, offset: usize) -> bool {
+    offset >= span.start && offset < span.end.max(span.start.saturating_add(1))
+}
+
 fn find_binding<'a>(
     node: &'a crate::sema::ArenaNode,
     name: &str,
+    offset: usize,
 ) -> Option<(&'a str, &'a BindingInfo)> {
-    for b in &node.bindings {
-        if b.name == name {
-            return Some((node.label.as_str(), b));
+    if let Some(hit) = find_binding_at_offset(node, name, offset) {
+        return Some(hit);
+    }
+    find_binding_by_decl(node, name, offset)
+}
+
+fn find_binding_at_offset<'a>(
+    node: &'a crate::sema::ArenaNode,
+    name: &str,
+    offset: usize,
+) -> Option<(&'a str, &'a BindingInfo)> {
+    for child in &node.children {
+        if let Some(hit) = find_binding_at_offset(child, name, offset) {
+            return Some(hit);
         }
     }
-    node.children.iter().find_map(|c| find_binding(c, name))
+    node.bindings.iter().find_map(|b| {
+        if b.name == name {
+            b.span
+                .filter(|s| span_contains(*s, offset))
+                .map(|_| (node.label.as_str(), b))
+        } else {
+            None
+        }
+    })
+}
+
+fn find_binding_by_decl<'a>(
+    node: &'a crate::sema::ArenaNode,
+    name: &str,
+    offset: usize,
+) -> Option<(&'a str, &'a BindingInfo)> {
+    let mut best: Option<(&'a str, &'a BindingInfo, usize)> = None;
+    collect_decl_candidates(node, name, offset, &mut best);
+    best.map(|(label, info, _)| (label, info))
+}
+
+fn collect_decl_candidates<'a>(
+    node: &'a crate::sema::ArenaNode,
+    name: &str,
+    offset: usize,
+    best: &mut Option<(&'a str, &'a BindingInfo, usize)>,
+) {
+    for b in &node.bindings {
+        if b.name != name || !matches!(b.ownership, crate::sema::Ownership::Local) {
+            continue;
+        }
+        let Some(span) = b.span else {
+            continue;
+        };
+        if span.start > offset {
+            continue;
+        }
+        let replace = match best {
+            None => true,
+            Some((_, _, start)) => span.start >= *start,
+        };
+        if replace {
+            *best = Some((node.label.as_str(), b, span.start));
+        }
+    }
+    for child in &node.children {
+        collect_decl_candidates(child, name, offset, best);
+    }
 }
 
 pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
     let name = word_at(source, position)?;
+    let offset = position_to_byte_offset(source, position)?;
     let Analysis::Ok { report, .. } = analyze_source(source) else {
         return None;
     };
     for root in &report.roots {
-        if let Some((arena, info)) = find_binding(root, &name) {
+        if let Some((arena, info)) = find_binding(root, &name, offset) {
             let own = info.ownership.hover_label();
             return Some(format!("`{name}` in arena `{arena}`\nOwnership: {own}"));
         }

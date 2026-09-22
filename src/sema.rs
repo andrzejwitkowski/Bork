@@ -37,6 +37,7 @@ pub struct BindingInfo {
     pub name: String,
     pub ownership: Ownership,
     pub ty: Option<Type>,
+    pub span: Option<Span>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -181,7 +182,7 @@ fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
         az,
         &format!("fun {}", func.name),
         &func.body,
-        &[],
+        None,
         &params,
         RegionKind::Ordinary,
     )
@@ -190,24 +191,24 @@ fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
 fn resolve_move_captures(
     az: &Analyzer,
     body: &Block,
-    explicit_captures: &[SpannedName],
+    explicit_captures: Option<&[SpannedName]>,
     param_names: &[String],
 ) -> Vec<SpannedName> {
-    if !explicit_captures.is_empty() {
-        return explicit_captures.to_vec();
+    match explicit_captures {
+        Some(caps) => caps.to_vec(),
+        None => free_vars_in_block(body)
+            .into_iter()
+            .filter(|n| !param_names.contains(&n.name))
+            .filter(|n| az.env.get(&n.name).is_some_and(|b| !b.moved))
+            .collect(),
     }
-    free_vars_in_block(body)
-        .into_iter()
-        .filter(|n| !param_names.contains(&n.name))
-        .filter(|n| az.env.get(&n.name).is_some_and(|b| !b.moved))
-        .collect()
 }
 
 fn open_region(
     az: &mut Analyzer,
     label: &str,
     body: &Block,
-    explicit_captures: &[SpannedName],
+    explicit_captures: Option<&[SpannedName]>,
     params: &[(String, Option<Type>)],
     kind: RegionKind,
 ) -> ArenaNode {
@@ -251,6 +252,7 @@ fn open_region(
             name: name.clone(),
             ownership: Ownership::Local,
             ty: ty.clone(),
+            span: None,
         });
     }
 
@@ -285,6 +287,7 @@ fn open_region(
                         from: b.arena_label,
                     },
                     ty: b.ty,
+                    span: Some(cap.span),
                 });
             }
         }
@@ -292,10 +295,14 @@ fn open_region(
 
     let mut locals = param_names;
     locals.extend(captures.iter().map(|c| c.name.clone()));
-    walk_block(az, &body, &mut node, &mut locals);
+    let mut var_shadows = Vec::new();
+    walk_block(az, &body, &mut node, &mut locals, &mut var_shadows);
 
     for n in &locals {
         az.env.remove(n);
+    }
+    for s in var_shadows.into_iter().rev() {
+        shadow_restore(az, s);
     }
     for s in shadows.into_iter().rev() {
         shadow_restore(az, s);
@@ -314,9 +321,10 @@ fn walk_block(
     block: &Block,
     node: &mut ArenaNode,
     local_names: &mut Vec<String>,
+    var_shadows: &mut Vec<Shadow>,
 ) {
     for stmt in &block.stmts {
-        walk_stmt(az, stmt, node, local_names);
+        walk_stmt(az, stmt, node, local_names, var_shadows);
     }
 }
 
@@ -325,6 +333,7 @@ fn walk_stmt(
     stmt: &Stmt,
     node: &mut ArenaNode,
     local_names: &mut Vec<String>,
+    var_shadows: &mut Vec<Shadow>,
 ) {
     match stmt {
         Stmt::Block(body) => {
@@ -332,7 +341,7 @@ fn walk_stmt(
                 az,
                 "Block",
                 body,
-                &[],
+                None,
                 &[],
                 RegionKind::Ordinary,
             ));
@@ -342,7 +351,7 @@ fn walk_stmt(
                 az,
                 "MoveBlock",
                 body,
-                captures,
+                captures.as_deref(),
                 &[],
                 RegionKind::Move,
             ));
@@ -350,13 +359,14 @@ fn walk_stmt(
         Stmt::VarDecl {
             kind,
             name,
+            name_span,
             ty,
             value,
-            ..
         } => {
             walk_expr(az, value, node);
-            let inferred = ty.clone().or_else(|| infer_type(value));
-            az.env.insert(
+            let inferred = ty.clone().or_else(|| infer_type(az, value));
+            var_shadows.push(shadow_insert(
+                az,
                 name.clone(),
                 EnvBinding {
                     arena_id: node.id,
@@ -365,12 +375,13 @@ fn walk_stmt(
                     kind: *kind,
                     moved: false,
                 },
-            );
+            ));
             local_names.push(name.clone());
             node.bindings.push(BindingInfo {
                 name: name.clone(),
                 ownership: Ownership::Local,
                 ty: inferred,
+                span: Some(*name_span),
             });
         }
         Stmt::Assign { name, name_span, value } => {
@@ -384,7 +395,7 @@ fn walk_stmt(
                 az,
                 &format!("ForLoop ({name})"),
                 body,
-                &[],
+                None,
                 &params,
                 RegionKind::Ordinary,
             ));
@@ -421,7 +432,7 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
                     az,
                     "Closure",
                     &c.body,
-                    &c.captures,
+                    c.captures.as_deref(),
                     &params,
                     if c.is_move {
                         RegionKind::Move
@@ -437,23 +448,40 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             else_block,
         } => {
             walk_expr(az, cond, node);
+            let env_before = az.env.clone();
             node.children.push(open_region(
                 az,
                 "IfThen",
                 then_block,
-                &[],
+                None,
                 &[],
                 RegionKind::Ordinary,
             ));
-            if let Some(else_b) = else_block {
+            let env_after_then = az.env.clone();
+            az.env = env_before.clone();
+            let env_after_else = if let Some(else_b) = else_block {
                 node.children.push(open_region(
                     az,
                     "IfElse",
                     else_b,
-                    &[],
+                    None,
                     &[],
                     RegionKind::Ordinary,
                 ));
+                Some(az.env.clone())
+            } else {
+                None
+            };
+            az.env = env_before;
+            for (name, binding) in az.env.iter_mut() {
+                let then_moved = env_after_then.get(name).is_some_and(|b| b.moved);
+                binding.moved = match &env_after_else {
+                    Some(env_else) => {
+                        let else_moved = env_else.get(name).is_some_and(|b| b.moved);
+                        then_moved && else_moved
+                    }
+                    None => then_moved && binding.moved,
+                };
             }
         }
         Expr::Int(_) | Expr::Str(_) | Expr::None => {}
@@ -477,10 +505,10 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
     }
     let is_copy = match &b.ty {
         Some(t) => t.is_copy(),
-        None => true,
+        None => false,
     };
     if is_copy {
-        record_obs(node, name, Ownership::Copy, b.ty);
+        record_obs(node, name, Ownership::Copy, b.ty, span);
         return;
     }
     if matches!(b.kind, BindingKind::Val) {
@@ -491,6 +519,7 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
                 from: b.arena_label,
             },
             b.ty,
+            span,
         );
         return;
     }
@@ -504,7 +533,13 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
     );
 }
 
-fn record_obs(node: &mut ArenaNode, name: &str, ownership: Ownership, ty: Option<Type>) {
+fn record_obs(
+    node: &mut ArenaNode,
+    name: &str,
+    ownership: Ownership,
+    ty: Option<Type>,
+    span: Option<Span>,
+) {
     if node.bindings.iter().any(|x| x.name == name) {
         return;
     }
@@ -512,15 +547,32 @@ fn record_obs(node: &mut ArenaNode, name: &str, ownership: Ownership, ty: Option
         name: name.to_string(),
         ownership,
         ty,
+        span,
     });
 }
 
-fn infer_type(expr: &Expr) -> Option<Type> {
+fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
     match expr {
         Expr::Int(_) => Some(Type::from_ident("Int", false)),
         Expr::Str(_) => Some(Type::Named {
             name: "String".into(),
             nullable: false,
+        }),
+        Expr::Ident { name, .. } => az.env.get(name).and_then(|b| b.ty.clone()),
+        Expr::Some(inner) => infer_type(az, inner).map(|ty| match ty {
+            Type::Primitive { name, .. } => Type::Primitive {
+                name,
+                nullable: true,
+            },
+            Type::Named { name, .. } => Type::Named {
+                name,
+                nullable: true,
+            },
+            Type::Func { params, ret, .. } => Type::Func {
+                params,
+                ret,
+                nullable: true,
+            },
         }),
         _ => None,
     }
@@ -551,7 +603,26 @@ fn collect_stmt(
     bound: &mut HashSet<String>,
 ) {
     match stmt {
-        Stmt::Block(b) | Stmt::MoveBlock { body: b, .. } => collect_block(b, free, bound),
+        Stmt::Block(b) => {
+            let mut inner = bound.clone();
+            collect_block(b, free, &mut inner);
+        }
+        Stmt::MoveBlock { body: b, captures } => {
+            if let Some(caps) = captures {
+                for cap in caps {
+                    if !bound.contains(&cap.name) {
+                        free.entry(cap.name.clone()).or_insert(cap.span);
+                    }
+                }
+            }
+            let mut inner = bound.clone();
+            if let Some(caps) = captures {
+                for cap in caps {
+                    inner.insert(cap.name.clone());
+                }
+            }
+            collect_block(b, free, &mut inner);
+        }
         Stmt::VarDecl { name, value, .. } => {
             collect_expr(value, free, bound);
             bound.insert(name.clone());
@@ -609,9 +680,12 @@ fn collect_expr(
                 for p in &c.params {
                     inner.insert(p.name.clone());
                 }
-                for cap in &c.captures {
-                    if !bound.contains(&cap.name) {
-                        free.entry(cap.name.clone()).or_insert(cap.span);
+                if let Some(caps) = &c.captures {
+                    for cap in caps {
+                        if !bound.contains(&cap.name) {
+                            free.entry(cap.name.clone()).or_insert(cap.span);
+                        }
+                        inner.insert(cap.name.clone());
                     }
                 }
                 collect_block(&c.body, free, &mut inner);
@@ -802,6 +876,108 @@ fun main() {
         assert!(
             errs.iter().any(|e| e.message.contains("after move")),
             "{errs:?}"
+        );
+    }
+
+    #[test]
+    fn explicit_empty_captures_do_not_infer() {
+        let src = r#"
+fun main() {
+    val s: String = "hi"
+    move () {
+        val t = s
+    }
+    val u = s
+}
+"#;
+        let prog = parse(src).unwrap();
+        let (report, errs) = analyze(&prog);
+        assert!(errs.is_empty(), "empty capture list must not move s: {errs:?}");
+        let move_child = report.roots[0]
+            .children
+            .iter()
+            .find(|c| c.label.contains("MoveBlock"))
+            .expect("move child");
+        assert!(
+            !move_child.bindings.iter().any(|b| {
+                b.name == "s" && matches!(b.ownership, Ownership::Moved { .. })
+            }),
+            "s must not be moved with explicit empty captures: {:?}",
+            move_child.bindings
+        );
+        assert!(
+            move_child.bindings.iter().any(|b| {
+                b.name == "s" && matches!(b.ownership, Ownership::Shared { .. })
+            }),
+            "s should be Shared inside move (): {:?}",
+            move_child.bindings
+        );
+    }
+
+    #[test]
+    fn nested_var_shadow_restores_parent() {
+        let src = r#"
+fun main() {
+    val s: String = "hi"
+    {
+        val s: String = "inner"
+    }
+    move {
+        val t = s
+    }
+    val u = s
+}
+"#;
+        let prog = parse(src).unwrap();
+        let (_, errs) = analyze(&prog);
+        assert!(
+            errs.iter().any(|e| e.message.contains("after move")),
+            "parent s should still be capturable after inner shadow ends: {errs:?}"
+        );
+    }
+
+    #[test]
+    fn if_branches_do_not_share_move_state() {
+        let src = r#"
+fun main() {
+    var s: String = "hi"
+    if (true) {
+        move (s) {
+            return 1
+        }
+    } else {
+        val t = s
+    }
+}
+"#;
+        let prog = parse(src).unwrap();
+        let (_, errs) = analyze(&prog);
+        assert!(
+            !errs.iter().any(|e| e.message.contains("after move")),
+            "else must not see then-branch move: {errs:?}"
+        );
+        assert!(
+            errs.iter().any(|e| e.message.contains("not Copy")),
+            "else reading var s without move should error: {errs:?}"
+        );
+    }
+
+    #[test]
+    fn unknown_type_is_not_treated_as_copy() {
+        let src = r#"
+fun main() {
+    var s: String = "hi"
+    var t = s
+    {
+        val u = t
+    }
+}
+"#;
+        let prog = parse(src).unwrap();
+        let (_, errs) = analyze(&prog);
+        assert!(
+            errs.iter().any(|e| e.message.contains("not Copy")),
+            "t should inherit non-Copy from s: {errs:?}"
         );
     }
 }
