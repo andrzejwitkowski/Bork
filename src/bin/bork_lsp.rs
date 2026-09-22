@@ -15,24 +15,32 @@ struct DocState {
 struct Backend {
     client: Client,
     docs: Mutex<HashMap<Url, DocState>>,
+    /// Bumped on every open/change/close so in-flight analyses cannot commit stale state.
+    epoch: Mutex<HashMap<Url, u64>>,
 }
 
 impl Backend {
-    async fn publish_for(&self, uri: Url, text: &str) {
-        let analysis = analyze_source(text);
+    fn bump_epoch(&self, uri: &Url) -> u64 {
+        let mut epochs = self.epoch.lock().expect("epoch mutex");
+        let slot = epochs.entry(uri.clone()).or_insert(0);
+        *slot += 1;
+        *slot
+    }
+
+    async fn publish_for(&self, uri: Url, text: String, version: i32) {
+        let epoch = self.bump_epoch(&uri);
+        let analysis = analyze_source(&text);
         let diagnostics = analysis.diagnostics().to_vec();
         {
+            let epochs = self.epoch.lock().expect("epoch mutex");
+            if epochs.get(&uri).copied() != Some(epoch) {
+                return;
+            }
             let mut docs = self.docs.lock().expect("docs mutex");
-            docs.insert(
-                uri.clone(),
-                DocState {
-                    text: text.to_string(),
-                    analysis,
-                },
-            );
+            docs.insert(uri.clone(), DocState { text, analysis });
         }
         self.client
-            .publish_diagnostics(uri, diagnostics, None)
+            .publish_diagnostics(uri, diagnostics, Some(version))
             .await;
     }
 }
@@ -61,24 +69,30 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.publish_for(params.text_document.uri, &params.text_document.text)
-            .await;
+        let doc = params.text_document;
+        self.publish_for(doc.uri, doc.text, doc.version).await;
     }
 
     async fn did_change(&self, mut params: DidChangeTextDocumentParams) {
         let Some(change) = params.content_changes.pop() else {
             return;
         };
-        self.publish_for(params.text_document.uri, &change.text)
-            .await;
+        self.publish_for(
+            params.text_document.uri,
+            change.text,
+            params.text_document.version,
+        )
+        .await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
+        let uri = params.text_document.uri;
+        self.bump_epoch(&uri);
         if let Ok(mut docs) = self.docs.lock() {
-            docs.remove(&params.text_document.uri);
+            docs.remove(&uri);
         }
         self.client
-            .publish_diagnostics(params.text_document.uri, Vec::new(), None)
+            .publish_diagnostics(uri, Vec::new(), None)
             .await;
     }
 
@@ -149,6 +163,7 @@ async fn main() {
     let (service, socket) = LspService::new(|client| Backend {
         client,
         docs: Mutex::new(HashMap::new()),
+        epoch: Mutex::new(HashMap::new()),
     });
     Server::new(tokio::io::stdin(), tokio::io::stdout(), socket)
         .serve(service)

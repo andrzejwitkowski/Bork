@@ -108,7 +108,11 @@ pub(super) fn resolve_move_captures(
         None => free_vars_in_block(body)
             .into_iter()
             .filter(|n| !param_names.contains(&n.name))
-            .filter(|n| az.env.get(&n.name).is_some_and(|b| !b.moved))
+            .filter(|n| {
+                az.env
+                    .get(&n.name)
+                    .is_some_and(|b| !b.moved && !b.ty.is_copy())
+            })
             .collect(),
     }
 }

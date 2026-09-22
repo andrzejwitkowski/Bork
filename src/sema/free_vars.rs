@@ -2,10 +2,10 @@
 
 use crate::ast::{Block, Expr, Stmt};
 use crate::span::{Span, SpannedName};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 pub(super) fn free_vars_in_block(block: &Block) -> Vec<SpannedName> {
-    let mut free: HashMap<String, Span> = HashMap::new();
+    let mut free: BTreeMap<String, Span> = BTreeMap::new();
     let mut bound = HashSet::new();
     collect_block(block, &mut free, &mut bound);
     free.into_iter()
@@ -15,7 +15,7 @@ pub(super) fn free_vars_in_block(block: &Block) -> Vec<SpannedName> {
 
 fn collect_block(
     block: &Block,
-    free: &mut HashMap<String, Span>,
+    free: &mut BTreeMap<String, Span>,
     bound: &mut HashSet<String>,
 ) {
     for stmt in &block.stmts {
@@ -25,7 +25,7 @@ fn collect_block(
 
 fn collect_stmt(
     stmt: &Stmt,
-    free: &mut HashMap<String, Span>,
+    free: &mut BTreeMap<String, Span>,
     bound: &mut HashSet<String>,
 ) {
     match stmt {
@@ -76,7 +76,7 @@ fn collect_stmt(
 
 fn collect_expr(
     expr: &Expr,
-    free: &mut HashMap<String, Span>,
+    free: &mut BTreeMap<String, Span>,
     bound: &mut HashSet<String>,
 ) {
     match expr {

@@ -172,6 +172,41 @@ fun main() {
 }
 
 #[test]
+fn inferred_move_does_not_capture_copy() {
+    let src = r#"
+fun main() {
+    val n = 1
+    move {
+        val m = n
+    }
+    val k = n
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "Copy n must stay usable after inferred move: {errs:?}");
+    let move_child = report.roots[0]
+        .children
+        .iter()
+        .find(|c| c.label.contains("MoveBlock"))
+        .expect("move child");
+    assert!(
+        !move_child.bindings.iter().any(|b| {
+            b.name == "n" && matches!(b.ownership, Ownership::Moved { .. })
+        }),
+        "Copy n must not be moved: {:?}",
+        move_child.bindings
+    );
+    assert!(
+        move_child.observations.iter().any(|b| {
+            b.name == "n" && matches!(b.ownership, Ownership::Copy)
+        }),
+        "n should be Copy inside inferred move: {:?}",
+        move_child.observations
+    );
+}
+
+#[test]
 fn explicit_empty_captures_do_not_infer() {
     let src = r#"
 fun main() {
