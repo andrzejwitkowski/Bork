@@ -3,7 +3,7 @@
 use super::report::SemaError;
 use crate::ast::{BindingKind, Type};
 use crate::span::Span;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
 pub(super) struct EnvBinding {
@@ -12,6 +12,13 @@ pub(super) struct EnvBinding {
     pub(super) ty: Option<Type>,
     pub(super) kind: BindingKind,
     pub(super) moved: bool,
+}
+
+pub(super) fn moved_names(env: &HashMap<String, EnvBinding>) -> HashSet<String> {
+    env.iter()
+        .filter(|(_, b)| b.moved)
+        .map(|(n, _)| n.clone())
+        .collect()
 }
 
 pub(super) struct Analyzer {

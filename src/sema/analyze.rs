@@ -1,12 +1,12 @@
 //! Region walk and ownership checking.
 
-use super::env::{shadow_insert, Analyzer, EnvBinding, Shadow};
+use super::env::{moved_names, shadow_insert, Analyzer, EnvBinding, Shadow};
 use super::policy::{classify_use, UseOutcome};
 use super::region::{open_move, open_ordinary};
 use super::report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
 use crate::ast::{Block, Expr, Function, Program, Stmt, Type};
 use crate::span::Span;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
@@ -158,34 +158,37 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
         } => {
             walk_expr(az, cond, node);
             let env_before = az.env.clone();
+            let before_moved = moved_names(&az.env);
             node.children
                 .push(open_ordinary(az, "IfThen", then_block, &[], walk_block));
-            let env_after_then = az.env.clone();
+            let then_moved = moved_names(&az.env);
             az.env = env_before.clone();
-            let env_after_else = if let Some(else_b) = else_block {
+            let else_moved = if let Some(else_b) = else_block {
                 node.children
                     .push(open_ordinary(az, "IfElse", else_b, &[], walk_block));
-                Some(az.env.clone())
+                Some(moved_names(&az.env))
             } else {
                 None
             };
             az.env = env_before;
-            merge_branch_moves(&mut az.env, &env_after_then, env_after_else.as_ref());
+            merge_branch_moves(&mut az.env, &before_moved, &then_moved, else_moved.as_ref());
         }
         Expr::Int(_) | Expr::Str(_) | Expr::None => {}
     }
 }
 
 fn merge_branch_moves(
-    env: &mut HashMap<String, EnvBinding>,
-    after_then: &HashMap<String, EnvBinding>,
-    after_else: Option<&HashMap<String, EnvBinding>>,
+    env: &mut std::collections::HashMap<String, EnvBinding>,
+    before_moved: &HashSet<String>,
+    then_moved: &HashSet<String>,
+    else_moved: Option<&HashSet<String>>,
 ) {
     for (name, binding) in env.iter_mut() {
-        let then_moved = after_then.get(name).is_some_and(|b| b.moved);
-        binding.moved = match after_else {
-            Some(env_else) => then_moved && env_else.get(name).is_some_and(|b| b.moved),
-            None => then_moved && binding.moved,
+        let then = then_moved.contains(name);
+        binding.moved = match else_moved {
+            Some(else_set) => before_moved.contains(name) || (then && else_set.contains(name)),
+            // if-without-else: then-only moves do not stick
+            None => before_moved.contains(name),
         };
     }
 }

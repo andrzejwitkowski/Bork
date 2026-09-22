@@ -258,6 +258,52 @@ fun main() {
 }
 
 #[test]
+fn if_both_branches_move_marks_after() {
+    let src = r#"
+fun main() {
+    val s: String = "hi"
+    if (true) {
+        move (s) {
+            return 1
+        }
+    } else {
+        move (s) {
+            return 2
+        }
+    }
+    val t = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("after move")),
+        "both branches move => use after if is after-move: {errs:?}"
+    );
+}
+
+#[test]
+fn if_then_only_move_without_else_does_not_stick() {
+    let src = r#"
+fun main() {
+    val s: String = "hi"
+    if (true) {
+        move (s) {
+            return 1
+        }
+    }
+    val t = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        !errs.iter().any(|e| e.message.contains("after move")),
+        "then-only move without else must not stick: {errs:?}"
+    );
+}
+
+#[test]
 fn unknown_type_is_not_treated_as_copy() {
     let src = r#"
 fun main() {
