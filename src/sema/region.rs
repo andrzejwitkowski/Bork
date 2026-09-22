@@ -3,7 +3,7 @@
 use super::env::{bind, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
 use super::peel_blocks;
-use super::report::{ArenaNode, BindingInfo, Ownership};
+use super::report::{ArenaNode, BindingInfo, BindingRole, Ownership};
 use crate::ast::{BindingKind, Block};
 use crate::span::SpannedName;
 
@@ -38,6 +38,7 @@ impl RegionFrame {
             ownership: Ownership::Local,
             ty: ty.as_option(),
             span: None,
+            role: BindingRole::Decl,
         });
     }
 
@@ -69,6 +70,7 @@ impl RegionFrame {
                     },
                     ty: b.ty.as_option(),
                     span: Some(cap.span),
+                    role: BindingRole::Decl,
                 });
             }
         }

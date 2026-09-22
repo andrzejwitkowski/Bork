@@ -1,7 +1,7 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
+use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, BindingRole, Ownership, SemaError};
 use crate::{parse, Error};
 use lalrpop_util::ParseError;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
@@ -241,7 +241,8 @@ fn walk_local_decls<'a>(
     best: &mut Option<(&'a str, &'a BindingInfo, usize)>,
 ) {
     for b in &node.bindings {
-        if b.name != name || !matches!(b.ownership, Ownership::Local) {
+        if b.name != name || b.role != BindingRole::Decl || !matches!(b.ownership, Ownership::Local)
+        {
             continue;
         }
         let Some(span) = b.span else {

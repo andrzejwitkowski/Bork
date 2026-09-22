@@ -11,7 +11,9 @@ mod report;
 mod tests;
 
 pub use analyze::analyze;
-pub use report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
+pub use report::{
+    ArenaNode, ArenaReport, BindingInfo, BindingRole, Ownership, SemaError,
+};
 
 use crate::ast::{Block, Stmt};
 

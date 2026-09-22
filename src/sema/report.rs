@@ -30,12 +30,19 @@ impl Ownership {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BindingRole {
+    Decl,
+    Use,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BindingInfo {
     pub name: String,
     pub ownership: Ownership,
     pub ty: Option<Type>,
     pub span: Option<Span>,
+    pub role: BindingRole,
 }
 
 #[derive(Debug, Clone, PartialEq)]

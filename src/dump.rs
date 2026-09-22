@@ -1,6 +1,6 @@
 //! ASCII arena dump for `--dump-arenas`.
 
-use crate::sema::{ArenaNode, ArenaReport};
+use crate::sema::{ArenaNode, ArenaReport, BindingRole};
 
 pub fn dump_arenas(report: &ArenaReport) -> String {
     let mut out = String::from("Arenas\n");
@@ -27,10 +27,15 @@ fn dump_node(out: &mut String, node: &ArenaNode, prefix: &str, is_last: bool) {
     out.push('\n');
 
     let child_prefix = format!("{prefix}{}", if is_last { "    " } else { "│   " });
-    let total = node.bindings.len() + node.children.len();
+    let dump_bindings: Vec<_> = node
+        .bindings
+        .iter()
+        .filter(|b| b.role == BindingRole::Decl)
+        .collect();
+    let total = dump_bindings.len() + node.children.len();
     let mut idx = 0;
 
-    for b in &node.bindings {
+    for b in dump_bindings {
         idx += 1;
         let last = idx == total;
         let br = if last { "└── " } else { "├── " };

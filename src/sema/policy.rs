@@ -6,7 +6,6 @@ use crate::ast::BindingKind;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum UseOutcome {
-    Ignore,
     Observe(Ownership),
     Error { message: String },
 }
@@ -26,7 +25,7 @@ pub(super) fn classify_use(
         };
     }
     if binding.arena_id == current_arena {
-        return UseOutcome::Ignore;
+        return UseOutcome::Observe(Ownership::Local);
     }
     let is_copy = binding.ty.is_copy();
     if is_copy {
@@ -59,9 +58,12 @@ mod tests {
     }
 
     #[test]
-    fn same_arena_is_ignore() {
+    fn same_arena_is_observe_local() {
         let b = binding(1, Ty::Known(Type::from_ident("Int", false)), BindingKind::Val, false);
-        assert_eq!(classify_use(&b, 1, "here", "x"), UseOutcome::Ignore);
+        assert_eq!(
+            classify_use(&b, 1, "here", "x"),
+            UseOutcome::Observe(Ownership::Local)
+        );
     }
 
     #[test]

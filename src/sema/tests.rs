@@ -2,6 +2,7 @@ use super::*;
 use crate::ast::{Block, Stmt};
 use crate::dump::dump_arenas;
 use crate::parse;
+use crate::sema::BindingRole;
 
 #[test]
 fn collapses_nested_bare_braces() {
@@ -300,6 +301,31 @@ fun main() {
     assert!(
         !errs.iter().any(|e| e.message.contains("after move")),
         "then-only move without else must not stick: {errs:?}"
+    );
+}
+
+#[test]
+fn dump_skips_use_site_bindings() {
+    let src = r#"
+fun main() {
+    val n = 1
+    val m = n
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let text = dump_arenas(&report);
+    // Decl lines only — use of `n` must not add a second dump entry.
+    let n_lines: Vec<_> = text.lines().filter(|l| l.contains("n [")).collect();
+    assert_eq!(n_lines.len(), 1, "dump should list n once:\n{text}");
+    let main = &report.roots[0];
+    assert!(
+        main.bindings
+            .iter()
+            .any(|b| b.name == "n" && b.role == BindingRole::Use),
+        "analyzer should still record use-site for hover: {:?}",
+        main.bindings
     );
 }
 

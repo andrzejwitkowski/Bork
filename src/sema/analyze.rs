@@ -3,7 +3,7 @@
 use super::env::{moved_names, shadow_insert, Analyzer, EnvBinding, Shadow, Ty};
 use super::policy::{classify_use, UseOutcome};
 use super::region::{open_move, open_ordinary};
-use super::report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
+use super::report::{ArenaNode, ArenaReport, BindingInfo, BindingRole, Ownership, SemaError};
 use crate::ast::{Block, Expr, Function, Program, Stmt, Type};
 use crate::span::Span;
 use std::collections::HashSet;
@@ -91,6 +91,7 @@ fn walk_stmt(
                 ownership: Ownership::Local,
                 ty: inferred.as_option(),
                 span: Some(*name_span),
+                role: BindingRole::Decl,
             });
         }
         Stmt::Assign { name, name_span, value } => {
@@ -198,9 +199,8 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
         return;
     };
     match classify_use(&b, node.id, &node.label, name) {
-        UseOutcome::Ignore => {}
         UseOutcome::Observe(ownership) => {
-            record_obs(node, name, ownership, b.ty.as_option(), span)
+            record_use(node, name, ownership, b.ty.as_option(), span)
         }
         UseOutcome::Error { message } => {
             az.error(message, Some(name.to_string()), span);
@@ -208,14 +208,29 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
     }
 }
 
-fn record_obs(
+fn record_use(
     node: &mut ArenaNode,
     name: &str,
     ownership: Ownership,
     ty: Option<Type>,
     span: Option<Span>,
 ) {
-    if node.bindings.iter().any(|x| x.name == name) {
+    let role = match ownership {
+        Ownership::Local => BindingRole::Use,
+        _ => {
+            // Cross-arena Copy/Shared: one dump line per name.
+            if node.bindings.iter().any(|x| x.name == name) {
+                return;
+            }
+            BindingRole::Decl
+        }
+    };
+    if role == BindingRole::Use
+        && node
+            .bindings
+            .iter()
+            .any(|x| x.role == BindingRole::Use && x.name == name && x.span == span)
+    {
         return;
     }
     node.bindings.push(BindingInfo {
@@ -223,6 +238,7 @@ fn record_obs(
         ownership,
         ty,
         span,
+        role,
     });
 }
 
