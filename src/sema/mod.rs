@@ -3,6 +3,7 @@
 mod analyze;
 mod env;
 mod free_vars;
+mod policy;
 mod region;
 mod report;
 

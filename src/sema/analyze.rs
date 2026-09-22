@@ -1,9 +1,10 @@
 //! Region walk and ownership checking.
 
 use super::env::{shadow_insert, Analyzer, EnvBinding, Shadow};
+use super::policy::{classify_use, UseOutcome};
 use super::region::{open_move, open_ordinary};
 use super::report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
-use crate::ast::{BindingKind, Block, Expr, Function, Program, Stmt, Type};
+use crate::ast::{Block, Expr, Function, Program, Stmt, Type};
 use crate::span::Span;
 use std::collections::HashMap;
 
@@ -193,42 +194,13 @@ fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaN
     let Some(b) = az.env.get(name).cloned() else {
         return;
     };
-    if b.moved {
-        az.error(
-            format!("use of `{name}` after move from {}", b.arena_label),
-            Some(name.to_string()),
-            span,
-        );
-        return;
+    match classify_use(&b, node.id, &node.label, name) {
+        UseOutcome::Ignore => {}
+        UseOutcome::Observe(ownership) => record_obs(node, name, ownership, b.ty, span),
+        UseOutcome::Error { message } => {
+            az.error(message, Some(name.to_string()), span);
+        }
     }
-    if b.arena_id == node.id {
-        return;
-    }
-    let is_copy = b.ty.as_ref().is_some_and(Type::is_copy);
-    if is_copy {
-        record_obs(node, name, Ownership::Copy, b.ty, span);
-        return;
-    }
-    if matches!(b.kind, BindingKind::Val) {
-        record_obs(
-            node,
-            name,
-            Ownership::Shared {
-                from: b.arena_label,
-            },
-            b.ty,
-            span,
-        );
-        return;
-    }
-    az.error(
-        format!(
-            "`{name}` is not Copy; move it into `{}` with `move`",
-            node.label
-        ),
-        Some(name.to_string()),
-        span,
-    );
 }
 
 fn record_obs(
