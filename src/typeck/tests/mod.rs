@@ -1,6 +1,7 @@
 use crate::diag::Phase;
 use crate::frontend::check;
 
+mod closures;
 mod nullable;
 
 #[test]
@@ -89,16 +90,4 @@ fun f(x: i32): i32 { return x + 1 }
 fun main(): i32 { return f(41) }
 "#;
     assert!(check(src).is_ok());
-}
-
-#[test]
-fn trailing_closure_reports_not_typed_yet() {
-    let src = r#"
-fun f(): i32 { return 1 }
-fun main(): i32 { return f() { -> 1 } }
-"#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type && d.message == "trailing closures not typed yet"));
 }

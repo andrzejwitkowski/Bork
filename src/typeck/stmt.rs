@@ -27,7 +27,7 @@ pub(super) fn check_block(
     HirBlock { stmts }
 }
 
-fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
+pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
     match stmt {
         Stmt::Block(block) => Some(HirStmt::Block(check_block(block, return_ty, env, true))),
         Stmt::VarDecl {
@@ -115,6 +115,22 @@ fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
         Stmt::Expr(value) => {
             let (value, _) = expr::check(value, None, return_ty, env)?;
             Some(HirStmt::Expr(value))
+        }
+        Stmt::For { name, iter, body } => {
+            let (iter, iter_ty) = expr::check(iter, None, return_ty, env)?;
+            let Ty::Range { elem } = iter_ty else {
+                env.error("for-loop iterator must be a range", None);
+                return Some(HirStmt::Expr(iter));
+            };
+            if *elem != Ty::i32() {
+                env.error("for-loop range elements must have type i32", None);
+            }
+
+            env.enter_scope();
+            env.bind(name.name.clone(), BindingKind::Val, *elem);
+            let body = check_block(body, return_ty, env, false);
+            env.exit_scope();
+            Some(HirStmt::Block(body))
         }
         _ => {
             env.error("statement is not supported by type checking yet", None);
