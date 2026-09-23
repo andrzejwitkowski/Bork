@@ -22,6 +22,13 @@ pub fn emit_module<'ctx>(
     hir: &HirProgram,
     _report: &ArenaReport,
 ) -> Result<Module<'ctx>, Diagnostic> {
+    if !hir.functions.iter().any(|function| function.name == "main") {
+        return Err(codegen_error(
+            "`fun main` is required to build an executable".into(),
+            None,
+        ));
+    }
+
     let cx = Codegen::new(context, "bork");
     for function in &hir.functions {
         emit_fn::emit_function(&cx, function)?;

@@ -4,9 +4,9 @@ pub mod llvm;
 pub mod regions;
 
 use std::path::Path;
-use std::{fs, process};
 
 use inkwell::context::Context;
+use tempfile::Builder;
 
 use crate::diag::Diagnostic;
 use crate::frontend::CheckResult;
@@ -42,9 +42,14 @@ pub fn build(checked: &CheckResult, output: &Path) -> Result<(), BuildError> {
     let module = llvm::emit_module(&context, hir, report)
         .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))?;
 
-    let object = std::env::temp_dir().join(format!("bork-{}.o", process::id()));
-    let linked =
-        llvm::write_object(&module, &object).and_then(|()| link::link_executable(&object, output));
-    let _ = fs::remove_file(&object);
+    let object = Builder::new()
+        .prefix("bork-")
+        .suffix(".o")
+        .tempfile()
+        .map_err(|err| {
+            BuildError::Toolchain(format!("failed to create temporary object: {err}"))
+        })?;
+    let linked = llvm::write_object(&module, object.path())
+        .and_then(|()| link::link_executable(object.path(), output));
     linked.map_err(BuildError::Toolchain)
 }

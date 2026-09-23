@@ -41,6 +41,18 @@ fn builds_return_constant() {
 }
 
 #[test]
+fn builds_reject_program_without_main() {
+    let dir = scratch_dir("builds_reject_program_without_main");
+    let (build, binary) = bork_build(&dir, "fun helper(): i32 { return 7 }\n");
+    let stderr = String::from_utf8_lossy(&build.stderr);
+
+    assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
+    assert!(stderr.contains("codegen"), "stderr: {stderr}");
+    assert!(stderr.contains("main"), "stderr: {stderr}");
+    assert!(!binary.exists());
+}
+
+#[test]
 fn gate_rejection_exits_one_without_binary() {
     let dir = scratch_dir("gate_rejection_exits_one_without_binary");
     let (build, binary) = bork_build(&dir, "fun main(): i32 { return \"x\".length }\n");
