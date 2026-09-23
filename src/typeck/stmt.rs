@@ -37,8 +37,9 @@ fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
             ty,
             value,
         } => {
-            let (value, value_ty) = expr::check(value, return_ty, env)?;
-            let declared_ty = ty.as_ref().map(Ty::from_ast).unwrap_or(value_ty.clone());
+            let declared_ty = ty.as_ref().map(Ty::from_ast);
+            let (value, value_ty) = expr::check(value, declared_ty.as_ref(), return_ty, env)?;
+            let declared_ty = declared_ty.unwrap_or_else(|| value_ty.clone());
             if declared_ty != value_ty {
                 env.error(
                     format!(
@@ -71,7 +72,7 @@ fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
                     Some(*name_span),
                 );
             }
-            let (value, value_ty) = expr::check(value, return_ty, env)?;
+            let (value, value_ty) = expr::check(value, Some(&binding.ty), return_ty, env)?;
             if binding.ty != value_ty {
                 env.error(
                     format!(
@@ -89,7 +90,7 @@ fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
         Stmt::Return(value) => {
             let checked = match value {
                 Some(value) => {
-                    let (value, value_ty) = expr::check(value, return_ty, env)?;
+                    let (value, value_ty) = expr::check(value, Some(return_ty), return_ty, env)?;
                     if &value_ty != return_ty {
                         env.error(
                             format!("return value has type {value_ty:?}, expected {return_ty:?}"),
@@ -112,7 +113,7 @@ fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
             Some(HirStmt::Return { value: checked })
         }
         Stmt::Expr(value) => {
-            let (value, _) = expr::check(value, return_ty, env)?;
+            let (value, _) = expr::check(value, None, return_ty, env)?;
             Some(HirStmt::Expr(value))
         }
         _ => {

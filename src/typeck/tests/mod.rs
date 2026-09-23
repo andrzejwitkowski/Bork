@@ -1,6 +1,8 @@
 use crate::diag::Phase;
 use crate::frontend::check;
 
+mod nullable;
+
 #[test]
 fn assign_to_val_is_type_error() {
     let src = r#"

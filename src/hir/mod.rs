@@ -70,10 +70,16 @@ pub enum HirExpr {
     Ident {
         name: String,
     },
+    None,
+    Some(Box<HirExpr>),
     Binary {
         op: ast::BinOp,
         lhs: Box<HirExpr>,
         rhs: Box<HirExpr>,
+    },
+    Unary {
+        op: ast::UnaryOp,
+        expr: Box<HirExpr>,
     },
     Call {
         callee: Box<HirExpr>,

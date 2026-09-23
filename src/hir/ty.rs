@@ -74,6 +74,32 @@ impl Ty {
             nullable: false,
         }
     }
+
+    pub fn is_nullable(&self) -> bool {
+        matches!(
+            self,
+            Ty::Primitive { nullable: true, .. }
+                | Ty::Named { nullable: true, .. }
+                | Ty::Func { nullable: true, .. }
+        )
+    }
+
+    pub fn with_nullable(&self, nullable: bool) -> Option<Self> {
+        let mut ty = self.clone();
+        match &mut ty {
+            Ty::Primitive {
+                nullable: current, ..
+            }
+            | Ty::Named {
+                nullable: current, ..
+            }
+            | Ty::Func {
+                nullable: current, ..
+            } => *current = nullable,
+            Ty::Range { .. } | Ty::Unknown => return None,
+        }
+        Some(ty)
+    }
 }
 
 #[cfg(test)]

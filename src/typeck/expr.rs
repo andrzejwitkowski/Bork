@@ -1,10 +1,15 @@
-use crate::ast::{BinOp, Expr};
+use crate::ast::{BinOp, Expr, UnaryOp};
 use crate::hir::{HirExpr, Ty};
 
 use super::env::Env;
 use super::stmt;
 
-pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(HirExpr, Ty)> {
+pub(super) fn check(
+    expr: &Expr,
+    expected: Option<&Ty>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> Option<(HirExpr, Ty)> {
     match expr {
         Expr::Int(value) => Some((HirExpr::Int { value: *value }, Ty::i32())),
         Expr::Str(value) => Some((
@@ -20,9 +25,68 @@ pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(H
             };
             Some((HirExpr::Ident { name: name.clone() }, binding.ty.clone()))
         }
+        Expr::None => {
+            let Some(ty) = expected.filter(|ty| ty.is_nullable()) else {
+                env.error("cannot infer type of `None`", None);
+                return Some((HirExpr::None, Ty::Unknown));
+            };
+            Some((HirExpr::None, ty.clone()))
+        }
+        Expr::Some(inner) => {
+            let expected_inner = expected
+                .filter(|ty| ty.is_nullable())
+                .and_then(|ty| ty.with_nullable(false));
+            let (inner, inner_ty) = check(inner, expected_inner.as_ref(), return_ty, env)?;
+            let Some(nullable_ty) = inner_ty.with_nullable(true) else {
+                env.error(
+                    format!("`Some` value has non-nullable-incompatible type {inner_ty:?}"),
+                    None,
+                );
+                return Some((HirExpr::Some(Box::new(inner)), Ty::Unknown));
+            };
+            Some((HirExpr::Some(Box::new(inner)), nullable_ty))
+        }
         Expr::Binary { op, lhs, rhs } => {
-            let (lhs, lhs_ty) = check(lhs, return_ty, env)?;
-            let (rhs, rhs_ty) = check(rhs, return_ty, env)?;
+            if *op == BinOp::Elvis {
+                let expected_lhs = expected.and_then(|ty| ty.with_nullable(true));
+                let (lhs, lhs_ty) = check(lhs, expected_lhs.as_ref(), return_ty, env)?;
+                let Some(result_ty) = lhs_ty.with_nullable(false).filter(|_| lhs_ty.is_nullable())
+                else {
+                    env.error(
+                        format!("left operand of `?:` must be nullable, got {lhs_ty:?}"),
+                        None,
+                    );
+                    let (rhs, _) = check(rhs, expected, return_ty, env)?;
+                    return Some((
+                        HirExpr::Binary {
+                            op: op.clone(),
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                        },
+                        Ty::Unknown,
+                    ));
+                };
+                let (rhs, rhs_ty) = check(rhs, Some(&result_ty), return_ty, env)?;
+                if rhs_ty != result_ty {
+                    env.error(
+                        format!(
+                            "right operand of `?:` has type {rhs_ty:?}, expected {result_ty:?}"
+                        ),
+                        None,
+                    );
+                }
+                return Some((
+                    HirExpr::Binary {
+                        op: op.clone(),
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    },
+                    result_ty,
+                ));
+            }
+
+            let (lhs, lhs_ty) = check(lhs, None, return_ty, env)?;
+            let (rhs, rhs_ty) = check(rhs, None, return_ty, env)?;
 
             let result_ty = match op {
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
@@ -61,13 +125,14 @@ pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(H
                     }
                     bool_ty()
                 }
-                BinOp::RangeTo | BinOp::Elvis => {
+                BinOp::RangeTo => {
                     env.error(
                         "binary operator is not supported by type checking yet",
                         None,
                     );
                     Ty::Unknown
                 }
+                BinOp::Elvis => unreachable!("Elvis is handled before other binary operators"),
             };
 
             Some((
@@ -75,6 +140,36 @@ pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(H
                     op: op.clone(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
+                },
+                result_ty,
+            ))
+        }
+        Expr::Unary {
+            op: UnaryOp::NotNullAssert,
+            expr,
+        } => {
+            let expected_operand = expected.and_then(|ty| ty.with_nullable(true));
+            let (expr, expr_ty) = check(expr, expected_operand.as_ref(), return_ty, env)?;
+            let Some(result_ty) = expr_ty
+                .with_nullable(false)
+                .filter(|_| expr_ty.is_nullable())
+            else {
+                env.error(
+                    format!("operand of `!!` must be nullable, got {expr_ty:?}"),
+                    None,
+                );
+                return Some((
+                    HirExpr::Unary {
+                        op: UnaryOp::NotNullAssert,
+                        expr: Box::new(expr),
+                    },
+                    Ty::Unknown,
+                ));
+            };
+            Some((
+                HirExpr::Unary {
+                    op: UnaryOp::NotNullAssert,
+                    expr: Box::new(expr),
                 },
                 result_ty,
             ))
@@ -99,7 +194,8 @@ pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(H
 
             let checked_args: Vec<_> = args
                 .iter()
-                .map(|arg| check(arg, return_ty, env))
+                .enumerate()
+                .map(|(index, arg)| check(arg, signature.params.get(index), return_ty, env))
                 .collect::<Option<Vec<_>>>()?;
 
             if checked_args.len() != signature.params.len() {
@@ -142,7 +238,8 @@ pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(H
             then_block,
             else_block,
         } => {
-            let (cond, cond_ty) = check(cond, return_ty, env)?;
+            let expected_cond = bool_ty();
+            let (cond, cond_ty) = check(cond, Some(&expected_cond), return_ty, env)?;
             if cond_ty != bool_ty() {
                 env.error(
                     format!("if condition has type {cond_ty:?}, expected bool"),
