@@ -222,12 +222,10 @@ impl Analysis {
 
 pub fn analyze_source(source: &str) -> Analysis {
     match parse(source) {
-        Err(_) => Analysis::ParseError {
-            diagnostics: frontend::check(source)
-                .expect_err("source that failed parsing cannot pass frontend checking")
-                .iter()
-                .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
-                .collect(),
+        // Report the parse error directly so its span survives; `frontend::check`
+        // would re-parse and drop it.
+        Err(error) => Analysis::ParseError {
+            diagnostics: vec![parse_error_to_diagnostic(source, &error)],
         },
         Ok(program) => {
             let (report, _) = analyze(&program);
