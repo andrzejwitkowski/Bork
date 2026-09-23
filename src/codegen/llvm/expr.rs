@@ -17,7 +17,6 @@ use super::emit_fn::FnEmitter;
 use super::{codegen_error, not_yet_supported};
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    /// Emits `expr`; `None` means a `unit` value.
     pub fn emit_expr(
         &mut self,
         expr: &HirExpr,
@@ -60,7 +59,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
-    /// Emits `expr` as a value of `ty`, widening or narrowing integers.
     pub fn emit_value(
         &mut self,
         expr: &HirExpr,
@@ -74,7 +72,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.emit_int(expr, ty).map(Into::into)
     }
 
-    /// Emits `expr` as an integer (or `bool`) converted to `ty`.
     pub fn emit_int(&mut self, expr: &HirExpr, ty: &Ty) -> Result<IntValue<'ctx>, Diagnostic> {
         let value = self
             .emit_expr(expr)?

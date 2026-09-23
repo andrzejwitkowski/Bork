@@ -46,8 +46,6 @@ struct Escape<'h, 'd> {
 }
 
 impl<'h> Escape<'h, '_> {
-    /// Walks `body` one region deeper; with `yields`, returns the depth of its trailing value,
-    /// clamped to the enclosing region once an escape is reported.
     fn region(&mut self, body: &'h HirBlock, yields: bool) -> usize {
         let (body, _) = peel_blocks(body);
         self.depth += 1;
@@ -133,7 +131,6 @@ impl<'h> Escape<'h, '_> {
         }
     }
 
-    /// Returns the depth of the arena holding `expr`'s bytes; `0` if none can be freed first.
     fn expr(&mut self, expr: &'h HirExpr) -> usize {
         match &expr.kind {
             HirExprKind::Int { .. } | HirExprKind::Str { .. } | HirExprKind::None => 0,

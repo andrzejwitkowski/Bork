@@ -14,7 +14,6 @@ use super::arena::ArenaCalls;
 use super::context::Codegen;
 use super::{not_yet_supported, schedule_error};
 
-/// Every Bork `fun` by source name, declared before any body is emitted.
 pub type Callees<'h, 'ctx> = HashMap<&'h str, (FunctionValue<'ctx>, &'h HirFunction)>;
 
 pub type Regions<'r, 'a, 'ctx> = RegionEmitter<'r, ArenaCalls<'a, 'ctx>>;
@@ -115,7 +114,6 @@ pub(super) struct FnEmitter<'s, 'r, 'a, 'ctx> {
 }
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    /// Emits `block`; with `value_ty`, a trailing expression statement becomes the block's value.
     pub fn emit_stmts(
         &mut self,
         block: &HirBlock,
@@ -136,7 +134,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
-    /// Emits `block` inside the next region of kind `site`, in a fresh lexical scope.
     pub fn emit_region(
         &mut self,
         site: RegionSite,

@@ -4,7 +4,8 @@ mod stmt;
 
 use std::collections::HashMap;
 
-use crate::ast::{Program, Type};
+use crate::ast::{Function, Program, Type};
+use crate::span::Span;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirFunction, HirParam, HirProgram, Ty, TyKind};
 
@@ -19,7 +20,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
                 phase: Phase::Type,
                 severity: Severity::Error,
                 message: format!("cannot redefine builtin function `{}`", function.name),
-                span: None,
+                span: builtin_redefine_span(function),
             });
         }
     }
@@ -119,6 +120,10 @@ pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {
         ),
         _ => Ty::from_ast(ty),
     }
+}
+
+fn builtin_redefine_span(function: &Function) -> Option<Span> {
+    function.params.first().map(|param| param.name.span)
 }
 
 #[cfg(test)]

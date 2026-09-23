@@ -531,9 +531,11 @@ fun main(): i32 {
 "#;
     let report = check(src);
     assert!(!report.is_ok());
-    assert!(report.diagnostics.iter().any(|d| d.phase == Phase::Type
-        && d.message
-            .contains("cannot redefine builtin function `print`")));
+    assert!(report.diagnostics.iter().any(|d| {
+        d.phase == Phase::Type
+            && d.message.contains("cannot redefine builtin function `print`")
+            && d.span.is_some()
+    }));
 }
 
 #[test]

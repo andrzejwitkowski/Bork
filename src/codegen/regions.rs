@@ -128,7 +128,6 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         self.stack.len()
     }
 
-    /// Pushes the root arena of the next function; returns the peeled body to emit.
     pub fn enter_function<'h>(
         &mut self,
         name: &str,
@@ -154,7 +153,6 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         self.open(node, body)
     }
 
-    /// Pushes the arena for the next region site; returns the peeled body to emit.
     pub fn enter<'h>(
         &mut self,
         site: RegionSite,
@@ -164,12 +162,10 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         self.open(node, body)
     }
 
-    /// Consumes a region the HIR does not carry (trailing closure) without emitting events.
     pub fn skip(&mut self, site: RegionSite) -> Result<(), ScheduleError> {
         self.take_child(site).map(|_| ())
     }
 
-    /// Resets the innermost arena at a `for` loop latch.
     pub fn latch(&mut self) -> Result<(), ScheduleError> {
         let open = self
             .stack
@@ -185,7 +181,6 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         Ok(())
     }
 
-    /// Pops the innermost arena after checking every child region was visited.
     pub fn exit(&mut self) -> Result<(), ScheduleError> {
         let open = self
             .stack
@@ -203,7 +198,6 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         Ok(())
     }
 
-    /// Checks every function arena in the report was visited.
     pub fn finish(self) -> Result<S, ScheduleError> {
         if !self.stack.is_empty() || self.next_function != self.report.roots.len() {
             return Err(mismatch(format!(
