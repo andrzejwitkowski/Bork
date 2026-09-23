@@ -1,10 +1,9 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, SemaError};
-use crate::{parse, Error};
-use lalrpop_util::ParseError;
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
+use crate::frontend;
+use crate::sema::{ArenaNode, ArenaReport, BindingInfo};
+use tower_lsp::lsp_types::{Diagnostic as LspDiagnostic, DiagnosticSeverity, Position, Range};
 
 /// Line starts for LSP UTF-16 positions.
 pub struct SourceMap<'a> {
@@ -20,7 +19,10 @@ impl<'a> SourceMap<'a> {
                 line_starts.push(i + ch.len_utf8());
             }
         }
-        Self { source, line_starts }
+        Self {
+            source,
+            line_starts,
+        }
     }
 
     fn line_range(&self, line: usize) -> Option<(usize, usize)> {
@@ -129,123 +131,72 @@ fn byte_range(source: &str, start: usize, end: usize) -> Range {
     }
 }
 
-fn expected_suffix(expected: &[String]) -> String {
-    if expected.is_empty() {
-        String::new()
-    } else {
-        format!("; expected {}", expected.join(", "))
-    }
-}
-
-pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
-    let (range, message) = match error {
-        ParseError::InvalidToken { location } => {
-            (byte_range(source, *location, *location), "invalid token".into())
-        }
-        ParseError::UnrecognizedEof { location, expected } => (
-            byte_range(source, *location, *location),
-            format!("unexpected end of file{}", expected_suffix(expected)),
-        ),
-        ParseError::UnrecognizedToken {
-            token: (start, token, end),
-            expected,
-        } => (
-            byte_range(source, *start, *end),
-            format!("unexpected token `{token}`{}", expected_suffix(expected)),
-        ),
-        ParseError::ExtraToken {
-            token: (start, token, end),
-        } => (
-            byte_range(source, *start, *end),
-            format!("unexpected extra token `{token}`"),
-        ),
-        ParseError::User { error } => (
-            byte_range(source, source.len(), source.len()),
-            (*error).to_string(),
-        ),
-    };
-
-    Diagnostic {
-        range,
-        severity: Some(DiagnosticSeverity::ERROR),
-        source: Some("bork".into()),
-        message,
-        ..Diagnostic::default()
-    }
-}
-
-fn sema_error_to_diagnostic(source: &str, error: &SemaError) -> Diagnostic {
-    let range = error
+fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic) -> LspDiagnostic {
+    let range = diagnostic
         .span
         .map(|s| byte_range(source, s.start, s.end))
         .unwrap_or_else(|| byte_range(source, 0, 0));
-    Diagnostic {
+    let severity = match diagnostic.severity {
+        crate::diag::Severity::Error => DiagnosticSeverity::ERROR,
+        crate::diag::Severity::Warning => DiagnosticSeverity::WARNING,
+    };
+    LspDiagnostic {
         range,
-        severity: Some(DiagnosticSeverity::ERROR),
+        severity: Some(severity),
         source: Some("bork".into()),
-        message: error.message.clone(),
-        ..Diagnostic::default()
+        message: format!("{}: {}", diagnostic.phase, diagnostic.message),
+        ..LspDiagnostic::default()
     }
 }
 
-pub enum Analysis {
-    ParseError { diagnostics: Vec<Diagnostic> },
-    Ok {
-        report: ArenaReport,
-        diagnostics: Vec<Diagnostic>,
-    },
+/// One `frontend::check` run, rendered for LSP.
+pub struct Analysis {
+    report: Option<ArenaReport>,
+    diagnostics: Vec<LspDiagnostic>,
 }
 
 impl Analysis {
-    pub fn diagnostics(&self) -> &[Diagnostic] {
-        match self {
-            Analysis::ParseError { diagnostics } | Analysis::Ok { diagnostics, .. } => diagnostics,
-        }
+    pub fn diagnostics(&self) -> &[LspDiagnostic] {
+        &self.diagnostics
+    }
+
+    pub fn report(&self) -> Option<&ArenaReport> {
+        self.report.as_ref()
     }
 }
 
 pub fn analyze_source(source: &str) -> Analysis {
-    match parse(source) {
-        Err(error) => Analysis::ParseError {
-            diagnostics: vec![parse_error_to_diagnostic(source, &error)],
-        },
-        Ok(program) => {
-            let (report, errors) = analyze(&program);
-            Analysis::Ok {
-                report,
-                diagnostics: errors
-                    .iter()
-                    .map(|e| sema_error_to_diagnostic(source, e))
-                    .collect(),
-            }
-        }
+    let result = frontend::check(source);
+    Analysis {
+        report: result.report,
+        diagnostics: result
+            .diagnostics
+            .iter()
+            .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
+            .collect(),
     }
 }
 
-pub fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
-    analyze_source(source).diagnostics().to_vec()
+pub fn diagnostics_for_source(source: &str) -> Vec<LspDiagnostic> {
+    analyze_source(source).diagnostics
 }
 
 pub fn dump_from_analysis(analysis: &Analysis) -> Result<String, String> {
-    match analysis {
-        Analysis::ParseError { diagnostics } => Err(diagnostics
+    let Some(report) = analysis.report() else {
+        return Err(analysis
+            .diagnostics
             .first()
             .map(|d| d.message.clone())
-            .unwrap_or_else(|| "parse error".into())),
-        Analysis::Ok {
-            report,
-            diagnostics,
-        } => {
-            let mut text = dump_arenas(report);
-            if !diagnostics.is_empty() {
-                text.push_str("\n# semantic errors\n");
-                for d in diagnostics {
-                    text.push_str(&format!("# {}\n", d.message));
-                }
-            }
-            Ok(text)
+            .unwrap_or_else(|| "parse error".into()));
+    };
+    let mut text = dump_arenas(report);
+    if !analysis.diagnostics.is_empty() {
+        text.push_str("\n# semantic errors\n");
+        for d in &analysis.diagnostics {
+            text.push_str(&format!("# {}\n", d.message));
         }
     }
+    Ok(text)
 }
 
 pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
@@ -294,10 +245,7 @@ pub fn hover_for_analysis(
 }
 
 pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
-    let Analysis::Ok { report, .. } = analyze_source(source) else {
-        return None;
-    };
-    hover_for_analysis(&report, source, position)
+    hover_for_analysis(analyze_source(source).report()?, source, position)
 }
 
 #[cfg(test)]
@@ -340,6 +288,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_error_points_at_the_offending_token() {
+        let source = "fun main() {\n val x = (1 +\n)\n}";
+        let diagnostics = diagnostics_for_source(source);
+        let d = &diagnostics[0];
+        assert!(d.message.starts_with("parse:"), "{d:?}");
+        assert_eq!(d.range.start.line, 2, "{d:?}");
+    }
+
+    #[test]
     fn valid_sample_has_no_diagnostics() {
         assert!(diagnostics_for_source(crate::MVP_SAMPLE).is_empty());
     }
@@ -358,6 +315,29 @@ fun main() {
         assert!(
             diags.iter().any(|d| d.message.contains("not Copy")),
             "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn ownership_and_type_diagnostics_are_reported_together() {
+        let source = r#"
+fun main(): i32 {
+    var s: String = "a"
+    val t = move s
+    val u = s
+    return 1 + "x"
+}
+"#;
+        let diagnostics = diagnostics_for_source(source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.starts_with("ownership:")),
+            "{diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().any(|d| d.message.starts_with("type:")),
+            "{diagnostics:?}"
         );
     }
 
@@ -381,12 +361,11 @@ fun main() {
     #[test]
     fn hover_for_analysis_uses_cached_report() {
         let source = "fun add(x: Int): Int {\n    return x\n}\n";
-        let Analysis::Ok { report, .. } = analyze_source(source) else {
-            panic!("expected ok analysis");
-        };
+        let analysis = analyze_source(source);
+        let report = analysis.report().expect("source parses");
         let x_off = source.find('x').unwrap();
         let pos = byte_offset_to_position(source, x_off);
-        let hover = hover_for_analysis(&report, source, pos).expect("hover");
+        let hover = hover_for_analysis(report, source, pos).expect("hover");
         assert!(hover.contains("Ownership"), "{hover}");
     }
 

@@ -1,4 +1,4 @@
-use bork::{dump::dump_arenas, parse, sema::analyze};
+use bork::{dump::dump_arenas, frontend};
 use std::env;
 use std::fs;
 use std::process;
@@ -47,24 +47,28 @@ fn main() {
         }
     };
 
-    let program = match parse(&source) {
-        Ok(p) => p,
-        Err(err) => {
-            eprintln!("parse error: {err}");
-            process::exit(1);
-        }
-    };
+    let result = frontend::check(&source);
 
-    let (report, errors) = analyze(&program);
-    for err in &errors {
-        eprintln!("error: {}", err.message);
+    for diag in &result.diagnostics {
+        match diag.span {
+            Some(span) => {
+                let end = span.start.min(source.len());
+                let before = &source[..end];
+                let line = before.matches('\n').count() + 1;
+                let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+                eprintln!("{path}:{line}:{col}: error: {}: {}", diag.phase, diag.message);
+            }
+            None => eprintln!("{path}: error: {}: {}", diag.phase, diag.message),
+        }
     }
 
     if dump {
-        print!("{}", dump_arenas(&report));
+        if let Some(report) = &result.report {
+            print!("{}", dump_arenas(report));
+        }
     }
 
-    if !errors.is_empty() {
+    if !result.is_ok() {
         process::exit(1);
     }
 }

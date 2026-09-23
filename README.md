@@ -60,6 +60,11 @@ cargo run --bin bork -- --dump-arenas path/to/file.bork
 
 `--dump-arenas` prints the compile-time arena / ownership tree (see [docs/memory-model.md](docs/memory-model.md)).
 
+## Typecheck
+
+`bork file.bork` runs parse, ownership, and full typecheck.
+Native codegen / `bork build` is phase 2 — see `docs/superpowers/specs/2026-09-23-typed-hir-llvm-design.md`.
+
 ## Editor / LSP
 
 Parse diagnostics are available through a stdio language server:
@@ -71,7 +76,7 @@ cargo build --bin bork-lsp
 # (requires the default `lsp` Cargo feature)
 ```
 
-On document open/change the server runs `bork::parse` plus arena ownership analysis and
+On document open/change the server runs `frontend::check` (parse, ownership, typecheck) and
 publishes errors as squiggles. Hover shows arena + ownership for bindings. Use
 **Bork: Dump Arenas** for the ASCII arena tree (same as `bork --dump-arenas`).
 

@@ -368,6 +368,21 @@ fn parses_process_user_sample() {
     ));
     assert!(matches!(
         &inner.stmts[2],
+        Stmt::VarDecl {
+            name,
+            value: Expr::Binary {
+                op: BinOp::Elvis,
+                lhs,
+                ..
+            },
+            ..
+        } if name == "verifiedLength" && matches!(
+            lhs.as_ref(),
+            Expr::Field { name, safe: true, .. } if name == "length"
+        )
+    ));
+    assert!(matches!(
+        &inner.stmts[3],
         Stmt::Expr(Expr::If {
             else_block: None,
             cond,
@@ -380,7 +395,7 @@ fn parses_process_user_sample() {
                 ..
             } if matches!(
                 lhs.as_ref(),
-                Expr::Field { name, safe: true, .. } if name == "length"
+                Expr::Ident { name, .. } if name == "verifiedLength"
             )
         )
     ));
@@ -426,7 +441,9 @@ fun main() {
 "#,
     )
     .expect("trailing move should parse");
-    let Stmt::Expr(Expr::Call { trailing: Some(c), .. }) = &prog.functions[1].body.stmts[1]
+    let Stmt::Expr(Expr::Call {
+        trailing: Some(c), ..
+    }) = &prog.functions[1].body.stmts[1]
     else {
         panic!("expected call with trailing");
     };
@@ -463,7 +480,9 @@ fun main() {
 "#,
     )
     .expect("move bare trailing should parse");
-    let Stmt::Expr(Expr::Call { trailing: Some(c), .. }) = &prog.functions[1].body.stmts[1]
+    let Stmt::Expr(Expr::Call {
+        trailing: Some(c), ..
+    }) = &prog.functions[1].body.stmts[1]
     else {
         panic!("expected call");
     };
