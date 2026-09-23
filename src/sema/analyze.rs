@@ -9,6 +9,15 @@ use crate::ast::{Function, Program};
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
     let mut az = Analyzer::new();
+    for f in &program.functions {
+        az.fun_sigs.insert(
+            f.name.clone(),
+            f.params
+                .iter()
+                .map(|p| (p.kind, p.ty.clone()))
+                .collect(),
+        );
+    }
     let roots = program
         .functions
         .iter()
@@ -24,6 +33,7 @@ fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
         .map(|p| RegionParam {
             name: p.name.name.clone(),
             ty: Ty::Known(p.ty.clone()),
+            kind: p.kind,
             span: Some(p.name.span),
         })
         .collect();

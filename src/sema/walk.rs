@@ -129,6 +129,7 @@ fn walk_stmt(
             let params = [RegionParam {
                 name: name.name.clone(),
                 ty: Ty::Known(Type::from_ident("Int", false)),
+                kind: BindingKind::Val,
                 span: Some(name.span),
             }];
             node.children.push(open_ordinary(
@@ -176,8 +177,13 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             trailing,
         } => {
             walk_expr(az, callee, node);
-            for a in args {
-                walk_expr(az, a, node);
+            let formals: Option<Vec<(BindingKind, Type)>> = match callee.as_ref() {
+                Expr::Ident { name, .. } => az.fun_sigs.get(name).cloned(),
+                _ => None,
+            };
+            for (i, a) in args.iter().enumerate() {
+                let formal = formals.as_ref().and_then(|f| f.get(i));
+                check_call_arg(az, a, formal, node);
             }
             if let Some(c) = trailing {
                 let params: Vec<RegionParam> = c
@@ -186,6 +192,7 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
                     .map(|p| RegionParam {
                         name: p.name.clone(),
                         ty: Ty::Unknown,
+                        kind: BindingKind::Val,
                         span: Some(p.span),
                     })
                     .collect();
@@ -230,6 +237,41 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             );
         }
         Expr::Int(_) | Expr::Str(_) | Expr::None => {}
+    }
+}
+
+fn check_call_arg(
+    az: &mut Analyzer,
+    arg: &Expr,
+    formal: Option<&(BindingKind, Type)>,
+    node: &mut ArenaNode,
+) {
+    let Some((formal_kind, _)) = formal else {
+        walk_expr(az, arg, node);
+        return;
+    };
+    match arg {
+        Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
+        Expr::Ident { name, span } => {
+            let Some(binding) = az.env.get(name) else {
+                note_use(az, name, Some(*span), node);
+                return;
+            };
+            if binding.ty.is_copy() {
+                note_use(az, name, Some(*span), node);
+            } else if matches!(formal_kind, BindingKind::Var)
+                || matches!(binding.kind, BindingKind::Var)
+            {
+                az.error(
+                    format!("use `move {name}` to pass ownership"),
+                    Some(name.clone()),
+                    Some(*span),
+                );
+            } else {
+                note_use(az, name, Some(*span), node);
+            }
+        }
+        _ => walk_expr(az, arg, node),
     }
 }
 

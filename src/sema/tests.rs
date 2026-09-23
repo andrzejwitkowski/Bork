@@ -152,7 +152,6 @@ fun main() {
     }));
 }
 
-/// Function params are always Val today (`fun f(x: T)`, no `val`/`var` on params).
 /// Cover main→helper calls: val/var args, return into val/var, Shared param inside helper.
 #[test]
 fn main_calls_helper_val_param_return_to_val() {
@@ -242,18 +241,13 @@ fun main() {
 }
 
 #[test]
-fn helper_cannot_share_var_string_param_without_move() {
-    // Params are Val-only in the grammar; model "var-like" by rebinding as var inside.
+fn helper_var_param_cannot_share_across_nested_region() {
     let src = r#"
-fun touch(): Int {
-    var s: String = "hi"
+fun touch(var s: String): Int {
     {
         val t = s
     }
     return 0
-}
-fun main() {
-    touch()
 }
 "#;
     let prog = parse(src).unwrap();
@@ -306,10 +300,71 @@ fun main() {
     );
 }
 
-/// Gap: calls do not consume non-Copy args (no move-into-callee) and do not
-/// treat Copy specially at the call boundary — only a same-arena use in the caller.
 #[test]
-fn call_does_not_yet_move_non_copy_argument() {
+fn call_move_into_var_param_consumes() {
+    let src = r#"
+fun sink(var s: String): Int { return 0 }
+fun main() {
+    var s: String = "hi"
+    sink(move s)
+    val t = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("after move")),
+        "{errs:?}"
+    );
+}
+
+#[test]
+fn call_bare_var_into_var_param_errors() {
+    let src = r#"
+fun sink(var s: String): Int { return 0 }
+fun main() {
+    var s: String = "hi"
+    sink(s)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("move")),
+        "{errs:?}"
+    );
+}
+
+#[test]
+fn call_bare_val_into_var_param_errors() {
+    let src = r#"
+fun sink(var s: String): Int { return 0 }
+fun main() {
+    val s: String = "hi"
+    sink(s)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.iter().any(|e| e.message.contains("move")), "{errs:?}");
+}
+
+#[test]
+fn call_bare_var_into_val_param_errors() {
+    let src = r#"
+fun sink(s: String): Int { return 0 }
+fun main() {
+    var s: String = "hi"
+    sink(s)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.iter().any(|e| e.message.contains("move")), "{errs:?}");
+}
+
+#[test]
+fn call_bare_val_into_val_param_ok() {
     let src = r#"
 fun sink(s: String): Int {
     return 0
@@ -322,16 +377,26 @@ fun main() {
 "#;
     let prog = parse(src).unwrap();
     let (_, errs) = analyze(&prog);
-    assert!(
-        errs.is_empty(),
-        "NYI gap: sink(s) must not yet move s in the caller; got {errs:?}"
-    );
+    assert!(errs.is_empty(), "{errs:?}");
 }
 
 #[test]
-fn call_does_not_yet_record_copy_crossing_into_callee() {
-    // Callee sees its own Local param; caller only notes a Local use of `n`.
-    // There is no Copy observation tied to the call/callee arena yet.
+fn call_copy_into_var_param_ok() {
+    let src = r#"
+fun sink(var n: Int): Int { return n }
+fun main() {
+    var n = 1
+    sink(n)
+    val m = n
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+}
+
+#[test]
+fn call_copy_argument_ok() {
     let src = r#"
 fun id(n: Int): Int {
     return n
@@ -344,18 +409,6 @@ fun main() {
     let prog = parse(src).unwrap();
     let (report, errs) = analyze(&prog);
     assert!(errs.is_empty(), "{errs:?}");
-    let main = report
-        .roots
-        .iter()
-        .find(|r| r.label.contains("fun main"))
-        .expect("main");
-    assert!(
-        !main.observations.iter().any(|b| {
-            b.name == "n" && matches!(b.ownership, Ownership::Copy)
-        }),
-        "NYI gap: caller must not yet record Copy for arg `n` at call; got {:?}",
-        main.observations
-    );
     let id = report
         .roots
         .iter()

@@ -9,6 +9,7 @@ use crate::span::{Span, SpannedName};
 pub(super) struct RegionParam {
     pub(super) name: String,
     pub(super) ty: Ty,
+    pub(super) kind: BindingKind,
     pub(super) span: Option<Span>,
 }
 
@@ -43,7 +44,7 @@ impl RegionFrame {
             id,
             &label,
             param.ty.clone(),
-            BindingKind::Val,
+            param.kind,
         ));
         self.node.bindings.push(BindingInfo {
             name: param.name.clone(),
