@@ -37,3 +37,25 @@ jobs:
 
       - name: Build bork-lsp
         run: cargo build --bin bork-lsp --verbose
+
+  codegen:
+    name: Test LLVM codegen
+    runs-on: ubuntu-latest
+    env:
+      LLVM_SYS_181_PREFIX: /usr/lib/llvm-18
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLVM 18 and clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes llvm-18-dev clang
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test with codegen
+        run: cargo test --features codegen --verbose
