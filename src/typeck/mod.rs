@@ -13,9 +13,20 @@ pub(crate) use env::FunSig;
 
 pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
+    for function in &program.functions {
+        if crate::builtins::is_print(&function.name) {
+            diagnostics.push(Diagnostic {
+                phase: Phase::Type,
+                severity: Severity::Error,
+                message: format!("cannot redefine builtin function `{}`", function.name),
+                span: None,
+            });
+        }
+    }
     let mut fun_sigs: HashMap<_, _> = program
         .functions
         .iter()
+        .filter(|function| !crate::builtins::is_print(&function.name))
         .map(|function| {
             (
                 function.name.clone(),
@@ -35,6 +46,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let functions = program
         .functions
         .iter()
+        .filter(|function| !crate::builtins::is_print(&function.name))
         .map(|function| {
             let mut env = Env::new(&fun_sigs);
             let signature = env

@@ -520,3 +520,34 @@ fn unknown_string_field_is_type_error() {
         .iter()
         .any(|error| error.phase == Phase::Type && error.message.contains("unknown field")));
 }
+
+#[test]
+fn redefining_print_is_type_error() {
+    let src = r#"
+fun print(x: i32) {}
+fun main(): i32 {
+    return 0
+}
+"#;
+    let report = check(src);
+    assert!(!report.is_ok());
+    assert!(report.diagnostics.iter().any(|d| d.phase == Phase::Type
+        && d.message
+            .contains("cannot redefine builtin function `print`")));
+}
+
+#[test]
+fn redefining_println_with_other_arity_is_rejected_not_bypassed() {
+    let src = r#"
+fun println(a: i32, b: i32) {}
+fun main(): i32 {
+    println("hi")
+    return 0
+}
+"#;
+    let report = check(src);
+    assert!(!report.is_ok());
+    assert!(report.diagnostics.iter().any(|d| d
+        .message
+        .contains("cannot redefine builtin function `println`")));
+}
