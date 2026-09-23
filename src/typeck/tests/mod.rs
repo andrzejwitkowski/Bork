@@ -1,6 +1,6 @@
 use crate::diag::{Diagnostic, Phase};
 use crate::frontend::check;
-use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Ty, UseKind};
+use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
 
 mod closures;
 mod nullable;
@@ -110,15 +110,13 @@ fun main(): i32 {
 "#;
     let hir = hir_of(src);
     let HirStmt::For { name, iter, body } = &hir.functions[0].body.stmts[1] else {
-        panic!("expected a for loop, got {:?}", hir.functions[0].body.stmts[1]);
+        panic!(
+            "expected a for loop, got {:?}",
+            hir.functions[0].body.stmts[1]
+        );
     };
     assert_eq!(name, "i");
-    assert_eq!(
-        iter.ty,
-        Ty::Range {
-            elem: Box::new(Ty::i32())
-        }
-    );
+    assert_eq!(iter.ty, Ty::range(Ty::i32()));
     assert!(matches!(body.stmts.as_slice(), [HirStmt::Assign { .. }]));
 }
 
@@ -239,12 +237,58 @@ fun main(): i64 {
     let HirStmt::Return { value: Some(value) } = &hir.functions[0].body.stmts[0] else {
         panic!("expected a return");
     };
-    assert_eq!(
-        value.ty,
-        Ty::Primitive {
-            name: "i64".into(),
-            nullable: false
-        }
+    assert_eq!(value.ty, Ty::prim(Prim::I64));
+}
+
+#[test]
+fn failed_initializer_still_binds_the_name() {
+    let src = r#"
+fun main(): i32 {
+    val x = nope
+    return x
+}
+"#;
+    let errors = diags_of(src);
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0].message.contains("unknown binding `nope`"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn poisoned_operand_does_not_cascade() {
+    let src = r#"
+fun main(): i32 {
+    val x = nope + 1
+    val y: String = x
+    return x
+}
+"#;
+    let errors = diags_of(src);
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0].message.contains("unknown binding `nope`"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn statements_after_a_type_error_are_still_checked() {
+    let src = r#"
+fun main(): i32 {
+    val x: i32 = "a"
+    return "b"
+}
+"#;
+    let errors = diags_of(src);
+    assert!(
+        errors.iter().any(|e| e.message.contains("initializer")),
+        "{errors:?}"
+    );
+    assert!(
+        errors.iter().any(|e| e.message.contains("return value")),
+        "{errors:?}"
     );
 }
 

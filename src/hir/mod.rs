@@ -1,6 +1,6 @@
 mod ty;
 
-pub use ty::Ty;
+pub use ty::{Prim, Ty, TyKind};
 
 use crate::ast;
 use crate::span::Span;

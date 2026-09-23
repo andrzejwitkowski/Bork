@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use crate::ast::{Program, Type};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirFunction, HirParam, HirProgram, Ty};
+use crate::hir::{HirFunction, HirParam, HirProgram, Ty, TyKind};
 
 use env::{Env, FunSig};
 
@@ -81,20 +81,22 @@ pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {
                 message: format!("unknown named type `{name}`"),
                 span: None,
             });
-            Ty::Unknown
+            Ty::unknown()
         }
         Type::Func {
             params,
             ret,
             nullable,
-        } => Ty::Func {
-            params: params
-                .iter()
-                .map(|param| lower_type(param, diagnostics))
-                .collect(),
-            ret: Box::new(lower_type(ret, diagnostics)),
-            nullable: *nullable,
-        },
+        } => Ty::new(
+            TyKind::Func {
+                params: params
+                    .iter()
+                    .map(|param| lower_type(param, diagnostics))
+                    .collect(),
+                ret: Box::new(lower_type(ret, diagnostics)),
+            },
+            *nullable,
+        ),
         _ => Ty::from_ast(ty),
     }
 }

@@ -1,5 +1,5 @@
 use crate::ast::{BindingKind, Block, Stmt};
-use crate::hir::{HirBlock, HirStmt, Ty};
+use crate::hir::{HirBlock, HirStmt, Ty, TyKind};
 
 use super::env::Env;
 use super::expr;
@@ -17,7 +17,7 @@ pub(super) fn check_block(
     let stmts = block
         .stmts
         .iter()
-        .filter_map(|stmt| check(stmt, return_ty, env))
+        .map(|stmt| check(stmt, return_ty, env))
         .collect();
 
     if nested {
@@ -27,9 +27,9 @@ pub(super) fn check_block(
     HirBlock { stmts }
 }
 
-pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirStmt> {
+pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
     match stmt {
-        Stmt::Block(block) => Some(HirStmt::Block(check_block(block, return_ty, env, true))),
+        Stmt::Block(block) => HirStmt::Block(check_block(block, return_ty, env, true)),
         Stmt::VarDecl {
             kind,
             name,
@@ -40,9 +40,11 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
             let declared_ty = ty
                 .as_ref()
                 .map(|ty| super::lower_type(ty, &mut env.diagnostics));
-            let value = expr::check(value, declared_ty.as_ref(), return_ty, env)?;
+            let value = expr::check(value, declared_ty.as_ref(), return_ty, env);
+            // Bind whatever type we can settle on, even after a bad initializer,
+            // so later uses of `name` are not reported as unknown bindings.
             let declared_ty = declared_ty.unwrap_or_else(|| value.ty.clone());
-            if declared_ty != value.ty {
+            if !value.ty.is_unknown() && !declared_ty.is_unknown() && declared_ty != value.ty {
                 env.error(
                     format!(
                         "initializer for `{name}` has type {}, expected {declared_ty}",
@@ -52,12 +54,12 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                 );
             }
             env.bind(name.clone(), *kind, declared_ty.clone());
-            Some(HirStmt::VarDecl {
+            HirStmt::VarDecl {
                 kind: *kind,
                 name: name.clone(),
                 ty: declared_ty,
                 value,
-            })
+            }
         }
         Stmt::Assign {
             name,
@@ -65,36 +67,38 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
             value,
         } => {
             let binding = env.binding(name).cloned();
-            let Some(binding) = binding else {
+            if binding.is_none() {
                 env.error(format!("unknown binding `{name}`"), Some(*name_span));
-                return None;
-            };
-            if binding.kind == BindingKind::Val {
+            }
+            if binding.as_ref().is_some_and(|b| b.kind == BindingKind::Val) {
                 env.error(
                     format!("cannot assign to immutable `val` binding `{name}`"),
                     Some(*name_span),
                 );
             }
-            let value = expr::check(value, Some(&binding.ty), return_ty, env)?;
-            if binding.ty != value.ty {
-                env.error(
-                    format!(
-                        "assignment to `{name}` has type {}, expected {}",
-                        value.ty, binding.ty
-                    ),
-                    Some(*name_span),
-                );
+            let expected = binding.as_ref().map(|b| b.ty.clone());
+            let value = expr::check(value, expected.as_ref(), return_ty, env);
+            if let Some(expected) = expected {
+                if !value.ty.is_unknown() && !expected.is_unknown() && expected != value.ty {
+                    env.error(
+                        format!(
+                            "assignment to `{name}` has type {}, expected {expected}",
+                            value.ty
+                        ),
+                        Some(*name_span),
+                    );
+                }
             }
-            Some(HirStmt::Assign {
+            HirStmt::Assign {
                 name: name.clone(),
                 value,
-            })
+            }
         }
         Stmt::Return(value) => {
             let checked = match value {
                 Some(value) => {
-                    let value = expr::check(value, Some(return_ty), return_ty, env)?;
-                    if &value.ty != return_ty {
+                    let value = expr::check(value, Some(return_ty), return_ty, env);
+                    if !value.ty.is_unknown() && &value.ty != return_ty {
                         env.error(
                             format!("return value has type {}, expected {return_ty}", value.ty),
                             None,
@@ -103,7 +107,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                     Some(value)
                 }
                 None => {
-                    let unit = Ty::from_ast(&crate::ast::Type::unit(false));
+                    let unit = Ty::unit();
                     if &unit != return_ty {
                         env.error(
                             format!("empty return has type {unit}, expected {return_ty}"),
@@ -113,17 +117,16 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                     None
                 }
             };
-            Some(HirStmt::Return { value: checked })
+            HirStmt::Return { value: checked }
         }
-        Stmt::Expr(value) => {
-            let value = expr::check(value, None, return_ty, env)?;
-            Some(HirStmt::Expr(value))
-        }
+        Stmt::Expr(value) => HirStmt::Expr(expr::check(value, None, return_ty, env)),
         Stmt::For { name, iter, body } => {
-            let iter = expr::check(iter, None, return_ty, env)?;
-            let Ty::Range { elem } = iter.ty.clone() else {
-                env.error("for-loop iterator must be a range", None);
-                return Some(HirStmt::Expr(iter));
+            let iter = expr::check(iter, None, return_ty, env);
+            let TyKind::Range(elem) = iter.ty.kind.clone() else {
+                if !iter.ty.is_unknown() {
+                    env.error("for-loop iterator must be a range", None);
+                }
+                return HirStmt::Expr(iter);
             };
             if *elem != Ty::i32() {
                 env.error("for-loop range elements must have type i32", None);
@@ -133,23 +136,20 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
             env.bind(name.name.clone(), BindingKind::Val, (*elem).clone());
             let body = check_block(body, return_ty, env, false);
             env.exit_scope();
-            Some(HirStmt::For {
+            HirStmt::For {
                 name: name.name.clone(),
                 iter,
                 body,
-            })
+            }
         }
-        Stmt::MoveBlock { captures, body } => {
-            let body = check_block(body, return_ty, env, true);
-            Some(HirStmt::MoveBlock {
-                captures: captures.as_ref().map(|names| {
-                    names
-                        .iter()
-                        .map(|capture| capture.name.clone())
-                        .collect::<Vec<_>>()
-                }),
-                body,
-            })
-        }
+        Stmt::MoveBlock { captures, body } => HirStmt::MoveBlock {
+            captures: captures.as_ref().map(|names| {
+                names
+                    .iter()
+                    .map(|capture| capture.name.clone())
+                    .collect::<Vec<_>>()
+            }),
+            body: check_block(body, return_ty, env, true),
+        },
     }
 }
