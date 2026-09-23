@@ -57,6 +57,12 @@ pub enum HirStmt {
         value: HirExpr,
     },
     Expr(HirExpr),
+    For {
+        name: String,
+        iter: HirExpr,
+        body: HirBlock,
+        region: RegionId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,6 +75,7 @@ pub enum HirExpr {
     },
     Ident {
         name: String,
+        use_kind: UseKind,
     },
     None,
     Some(Box<HirExpr>),
@@ -80,6 +87,11 @@ pub enum HirExpr {
     Unary {
         op: ast::UnaryOp,
         expr: Box<HirExpr>,
+    },
+    Field {
+        receiver: Box<HirExpr>,
+        name: String,
+        safe: bool,
     },
     Call {
         callee: Box<HirExpr>,

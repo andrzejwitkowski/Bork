@@ -37,7 +37,9 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
             ty,
             value,
         } => {
-            let declared_ty = ty.as_ref().map(Ty::from_ast);
+            let declared_ty = ty
+                .as_ref()
+                .map(|ty| super::lower_type(ty, &mut env.diagnostics));
             let (value, value_ty) = expr::check(value, declared_ty.as_ref(), return_ty, env)?;
             let declared_ty = declared_ty.unwrap_or_else(|| value_ty.clone());
             if declared_ty != value_ty {
@@ -126,11 +128,17 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                 env.error("for-loop range elements must have type i32", None);
             }
 
+            let region = env.alloc_region();
             env.enter_scope();
-            env.bind(name.name.clone(), BindingKind::Val, *elem);
+            env.bind(name.name.clone(), BindingKind::Val, (*elem).clone());
             let body = check_block(body, return_ty, env, false);
             env.exit_scope();
-            Some(HirStmt::Block(body))
+            Some(HirStmt::For {
+                name: name.name.clone(),
+                iter,
+                body,
+                region,
+            })
         }
         _ => {
             env.error("statement is not supported by type checking yet", None);

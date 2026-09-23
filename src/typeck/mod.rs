@@ -4,13 +4,14 @@ mod stmt;
 
 use std::collections::HashMap;
 
-use crate::ast::Program;
-use crate::diag::Diagnostic;
-use crate::hir::{HirFunction, HirParam, HirProgram, RegionId, Ty};
+use crate::ast::{Program, Type};
+use crate::diag::{Diagnostic, Phase, Severity};
+use crate::hir::{HirFunction, HirParam, HirProgram, Ty};
 
 use env::{Env, FunSig};
 
 pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
+    let mut diagnostics = Vec::new();
     let fun_sigs: HashMap<_, _> = program
         .functions
         .iter()
@@ -21,21 +22,22 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
                     params: function
                         .params
                         .iter()
-                        .map(|param| Ty::from_ast(&param.ty))
+                        .map(|param| lower_type(&param.ty, &mut diagnostics))
                         .collect(),
-                    return_ty: Ty::from_ast(&function.return_type),
+                    return_ty: lower_type(&function.return_type, &mut diagnostics),
                 },
             )
         })
         .collect();
 
-    let mut diagnostics = Vec::new();
+    let mut next_region = 0;
     let functions = program
         .functions
         .iter()
-        .enumerate()
-        .map(|(idx, function)| {
-            let mut env = Env::new(&fun_sigs);
+        .map(|function| {
+            let region = next_region;
+            next_region += 1;
+            let mut env = Env::new(&fun_sigs, next_region);
             let signature = env
                 .fun_sigs
                 .get(&function.name)
@@ -56,13 +58,14 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
                 .collect();
             let return_ty = signature.return_ty;
             let body = stmt::check_block(&function.body, &return_ty, &mut env, false);
+            next_region = env.next_region();
             diagnostics.append(&mut env.diagnostics);
             HirFunction {
                 name: function.name.clone(),
                 params,
                 return_ty,
                 body,
-                region: idx as RegionId,
+                region,
             }
         })
         .collect();
@@ -71,6 +74,33 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
         (Some(HirProgram { functions }), diagnostics)
     } else {
         (None, diagnostics)
+    }
+}
+
+pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {
+    match ty {
+        Type::Named { name, .. } if name != "String" => {
+            diagnostics.push(Diagnostic {
+                phase: Phase::Type,
+                severity: Severity::Error,
+                message: format!("unknown named type `{name}`"),
+                span: None,
+            });
+            Ty::Unknown
+        }
+        Type::Func {
+            params,
+            ret,
+            nullable,
+        } => Ty::Func {
+            params: params
+                .iter()
+                .map(|param| lower_type(param, diagnostics))
+                .collect(),
+            ret: Box::new(lower_type(ret, diagnostics)),
+            nullable: *nullable,
+        },
+        _ => Ty::from_ast(ty),
     }
 }
 

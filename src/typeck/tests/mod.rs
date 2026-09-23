@@ -1,5 +1,6 @@
 use crate::diag::Phase;
 use crate::frontend::check;
+use crate::hir::{HirExpr, HirStmt, UseKind};
 
 mod closures;
 mod nullable;
@@ -90,4 +91,73 @@ fun f(x: i32): i32 { return x + 1 }
 fun main(): i32 { return f(41) }
 "#;
     assert!(check(src).is_ok());
+}
+
+#[test]
+fn for_range_ok() {
+    let src = r#"
+fun main(): i32 {
+    var a: i32 = 0
+    for (i in 0..3) {
+        a = a + i
+    }
+    return a
+}
+"#;
+    let hir = check(src).expect("range loop should typecheck");
+    let function = &hir.functions[0];
+    assert!(matches!(
+        &function.body.stmts[1],
+        HirStmt::For { region, .. } if *region != function.region
+    ));
+}
+
+#[test]
+fn move_expr_preserves_type_and_use_kind() {
+    let src = r#"
+fun main(): String {
+    var s: String = "hi"
+    val t = move s
+    return t
+}
+"#;
+    let hir = check(src).expect("move expression should typecheck");
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::VarDecl {
+            value: HirExpr::Ident {
+                use_kind: UseKind::Move,
+                ..
+            },
+            ..
+        }
+    ));
+}
+
+#[test]
+fn process_user_sample_types() {
+    let result = check(crate::PROCESS_USER_SAMPLE);
+    assert!(result.is_ok(), "{:?}", result.err());
+}
+
+#[test]
+fn unknown_named_type_is_type_error() {
+    let errors = check(r#"fun main(value: Missing): i32 { return 0 }"#).unwrap_err();
+    assert!(errors
+        .iter()
+        .any(|error| error.phase == Phase::Type && error.message.contains("unknown named type")));
+}
+
+#[test]
+fn unknown_string_field_is_type_error() {
+    let errors = check(
+        r#"fun main(): i32 {
+    val value: String = "x"
+    return value.missing
+}"#,
+    )
+    .unwrap_err();
+    assert!(errors
+        .iter()
+        .any(|error| error.phase == Phase::Type && error.message.contains("unknown field")));
 }

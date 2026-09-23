@@ -1,5 +1,5 @@
 use crate::ast::{BinOp, BindingKind, Block, Closure, Expr, Stmt, UnaryOp};
-use crate::hir::{HirBlock, HirExpr, Ty};
+use crate::hir::{HirBlock, HirExpr, Ty, UseKind};
 
 use super::env::Env;
 use super::stmt;
@@ -23,7 +23,32 @@ pub(super) fn check(
                 env.error(format!("unknown binding `{name}`"), Some(*span));
                 return None;
             };
-            Some((HirExpr::Ident { name: name.clone() }, binding.ty.clone()))
+            let ty = binding.ty.clone();
+            let use_kind = if ty.is_copy() {
+                UseKind::Copy
+            } else {
+                UseKind::Local
+            };
+            Some((
+                HirExpr::Ident {
+                    name: name.clone(),
+                    use_kind,
+                },
+                ty,
+            ))
+        }
+        Expr::Move { name, span } => {
+            let Some(binding) = env.binding(name) else {
+                env.error(format!("unknown binding `{name}`"), Some(*span));
+                return None;
+            };
+            Some((
+                HirExpr::Ident {
+                    name: name.clone(),
+                    use_kind: UseKind::Move,
+                },
+                binding.ty.clone(),
+            ))
         }
         Expr::None => {
             let Some(ty) = expected.filter(|ty| ty.is_nullable()) else {
@@ -50,10 +75,10 @@ pub(super) fn check(
             if *op == BinOp::Elvis {
                 let expected_lhs = expected.and_then(|ty| ty.with_nullable(true));
                 let (lhs, lhs_ty) = check(lhs, expected_lhs.as_ref(), return_ty, env)?;
-                let Some(result_ty) = lhs_ty.with_nullable(false).filter(|_| lhs_ty.is_nullable())
-                else {
+                let result_ty = lhs_ty.with_nullable(false);
+                let Some(result_ty) = result_ty else {
                     env.error(
-                        format!("left operand of `?:` must be nullable, got {lhs_ty:?}"),
+                        format!("left operand of `?:` cannot have type {lhs_ty:?}"),
                         None,
                     );
                     let (rhs, _) = check(rhs, expected, return_ty, env)?;
@@ -66,6 +91,12 @@ pub(super) fn check(
                         Ty::Unknown,
                     ));
                 };
+                if !lhs_ty.is_nullable() && !lhs_ty.is_copy() {
+                    env.error(
+                        format!("left operand of `?:` must be nullable, got {lhs_ty:?}"),
+                        None,
+                    );
+                }
                 let (rhs, rhs_ty) = check(rhs, Some(&result_ty), return_ty, env)?;
                 if rhs_ty != result_ty {
                     env.error(
@@ -102,7 +133,7 @@ pub(super) fn check(
                     lhs_ty
                 }
                 BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-                    if lhs_ty != rhs_ty || !is_numeric(&lhs_ty) {
+                    if !same_numeric_base(&lhs_ty, &rhs_ty) {
                         env.error(
                             format!(
                                 "ordered comparison operands must have the same numeric type, got \
@@ -176,6 +207,35 @@ pub(super) fn check(
                 HirExpr::Unary {
                     op: UnaryOp::NotNullAssert,
                     expr: Box::new(expr),
+                },
+                result_ty,
+            ))
+        }
+        Expr::Field {
+            receiver,
+            name,
+            safe,
+        } => {
+            let (receiver, receiver_ty) = check(receiver, None, return_ty, env)?;
+            let result_ty = if receiver_ty.is_string() && name == "length" {
+                if receiver_ty.is_nullable() && !safe {
+                    env.error("field access on nullable `String?` requires `?.`", None);
+                }
+                Ty::i32()
+                    .with_nullable(*safe && receiver_ty.is_nullable())
+                    .expect("i32 supports nullable form")
+            } else {
+                env.error(
+                    format!("unknown field `{name}` on type {receiver_ty:?}"),
+                    None,
+                );
+                Ty::Unknown
+            };
+            Some((
+                HirExpr::Field {
+                    receiver: Box::new(receiver),
+                    name: name.clone(),
+                    safe: *safe,
                 },
                 result_ty,
             ))
@@ -275,7 +335,10 @@ pub(super) fn check(
 
             Some((
                 HirExpr::Call {
-                    callee: Box::new(HirExpr::Ident { name: name.clone() }),
+                    callee: Box::new(HirExpr::Ident {
+                        name: name.clone(),
+                        use_kind: UseKind::Local,
+                    }),
                     args: checked_args
                         .into_iter()
                         .map(|(argument, _)| argument)
@@ -335,10 +398,6 @@ pub(super) fn check(
                 },
                 result_ty,
             ))
-        }
-        _ => {
-            env.error("expression is not supported by type checking yet", None);
-            None
         }
     }
 }
@@ -430,6 +489,20 @@ fn is_numeric(ty: &Ty) -> bool {
             name.as_str(),
             "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
         )
+    )
+}
+
+fn same_numeric_base(lhs: &Ty, rhs: &Ty) -> bool {
+    matches!(
+        (lhs, rhs),
+        (
+            Ty::Primitive { name: lhs, .. },
+            Ty::Primitive { name: rhs, .. }
+        ) if lhs == rhs
+            && matches!(
+                lhs.as_str(),
+                "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
+            )
     )
 }
 
