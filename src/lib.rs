@@ -5,11 +5,11 @@ pub mod dump;
 pub mod frontend;
 pub mod hir;
 mod layout;
+#[cfg(feature = "lsp")]
+pub mod lsp;
 pub mod sema;
 pub mod span;
 pub mod typeck;
-#[cfg(feature = "lsp")]
-pub mod lsp;
 
 use lalrpop_util::lalrpop_mod;
 lalrpop_mod!(pub parser);
@@ -54,13 +54,14 @@ fun main() {
 pub const PROCESS_USER_SAMPLE: &str = r#"
 fun processUser(name: String?, score: i32): i32 {
     val fallbackName: String = name ?: "Guest"
-    val finalScore = score ?: 0
+    val finalScore = score
 
     {
         val verifiedUser: String? = Some(fallbackName)
         val emptyMiddle: String? = None
 
-        if (verifiedUser?.length > 0) {
+        val verifiedLength: i32 = verifiedUser?.length ?: 0
+        if (verifiedLength > 0) {
             return finalScore
         }
     }
