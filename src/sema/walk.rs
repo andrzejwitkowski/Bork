@@ -8,7 +8,7 @@ use super::peel_blocks;
 use super::policy::{classify_use, UseOutcome};
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::{Block, Expr, Stmt, Type};
+use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
 use crate::span::{Span, SpannedName};
 
 pub(super) fn open_ordinary(
@@ -94,6 +94,7 @@ fn walk_stmt(
             ty,
             value,
         } => {
+            check_transfer_rhs(az, value, *kind, Some(*name_span));
             walk_expr(az, value, node);
             let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
             shadows.push(shadow_insert(
@@ -105,6 +106,7 @@ fn walk_stmt(
                     ty: inferred.clone(),
                     kind: *kind,
                     moved: false,
+                    from_capture: false,
                 },
             ));
             node.bindings.push(BindingInfo {
@@ -116,6 +118,7 @@ fn walk_stmt(
         }
         Stmt::Assign { name, name_span, value } => {
             note_use(az, name, Some(*name_span), node);
+            check_transfer_rhs(az, value, BindingKind::Var, Some(*name_span));
             walk_expr(az, value, node);
         }
         Stmt::For { name, iter, body } => {
@@ -158,9 +161,8 @@ fn walk_stmt(
 
 fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     match expr {
-        Expr::Ident { name, span } | Expr::Move { name, span } => {
-            note_use(az, name, Some(*span), node)
-        }
+        Expr::Ident { name, span } => note_use(az, name, Some(*span), node),
+        Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
         Expr::Some(e) => walk_expr(az, e, node),
         Expr::Binary { lhs, rhs, .. } => {
             walk_expr(az, lhs, node);
@@ -231,6 +233,70 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     }
 }
 
+fn apply_expr_move(
+    az: &mut Analyzer,
+    name: &str,
+    span: Option<Span>,
+    _node: &mut ArenaNode,
+) {
+    let Some(binding) = az.env.get(name).cloned() else {
+        az.error(
+            format!("cannot move unknown name `{name}`"),
+            Some(name.into()),
+            span,
+        );
+        return;
+    };
+    if binding.moved {
+        az.error(
+            format!(
+                "cannot move `{name}`: already moved from {}",
+                binding.arena_label
+            ),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    if binding.from_capture {
+        az.error(
+            format!("cannot move `{name}`: it was already moved into this region as a capture"),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    if let Some(binding) = az.env.get_mut(name) {
+        binding.moved = true;
+    }
+}
+
+fn check_transfer_rhs(
+    az: &mut Analyzer,
+    value: &Expr,
+    dest_kind: BindingKind,
+    _span: Option<Span>,
+) {
+    let Expr::Ident { name, span } = value else {
+        return;
+    };
+    let Some(binding) = az.env.get(name) else {
+        return;
+    };
+    if binding.ty.is_copy() || binding.moved {
+        return;
+    }
+    let src_var = matches!(binding.kind, BindingKind::Var);
+    let dest_var = matches!(dest_kind, BindingKind::Var);
+    if src_var || dest_var {
+        az.error(
+            format!("use `move {name}` to transfer ownership"),
+            Some(name.clone()),
+            Some(*span),
+        );
+    }
+}
+
 fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaNode) {
     let Some(b) = az.env.get(name) else {
         return;
@@ -279,7 +345,9 @@ fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
             name: "String".into(),
             nullable: false,
         }),
-        Expr::Ident { name, .. } => az.env.get(name).and_then(|b| b.ty.as_option()),
+        Expr::Ident { name, .. } | Expr::Move { name, .. } => {
+            az.env.get(name).and_then(|b| b.ty.as_option())
+        }
         Expr::Some(inner) => infer_type(az, inner).map(|ty| ty.with_nullable(true)),
         _ => None,
     }

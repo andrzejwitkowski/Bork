@@ -38,6 +38,7 @@ pub(super) struct EnvBinding {
     pub(super) ty: Ty,
     pub(super) kind: BindingKind,
     pub(super) moved: bool,
+    pub(super) from_capture: bool,
 }
 
 pub(super) fn moved_names(env: &HashMap<String, EnvBinding>) -> HashSet<String> {
@@ -118,6 +119,18 @@ pub(super) fn bind(
     ty: Ty,
     kind: BindingKind,
 ) -> Shadow {
+    bind_with(az, name, arena_id, arena_label, ty, kind, false)
+}
+
+pub(super) fn bind_with(
+    az: &mut Analyzer,
+    name: &str,
+    arena_id: usize,
+    arena_label: &str,
+    ty: Ty,
+    kind: BindingKind,
+    from_capture: bool,
+) -> Shadow {
     shadow_insert(
         az,
         name.to_string(),
@@ -127,6 +140,7 @@ pub(super) fn bind(
             ty,
             kind,
             moved: false,
+            from_capture,
         },
     )
 }

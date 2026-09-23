@@ -595,3 +595,70 @@ fun main() {
         "t should inherit non-Copy from s: {errs:?}"
     );
 }
+
+#[test]
+fn expr_move_rebinding_marks_source_moved() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    var x = move s
+    val t = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("after move")),
+        "s must be moved: {errs:?}"
+    );
+}
+
+#[test]
+fn bare_var_assign_requires_move() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    var x = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("move")),
+        "bare var RHS must error: {errs:?}"
+    );
+}
+
+#[test]
+fn move_of_regional_capture_errors() {
+    let src = r#"
+fun main() {
+    var a: String = "A"
+    move (a) {
+        var t = move a
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter()
+            .any(|e| e.message.contains("capture") || e.message.contains("already")),
+        "second move of capture must error: {errs:?}"
+    );
+}
+
+#[test]
+fn regional_capture_use_without_inner_move_ok() {
+    let src = r#"
+fun main() {
+    var a: String = "A"
+    move (a) {
+        val t = a
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+}

@@ -54,6 +54,7 @@ mod tests {
             ty,
             kind,
             moved,
+            from_capture: false,
         }
     }
 

@@ -1,6 +1,6 @@
 //! Region frame and move-capture resolution.
 
-use super::env::{bind, restore_shadows, Analyzer, Shadow, Ty};
+use super::env::{bind, bind_with, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block};
@@ -72,8 +72,15 @@ impl RegionFrame {
                 self.moved_parents.push(cap.name.clone());
                 let label = self.node.label.clone();
                 let id = self.node.id;
-                self.shadows
-                    .push(bind(az, &cap.name, id, &label, b.ty.clone(), BindingKind::Val));
+                self.shadows.push(bind_with(
+                    az,
+                    &cap.name,
+                    id,
+                    &label,
+                    b.ty.clone(),
+                    BindingKind::Val,
+                    true,
+                ));
                 self.node.bindings.push(BindingInfo {
                     name: cap.name.clone(),
                     ownership: Ownership::Moved {
