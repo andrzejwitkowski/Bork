@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Bork",
+  "scopeName": "source.bork",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#literals" },
+    { "include": "#types" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.bork",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.bork",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.bork",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.bork",
+          "match": "\\b(fun|for|in|return|if|else|move)\\b"
+        },
+        {
+          "name": "keyword.other.bork",
+          "match": "\\b(val|var)\\b"
+        }
+      ]
+    },
+    "literals": {
+      "patterns": [
+        {
+          "name": "constant.language.bork",
+          "match": "\\b(None|Some|true|false)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.bork",
+          "match": "\\b(Int|Long|Byte|Float|Double|String|Bool|Unit|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|unit)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.bork",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    }
+  }
+}
