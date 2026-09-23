@@ -1,6 +1,6 @@
 //! Cross-arena use classification and move / transfer policy.
 
-use super::env::{Analyzer, EnvBinding};
+use super::env::{Analyzer, BindingOrigin, EnvBinding};
 use super::report::Ownership;
 use crate::ast::BindingKind;
 use crate::span::Span;
@@ -58,6 +58,13 @@ pub(super) fn bare_ident_move_message(
     sink: &TransferSink,
 ) -> Option<String> {
     if binding.ty.is_copy() || binding.moved {
+        return None;
+    }
+    if matches!(
+        sink,
+        TransferSink::Binding { arena_id, .. }
+            if binding.origin == BindingOrigin::Captured && binding.arena_id == *arena_id
+    ) {
         return None;
     }
     let counterpart_var = match sink {
@@ -228,6 +235,31 @@ mod tests {
             },
         );
         assert!(msg.unwrap().contains("move"));
+    }
+
+    #[test]
+    fn captured_var_into_val_in_same_region_ok() {
+        let b = EnvBinding {
+            arena_id: 2,
+            arena_label: "MoveBlock (move)".into(),
+            ty: Ty::Known(Type::Named {
+                name: "String".into(),
+                nullable: false,
+            }),
+            kind: BindingKind::Var,
+            moved: false,
+            origin: BindingOrigin::Captured,
+        };
+        assert!(bare_ident_move_message(
+            &b,
+            "x",
+            &TransferSink::Binding {
+                dest: BindingKind::Val,
+                arena_id: 2,
+                arena_label: "MoveBlock (move)".into(),
+            },
+        )
+        .is_none());
     }
 
     #[test]

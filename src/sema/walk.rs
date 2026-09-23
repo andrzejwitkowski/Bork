@@ -176,14 +176,10 @@ fn walk(
                 note_use(az, name, Some(*span), node);
             }
         }
-        Expr::Some { expr: inner, .. }
-        | Expr::Unary {
-            expr: inner,
-            ..
+        Expr::Some { expr: inner, .. } | Expr::Unary { expr: inner, .. } => {
+            walk(az, inner, node, transfer)
         }
-        | Expr::Field {
-            receiver: inner, ..
-        } => walk(az, inner, node, transfer),
+        Expr::Field { receiver: inner, .. } => walk(az, inner, node, None),
         Expr::Binary { lhs, rhs, .. } => {
             walk(az, lhs, node, transfer);
             walk(az, rhs, node, transfer);

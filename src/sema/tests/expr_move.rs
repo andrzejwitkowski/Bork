@@ -222,6 +222,7 @@ fn regional_var_capture_keeps_var_kind() {
 fun main() {
     var a: String = "A"
     move (a) {
+        val pad: Int = 0
         {
             val t = a
         }
@@ -232,7 +233,7 @@ fun main() {
     let (_, errs) = analyze(&prog);
     assert!(
         errs.iter().any(|e| e.message.contains("not Copy") || e.message.contains("move")),
-        "nested read of captured var must not silently Shared: {errs:?}"
+        "cross-region read of captured var into val must not be silent: {errs:?}"
     );
 }
 
@@ -281,6 +282,34 @@ fun main() {
         errs.iter().any(|e| e.message.contains("move")),
         "Some(s) must require move: {errs:?}"
     );
+}
+
+#[test]
+fn var_field_read_in_same_arena_ok() {
+    let src = r#"
+fun main() {
+    var s: String = "bork"
+    val l: Int = s.length
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+}
+
+#[test]
+fn move_block_var_capture_val_bind_ok() {
+    let src = r#"
+fun main() {
+    var x: String = "X"
+    move (x) {
+        val t = x
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
 }
 
 #[test]
