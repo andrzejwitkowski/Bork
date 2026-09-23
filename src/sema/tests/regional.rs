@@ -37,7 +37,6 @@ fun main() {
     }));
 }
 
-/// Cover main→helper calls: val/var args, return into val/var, Shared param inside helper.
 
 #[test]
 fn dump_annotates_compacted_braces() {
