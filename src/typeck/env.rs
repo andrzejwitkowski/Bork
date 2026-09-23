@@ -43,6 +43,10 @@ impl<'a> Env<'a> {
         self.scopes.iter().rev().find_map(|scope| scope.get(name))
     }
 
+    pub(super) fn fun_sig(&self, name: &str) -> Option<&FunSig> {
+        self.fun_sigs.get(name)
+    }
+
     pub(super) fn enter_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }

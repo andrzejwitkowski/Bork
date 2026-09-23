@@ -55,3 +55,48 @@ fun main(): i32 {
 "#;
     assert!(check(src).is_ok());
 }
+
+#[test]
+fn call_arity_mismatch() {
+    let src = r#"
+fun f(x: i32): i32 { return x }
+fun main(): i32 { return f() }
+"#;
+    assert!(check(src)
+        .unwrap_err()
+        .iter()
+        .any(|d| d.phase == Phase::Type));
+}
+
+#[test]
+fn call_arg_type_mismatch() {
+    let src = r#"
+fun f(x: i32): i32 { return x }
+fun main(): i32 { return f("a") }
+"#;
+    assert!(check(src)
+        .unwrap_err()
+        .iter()
+        .any(|d| d.phase == Phase::Type));
+}
+
+#[test]
+fn call_ok() {
+    let src = r#"
+fun f(x: i32): i32 { return x + 1 }
+fun main(): i32 { return f(41) }
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn trailing_closure_reports_not_typed_yet() {
+    let src = r#"
+fun f(): i32 { return 1 }
+fun main(): i32 { return f() { -> 1 } }
+"#;
+    assert!(check(src)
+        .unwrap_err()
+        .iter()
+        .any(|d| d.phase == Phase::Type && d.message == "trailing closures not typed yet"));
+}

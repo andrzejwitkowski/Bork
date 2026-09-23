@@ -79,6 +79,64 @@ pub(super) fn check(expr: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> Option<(H
                 result_ty,
             ))
         }
+        Expr::Call {
+            callee,
+            args,
+            trailing,
+        } => {
+            if trailing.is_some() {
+                env.error("trailing closures not typed yet", None);
+            }
+
+            let Expr::Ident { name, span } = callee.as_ref() else {
+                env.error("only named functions can be called", None);
+                return None;
+            };
+            let Some(signature) = env.fun_sig(name).cloned() else {
+                env.error(format!("unknown function `{name}`"), Some(*span));
+                return None;
+            };
+
+            let checked_args: Vec<_> = args
+                .iter()
+                .map(|arg| check(arg, return_ty, env))
+                .collect::<Option<Vec<_>>>()?;
+
+            if checked_args.len() != signature.params.len() {
+                env.error(
+                    format!(
+                        "function `{name}` expects {} arguments, got {}",
+                        signature.params.len(),
+                        checked_args.len()
+                    ),
+                    Some(*span),
+                );
+            }
+            for (index, ((_, actual), expected)) in
+                checked_args.iter().zip(&signature.params).enumerate()
+            {
+                if actual != expected {
+                    env.error(
+                        format!(
+                            "argument {} to `{name}` has type {actual:?}, expected {expected:?}",
+                            index + 1
+                        ),
+                        None,
+                    );
+                }
+            }
+
+            Some((
+                HirExpr::Call {
+                    callee: Box::new(HirExpr::Ident { name: name.clone() }),
+                    args: checked_args
+                        .into_iter()
+                        .map(|(argument, _)| argument)
+                        .collect(),
+                },
+                signature.return_ty,
+            ))
+        }
         Expr::If {
             cond,
             then_block,

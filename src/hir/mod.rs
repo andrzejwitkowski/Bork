@@ -75,6 +75,10 @@ pub enum HirExpr {
         lhs: Box<HirExpr>,
         rhs: Box<HirExpr>,
     },
+    Call {
+        callee: Box<HirExpr>,
+        args: Vec<HirExpr>,
+    },
     If {
         cond: Box<HirExpr>,
         then_block: HirBlock,
