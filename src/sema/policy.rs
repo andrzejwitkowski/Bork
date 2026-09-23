@@ -41,20 +41,17 @@ pub(super) fn classify_use(
     }
 }
 
-/// Where a bare Ident is being placed without `move`.
+/// Where a bare Ident is placed without `move`.
 #[derive(Clone)]
 pub(super) enum TransferSink {
-    /// RHS of `val`/`var` / assign.
     Binding {
         dest: BindingKind,
         arena_id: usize,
         arena_label: String,
     },
-    /// Argument to a known formal.
     CallArg { formal: BindingKind },
 }
 
-/// If a bare Ident at `name` needs an explicit `move`, return the diagnostic message.
 pub(super) fn bare_ident_move_message(
     binding: &EnvBinding,
     name: &str,

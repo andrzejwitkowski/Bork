@@ -9,7 +9,7 @@ use super::policy::{bare_ident_move_message, classify_use, TransferSink, UseOutc
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
-use crate::span::Span;
+use crate::span::{Span, SpannedName};
 
 pub(super) fn open_ordinary(
     az: &mut Analyzer,
@@ -25,7 +25,7 @@ pub(super) fn open_move(
     az: &mut Analyzer,
     label: &str,
     body: &Block,
-    explicit_captures: Option<&[crate::span::SpannedName]>,
+    explicit_captures: Option<&[SpannedName]>,
     params: &[RegionParam],
 ) -> ArenaNode {
     let (body, compacted) = peel_blocks(body);
@@ -47,7 +47,7 @@ fn open_frame(
     body: &Block,
     compacted: usize,
     params: &[RegionParam],
-    captures: &[crate::span::SpannedName],
+    captures: &[SpannedName],
 ) -> ArenaNode {
     let id = az.alloc_id();
     let mut frame = RegionFrame::new(id, label, compacted);
@@ -245,8 +245,6 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     }
 }
 
-/// Walk an expression in a transfer position (`val`/`var` RHS or call arg).
-/// Nested bare Idents use the shared move policy; `move name` consumes.
 fn walk_transfer(
     az: &mut Analyzer,
     expr: &Expr,
@@ -278,7 +276,6 @@ fn walk_transfer(
             walk_transfer(az, lhs, sink, node);
             walk_transfer(az, rhs, sink, node);
         }
-        // Call / if as a value: nested args follow call formals (or observe), not the outer sink.
         Expr::Call { .. } | Expr::If { .. } => walk_expr(az, expr, node),
         Expr::Int(_) | Expr::Str(_) | Expr::None => {}
     }
@@ -314,13 +311,7 @@ fn apply_expr_move(
         return;
     }
     if az.move_banned_in_loop(name) {
-        az.error(
-            format!(
-                "cannot move `{name}` inside a loop: it would already be moved on later iterations"
-            ),
-            Some(name.into()),
-            span,
-        );
+        az.error_move_in_loop(name, span);
         return;
     }
     if matches!(binding.origin, BindingOrigin::Captured) && binding.arena_id == node.id {

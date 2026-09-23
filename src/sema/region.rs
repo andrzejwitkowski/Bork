@@ -69,14 +69,9 @@ impl RegionFrame {
                 Some(cap.name.clone()),
                 Some(cap.span),
             ),
-            Some(_) if az.move_banned_in_loop(&cap.name) => az.error(
-                format!(
-                    "cannot move `{}` inside a loop: it would already be moved on later iterations",
-                    cap.name
-                ),
-                Some(cap.name.clone()),
-                Some(cap.span),
-            ),
+            Some(_) if az.move_banned_in_loop(&cap.name) => {
+                az.error_move_in_loop(&cap.name, Some(cap.span));
+            }
             Some(b) => {
                 self.moved_parents.push(cap.name.clone());
                 let label = self.node.label.clone();

@@ -7,9 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum BindingOrigin {
-    /// `val`/`var` decl or function/closure/for param.
     Declared,
-    /// Brought in by a regional `move` capture list.
     Captured,
 }
 
@@ -82,8 +80,7 @@ pub(super) struct Analyzer {
     pub(super) errors: Vec<SemaError>,
     pub(super) env: HashMap<String, EnvBinding>,
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
-    /// Names that existed when each enclosing `for` was entered; moves of those
-    /// names inside the loop are rejected (would be spent on later iterations).
+    /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
 }
 
@@ -119,6 +116,16 @@ impl Analyzer {
 
     pub(super) fn move_banned_in_loop(&self, name: &str) -> bool {
         self.loop_move_ban.iter().any(|s| s.contains(name))
+    }
+
+    pub(super) fn error_move_in_loop(&mut self, name: &str, span: Option<Span>) {
+        self.error(
+            format!(
+                "cannot move `{name}` inside a loop: it would already be moved on later iterations"
+            ),
+            Some(name.to_string()),
+            span,
+        );
     }
 }
 

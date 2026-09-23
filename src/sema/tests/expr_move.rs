@@ -114,7 +114,6 @@ fun main() {
 
 #[test]
 fn inferred_move_with_expr_move_does_not_pre_capture() {
-    // `move s` must transfer the outer binding, not first become a regional capture.
     let src = r#"
 fun main() {
     var s: String = "hi"
