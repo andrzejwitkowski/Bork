@@ -55,7 +55,7 @@ pub(super) fn check(
             if *op == BinOp::Elvis {
                 check_elvis(op, lhs, rhs, expected, return_ty, env)
             } else {
-                check_binary(op, lhs, rhs, return_ty, env)
+                check_binary(op, lhs, rhs, expected, return_ty, env)
             }
         }
         Expr::Unary {
@@ -140,9 +140,22 @@ fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) ->
     )
 }
 
-fn check_binary(op: &BinOp, lhs: &Expr, rhs: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> HirExpr {
-    let lhs = check(lhs, None, return_ty, env);
-    let rhs = check(rhs, None, return_ty, env);
+fn check_binary(
+    op: &BinOp,
+    lhs: &Expr,
+    rhs: &Expr,
+    expected: Option<&Ty>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    let operand_expected = match op {
+        BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
+            expected.filter(|ty| ty.is_numeric())
+        }
+        _ => None,
+    };
+    let lhs = check(lhs, operand_expected, return_ty, env);
+    let rhs = check(rhs, operand_expected, return_ty, env);
     let (lhs_ty, rhs_ty) = (&lhs.ty, &rhs.ty);
     let poisoned = lhs_ty.is_unknown() || rhs_ty.is_unknown();
 

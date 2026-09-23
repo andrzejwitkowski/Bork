@@ -50,7 +50,7 @@ fn main() {
     let result = frontend::check(&source);
 
     for diag in &result.diagnostics {
-        eprintln!("error: {:?}: {}", diag.phase, diag.message);
+        eprintln!("error: {}: {}", diag.phase, diag.message);
     }
 
     if dump {

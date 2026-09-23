@@ -136,12 +136,6 @@ fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic
         .span
         .map(|s| byte_range(source, s.start, s.end))
         .unwrap_or_else(|| byte_range(source, 0, 0));
-    let phase = match diagnostic.phase {
-        crate::diag::Phase::Parse => "parse",
-        crate::diag::Phase::Ownership => "ownership",
-        crate::diag::Phase::Type => "type",
-        crate::diag::Phase::Codegen => "codegen",
-    };
     let severity = match diagnostic.severity {
         crate::diag::Severity::Error => DiagnosticSeverity::ERROR,
         crate::diag::Severity::Warning => DiagnosticSeverity::WARNING,
@@ -150,7 +144,7 @@ fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic
         range,
         severity: Some(severity),
         source: Some("bork".into()),
-        message: format!("{phase}: {}", diagnostic.message),
+        message: format!("{}: {}", diagnostic.phase, diagnostic.message),
         ..LspDiagnostic::default()
     }
 }

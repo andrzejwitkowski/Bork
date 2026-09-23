@@ -1,3 +1,8 @@
+//! Typed HIR for the frontend pipeline.
+//!
+//! HIR carries no region identity. Arenas and nesting live in
+//! `sema::ArenaReport`; codegen should read region identity from there.
+
 mod ty;
 
 pub use ty::{Prim, Ty, TyKind};
@@ -5,9 +10,6 @@ pub use ty::{Prim, Ty, TyKind};
 use crate::ast;
 use crate::span::Span;
 
-/// HIR carries no region identity. Arenas and their nesting are owned by
-/// `sema::ArenaReport`; codegen will read region identity from there rather
-/// than from a counter kept in parallel by typeck.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseKind {
     Local,

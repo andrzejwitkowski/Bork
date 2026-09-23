@@ -241,6 +241,20 @@ fun main(): i64 {
 }
 
 #[test]
+fn arithmetic_adopts_expected_integer_type() {
+    let src = r#"
+fun main(): i64 {
+    return 1 + 2
+}
+"#;
+    let hir = hir_of(src);
+    let HirStmt::Return { value: Some(value) } = &hir.functions[0].body.stmts[0] else {
+        panic!("expected a return");
+    };
+    assert_eq!(value.ty, Ty::prim(Prim::I64));
+}
+
+#[test]
 fn failed_initializer_still_binds_the_name() {
     let src = r#"
 fun main(): i32 {
