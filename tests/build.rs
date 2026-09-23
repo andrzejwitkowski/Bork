@@ -129,3 +129,38 @@ fn builds_unit_main_exits_zero() {
     );
     assert_eq!(run.status.code(), Some(0));
 }
+
+#[test]
+fn builds_for_loop_sum() {
+    let run = build_and_run(
+        "builds_for_loop_sum",
+        "fun main(): i32 {\n\
+             var total = 0\n\
+             for (i in 0..5) {\n\
+                 total = total + i\n\
+             }\n\
+             return total\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(10));
+}
+
+#[test]
+fn builds_nested_loops_with_regions_and_early_return() {
+    let run = build_and_run(
+        "builds_nested_loops_with_regions_and_early_return",
+        "fun main(): i32 {\n\
+             var total = 0\n\
+             for (i in 0..4) {\n\
+                 for (j in i..4) {\n\
+                     if (j > i) { total = total + 1 } else { { total = total + 0 } }\n\
+                 }\n\
+             }\n\
+             for (k in 0..100) {\n\
+                 if (k == 3) { return total * 10 + k }\n\
+             }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(63));
+}

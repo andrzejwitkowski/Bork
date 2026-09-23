@@ -9,7 +9,7 @@ use super::context::Codegen;
 /// Lowers region events to `bork_arena_*` runtime calls at the builder's position.
 ///
 /// `handles` mirrors the open regions of the function being emitted so an early `return`
-/// can pop every live arena. Pops at unreachable insertion points are skipped.
+/// can pop every live arena. Resets and pops at unreachable insertion points are skipped.
 pub struct ArenaCalls<'a, 'ctx> {
     cx: &'a Codegen<'ctx>,
     handles: Vec<PointerValue<'ctx>>,
@@ -72,7 +72,17 @@ impl RegionSink for ArenaCalls<'_, '_> {
     }
 
     fn reset(&mut self, _node: &ArenaNode) {
-        unreachable!("`for` is rejected before its region opens")
+        let Some(&handle) = self.handles.last() else {
+            return;
+        };
+        if !self.cx.insertion_is_dead() {
+            let result = self
+                .cx
+                .builder
+                .build_call(self.cx.arena_reset_fn(), &[handle.into()], "")
+                .map(|_| ());
+            self.record(result);
+        }
     }
 
     fn pop(&mut self, _node: &ArenaNode) {

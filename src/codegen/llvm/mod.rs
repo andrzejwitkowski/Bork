@@ -128,4 +128,48 @@ mod tests {
         assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 2, "{ir}");
         assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
     }
+
+    fn block<'s>(ir: &'s str, label: &str) -> &'s str {
+        let start = ir
+            .find(&format!("\n{label}:"))
+            .unwrap_or_else(|| panic!("no block {label}: {ir}"));
+        let rest = &ir[start + 1..];
+        &rest[..rest.find("\n\n").unwrap_or(rest.len())]
+    }
+
+    #[test]
+    fn for_loop_pushes_once_resets_at_latch_and_pops_on_exit() {
+        let ir = ir_of(
+            "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) {\n        total = total + i\n    }\n    return total\n}\n",
+        );
+        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 2, "{ir}");
+        assert_eq!(
+            ir.matches("call void @bork_arena_reset(").count(),
+            1,
+            "{ir}"
+        );
+        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
+        assert!(!block(&ir, "for.header").contains("@bork_arena"), "{ir}");
+        assert!(!block(&ir, "for.body").contains("@bork_arena"), "{ir}");
+        assert!(
+            block(&ir, "for.latch").contains("@bork_arena_reset"),
+            "{ir}"
+        );
+        assert!(block(&ir, "for.exit").contains("@bork_arena_pop"), "{ir}");
+    }
+
+    #[test]
+    fn return_inside_loop_pops_loop_arena_and_skips_dead_latch_reset() {
+        let ir = ir_of(
+            "fun main(): i32 {\n    for (i in 0..5) {\n        return i\n    }\n    return 0\n}\n",
+        );
+        assert!(!block(&ir, "for.latch").contains("@bork_arena"), "{ir}");
+        assert_eq!(
+            block(&ir, "for.body")
+                .matches("call void @bork_arena_pop(")
+                .count(),
+            2,
+            "{ir}"
+        );
+    }
 }

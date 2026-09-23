@@ -72,11 +72,18 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     pub fn arena_pop_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_arena_pop")
+    }
+
+    pub fn arena_reset_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_arena_reset")
+    }
+
+    /// `void name(ptr arena)`.
+    fn arena_handle_fn(&self, name: &str) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
         let params: [BasicMetadataTypeEnum; 1] = [ptr.into()];
-        self.runtime_fn("bork_arena_pop", || {
-            self.context.void_type().fn_type(&params, false)
-        })
+        self.runtime_fn(name, || self.context.void_type().fn_type(&params, false))
     }
 
     fn runtime_fn(

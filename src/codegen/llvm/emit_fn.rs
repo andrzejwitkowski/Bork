@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use inkwell::module::Linkage;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::IntPredicate;
 
+use crate::ast::BinOp;
 use crate::codegen::regions::{RegionEmitter, RegionSite};
 use crate::diag::Diagnostic;
-use crate::hir::{HirBlock, HirExpr, HirFunction, HirStmt, Ty};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, Ty};
 
 use super::arena::ArenaCalls;
 use super::context::Codegen;
@@ -188,8 +190,71 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Ok(())
             }
             HirStmt::Expr(expr) => self.emit_expr(expr).map(drop),
-            HirStmt::For { .. } => Err(not_yet_supported("`for` loops", None)),
+            HirStmt::For { name, iter, body } => {
+                self.scopes.push(HashMap::new());
+                let result = self.emit_for(name, iter, body);
+                self.scopes.pop();
+                result
+            }
         }
+    }
+
+    /// `for (name in lo..hi)` over the half-open range, bounds evaluated once. The loop arena
+    /// is pushed before the header, reset at the latch after every iteration, and popped on exit.
+    fn emit_for(&mut self, name: &str, iter: &HirExpr, body: &HirBlock) -> Result<(), Diagnostic> {
+        let HirExprKind::Binary {
+            op: BinOp::RangeTo,
+            lhs,
+            rhs,
+        } = &iter.kind
+        else {
+            return Err(not_yet_supported("this `for` iterator", iter.span));
+        };
+        let index_ty = Ty::i32();
+        let start = self.emit_value(lhs, &index_ty)?;
+        let end = self.emit_value(rhs, &index_ty)?;
+        self.declare_local(name, &index_ty, start.into())?;
+        let index = self.lookup(name).expect("loop index was just declared").ptr;
+
+        let body = self
+            .regions
+            .enter(RegionSite::For, body)
+            .map_err(schedule_error)?;
+        self.check_arena()?;
+
+        let cx = self.cx;
+        let (context, builder) = (cx.context, &cx.builder);
+        let i32_type = context.i32_type();
+        let header_bb = context.append_basic_block(self.llvm_fn, "for.header");
+        let body_bb = context.append_basic_block(self.llvm_fn, "for.body");
+        let latch_bb = context.append_basic_block(self.llvm_fn, "for.latch");
+        let exit_bb = context.append_basic_block(self.llvm_fn, "for.exit");
+        builder.build_unconditional_branch(header_bb)?;
+
+        builder.position_at_end(header_bb);
+        let current = builder.build_load(i32_type, index, name)?.into_int_value();
+        let in_range = builder.build_int_compare(IntPredicate::SLT, current, end, "for.cond")?;
+        builder.build_conditional_branch(in_range, body_bb, exit_bb)?;
+
+        builder.position_at_end(body_bb);
+        self.scopes.push(HashMap::new());
+        let emitted = self.emit_stmts(body, None);
+        self.scopes.pop();
+        emitted?;
+        if !cx.current_block_terminated() {
+            builder.build_unconditional_branch(latch_bb)?;
+        }
+
+        builder.position_at_end(latch_bb);
+        self.regions.latch().map_err(schedule_error)?;
+        self.check_arena()?;
+        let current = builder.build_load(i32_type, index, name)?.into_int_value();
+        let next = builder.build_int_add(current, i32_type.const_int(1, false), "for.next")?;
+        builder.build_store(index, next)?;
+        builder.build_unconditional_branch(header_bb)?;
+
+        builder.position_at_end(exit_bb);
+        self.exit_region()
     }
 
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
