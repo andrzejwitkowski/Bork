@@ -1,15 +1,15 @@
 //! AST walk and region open for ownership checking.
 
 use super::env::{
-    apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, Shadow, Ty,
+    apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, BindingOrigin,
+    Shadow, Ty,
 };
 use super::peel_blocks;
-use super::policy::{classify_use, UseOutcome};
+use super::policy::{bare_ident_move_message, classify_use, TransferSink, UseOutcome};
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
-use crate::span::{Span, SpannedName};
-use std::collections::HashSet;
+use crate::span::Span;
 
 pub(super) fn open_ordinary(
     az: &mut Analyzer,
@@ -25,7 +25,7 @@ pub(super) fn open_move(
     az: &mut Analyzer,
     label: &str,
     body: &Block,
-    explicit_captures: Option<&[SpannedName]>,
+    explicit_captures: Option<&[crate::span::SpannedName]>,
     params: &[RegionParam],
 ) -> ArenaNode {
     let (body, compacted) = peel_blocks(body);
@@ -47,7 +47,7 @@ fn open_frame(
     body: &Block,
     compacted: usize,
     params: &[RegionParam],
-    captures: &[SpannedName],
+    captures: &[crate::span::SpannedName],
 ) -> ArenaNode {
     let id = az.alloc_id();
     let mut frame = RegionFrame::new(id, label, compacted);
@@ -94,9 +94,16 @@ fn walk_stmt(
             ty,
             value,
         } => {
-            if !check_transfer_rhs(az, value, *kind, node) {
-                walk_expr(az, value, node);
-            }
+            walk_transfer(
+                az,
+                value,
+                &TransferSink::Binding {
+                    dest: *kind,
+                    arena_id: node.id,
+                    arena_label: node.label.clone(),
+                },
+                node,
+            );
             let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
             shadows.push(bind_with(
                 az,
@@ -105,7 +112,7 @@ fn walk_stmt(
                 &node.label,
                 inferred.clone(),
                 *kind,
-                false,
+                BindingOrigin::Declared,
             ));
             node.bindings.push(BindingInfo {
                 name: name.clone(),
@@ -116,14 +123,21 @@ fn walk_stmt(
         }
         Stmt::Assign { name, name_span, value } => {
             note_use(az, name, Some(*name_span), node);
-            if !check_transfer_rhs(az, value, BindingKind::Var, node) {
-                walk_expr(az, value, node);
-            }
+            walk_transfer(
+                az,
+                value,
+                &TransferSink::Binding {
+                    dest: BindingKind::Var,
+                    arena_id: node.id,
+                    arena_label: node.label.clone(),
+                },
+                node,
+            );
         }
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
-            let before_moved = moved_names(&az.env);
-            let outer_names: HashSet<String> = az.env.keys().cloned().collect();
+            az.loop_move_ban
+                .push(az.env.keys().cloned().collect());
             let params = [RegionParam {
                 name: name.name.clone(),
                 ty: Ty::Known(Type::from_ident("Int", false)),
@@ -136,7 +150,7 @@ fn walk_stmt(
                 body,
                 &params,
             ));
-            reject_outer_moves_in_loop(az, &outer_names, &before_moved, name.span);
+            az.loop_move_ban.pop();
         }
         Stmt::Return(Some(e)) => walk_expr(az, e, node),
         Stmt::Return(None) => {}
@@ -166,8 +180,15 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
                 _ => None,
             };
             for (i, a) in args.iter().enumerate() {
-                let formal = formals.as_ref().and_then(|f| f.get(i).copied());
-                check_call_arg(az, a, formal, node);
+                match formals.as_ref().and_then(|f| f.get(i).copied()) {
+                    Some(formal) => walk_transfer(
+                        az,
+                        a,
+                        &TransferSink::CallArg { formal },
+                        node,
+                    ),
+                    None => walk_expr(az, a, node),
+                }
             }
             if let Some(c) = trailing {
                 let params: Vec<RegionParam> = c
@@ -224,59 +245,42 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     }
 }
 
-fn reject_outer_moves_in_loop(
+/// Walk an expression in a transfer position (`val`/`var` RHS or call arg).
+/// Nested bare Idents use the shared move policy; `move name` consumes.
+fn walk_transfer(
     az: &mut Analyzer,
-    outer_names: &HashSet<String>,
-    before_moved: &HashSet<String>,
-    span: Span,
-) {
-    for n in outer_names {
-        let was = before_moved.contains(n);
-        let now = az.env.get(n).is_some_and(|b| b.moved);
-        if !was && now {
-            az.error(
-                format!(
-                    "cannot move `{n}` inside a loop: it would already be moved on later iterations"
-                ),
-                Some(n.clone()),
-                Some(span),
-            );
-        }
-    }
-}
-
-fn check_call_arg(
-    az: &mut Analyzer,
-    arg: &Expr,
-    formal: Option<BindingKind>,
+    expr: &Expr,
+    sink: &TransferSink,
     node: &mut ArenaNode,
 ) {
-    let Some(formal_kind) = formal else {
-        walk_expr(az, arg, node);
-        return;
-    };
-    match arg {
+    match expr {
         Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
         Expr::Ident { name, span } => {
             let Some(binding) = az.env.get(name) else {
                 note_use(az, name, Some(*span), node);
                 return;
             };
-            if binding.ty.is_copy() {
-                note_use(az, name, Some(*span), node);
-            } else if matches!(formal_kind, BindingKind::Var)
-                || matches!(binding.kind, BindingKind::Var)
-            {
-                az.error(
-                    format!("use `move {name}` to pass ownership"),
-                    Some(name.clone()),
-                    Some(*span),
-                );
+            if let Some(message) = bare_ident_move_message(binding, name, sink) {
+                az.error(message, Some(name.clone()), Some(*span));
             } else {
                 note_use(az, name, Some(*span), node);
             }
         }
-        _ => walk_expr(az, arg, node),
+        Expr::Some(inner)
+        | Expr::Unary {
+            expr: inner,
+            ..
+        }
+        | Expr::Field {
+            receiver: inner, ..
+        } => walk_transfer(az, inner, sink, node),
+        Expr::Binary { lhs, rhs, .. } => {
+            walk_transfer(az, lhs, sink, node);
+            walk_transfer(az, rhs, sink, node);
+        }
+        // Call / if as a value: nested args follow call formals (or observe), not the outer sink.
+        Expr::Call { .. } | Expr::If { .. } => walk_expr(az, expr, node),
+        Expr::Int(_) | Expr::Str(_) | Expr::None => {}
     }
 }
 
@@ -309,7 +313,17 @@ fn apply_expr_move(
         );
         return;
     }
-    if binding.from_capture && binding.arena_id == node.id {
+    if az.move_banned_in_loop(name) {
+        az.error(
+            format!(
+                "cannot move `{name}` inside a loop: it would already be moved on later iterations"
+            ),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    if matches!(binding.origin, BindingOrigin::Captured) && binding.arena_id == node.id {
         az.error(
             format!("cannot move `{name}`: it was already moved into this region as a capture"),
             Some(name.into()),
@@ -334,42 +348,6 @@ fn apply_expr_move(
             span,
         );
     }
-}
-
-fn check_transfer_rhs(
-    az: &mut Analyzer,
-    value: &Expr,
-    dest_kind: BindingKind,
-    node: &ArenaNode,
-) -> bool {
-    let Expr::Ident { name, span } = value else {
-        return false;
-    };
-    let Some(binding) = az.env.get(name) else {
-        return false;
-    };
-    if binding.ty.is_copy() || binding.moved {
-        return false;
-    }
-    let src_var = matches!(binding.kind, BindingKind::Var);
-    let dest_var = matches!(dest_kind, BindingKind::Var);
-    if src_var || dest_var {
-        let message = if src_var && binding.arena_id != node.id {
-            format!(
-                "`{name}` is not Copy; move it into `{}` with `move`",
-                node.label
-            )
-        } else {
-            format!("use `move {name}` to transfer ownership")
-        };
-        az.error(
-            message,
-            Some(name.clone()),
-            Some(*span),
-        );
-        return true;
-    }
-    false
 }
 
 fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaNode) {

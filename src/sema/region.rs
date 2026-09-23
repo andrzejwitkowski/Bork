@@ -1,6 +1,6 @@
 //! Region frame and move-capture resolution.
 
-use super::env::{bind, bind_with, restore_shadows, Analyzer, Shadow, Ty};
+use super::env::{bind, bind_with, BindingOrigin, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block};
@@ -69,6 +69,14 @@ impl RegionFrame {
                 Some(cap.name.clone()),
                 Some(cap.span),
             ),
+            Some(_) if az.move_banned_in_loop(&cap.name) => az.error(
+                format!(
+                    "cannot move `{}` inside a loop: it would already be moved on later iterations",
+                    cap.name
+                ),
+                Some(cap.name.clone()),
+                Some(cap.span),
+            ),
             Some(b) => {
                 self.moved_parents.push(cap.name.clone());
                 let label = self.node.label.clone();
@@ -80,7 +88,7 @@ impl RegionFrame {
                     &label,
                     b.ty.clone(),
                     BindingKind::Val,
-                    true,
+                    BindingOrigin::Captured,
                 ));
                 self.node.bindings.push(BindingInfo {
                     name: cap.name.clone(),

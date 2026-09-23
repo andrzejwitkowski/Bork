@@ -214,6 +214,8 @@ for (i in 1..10) {
 | Read parent `val` non-Copy in a child | **Shared** — parent stays live |
 | Read parent Copy (`Int`, …) in a child | **Copy** — parent stays live |
 
+Named non-Copy sources nested inside constructors still follow the same rule: `var x = Some(s)` / `f(Some(s))` require `move s` when `s` is a `var` (or the destination/`var` formal demands ownership). Literals and other fresh values do not.
+
 ### Quick reference with `a` and `b`
 
 ```bork
