@@ -143,7 +143,7 @@ src/codegen/                   # gate + Inkwell (feature codegen)
 runtime/ or crates/bork_runtime/
 ```
 
-LSP calls `frontend::check` for diagnostics; hover on types can use HIR later in the same phase-1 follow-up if cheap.
+LSP calls `frontend::check` for diagnostics. Phase 1 does not require type hover; phase 1 follow-up may expose HIR types on hover without changing the check pipeline.
 
 ## Non-goals (v1)
 
