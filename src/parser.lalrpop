@@ -232,10 +232,11 @@ ExprSuffix: Expr = {
         args: args.unwrap_or_default(),
         trailing,
     },
-    <receiver:ExprSuffix> <safe:FieldOp> <name:Ident> => Expr::Field {
+    <start:@L> <receiver:ExprSuffix> <safe:FieldOp> <name:Ident> <end:@R> => Expr::Field {
         receiver: Box::new(receiver),
         name,
         safe,
+        span: Span::new(start, end),
     },
     <start:@L> <expr:ExprSuffix> "!!" <end:@R> => Expr::Unary {
         op: UnaryOp::NotNullAssert,

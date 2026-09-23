@@ -156,6 +156,7 @@ pub enum Expr {
         receiver: Box<Expr>,
         name: String,
         safe: bool,
+        span: crate::span::Span,
     },
     Call {
         callee: Box<Expr>,

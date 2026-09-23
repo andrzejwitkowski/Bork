@@ -105,7 +105,8 @@ pub(super) fn check(
             receiver,
             name,
             safe,
-        } => check_field(receiver, name, *safe, return_ty, env),
+            span,
+        } => check_field(receiver, name, *safe, *span, return_ty, env),
         Expr::Call {
             callee,
             args,

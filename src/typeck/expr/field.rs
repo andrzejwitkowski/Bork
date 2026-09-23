@@ -1,5 +1,6 @@
 use crate::ast::Expr;
 use crate::hir::{HirExpr, HirExprKind, Ty};
+use crate::span::Span;
 
 use super::super::env::Env;
 use super::check;
@@ -8,6 +9,7 @@ pub(super) fn check_field(
     receiver: &Expr,
     name: &str,
     safe: bool,
+    span: Span,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
@@ -26,12 +28,13 @@ pub(super) fn check_field(
         }
         Ty::unknown()
     };
-    HirExpr::new(
+    HirExpr::spanned(
         HirExprKind::Field {
             receiver: Box::new(receiver),
             name: name.to_string(),
             safe,
         },
         result_ty,
+        span,
     )
 }

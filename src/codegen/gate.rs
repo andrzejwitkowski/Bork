@@ -163,4 +163,19 @@ fun main(name: String?): String {
             );
         }
     }
+
+    #[test]
+    fn field_rejection_has_codegen_span() {
+        let source = r#"fun main(): i32 { return "x".length }"#;
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.phase == Phase::Codegen
+                && diagnostic.message.contains("field access")
+                && diagnostic.span.is_some()
+        }));
+    }
 }
