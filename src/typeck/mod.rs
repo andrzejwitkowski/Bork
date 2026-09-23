@@ -8,11 +8,12 @@ use crate::ast::{Program, Type};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirFunction, HirParam, HirProgram, Ty, TyKind};
 
-use env::{Env, FunSig};
+use env::Env;
+pub(crate) use env::FunSig;
 
 pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
-    let fun_sigs: HashMap<_, _> = program
+    let mut fun_sigs: HashMap<_, _> = program
         .functions
         .iter()
         .map(|function| {
@@ -29,6 +30,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
             )
         })
         .collect();
+    fun_sigs.extend(crate::builtins::signatures());
 
     let functions = program
         .functions

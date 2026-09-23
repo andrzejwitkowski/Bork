@@ -1,5 +1,6 @@
 pub mod arena;
 pub mod ast;
+mod builtins;
 pub mod diag;
 pub mod dump;
 pub mod frontend;

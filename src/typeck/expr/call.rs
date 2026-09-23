@@ -67,14 +67,6 @@ pub(super) fn check_call(
         );
     };
 
-    let callee_ty = Ty::new(
-        TyKind::Func {
-            params: params.clone(),
-            ret: Box::new(call_return_ty.clone()),
-        },
-        false,
-    );
-
     let (regular_params, trailing_signature) =
         split_trailing_param(&name, span, &params, trailing, env);
 
@@ -95,7 +87,9 @@ pub(super) fn check_call(
         );
     }
     for (index, (argument, expected)) in checked_args.iter().zip(regular_params).enumerate() {
-        if !argument.ty.is_unknown() && &argument.ty != expected {
+        let matches_builtin_overload =
+            crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(&argument.ty);
+        if !argument.ty.is_unknown() && &argument.ty != expected && !matches_builtin_overload {
             env.error(
                 format!(
                     "argument {} to `{name}` has type {}, expected {expected}",
@@ -110,6 +104,19 @@ pub(super) fn check_call(
     if let (Some(closure), Some((closure_params, closure_ret))) = (trailing, trailing_signature) {
         check_trailing_closure(closure, closure_params, closure_ret, env);
     }
+
+    let callee_params = if crate::builtins::is_print(&name) && checked_args.len() == 1 {
+        vec![checked_args[0].ty.clone()]
+    } else {
+        params
+    };
+    let callee_ty = Ty::new(
+        TyKind::Func {
+            params: callee_params,
+            ret: Box::new(call_return_ty.clone()),
+        },
+        false,
+    );
 
     HirExpr::new(
         HirExprKind::Call {

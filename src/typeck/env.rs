@@ -12,9 +12,9 @@ pub(super) struct Binding {
 }
 
 #[derive(Clone)]
-pub(super) struct FunSig {
-    pub(super) params: Vec<Ty>,
-    pub(super) return_ty: Ty,
+pub(crate) struct FunSig {
+    pub(crate) params: Vec<Ty>,
+    pub(crate) return_ty: Ty,
 }
 
 pub(super) struct Env<'a> {

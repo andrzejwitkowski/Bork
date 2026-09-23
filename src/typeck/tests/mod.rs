@@ -98,6 +98,54 @@ fun main(): i32 { return f(41) }
 }
 
 #[test]
+fn print_i32_typechecks() {
+    let src = r#"
+fun main(): i32 {
+    println(42)
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn print_i64_typechecks() {
+    let src = r#"
+fun main(): i32 {
+    val value: i64 = 42
+    print(value)
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn println_string_typechecks() {
+    let src = r#"
+fun main(): i32 {
+    println("hello")
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn print_unknown_name_still_errors() {
+    let src = r#"
+fun main(): i32 {
+    printlnn(1)
+    return 0
+}
+"#;
+    assert!(check(src)
+        .diagnostics
+        .iter()
+        .any(|d| d.phase == Phase::Type));
+}
+
+#[test]
 fn for_range_ok() {
     let src = r#"
 fun main(): i32 {
