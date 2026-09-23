@@ -1,3 +1,4 @@
+mod escape;
 mod gate;
 mod link;
 pub mod llvm;

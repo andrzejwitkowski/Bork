@@ -220,3 +220,20 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
     assert!(stderr.contains("not supported"), "stderr: {stderr}");
     assert!(!binary.exists());
 }
+
+#[test]
+fn build_rejects_returning_moved_string() {
+    let dir = scratch_dir("build_rejects_returning_moved_string");
+    let source = "fun mk(): String {\n    var s = \"esc\"\n    return move s\n}\n\
+                  fun main() {\n    println(mk())\n}\n";
+    let (build, binary) = bork_build(&dir, source);
+    let stderr = String::from_utf8_lossy(&build.stderr);
+
+    assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
+    assert!(stderr.contains("codegen"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("returning a moved `String`"),
+        "stderr: {stderr}"
+    );
+    assert!(!binary.exists());
+}

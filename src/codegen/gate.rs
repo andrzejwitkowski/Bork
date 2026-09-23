@@ -7,6 +7,7 @@ pub fn gate(hir: &HirProgram) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for function in &hir.functions {
         gate_block(&function.body, &mut diagnostics);
+        super::escape::check_function(function, &mut diagnostics);
     }
     diagnostics
 }
@@ -112,7 +113,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
-fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
+pub(super) fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
     diagnostics.push(Diagnostic {
         phase: Phase::Codegen,
         severity: Severity::Error,

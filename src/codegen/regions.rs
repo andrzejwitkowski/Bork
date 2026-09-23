@@ -259,7 +259,7 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
 }
 
 /// HIR counterpart of `sema::peel_blocks`.
-fn peel_blocks(block: &HirBlock) -> (&HirBlock, usize) {
+pub(super) fn peel_blocks(block: &HirBlock) -> (&HirBlock, usize) {
     let mut compacted = 0;
     let mut current = block;
     while let [HirStmt::Block(inner)] = current.stmts.as_slice() {
