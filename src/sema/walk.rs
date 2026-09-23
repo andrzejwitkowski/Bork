@@ -120,6 +120,9 @@ fn walk_stmt(
         }
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
+            let before_moved = moved_names(&az.env);
+            let outer_names: std::collections::HashSet<String> =
+                az.env.keys().cloned().collect();
             let params = [RegionParam {
                 name: name.name.clone(),
                 ty: Ty::Known(Type::from_ident("Int", false)),
@@ -131,6 +134,21 @@ fn walk_stmt(
                 body,
                 &params,
             ));
+            // A move of an outer binding inside the loop would already be spent
+            // on later iterations — reject at compile time.
+            for n in &outer_names {
+                let was = before_moved.contains(n);
+                let now = az.env.get(n).is_some_and(|b| b.moved);
+                if !was && now {
+                    az.error(
+                        format!(
+                            "cannot move `{n}` inside a loop: it would already be moved on later iterations"
+                        ),
+                        Some(n.clone()),
+                        Some(name.span),
+                    );
+                }
+            }
         }
         Stmt::Return(Some(e)) => walk_expr(az, e, node),
         Stmt::Return(None) => {}

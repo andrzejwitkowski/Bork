@@ -152,6 +152,224 @@ fun main() {
     }));
 }
 
+/// Function params are always Val today (`fun f(x: T)`, no `val`/`var` on params).
+/// Cover main→helper calls: val/var args, return into val/var, Shared param inside helper.
+#[test]
+fn main_calls_helper_val_param_return_to_val() {
+    let src = r#"
+fun echo(s: String): String {
+    return s
+}
+fun main() {
+    val s: String = "hi"
+    val out = echo(s)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    assert_eq!(report.roots.len(), 2);
+    let echo = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun echo"))
+        .expect("echo");
+    assert!(
+        echo.bindings.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Local)
+        }),
+        "param s should be Local in echo: {:?}",
+        echo.bindings
+    );
+    let main = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun main"))
+        .expect("main");
+    assert!(
+        main.bindings.iter().any(|b| b.name == "out"),
+        "main should bind return into val out: {:?}",
+        main.bindings
+    );
+}
+
+#[test]
+fn main_calls_helper_return_into_var() {
+    let src = r#"
+fun next(n: Int): Int {
+    return n + 1
+}
+fun main() {
+    var x = 0
+    x = next(x)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+}
+
+#[test]
+fn helper_string_param_shared_in_nested_block() {
+    let src = r#"
+fun use(s: String): Int {
+    {
+        val t = s
+    }
+    return 0
+}
+fun main() {
+    val s: String = "hi"
+    use(s)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let use_fn = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun use"))
+        .expect("use");
+    let nested = &use_fn.children[0];
+    assert!(
+        nested.observations.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Shared { .. })
+        }),
+        "param s is Val, so nested read should be Shared: {:?}",
+        nested.observations
+    );
+}
+
+#[test]
+fn helper_cannot_share_var_string_param_without_move() {
+    // Params are Val-only in the grammar; model "var-like" by rebinding as var inside.
+    let src = r#"
+fun touch(): Int {
+    var s: String = "hi"
+    {
+        val t = s
+    }
+    return 0
+}
+fun main() {
+    touch()
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("not Copy")),
+        "var String in helper must not cross arenas without move: {errs:?}"
+    );
+}
+
+#[test]
+fn move_outer_binding_inside_loop_errors() {
+    let src = r#"
+fun main() {
+    var s = "Hello, World!"
+    for (i in 1..10) {
+        move {
+            val t = s
+        }
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| {
+            e.message.contains("inside a loop") && e.message.contains("`s`")
+        }),
+        "moving outer s each iteration must error: {errs:?}"
+    );
+}
+
+#[test]
+fn move_loop_local_binding_is_ok() {
+    let src = r#"
+fun main() {
+    for (i in 1..10) {
+        var s: String = "hi"
+        move (s) {
+            return 1
+        }
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        !errs.iter().any(|e| e.message.contains("inside a loop")),
+        "fresh local each iteration may be moved: {errs:?}"
+    );
+}
+
+/// Gap: calls do not consume non-Copy args (no move-into-callee) and do not
+/// treat Copy specially at the call boundary — only a same-arena use in the caller.
+#[test]
+fn call_does_not_yet_move_non_copy_argument() {
+    let src = r#"
+fun sink(s: String): Int {
+    return 0
+}
+fun main() {
+    val s: String = "hi"
+    sink(s)
+    val t = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.is_empty(),
+        "NYI gap: sink(s) must not yet move s in the caller; got {errs:?}"
+    );
+}
+
+#[test]
+fn call_does_not_yet_record_copy_crossing_into_callee() {
+    // Callee sees its own Local param; caller only notes a Local use of `n`.
+    // There is no Copy observation tied to the call/callee arena yet.
+    let src = r#"
+fun id(n: Int): Int {
+    return n
+}
+fun main() {
+    val n = 1
+    val m = id(n)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let main = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun main"))
+        .expect("main");
+    assert!(
+        !main.observations.iter().any(|b| {
+            b.name == "n" && matches!(b.ownership, Ownership::Copy)
+        }),
+        "NYI gap: caller must not yet record Copy for arg `n` at call; got {:?}",
+        main.observations
+    );
+    let id = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun id"))
+        .expect("id");
+    assert!(
+        id.bindings.iter().any(|b| {
+            b.name == "n" && matches!(b.ownership, Ownership::Local)
+        }),
+        "callee still has its own Local param: {:?}",
+        id.bindings
+    );
+}
+
 #[test]
 fn inferred_move_captures_free_parent() {
     let src = r#"
