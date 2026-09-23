@@ -30,7 +30,7 @@ jobs:
         run: cargo build --verbose
 
       - name: Test
-        run: cargo test --verbose
+        run: cargo test --workspace --verbose
 
       - name: Test without LSP feature
         run: cargo test --no-default-features --verbose
@@ -58,4 +58,4 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Test with codegen
-        run: cargo test --features codegen --verbose
+        run: cargo test --workspace --features codegen --verbose

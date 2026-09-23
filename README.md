@@ -81,6 +81,13 @@ The runtime archive is built automatically. Set `BORK_RUNTIME_LIB` to override
 its path when invoking `bork build`, for example when using a separately built
 `libbork_runtime.a`.
 
+Run the full test suite, including the `bork_runtime` crate and the
+`bork build` golden tests:
+
+```bash
+cargo test --workspace --features codegen
+```
+
 ## Typecheck
 
 `bork file.bork` runs parse, ownership, and full typecheck.
