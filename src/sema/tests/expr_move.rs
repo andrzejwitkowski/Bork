@@ -203,17 +203,39 @@ fun main() {
 
 #[test]
 fn regional_capture_use_without_inner_move_ok() {
+    // Same-arena Local observe (no transfer sink) does not need a second move.
     let src = r#"
 fun main() {
     var a: String = "A"
     move (a) {
-        val t = a
+        a
     }
 }
 "#;
     let prog = parse(src).unwrap();
     let (_, errs) = analyze(&prog);
     assert!(errs.is_empty(), "{errs:?}");
+}
+
+#[test]
+fn regional_var_capture_keeps_var_kind() {
+    // Captured `var` stays Var: nested arena cannot Shared-read it without move.
+    let src = r#"
+fun main() {
+    var a: String = "A"
+    move (a) {
+        {
+            val t = a
+        }
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("not Copy") || e.message.contains("move")),
+        "nested read of captured var must not silently Shared: {errs:?}"
+    );
 }
 
 #[test]

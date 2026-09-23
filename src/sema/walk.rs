@@ -4,6 +4,7 @@ use super::env::{
     apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, BindingOrigin,
     Shadow, Ty,
 };
+use super::move_source::{move_source, report_move_source_err};
 use super::peel_blocks;
 use super::policy::{bare_ident_move_message, classify_use, TransferSink, UseOutcome};
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
@@ -94,16 +95,12 @@ fn walk_stmt(
             ty,
             value,
         } => {
-            walk_transfer(
-                az,
-                value,
-                &TransferSink::Binding {
-                    dest: *kind,
-                    arena_id: node.id,
-                    arena_label: node.label.clone(),
-                },
-                node,
-            );
+            let sink = TransferSink::Binding {
+                dest: *kind,
+                arena_id: node.id,
+                arena_label: node.label.clone(),
+            };
+            walk(az, value, node, Some(&sink));
             let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
             shadows.push(bind_with(
                 az,
@@ -123,19 +120,15 @@ fn walk_stmt(
         }
         Stmt::Assign { name, name_span, value } => {
             note_use(az, name, Some(*name_span), node);
-            walk_transfer(
-                az,
-                value,
-                &TransferSink::Binding {
-                    dest: BindingKind::Var,
-                    arena_id: node.id,
-                    arena_label: node.label.clone(),
-                },
-                node,
-            );
+            let sink = TransferSink::Binding {
+                dest: BindingKind::Var,
+                arena_id: node.id,
+                arena_label: node.label.clone(),
+            };
+            walk(az, value, node, Some(&sink));
         }
         Stmt::For { name, iter, body } => {
-            walk_expr(az, iter, node);
+            walk(az, iter, node, None);
             az.loop_move_ban
                 .push(az.env.keys().cloned().collect());
             let params = [RegionParam {
@@ -152,43 +145,66 @@ fn walk_stmt(
             ));
             az.loop_move_ban.pop();
         }
-        Stmt::Return(Some(e)) => walk_expr(az, e, node),
+        Stmt::Return(Some(e)) => walk(az, e, node, None),
         Stmt::Return(None) => {}
-        Stmt::Expr(e) => walk_expr(az, e, node),
+        Stmt::Expr(e) => walk(az, e, node, None),
     }
 }
 
-fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
+/// Single AST walker. `transfer = Some` means the expression is in a value-transfer
+/// position (assign/call); nested Idents must satisfy `bare_ident_move_message`.
+/// `Call` / `If` as a *value* drop into observe mode for their own structure.
+fn walk(
+    az: &mut Analyzer,
+    expr: &Expr,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+) {
     match expr {
-        Expr::Ident { name, span } => note_use(az, name, Some(*span), node),
         Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
-        Expr::Some(e) => walk_expr(az, e, node),
-        Expr::Binary { lhs, rhs, .. } => {
-            walk_expr(az, lhs, node);
-            walk_expr(az, rhs, node);
+        Expr::Ident { name, span } => {
+            if let Some(sink) = transfer {
+                let Some(binding) = az.env.get(name) else {
+                    note_use(az, name, Some(*span), node);
+                    return;
+                };
+                if let Some(message) = bare_ident_move_message(binding, name, sink) {
+                    az.error(message, Some(name.clone()), Some(*span));
+                } else {
+                    note_use(az, name, Some(*span), node);
+                }
+            } else {
+                note_use(az, name, Some(*span), node);
+            }
         }
-        Expr::Unary { expr, .. } => walk_expr(az, expr, node),
-        Expr::Field { receiver, .. } => walk_expr(az, receiver, node),
+        Expr::Some(inner)
+        | Expr::Unary {
+            expr: inner,
+            ..
+        }
+        | Expr::Field {
+            receiver: inner, ..
+        } => walk(az, inner, node, transfer),
+        Expr::Binary { lhs, rhs, .. } => {
+            walk(az, lhs, node, transfer);
+            walk(az, rhs, node, transfer);
+        }
         Expr::Call {
             callee,
             args,
             trailing,
         } => {
-            walk_expr(az, callee, node);
+            walk(az, callee, node, None);
             let formals = match callee.as_ref() {
                 Expr::Ident { name, .. } => az.fun_sigs.get(name).cloned(),
                 _ => None,
             };
             for (i, a) in args.iter().enumerate() {
-                match formals.as_ref().and_then(|f| f.get(i).copied()) {
-                    Some(formal) => walk_transfer(
-                        az,
-                        a,
-                        &TransferSink::CallArg { formal },
-                        node,
-                    ),
-                    None => walk_expr(az, a, node),
-                }
+                let arg_transfer = formals
+                    .as_ref()
+                    .and_then(|f| f.get(i).copied())
+                    .map(|formal| TransferSink::CallArg { formal });
+                walk(az, a, node, arg_transfer.as_ref());
             }
             if let Some(c) = trailing {
                 let params: Vec<RegionParam> = c
@@ -220,7 +236,7 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             then_block,
             else_block,
         } => {
-            walk_expr(az, cond, node);
+            walk(az, cond, node, None);
             let before_moved = moved_names(&az.env);
             node.children
                 .push(open_ordinary(az, "IfThen", then_block, &[]));
@@ -245,75 +261,27 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     }
 }
 
-fn walk_transfer(
-    az: &mut Analyzer,
-    expr: &Expr,
-    sink: &TransferSink,
-    node: &mut ArenaNode,
-) {
-    match expr {
-        Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
-        Expr::Ident { name, span } => {
-            let Some(binding) = az.env.get(name) else {
-                note_use(az, name, Some(*span), node);
-                return;
-            };
-            if let Some(message) = bare_ident_move_message(binding, name, sink) {
-                az.error(message, Some(name.clone()), Some(*span));
-            } else {
-                note_use(az, name, Some(*span), node);
-            }
-        }
-        Expr::Some(inner)
-        | Expr::Unary {
-            expr: inner,
-            ..
-        }
-        | Expr::Field {
-            receiver: inner, ..
-        } => walk_transfer(az, inner, sink, node),
-        Expr::Binary { lhs, rhs, .. } => {
-            walk_transfer(az, lhs, sink, node);
-            walk_transfer(az, rhs, sink, node);
-        }
-        Expr::Call { .. } | Expr::If { .. } => walk_expr(az, expr, node),
-        Expr::Int(_) | Expr::Str(_) | Expr::None => {}
-    }
-}
-
 fn apply_expr_move(
     az: &mut Analyzer,
     name: &str,
     span: Option<Span>,
     node: &mut ArenaNode,
 ) {
-    let Some(binding) = az.env.get(name).cloned() else {
-        az.error(
-            format!("cannot move unknown name `{name}`"),
-            Some(name.into()),
-            span,
-        );
+    let Some(peek) = az.env.get(name).cloned() else {
+        report_move_source_err(az, name, super::move_source::MoveSourceErr::Unknown, span);
         return;
     };
-    if binding.ty.is_copy() {
+    if peek.ty.is_copy() {
         note_use(az, name, span, node);
         return;
     }
-    if binding.moved {
-        az.error(
-            format!(
-                "cannot move `{name}`: already moved from {}",
-                binding.arena_label
-            ),
-            Some(name.into()),
-            span,
-        );
-        return;
-    }
-    if az.move_banned_in_loop(name) {
-        az.error_move_in_loop(name, span);
-        return;
-    }
+    let binding = match move_source(az, name) {
+        Ok(b) => b,
+        Err(e) => {
+            report_move_source_err(az, name, e, span);
+            return;
+        }
+    };
     if matches!(binding.origin, BindingOrigin::Captured) && binding.arena_id == node.id {
         az.error(
             format!("cannot move `{name}`: it was already moved into this region as a capture"),

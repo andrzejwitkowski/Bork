@@ -9,6 +9,7 @@ use crate::ast::{Function, Program};
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
     let mut az = Analyzer::new();
+    // MVP: keyed by bare function name (no local shadowing of callees yet).
     for f in &program.functions {
         az.fun_sigs.insert(
             f.name.clone(),
