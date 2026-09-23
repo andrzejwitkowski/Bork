@@ -6,8 +6,10 @@
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#keywords" },
+    { "include": "#type-annotation" },
+    { "include": "#arrow-type" },
     { "include": "#literals" },
-    { "include": "#types" },
+    { "include": "#types-primitive" },
     { "include": "#numbers" }
   ],
   "repository": {
@@ -50,12 +52,66 @@
         }
       ]
     },
-    "types": {
+    "types-primitive": {
       "patterns": [
         {
           "name": "support.type.primitive.bork",
           "match": "\\b(Int|Long|Byte|Float|Double|String|Bool|Unit|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|bool|unit)\\b"
         }
+      ]
+    },
+    "type-name": {
+      "patterns": [
+        { "include": "#types-primitive" },
+        {
+          "name": "entity.name.type.bork",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        },
+        {
+          "name": "punctuation.definition.nullable.bork",
+          "match": "\\?"
+        }
+      ]
+    },
+    "type-expression": {
+      "patterns": [
+        {
+          "begin": "\\(",
+          "end": "\\)",
+          "patterns": [
+            { "include": "#type-expression" },
+            { "include": "#type-name" },
+            {
+              "name": "punctuation.separator.parameters.bork",
+              "match": ","
+            }
+          ]
+        },
+        {
+          "match": "->",
+          "name": "keyword.operator.type.function.bork"
+        },
+        { "include": "#type-name" }
+      ]
+    },
+    "type-annotation": {
+      "begin": "(:)(\\s*)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.separator.type.bork" }
+      },
+      "end": "(?=[,)=\\n]|\\{|\\b(else|in)\\b)",
+      "patterns": [
+        { "include": "#type-expression" }
+      ]
+    },
+    "arrow-type": {
+      "begin": "(->)(\\s*)",
+      "beginCaptures": {
+        "1": { "name": "keyword.operator.type.function.bork" }
+      },
+      "end": "(?=[,)=\\n]|\\{|\\b(else|in)\\b)",
+      "patterns": [
+        { "include": "#type-expression" }
       ]
     },
     "numbers": {
