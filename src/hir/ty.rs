@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::ast;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,6 +104,33 @@ impl Ty {
     }
 }
 
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let nullable_suffix = |nullable: bool| if nullable { "?" } else { "" };
+        match self {
+            Ty::Primitive { name, nullable } | Ty::Named { name, nullable } => {
+                write!(f, "{name}{}", nullable_suffix(*nullable))
+            }
+            Ty::Func {
+                params,
+                ret,
+                nullable,
+            } => {
+                f.write_str("(")?;
+                for (index, param) in params.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{param}")?;
+                }
+                write!(f, ")->{ret}{}", nullable_suffix(*nullable))
+            }
+            Ty::Range { elem } => write!(f, "Range<{elem}>"),
+            Ty::Unknown => f.write_str("<unknown>"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::Ty;
@@ -124,5 +153,27 @@ mod tests {
             nullable: false,
         });
         assert!(t.is_copy());
+    }
+
+    #[test]
+    fn display_renders_surface_syntax() {
+        assert_eq!(Ty::i32().to_string(), "i32");
+        assert_eq!(Ty::string(true).to_string(), "String?");
+        assert_eq!(
+            Ty::Func {
+                params: vec![Ty::i32()],
+                ret: Box::new(Ty::i32()),
+                nullable: false,
+            }
+            .to_string(),
+            "(i32)->i32"
+        );
+        assert_eq!(
+            Ty::Range {
+                elem: Box::new(Ty::i32())
+            }
+            .to_string(),
+            "Range<i32>"
+        );
     }
 }

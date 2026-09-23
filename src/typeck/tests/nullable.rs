@@ -16,6 +16,54 @@ fun main(): String {
 }
 
 #[test]
+fn elvis_requires_nullable_lhs_for_primitives_too() {
+    let src = r#"
+fun main(score: i32): i32 {
+    return score ?: 0
+}
+"#;
+    let errors = check(src).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.phase == Phase::Type && error.message.contains("must be nullable")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn ordered_comparison_rejects_nullable_operand() {
+    let src = r#"
+fun main(name: String?): i32 {
+    if (name?.length > 0) {
+        return 1
+    }
+    return 0
+}
+"#;
+    let errors = check(src).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.phase == Phase::Type
+            && error.message.contains("ordered comparison operands")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn ordered_comparison_accepts_narrowed_operand() {
+    let src = r#"
+fun main(name: String?): i32 {
+    val length: i32 = name?.length ?: 0
+    if (length > 0) {
+        return 1
+    }
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
 fn elvis_ok() {
     let src = r#"
 fun main(): String {

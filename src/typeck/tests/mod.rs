@@ -1,6 +1,6 @@
 use crate::diag::Phase;
 use crate::frontend::check;
-use crate::hir::{HirExpr, HirStmt, UseKind};
+use crate::hir::{HirExpr, HirExprKind, HirStmt, Ty, UseKind};
 
 mod closures;
 mod nullable;
@@ -125,13 +125,123 @@ fun main(): String {
     assert!(matches!(
         &hir.functions[0].body.stmts[1],
         HirStmt::VarDecl {
-            value: HirExpr::Ident {
-                use_kind: UseKind::Move,
+            value: HirExpr {
+                kind: HirExprKind::Ident {
+                    use_kind: UseKind::Move,
+                    ..
+                },
                 ..
             },
             ..
         }
     ));
+}
+
+#[test]
+fn hir_exprs_carry_their_type_and_span() {
+    let src = r#"
+fun main(): i32 {
+    val x: i32 = 1
+    return x
+}
+"#;
+    let hir = check(src).expect("program should typecheck");
+    let stmts = &hir.functions[0].body.stmts;
+    let HirStmt::VarDecl { value, .. } = &stmts[0] else {
+        panic!("expected a var declaration, got {:?}", stmts[0]);
+    };
+    assert_eq!(value.ty, Ty::i32());
+
+    let HirStmt::Return { value: Some(value) } = &stmts[1] else {
+        panic!("expected a return, got {:?}", stmts[1]);
+    };
+    assert_eq!(value.ty, Ty::i32());
+    let span = value.span.expect("identifiers carry their source span");
+    assert_eq!(&src[span.start..span.end], "x");
+}
+
+#[test]
+fn regional_move_block_is_typechecked() {
+    let src = r#"
+fun main(): i32 {
+    val s: String = "hi"
+    move (s) {
+        val len: i32 = s.length
+    }
+    return 0
+}
+"#;
+    let hir = check(src).expect("move block should typecheck");
+    let function = &hir.functions[0];
+    let HirStmt::MoveBlock {
+        captures,
+        body,
+        region,
+    } = &function.body.stmts[1]
+    else {
+        panic!("expected a move block, got {:?}", function.body.stmts[1]);
+    };
+    assert_eq!(captures.as_deref(), Some(["s".to_string()].as_slice()));
+    assert_ne!(*region, function.region);
+    assert!(matches!(
+        body.stmts.as_slice(),
+        [HirStmt::VarDecl { name, .. }] if name == "len"
+    ));
+}
+
+#[test]
+fn type_error_inside_move_block_is_reported() {
+    let src = r#"
+fun main(): i32 {
+    val s: String = "hi"
+    move (s) {
+        val len: i32 = s
+    }
+    return 0
+}
+"#;
+    let errors = check(src).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.phase == Phase::Type && error.message.contains("initializer")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn value_if_without_annotation_infers_from_branches() {
+    let src = r#"
+fun main(n: i32): i32 {
+    val picked = if (n > 0) { n } else { 0 }
+    return picked
+}
+"#;
+    let hir = check(src).expect("branches unify to i32");
+    assert!(matches!(
+        &hir.functions[0].body.stmts[0],
+        HirStmt::VarDecl { ty, .. } if *ty == Ty::i32()
+    ));
+}
+
+#[test]
+fn int_literal_adopts_expected_integer_type() {
+    let src = r#"
+fun main(): i64 {
+    return 1
+}
+"#;
+    let hir = check(src).expect("literal should take the expected integer type");
+    let HirStmt::Return { value: Some(value) } = &hir.functions[0].body.stmts[0] else {
+        panic!("expected a return");
+    };
+    assert_eq!(
+        value.ty,
+        Ty::Primitive {
+            name: "i64".into(),
+            nullable: false
+        }
+    );
 }
 
 #[test]
@@ -143,7 +253,10 @@ fn samples_check_clean() {
 #[test]
 fn unknown_named_type_errors() {
     let src = r#"fun main(): Foo { return 1 }"#;
-    assert!(check(src).unwrap_err().iter().any(|d| d.phase == Phase::Type));
+    assert!(check(src)
+        .unwrap_err()
+        .iter()
+        .any(|d| d.phase == Phase::Type));
 }
 
 #[test]

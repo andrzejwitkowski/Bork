@@ -1,5 +1,5 @@
 use crate::ast::{BinOp, BindingKind, Block, Closure, Expr, Stmt, UnaryOp};
-use crate::hir::{HirBlock, HirExpr, Ty, UseKind};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirStmt, Ty, UseKind};
 
 use super::env::Env;
 use super::stmt;
@@ -9,11 +9,17 @@ pub(super) fn check(
     expected: Option<&Ty>,
     return_ty: &Ty,
     env: &mut Env<'_>,
-) -> Option<(HirExpr, Ty)> {
+) -> Option<HirExpr> {
     match expr {
-        Expr::Int(value) => Some((HirExpr::Int { value: *value }, Ty::i32())),
-        Expr::Str(value) => Some((
-            HirExpr::Str {
+        Expr::Int(value) => {
+            let ty = expected
+                .filter(|ty| is_integer(ty))
+                .cloned()
+                .unwrap_or_else(Ty::i32);
+            Some(HirExpr::new(HirExprKind::Int { value: *value }, ty))
+        }
+        Expr::Str(value) => Some(HirExpr::new(
+            HirExprKind::Str {
                 value: value.clone(),
             },
             Ty::string(false),
@@ -29,12 +35,13 @@ pub(super) fn check(
             } else {
                 UseKind::Local
             };
-            Some((
-                HirExpr::Ident {
+            Some(HirExpr::spanned(
+                HirExprKind::Ident {
                     name: name.clone(),
                     use_kind,
                 },
                 ty,
+                *span,
             ))
         }
         Expr::Move { name, span } => {
@@ -42,102 +49,74 @@ pub(super) fn check(
                 env.error(format!("unknown binding `{name}`"), Some(*span));
                 return None;
             };
-            Some((
-                HirExpr::Ident {
+            let ty = binding.ty.clone();
+            Some(HirExpr::spanned(
+                HirExprKind::Ident {
                     name: name.clone(),
                     use_kind: UseKind::Move,
                 },
-                binding.ty.clone(),
+                ty,
+                *span,
             ))
         }
         Expr::None => {
             let Some(ty) = expected.filter(|ty| ty.is_nullable()) else {
                 env.error("cannot infer type of `None`", None);
-                return Some((HirExpr::None, Ty::Unknown));
+                return Some(HirExpr::new(HirExprKind::None, Ty::Unknown));
             };
-            Some((HirExpr::None, ty.clone()))
+            Some(HirExpr::new(HirExprKind::None, ty.clone()))
         }
         Expr::Some(inner) => {
             let expected_inner = expected
                 .filter(|ty| ty.is_nullable())
                 .and_then(|ty| ty.with_nullable(false));
-            let (inner, inner_ty) = check(inner, expected_inner.as_ref(), return_ty, env)?;
-            let Some(nullable_ty) = inner_ty.with_nullable(true) else {
+            let inner = check(inner, expected_inner.as_ref(), return_ty, env)?;
+            let Some(nullable_ty) = inner.ty.with_nullable(true) else {
                 env.error(
-                    format!("`Some` value has non-nullable-incompatible type {inner_ty:?}"),
+                    format!(
+                        "`Some` value has non-nullable-incompatible type {}",
+                        inner.ty
+                    ),
                     None,
                 );
-                return Some((HirExpr::Some(Box::new(inner)), Ty::Unknown));
+                return Some(HirExpr::new(
+                    HirExprKind::Some(Box::new(inner)),
+                    Ty::Unknown,
+                ));
             };
-            Some((HirExpr::Some(Box::new(inner)), nullable_ty))
+            Some(HirExpr::new(
+                HirExprKind::Some(Box::new(inner)),
+                nullable_ty,
+            ))
         }
         Expr::Binary { op, lhs, rhs } => {
             if *op == BinOp::Elvis {
-                let expected_lhs = expected.and_then(|ty| ty.with_nullable(true));
-                let (lhs, lhs_ty) = check(lhs, expected_lhs.as_ref(), return_ty, env)?;
-                let result_ty = lhs_ty.with_nullable(false);
-                let Some(result_ty) = result_ty else {
-                    env.error(
-                        format!("left operand of `?:` cannot have type {lhs_ty:?}"),
-                        None,
-                    );
-                    let (rhs, _) = check(rhs, expected, return_ty, env)?;
-                    return Some((
-                        HirExpr::Binary {
-                            op: op.clone(),
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        },
-                        Ty::Unknown,
-                    ));
-                };
-                if !lhs_ty.is_nullable() && !lhs_ty.is_copy() {
-                    env.error(
-                        format!("left operand of `?:` must be nullable, got {lhs_ty:?}"),
-                        None,
-                    );
-                }
-                let (rhs, rhs_ty) = check(rhs, Some(&result_ty), return_ty, env)?;
-                if rhs_ty != result_ty {
-                    env.error(
-                        format!(
-                            "right operand of `?:` has type {rhs_ty:?}, expected {result_ty:?}"
-                        ),
-                        None,
-                    );
-                }
-                return Some((
-                    HirExpr::Binary {
-                        op: op.clone(),
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    },
-                    result_ty,
-                ));
+                return check_elvis(op, lhs, rhs, expected, return_ty, env);
             }
 
-            let (lhs, lhs_ty) = check(lhs, None, return_ty, env)?;
-            let (rhs, rhs_ty) = check(rhs, None, return_ty, env)?;
+            let lhs = check(lhs, None, return_ty, env)?;
+            let rhs = check(rhs, None, return_ty, env)?;
+            let (lhs_ty, rhs_ty) = (&lhs.ty, &rhs.ty);
 
             let result_ty = match op {
                 BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
-                    if lhs_ty != rhs_ty || !is_numeric(&lhs_ty) {
+                    if lhs_ty != rhs_ty || !is_numeric(lhs_ty) {
                         env.error(
                             format!(
                                 "arithmetic operands must have the same numeric type, got \
-                                 {lhs_ty:?} and {rhs_ty:?}"
+                                 {lhs_ty} and {rhs_ty}"
                             ),
                             None,
                         );
                     }
-                    lhs_ty
+                    lhs_ty.clone()
                 }
                 BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-                    if !same_numeric_base(&lhs_ty, &rhs_ty) {
+                    if !same_numeric_base(lhs_ty, rhs_ty) {
                         env.error(
                             format!(
-                                "ordered comparison operands must have the same numeric type, got \
-                                 {lhs_ty:?} and {rhs_ty:?}"
+                                "ordered comparison operands must have the same non-nullable \
+                                 numeric type, got {lhs_ty} and {rhs_ty}"
                             ),
                             None,
                         );
@@ -148,8 +127,8 @@ pub(super) fn check(
                     if lhs_ty != rhs_ty {
                         env.error(
                             format!(
-                                "equality operands must have the same type, got {lhs_ty:?} and \
-                                 {rhs_ty:?}"
+                                "equality operands must have the same type, got {lhs_ty} and \
+                                 {rhs_ty}"
                             ),
                             None,
                         );
@@ -157,11 +136,9 @@ pub(super) fn check(
                     bool_ty()
                 }
                 BinOp::RangeTo => {
-                    if lhs_ty != Ty::i32() || rhs_ty != Ty::i32() {
+                    if *lhs_ty != Ty::i32() || *rhs_ty != Ty::i32() {
                         env.error(
-                            format!(
-                                "range bounds must have type i32, got {lhs_ty:?} and {rhs_ty:?}"
-                            ),
+                            format!("range bounds must have type i32, got {lhs_ty} and {rhs_ty}"),
                             None,
                         );
                     }
@@ -172,8 +149,8 @@ pub(super) fn check(
                 BinOp::Elvis => unreachable!("Elvis is handled before other binary operators"),
             };
 
-            Some((
-                HirExpr::Binary {
+            Some(HirExpr::new(
+                HirExprKind::Binary {
                     op: op.clone(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
@@ -186,27 +163,28 @@ pub(super) fn check(
             expr,
         } => {
             let expected_operand = expected.and_then(|ty| ty.with_nullable(true));
-            let (expr, expr_ty) = check(expr, expected_operand.as_ref(), return_ty, env)?;
-            let Some(result_ty) = expr_ty
+            let operand = check(expr, expected_operand.as_ref(), return_ty, env)?;
+            let result_ty = operand
+                .ty
                 .with_nullable(false)
-                .filter(|_| expr_ty.is_nullable())
-            else {
+                .filter(|_| operand.ty.is_nullable());
+            let Some(result_ty) = result_ty else {
                 env.error(
-                    format!("operand of `!!` must be nullable, got {expr_ty:?}"),
+                    format!("operand of `!!` must be nullable, got {}", operand.ty),
                     None,
                 );
-                return Some((
-                    HirExpr::Unary {
+                return Some(HirExpr::new(
+                    HirExprKind::Unary {
                         op: UnaryOp::NotNullAssert,
-                        expr: Box::new(expr),
+                        expr: Box::new(operand),
                     },
                     Ty::Unknown,
                 ));
             };
-            Some((
-                HirExpr::Unary {
+            Some(HirExpr::new(
+                HirExprKind::Unary {
                     op: UnaryOp::NotNullAssert,
-                    expr: Box::new(expr),
+                    expr: Box::new(operand),
                 },
                 result_ty,
             ))
@@ -216,23 +194,23 @@ pub(super) fn check(
             name,
             safe,
         } => {
-            let (receiver, receiver_ty) = check(receiver, None, return_ty, env)?;
-            let result_ty = if receiver_ty.is_string() && name == "length" {
-                if receiver_ty.is_nullable() && !safe {
+            let receiver = check(receiver, None, return_ty, env)?;
+            let result_ty = if receiver.ty.is_string() && name == "length" {
+                if receiver.ty.is_nullable() && !safe {
                     env.error("field access on nullable `String?` requires `?.`", None);
                 }
                 Ty::i32()
-                    .with_nullable(*safe && receiver_ty.is_nullable())
+                    .with_nullable(*safe && receiver.ty.is_nullable())
                     .expect("i32 supports nullable form")
             } else {
                 env.error(
-                    format!("unknown field `{name}` on type {receiver_ty:?}"),
+                    format!("unknown field `{name}` on type {}", receiver.ty),
                     None,
                 );
                 Ty::Unknown
             };
-            Some((
-                HirExpr::Field {
+            Some(HirExpr::new(
+                HirExprKind::Field {
                     receiver: Box::new(receiver),
                     name: name.clone(),
                     safe: *safe,
@@ -260,7 +238,7 @@ pub(super) fn check(
                     }) => (params, *ret),
                     Some(ty) => {
                         env.error(
-                            format!("binding `{name}` is not callable (has type {ty:?})"),
+                            format!("binding `{name}` is not callable (has type {ty})"),
                             Some(*span),
                         );
                         return None;
@@ -270,6 +248,11 @@ pub(super) fn check(
                         return None;
                     }
                 }
+            };
+            let callee_ty = Ty::Func {
+                params: params.clone(),
+                ret: Box::new(call_return_ty.clone()),
+                nullable: false,
             };
 
             let (regular_params, trailing_signature) = if trailing.is_some() {
@@ -313,14 +296,14 @@ pub(super) fn check(
                     Some(*span),
                 );
             }
-            for (index, ((_, actual), expected)) in
-                checked_args.iter().zip(regular_params).enumerate()
+            for (index, (argument, expected)) in checked_args.iter().zip(regular_params).enumerate()
             {
-                if actual != expected {
+                if &argument.ty != expected {
                     env.error(
                         format!(
-                            "argument {} to `{name}` has type {actual:?}, expected {expected:?}",
-                            index + 1
+                            "argument {} to `{name}` has type {}, expected {expected}",
+                            index + 1,
+                            argument.ty
                         ),
                         None,
                     );
@@ -333,16 +316,17 @@ pub(super) fn check(
                 check_trailing_closure(closure, closure_params, closure_ret, env);
             }
 
-            Some((
-                HirExpr::Call {
-                    callee: Box::new(HirExpr::Ident {
-                        name: name.clone(),
-                        use_kind: UseKind::Local,
-                    }),
-                    args: checked_args
-                        .into_iter()
-                        .map(|(argument, _)| argument)
-                        .collect(),
+            Some(HirExpr::new(
+                HirExprKind::Call {
+                    callee: Box::new(HirExpr::spanned(
+                        HirExprKind::Ident {
+                            name: name.clone(),
+                            use_kind: UseKind::Local,
+                        },
+                        callee_ty,
+                        *span,
+                    )),
+                    args: checked_args,
                 },
                 call_return_ty,
             ))
@@ -353,53 +337,101 @@ pub(super) fn check(
             else_block,
         } => {
             let expected_cond = bool_ty();
-            let (cond, cond_ty) = check(cond, Some(&expected_cond), return_ty, env)?;
-            if cond_ty != bool_ty() {
+            let cond = check(cond, Some(&expected_cond), return_ty, env)?;
+            if cond.ty != expected_cond {
                 env.error(
-                    format!("if condition has type {cond_ty:?}, expected bool"),
+                    format!("if condition has type {}, expected bool", cond.ty),
                     None,
                 );
             }
-            let (then_block, result_ty) = if let Some(expected) = expected {
-                check_value_block(then_block, expected, return_ty, env)
-            } else {
-                (
-                    stmt::check_block(then_block, return_ty, env, true),
-                    unit_ty(),
-                )
-            };
-            let else_block = if let Some(block) = else_block {
-                if let Some(expected) = expected {
-                    let (block, else_ty) = check_value_block(block, expected, return_ty, env);
-                    if else_ty != result_ty {
-                        env.error(
-                            format!("else branch has type {else_ty:?}, expected {result_ty:?}"),
-                            None,
-                        );
-                    }
-                    Some(block)
-                } else {
-                    Some(stmt::check_block(block, return_ty, env, true))
+            let (then_block, then_ty) = check_value_block(then_block, expected, return_ty, env);
+            let else_block = else_block
+                .as_ref()
+                .map(|block| check_value_block(block, expected, return_ty, env));
+
+            // Without an expected type the `if` only produces a value when both
+            // branches agree; otherwise it is a statement and evaluates to unit.
+            let result_ty = match (&else_block, expected) {
+                (Some((_, else_ty)), _) if *else_ty == then_ty => then_ty,
+                (Some((_, else_ty)), Some(_)) => {
+                    env.error(
+                        format!("else branch has type {else_ty}, expected {then_ty}"),
+                        None,
+                    );
+                    then_ty
                 }
-            } else {
-                if expected.is_some() {
+                (Some(_), None) => unit_ty(),
+                (None, Some(_)) => {
                     env.error(
                         "value-producing if expression requires an else branch",
                         None,
                     );
+                    then_ty
                 }
-                None
+                (None, None) => unit_ty(),
             };
-            Some((
-                HirExpr::If {
+
+            Some(HirExpr::new(
+                HirExprKind::If {
                     cond: Box::new(cond),
                     then_block,
-                    else_block,
+                    else_block: else_block.map(|(block, _)| block),
                 },
                 result_ty,
             ))
         }
     }
+}
+
+fn check_elvis(
+    op: &BinOp,
+    lhs: &Expr,
+    rhs: &Expr,
+    expected: Option<&Ty>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> Option<HirExpr> {
+    let expected_lhs = expected.and_then(|ty| ty.with_nullable(true));
+    let lhs = check(lhs, expected_lhs.as_ref(), return_ty, env)?;
+    let Some(result_ty) = lhs.ty.with_nullable(false) else {
+        env.error(
+            format!("left operand of `?:` cannot have type {}", lhs.ty),
+            None,
+        );
+        let rhs = check(rhs, expected, return_ty, env)?;
+        return Some(HirExpr::new(
+            HirExprKind::Binary {
+                op: op.clone(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            },
+            Ty::Unknown,
+        ));
+    };
+    if !lhs.ty.is_nullable() {
+        env.error(
+            format!("left operand of `?:` must be nullable, got {}", lhs.ty),
+            None,
+        );
+    }
+    let rhs = check(rhs, Some(&result_ty), return_ty, env)?;
+    if rhs.ty != result_ty {
+        env.error(
+            format!(
+                "right operand of `?:` has type {}, expected {result_ty}",
+                rhs.ty
+            ),
+            None,
+        );
+    }
+    Some(HirExpr::new(
+        HirExprKind::Binary {
+            op: op.clone(),
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        },
+        result_ty,
+    ))
 }
 
 fn check_trailing_closure(
@@ -424,12 +456,12 @@ fn check_trailing_closure(
         env.bind(param.name.clone(), BindingKind::Val, ty.clone());
     }
     let (_, body_ty) =
-        check_value_block_in_current_scope(&closure.body, closure_ret, closure_ret, env);
+        check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
     env.exit_scope();
 
     if &body_ty != closure_ret {
         env.error(
-            format!("trailing closure body has type {body_ty:?}, expected {closure_ret:?}"),
+            format!("trailing closure body has type {body_ty}, expected {closure_ret}"),
             None,
         );
     }
@@ -437,7 +469,7 @@ fn check_trailing_closure(
 
 fn check_value_block(
     block: &Block,
-    expected: &Ty,
+    expected: Option<&Ty>,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> (HirBlock, Ty) {
@@ -449,7 +481,7 @@ fn check_value_block(
 
 fn check_value_block_in_current_scope(
     block: &Block,
-    expected: &Ty,
+    expected: Option<&Ty>,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> (HirBlock, Ty) {
@@ -462,9 +494,10 @@ fn check_value_block_in_current_scope(
         .filter_map(|statement| stmt::check(statement, return_ty, env))
         .collect::<Vec<_>>();
     let result_ty = match last {
-        Stmt::Expr(value) => match check(value, Some(expected), return_ty, env) {
-            Some((value, ty)) => {
-                stmts.push(crate::hir::HirStmt::Expr(value));
+        Stmt::Expr(value) => match check(value, expected, return_ty, env) {
+            Some(value) => {
+                let ty = value.ty.clone();
+                stmts.push(HirStmt::Expr(value));
                 ty
             }
             None => Ty::Unknown,
@@ -492,18 +525,23 @@ fn is_numeric(ty: &Ty) -> bool {
     )
 }
 
-fn same_numeric_base(lhs: &Ty, rhs: &Ty) -> bool {
+fn is_integer(ty: &Ty) -> bool {
     matches!(
-        (lhs, rhs),
-        (
-            Ty::Primitive { name: lhs, .. },
-            Ty::Primitive { name: rhs, .. }
-        ) if lhs == rhs
-            && matches!(
-                lhs.as_str(),
-                "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
-            )
+        ty,
+        Ty::Primitive {
+            name,
+            nullable: false,
+        } if matches!(
+            name.as_str(),
+            "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
+        )
     )
+}
+
+/// Ordered comparisons require identical non-nullable numeric operands, so a
+/// nullable value must be narrowed (`!!` or `?:`) before being compared.
+fn same_numeric_base(lhs: &Ty, rhs: &Ty) -> bool {
+    lhs == rhs && is_numeric(lhs)
 }
 
 fn bool_ty() -> Ty {

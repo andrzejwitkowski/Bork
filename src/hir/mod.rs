@@ -3,6 +3,7 @@ mod ty;
 pub use ty::Ty;
 
 use crate::ast;
+use crate::span::Span;
 
 pub type RegionId = u32;
 
@@ -63,10 +64,42 @@ pub enum HirStmt {
         body: HirBlock,
         region: RegionId,
     },
+    MoveBlock {
+        /// `None` = capture list omitted in the source; `Some(vec![])` = explicit empty.
+        captures: Option<Vec<String>>,
+        body: HirBlock,
+        region: RegionId,
+    },
+}
+
+/// An expression annotated with the type it was inferred or checked at.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirExpr {
+    pub ty: Ty,
+    pub span: Option<Span>,
+    pub kind: HirExprKind,
+}
+
+impl HirExpr {
+    pub fn new(kind: HirExprKind, ty: Ty) -> Self {
+        Self {
+            ty,
+            span: None,
+            kind,
+        }
+    }
+
+    pub fn spanned(kind: HirExprKind, ty: Ty, span: Span) -> Self {
+        Self {
+            ty,
+            span: Some(span),
+            kind,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum HirExpr {
+pub enum HirExprKind {
     Int {
         value: i64,
     },

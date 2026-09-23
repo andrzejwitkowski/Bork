@@ -40,12 +40,13 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
             let declared_ty = ty
                 .as_ref()
                 .map(|ty| super::lower_type(ty, &mut env.diagnostics));
-            let (value, value_ty) = expr::check(value, declared_ty.as_ref(), return_ty, env)?;
-            let declared_ty = declared_ty.unwrap_or_else(|| value_ty.clone());
-            if declared_ty != value_ty {
+            let value = expr::check(value, declared_ty.as_ref(), return_ty, env)?;
+            let declared_ty = declared_ty.unwrap_or_else(|| value.ty.clone());
+            if declared_ty != value.ty {
                 env.error(
                     format!(
-                        "initializer for `{name}` has type {value_ty:?}, expected {declared_ty:?}"
+                        "initializer for `{name}` has type {}, expected {declared_ty}",
+                        value.ty
                     ),
                     Some(*name_span),
                 );
@@ -74,12 +75,12 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                     Some(*name_span),
                 );
             }
-            let (value, value_ty) = expr::check(value, Some(&binding.ty), return_ty, env)?;
-            if binding.ty != value_ty {
+            let value = expr::check(value, Some(&binding.ty), return_ty, env)?;
+            if binding.ty != value.ty {
                 env.error(
                     format!(
-                        "assignment to `{name}` has type {value_ty:?}, expected {:?}",
-                        binding.ty
+                        "assignment to `{name}` has type {}, expected {}",
+                        value.ty, binding.ty
                     ),
                     Some(*name_span),
                 );
@@ -92,10 +93,10 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
         Stmt::Return(value) => {
             let checked = match value {
                 Some(value) => {
-                    let (value, value_ty) = expr::check(value, Some(return_ty), return_ty, env)?;
-                    if &value_ty != return_ty {
+                    let value = expr::check(value, Some(return_ty), return_ty, env)?;
+                    if &value.ty != return_ty {
                         env.error(
-                            format!("return value has type {value_ty:?}, expected {return_ty:?}"),
+                            format!("return value has type {}, expected {return_ty}", value.ty),
                             None,
                         );
                     }
@@ -105,7 +106,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                     let unit = Ty::from_ast(&crate::ast::Type::unit(false));
                     if &unit != return_ty {
                         env.error(
-                            format!("empty return has type {unit:?}, expected {return_ty:?}"),
+                            format!("empty return has type {unit}, expected {return_ty}"),
                             None,
                         );
                     }
@@ -115,12 +116,12 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
             Some(HirStmt::Return { value: checked })
         }
         Stmt::Expr(value) => {
-            let (value, _) = expr::check(value, None, return_ty, env)?;
+            let value = expr::check(value, None, return_ty, env)?;
             Some(HirStmt::Expr(value))
         }
         Stmt::For { name, iter, body } => {
-            let (iter, iter_ty) = expr::check(iter, None, return_ty, env)?;
-            let Ty::Range { elem } = iter_ty else {
+            let iter = expr::check(iter, None, return_ty, env)?;
+            let Ty::Range { elem } = iter.ty.clone() else {
                 env.error("for-loop iterator must be a range", None);
                 return Some(HirStmt::Expr(iter));
             };
@@ -140,9 +141,20 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                 region,
             })
         }
-        _ => {
-            env.error("statement is not supported by type checking yet", None);
-            None
+        // Captures are validated by sema; typeck only needs the nested region and body.
+        Stmt::MoveBlock { captures, body } => {
+            let region = env.alloc_region();
+            let body = check_block(body, return_ty, env, true);
+            Some(HirStmt::MoveBlock {
+                captures: captures.as_ref().map(|names| {
+                    names
+                        .iter()
+                        .map(|capture| capture.name.clone())
+                        .collect::<Vec<_>>()
+                }),
+                body,
+                region,
+            })
         }
     }
 }
