@@ -24,3 +24,34 @@ fun main(): i32 {
     let err = check(src).unwrap_err();
     assert!(err.iter().any(|d| d.phase == Phase::Type));
 }
+
+#[test]
+fn adds_i32() {
+    assert!(check(r#"fun main(): i32 { return 1 + 2 }"#).is_ok());
+}
+
+#[test]
+fn rejects_add_string_int() {
+    let err = check(r#"fun main(): i32 { return 1 + "a" }"#).unwrap_err();
+    assert!(err.iter().any(|d| d.phase == Phase::Type));
+}
+
+#[test]
+fn if_cond_must_be_bool() {
+    let src = r#"fun main(): i32 { if (1) { return 1 } else { return 0 } }"#;
+    assert!(check(src)
+        .unwrap_err()
+        .iter()
+        .any(|d| d.phase == Phase::Type));
+}
+
+#[test]
+fn checks_if_blocks_and_infers_local_binary_type() {
+    let src = r#"
+fun main(): i32 {
+    val x = 1 + 2
+    if (x > 0) { return x } else { return 0 }
+}
+"#;
+    assert!(check(src).is_ok());
+}

@@ -56,6 +56,7 @@ pub enum HirStmt {
         name: String,
         value: HirExpr,
     },
+    Expr(HirExpr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,5 +69,15 @@ pub enum HirExpr {
     },
     Ident {
         name: String,
+    },
+    Binary {
+        op: ast::BinOp,
+        lhs: Box<HirExpr>,
+        rhs: Box<HirExpr>,
+    },
+    If {
+        cond: Box<HirExpr>,
+        then_block: HirBlock,
+        else_block: Option<HirBlock>,
     },
 }
