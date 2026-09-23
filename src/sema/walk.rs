@@ -320,7 +320,8 @@ fn apply_expr_move(
         binding.moved = true;
     }
     if binding.arena_id == node.id {
-        if let Some(b) = node.bindings.iter_mut().find(|b| b.name == name) {
+        // Shadowing: mark the most recently declared binding of this name.
+        if let Some(b) = node.bindings.iter_mut().rev().find(|b| b.name == name) {
             b.ownership = Ownership::Moved { from };
         }
     } else {
@@ -391,13 +392,14 @@ fn record_observation(
     ty: Option<Type>,
     span: Option<Span>,
 ) {
+    // Keep Shared and later Moved (distinct use sites) both visible in the dump.
     let dup = node.observations.iter().any(|x| {
         if x.name != name {
             return false;
         }
-        match ownership {
-            Ownership::Local => matches!(x.ownership, Ownership::Local) && x.span == span,
-            _ => !matches!(x.ownership, Ownership::Local),
+        match (&ownership, &x.ownership) {
+            (Ownership::Local, Ownership::Local) => x.span == span,
+            (a, b) => std::mem::discriminant(a) == std::mem::discriminant(b),
         }
     });
     if dup {

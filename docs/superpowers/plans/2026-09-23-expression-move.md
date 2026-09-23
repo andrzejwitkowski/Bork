@@ -516,7 +516,7 @@ EOF
 
 Put this block first (before regional forms):
 
-```markdown
+````markdown
 ## How to transfer ownership (`move`)
 
 Everyday style — **expression** and **call-site** `move` (no extra braces):
@@ -543,7 +543,7 @@ Rules:
 - `f(x)` with non-Copy `var x` is an error.
 
 Regional `move (a, b) { … }` remains for multi-capture / trailing closures. Names in the capture list are already Local inside — do **not** write `var t = move a` for those.
-```
+````
 
 Keep subsections for explicit/empty/inferred regional forms; delete the “What is *not* a move (today)” rows that claimed call/params NYI (or rewrite to the new rules).
 

@@ -80,11 +80,14 @@ fn collect_expr(
     bound: &mut HashSet<String>,
 ) {
     match expr {
-        Expr::Ident { name, span } | Expr::Move { name, span } => {
+        Expr::Ident { name, span } => {
             if !bound.contains(name) {
                 free.entry(name.clone()).or_insert(*span);
             }
         }
+        // Explicit `move name` must not become an inferred regional capture;
+        // `apply_expr_move` transfers the outer binding itself.
+        Expr::Move { .. } => {}
         Expr::Some(e) => collect_expr(e, free, bound),
         Expr::Binary { lhs, rhs, .. } => {
             collect_expr(lhs, free, bound);

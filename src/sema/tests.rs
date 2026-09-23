@@ -461,6 +461,30 @@ fun main() {
 }
 
 #[test]
+fn inferred_move_with_expr_move_does_not_pre_capture() {
+    // `move s` must transfer the outer binding, not first become a regional capture.
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    move {
+        var t = move s
+    }
+    val u = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("after move")),
+        "outer s should be moved by expression move: {errs:?}"
+    );
+    assert!(
+        !errs.iter().any(|e| e.message.contains("capture")),
+        "must not reject as already-captured: {errs:?}"
+    );
+}
+
+#[test]
 fn inferred_move_does_not_capture_copy() {
     let src = r#"
 fun main() {
@@ -784,6 +808,37 @@ fun main() {
     );
     let text = dump_arenas(&report);
     assert!(text.contains("s [Moved"), "dump should show nested move:\n{text}");
+}
+
+#[test]
+fn shared_then_move_keeps_moved_observation() {
+    let src = r#"
+fun main() {
+    val s: String = "hi"
+    {
+        val a = s
+        var b = move s
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let nested = &report.roots[0].children[0];
+    assert!(
+        nested.observations.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Shared { .. })
+        }),
+        "shared read should remain: {:?}",
+        nested.observations
+    );
+    assert!(
+        nested.observations.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Moved { .. })
+        }),
+        "later move must not be dropped: {:?}",
+        nested.observations
+    );
 }
 
 #[test]
