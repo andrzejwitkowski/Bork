@@ -80,7 +80,7 @@ fn collect_expr(
     bound: &mut HashSet<String>,
 ) {
     match expr {
-        Expr::Ident { name, span } => {
+        Expr::Ident { name, span } | Expr::Move { name, span } => {
             if !bound.contains(name) {
                 free.entry(name.clone()).or_insert(*span);
             }

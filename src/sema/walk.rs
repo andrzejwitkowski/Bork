@@ -158,7 +158,9 @@ fn walk_stmt(
 
 fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     match expr {
-        Expr::Ident { name, span } => note_use(az, name, Some(*span), node),
+        Expr::Ident { name, span } | Expr::Move { name, span } => {
+            note_use(az, name, Some(*span), node)
+        }
         Expr::Some(e) => walk_expr(az, e, node),
         Expr::Binary { lhs, rhs, .. } => {
             walk_expr(az, lhs, node);
