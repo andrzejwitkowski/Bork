@@ -164,3 +164,59 @@ fn builds_nested_loops_with_regions_and_early_return() {
     );
     assert_eq!(run.status.code(), Some(63));
 }
+
+fn stdout_of(run: &std::process::Output) -> &str {
+    std::str::from_utf8(&run.stdout).unwrap()
+}
+
+#[test]
+fn builds_println_literal() {
+    let run = build_and_run(
+        "builds_println_literal",
+        "fun main() {\n    println(\"hi\")\n}\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "hi\n");
+}
+
+#[test]
+fn builds_shared_read_from_nested_block() {
+    let run = build_and_run(
+        "builds_shared_read_from_nested_block",
+        "fun main() {\n\
+             val s = \"x\"\n\
+             {\n\
+                 println(s)\n\
+             }\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "x\n");
+}
+
+#[test]
+fn builds_move_then_print_strings_and_ints() {
+    let run = build_and_run(
+        "builds_move_then_print_strings_and_ints",
+        "fun main() {\n\
+             var s = \"ab\"\n\
+             val t = move s\n\
+             println(t)\n\
+             print(4)\n\
+             println(2)\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "ab\n42\n");
+}
+
+#[test]
+fn build_rejects_mvp_sample_at_codegen_gate() {
+    let dir = scratch_dir("build_rejects_mvp_sample_at_codegen_gate");
+    let (build, binary) = bork_build(&dir, bork::MVP_SAMPLE);
+    let stderr = String::from_utf8_lossy(&build.stderr);
+    assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
+    assert!(stderr.contains("codegen"), "stderr: {stderr}");
+    assert!(stderr.contains("not supported"), "stderr: {stderr}");
+    assert!(!binary.exists());
+}

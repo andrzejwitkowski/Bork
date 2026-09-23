@@ -130,7 +130,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         match (last, value_ty) {
             (HirStmt::Expr(expr), Some(ty)) => {
                 self.ensure_open_block();
-                Ok(Some(self.emit_value(expr, ty)?.into()))
+                Ok(Some(self.emit_value(expr, ty)?))
             }
             _ => self.emit_stmt(last).map(|()| None),
         }
@@ -151,6 +151,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let value = value?;
         self.exit_region()?;
         Ok(value)
+    }
+
+    pub fn current_arena(&mut self) -> PointerValue<'ctx> {
+        self.regions
+            .sink_mut()
+            .current()
+            .expect("function bodies always have an open arena")
     }
 
     pub fn lookup(&self, name: &str) -> Option<&Slot<'ctx>> {
@@ -178,7 +185,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 name, ty, value, ..
             } => {
                 let value = self.emit_value(value, ty)?;
-                self.declare_local(name, ty, value.into())
+                self.declare_local(name, ty, value)
             }
             HirStmt::Assign { name, value } => {
                 let slot = self.lookup(name).ok_or_else(|| {
@@ -211,8 +218,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             return Err(not_yet_supported("this `for` iterator", iter.span));
         };
         let index_ty = Ty::i32();
-        let start = self.emit_value(lhs, &index_ty)?;
-        let end = self.emit_value(rhs, &index_ty)?;
+        let start = self.emit_int(lhs, &index_ty)?;
+        let end = self.emit_int(rhs, &index_ty)?;
         self.declare_local(name, &index_ty, start.into())?;
         let index = self.lookup(name).expect("loop index was just declared").ptr;
 

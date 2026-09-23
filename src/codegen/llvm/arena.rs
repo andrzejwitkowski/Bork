@@ -30,6 +30,11 @@ impl<'a, 'ctx> ArenaCalls<'a, 'ctx> {
         self.error.take().map_or(Ok(()), Err)
     }
 
+    /// Handle of the innermost open arena, where new allocations go.
+    pub fn current(&self) -> Option<PointerValue<'ctx>> {
+        self.handles.last().copied()
+    }
+
     /// Pops every open arena, innermost first, ahead of a `return`.
     pub fn unwind(&self) -> Result<(), BuilderError> {
         for handle in self.handles.iter().rev() {

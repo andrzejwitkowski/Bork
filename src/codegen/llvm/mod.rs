@@ -159,6 +159,26 @@ mod tests {
     }
 
     #[test]
+    fn move_copies_into_innermost_arena_and_shared_does_not() {
+        let ir = ir_of(
+            "fun main() {\n    val s = \"x\"\n    {\n        println(s)\n    }\n    move {\n        val t = move s\n        println(t)\n    }\n}\n",
+        );
+        assert_eq!(ir.matches("call ptr @bork_arena_alloc(").count(), 1, "{ir}");
+        assert_eq!(ir.matches("@llvm.memcpy").count(), 2, "{ir}");
+        assert!(ir.contains("c\"x\""), "{ir}");
+        let handles: Vec<&str> = ir
+            .lines()
+            .filter(|line| line.contains("call ptr @bork_arena_push()"))
+            .filter_map(|line| line.trim().split(' ').next())
+            .collect();
+        let move_arena = handles.get(2).expect("third push opens the move block");
+        assert!(
+            ir.contains(&format!("@bork_arena_alloc(ptr {move_arena},")),
+            "{ir}"
+        );
+    }
+
+    #[test]
     fn return_inside_loop_pops_loop_arena_and_skips_dead_latch_reset() {
         let ir = ir_of(
             "fun main(): i32 {\n    for (i in 0..5) {\n        return i\n    }\n    return 0\n}\n",

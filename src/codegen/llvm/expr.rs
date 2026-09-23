@@ -1,18 +1,20 @@
 use std::iter;
 
 use inkwell::basic_block::BasicBlock;
+use inkwell::module::Linkage;
 use inkwell::types::BasicType;
-use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, IntValue, StructValue};
 use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
+use crate::builtins;
 use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
-use crate::hir::{HirBlock, HirExpr, HirExprKind, Ty};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, Prim, Ty, UseKind};
 
 use super::context::is_unsigned;
 use super::emit_fn::FnEmitter;
-use super::not_yet_supported;
+use super::{codegen_error, not_yet_supported};
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     /// Emits `expr`; `None` means a `unit` value.
@@ -28,7 +30,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))?;
                 Ok(Some(ty.const_int(*value as u64, true).into()))
             }
-            HirExprKind::Ident { name, .. } => {
+            HirExprKind::Str { value } => Ok(Some(self.emit_str_literal(value)?.into())),
+            HirExprKind::Ident { name, use_kind } => {
                 let slot = self
                     .lookup(name)
                     .ok_or_else(|| not_yet_supported(&format!("`{name}` as a value"), expr.span))?;
@@ -36,7 +39,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .cx
                     .basic_type(&slot.ty)
                     .expect("locals only hold lowerable types");
-                Ok(Some(self.cx.builder.build_load(ty, slot.ptr, name)?))
+                let value = self.cx.builder.build_load(ty, slot.ptr, name)?;
+                if *use_kind == UseKind::Move && value.is_struct_value() {
+                    return Ok(Some(
+                        self.copy_into_arena(value.into_struct_value())?.into(),
+                    ));
+                }
+                Ok(Some(value))
             }
             HirExprKind::Binary { op, lhs, rhs } => self
                 .emit_binary(op, lhs, rhs, expr)
@@ -51,12 +60,80 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
+    /// Emits `expr` as a value of `ty`, widening or narrowing integers.
+    pub fn emit_value(
+        &mut self,
+        expr: &HirExpr,
+        ty: &Ty,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if ty.is_string() {
+            return self
+                .emit_expr(expr)?
+                .ok_or_else(|| not_yet_supported("a `unit` value here", expr.span));
+        }
+        self.emit_int(expr, ty).map(Into::into)
+    }
+
     /// Emits `expr` as an integer (or `bool`) converted to `ty`.
-    pub fn emit_value(&mut self, expr: &HirExpr, ty: &Ty) -> Result<IntValue<'ctx>, Diagnostic> {
+    pub fn emit_int(&mut self, expr: &HirExpr, ty: &Ty) -> Result<IntValue<'ctx>, Diagnostic> {
         let value = self
             .emit_expr(expr)?
             .ok_or_else(|| not_yet_supported("a `unit` value here", expr.span))?;
+        if !value.is_int_value() {
+            return Err(not_yet_supported(
+                &format!("`{}` in this position", expr.ty),
+                expr.span,
+            ));
+        }
         self.cast(value.into_int_value(), &expr.ty, ty, expr)
+    }
+
+    /// Literal bytes live in a private constant; the descriptor borrows them.
+    fn emit_str_literal(&self, value: &str) -> Result<StructValue<'ctx>, Diagnostic> {
+        let context = self.cx.context;
+        let bytes = context.const_string(value.as_bytes(), false);
+        let global = self.cx.module.add_global(bytes.get_type(), None, "str");
+        global.set_initializer(&bytes);
+        global.set_constant(true);
+        global.set_linkage(Linkage::Private);
+        global.set_unnamed_addr(true);
+        let len = context.i64_type().const_int(value.len() as u64, false);
+        Ok(self
+            .cx
+            .string_type()
+            .const_named_struct(&[global.as_pointer_value().into(), len.into()]))
+    }
+
+    /// `move` of a string copies its bytes into the innermost open arena.
+    fn copy_into_arena(
+        &mut self,
+        source: StructValue<'ctx>,
+    ) -> Result<StructValue<'ctx>, Diagnostic> {
+        let arena = self.current_arena();
+        let cx = self.cx;
+        let builder = &cx.builder;
+        let src = builder
+            .build_extract_value(source, 0, "move.src")?
+            .into_pointer_value();
+        let len = builder
+            .build_extract_value(source, 1, "move.len")?
+            .into_int_value();
+        let one = cx.context.i64_type().const_int(1, false);
+        let dst = builder
+            .build_call(
+                cx.arena_alloc_fn(),
+                &[arena.into(), len.into(), one.into()],
+                "move.dst",
+            )?
+            .try_as_basic_value()
+            .basic()
+            .expect("bork_arena_alloc returns a pointer")
+            .into_pointer_value();
+        builder
+            .build_memcpy(dst, 1, src, 1, len)
+            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
+        let moved = builder.build_insert_value(source, dst, 0, "moved")?;
+        Ok(moved.into_struct_value())
     }
 
     fn cast(
@@ -91,14 +168,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         if let Some(predicate) = comparison(op) {
             let operand_ty = self.wider(&lhs.ty, &rhs.ty).clone();
             let unsigned = is_unsigned(&operand_ty);
-            let l = self.emit_value(lhs, &operand_ty)?;
-            let r = self.emit_value(rhs, &operand_ty)?;
+            let l = self.emit_int(lhs, &operand_ty)?;
+            let r = self.emit_int(rhs, &operand_ty)?;
             let predicate = if unsigned { predicate.1 } else { predicate.0 };
             return Ok(builder.build_int_compare(predicate, l, r, "cmp")?);
         }
 
-        let l = self.emit_value(lhs, &expr.ty)?;
-        let r = self.emit_value(rhs, &expr.ty)?;
+        let l = self.emit_int(lhs, &expr.ty)?;
+        let r = self.emit_int(rhs, &expr.ty)?;
         let value = match op {
             BinOp::Add => builder.build_int_add(l, r, "add")?,
             BinOp::Sub => builder.build_int_sub(l, r, "sub")?,
@@ -131,6 +208,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         };
         let callees = self.callees;
         let Some(&(target, function)) = callees.get(name.as_str()) else {
+            if let ([arg], true) = (args, builtins::is_print(name)) {
+                return self.emit_print(arg, name == "println").map(|()| None);
+            }
             return Err(not_yet_supported(
                 &format!("calls to `{name}`"),
                 expr.span.or(callee.span),
@@ -148,6 +228,22 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(call.try_as_basic_value().basic())
     }
 
+    /// Strings go to `bork_print*_str` as bytes + length; integers are widened to `i64`.
+    fn emit_print(&mut self, arg: &HirExpr, newline: bool) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let builder = &cx.builder;
+        if arg.ty.is_string() {
+            let value = self.emit_value(arg, &arg.ty)?.into_struct_value();
+            let bytes = builder.build_extract_value(value, 0, "print.ptr")?;
+            let len = builder.build_extract_value(value, 1, "print.len")?;
+            builder.build_call(cx.print_str_fn(newline), &[bytes.into(), len.into()], "")?;
+        } else {
+            let value = self.emit_int(arg, &Ty::prim(Prim::I64))?;
+            builder.build_call(cx.print_i64_fn(newline), &[value.into()], "")?;
+        }
+        Ok(())
+    }
+
     fn emit_if(
         &mut self,
         cond: &HirExpr,
@@ -157,7 +253,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let result_ty = self.cx.basic_type(ty);
         let value_ty = result_ty.is_some().then_some(ty);
-        let cond = self.emit_value(cond, &Ty::bool())?;
+        let cond = self.emit_int(cond, &Ty::bool())?;
 
         let context = self.cx.context;
         let then_bb = context.append_basic_block(self.llvm_fn, "then");

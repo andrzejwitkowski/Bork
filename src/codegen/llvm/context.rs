@@ -2,7 +2,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine};
-use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType};
+use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, StructType};
 use inkwell::values::FunctionValue;
 use inkwell::{AddressSpace, OptimizationLevel};
 
@@ -25,7 +25,17 @@ impl<'ctx> Codegen<'ctx> {
 
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
     pub fn basic_type(&self, ty: &Ty) -> Option<BasicTypeEnum<'ctx>> {
+        if ty.is_string() && !ty.nullable {
+            return Some(self.string_type().into());
+        }
         self.int_type(ty).map(Into::into)
+    }
+
+    /// String descriptor `{ ptr, i64 }`: borrowed bytes and their length, no terminator.
+    pub fn string_type(&self) -> StructType<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        self.context
+            .struct_type(&[ptr.into(), self.context.i64_type().into()], false)
     }
 
     pub fn int_type(&self, ty: &Ty) -> Option<IntType<'ctx>> {
@@ -77,6 +87,37 @@ impl<'ctx> Codegen<'ctx> {
 
     pub fn arena_reset_fn(&self) -> FunctionValue<'ctx> {
         self.arena_handle_fn("bork_arena_reset")
+    }
+
+    /// `ptr bork_arena_alloc(ptr arena, i64 size, i64 align)`.
+    pub fn arena_alloc_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let i64_type = self.context.i64_type();
+        let params: [BasicMetadataTypeEnum; 3] = [ptr.into(), i64_type.into(), i64_type.into()];
+        self.runtime_fn("bork_arena_alloc", || ptr.fn_type(&params, false))
+    }
+
+    /// `void bork_{print,println}_i64(i64)`.
+    pub fn print_i64_fn(&self, newline: bool) -> FunctionValue<'ctx> {
+        let name = if newline {
+            "bork_println_i64"
+        } else {
+            "bork_print_i64"
+        };
+        let params: [BasicMetadataTypeEnum; 1] = [self.context.i64_type().into()];
+        self.runtime_fn(name, || self.context.void_type().fn_type(&params, false))
+    }
+
+    /// `void bork_{print,println}_str(ptr bytes, i64 len)`.
+    pub fn print_str_fn(&self, newline: bool) -> FunctionValue<'ctx> {
+        let name = if newline {
+            "bork_println_str"
+        } else {
+            "bork_print_str"
+        };
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let params: [BasicMetadataTypeEnum; 2] = [ptr.into(), self.context.i64_type().into()];
+        self.runtime_fn(name, || self.context.void_type().fn_type(&params, false))
     }
 
     /// `void name(ptr arena)`.
