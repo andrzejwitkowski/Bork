@@ -280,7 +280,7 @@ fn apply_expr_move(
     az: &mut Analyzer,
     name: &str,
     span: Option<Span>,
-    _node: &mut ArenaNode,
+    node: &mut ArenaNode,
 ) {
     let Some(binding) = az.env.get(name).cloned() else {
         az.error(
@@ -309,8 +309,12 @@ fn apply_expr_move(
         );
         return;
     }
+    let from = binding.arena_label.clone();
     if let Some(binding) = az.env.get_mut(name) {
         binding.moved = true;
+    }
+    if let Some(b) = node.bindings.iter_mut().find(|b| b.name == name) {
+        b.ownership = Ownership::Moved { from };
     }
 }
 

@@ -685,6 +685,98 @@ fun main() {
 }
 
 #[test]
+fn expr_move_rebinding_dump_shows_local_dest_and_moved_source() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    var x = move s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let main = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun main"))
+        .expect("main");
+    assert!(
+        main.bindings.iter().any(|b| {
+            b.name == "x" && matches!(b.ownership, Ownership::Local)
+        }),
+        "x should be Local: {:?}",
+        main.bindings
+    );
+    assert!(
+        main.bindings.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Moved { .. })
+        }),
+        "s should be Moved after expression move: {:?}",
+        main.bindings
+    );
+    let text = dump_arenas(&report);
+    assert!(text.contains("s [Moved"), "dump should show moved source:\n{text}");
+    assert!(text.contains("x [Local]"), "dump should show local dest:\n{text}");
+}
+
+#[test]
+fn call_two_move_into_var_params_marks_callers_and_callee() {
+    let src = r#"
+fun f(var a: String, var b: String) { }
+fun main() {
+    var x: String = "X"
+    var y: String = "Y"
+    f(move x, move y)
+    val t = x
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("after move")),
+        "x must be moved after call: {errs:?}"
+    );
+    let f = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun f"))
+        .expect("f");
+    assert!(
+        f.bindings.iter().any(|b| {
+            b.name == "a" && matches!(b.ownership, Ownership::Local)
+        }),
+        "formal a should be Local: {:?}",
+        f.bindings
+    );
+    assert!(
+        f.bindings.iter().any(|b| {
+            b.name == "b" && matches!(b.ownership, Ownership::Local)
+        }),
+        "formal b should be Local: {:?}",
+        f.bindings
+    );
+    let main = report
+        .roots
+        .iter()
+        .find(|r| r.label.contains("fun main"))
+        .expect("main");
+    assert!(
+        main.bindings.iter().any(|b| {
+            b.name == "x" && matches!(b.ownership, Ownership::Moved { .. })
+        }),
+        "caller x should be Moved: {:?}",
+        main.bindings
+    );
+    assert!(
+        main.bindings.iter().any(|b| {
+            b.name == "y" && matches!(b.ownership, Ownership::Moved { .. })
+        }),
+        "caller y should be Moved: {:?}",
+        main.bindings
+    );
+}
+
+#[test]
 fn bare_var_assign_requires_move() {
     let src = r#"
 fun main() {
