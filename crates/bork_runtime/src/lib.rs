@@ -105,7 +105,9 @@ pub unsafe extern "C" fn bork_arena_alloc(
 
 #[no_mangle]
 pub extern "C" fn bork_print_i64(value: i64) {
-    let _ = write!(io::stdout().lock(), "{value}");
+    let mut stdout = io::stdout().lock();
+    let _ = write!(stdout, "{value}");
+    let _ = stdout.flush();
 }
 
 #[no_mangle]
@@ -116,7 +118,9 @@ pub unsafe extern "C" fn bork_print_str(ptr: *const u8, len: usize) {
 
 #[no_mangle]
 pub extern "C" fn bork_println_i64(value: i64) {
-    let _ = writeln!(io::stdout().lock(), "{value}");
+    let mut stdout = io::stdout().lock();
+    let _ = writeln!(stdout, "{value}");
+    let _ = stdout.flush();
 }
 
 #[no_mangle]
@@ -126,20 +130,22 @@ pub unsafe extern "C" fn bork_println_str(ptr: *const u8, len: usize) {
 }
 
 unsafe fn write_bytes(ptr: *const u8, len: usize, newline: bool) {
+    let mut stdout = io::stdout().lock();
     if len == 0 {
         if newline {
-            let _ = writeln!(io::stdout().lock());
+            let _ = writeln!(stdout);
         }
+        let _ = stdout.flush();
         return;
     }
     assert!(!ptr.is_null(), "string pointer must not be null");
     // SAFETY: The caller guarantees that `ptr` references `len` readable bytes.
     let bytes = unsafe { slice::from_raw_parts(ptr, len) };
-    let mut stdout = io::stdout().lock();
     let _ = stdout.write_all(bytes);
     if newline {
         let _ = stdout.write_all(b"\n");
     }
+    let _ = stdout.flush();
 }
 
 #[cfg(test)]

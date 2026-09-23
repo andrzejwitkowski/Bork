@@ -211,6 +211,20 @@ fn builds_move_then_print_strings_and_ints() {
 }
 
 #[test]
+fn builds_trailing_print_without_newline_is_flushed() {
+    let run = build_and_run(
+        "builds_trailing_print_without_newline_is_flushed",
+        "fun main() {\n\
+             println(1)\n\
+             print(\"tail\")\n\
+             print(7)\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "1\ntail7");
+}
+
+#[test]
 fn build_rejects_mvp_sample_at_codegen_gate() {
     let dir = scratch_dir("build_rejects_mvp_sample_at_codegen_gate");
     let (build, binary) = bork_build(&dir, bork::MVP_SAMPLE);
