@@ -1,8 +1,9 @@
-//! Cross-arena use classification and explicit-move transfer policy.
+//! Cross-arena use classification and move / transfer policy.
 
-use super::env::EnvBinding;
+use super::env::{Analyzer, EnvBinding};
 use super::report::Ownership;
 use crate::ast::BindingKind;
+use crate::span::Span;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum UseOutcome {
@@ -41,7 +42,6 @@ pub(super) fn classify_use(
     }
 }
 
-/// Where a bare Ident is placed without `move`.
 #[derive(Clone)]
 pub(super) enum TransferSink {
     Binding {
@@ -79,6 +79,49 @@ pub(super) fn bare_ident_move_message(
         TransferSink::CallArg { .. } => format!("use `move {name}` to pass ownership"),
         _ => format!("use `move {name}` to transfer ownership"),
     })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum MoveSourceErr {
+    Unknown,
+    AlreadyMoved { from: String },
+    InLoop,
+}
+
+pub(super) fn move_source(az: &Analyzer, name: &str) -> Result<EnvBinding, MoveSourceErr> {
+    let Some(binding) = az.env.get(name).cloned() else {
+        return Err(MoveSourceErr::Unknown);
+    };
+    if binding.moved {
+        return Err(MoveSourceErr::AlreadyMoved {
+            from: binding.arena_label,
+        });
+    }
+    if az.move_banned_in_loop(name) {
+        return Err(MoveSourceErr::InLoop);
+    }
+    Ok(binding)
+}
+
+pub(super) fn report_move_source_err(
+    az: &mut Analyzer,
+    name: &str,
+    err: MoveSourceErr,
+    span: Option<Span>,
+) {
+    match err {
+        MoveSourceErr::Unknown => az.error(
+            format!("cannot move unknown name `{name}`"),
+            Some(name.into()),
+            span,
+        ),
+        MoveSourceErr::AlreadyMoved { from } => az.error(
+            format!("cannot move `{name}`: already moved from {from}"),
+            Some(name.into()),
+            span,
+        ),
+        MoveSourceErr::InLoop => az.error_move_in_loop(name, span),
+    }
 }
 
 #[cfg(test)]

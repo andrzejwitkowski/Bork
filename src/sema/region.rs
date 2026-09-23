@@ -2,11 +2,10 @@
 
 use super::env::{bind, bind_with, BindingOrigin, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
-use super::move_source::{move_source, report_move_source_err};
+use super::policy::{move_source, report_move_source_err};
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::Block;
+use crate::ast::{BindingKind, Block};
 use crate::span::{Span, SpannedName};
-use crate::ast::BindingKind;
 
 pub(super) struct RegionParam {
     pub(super) name: String,

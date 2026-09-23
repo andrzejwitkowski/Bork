@@ -4,9 +4,11 @@ use super::env::{
     apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, BindingOrigin,
     Shadow, Ty,
 };
-use super::move_source::{move_source, report_move_source_err};
 use super::peel_blocks;
-use super::policy::{bare_ident_move_message, classify_use, TransferSink, UseOutcome};
+use super::policy::{
+    bare_ident_move_message, classify_use, move_source, report_move_source_err,
+    MoveSourceErr, TransferSink, UseOutcome,
+};
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
@@ -151,9 +153,6 @@ fn walk_stmt(
     }
 }
 
-/// Single AST walker. `transfer = Some` means the expression is in a value-transfer
-/// position (assign/call); nested Idents must satisfy `bare_ident_move_message`.
-/// `Call` / `If` as a *value* drop into observe mode for their own structure.
 fn walk(
     az: &mut Analyzer,
     expr: &Expr,
@@ -268,7 +267,7 @@ fn apply_expr_move(
     node: &mut ArenaNode,
 ) {
     let Some(peek) = az.env.get(name).cloned() else {
-        report_move_source_err(az, name, super::move_source::MoveSourceErr::Unknown, span);
+        report_move_source_err(az, name, MoveSourceErr::Unknown, span);
         return;
     };
     if peek.ty.is_copy() {

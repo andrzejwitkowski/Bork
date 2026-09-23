@@ -203,7 +203,6 @@ fun main() {
 
 #[test]
 fn regional_capture_use_without_inner_move_ok() {
-    // Same-arena Local observe (no transfer sink) does not need a second move.
     let src = r#"
 fun main() {
     var a: String = "A"
@@ -219,7 +218,6 @@ fun main() {
 
 #[test]
 fn regional_var_capture_keeps_var_kind() {
-    // Captured `var` stays Var: nested arena cannot Shared-read it without move.
     let src = r#"
 fun main() {
     var a: String = "A"
