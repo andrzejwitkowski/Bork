@@ -134,16 +134,23 @@ pub enum Expr {
         name: String,
         span: crate::span::Span,
     },
-    None,
-    Some(Box<Expr>),
+    None {
+        span: crate::span::Span,
+    },
+    Some {
+        expr: Box<Expr>,
+        span: crate::span::Span,
+    },
     Binary {
         op: BinOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+        span: crate::span::Span,
     },
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,
+        span: crate::span::Span,
     },
     Field {
         receiver: Box<Expr>,

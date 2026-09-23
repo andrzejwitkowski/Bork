@@ -270,6 +270,7 @@ fn multiplication_binds_tighter_than_addition() {
             op: BinOp::Add,
             lhs,
             rhs,
+            ..
         }) if matches!(lhs.as_ref(), Expr::Int(1))
             && matches!(
                 rhs.as_ref(),
@@ -277,6 +278,7 @@ fn multiplication_binds_tighter_than_addition() {
                     op: BinOp::Mul,
                     lhs,
                     rhs,
+                    ..
                 } if matches!(lhs.as_ref(), Expr::Int(2))
                     && matches!(rhs.as_ref(), Expr::Int(3))
             )
@@ -355,14 +357,14 @@ fn parses_process_user_sample() {
         &inner.stmts[0],
         Stmt::VarDecl {
             ty: Some(Type::Named { name, nullable: true }),
-            value: Expr::Some(_),
+            value: Expr::Some { .. },
             ..
         } if name == "String"
     ));
     assert!(matches!(
         &inner.stmts[1],
         Stmt::VarDecl {
-            value: Expr::None,
+            value: Expr::None { .. },
             ..
         }
     ));

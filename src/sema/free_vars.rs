@@ -86,7 +86,7 @@ fn collect_expr(
             }
         }
         Expr::Move { .. } => {}
-        Expr::Some(e) => collect_expr(e, free, bound),
+        Expr::Some { expr, .. } => collect_expr(expr, free, bound),
         Expr::Binary { lhs, rhs, .. } => {
             collect_expr(lhs, free, bound);
             collect_expr(rhs, free, bound);
@@ -129,6 +129,6 @@ fn collect_expr(
                 collect_block(e, free, &mut bound.clone());
             }
         }
-        Expr::Int(_) | Expr::Str(_) | Expr::None => {}
+        Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
 }

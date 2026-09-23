@@ -136,4 +136,31 @@ mod tests {
             .iter()
             .any(|diagnostic| { diagnostic.phase == Phase::Codegen && diagnostic.span.is_some() }));
     }
+
+    #[test]
+    fn nullable_rejections_have_codegen_spans() {
+        let source = r#"
+fun main(name: String?): String {
+    val empty: String? = None
+    val wrapped: String? = Some("x")
+    val asserted: String = wrapped!!
+    return name ?: asserted
+}
+"#;
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+
+        for construct in ["`None`", "`Some`", "`!!`", "`?:`"] {
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.phase == Phase::Codegen
+                        && diagnostic.message.contains(construct)
+                        && diagnostic.span.is_some()
+                }),
+                "missing spanned codegen diagnostic for {construct}: {diagnostics:?}"
+            );
+        }
+    }
 }
