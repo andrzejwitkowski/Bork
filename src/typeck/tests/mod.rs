@@ -288,6 +288,68 @@ fun main(): i32 {
 }
 
 #[test]
+fn comparison_literal_adopts_peer_integer_type() {
+    let src = r#"
+fun main(): i32 {
+    val a: i64 = 3
+    if (a > 0) {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#;
+    assert!(check(src).is_ok(), "{:?}", check(src).diagnostics);
+}
+
+#[test]
+fn equality_with_none_uses_peer_nullable_type() {
+    let src = r#"
+fun main(): i32 {
+    val name: String? = None
+    if (name == None) {
+        return 1
+    } else {
+        return 0
+    }
+}
+"#;
+    assert!(check(src).is_ok(), "{:?}", check(src).diagnostics);
+}
+
+#[test]
+fn missing_return_on_non_unit_function_is_type_error() {
+    let src = r#"
+fun main(): i32 {
+    val x = 1
+}
+"#;
+    let errors = diags_of(src);
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Type
+            && d.message.contains("must return a value")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn if_without_else_missing_return_is_type_error() {
+    let src = r#"
+fun main(): i32 {
+    if (1 > 0) {
+        return 1
+    }
+}
+"#;
+    let errors = diags_of(src);
+    assert!(
+        errors.iter().any(|d| d.phase == Phase::Type
+            && d.message.contains("must return a value")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn statements_after_a_type_error_are_still_checked() {
     let src = r#"
 fun main(): i32 {

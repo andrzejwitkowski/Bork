@@ -55,6 +55,12 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
                 .collect();
             let return_ty = signature.return_ty;
             let body = stmt::check_block(&function.body, &return_ty, &mut env, false);
+            if return_ty != Ty::unit() && !stmt::block_always_returns(&body) {
+                env.error(
+                    format!("function must return a value of type {return_ty} on all paths"),
+                    None,
+                );
+            }
             diagnostics.append(&mut env.diagnostics);
             HirFunction {
                 name: function.name.clone(),

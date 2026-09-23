@@ -27,6 +27,30 @@ pub(super) fn check_block(
     HirBlock { stmts }
 }
 
+pub(super) fn block_always_returns(block: &HirBlock) -> bool {
+    block.stmts.iter().any(stmt_always_returns)
+}
+
+fn stmt_always_returns(stmt: &HirStmt) -> bool {
+    match stmt {
+        HirStmt::Return { .. } => true,
+        HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => block_always_returns(body),
+        HirStmt::Expr(expr) => expr_always_returns(expr),
+        HirStmt::VarDecl { .. } | HirStmt::Assign { .. } | HirStmt::For { .. } => false,
+    }
+}
+
+fn expr_always_returns(expr: &crate::hir::HirExpr) -> bool {
+    match &expr.kind {
+        crate::hir::HirExprKind::If {
+            then_block,
+            else_block: Some(else_block),
+            ..
+        } => block_always_returns(then_block) && block_always_returns(else_block),
+        _ => false,
+    }
+}
+
 pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
     match stmt {
         Stmt::Block(block) => HirStmt::Block(check_block(block, return_ty, env, true)),
@@ -101,7 +125,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
                     if !value.ty.is_unknown() && &value.ty != return_ty {
                         env.error(
                             format!("return value has type {}, expected {return_ty}", value.ty),
-                            None,
+                            value.span,
                         );
                     }
                     Some(value)

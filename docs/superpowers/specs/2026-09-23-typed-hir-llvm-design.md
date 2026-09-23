@@ -38,10 +38,9 @@ Make the current language **run**: a compiler that checks programs against the e
 
 | Command | Behavior |
 |---------|----------|
-| `bork check <file>` | Parse + ownership + typecheck; print diagnostics; no LLVM |
-| `bork build <file> [-o out]` | Same as check, then subset-B codegen + link; default `-o` from source stem |
-| `bork <file>` | Same as `check` (keep current habit / scripts); `--dump-arenas` still works on this path |
-| `bork-lsp` | Diagnostics from the same `frontend::check` as `check` |
+| `bork <file>` | Phase 1: parse + ownership + typecheck; print diagnostics; no LLVM. `--dump-arenas` still works on this path. |
+| `bork build <file> [-o out]` | Phase 2: same as check, then subset-B codegen + link; default `-o` from source stem |
+| `bork-lsp` | Diagnostics from the same `frontend::check` as the CLI |
 
 Exit codes: `0` success; `1` user program errors (parse / ownership / type / codegen NYI); `2` toolchain failure (missing LLVM, clang, link).
 

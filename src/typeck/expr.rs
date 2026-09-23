@@ -148,14 +148,32 @@ fn check_binary(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
-    let operand_expected = match op {
+    let outer_numeric = match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
             expected.filter(|ty| ty.is_numeric())
         }
         _ => None,
     };
-    let lhs = check(lhs, operand_expected, return_ty, env);
-    let rhs = check(rhs, operand_expected, return_ty, env);
+
+    // Guide Int/None from the peer when the left side cannot invent a type alone.
+    let guide_from_rhs = matches!(lhs, Expr::Int(_) | Expr::None)
+        && outer_numeric.is_none()
+        && *op != BinOp::RangeTo;
+
+    let (lhs, rhs) = if guide_from_rhs {
+        let rhs = check(rhs, None, return_ty, env);
+        let peer = (!rhs.ty.is_unknown()).then_some(rhs.ty.clone());
+        let lhs = check(lhs, peer.as_ref(), return_ty, env);
+        (lhs, rhs)
+    } else {
+        let lhs = check(lhs, outer_numeric, return_ty, env);
+        let peer = (!lhs.ty.is_unknown() && *op != BinOp::RangeTo).then_some(lhs.ty.clone());
+        let rhs_expected = outer_numeric.or(peer.as_ref());
+        let rhs = check(rhs, rhs_expected, return_ty, env);
+        (lhs, rhs)
+    };
+
+    let span = lhs.span.or(rhs.span);
     let (lhs_ty, rhs_ty) = (&lhs.ty, &rhs.ty);
     let poisoned = lhs_ty.is_unknown() || rhs_ty.is_unknown();
 
@@ -170,7 +188,7 @@ fn check_binary(
                             "arithmetic operands must have the same numeric type, got \
                              {lhs_ty} and {rhs_ty}"
                         ),
-                        None,
+                        span,
                     );
                 }
                 lhs_ty.clone()
@@ -183,7 +201,7 @@ fn check_binary(
                         "ordered comparison operands must have the same non-nullable \
                          numeric type, got {lhs_ty} and {rhs_ty}"
                     ),
-                    None,
+                    span,
                 );
             }
             Ty::bool()
@@ -192,7 +210,7 @@ fn check_binary(
             if !poisoned && lhs_ty != rhs_ty {
                 env.error(
                     format!("equality operands must have the same type, got {lhs_ty} and {rhs_ty}"),
-                    None,
+                    span,
                 );
             }
             Ty::bool()
@@ -201,7 +219,7 @@ fn check_binary(
             if !poisoned && (*lhs_ty != Ty::i32() || *rhs_ty != Ty::i32()) {
                 env.error(
                     format!("range bounds must have type i32, got {lhs_ty} and {rhs_ty}"),
-                    None,
+                    span,
                 );
             }
             Ty::range(Ty::i32())
@@ -401,7 +419,7 @@ fn check_call(
                     index + 1,
                     argument.ty
                 ),
-                None,
+                argument.span,
             );
         }
     }
@@ -503,7 +521,7 @@ fn check_if(
     if !cond.ty.is_unknown() && cond.ty != Ty::bool() {
         env.error(
             format!("if condition has type {}, expected bool", cond.ty),
-            None,
+            cond.span,
         );
     }
     let (then_block, then_ty) = check_value_block(then_block, expected, return_ty, env);

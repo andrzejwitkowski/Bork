@@ -50,7 +50,16 @@ fn main() {
     let result = frontend::check(&source);
 
     for diag in &result.diagnostics {
-        eprintln!("error: {}: {}", diag.phase, diag.message);
+        match diag.span {
+            Some(span) => {
+                let end = span.start.min(source.len());
+                let before = &source[..end];
+                let line = before.matches('\n').count() + 1;
+                let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+                eprintln!("{path}:{line}:{col}: error: {}: {}", diag.phase, diag.message);
+            }
+            None => eprintln!("{path}: error: {}: {}", diag.phase, diag.message),
+        }
     }
 
     if dump {
