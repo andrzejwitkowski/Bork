@@ -177,11 +177,49 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             BinOp::Add => builder.build_int_add(l, r, "add")?,
             BinOp::Sub => builder.build_int_sub(l, r, "sub")?,
             BinOp::Mul => builder.build_int_mul(l, r, "mul")?,
-            BinOp::Div if is_unsigned(&expr.ty) => builder.build_int_unsigned_div(l, r, "div")?,
-            BinOp::Div => builder.build_int_signed_div(l, r, "div")?,
+            BinOp::Div if is_unsigned(&expr.ty) => {
+                self.guard_int_div(l, r, &expr.ty)?;
+                builder.build_int_unsigned_div(l, r, "div")?
+            }
+            BinOp::Div => {
+                self.guard_int_div(l, r, &expr.ty)?;
+                builder.build_int_signed_div(l, r, "div")?
+            }
             _ => return Err(not_yet_supported("this operator", expr.span)),
         };
         Ok(value)
+    }
+
+    fn guard_int_div(
+        &mut self,
+        l: IntValue<'ctx>,
+        r: IntValue<'ctx>,
+        ty: &Ty,
+    ) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let builder = &cx.builder;
+        let int_ty = l.get_type();
+        let zero = int_ty.const_int(0, false);
+        let div_by_zero = builder.build_int_compare(IntPredicate::EQ, r, zero, "div0")?;
+        let illegal = if is_unsigned(ty) {
+            div_by_zero
+        } else {
+            let bits = int_ty.get_bit_width();
+            let min = int_ty.const_int(1u64 << (bits - 1), true);
+            let neg_one = int_ty.const_all_ones();
+            let is_min = builder.build_int_compare(IntPredicate::EQ, l, min, "lmin")?;
+            let is_neg1 = builder.build_int_compare(IntPredicate::EQ, r, neg_one, "rneg1")?;
+            let min_neg1 = builder.build_and(is_min, is_neg1, "min_neg1")?;
+            builder.build_or(div_by_zero, min_neg1, "div_bad")?
+        };
+        let ok_bb = cx.context.append_basic_block(self.llvm_fn, "div.ok");
+        let bad_bb = cx.context.append_basic_block(self.llvm_fn, "div.bad");
+        builder.build_conditional_branch(illegal, bad_bb, ok_bb)?;
+        builder.position_at_end(bad_bb);
+        builder.build_call(cx.abort_function(), &[], "abort")?;
+        builder.build_unreachable()?;
+        builder.position_at_end(ok_bb);
+        Ok(())
     }
 
     /// Comparison operands are converted to whichever side has more bits.

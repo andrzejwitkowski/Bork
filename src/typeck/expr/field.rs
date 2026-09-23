@@ -16,14 +16,14 @@ pub(super) fn check_field(
     let receiver = check(receiver, None, return_ty, env);
     let result_ty = if receiver.ty.is_string() && name == "length" {
         if receiver.ty.is_nullable() && !safe {
-            env.error("field access on nullable `String?` requires `?.`", None);
+            env.error("field access on nullable `String?` requires `?.`", Some(span));
         }
         Ty::i32().with_nullable(safe && receiver.ty.is_nullable())
     } else {
         if !receiver.ty.is_unknown() {
             env.error(
                 format!("unknown field `{name}` on type {}", receiver.ty),
-                None,
+                Some(span),
             );
         }
         Ty::unknown()

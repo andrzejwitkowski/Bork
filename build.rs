@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=src/parser.lalrpop");
     lalrpop::process_src().unwrap();
     if env::var_os("CARGO_FEATURE_CODEGEN").is_some() {
         build_runtime();

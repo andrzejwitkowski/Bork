@@ -3,6 +3,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, StructType};
+use inkwell::module::Linkage;
 use inkwell::values::FunctionValue;
 use inkwell::{AddressSpace, OptimizationLevel};
 
@@ -15,6 +16,15 @@ pub struct Codegen<'ctx> {
 }
 
 impl<'ctx> Codegen<'ctx> {
+    pub fn abort_function(&self) -> FunctionValue<'ctx> {
+        if let Some(f) = self.module.get_function("abort") {
+            return f;
+        }
+        let fn_type = self.context.void_type().fn_type(&[], false);
+        self.module
+            .add_function("abort", fn_type, Some(Linkage::External))
+    }
+
     pub fn new(context: &'ctx Context, name: &str) -> Self {
         Self {
             context,
