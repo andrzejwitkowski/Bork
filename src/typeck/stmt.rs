@@ -141,7 +141,6 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                 region,
             })
         }
-        // Captures are validated by sema; typeck only needs the nested region and body.
         Stmt::MoveBlock { captures, body } => {
             let region = env.alloc_region();
             let body = check_block(body, return_ty, env, true);

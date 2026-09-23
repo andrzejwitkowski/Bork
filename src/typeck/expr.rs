@@ -349,8 +349,6 @@ pub(super) fn check(
                 .as_ref()
                 .map(|block| check_value_block(block, expected, return_ty, env));
 
-            // Without an expected type the `if` only produces a value when both
-            // branches agree; otherwise it is a statement and evaluates to unit.
             let result_ty = match (&else_block, expected) {
                 (Some((_, else_ty)), _) if *else_ty == then_ty => then_ty,
                 (Some((_, else_ty)), Some(_)) => {
@@ -538,8 +536,6 @@ fn is_integer(ty: &Ty) -> bool {
     )
 }
 
-/// Ordered comparisons require identical non-nullable numeric operands, so a
-/// nullable value must be narrowed (`!!` or `?:`) before being compared.
 fn same_numeric_base(lhs: &Ty, rhs: &Ty) -> bool {
     lhs == rhs && is_numeric(lhs)
 }
