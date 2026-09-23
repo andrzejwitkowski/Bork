@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/bork_runtime"]
+resolver = "2"
+
 [package]
 name = "bork"
 version = "0.1.0"
