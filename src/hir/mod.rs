@@ -5,13 +5,13 @@ pub use ty::Ty;
 use crate::ast;
 use crate::span::Span;
 
-pub type RegionId = u32;
-
+/// HIR carries no region identity. Arenas and their nesting are owned by
+/// `sema::ArenaReport`; codegen will read region identity from there rather
+/// than from a counter kept in parallel by typeck.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseKind {
     Local,
     Copy,
-    Shared,
     Move,
 }
 
@@ -26,7 +26,6 @@ pub struct HirFunction {
     pub params: Vec<HirParam>,
     pub return_ty: Ty,
     pub body: HirBlock,
-    pub region: RegionId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,13 +61,11 @@ pub enum HirStmt {
         name: String,
         iter: HirExpr,
         body: HirBlock,
-        region: RegionId,
     },
     MoveBlock {
         /// `None` = capture list omitted in the source; `Some(vec![])` = explicit empty.
         captures: Option<Vec<String>>,
         body: HirBlock,
-        region: RegionId,
     },
 }
 

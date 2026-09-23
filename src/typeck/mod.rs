@@ -30,14 +30,11 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
         })
         .collect();
 
-    let mut next_region = 0;
     let functions = program
         .functions
         .iter()
         .map(|function| {
-            let region = next_region;
-            next_region += 1;
-            let mut env = Env::new(&fun_sigs, next_region);
+            let mut env = Env::new(&fun_sigs);
             let signature = env
                 .fun_sigs
                 .get(&function.name)
@@ -58,14 +55,12 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
                 .collect();
             let return_ty = signature.return_ty;
             let body = stmt::check_block(&function.body, &return_ty, &mut env, false);
-            next_region = env.next_region();
             diagnostics.append(&mut env.diagnostics);
             HirFunction {
                 name: function.name.clone(),
                 params,
                 return_ty,
                 body,
-                region,
             }
         })
         .collect();

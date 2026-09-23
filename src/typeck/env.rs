@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::BindingKind;
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{RegionId, Ty};
+use crate::hir::Ty;
 use crate::span::Span;
 
 #[derive(Clone)]
@@ -21,16 +21,14 @@ pub(super) struct Env<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
     pub(super) diagnostics: Vec<Diagnostic>,
-    next_region: RegionId,
 }
 
 impl<'a> Env<'a> {
-    pub(super) fn new(fun_sigs: &'a HashMap<String, FunSig>, next_region: RegionId) -> Self {
+    pub(super) fn new(fun_sigs: &'a HashMap<String, FunSig>) -> Self {
         Self {
             scopes: vec![HashMap::new()],
             fun_sigs,
             diagnostics: Vec::new(),
-            next_region,
         }
     }
 
@@ -55,16 +53,6 @@ impl<'a> Env<'a> {
 
     pub(super) fn exit_scope(&mut self) {
         self.scopes.pop();
-    }
-
-    pub(super) fn alloc_region(&mut self) -> RegionId {
-        let region = self.next_region;
-        self.next_region += 1;
-        region
-    }
-
-    pub(super) fn next_region(&self) -> RegionId {
-        self.next_region
     }
 
     pub(super) fn error(&mut self, message: impl Into<String>, span: Option<Span>) {

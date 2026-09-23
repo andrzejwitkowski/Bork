@@ -1,9 +1,8 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo};
-use crate::{frontend, parse, Error};
-use lalrpop_util::ParseError;
+use crate::frontend;
+use crate::sema::{ArenaNode, ArenaReport, BindingInfo};
 use tower_lsp::lsp_types::{Diagnostic as LspDiagnostic, DiagnosticSeverity, Position, Range};
 
 /// Line starts for LSP UTF-16 positions.
@@ -132,52 +131,6 @@ fn byte_range(source: &str, start: usize, end: usize) -> Range {
     }
 }
 
-fn expected_suffix(expected: &[String]) -> String {
-    if expected.is_empty() {
-        String::new()
-    } else {
-        format!("; expected {}", expected.join(", "))
-    }
-}
-
-pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> LspDiagnostic {
-    let (range, message) = match error {
-        ParseError::InvalidToken { location } => (
-            byte_range(source, *location, *location),
-            "invalid token".into(),
-        ),
-        ParseError::UnrecognizedEof { location, expected } => (
-            byte_range(source, *location, *location),
-            format!("unexpected end of file{}", expected_suffix(expected)),
-        ),
-        ParseError::UnrecognizedToken {
-            token: (start, token, end),
-            expected,
-        } => (
-            byte_range(source, *start, *end),
-            format!("unexpected token `{token}`{}", expected_suffix(expected)),
-        ),
-        ParseError::ExtraToken {
-            token: (start, token, end),
-        } => (
-            byte_range(source, *start, *end),
-            format!("unexpected extra token `{token}`"),
-        ),
-        ParseError::User { error } => (
-            byte_range(source, source.len(), source.len()),
-            (*error).to_string(),
-        ),
-    };
-
-    LspDiagnostic {
-        range,
-        severity: Some(DiagnosticSeverity::ERROR),
-        source: Some("bork".into()),
-        message,
-        ..LspDiagnostic::default()
-    }
-}
-
 fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic) -> LspDiagnostic {
     let range = diagnostic
         .span
@@ -202,70 +155,54 @@ fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic
     }
 }
 
-pub enum Analysis {
-    ParseError {
-        diagnostics: Vec<LspDiagnostic>,
-    },
-    Ok {
-        report: ArenaReport,
-        diagnostics: Vec<LspDiagnostic>,
-    },
+/// One `frontend::check` run, rendered for LSP.
+pub struct Analysis {
+    report: Option<ArenaReport>,
+    diagnostics: Vec<LspDiagnostic>,
 }
 
 impl Analysis {
     pub fn diagnostics(&self) -> &[LspDiagnostic] {
-        match self {
-            Analysis::ParseError { diagnostics } | Analysis::Ok { diagnostics, .. } => diagnostics,
-        }
+        &self.diagnostics
+    }
+
+    pub fn report(&self) -> Option<&ArenaReport> {
+        self.report.as_ref()
     }
 }
 
 pub fn analyze_source(source: &str) -> Analysis {
-    match parse(source) {
-        // Report the parse error directly so its span survives; `frontend::check`
-        // would re-parse and drop it.
-        Err(error) => Analysis::ParseError {
-            diagnostics: vec![parse_error_to_diagnostic(source, &error)],
-        },
-        Ok(program) => {
-            let (report, _) = analyze(&program);
-            Analysis::Ok {
-                report,
-                diagnostics: frontend::check(source)
-                    .err()
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
-                    .collect(),
-            }
-        }
+    let result = frontend::check(source);
+    Analysis {
+        report: result.report,
+        diagnostics: result
+            .diagnostics
+            .iter()
+            .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
+            .collect(),
     }
 }
 
 pub fn diagnostics_for_source(source: &str) -> Vec<LspDiagnostic> {
-    analyze_source(source).diagnostics().to_vec()
+    analyze_source(source).diagnostics
 }
 
 pub fn dump_from_analysis(analysis: &Analysis) -> Result<String, String> {
-    match analysis {
-        Analysis::ParseError { diagnostics } => Err(diagnostics
+    let Some(report) = analysis.report() else {
+        return Err(analysis
+            .diagnostics
             .first()
             .map(|d| d.message.clone())
-            .unwrap_or_else(|| "parse error".into())),
-        Analysis::Ok {
-            report,
-            diagnostics,
-        } => {
-            let mut text = dump_arenas(report);
-            if !diagnostics.is_empty() {
-                text.push_str("\n# semantic errors\n");
-                for d in diagnostics {
-                    text.push_str(&format!("# {}\n", d.message));
-                }
-            }
-            Ok(text)
+            .unwrap_or_else(|| "parse error".into()));
+    };
+    let mut text = dump_arenas(report);
+    if !analysis.diagnostics.is_empty() {
+        text.push_str("\n# semantic errors\n");
+        for d in &analysis.diagnostics {
+            text.push_str(&format!("# {}\n", d.message));
         }
     }
+    Ok(text)
 }
 
 pub fn dump_arenas_for_source(source: &str) -> Result<String, String> {
@@ -314,10 +251,7 @@ pub fn hover_for_analysis(
 }
 
 pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
-    let Analysis::Ok { report, .. } = analyze_source(source) else {
-        return None;
-    };
-    hover_for_analysis(&report, source, position)
+    hover_for_analysis(analyze_source(source).report()?, source, position)
 }
 
 #[cfg(test)]
@@ -357,6 +291,15 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert!(!diagnostics[0].message.is_empty());
         assert!(diagnostics[0].range.start.line <= diagnostics[0].range.end.line);
+    }
+
+    #[test]
+    fn parse_error_points_at_the_offending_token() {
+        let source = "fun main() {\n val x = (1 +\n)\n}";
+        let diagnostics = diagnostics_for_source(source);
+        let d = &diagnostics[0];
+        assert!(d.message.starts_with("parse:"), "{d:?}");
+        assert_eq!(d.range.start.line, 2, "{d:?}");
     }
 
     #[test]
@@ -424,12 +367,11 @@ fun main(): i32 {
     #[test]
     fn hover_for_analysis_uses_cached_report() {
         let source = "fun add(x: Int): Int {\n    return x\n}\n";
-        let Analysis::Ok { report, .. } = analyze_source(source) else {
-            panic!("expected ok analysis");
-        };
+        let analysis = analyze_source(source);
+        let report = analysis.report().expect("source parses");
         let x_off = source.find('x').unwrap();
         let pos = byte_offset_to_position(source, x_off);
-        let hover = hover_for_analysis(&report, source, pos).expect("hover");
+        let hover = hover_for_analysis(report, source, pos).expect("hover");
         assert!(hover.contains("Ownership"), "{hover}");
     }
 

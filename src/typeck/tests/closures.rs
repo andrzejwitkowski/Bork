@@ -1,5 +1,6 @@
 use crate::diag::Phase;
-use crate::frontend::check;
+
+use super::diags_of;
 
 #[test]
 fn trailing_closure_arg_count() {
@@ -11,9 +12,5 @@ fun main(): i32 {
     return action(1, 2) { x -> x }
 }
 "#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
-

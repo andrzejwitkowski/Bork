@@ -1,9 +1,24 @@
-use crate::diag::Phase;
+use crate::diag::{Diagnostic, Phase};
 use crate::frontend::check;
-use crate::hir::{HirExpr, HirExprKind, HirStmt, Ty, UseKind};
+use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Ty, UseKind};
 
 mod closures;
 mod nullable;
+
+/// Typed HIR for a source that must check cleanly.
+fn hir_of(source: &str) -> HirProgram {
+    let result = check(source);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    result.hir.expect("clean check produces HIR")
+}
+
+/// Diagnostics for a source that must not check cleanly.
+fn diags_of(source: &str) -> Vec<Diagnostic> {
+    let result = check(source);
+    assert!(!result.diagnostics.is_empty(), "expected diagnostics");
+    assert!(result.hir.is_none(), "HIR is withheld when checks fail");
+    result.diagnostics
+}
 
 #[test]
 fn assign_to_val_is_type_error() {
@@ -14,8 +29,7 @@ fun main(): i32 {
     return x
 }
 "#;
-    let err = check(src).unwrap_err();
-    assert!(err.iter().any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
@@ -25,8 +39,7 @@ fun main(): i32 {
     return "nope"
 }
 "#;
-    let err = check(src).unwrap_err();
-    assert!(err.iter().any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
@@ -36,17 +49,14 @@ fn adds_i32() {
 
 #[test]
 fn rejects_add_string_int() {
-    let err = check(r#"fun main(): i32 { return 1 + "a" }"#).unwrap_err();
-    assert!(err.iter().any(|d| d.phase == Phase::Type));
+    let errors = diags_of(r#"fun main(): i32 { return 1 + "a" }"#);
+    assert!(errors.iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
 fn if_cond_must_be_bool() {
     let src = r#"fun main(): i32 { if (1) { return 1 } else { return 0 } }"#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
@@ -66,10 +76,7 @@ fn call_arity_mismatch() {
 fun f(x: i32): i32 { return x }
 fun main(): i32 { return f() }
 "#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
@@ -78,10 +85,7 @@ fn call_arg_type_mismatch() {
 fun f(x: i32): i32 { return x }
 fun main(): i32 { return f("a") }
 "#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
@@ -104,12 +108,18 @@ fun main(): i32 {
     return a
 }
 "#;
-    let hir = check(src).expect("range loop should typecheck");
-    let function = &hir.functions[0];
-    assert!(matches!(
-        &function.body.stmts[1],
-        HirStmt::For { region, .. } if *region != function.region
-    ));
+    let hir = hir_of(src);
+    let HirStmt::For { name, iter, body } = &hir.functions[0].body.stmts[1] else {
+        panic!("expected a for loop, got {:?}", hir.functions[0].body.stmts[1]);
+    };
+    assert_eq!(name, "i");
+    assert_eq!(
+        iter.ty,
+        Ty::Range {
+            elem: Box::new(Ty::i32())
+        }
+    );
+    assert!(matches!(body.stmts.as_slice(), [HirStmt::Assign { .. }]));
 }
 
 #[test]
@@ -121,7 +131,7 @@ fun main(): String {
     return t
 }
 "#;
-    let hir = check(src).expect("move expression should typecheck");
+    let hir = hir_of(src);
     assert!(matches!(
         &hir.functions[0].body.stmts[1],
         HirStmt::VarDecl {
@@ -145,7 +155,7 @@ fun main(): i32 {
     return x
 }
 "#;
-    let hir = check(src).expect("program should typecheck");
+    let hir = hir_of(src);
     let stmts = &hir.functions[0].body.stmts;
     let HirStmt::VarDecl { value, .. } = &stmts[0] else {
         panic!("expected a var declaration, got {:?}", stmts[0]);
@@ -171,18 +181,12 @@ fun main(): i32 {
     return 0
 }
 "#;
-    let hir = check(src).expect("move block should typecheck");
+    let hir = hir_of(src);
     let function = &hir.functions[0];
-    let HirStmt::MoveBlock {
-        captures,
-        body,
-        region,
-    } = &function.body.stmts[1]
-    else {
+    let HirStmt::MoveBlock { captures, body } = &function.body.stmts[1] else {
         panic!("expected a move block, got {:?}", function.body.stmts[1]);
     };
     assert_eq!(captures.as_deref(), Some(["s".to_string()].as_slice()));
-    assert_ne!(*region, function.region);
     assert!(matches!(
         body.stmts.as_slice(),
         [HirStmt::VarDecl { name, .. }] if name == "len"
@@ -200,7 +204,7 @@ fun main(): i32 {
     return 0
 }
 "#;
-    let errors = check(src).unwrap_err();
+    let errors = diags_of(src);
     assert!(
         errors
             .iter()
@@ -217,7 +221,7 @@ fun main(n: i32): i32 {
     return picked
 }
 "#;
-    let hir = check(src).expect("branches unify to i32");
+    let hir = hir_of(src);
     assert!(matches!(
         &hir.functions[0].body.stmts[0],
         HirStmt::VarDecl { ty, .. } if *ty == Ty::i32()
@@ -231,7 +235,7 @@ fun main(): i64 {
     return 1
 }
 "#;
-    let hir = check(src).expect("literal should take the expected integer type");
+    let hir = hir_of(src);
     let HirStmt::Return { value: Some(value) } = &hir.functions[0].body.stmts[0] else {
         panic!("expected a return");
     };
@@ -252,16 +256,13 @@ fn samples_check_clean() {
 
 #[test]
 fn unknown_named_type_errors() {
-    let src = r#"fun main(): Foo { return 1 }"#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type));
+    let errors = diags_of(r#"fun main(): Foo { return 1 }"#);
+    assert!(errors.iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
 fn unknown_named_type_is_type_error() {
-    let errors = check(r#"fun main(value: Missing): i32 { return 0 }"#).unwrap_err();
+    let errors = diags_of(r#"fun main(value: Missing): i32 { return 0 }"#);
     assert!(errors
         .iter()
         .any(|error| error.phase == Phase::Type && error.message.contains("unknown named type")));
@@ -269,13 +270,12 @@ fn unknown_named_type_is_type_error() {
 
 #[test]
 fn unknown_string_field_is_type_error() {
-    let errors = check(
+    let errors = diags_of(
         r#"fun main(): i32 {
     val value: String = "x"
     return value.missing
 }"#,
-    )
-    .unwrap_err();
+    );
     assert!(errors
         .iter()
         .any(|error| error.phase == Phase::Type && error.message.contains("unknown field")));

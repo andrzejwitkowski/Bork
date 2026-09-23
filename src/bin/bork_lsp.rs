@@ -103,10 +103,10 @@ impl LanguageServer for Backend {
         let Some(doc) = docs.get(uri) else {
             return Ok(None);
         };
-        let value = match &doc.analysis {
-            Analysis::Ok { report, .. } => hover_for_analysis(report, &doc.text, pos),
-            Analysis::ParseError { .. } => None,
-        };
+        let value = doc
+            .analysis
+            .report()
+            .and_then(|report| hover_for_analysis(report, &doc.text, pos));
         Ok(value.map(|value| Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,

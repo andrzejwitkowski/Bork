@@ -129,7 +129,6 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                 env.error("for-loop range elements must have type i32", None);
             }
 
-            let region = env.alloc_region();
             env.enter_scope();
             env.bind(name.name.clone(), BindingKind::Val, (*elem).clone());
             let body = check_block(body, return_ty, env, false);
@@ -138,11 +137,9 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                 name: name.name.clone(),
                 iter,
                 body,
-                region,
             })
         }
         Stmt::MoveBlock { captures, body } => {
-            let region = env.alloc_region();
             let body = check_block(body, return_ty, env, true);
             Some(HirStmt::MoveBlock {
                 captures: captures.as_ref().map(|names| {
@@ -152,7 +149,6 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> Option<Hi
                         .collect::<Vec<_>>()
                 }),
                 body,
-                region,
             })
         }
     }

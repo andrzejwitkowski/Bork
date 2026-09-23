@@ -1,6 +1,8 @@
 use crate::diag::Phase;
 use crate::frontend::check;
 
+use super::diags_of;
+
 #[test]
 fn elvis_requires_nullable_lhs() {
     let src = r#"
@@ -9,10 +11,7 @@ fun main(): String {
     return s ?: "b"
 }
 "#;
-    assert!(check(src)
-        .unwrap_err()
-        .iter()
-        .any(|d| d.phase == Phase::Type));
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]
@@ -22,7 +21,7 @@ fun main(score: i32): i32 {
     return score ?: 0
 }
 "#;
-    let errors = check(src).unwrap_err();
+    let errors = diags_of(src);
     assert!(
         errors
             .iter()
@@ -41,7 +40,7 @@ fun main(name: String?): i32 {
     return 0
 }
 "#;
-    let errors = check(src).unwrap_err();
+    let errors = diags_of(src);
     assert!(
         errors.iter().any(|error| error.phase == Phase::Type
             && error.message.contains("ordered comparison operands")),
