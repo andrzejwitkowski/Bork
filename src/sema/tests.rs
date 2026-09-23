@@ -319,6 +319,24 @@ fun main() {
 }
 
 #[test]
+fn call_move_into_val_param_consumes() {
+    let src = r#"
+fun sink(s: String): Int { return 0 }
+fun main() {
+    val s: String = "hi"
+    sink(move s)
+    val t = s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(
+        errs.iter().any(|e| e.message.contains("after move")),
+        "{errs:?}"
+    );
+}
+
+#[test]
 fn call_bare_var_into_var_param_errors() {
     let src = r#"
 fun sink(var s: String): Int { return 0 }

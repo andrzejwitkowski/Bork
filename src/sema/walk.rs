@@ -271,6 +271,7 @@ fn check_call_arg(
                 note_use(az, name, Some(*span), node);
             }
         }
+        // Non-Ident args (literals, constructors, etc.) introduce owned values; move applies to named bindings only.
         _ => walk_expr(az, arg, node),
     }
 }
