@@ -1,5 +1,6 @@
 pub mod arena;
 pub mod ast;
+pub mod diag;
 pub mod dump;
 mod layout;
 pub mod sema;
