@@ -2,6 +2,7 @@ pub mod arena;
 pub mod ast;
 pub mod diag;
 pub mod dump;
+pub mod hir;
 mod layout;
 pub mod sema;
 pub mod span;
