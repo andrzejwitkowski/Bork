@@ -1,14 +1,70 @@
-use bork::{parse, MVP_SAMPLE};
+use bork::{dump::dump_arenas, parse, sema::analyze};
+use std::env;
+use std::fs;
+use std::process;
+
+fn usage(status: i32) -> ! {
+    let msg = "Usage: bork [--dump-arenas] <file.bork>";
+    if status == 0 {
+        println!("{msg}");
+    } else {
+        eprintln!("{msg}");
+    }
+    process::exit(status);
+}
 
 fn main() {
-    match parse(MVP_SAMPLE) {
-        Ok(program) => {
-            println!("Parsed OK");
-            println!("{program:#?}");
+    let mut dump = false;
+    let mut file: Option<String> = None;
+
+    for arg in env::args().skip(1) {
+        match arg.as_str() {
+            "--dump-arenas" => dump = true,
+            "-h" | "--help" => usage(0),
+            other if other.starts_with('-') => {
+                eprintln!("unknown flag: {other}");
+                usage(2);
+            }
+            other => {
+                if file.is_some() {
+                    eprintln!("unexpected argument: {other}");
+                    usage(2);
+                }
+                file = Some(other.to_string());
+            }
         }
+    }
+
+    let Some(path) = file else {
+        usage(2);
+    };
+
+    let source = match fs::read_to_string(&path) {
+        Ok(s) => s,
         Err(err) => {
-            eprintln!("Parse error: {err}");
-            std::process::exit(1);
+            eprintln!("failed to read {path}: {err}");
+            process::exit(1);
         }
+    };
+
+    let program = match parse(&source) {
+        Ok(p) => p,
+        Err(err) => {
+            eprintln!("parse error: {err}");
+            process::exit(1);
+        }
+    };
+
+    let (report, errors) = analyze(&program);
+    for err in &errors {
+        eprintln!("error: {}", err.message);
+    }
+
+    if dump {
+        print!("{}", dump_arenas(&report));
+    }
+
+    if !errors.is_empty() {
+        process::exit(1);
     }
 }

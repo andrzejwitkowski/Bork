@@ -13,7 +13,7 @@ pub struct Function {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
-    pub name: String,
+    pub name: crate::span::SpannedName,
     pub ty: Type,
 }
 
@@ -57,6 +57,28 @@ impl Type {
             nullable,
         }
     }
+
+    pub fn is_copy(&self) -> bool {
+        matches!(
+            self,
+            Type::Primitive {
+                nullable: false,
+                ..
+            }
+        )
+    }
+
+    pub fn with_nullable(self, nullable: bool) -> Self {
+        match self {
+            Type::Primitive { name, .. } => Type::Primitive { name, nullable },
+            Type::Named { name, .. } => Type::Named { name, nullable },
+            Type::Func { params, ret, .. } => Type::Func {
+                params,
+                ret,
+                nullable,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +86,7 @@ pub struct Block {
     pub stmts: Vec<Stmt>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BindingKind {
     Val,
     Var,
@@ -76,16 +98,23 @@ pub enum Stmt {
     VarDecl {
         kind: BindingKind,
         name: String,
+        name_span: crate::span::Span,
         ty: Option<Type>,
         value: Expr,
     },
     Assign {
         name: String,
+        name_span: crate::span::Span,
         value: Expr,
     },
     For {
-        name: String,
+        name: crate::span::SpannedName,
         iter: Expr,
+        body: Block,
+    },
+    MoveBlock {
+        /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
+        captures: Option<Vec<crate::span::SpannedName>>,
         body: Block,
     },
     Return(Option<Expr>),
@@ -96,7 +125,10 @@ pub enum Stmt {
 pub enum Expr {
     Int(i64),
     Str(String),
-    Ident(String),
+    Ident {
+        name: String,
+        span: crate::span::Span,
+    },
     None,
     Some(Box<Expr>),
     Binary {
@@ -127,8 +159,11 @@ pub enum Expr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Closure {
-    pub params: Vec<String>,
+    pub params: Vec<crate::span::SpannedName>,
     pub body: Block,
+    pub is_move: bool,
+    /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
+    pub captures: Option<Vec<crate::span::SpannedName>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

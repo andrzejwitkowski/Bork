@@ -2,6 +2,7 @@ use crate::ast::{
     unescape_string_literal, BindingKind, BinOp, Block, Closure, Expr, Function, Param, Program,
     Stmt, Type, UnaryOp,
 };
+use crate::span::{Span, SpannedName};
 use lalrpop_util::ParseError;
 
 grammar;
@@ -21,6 +22,7 @@ match {
     "return" => "return",
     "Some" => "Some",
     "None" => "None",
+    "move" => "move",
 } else {
     _
 }
@@ -75,7 +77,7 @@ ReturnType: Type = {
 };
 
 Param: Param = {
-    <name:Ident> ":" <ty:Type> => Param { name, ty },
+    <name:SpannedIdent> ":" <ty:Type> => Param { name, ty },
 };
 
 Type: Type = {
@@ -155,14 +157,23 @@ StmtRest: Vec<Stmt> = {
 
 Stmt: Stmt = {
     <b:Block> => Stmt::Block(b),
-    <kind:Binding> <name:Ident> <ty:(":" <Type>)?> "=" <value:Expr> => Stmt::VarDecl {
+    "move" <captures:("(" <Comma<SpannedIdent>?> ")")?> <body:Block> => Stmt::MoveBlock {
+        captures: captures.map(|c| c.unwrap_or_default()),
+        body,
+    },
+    <kind:Binding> <name:SpannedIdent> <ty:(":" <Type>)?> "=" <value:Expr> => Stmt::VarDecl {
         kind,
-        name,
+        name: name.name,
+        name_span: name.span,
         ty,
         value,
     },
-    <name:Ident> "=" <value:Expr> => Stmt::Assign { name, value },
-    "for" "(" <name:Ident> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
+    <name:SpannedIdent> "=" <value:Expr> => Stmt::Assign {
+        name: name.name,
+        name_span: name.span,
+        value,
+    },
+    "for" "(" <name:SpannedIdent> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
         name,
         iter,
         body,
@@ -236,10 +247,26 @@ FieldOp: bool = {
 };
 
 TrailingClosure: Closure = {
-    "{" <params:Comma<Ident>?> "->" <stmts:BlockBody> "}" => Closure {
+    "move" <captures:("(" <Comma<SpannedIdent>?> ")")?> <c:MoveClosureBody> => Closure {
+        params: c.0,
+        body: c.1,
+        is_move: true,
+        captures: captures.map(|c| c.unwrap_or_default()),
+    },
+    "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" => Closure {
         params: params.unwrap_or_default(),
         body: Block { stmts },
+        is_move: false,
+        captures: None,
     },
+};
+
+MoveClosureBody: (Vec<SpannedName>, Block) = {
+    "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" => (
+        params.unwrap_or_default(),
+        Block { stmts },
+    ),
+    "{" <stmts:BlockBody> "}" => (vec![], Block { stmts }),
 };
 
 Atom: Expr = {
@@ -247,7 +274,10 @@ Atom: Expr = {
     <s:StrLit> => Expr::Str(s),
     "None" => Expr::None,
     "Some" "(" <e:Expr> ")" => Expr::Some(Box::new(e)),
-    <id:Ident> => Expr::Ident(id),
+    <id:SpannedIdent> => Expr::Ident {
+        name: id.name,
+        span: id.span,
+    },
     "(" <e:Expr> ")" => e,
     "if" "(" <cond:Expr> ")" <then_block:Block> <else_block:ElseClause?> => Expr::If {
         cond: Box::new(cond),
@@ -258,6 +288,10 @@ Atom: Expr = {
 
 ElseClause: Block = {
     "else" <b:Block> => b,
+};
+
+SpannedIdent: SpannedName = {
+    <start:@L> <name:Ident> <end:@R> => SpannedName::new(name, Span::new(start, end)),
 };
 
 Ident: String = {
