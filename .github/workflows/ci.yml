@@ -9,6 +9,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Jobs below build without the `codegen` feature. `--features codegen` needs
+# apt packages `llvm-18-dev` and `clang` (Ubuntu's LLVM 18 lacks libPolly.a, so
+# Inkwell links libLLVM-18.so via `llvm18-1-prefer-dynamic`).
+
 jobs:
   build-and-test:
     name: Build and test

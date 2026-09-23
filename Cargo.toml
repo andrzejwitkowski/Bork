@@ -16,9 +16,10 @@ required-features = ["lsp"]
 [features]
 default = ["lsp"]
 lsp = ["dep:tower-lsp", "dep:tokio", "dep:serde_json"]
-codegen = []
+codegen = ["dep:inkwell"]
 
 [dependencies]
+inkwell = { version = "0.10", features = ["llvm18-1-prefer-dynamic"], optional = true }
 lalrpop-util = "0.23"
 tower-lsp = { version = "0.20", optional = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"], optional = true }
