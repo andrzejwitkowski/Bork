@@ -1,7 +1,9 @@
 //! Inkwell (LLVM 18) emission for the codegen subset.
 
+mod arena;
 mod context;
 mod emit_fn;
+mod expr;
 
 use std::path::Path;
 
@@ -10,17 +12,20 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::targets::FileType;
 
+use crate::codegen::regions::{RegionEmitter, ScheduleError};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::HirProgram;
 use crate::sema::ArenaReport;
 use crate::span::Span;
 
+use arena::ArenaCalls;
 use context::{native_target_machine, Codegen};
+use emit_fn::Callees;
 
 pub fn emit_module<'ctx>(
     context: &'ctx Context,
     hir: &HirProgram,
-    _report: &ArenaReport,
+    report: &ArenaReport,
 ) -> Result<Module<'ctx>, Diagnostic> {
     if !hir.functions.iter().any(|function| function.name == "main") {
         return Err(codegen_error(
@@ -30,9 +35,19 @@ pub fn emit_module<'ctx>(
     }
 
     let cx = Codegen::new(context, "bork");
+    let callees = hir
+        .functions
+        .iter()
+        .map(|function| {
+            let value = emit_fn::declare_function(&cx, function)?;
+            Ok((function.name.as_str(), (value, function)))
+        })
+        .collect::<Result<Callees, Diagnostic>>()?;
+    let mut regions = RegionEmitter::new(report, ArenaCalls::new(&cx));
     for function in &hir.functions {
-        emit_fn::emit_function(&cx, function)?;
+        emit_fn::emit_function(&cx, &callees, &mut regions, function)?;
     }
+    regions.finish().map_err(schedule_error)?;
     cx.module
         .verify()
         .map_err(|err| codegen_error(format!("LLVM rejected the module: {err}"), None))?;
@@ -62,6 +77,55 @@ fn not_yet_supported(what: &str, span: Option<Span>) -> Diagnostic {
     codegen_error(format!("{what} is not supported by codegen yet"), span)
 }
 
-fn builder_error(err: BuilderError) -> Diagnostic {
-    codegen_error(format!("LLVM builder error: {err}"), None)
+fn schedule_error(err: ScheduleError) -> Diagnostic {
+    codegen_error(format!("internal arena schedule mismatch: {err}"), None)
+}
+
+impl From<BuilderError> for Diagnostic {
+    fn from(err: BuilderError) -> Self {
+        codegen_error(format!("LLVM builder error: {err}"), None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontend::check;
+
+    fn ir_of(source: &str) -> String {
+        let checked = check(source);
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let context = Context::create();
+        let module = emit_module(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+        )
+        .expect("emit");
+        module.print_to_string().to_string()
+    }
+
+    #[test]
+    fn early_returns_pop_every_open_arena() {
+        let ir = ir_of(
+            "fun add(a: i32, b: i32): i32 { return a + b }\n\
+             fun main(): i32 {\n\
+                 val x = add(40, 2)\n\
+                 if (x > 40) { return x } else { return 0 }\n\
+             }\n",
+        );
+        // Arenas: fun add, fun main, IfThen, IfElse. Each `return` pops all it is nested in:
+        // 1 in `add`, 2 per branch in `main`.
+        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 4, "{ir}");
+        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 5, "{ir}");
+    }
+
+    #[test]
+    fn fallthrough_pops_nested_then_function_arena() {
+        let ir = ir_of(
+            "fun main() {\n    val a = 1\n    {\n        val b = 2\n    }\n    val c = 3\n}\n",
+        );
+        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 2, "{ir}");
+        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
+    }
 }
