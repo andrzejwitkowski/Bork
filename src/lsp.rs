@@ -1,10 +1,10 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
 use crate::dump::dump_arenas;
-use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo, SemaError};
-use crate::{parse, Error};
+use crate::sema::{analyze, ArenaNode, ArenaReport, BindingInfo};
+use crate::{frontend, parse, Error};
 use lalrpop_util::ParseError;
-use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
+use tower_lsp::lsp_types::{Diagnostic as LspDiagnostic, DiagnosticSeverity, Position, Range};
 
 /// Line starts for LSP UTF-16 positions.
 pub struct SourceMap<'a> {
@@ -20,7 +20,10 @@ impl<'a> SourceMap<'a> {
                 line_starts.push(i + ch.len_utf8());
             }
         }
-        Self { source, line_starts }
+        Self {
+            source,
+            line_starts,
+        }
     }
 
     fn line_range(&self, line: usize) -> Option<(usize, usize)> {
@@ -137,11 +140,12 @@ fn expected_suffix(expected: &[String]) -> String {
     }
 }
 
-pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
+pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> LspDiagnostic {
     let (range, message) = match error {
-        ParseError::InvalidToken { location } => {
-            (byte_range(source, *location, *location), "invalid token".into())
-        }
+        ParseError::InvalidToken { location } => (
+            byte_range(source, *location, *location),
+            "invalid token".into(),
+        ),
         ParseError::UnrecognizedEof { location, expected } => (
             byte_range(source, *location, *location),
             format!("unexpected end of file{}", expected_suffix(expected)),
@@ -165,39 +169,51 @@ pub fn parse_error_to_diagnostic(source: &str, error: &Error) -> Diagnostic {
         ),
     };
 
-    Diagnostic {
+    LspDiagnostic {
         range,
         severity: Some(DiagnosticSeverity::ERROR),
         source: Some("bork".into()),
         message,
-        ..Diagnostic::default()
+        ..LspDiagnostic::default()
     }
 }
 
-fn sema_error_to_diagnostic(source: &str, error: &SemaError) -> Diagnostic {
-    let range = error
+fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic) -> LspDiagnostic {
+    let range = diagnostic
         .span
         .map(|s| byte_range(source, s.start, s.end))
         .unwrap_or_else(|| byte_range(source, 0, 0));
-    Diagnostic {
+    let phase = match diagnostic.phase {
+        crate::diag::Phase::Parse => "parse",
+        crate::diag::Phase::Ownership => "ownership",
+        crate::diag::Phase::Type => "type",
+        crate::diag::Phase::Codegen => "codegen",
+    };
+    let severity = match diagnostic.severity {
+        crate::diag::Severity::Error => DiagnosticSeverity::ERROR,
+        crate::diag::Severity::Warning => DiagnosticSeverity::WARNING,
+    };
+    LspDiagnostic {
         range,
-        severity: Some(DiagnosticSeverity::ERROR),
+        severity: Some(severity),
         source: Some("bork".into()),
-        message: error.message.clone(),
-        ..Diagnostic::default()
+        message: format!("{phase}: {}", diagnostic.message),
+        ..LspDiagnostic::default()
     }
 }
 
 pub enum Analysis {
-    ParseError { diagnostics: Vec<Diagnostic> },
+    ParseError {
+        diagnostics: Vec<LspDiagnostic>,
+    },
     Ok {
         report: ArenaReport,
-        diagnostics: Vec<Diagnostic>,
+        diagnostics: Vec<LspDiagnostic>,
     },
 }
 
 impl Analysis {
-    pub fn diagnostics(&self) -> &[Diagnostic] {
+    pub fn diagnostics(&self) -> &[LspDiagnostic] {
         match self {
             Analysis::ParseError { diagnostics } | Analysis::Ok { diagnostics, .. } => diagnostics,
         }
@@ -206,23 +222,29 @@ impl Analysis {
 
 pub fn analyze_source(source: &str) -> Analysis {
     match parse(source) {
-        Err(error) => Analysis::ParseError {
-            diagnostics: vec![parse_error_to_diagnostic(source, &error)],
+        Err(_) => Analysis::ParseError {
+            diagnostics: frontend::check(source)
+                .expect_err("source that failed parsing cannot pass frontend checking")
+                .iter()
+                .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
+                .collect(),
         },
         Ok(program) => {
-            let (report, errors) = analyze(&program);
+            let (report, _) = analyze(&program);
             Analysis::Ok {
                 report,
-                diagnostics: errors
+                diagnostics: frontend::check(source)
+                    .err()
+                    .unwrap_or_default()
                     .iter()
-                    .map(|e| sema_error_to_diagnostic(source, e))
+                    .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
                     .collect(),
             }
         }
     }
 }
 
-pub fn diagnostics_for_source(source: &str) -> Vec<Diagnostic> {
+pub fn diagnostics_for_source(source: &str) -> Vec<LspDiagnostic> {
     analyze_source(source).diagnostics().to_vec()
 }
 
@@ -358,6 +380,29 @@ fun main() {
         assert!(
             diags.iter().any(|d| d.message.contains("not Copy")),
             "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn ownership_and_type_diagnostics_are_reported_together() {
+        let source = r#"
+fun main(): i32 {
+    var s: String = "a"
+    val t = move s
+    val u = s
+    return 1 + "x"
+}
+"#;
+        let diagnostics = diagnostics_for_source(source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.starts_with("ownership:")),
+            "{diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().any(|d| d.message.starts_with("type:")),
+            "{diagnostics:?}"
         );
     }
 

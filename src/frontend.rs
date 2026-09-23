@@ -13,12 +13,11 @@ pub fn check(source: &str) -> Result<HirProgram, Vec<Diagnostic>> {
         Err(err) => return Err(vec![diag::from_parse(&err)]),
     };
 
-    let (_report, errors) = analyze(&program);
-    if !errors.is_empty() {
-        return Err(errors.iter().map(diag::from_sema).collect());
-    }
+    let (_report, ownership_errors) = analyze(&program);
+    let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
+    let (hir, mut type_diagnostics) = typeck::check(&program);
+    diagnostics.append(&mut type_diagnostics);
 
-    let (hir, diagnostics) = typeck::check(&program);
     if diagnostics.is_empty() {
         Ok(hir.expect("type checking without diagnostics produces HIR"))
     } else {
@@ -55,6 +54,21 @@ fun main() {
 "#;
         let err = check(src).unwrap_err();
         assert!(err.iter().any(|d| d.phase == Phase::Ownership));
+    }
+
+    #[test]
+    fn reports_ownership_and_type_together() {
+        let src = r#"
+fun main(): i32 {
+    var s: String = "a"
+    val t = move s
+    val u = s
+    return 1 + "x"
+}
+"#;
+        let err = check(src).unwrap_err();
+        assert!(err.iter().any(|d| d.phase == Phase::Ownership));
+        assert!(err.iter().any(|d| d.phase == Phase::Type));
     }
 
     #[test]
