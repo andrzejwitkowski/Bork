@@ -135,9 +135,15 @@ fun main(): String {
 }
 
 #[test]
-fn process_user_sample_types() {
-    let result = check(crate::PROCESS_USER_SAMPLE);
-    assert!(result.is_ok(), "{:?}", result.err());
+fn samples_check_clean() {
+    assert!(check(crate::MVP_SAMPLE).is_ok());
+    assert!(check(crate::PROCESS_USER_SAMPLE).is_ok());
+}
+
+#[test]
+fn unknown_named_type_errors() {
+    let src = r#"fun main(): Foo { return 1 }"#;
+    assert!(check(src).unwrap_err().iter().any(|d| d.phase == Phase::Type));
 }
 
 #[test]

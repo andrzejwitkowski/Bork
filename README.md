@@ -60,6 +60,11 @@ cargo run --bin bork -- --dump-arenas path/to/file.bork
 
 `--dump-arenas` prints the compile-time arena / ownership tree (see [docs/memory-model.md](docs/memory-model.md)).
 
+## Typecheck
+
+`bork check file.bork` (or `bork file.bork`) runs parse, ownership, and full typecheck.
+Native codegen / `bork build` is phase 2 — see `docs/superpowers/specs/2026-09-23-typed-hir-llvm-design.md`.
+
 ## Editor / LSP
 
 Parse diagnostics are available through a stdio language server:

@@ -17,8 +17,3 @@ fun main(): i32 {
         .any(|d| d.phase == Phase::Type));
 }
 
-#[test]
-fn mvp_sample_typechecks() {
-    let r = check(crate::MVP_SAMPLE);
-    assert!(r.is_ok(), "{:?}", r.err());
-}
