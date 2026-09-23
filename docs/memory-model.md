@@ -64,14 +64,14 @@ Parent A                         Child A'
 Everyday style — **expression** and **call-site** `move` (no extra braces):
 
 ```bork
-var s: String = "xxx"
-var x = move s
-
 fun f(var a: String, var b: String) {
     // a and b owned here
 }
 
 fun main() {
+    var s: String = "xxx"
+    var owned = move s
+
     var x: String = "X"
     var y: String = "Y"
     f(move x, move y)
@@ -83,6 +83,7 @@ Rules:
 - Non-Copy **`var`**: always write `move name` on assign RHS and call args when passing a **named binding**.
 - String literals and other **fresh expressions** into `var` parameters do **not** need `move` (e.g. `f("hello")`).
 - Bare `name: Type` params are **`val`**; use `var` when the callee should own.
+- Passing a non-Copy **`val`** into a `var` parameter also requires `move`.
 - `f(x)` with non-Copy **`var`** `x` is an error — use `f(move x)`.
 
 (`Int` and other Copy types do **not** need `move` to cross arenas — they **Copy**. Parent `val` of a non-Copy type may cross as **Shared** without `move`.)

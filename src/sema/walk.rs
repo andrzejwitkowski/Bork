@@ -94,8 +94,9 @@ fn walk_stmt(
             ty,
             value,
         } => {
-            check_transfer_rhs(az, value, *kind, Some(*name_span));
-            walk_expr(az, value, node);
+            if !check_transfer_rhs(az, value, *kind, node) {
+                walk_expr(az, value, node);
+            }
             let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
             shadows.push(shadow_insert(
                 az,
@@ -118,8 +119,9 @@ fn walk_stmt(
         }
         Stmt::Assign { name, name_span, value } => {
             note_use(az, name, Some(*name_span), node);
-            check_transfer_rhs(az, value, BindingKind::Var, Some(*name_span));
-            walk_expr(az, value, node);
+            if !check_transfer_rhs(az, value, BindingKind::Var, node) {
+                walk_expr(az, value, node);
+            }
         }
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
@@ -290,6 +292,10 @@ fn apply_expr_move(
         );
         return;
     };
+    if binding.ty.is_copy() {
+        note_use(az, name, span, node);
+        return;
+    }
     if binding.moved {
         az.error(
             format!(
@@ -301,7 +307,7 @@ fn apply_expr_move(
         );
         return;
     }
-    if binding.from_capture {
+    if binding.from_capture && binding.arena_id == node.id {
         az.error(
             format!("cannot move `{name}`: it was already moved into this region as a capture"),
             Some(name.into()),
@@ -313,8 +319,18 @@ fn apply_expr_move(
     if let Some(binding) = az.env.get_mut(name) {
         binding.moved = true;
     }
-    if let Some(b) = node.bindings.iter_mut().find(|b| b.name == name) {
-        b.ownership = Ownership::Moved { from };
+    if binding.arena_id == node.id {
+        if let Some(b) = node.bindings.iter_mut().find(|b| b.name == name) {
+            b.ownership = Ownership::Moved { from };
+        }
+    } else {
+        record_observation(
+            node,
+            name,
+            Ownership::Moved { from },
+            binding.ty.as_option(),
+            span,
+        );
     }
 }
 
@@ -322,26 +338,36 @@ fn check_transfer_rhs(
     az: &mut Analyzer,
     value: &Expr,
     dest_kind: BindingKind,
-    _span: Option<Span>,
-) {
+    node: &ArenaNode,
+) -> bool {
     let Expr::Ident { name, span } = value else {
-        return;
+        return false;
     };
     let Some(binding) = az.env.get(name) else {
-        return;
+        return false;
     };
     if binding.ty.is_copy() || binding.moved {
-        return;
+        return false;
     }
     let src_var = matches!(binding.kind, BindingKind::Var);
     let dest_var = matches!(dest_kind, BindingKind::Var);
     if src_var || dest_var {
+        let message = if src_var && binding.arena_id != node.id {
+            format!(
+                "`{name}` is not Copy; move it into `{}` with `move`",
+                node.label
+            )
+        } else {
+            format!("use `move {name}` to transfer ownership")
+        };
         az.error(
-            format!("use `move {name}` to transfer ownership"),
+            message,
             Some(name.clone()),
             Some(*span),
         );
+        return true;
     }
+    false
 }
 
 fn note_use(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaNode) {

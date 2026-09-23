@@ -685,6 +685,48 @@ fun main() {
 }
 
 #[test]
+fn expr_move_of_copy_keeps_source_usable() {
+    let src = r#"
+fun main() {
+    var n = 1
+    var m = move n
+    val t = n
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "Copy n must remain usable: {errs:?}");
+}
+
+#[test]
+fn expr_move_unknown_name_errors() {
+    let src = r#"
+fun main() {
+    var x = move missing
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert_eq!(errs.len(), 1, "{errs:?}");
+    assert!(errs[0].message.contains("unknown name `missing`"), "{errs:?}");
+}
+
+#[test]
+fn expr_move_already_moved_name_errors() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    var x = move s
+    var y = move s
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert_eq!(errs.len(), 1, "{errs:?}");
+    assert!(errs[0].message.contains("already moved"), "{errs:?}");
+}
+
+#[test]
 fn expr_move_rebinding_dump_shows_local_dest_and_moved_source() {
     let src = r#"
 fun main() {
@@ -717,6 +759,31 @@ fun main() {
     let text = dump_arenas(&report);
     assert!(text.contains("s [Moved"), "dump should show moved source:\n{text}");
     assert!(text.contains("x [Local]"), "dump should show local dest:\n{text}");
+}
+
+#[test]
+fn nested_expr_move_dump_shows_moved_source() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    {
+        var x = move s
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let nested = &report.roots[0].children[0];
+    assert!(
+        nested.observations.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Moved { .. })
+        }),
+        "nested move should be visible: {:?}",
+        nested.observations
+    );
+    let text = dump_arenas(&report);
+    assert!(text.contains("s [Moved"), "dump should show nested move:\n{text}");
 }
 
 #[test]
@@ -793,6 +860,22 @@ fun main() {
 }
 
 #[test]
+fn bare_var_decl_transfer_emits_one_diagnostic() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    {
+        var x = s
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert_eq!(errs.len(), 1, "transfer policy must not also diagnose: {errs:?}");
+    assert!(errs[0].message.contains("move"), "{errs:?}");
+}
+
+#[test]
 fn move_of_regional_capture_errors() {
     let src = r#"
 fun main() {
@@ -809,6 +892,28 @@ fun main() {
             .any(|e| e.message.contains("capture") || e.message.contains("already")),
         "second move of capture must error: {errs:?}"
     );
+}
+
+#[test]
+fn regional_capture_can_move_onward_into_nested_arena() {
+    let src = r#"
+fun main() {
+    var a: String = "A"
+    move (a) {
+        if (true) {
+            var t = move a
+        }
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (report, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+    let move_region = &report.roots[0].children[0];
+    let nested = &move_region.children[0];
+    assert!(nested.observations.iter().any(|b| {
+        b.name == "a" && matches!(b.ownership, Ownership::Moved { .. })
+    }));
 }
 
 #[test]
