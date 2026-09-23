@@ -77,7 +77,8 @@ ReturnType: Type = {
 };
 
 Param: Param = {
-    <name:SpannedIdent> ":" <ty:Type> => Param { name, ty },
+    <kind:Binding> <name:SpannedIdent> ":" <ty:Type> => Param { kind, name, ty },
+    <name:SpannedIdent> ":" <ty:Type> => Param { kind: BindingKind::Val, name, ty },
 };
 
 Type: Type = {
@@ -274,6 +275,10 @@ Atom: Expr = {
     <s:StrLit> => Expr::Str(s),
     "None" => Expr::None,
     "Some" "(" <e:Expr> ")" => Expr::Some(Box::new(e)),
+    "move" <id:SpannedIdent> => Expr::Move {
+        name: id.name,
+        span: id.span,
+    },
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,
         span: id.span,
