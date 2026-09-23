@@ -1,10 +1,10 @@
-use bork::{dump::dump_arenas, parse, sema::analyze};
+use bork::{dump::dump_arenas, frontend, parse, sema::analyze};
 use std::env;
 use std::fs;
 use std::process;
 
 fn usage(status: i32) -> ! {
-    let msg = "Usage: bork [--dump-arenas] <file.bork>";
+    let msg = "Usage: bork [check] [--dump-arenas] <file.bork>";
     if status == 0 {
         println!("{msg}");
     } else {
@@ -14,11 +14,13 @@ fn usage(status: i32) -> ! {
 }
 
 fn main() {
+    let mut check_cmd = false;
     let mut dump = false;
     let mut file: Option<String> = None;
 
     for arg in env::args().skip(1) {
         match arg.as_str() {
+            "check" if !check_cmd => check_cmd = true,
             "--dump-arenas" => dump = true,
             "-h" | "--help" => usage(0),
             other if other.starts_with('-') => {
@@ -34,6 +36,7 @@ fn main() {
             }
         }
     }
+    let _ = check_cmd;
 
     let Some(path) = file else {
         usage(2);
@@ -47,24 +50,22 @@ fn main() {
         }
     };
 
-    let program = match parse(&source) {
-        Ok(p) => p,
-        Err(err) => {
-            eprintln!("parse error: {err}");
-            process::exit(1);
-        }
-    };
+    let check_res = frontend::check(&source);
 
-    let (report, errors) = analyze(&program);
-    for err in &errors {
-        eprintln!("error: {}", err.message);
+    if let Err(ref diags) = check_res {
+        for diag in diags {
+            eprintln!("error: {:?}: {}", diag.phase, diag.message);
+        }
     }
 
     if dump {
-        print!("{}", dump_arenas(&report));
+        if let Ok(program) = parse(&source) {
+            let (report, _) = analyze(&program);
+            print!("{}", dump_arenas(&report));
+        }
     }
 
-    if !errors.is_empty() {
+    if check_res.is_err() {
         process::exit(1);
     }
 }
