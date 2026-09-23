@@ -1,8 +1,7 @@
 //! AST walk and region open for ownership checking.
 
 use super::env::{
-    apply_moved_merge, moved_names, restore_moved_flags, shadow_insert, Analyzer, EnvBinding,
-    Shadow, Ty,
+    apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, Shadow, Ty,
 };
 use super::peel_blocks;
 use super::policy::{classify_use, UseOutcome};
@@ -10,6 +9,7 @@ use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
 use crate::span::{Span, SpannedName};
+use std::collections::HashSet;
 
 pub(super) fn open_ordinary(
     az: &mut Analyzer,
@@ -98,17 +98,14 @@ fn walk_stmt(
                 walk_expr(az, value, node);
             }
             let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
-            shadows.push(shadow_insert(
+            shadows.push(bind_with(
                 az,
-                name.clone(),
-                EnvBinding {
-                    arena_id: node.id,
-                    arena_label: node.label.clone(),
-                    ty: inferred.clone(),
-                    kind: *kind,
-                    moved: false,
-                    from_capture: false,
-                },
+                name,
+                node.id,
+                &node.label,
+                inferred.clone(),
+                *kind,
+                false,
             ));
             node.bindings.push(BindingInfo {
                 name: name.clone(),
@@ -126,8 +123,7 @@ fn walk_stmt(
         Stmt::For { name, iter, body } => {
             walk_expr(az, iter, node);
             let before_moved = moved_names(&az.env);
-            let outer_names: std::collections::HashSet<String> =
-                az.env.keys().cloned().collect();
+            let outer_names: HashSet<String> = az.env.keys().cloned().collect();
             let params = [RegionParam {
                 name: name.name.clone(),
                 ty: Ty::Known(Type::from_ident("Int", false)),
@@ -140,21 +136,7 @@ fn walk_stmt(
                 body,
                 &params,
             ));
-            // A move of an outer binding inside the loop would already be spent
-            // on later iterations — reject at compile time.
-            for n in &outer_names {
-                let was = before_moved.contains(n);
-                let now = az.env.get(n).is_some_and(|b| b.moved);
-                if !was && now {
-                    az.error(
-                        format!(
-                            "cannot move `{n}` inside a loop: it would already be moved on later iterations"
-                        ),
-                        Some(n.clone()),
-                        Some(name.span),
-                    );
-                }
-            }
+            reject_outer_moves_in_loop(az, &outer_names, &before_moved, name.span);
         }
         Stmt::Return(Some(e)) => walk_expr(az, e, node),
         Stmt::Return(None) => {}
@@ -179,12 +161,12 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             trailing,
         } => {
             walk_expr(az, callee, node);
-            let formals: Option<Vec<(BindingKind, Type)>> = match callee.as_ref() {
+            let formals = match callee.as_ref() {
                 Expr::Ident { name, .. } => az.fun_sigs.get(name).cloned(),
                 _ => None,
             };
             for (i, a) in args.iter().enumerate() {
-                let formal = formals.as_ref().and_then(|f| f.get(i));
+                let formal = formals.as_ref().and_then(|f| f.get(i).copied());
                 check_call_arg(az, a, formal, node);
             }
             if let Some(c) = trailing {
@@ -242,13 +224,34 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
     }
 }
 
+fn reject_outer_moves_in_loop(
+    az: &mut Analyzer,
+    outer_names: &HashSet<String>,
+    before_moved: &HashSet<String>,
+    span: Span,
+) {
+    for n in outer_names {
+        let was = before_moved.contains(n);
+        let now = az.env.get(n).is_some_and(|b| b.moved);
+        if !was && now {
+            az.error(
+                format!(
+                    "cannot move `{n}` inside a loop: it would already be moved on later iterations"
+                ),
+                Some(n.clone()),
+                Some(span),
+            );
+        }
+    }
+}
+
 fn check_call_arg(
     az: &mut Analyzer,
     arg: &Expr,
-    formal: Option<&(BindingKind, Type)>,
+    formal: Option<BindingKind>,
     node: &mut ArenaNode,
 ) {
-    let Some((formal_kind, _)) = formal else {
+    let Some(formal_kind) = formal else {
         walk_expr(az, arg, node);
         return;
     };
@@ -273,7 +276,6 @@ fn check_call_arg(
                 note_use(az, name, Some(*span), node);
             }
         }
-        // Non-Ident args (literals, constructors, etc.) introduce owned values; move applies to named bindings only.
         _ => walk_expr(az, arg, node),
     }
 }
@@ -320,7 +322,6 @@ fn apply_expr_move(
         binding.moved = true;
     }
     if binding.arena_id == node.id {
-        // Shadowing: mark the most recently declared binding of this name.
         if let Some(b) = node.bindings.iter_mut().rev().find(|b| b.name == name) {
             b.ownership = Ownership::Moved { from };
         }
@@ -392,7 +393,6 @@ fn record_observation(
     ty: Option<Type>,
     span: Option<Span>,
 ) {
-    // Keep Shared and later Moved (distinct use sites) both visible in the dump.
     let dup = node.observations.iter().any(|x| {
         if x.name != name {
             return false;

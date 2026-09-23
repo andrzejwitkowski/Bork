@@ -12,10 +12,7 @@ pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
     for f in &program.functions {
         az.fun_sigs.insert(
             f.name.clone(),
-            f.params
-                .iter()
-                .map(|p| (p.kind, p.ty.clone()))
-                .collect(),
+            f.params.iter().map(|p| p.kind).collect(),
         );
     }
     let roots = program

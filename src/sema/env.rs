@@ -73,7 +73,7 @@ pub(super) struct Analyzer {
     pub(super) next_id: usize,
     pub(super) errors: Vec<SemaError>,
     pub(super) env: HashMap<String, EnvBinding>,
-    pub(super) fun_sigs: HashMap<String, Vec<(BindingKind, Type)>>,
+    pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
 }
 
 impl Analyzer {

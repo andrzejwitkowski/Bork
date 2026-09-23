@@ -85,8 +85,6 @@ fn collect_expr(
                 free.entry(name.clone()).or_insert(*span);
             }
         }
-        // Explicit `move name` must not become an inferred regional capture;
-        // `apply_expr_move` transfers the outer binding itself.
         Expr::Move { .. } => {}
         Expr::Some(e) => collect_expr(e, free, bound),
         Expr::Binary { lhs, rhs, .. } => {
