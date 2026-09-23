@@ -12,6 +12,7 @@ required-features = ["lsp"]
 [features]
 default = ["lsp"]
 lsp = ["dep:tower-lsp", "dep:tokio", "dep:serde_json"]
+codegen = []
 
 [dependencies]
 lalrpop-util = "0.23"

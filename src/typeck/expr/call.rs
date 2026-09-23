@@ -62,6 +62,7 @@ pub(super) fn check_call(
                     .iter()
                     .map(|arg| check(arg, None, return_ty, env))
                     .collect(),
+                has_trailing_closure: trailing.is_some(),
             },
             Ty::unknown(),
         );
@@ -129,6 +130,7 @@ pub(super) fn check_call(
                 span,
             )),
             args: checked_args,
+            has_trailing_closure: trailing.is_some(),
         },
         call_return_ty,
     )

@@ -129,6 +129,7 @@ pub enum HirExprKind {
     Call {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
+        has_trailing_closure: bool,
     },
     If {
         cond: Box<HirExpr>,

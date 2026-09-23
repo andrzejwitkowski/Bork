@@ -1,6 +1,8 @@
 pub mod arena;
 pub mod ast;
 mod builtins;
+#[cfg(feature = "codegen")]
+pub mod codegen;
 pub mod diag;
 pub mod dump;
 pub mod frontend;
