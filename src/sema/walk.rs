@@ -1,14 +1,17 @@
 //! AST walk and region open for ownership checking.
 
 use super::env::{
-    apply_moved_merge, moved_names, restore_moved_flags, shadow_insert, Analyzer, EnvBinding,
+    apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, BindingOrigin,
     Shadow, Ty,
 };
 use super::peel_blocks;
-use super::policy::{classify_use, UseOutcome};
+use super::policy::{
+    bare_ident_move_message, classify_use, move_source, report_move_source_err,
+    MoveSourceErr, TransferSink, UseOutcome,
+};
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::{Block, Expr, Stmt, Type};
+use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
 use crate::span::{Span, SpannedName};
 
 pub(super) fn open_ordinary(
@@ -94,18 +97,21 @@ fn walk_stmt(
             ty,
             value,
         } => {
-            walk_expr(az, value, node);
+            let sink = TransferSink::Binding {
+                dest: *kind,
+                arena_id: node.id,
+                arena_label: node.label.clone(),
+            };
+            walk(az, value, node, Some(&sink));
             let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
-            shadows.push(shadow_insert(
+            shadows.push(bind_with(
                 az,
-                name.clone(),
-                EnvBinding {
-                    arena_id: node.id,
-                    arena_label: node.label.clone(),
-                    ty: inferred.clone(),
-                    kind: *kind,
-                    moved: false,
-                },
+                name,
+                node.id,
+                &node.label,
+                inferred.clone(),
+                *kind,
+                BindingOrigin::Declared,
             ));
             node.bindings.push(BindingInfo {
                 name: name.clone(),
@@ -116,13 +122,21 @@ fn walk_stmt(
         }
         Stmt::Assign { name, name_span, value } => {
             note_use(az, name, Some(*name_span), node);
-            walk_expr(az, value, node);
+            let sink = TransferSink::Binding {
+                dest: BindingKind::Var,
+                arena_id: node.id,
+                arena_label: node.label.clone(),
+            };
+            walk(az, value, node, Some(&sink));
         }
         Stmt::For { name, iter, body } => {
-            walk_expr(az, iter, node);
+            walk(az, iter, node, None);
+            az.loop_move_ban
+                .push(az.env.keys().cloned().collect());
             let params = [RegionParam {
                 name: name.name.clone(),
                 ty: Ty::Known(Type::from_ident("Int", false)),
+                kind: BindingKind::Val,
                 span: Some(name.span),
             }];
             node.children.push(open_ordinary(
@@ -131,31 +145,65 @@ fn walk_stmt(
                 body,
                 &params,
             ));
+            az.loop_move_ban.pop();
         }
-        Stmt::Return(Some(e)) => walk_expr(az, e, node),
+        Stmt::Return(Some(e)) => walk(az, e, node, None),
         Stmt::Return(None) => {}
-        Stmt::Expr(e) => walk_expr(az, e, node),
+        Stmt::Expr(e) => walk(az, e, node, None),
     }
 }
 
-fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
+fn walk(
+    az: &mut Analyzer,
+    expr: &Expr,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+) {
     match expr {
-        Expr::Ident { name, span } => note_use(az, name, Some(*span), node),
-        Expr::Some(e) => walk_expr(az, e, node),
-        Expr::Binary { lhs, rhs, .. } => {
-            walk_expr(az, lhs, node);
-            walk_expr(az, rhs, node);
+        Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
+        Expr::Ident { name, span } => {
+            if let Some(sink) = transfer {
+                let Some(binding) = az.env.get(name) else {
+                    note_use(az, name, Some(*span), node);
+                    return;
+                };
+                if let Some(message) = bare_ident_move_message(binding, name, sink) {
+                    az.error(message, Some(name.clone()), Some(*span));
+                } else {
+                    note_use(az, name, Some(*span), node);
+                }
+            } else {
+                note_use(az, name, Some(*span), node);
+            }
         }
-        Expr::Unary { expr, .. } => walk_expr(az, expr, node),
-        Expr::Field { receiver, .. } => walk_expr(az, receiver, node),
+        Expr::Some(inner)
+        | Expr::Unary {
+            expr: inner,
+            ..
+        }
+        | Expr::Field {
+            receiver: inner, ..
+        } => walk(az, inner, node, transfer),
+        Expr::Binary { lhs, rhs, .. } => {
+            walk(az, lhs, node, transfer);
+            walk(az, rhs, node, transfer);
+        }
         Expr::Call {
             callee,
             args,
             trailing,
         } => {
-            walk_expr(az, callee, node);
-            for a in args {
-                walk_expr(az, a, node);
+            walk(az, callee, node, None);
+            let formals = match callee.as_ref() {
+                Expr::Ident { name, .. } => az.fun_sigs.get(name).cloned(),
+                _ => None,
+            };
+            for (i, a) in args.iter().enumerate() {
+                let arg_transfer = formals
+                    .as_ref()
+                    .and_then(|f| f.get(i).copied())
+                    .map(|formal| TransferSink::CallArg { formal });
+                walk(az, a, node, arg_transfer.as_ref());
             }
             if let Some(c) = trailing {
                 let params: Vec<RegionParam> = c
@@ -164,6 +212,7 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
                     .map(|p| RegionParam {
                         name: p.name.clone(),
                         ty: Ty::Unknown,
+                        kind: BindingKind::Val,
                         span: Some(p.span),
                     })
                     .collect();
@@ -186,7 +235,7 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             then_block,
             else_block,
         } => {
-            walk_expr(az, cond, node);
+            walk(az, cond, node, None);
             let before_moved = moved_names(&az.env);
             node.children
                 .push(open_ordinary(az, "IfThen", then_block, &[]));
@@ -208,6 +257,54 @@ fn walk_expr(az: &mut Analyzer, expr: &Expr, node: &mut ArenaNode) {
             );
         }
         Expr::Int(_) | Expr::Str(_) | Expr::None => {}
+    }
+}
+
+fn apply_expr_move(
+    az: &mut Analyzer,
+    name: &str,
+    span: Option<Span>,
+    node: &mut ArenaNode,
+) {
+    let Some(peek) = az.env.get(name).cloned() else {
+        report_move_source_err(az, name, MoveSourceErr::Unknown, span);
+        return;
+    };
+    if peek.ty.is_copy() {
+        note_use(az, name, span, node);
+        return;
+    }
+    let binding = match move_source(az, name) {
+        Ok(b) => b,
+        Err(e) => {
+            report_move_source_err(az, name, e, span);
+            return;
+        }
+    };
+    if matches!(binding.origin, BindingOrigin::Captured) && binding.arena_id == node.id {
+        az.error(
+            format!("cannot move `{name}`: it was already moved into this region as a capture"),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    let from = binding.arena_label.clone();
+    if let Some(binding) = az.env.get_mut(name) {
+        binding.moved = true;
+    }
+    if binding.arena_id == node.id {
+        if let Some(b) = node.bindings.iter_mut().rev().find(|b| b.name == name) {
+            b.ownership = Ownership::Moved { from };
+        }
+    } else {
+        record_observation(
+            node,
+            name,
+            Ownership::Moved { from },
+            binding.ty.as_option(),
+            span,
+        );
     }
 }
 
@@ -236,9 +333,9 @@ fn record_observation(
         if x.name != name {
             return false;
         }
-        match ownership {
-            Ownership::Local => matches!(x.ownership, Ownership::Local) && x.span == span,
-            _ => !matches!(x.ownership, Ownership::Local),
+        match (&ownership, &x.ownership) {
+            (Ownership::Local, Ownership::Local) => x.span == span,
+            (a, b) => std::mem::discriminant(a) == std::mem::discriminant(b),
         }
     });
     if dup {
@@ -259,7 +356,9 @@ fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
             name: "String".into(),
             nullable: false,
         }),
-        Expr::Ident { name, .. } => az.env.get(name).and_then(|b| b.ty.as_option()),
+        Expr::Ident { name, .. } | Expr::Move { name, .. } => {
+            az.env.get(name).and_then(|b| b.ty.as_option())
+        }
         Expr::Some(inner) => infer_type(az, inner).map(|ty| ty.with_nullable(true)),
         _ => None,
     }

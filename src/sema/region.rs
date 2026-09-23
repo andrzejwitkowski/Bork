@@ -1,7 +1,8 @@
 //! Region frame and move-capture resolution.
 
-use super::env::{bind, restore_shadows, Analyzer, Shadow, Ty};
+use super::env::{bind, bind_with, BindingOrigin, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
+use super::policy::{move_source, report_move_source_err};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block};
 use crate::span::{Span, SpannedName};
@@ -9,6 +10,7 @@ use crate::span::{Span, SpannedName};
 pub(super) struct RegionParam {
     pub(super) name: String,
     pub(super) ty: Ty,
+    pub(super) kind: BindingKind,
     pub(super) span: Option<Span>,
 }
 
@@ -43,7 +45,7 @@ impl RegionFrame {
             id,
             &label,
             param.ty.clone(),
-            BindingKind::Val,
+            param.kind,
         ));
         self.node.bindings.push(BindingInfo {
             name: param.name.clone(),
@@ -54,36 +56,33 @@ impl RegionFrame {
     }
 
     pub(super) fn bind_capture(&mut self, az: &mut Analyzer, cap: &SpannedName) {
-        match az.env.get(&cap.name).cloned() {
-            None => az.error(
-                format!("cannot move unknown name `{}`", cap.name),
-                Some(cap.name.clone()),
-                Some(cap.span),
-            ),
-            Some(b) if b.moved => az.error(
-                format!(
-                    "cannot move `{}`: already moved from {}",
-                    cap.name, b.arena_label
-                ),
-                Some(cap.name.clone()),
-                Some(cap.span),
-            ),
-            Some(b) => {
-                self.moved_parents.push(cap.name.clone());
-                let label = self.node.label.clone();
-                let id = self.node.id;
-                self.shadows
-                    .push(bind(az, &cap.name, id, &label, b.ty.clone(), BindingKind::Val));
-                self.node.bindings.push(BindingInfo {
-                    name: cap.name.clone(),
-                    ownership: Ownership::Moved {
-                        from: b.arena_label,
-                    },
-                    ty: b.ty.as_option(),
-                    span: Some(cap.span),
-                });
+        let binding = match move_source(az, &cap.name) {
+            Ok(b) => b,
+            Err(e) => {
+                report_move_source_err(az, &cap.name, e, Some(cap.span));
+                return;
             }
-        }
+        };
+        self.moved_parents.push(cap.name.clone());
+        let label = self.node.label.clone();
+        let id = self.node.id;
+        self.shadows.push(bind_with(
+            az,
+            &cap.name,
+            id,
+            &label,
+            binding.ty.clone(),
+            binding.kind,
+            BindingOrigin::Captured,
+        ));
+        self.node.bindings.push(BindingInfo {
+            name: cap.name.clone(),
+            ownership: Ownership::Moved {
+                from: binding.arena_label,
+            },
+            ty: binding.ty.as_option(),
+            span: Some(cap.span),
+        });
     }
 
     pub(super) fn finish(self, az: &mut Analyzer) -> ArenaNode {

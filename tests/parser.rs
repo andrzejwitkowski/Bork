@@ -31,6 +31,50 @@ fn parses_mvp_sample() {
 }
 
 #[test]
+fn parses_val_var_function_params() {
+    let prog = parse("fun f(val x: Int, var y: String): Int { return x }").expect("parse");
+    assert_eq!(prog.functions[0].params[0].kind, BindingKind::Val);
+    assert_eq!(prog.functions[0].params[1].kind, BindingKind::Var);
+}
+
+#[test]
+fn bare_param_defaults_to_val() {
+    let prog = parse("fun f(x: Int): Int { return x }").expect("parse");
+    assert_eq!(prog.functions[0].params[0].kind, BindingKind::Val);
+}
+
+#[test]
+fn parses_move_expression_in_var_decl() {
+    let prog = parse(
+        r#"fun main() {
+    var s: String = "hi"
+    var x = move s
+}"#,
+    )
+    .expect("parse");
+    let Stmt::VarDecl { value, .. } = &prog.functions[0].body.stmts[1] else {
+        panic!("expected second var decl");
+    };
+    assert!(matches!(value, Expr::Move { name, .. } if name == "s"));
+}
+
+#[test]
+fn parses_move_expression_as_call_arg() {
+    let prog = parse(
+        r#"fun sink(var s: String): Int { return 0 }
+fun main() {
+    var s: String = "hi"
+    sink(move s)
+}"#,
+    )
+    .expect("parse");
+    let Stmt::Expr(Expr::Call { args, .. }) = &prog.functions[1].body.stmts[1] else {
+        panic!("expected call");
+    };
+    assert!(matches!(&args[0], Expr::Move { name, .. } if name == "s"));
+}
+
+#[test]
 fn function_param_names_have_spans() {
     let src = "fun add(x: Int, y: Int): Int { return x + y }";
     let prog = parse(src).expect("parse");

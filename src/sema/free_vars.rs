@@ -85,6 +85,7 @@ fn collect_expr(
                 free.entry(name.clone()).or_insert(*span);
             }
         }
+        Expr::Move { .. } => {}
         Expr::Some(e) => collect_expr(e, free, bound),
         Expr::Binary { lhs, rhs, .. } => {
             collect_expr(lhs, free, bound);

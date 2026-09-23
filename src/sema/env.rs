@@ -5,6 +5,12 @@ use crate::ast::{BindingKind, Type};
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BindingOrigin {
+    Declared,
+    Captured,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Ty {
     Known(Type),
@@ -38,6 +44,7 @@ pub(super) struct EnvBinding {
     pub(super) ty: Ty,
     pub(super) kind: BindingKind,
     pub(super) moved: bool,
+    pub(super) origin: BindingOrigin,
 }
 
 pub(super) fn moved_names(env: &HashMap<String, EnvBinding>) -> HashSet<String> {
@@ -72,6 +79,9 @@ pub(super) struct Analyzer {
     pub(super) next_id: usize,
     pub(super) errors: Vec<SemaError>,
     pub(super) env: HashMap<String, EnvBinding>,
+    pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
+    /// Outer names banned from moves while inside each enclosing `for`.
+    pub(super) loop_move_ban: Vec<HashSet<String>>,
 }
 
 impl Analyzer {
@@ -80,6 +90,8 @@ impl Analyzer {
             next_id: 0,
             errors: Vec::new(),
             env: HashMap::new(),
+            fun_sigs: HashMap::new(),
+            loop_move_ban: Vec::new(),
         }
     }
 
@@ -101,6 +113,20 @@ impl Analyzer {
             span,
         });
     }
+
+    pub(super) fn move_banned_in_loop(&self, name: &str) -> bool {
+        self.loop_move_ban.iter().any(|s| s.contains(name))
+    }
+
+    pub(super) fn error_move_in_loop(&mut self, name: &str, span: Option<Span>) {
+        self.error(
+            format!(
+                "cannot move `{name}` inside a loop: it would already be moved on later iterations"
+            ),
+            Some(name.to_string()),
+            span,
+        );
+    }
 }
 
 pub(super) struct Shadow(pub(super) String, pub(super) Option<EnvBinding>);
@@ -118,6 +144,26 @@ pub(super) fn bind(
     ty: Ty,
     kind: BindingKind,
 ) -> Shadow {
+    bind_with(
+        az,
+        name,
+        arena_id,
+        arena_label,
+        ty,
+        kind,
+        BindingOrigin::Declared,
+    )
+}
+
+pub(super) fn bind_with(
+    az: &mut Analyzer,
+    name: &str,
+    arena_id: usize,
+    arena_label: &str,
+    ty: Ty,
+    kind: BindingKind,
+    origin: BindingOrigin,
+) -> Shadow {
     shadow_insert(
         az,
         name.to_string(),
@@ -127,6 +173,7 @@ pub(super) fn bind(
             ty,
             kind,
             moved: false,
+            origin,
         },
     )
 }

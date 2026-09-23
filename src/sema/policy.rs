@@ -1,8 +1,9 @@
-//! Cross-arena use classification for ownership checking.
+//! Cross-arena use classification and move / transfer policy.
 
-use super::env::EnvBinding;
+use super::env::{Analyzer, EnvBinding};
 use super::report::Ownership;
 use crate::ast::BindingKind;
+use crate::span::Span;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum UseOutcome {
@@ -41,11 +42,93 @@ pub(super) fn classify_use(
     }
 }
 
+#[derive(Clone)]
+pub(super) enum TransferSink {
+    Binding {
+        dest: BindingKind,
+        arena_id: usize,
+        arena_label: String,
+    },
+    CallArg { formal: BindingKind },
+}
+
+pub(super) fn bare_ident_move_message(
+    binding: &EnvBinding,
+    name: &str,
+    sink: &TransferSink,
+) -> Option<String> {
+    if binding.ty.is_copy() || binding.moved {
+        return None;
+    }
+    let counterpart_var = match sink {
+        TransferSink::Binding { dest, .. } => matches!(dest, BindingKind::Var),
+        TransferSink::CallArg { formal } => matches!(formal, BindingKind::Var),
+    };
+    let src_var = matches!(binding.kind, BindingKind::Var);
+    if !(src_var || counterpart_var) {
+        return None;
+    }
+    Some(match sink {
+        TransferSink::Binding {
+            arena_id,
+            arena_label,
+            ..
+        } if src_var && binding.arena_id != *arena_id => {
+            format!("`{name}` is not Copy; move it into `{arena_label}` with `move`")
+        }
+        TransferSink::CallArg { .. } => format!("use `move {name}` to pass ownership"),
+        _ => format!("use `move {name}` to transfer ownership"),
+    })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum MoveSourceErr {
+    Unknown,
+    AlreadyMoved { from: String },
+    InLoop,
+}
+
+pub(super) fn move_source(az: &Analyzer, name: &str) -> Result<EnvBinding, MoveSourceErr> {
+    let Some(binding) = az.env.get(name).cloned() else {
+        return Err(MoveSourceErr::Unknown);
+    };
+    if binding.moved {
+        return Err(MoveSourceErr::AlreadyMoved {
+            from: binding.arena_label,
+        });
+    }
+    if az.move_banned_in_loop(name) {
+        return Err(MoveSourceErr::InLoop);
+    }
+    Ok(binding)
+}
+
+pub(super) fn report_move_source_err(
+    az: &mut Analyzer,
+    name: &str,
+    err: MoveSourceErr,
+    span: Option<Span>,
+) {
+    match err {
+        MoveSourceErr::Unknown => az.error(
+            format!("cannot move unknown name `{name}`"),
+            Some(name.into()),
+            span,
+        ),
+        MoveSourceErr::AlreadyMoved { from } => az.error(
+            format!("cannot move `{name}`: already moved from {from}"),
+            Some(name.into()),
+            span,
+        ),
+        MoveSourceErr::InLoop => az.error_move_in_loop(name, span),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ast::{BindingKind, Type};
-    use super::super::env::Ty;
+    use super::super::env::{BindingOrigin, Ty};
 
     fn binding(arena_id: usize, ty: Ty, kind: BindingKind, moved: bool) -> EnvBinding {
         EnvBinding {
@@ -54,6 +137,7 @@ mod tests {
             ty,
             kind,
             moved,
+            origin: BindingOrigin::Declared,
         }
     }
 
@@ -121,5 +205,51 @@ mod tests {
             classify_use(&b, 1, "Block", "s"),
             UseOutcome::Error { .. }
         ));
+    }
+
+    #[test]
+    fn bare_var_into_val_binding_needs_move() {
+        let b = binding(
+            0,
+            Ty::Known(Type::Named {
+                name: "String".into(),
+                nullable: false,
+            }),
+            BindingKind::Var,
+            false,
+        );
+        let msg = bare_ident_move_message(
+            &b,
+            "s",
+            &TransferSink::Binding {
+                dest: BindingKind::Val,
+                arena_id: 0,
+                arena_label: "fun main".into(),
+            },
+        );
+        assert!(msg.unwrap().contains("move"));
+    }
+
+    #[test]
+    fn bare_val_into_val_binding_ok() {
+        let b = binding(
+            0,
+            Ty::Known(Type::Named {
+                name: "String".into(),
+                nullable: false,
+            }),
+            BindingKind::Val,
+            false,
+        );
+        assert!(bare_ident_move_message(
+            &b,
+            "s",
+            &TransferSink::Binding {
+                dest: BindingKind::Val,
+                arena_id: 0,
+                arena_label: "fun main".into(),
+            },
+        )
+        .is_none());
     }
 }

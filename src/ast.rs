@@ -13,6 +13,7 @@ pub struct Function {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
+    pub kind: BindingKind,
     pub name: crate::span::SpannedName,
     pub ty: Type,
 }
@@ -126,6 +127,10 @@ pub enum Expr {
     Int(i64),
     Str(String),
     Ident {
+        name: String,
+        span: crate::span::Span,
+    },
+    Move {
         name: String,
         span: crate::span::Span,
     },
