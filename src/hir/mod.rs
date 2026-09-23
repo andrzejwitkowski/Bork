@@ -43,8 +43,9 @@ pub struct HirBlock {
 #[derive(Debug, Clone, PartialEq)]
 pub enum HirStmt {
     Return {
-        value: HirExpr,
+        value: Option<HirExpr>,
     },
+    Block(HirBlock),
     VarDecl {
         kind: ast::BindingKind,
         name: String,

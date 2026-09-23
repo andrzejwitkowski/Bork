@@ -7,6 +7,7 @@ pub mod hir;
 mod layout;
 pub mod sema;
 pub mod span;
+pub mod typeck;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 

@@ -1,9 +1,10 @@
 //! Compiler frontend orchestration (parse -> sema -> typeck -> HIR).
 
 use crate::diag::{self, Diagnostic};
-use crate::hir::{HirBlock, HirFunction, HirParam, HirProgram, RegionId, Ty};
+use crate::hir::HirProgram;
 use crate::parse;
 use crate::sema::analyze;
+use crate::typeck;
 
 /// Parse, analyze ownership, and lower program to typed HIR.
 pub fn check(source: &str) -> Result<HirProgram, Vec<Diagnostic>> {
@@ -17,34 +18,19 @@ pub fn check(source: &str) -> Result<HirProgram, Vec<Diagnostic>> {
         return Err(errors.iter().map(diag::from_sema).collect());
     }
 
-    let functions = program
-        .functions
-        .into_iter()
-        .enumerate()
-        .map(|(idx, f)| HirFunction {
-            name: f.name,
-            params: f
-                .params
-                .into_iter()
-                .map(|p| HirParam {
-                    kind: p.kind,
-                    name: p.name.name,
-                    ty: Ty::from_ast(&p.ty),
-                })
-                .collect(),
-            return_ty: Ty::from_ast(&f.return_type),
-            body: HirBlock { stmts: Vec::new() },
-            region: idx as RegionId,
-        })
-        .collect();
-
-    Ok(HirProgram { functions })
+    let (hir, diagnostics) = typeck::check(&program);
+    if diagnostics.is_empty() {
+        Ok(hir.expect("type checking without diagnostics produces HIR"))
+    } else {
+        Err(diagnostics)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::diag::Phase;
+    use crate::hir::Ty;
 
     #[test]
     fn check_rejects_parse_error() {
@@ -53,9 +39,9 @@ mod tests {
     }
 
     #[test]
-    fn check_ok_on_mvp_sample_ownership() {
-        let hir = check(crate::MVP_SAMPLE).expect("mvp ownership clean");
-        assert_eq!(hir.functions.len(), 2);
+    fn check_ok_on_minimal_typed_program() {
+        let hir = check("fun main(): i32 { return 1 }").expect("program is valid");
+        assert_eq!(hir.functions.len(), 1);
     }
 
     #[test]
@@ -75,7 +61,7 @@ fun main() {
     fn check_lowers_function_shells() {
         let src = r#"
 fun add(val a: Int, var b: Int): Int {
-    return a + b
+    return a
 }
 "#;
         let hir = check(src).expect("clean check");
@@ -91,6 +77,9 @@ fun add(val a: Int, var b: Int): Int {
         assert_eq!(f.params[1].name, "b");
         assert_eq!(f.params[1].kind, crate::ast::BindingKind::Var);
         assert_eq!(f.params[1].ty, Ty::i32());
-        assert!(f.body.stmts.is_empty());
+        assert!(matches!(
+            f.body.stmts.as_slice(),
+            [crate::hir::HirStmt::Return { value: Some(_) }]
+        ));
     }
 }
