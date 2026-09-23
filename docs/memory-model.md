@@ -59,26 +59,176 @@ Parent A                         Child A'
      binding S invalid                 only S' is usable
 ```
 
-### The `move` keyword
+## How to transfer ownership (`move`)
 
-Transfer ownership into a child block or trailing closure (typical for `var`, or to consume a `val`):
+Everyday style — **expression** and **call-site** `move` (no extra braces):
 
 ```bork
-move (user, score) {
-    // user and score live here; parent names are Moved
+var s: String = "xxx"
+var x = move s
+
+fun f(var a: String, var b: String) {
+    // a and b owned here
 }
 
-action(1, 2) move (acc) { x, y ->
-    acc + x + y
-}
-
-// Omit the capture list to move every parent local the body references:
-action(1, 2) move { x, y ->
-    acc + x + y
+fun main() {
+    var x: String = "X"
+    var y: String = "Y"
+    f(move x, move y)
 }
 ```
 
-The compiler enforces: non-Copy **`var`** values may not be observed from a child arena without `move`. Parent **`val`** may be Shared. After a move, using the parent name is an error.
+Rules:
+
+- Non-Copy **`var`**: always write `move name` on assign RHS and call args when passing a **named binding**.
+- String literals and other **fresh expressions** into `var` parameters do **not** need `move` (e.g. `f("hello")`).
+- Bare `name: Type` params are **`val`**; use `var` when the callee should own.
+- `f(x)` with non-Copy **`var`** `x` is an error — use `f(move x)`.
+
+(`Int` and other Copy types do **not** need `move` to cross arenas — they **Copy**. Parent `val` of a non-Copy type may cross as **Shared** without `move`.)
+
+### Regional `move (…)` / `move { … }`
+
+Regional `move (a, b) { … }` is for **multi-capture** blocks and **trailing closures** after a call. Names in the capture list are already Local inside — do **not** write `var t = move a` for those.
+
+The examples below use two non-Copy locals:
+
+```bork
+var a: String = "A"
+var b: String = "B"
+```
+
+Each regional shape works as a **statement block** or as a **trailing closure** after a call.
+
+### 1. Explicit capture list — `move (…)`
+
+Name exactly what leaves the parent. Listed names become **Moved** in the parent; they live in the child arena.
+
+```bork
+move (a, b) {
+    // a and b are Local here
+    val x = a
+}
+// val y = a  → error: use after move
+// val z = b  → error: use after move
+```
+
+Move only one:
+
+```bork
+move (a) {
+    val x = a
+}
+// a is Moved; b is still live in the parent
+val keep = b
+```
+
+### 2. Explicit empty list — `move ()`
+
+No inference. Nothing is moved. Useful when you want a move-region *shape* without consuming parents (or to opt out of inference).
+
+```bork
+move () {
+    // a and b stay in the parent
+    // val t = a  → error: var String is not Copy; need `move` or use a `val`
+}
+```
+
+Same idea on a trailing closure:
+
+```bork
+action(1, 2) move () { x, y ->
+    x + y
+}
+```
+
+### 3. Omitted list — `move { … }` (inference)
+
+Omit `(…)` entirely. The compiler moves every **live, non-Copy** parent local that the body **references** (free vars). Copy bindings are skipped. Names never mentioned stay put.
+
+```bork
+move {
+    val t = a
+    // only `a` is referenced → only `a` is Moved; `b` stays live
+}
+val still_ok = b
+```
+
+Both:
+
+```bork
+move {
+    val x = a
+    val y = b
+}
+```
+
+Trailing closure with inference:
+
+```bork
+action(1, 2) move { x, y ->
+    // references `a` → moves `a` (and any other non-Copy free locals used here)
+    a
+}
+```
+
+### Statement block vs trailing closure
+
+| Form | Statement | After a call |
+|------|-----------|--------------|
+| Explicit | `move (a, b) { … }` | `f(…) move (a, b) { params -> … }` |
+| Empty | `move () { … }` | `f(…) move () { params -> … }` |
+| Inferred | `move { … }` | `f(…) move { params -> … }` |
+
+Ordinary (non-`move`) nested `{ … }` and non-`move` closures do **not** transfer ownership. A child reading a parent **`var`** of a non-Copy type is an error unless you `move` it. A child reading a parent **`val`** non-Copy is **Shared**.
+
+### Loops
+
+A `for` body runs many times at runtime, but ownership of an **outer** binding can be transferred only once. Moving a name that lives **outside** the loop is a compile error:
+
+```bork
+var a: String = "A"
+for (i in 1..10) {
+    move {
+        val t = a   // error: cannot move `a` inside a loop
+    }
+}
+```
+
+Moving something **created inside** the loop body is fine — each iteration gets a fresh local:
+
+```bork
+for (i in 1..10) {
+    var a: String = "A"
+    move (a) {
+        val t = a
+    }
+}
+```
+
+### What is *not* a move
+
+| Situation | What happens |
+|-----------|----------------|
+| Read parent `val` non-Copy in a child | **Shared** — parent stays live |
+| Read parent Copy (`Int`, …) in a child | **Copy** — parent stays live |
+
+### Quick reference with `a` and `b`
+
+```bork
+fun main() {
+    var a: String = "A"
+    var b: String = "B"
+
+    move (a) {            // explicit: only a
+        val x = a
+    }
+    // b still usable
+    move {
+        val y = b         // inferred: moves b
+    }
+}
+```
 
 ## Nested braces
 
