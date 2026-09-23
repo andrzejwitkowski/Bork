@@ -5,7 +5,7 @@ mod call;
 mod control;
 mod field;
 
-use crate::ast::{BinOp, Expr, UnaryOp};
+use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
 use crate::span::Span;
 
@@ -138,6 +138,8 @@ fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) ->
         UseKind::Move
     } else if ty.is_copy() {
         UseKind::Copy
+    } else if binding.kind == BindingKind::Val {
+        UseKind::Shared
     } else {
         UseKind::Local
     };

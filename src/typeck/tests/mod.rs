@@ -194,6 +194,78 @@ fun main(): String {
 }
 
 #[test]
+fn parent_val_string_read_in_nested_block_is_shared() {
+    let src = r#"
+fun main(): i32 {
+    val s: String = "hi"
+    {
+        s
+    }
+    return 0
+}
+"#;
+    let hir = hir_of(src);
+    let HirStmt::Block(block) = &hir.functions[0].body.stmts[1] else {
+        panic!("expected a nested block");
+    };
+    assert!(matches!(
+        block.stmts.as_slice(),
+        [HirStmt::Expr(HirExpr {
+            kind: HirExprKind::Ident {
+                use_kind: UseKind::Shared,
+                ..
+            },
+            ..
+        })]
+    ));
+}
+
+#[test]
+fn var_string_read_is_local() {
+    let src = r#"
+fun main(): i32 {
+    var s: String = "hi"
+    s
+    return 0
+}
+"#;
+    let hir = hir_of(src);
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::Expr(HirExpr {
+            kind: HirExprKind::Ident {
+                use_kind: UseKind::Local,
+                ..
+            },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn move_val_string_is_move() {
+    let src = r#"
+fun main(): String {
+    val s: String = "hi"
+    return move s
+}
+"#;
+    let hir = hir_of(src);
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::Return {
+            value: Some(HirExpr {
+                kind: HirExprKind::Ident {
+                    use_kind: UseKind::Move,
+                    ..
+                },
+                ..
+            })
+        }
+    ));
+}
+
+#[test]
 fn hir_exprs_carry_their_type_and_span() {
     let src = r#"
 fun main(): i32 {

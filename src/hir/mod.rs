@@ -13,6 +13,7 @@ use crate::span::Span;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseKind {
     Local,
+    Shared,
     Copy,
     Move,
 }
