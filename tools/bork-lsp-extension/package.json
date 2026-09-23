@@ -24,7 +24,7 @@
     ],
     "commands": [
       {
-        "command": "bork.dumpArenas",
+        "command": "bork.dumpArenasView",
         "title": "Bork: Dump Arenas"
       }
     ]

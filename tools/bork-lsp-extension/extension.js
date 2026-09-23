@@ -24,7 +24,7 @@ function activate(context) {
   arenasChannel = vscode.window.createOutputChannel("Bork Arenas");
   context.subscriptions.push(arenasChannel);
 
-  const dumpCmd = vscode.commands.registerCommand("bork.dumpArenas", async () => {
+  const dumpCmd = vscode.commands.registerCommand("bork.dumpArenasView", async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== "bork") {
       vscode.window.showWarningMessage("Open a .bork file to dump arenas.");
