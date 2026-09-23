@@ -5,6 +5,11 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { serverOptions } = require("../server");
+const manifest = require("../package.json");
+const extensionSource = fs.readFileSync(
+  path.join(__dirname, "..", "extension.js"),
+  "utf8",
+);
 
 const workspace = () => fs.mkdtempSync(path.join(os.tmpdir(), "bork-lsp-"));
 
@@ -29,4 +34,12 @@ test("falls back to Cargo when the workspace server is missing", () => {
   assert.equal(options.command, "cargo");
   assert.deepEqual(options.args, ["run", "--quiet", "--bin", "bork-lsp"]);
   assert.equal(options.options.cwd, root);
+});
+
+test("keeps the UI command separate from the LSP execute command", () => {
+  const uiCommand = manifest.contributes.commands[0].command;
+
+  assert.equal(uiCommand, "bork.dumpArenasView");
+  assert.match(extensionSource, /registerCommand\("bork\.dumpArenasView"/);
+  assert.match(extensionSource, /command: "bork\.dumpArenas"/);
 });
