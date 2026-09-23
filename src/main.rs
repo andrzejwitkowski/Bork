@@ -95,6 +95,10 @@ fn build_command(args: Vec<String>) -> ! {
         usage(2);
     };
     let output = output.unwrap_or_else(|| PathBuf::from(&path).with_extension(""));
+    if paths_overlap(&path, &output) {
+        eprintln!("error: output path would overwrite input file");
+        process::exit(2);
+    }
     run_build(&path, &output)
 }
 
@@ -121,6 +125,16 @@ fn run_build(path: &str, output: &std::path::Path) -> ! {
 fn run_build(_path: &str, _output: &std::path::Path) -> ! {
     eprintln!("error: `bork build` requires bork to be compiled with the `codegen` feature");
     process::exit(2);
+}
+
+fn paths_overlap(input: &str, output: &std::path::Path) -> bool {
+    if std::path::Path::new(input) == output {
+        return true;
+    }
+    match (fs::canonicalize(input), fs::canonicalize(output)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 fn read_source(path: &str) -> String {

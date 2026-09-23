@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use std::ffi::c_void;
 use std::io::{self, Write};
 use std::slice;

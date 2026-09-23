@@ -52,7 +52,11 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     | BinOp::Ne
                     | BinOp::RangeTo
             ) {
-                reject(diagnostics, "`?:` is not supported by codegen", expr.span);
+                reject(
+                    diagnostics,
+                    unsupported_binary_message(op),
+                    expr.span,
+                );
             }
             gate_expr(lhs, diagnostics);
             gate_expr(rhs, diagnostics);
@@ -110,6 +114,13 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             );
             gate_expr(receiver, diagnostics);
         }
+    }
+}
+
+fn unsupported_binary_message(op: &BinOp) -> &'static str {
+    match op {
+        BinOp::Elvis => "`?:` is not supported by codegen",
+        _ => "this binary operator is not supported by codegen",
     }
 }
 

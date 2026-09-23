@@ -178,6 +178,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         match stmt {
             HirStmt::Return { value } => self.emit_return(value.as_ref()),
             HirStmt::Block(body) => self.emit_region(RegionSite::Block, body, None).map(drop),
+            // MoveBlock captures are enforced by sema; codegen only opens the move region.
             HirStmt::MoveBlock { body, .. } => self
                 .emit_region(RegionSite::MoveBlock, body, None)
                 .map(drop),

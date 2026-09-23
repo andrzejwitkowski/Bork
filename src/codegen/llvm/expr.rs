@@ -41,11 +41,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .expect("locals only hold lowerable types");
                 let value = self.cx.builder.build_load(ty, slot.ptr, name)?;
                 if *use_kind == UseKind::Move && value.is_struct_value() {
-                    return Ok(Some(
-                        self.copy_into_arena(value.into_struct_value())?.into(),
-                    ));
+                    Ok(Some(self.copy_into_arena(value.into_struct_value())?.into()))
+                } else {
+                    // Shared/Local/Copy: load the slot (string descriptors copy by value).
+                    Ok(Some(value))
                 }
-                Ok(Some(value))
             }
             HirExprKind::Binary { op, lhs, rhs } => self
                 .emit_binary(op, lhs, rhs, expr)

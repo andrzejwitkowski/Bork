@@ -33,7 +33,7 @@ jobs:
         run: cargo test --workspace --verbose
 
       - name: Test without LSP feature
-        run: cargo test --no-default-features --verbose
+        run: cargo test --workspace --no-default-features --verbose
 
       - name: Build bork-lsp
         run: cargo build --bin bork-lsp --verbose
