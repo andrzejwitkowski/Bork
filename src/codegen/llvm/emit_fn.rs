@@ -82,16 +82,17 @@ pub fn emit_function<'a, 'ctx>(
         llvm_fn,
         scopes: vec![HashMap::new()],
         alloc_sink: None,
+        function_arena: None,
     };
-    for (param, value) in function.params.iter().zip(llvm_fn.get_param_iter()) {
-        emitter.declare_local(&param.name, &param.ty, value)?;
-    }
-
     let body = emitter
         .regions
         .enter_function(&function.name, &function.body)
         .map_err(schedule_error)?;
     emitter.check_arena()?;
+    emitter.function_arena = emitter.regions.sink_mut().current();
+    for (param, value) in function.params.iter().zip(llvm_fn.get_param_iter()) {
+        emitter.declare_local(&param.name, &param.ty, value)?;
+    }
     emitter.emit_stmts(body, None)?;
     emitter.exit_region()?;
     if !cx.current_block_terminated() {
@@ -114,6 +115,8 @@ pub(super) struct FnEmitter<'s, 'r, 'a, 'ctx> {
     pub llvm_fn: FunctionValue<'ctx>,
     scopes: Vec<HashMap<String, Slot<'ctx>>>,
     alloc_sink: Option<PointerValue<'ctx>>,
+    /// Function-body arena handle; stable for the whole emit even when sibling branches return.
+    function_arena: Option<PointerValue<'ctx>>,
 }
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
@@ -293,7 +296,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let return_ty = &self.function.return_ty;
         let prev = self.alloc_sink;
         if return_ty.is_string() {
-            self.alloc_sink = self.regions.sink_mut().root();
+            self.alloc_sink = self.function_arena;
         }
         let value = match value {
             Some(value) if *return_ty != Ty::unit() => Some(self.emit_value(value, return_ty)?),
@@ -345,7 +348,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .ok_or_else(|| not_yet_supported(&format!("local of type `{ty}`"), None))?;
         let ptr = self.entry_alloca(llvm_ty, name)?;
         self.cx.builder.build_store(ptr, value)?;
-        let home_arena = self.sink_arena();
+        let home_arena = if ty.is_string() {
+            self.sink_arena()
+        } else {
+            self.function_arena
+                .expect("function arena is set before locals are declared")
+        };
         self.scopes.last_mut().expect("function scope").insert(
             name.to_owned(),
             Slot {
