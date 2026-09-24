@@ -10,7 +10,7 @@ Bork manages memory with **hierarchical arenas** tied to curly-brace regions (`{
 - Loop bodies reset their arena each iteration so memory stays O(1) across iterations (same slab, no pool round-trip required).
 - Cross-region data flow uses **Copy** (primitives), **Shared** (parent `val` reads), or **Move** (`var` / explicit consume / escape). No dangling pointers into a dead arena.
 
-The 4 KB size matches common OS/database **page** granularity so hot working sets stay cache-friendly when LLVM codegen lands.
+The 4 KB size matches common OS/database **page** granularity so hot working sets stay cache-friendly in native codegen (`codegen` feature).
 
 ## Stack / registers vs arenas
 
@@ -275,61 +275,73 @@ In Cursor/VS Code with the Bork extension:
 - Hover a binding for arena + ownership
 - Command **Bork: Dump Arenas** (`bork.dumpArenas`) prints the same ASCII tree
 
-## What comes next
+## Native codegen and region schedule
 
-LLVM codegen uses per-region bump arenas (`bork_runtime`, optional `codegen` feature). Ownership and arena layout are validated in `sema`; see `src/codegen/regions.rs` for the region schedule.
+With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Ownership and arena layout are validated in `sema`; `src/codegen/regions.rs` walks HIR in lockstep with the arena report. The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, no general `&` / borrow-checker** model.
 
-## TODO: allocation without redundant cross-region copies
+## Assign-up, sink allocation, and escape
 
-Planned compiler behavior (not all implemented yet). Goal: keep the **no-GC, no general `&` / borrow-checker** model while avoiding hot-path `memcpy` when a value’s **owner** already lives in a longer region.
+Goal: owned payload for a **sink** (assignment target, `return`, or builtin `concat`) is bumped in that sink’s arena even when the expression is evaluated lexically inside a shorter-lived child region. Sema, codegen, hoist, `promote`, and `escape::place` cooperate on this; see also [language.md](language.md) for surface rules.
 
-### 1. Assign-up (mutate outer `var` from inner region)
+### Assign-up (mutate outer `var` from inner region)
 
-- **Rule:** `outer.x = rhs` (or `outer = rhs`) where `outer` / `x` is bound in an **ancestor** arena is **mutation of the outer binding**, not “use of outer `var` inside the child” (no false “move into `Block`” on the LHS).
-- **Sema:** treat assign to a binding in a strictly older region as allowed for `var`; RHS still checked for move/Copy as today.
-- **Status:** partial — field-read / capture fixes exist; assign-up in `sema/walk.rs` (done).
+- **Rule:** `outer = rhs` (or field assign to an outer `var`) where `outer` is bound in an **ancestor** arena is **mutation of the outer binding**, not “use of outer `var` inside the child” (no false “move into `Block`” on the LHS).
+- **Sema:** assign to a binding in a strictly older region is allowed for `var`; the RHS is still checked for move/Copy. The RHS transfer sink is the **outer binding’s arena** (`sema/walk.rs`).
 
-### 2. Sink allocation (allocate the **assignment result** in the sink arena)
+```bork
+var outer = "a"
+{
+    var inner = "b"
+    outer = move inner
+}
+```
 
-- **Rule:** for `sink = rhs`, owned payload of the **value stored in `sink`** is bumped in **`arena(sink)`**, even if evaluation runs lexically inside a child `{ … }`.
-- **Not:** “every allocation anywhere in `rhs` uses the sink arena” (that would bloat the parent with expression junk — see call temps below).
-- **Codegen:** thread an `AllocArena` (or equivalent) through expression lowering when emitting the RHS of an assign whose destination binding is in an older region.
-- **Examples:**
-  - `outer.x = "literal"` inside a child block → string bytes (or descriptor target) in `outer`’s arena.
-  - `outer.x = build()` → **return value** of `build` in `outer`’s arena; internals of `build` use `build`’s own region.
+### Sink allocation (`alloc_sink`)
 
-### 3. Call / expression temporaries (e.g. `concat`)
+- **Rule:** for `sink = rhs`, `return expr`, or `concat(…)` used as that value, owned **String** bytes for the result are allocated in **`arena(sink)`** while lowering runs, even inside a nested `{ … }`.
+- **Not:** every sub-expression in `rhs` uses the sink (that would bloat the parent with temporaries). Only the **stored/returned** owned value uses the sink; callee bodies keep their own regions.
+- **Codegen:** `alloc_sink` on `FnEmitter` — set to the destination slot’s `home_arena` on assign, function root arena on `return`, and the active sink during `concat` (`emit_fn`, `expr`).
 
-- **Rule:** scratch buffers inside a call or compound expression use a **short-lived** allocation context (call frame, inner expr scope, or current region), then are discarded on completion.
-- **Only** the final value written to the assign sink (or returned) uses **sink allocation** (§2).
-- **Example:** `outer.x = concat(a, b)` in a child block — `a`/`b` read via Copy/Shared; concat workspaces reset with the call/temp scope; result string in `arena(outer.x)`.
+Examples:
 
-### 4. Escape hoisting (init locals in the arena they **definitely** escape to)
+- `outer = "literal"` in a child block → descriptor target in `outer`’s arena.
+- `return move s` at function scope → bytes in the function return sink (root arena).
+- `return t` after `val t = move s` in the same function is rejected by escape analysis (descriptor still names the function body arena; use `return move t` or return a parameter/literal).
 
-- **Problem:** `var inner_s = …` in a child, later `outer = inner_s` — naive codegen allocates in the child then **copies** to `outer` on move/assign.
-- **Rule:** after a **function or block** analysis pass, if a binding’s **only** non-local use is a **definite move** into a known outer binding (same function, no conflicting uses), set **`alloc_site(binding) = escape_arena(binding)`** (e.g. parent of the declaring block) so initialization already runs in that arena.
-- **Requires:** use-def / escape info (not a full Rust-style borrow checker); second pass or deferred choice at end of block.
-- **Limits:** conditional escape (`if` only one branch assigns out), use-after-assign in child, multiple sinks, loops (fresh `inner_s` per iteration), and closures — hoist only when **definite**; otherwise keep child arena + explicit **`promote`** (§5).
+### `concat`
 
-### 5. `promote` (explicit escape for **existing** values)
+- Builtin `concat(a, b)` allocates **one** result buffer in the current sink arena (two `memcpy` from arguments). No separate call-scoped temp arena type yet; argument strings are read in place (Copy/Shared/move as usual).
+- Typical use: `outer = concat(left, right)` in a child block → result in `outer`’s arena.
 
-- **Rule:** `promote(expr)` — deep-relocate owned arena payload (e.g. `String`, future structs) into a chosen **ancestor** arena (typically immediate parent or `arena(sink)`), then **invalidate** the source binding (move semantics). For values already built in a shorter region.
-- **When:** assign-up + sink allocation + hoisting do not apply (value already materialized in the wrong arena).
-- **Syntax / keyword:** TBD; may overlap with extending `move` for “upward” escape.
+### Hoist (`hoist::annotate`)
 
-### 6. What we are **not** planning here
+- **Problem:** `var inner = …` in a child, then `outer = move inner` — without hoist, initialization runs in the child arena and move copies on assign.
+- **Implemented pattern:** linear siblings in one block — `var inner = <hoistable init>` immediately followed by `outer = move inner`, where `outer` is already in scope (parameter or earlier `var`). HIR sets `alloc_in_binding` on `inner` so codegen initializes in `outer`’s arena (`hoist.rs`).
+- **Hoistable inits:** string literals and calls (including `concat`) today.
+- **Not hoisted:** conditional escape, loops, closures, multiple sinks, or `outer` not visible — use **`promote`** or restructure.
+
+### `promote`
+
+- **Syntax:** `promote name` (expression).
+- **Rule:** deep-relocate owned payload into the arena of an outer **`var`** you are assigning to, then invalidate the source (move semantics). Valid only when sema provides an assign **transfer sink** into that outer binding.
+- **Not implemented:** `promote` on `return` (return is not a sema sink); use `return move …` for owned strings.
+
+### Escape analysis (`escape::place`)
+
+- After typecheck, `frontend::check` runs `escape::place` (same rules as codegen `alloc_sink` for strings). Diagnostics use phase **Ownership** (LSP sees them without `codegen`).
+- Rejects, among others: assigning a string built in an inner region to an outer `var` without sink/hoist/promote, `if` branches that yield a moved string as the `if` value, and returning a local `String` without `move` when bytes would still name an inner region.
+
+## Not planned (and not on the roadmap here)
 
 - General **`&` / `&mut`** and field-stored references across regions (Rust-like borrow checking).
 - Implicit deep copy on every cross-region read (use **Shared** for parent `val`, **move** / **promote** for ownership).
 - Storing borrows from a **child** arena into a **parent** field (parent must own bytes in its arena or observe parent `val` via **Shared**).
 
-### 7. Implementation checklist
+## Still open
 
-| Item | Area | Notes |
-|------|------|--------|
-| Assign-up sema for `var` in ancestor | `sema` | done — LHS assign ≠ transfer sink on outer `var` |
-| `alloc_sink` on assign/return/`concat` | `codegen` | done — `emit_fn` + `expr` |
-| Call-scoped temp arenas | `codegen` | N/A for `concat` (single alloc) |
-| `hoist::annotate` | `hoist.rs` + HIR `alloc_in_binding` | done (linear sibling pattern) |
-| `promote` surface syntax + deep relocate | `sema`, `codegen` | assign to an outer `var` only; `return` is not a sink |
-| Escape `place` in `frontend::check` | `escape.rs` | matches `alloc_sink`; returning a local `String` without `move` is an error |
+| Topic | Notes |
+|-------|--------|
+| Call-scoped temp arenas | General calls may still allocate scratch in the current region; only sink results and `concat` are specialized today. |
+| `promote` on `return` | Would need a return transfer sink in sema + codegen. |
+| Hoist beyond linear siblings | Use-def / definite escape for more patterns; else `promote`. |
+| `memcpy` elision | When hoist or sink already placed bytes in the target arena. |
