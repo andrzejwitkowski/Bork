@@ -1,6 +1,10 @@
-# Bork  Bork 
+<p align="center">
+  <img src="assets/bork-logo.png" alt="Bork" width="280">
+</p>
 
-> *A high-performance, native systems programming language with Kotlin-like expressive syntax, region-based memory management, and zero GC. When your code is invalid... the compiler borks.*
+<p align="center">
+  <em>A high-performance, native systems programming language with Kotlin-like expressive syntax, region-based memory management, and zero GC. When your code is invalid... the compiler borks.</em>
+</p>
 
 ---
 
