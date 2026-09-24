@@ -236,17 +236,16 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
 }
 
 #[test]
-fn build_rejects_returning_moved_string() {
-    let dir = scratch_dir("build_rejects_returning_moved_string");
-    let source = "fun mk(): String {\n    var s = \"esc\"\n    return move s\n}\n\
+fn build_rejects_returning_string_from_inner_region() {
+    let dir = scratch_dir("build_rejects_returning_string_from_inner_region");
+    let source = "fun mk(): String {\n    var s = \"esc\"\n    {\n        val x = move s\n        return x\n    }\n}\n\
                   fun main() {\n    println(mk())\n}\n";
     let (build, binary) = bork_build(&dir, source);
     let stderr = String::from_utf8_lossy(&build.stderr);
 
     assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
-    assert!(stderr.contains("codegen"), "stderr: {stderr}");
     assert!(
-        stderr.contains("returning a moved `String`"),
+        stderr.contains("inner region"),
         "stderr: {stderr}"
     );
     assert!(!binary.exists());
