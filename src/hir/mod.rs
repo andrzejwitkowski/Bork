@@ -4,7 +4,6 @@
 //! `sema::ArenaReport`; codegen should read region identity from there.
 
 mod ty;
-
 pub use ty::{Prim, Ty, TyKind};
 
 use crate::ast;
@@ -106,8 +105,24 @@ pub enum HirExprKind {
     Int {
         value: i64,
     },
+    Float {
+        value: f64,
+    },
     Str {
         value: String,
+    },
+    ArrayLit {
+        elements: Vec<HirExpr>,
+    },
+    Index {
+        receiver: Box<HirExpr>,
+        index: Box<HirExpr>,
+        use_kind: UseKind,
+    },
+    Slice {
+        receiver: Box<HirExpr>,
+        lo: Box<HirExpr>,
+        hi: Box<HirExpr>,
     },
     Ident {
         name: String,

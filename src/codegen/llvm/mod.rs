@@ -1,6 +1,7 @@
 //! Inkwell (LLVM 18) emission for the codegen subset.
 
 mod arena;
+mod array;
 mod context;
 mod emit_fn;
 mod expr;

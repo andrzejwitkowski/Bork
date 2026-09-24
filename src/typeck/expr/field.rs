@@ -14,9 +14,12 @@ pub(super) fn check_field(
     env: &mut Env<'_>,
 ) -> HirExpr {
     let receiver = check(receiver, None, return_ty, env);
-    let result_ty = if receiver.ty.is_string() && name == "length" {
+    let result_ty = if receiver.ty.uses_arena_storage() && name == "length" {
         if receiver.ty.is_nullable() && !safe {
-            env.error("field access on nullable `String?` requires `?.`", Some(span));
+            env.error(
+                "field access on a nullable type requires `?.`",
+                Some(span),
+            );
         }
         Ty::i32().with_nullable(safe && receiver.ty.is_nullable())
     } else {

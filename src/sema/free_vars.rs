@@ -85,7 +85,10 @@ fn collect_expr(
                 free.entry(name.clone()).or_insert(*span);
             }
         }
-        Expr::Move { .. } | Expr::Promote { .. } => {}
+        // Operand of `move name` is transferred by the expression itself, not by
+        // inferred `move { }` capture at block entry.
+        Expr::Move { .. } => {}
+        Expr::Promote { .. } => {}
         Expr::Some { expr, .. } => collect_expr(expr, free, bound),
         Expr::Binary { lhs, rhs, .. } => {
             collect_expr(lhs, free, bound);
@@ -129,6 +132,23 @@ fn collect_expr(
                 collect_block(e, free, &mut bound.clone());
             }
         }
-        Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
+        Expr::Float(_)
+        | Expr::Int(_)
+        | Expr::Str(_)
+        | Expr::None { .. } => {}
+        Expr::ArrayLit { elements, .. } => {
+            for element in elements {
+                collect_expr(element, free, bound);
+            }
+        }
+        Expr::Index { receiver, index, .. } => {
+            collect_expr(receiver, free, bound);
+            collect_expr(index, free, bound);
+        }
+        Expr::Slice { receiver, lo, hi, .. } => {
+            collect_expr(receiver, free, bound);
+            collect_expr(lo, free, bound);
+            collect_expr(hi, free, bound);
+        }
     }
 }

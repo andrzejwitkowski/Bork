@@ -35,7 +35,28 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
 
 fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
     match &expr.kind {
-        HirExprKind::Int { .. } | HirExprKind::Str { .. } | HirExprKind::Ident { .. } => {}
+        HirExprKind::Int { .. }
+        | HirExprKind::Float { .. }
+        | HirExprKind::Str { .. }
+        | HirExprKind::Ident { .. } => {}
+        HirExprKind::ArrayLit { elements } => {
+            for element in elements {
+                gate_expr(element, diagnostics);
+            }
+        }
+        HirExprKind::Index {
+            receiver,
+            index,
+            use_kind: _,
+        } => {
+            gate_expr(receiver, diagnostics);
+            gate_expr(index, diagnostics);
+        }
+        HirExprKind::Slice { receiver, lo, hi } => {
+            gate_expr(receiver, diagnostics);
+            gate_expr(lo, diagnostics);
+            gate_expr(hi, diagnostics);
+        }
         HirExprKind::Binary { op, lhs, rhs } => {
             if !matches!(
                 op,
@@ -105,12 +126,14 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             );
             gate_expr(inner, diagnostics);
         }
-        HirExprKind::Field { receiver, .. } => {
-            reject(
-                diagnostics,
-                "field access is not supported by codegen",
-                expr.span.or(receiver.span),
-            );
+        HirExprKind::Field { receiver, name, .. } => {
+            if name != "length" || !receiver.ty.uses_arena_storage() {
+                reject(
+                    diagnostics,
+                    "field access is not supported by codegen",
+                    expr.span.or(receiver.span),
+                );
+            }
             gate_expr(receiver, diagnostics);
         }
     }

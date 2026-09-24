@@ -95,6 +95,22 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
 
 pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {
     match ty {
+        Type::Array { nullable, .. } if *nullable => {
+            diagnostics.push(Diagnostic {
+                phase: Phase::Type,
+                severity: Severity::Error,
+                message: "nullable array types `[T]?` are not supported".into(),
+                span: None,
+            });
+            Ty::unknown()
+        }
+        Type::Array { elem, len, .. } => Ty::new(
+            TyKind::Array {
+                elem: Box::new(lower_type(elem, diagnostics)),
+                len: *len,
+            },
+            false,
+        ),
         Type::Named { name, .. } if name != "String" => {
             diagnostics.push(Diagnostic {
                 phase: Phase::Type,

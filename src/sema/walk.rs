@@ -194,6 +194,20 @@ fn walk(
             walk(az, inner, node, transfer)
         }
         Expr::Field { receiver: inner, .. } => walk(az, inner, node, None),
+        Expr::ArrayLit { elements, .. } => {
+            for element in elements {
+                walk(az, element, node, transfer);
+            }
+        }
+        Expr::Index { receiver, index, .. } => {
+            walk(az, receiver, node, None);
+            walk(az, index, node, None);
+        }
+        Expr::Slice { receiver, lo, hi, .. } => {
+            walk(az, receiver, node, None);
+            walk(az, lo, node, None);
+            walk(az, hi, node, None);
+        }
         Expr::Binary { lhs, rhs, .. } => {
             walk(az, lhs, node, transfer);
             walk(az, rhs, node, transfer);
@@ -266,7 +280,7 @@ fn walk(
                 else_moved.as_ref(),
             );
         }
-        Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
+        Expr::Float(_) | Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
 }
 
@@ -449,7 +463,7 @@ fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
             name: "String".into(),
             nullable: false,
         }),
-        Expr::Ident { name, .. } | Expr::Move { name, .. } | Expr::Promote { name, .. } => {
+        Expr::Ident { name, .. } | Expr::Promote { name, .. } => {
             az.env.get(name).and_then(|b| b.ty.as_option())
         }
         Expr::Some { expr: inner, .. } => {

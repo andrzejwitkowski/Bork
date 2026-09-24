@@ -22,6 +22,11 @@ pub struct Param {
 pub enum Type {
     Primitive { name: String, nullable: bool },
     Named { name: String, nullable: bool },
+    Array {
+        elem: Box<Type>,
+        len: u32,
+        nullable: bool,
+    },
     Func {
         params: Vec<Type>,
         ret: Box<Type>,
@@ -73,6 +78,11 @@ impl Type {
         match self {
             Type::Primitive { name, .. } => Type::Primitive { name, nullable },
             Type::Named { name, .. } => Type::Named { name, nullable },
+            Type::Array { elem, len, .. } => Type::Array {
+                elem,
+                len,
+                nullable,
+            },
             Type::Func { params, ret, .. } => Type::Func {
                 params,
                 ret,
@@ -125,7 +135,23 @@ pub enum Stmt {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Int(i64),
+    Float(f64),
     Str(String),
+    ArrayLit {
+        elements: Vec<Expr>,
+        span: crate::span::Span,
+    },
+    Index {
+        receiver: Box<Expr>,
+        index: Box<Expr>,
+        span: crate::span::Span,
+    },
+    Slice {
+        receiver: Box<Expr>,
+        lo: Box<Expr>,
+        hi: Box<Expr>,
+        span: crate::span::Span,
+    },
     Ident {
         name: String,
         span: crate::span::Span,

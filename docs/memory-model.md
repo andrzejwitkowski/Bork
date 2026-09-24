@@ -326,6 +326,13 @@ Examples:
 - **Rule:** deep-relocate owned payload into the arena of an outer **`var`** you are assigning to, then invalidate the source (move semantics). Valid only when sema provides an assign **transfer sink** into that outer binding.
 - **Not implemented:** `promote` on `return` (return is not a sema sink); returning moved or concatenated strings is not supported yet.
 
+### Arrays `[T; N]`
+
+- Surface types carry the length **N**; runtime shape is still a descriptor `{ ptr, len }` with `len == N` for values of that type. Elements live in a contiguous buffer in the array value’s home arena (the arena active when the array was created, or the assign sink for `outer = …`).
+- **Whole-array** `move` / `promote` / assignment requires the same `[T; N]` on both sides.
+- **Slice** `a[lo..hi]` with compile-time literal bounds has type `[T; hi - lo]`. Codegen uses that **N** as the descriptor length and points into the same buffer (no copy). It does not emit a runtime bounds abort: typeck already rejected a slice that does not fit in the receiver. Escape rules treat the slice like the receiver array: it must not outlive the arena that owns the buffer.
+- **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts. There is no per-slot `move` or index assignment.
+
 ### Escape analysis (`escape::place`)
 
 - After typecheck, `frontend::check` runs `escape::place` (same rules as codegen `alloc_sink` for strings). Diagnostics use phase **Ownership** (LSP sees them without `codegen`).
