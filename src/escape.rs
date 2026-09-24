@@ -109,36 +109,7 @@ impl<'h> Escape<'h, '_> {
                         value.span,
                     );
                 }
-                let concat = match &value.kind {
-                    HirExprKind::Call { callee, .. } => matches!(
-                        &callee.kind,
-                        HirExprKind::Ident { name, .. }
-                            if builtins::resolve(name) == Some(Builtin::Concat)
-                    ),
-                    _ => false,
-                };
-                if concat {
-                    reject(
-                        self.diagnostics,
-                        "returning the result of `concat` is not supported yet: returned \
-                         `String` bytes must outlive the callee arena",
-                        value.span,
-                    );
-                }
-                if matches!(
-                    &value.kind,
-                    HirExprKind::Ident {
-                        use_kind: UseKind::Move | UseKind::Promote,
-                        ..
-                    }
-                ) {
-                    reject(
-                        self.diagnostics,
-                        "returning a moved or promoted `String` is not supported yet: use \
-                         `return s` for parameters and locals, or return a string literal",
-                        value.span,
-                    );
-                }
+                self.check_return_string_form(value);
             }
             HirStmt::Return { value: None } => {}
             HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => {
@@ -185,6 +156,66 @@ impl<'h> Escape<'h, '_> {
                 self.region(body, false, None);
             }
         }
+    }
+
+    fn check_return_string_form(&mut self, expr: &'h HirExpr) {
+        if expr.ty.is_string() && Self::is_concat_call(expr) {
+            reject(
+                self.diagnostics,
+                "returning the result of `concat` is not supported yet: returned \
+                 `String` bytes must outlive the callee arena",
+                expr.span,
+            );
+            return;
+        }
+        if Self::is_moved_or_promoted_string(expr) {
+            reject(
+                self.diagnostics,
+                "returning a moved or promoted `String` is not supported yet: use \
+                 `return s` for parameters and locals, or return a string literal",
+                expr.span,
+            );
+            return;
+        }
+        if let HirExprKind::If {
+            then_block,
+            else_block,
+            ..
+        } = &expr.kind
+        {
+            self.check_return_string_in_block(then_block);
+            if let Some(else_block) = else_block {
+                self.check_return_string_in_block(else_block);
+            }
+        }
+    }
+
+    fn check_return_string_in_block(&mut self, block: &'h HirBlock) {
+        let block = peel_blocks(block);
+        if let Some(HirStmt::Expr(expr)) = block.stmts.last() {
+            self.check_return_string_form(expr);
+        }
+    }
+
+    fn is_concat_call(expr: &HirExpr) -> bool {
+        matches!(
+            &expr.kind,
+            HirExprKind::Call { callee, .. } if matches!(
+                &callee.kind,
+                HirExprKind::Ident { name, .. }
+                    if builtins::resolve(name) == Some(Builtin::Concat)
+            )
+        )
+    }
+
+    fn is_moved_or_promoted_string(expr: &HirExpr) -> bool {
+        matches!(
+            &expr.kind,
+            HirExprKind::Ident {
+                use_kind: UseKind::Move | UseKind::Promote,
+                ..
+            } if expr.ty.is_string()
+        )
     }
 
     /// Depth of the arena that holds `expr`'s string bytes.
@@ -345,6 +376,22 @@ mod tests {
         assert_rejects(
             "fun main() {\n    var s = \"a\"\n    val c = 1\n    val t = if (c > 0) { move s } else { \"b\" }\n    println(t)\n}\n",
             "moved inside an `if` branch",
+        );
+    }
+
+    #[test]
+    fn rejects_return_if_branch_yielding_concat() {
+        let result = crate::frontend::check(
+            "fun f(c: i32): String {\n    return if (c > 0) { concat(\"a\", \"b\") } else { \"x\" }\n}\nfun main() {}\n",
+        );
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.phase == Phase::Ownership
+                    && d.message.contains("concat")
+                    && d.message.contains("not supported")
+            }),
+            "{:?}",
+            result.diagnostics
         );
     }
 

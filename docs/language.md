@@ -207,7 +207,7 @@ If **all** of this is true:
 
 then the compiler builds `piece` **directly in `outer`'s arena** on the first line. The second line is then mostly bookkeeping, not a second full copy of the characters.
 
-This optimization does **not** apply if there is a gap between the lines, if `outer` is not visible yet, if you are inside `if`/`for` logic the pass does not handle, and so on. Then you either accept the extra copy or use `promote` (rule 4).
+This optimization does **not** apply if there is a gap between the lines, if `outer` is not visible yet, if you are inside `if`/`for` logic the pass does not handle, and so on. Then the characters are built in the child's pool and copied into `outer`'s pool on `move` (or you assign with `promote`, which performs that copy explicitly — it does not skip the copy).
 
 ### When a temporary `inner` helps, and when it is pointless
 
@@ -237,14 +237,14 @@ Here `piece` names a non-trivial value. Rule 3 may initialize `piece` **already 
 
 **`move` is not “zero-copy” by definition.** For `String` it always ends ownership of the source and, when needed, copies bytes into the pool chosen for the assignment (rule 2). What people call zero-copy here is an **effect** of rule 2 (assign straight to `outer`) or rule 3 (build the temporary in `outer`'s pool), not a separate meaning of the `move` keyword.
 
-The compiler does **not** look at the whole function and infer “`inner` only exists to feed `outer`”. It only recognizes the **two adjacent lines** in rule 3. If you separate the lines, rename variables, or put logic between them, you pay the extra copy unless you use `promote` (rule 4).
+The compiler does **not** look at the whole function and infer “`inner` only exists to feed `outer`”. It only recognizes the **two adjacent lines** in rule 3. If you separate the lines, rename variables, or put logic between them, you pay a full copy from the child pool into `outer`'s pool (`move` on assign, or `promote`).
 
 | You write | Typical outcome |
 |---|---|
 | `outer = "x"` inside `{ }` | No `inner`; result follows rule 2 |
 | `var inner = "x"` then next line `outer = move inner` | `inner` optional; rule 3 may avoid building `"x"` in the child pool |
 | `var piece = concat(...)` then next line `outer = move piece` | `piece` is the usual style; rule 3 avoids concat in child + copy up |
-| `var piece = concat(...)` … later … `outer = move piece` | Full copy up unless you `promote` |
+| `var piece = concat(...)` … later … `outer = move piece` | Copy from child pool to `outer` (`move` or `promote` on assign) |
 
 ### Rule 4 — `promote` when the value already exists in the wrong pool
 
@@ -274,20 +274,22 @@ These messages show up as **Ownership** in the editor even if you never run `bor
 ### One worked example
 
 ```bork
-fun pack(left: String, right: String): String {
+fun main() {
     var out = "prefix"
+    var left = "L"
+    var right = "R"
     {
         var piece = concat(left, right)
         out = move piece
     }
-    return out
+    println(out)
 }
 ```
 
-- `out` belongs to the function body; its characters live in the function's arena.
-- Inside `{ }`, `concat` produces the result. Because the next line is `out = move piece` and `out` is known, rule 3 may place `piece`'s buffer in `out`'s arena from the start.
-- `return out` is fine: `out` was never tied to the inner block's pool alone.
-- `return concat(left, right)` would be rejected under rule 5.
+- `out` belongs to the function body; its slot outlives the inner `{ }`.
+- Inside the block, `concat` builds the result. Because the next line is `out = move piece` and `out` is already in scope, rule 3 may place `piece`'s buffer in `out`'s pool from the start instead of building in the child pool and copying up.
+- Returning a `String` from a user function after arena-backed updates like this is still limited (rule 5): there is no caller-owned return buffer yet, so stick to `return name` for parameters, `return "literal"`, or keep the value in `main` as here.
+- `return if (c > 0) { concat("a", "b") } else { "x" }` is rejected: a branch-local `concat` cannot be returned even when the other arm is a literal.
 
 ### What is not implemented yet
 
