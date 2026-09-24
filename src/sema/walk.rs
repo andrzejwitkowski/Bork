@@ -53,9 +53,6 @@ fn open_frame(
     captures: &[SpannedName],
 ) -> ArenaNode {
     let id = az.alloc_id();
-    if label.starts_with("fun ") {
-        az.function_arena_id = Some(id);
-    }
     let mut frame = RegionFrame::new(id, label, compacted);
     for p in params {
         frame.bind_param(az, p);
@@ -273,8 +270,6 @@ fn walk(
     }
 }
 
-
-
 fn apply_expr_promote(
     az: &mut Analyzer,
     name: &str,
@@ -288,7 +283,7 @@ fn apply_expr_promote(
         ..
     }) = transfer else {
         az.error(
-            "`promote` is only valid when assigning to or returning through an outer region",
+            "`promote` is only valid when assigning to a binding in an outer region",
             Some(name.into()),
             span,
         );
@@ -320,7 +315,7 @@ fn apply_expr_promote(
     if peek.arena_id <= *sink_id {
         az.error(
             format!(
-                "`promote {name}` cannot lift into `{sink_label}`: value already lives in that                  arena or further out"
+                "`promote {name}` cannot lift into `{sink_label}`: value already lives in that arena or further out"
             ),
             Some(name.into()),
             span,

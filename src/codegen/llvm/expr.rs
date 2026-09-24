@@ -101,7 +101,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .const_named_struct(&[global.as_pointer_value().into(), len.into()]))
     }
 
-    /// `move` of a string copies its bytes into the innermost open arena.
+    /// `move` of a string copies its bytes into the current sink arena.
     fn copy_into_arena(
         &mut self,
         source: StructValue<'ctx>,
@@ -243,11 +243,17 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         };
         let callees = self.callees;
         let Some(&(target, function)) = callees.get(name.as_str()) else {
-            if let ([arg], true) = (args, builtins::is_print(name)) {
-                return self.emit_print(arg, name == "println").map(|()| None);
-            }
-            if builtins::is_concat(name) {
-                return self.emit_concat(args, expr).map(Some);
+            match (builtins::resolve(name), args) {
+                (Some(builtins::Builtin::Print), [arg]) => {
+                    return self.emit_print(arg, false).map(|()| None);
+                }
+                (Some(builtins::Builtin::Println), [arg]) => {
+                    return self.emit_print(arg, true).map(|()| None);
+                }
+                (Some(builtins::Builtin::Concat), _) => {
+                    return self.emit_concat(args, expr).map(Some);
+                }
+                _ => {}
             }
             return Err(not_yet_supported(
                 &format!("calls to `{name}`"),
@@ -265,9 +271,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let call = self.cx.builder.build_call(target, &args, "call")?;
         Ok(call.try_as_basic_value().basic())
     }
-
-    /// Strings go to `bork_print*_str` as bytes + length; integers are widened to `i64`.
-
 
     fn emit_concat(
         &mut self,
@@ -332,6 +335,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(out.into_struct_value().into())
     }
 
+    /// Strings go to `bork_print*_str` as bytes + length; integers are widened to `i64`.
     fn emit_print(&mut self, arg: &HirExpr, newline: bool) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let builder = &cx.builder;

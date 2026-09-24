@@ -1,17 +1,16 @@
 //! Rejects `String` values whose bytes would outlive the arena that holds them.
 //!
-//! `move` of a String copies its bytes into the innermost open arena, and every arena pops
-//! when its region ends. A String therefore carries the depth of the region it was copied in
-//! (`0` for `.rodata` literals and caller-owned parameters); it must not reach a consumer
-//! outside that region. Region depths mirror `RegionEmitter`, including its block peeling.
+//! `place` is the same rule as codegen `alloc_sink`: `move`, `promote`, and `concat` land in
+//! the consumer's sink when one is set, otherwise in the current region. A plain load keeps
+//! the depth already stored on the binding. Region depths mirror `RegionEmitter`, including
+//! block peeling.
 
 use std::collections::HashMap;
 
-use crate::diag::Diagnostic;
+use crate::builtins::{self, Builtin};
+use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, UseKind};
-
-use super::gate::reject;
-use super::regions::peel_blocks;
+use crate::span::Span;
 
 pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>) {
     let params = function
@@ -30,7 +29,24 @@ pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>)
         scopes: vec![params],
         diagnostics,
     };
-    escape.region(&function.body, false);
+    escape.region(&function.body, false, None);
+}
+
+fn peel_blocks(block: &HirBlock) -> &HirBlock {
+    let mut current = block;
+    while let [HirStmt::Block(inner)] = current.stmts.as_slice() {
+        current = inner;
+    }
+    current
+}
+
+fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
+    diagnostics.push(Diagnostic {
+        phase: Phase::Ownership,
+        severity: Severity::Error,
+        message: message.to_owned(),
+        span,
+    });
 }
 
 #[derive(Clone, Copy)]
@@ -46,8 +62,8 @@ struct Escape<'h, 'd> {
 }
 
 impl<'h> Escape<'h, '_> {
-    fn region(&mut self, body: &'h HirBlock, yields: bool) -> usize {
-        let (body, _) = peel_blocks(body);
+    fn region(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
+        let body = peel_blocks(body);
         self.depth += 1;
         self.scopes.push(HashMap::new());
         let mut value = 0;
@@ -57,12 +73,12 @@ impl<'h> Escape<'h, '_> {
             }
             match last {
                 HirStmt::Expr(expr) if yields => {
-                    value = self.expr(expr);
-                    if value == self.depth && expr.ty.is_string() {
+                    value = self.place(expr, sink);
+                    if sink.is_none() && value == self.depth && expr.ty.is_string() {
                         reject(
                             self.diagnostics,
-                            "a `String` moved inside an `if` branch cannot be its value in \
-                             codegen: the branch's arena is freed when the branch ends",
+                            "a `String` moved inside an `if` branch cannot be its value: \
+                             the branch's arena is freed when the branch ends",
                             expr.span,
                         );
                     }
@@ -72,27 +88,31 @@ impl<'h> Escape<'h, '_> {
         }
         self.scopes.pop();
         self.depth -= 1;
-        value.min(self.depth)
+        if sink.is_some() {
+            value
+        } else {
+            value.min(self.depth)
+        }
     }
 
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                if self.expr(value) > 0 && value.ty.is_string() {
+                if value.ty.is_string() && self.place(value, Some(0)) > 0 {
                     reject(
                         self.diagnostics,
-                        "returning a moved `String` is not supported by codegen: its bytes live \
-                         in this function's arena, which is freed on return",
+                        "returning a `String` whose bytes live in an inner region is not \
+                         supported: that arena is freed before the value is returned",
                         value.span,
                     );
                 }
             }
             HirStmt::Return { value: None } => {}
             HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => {
-                self.region(body, false);
+                self.region(body, false, None);
             }
             HirStmt::VarDecl { name, value, .. } => {
-                let value_depth = self.expr(value);
+                let value_depth = self.place(value, None);
                 let local = Local {
                     decl_depth: self.depth,
                     value_depth,
@@ -103,58 +123,72 @@ impl<'h> Escape<'h, '_> {
                     .insert(name, local);
             }
             HirStmt::Assign { name, value } => {
-                let value_depth = self.expr(value);
+                let target = self
+                    .lookup(name)
+                    .map(|local| local.decl_depth)
+                    .unwrap_or(0);
+                let value_depth = self.place(value, Some(target));
                 let Some(local) = self.lookup_mut(name) else {
                     return;
                 };
-                let outlives = value_depth > local.decl_depth;
-                local.value_depth = value_depth.min(local.decl_depth);
+                let outlives = value_depth > target;
+                local.value_depth = value_depth.min(target);
                 if outlives && value.ty.is_string() {
                     reject(
                         self.diagnostics,
                         &format!(
                             "assigning a `String` moved in an inner region to `{name}` is not \
-                             supported by codegen: its arena is freed before `{name}` goes out \
-                             of scope"
+                             supported: its arena is freed before `{name}` goes out of scope"
                         ),
                         value.span,
                     );
                 }
             }
             HirStmt::Expr(expr) => {
-                self.expr(expr);
+                self.place(expr, None);
             }
             HirStmt::For { iter, body, .. } => {
-                self.expr(iter);
-                self.region(body, false);
+                self.place(iter, None);
+                self.region(body, false, None);
             }
         }
     }
 
-    fn expr(&mut self, expr: &'h HirExpr) -> usize {
+    /// Depth of the arena that holds `expr`'s string bytes.
+    /// `sink` is the consumer arena (`0` on return, the target's `decl_depth` on assign).
+    fn place(&mut self, expr: &'h HirExpr, sink: Option<usize>) -> usize {
         match &expr.kind {
             HirExprKind::Int { .. } | HirExprKind::Str { .. } | HirExprKind::None => 0,
             HirExprKind::Ident { name, use_kind } => {
-                if *use_kind == UseKind::Move && expr.ty.is_string() {
-                    self.depth
+                if expr.ty.is_string() && matches!(*use_kind, UseKind::Move | UseKind::Promote) {
+                    sink.unwrap_or(self.depth)
                 } else {
                     self.lookup(name).map_or(0, |local| local.value_depth)
                 }
             }
             HirExprKind::Binary { lhs, rhs, .. } => {
-                self.expr(lhs);
-                self.expr(rhs);
+                self.place(lhs, None);
+                self.place(rhs, None);
                 0
             }
-            // A callee can only return literals or its own parameters, so a String result
-            // lives no deeper than the String arguments it was given.
             HirExprKind::Call { callee, args, .. } => {
-                self.expr(callee);
-                let deepest = args.iter().map(|arg| self.expr(arg)).fold(0, usize::max);
-                if expr.ty.is_string() {
-                    deepest
+                let concat = matches!(
+                    &callee.kind,
+                    HirExprKind::Ident { name, .. } if builtins::resolve(name) == Some(Builtin::Concat)
+                );
+                self.place(callee, None);
+                if expr.ty.is_string() && concat {
+                    for arg in args {
+                        self.place(arg, None);
+                    }
+                    sink.unwrap_or(self.depth)
                 } else {
-                    0
+                    let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
+                    if expr.ty.is_string() {
+                        deepest
+                    } else {
+                        0
+                    }
                 }
             }
             HirExprKind::If {
@@ -162,56 +196,18 @@ impl<'h> Escape<'h, '_> {
                 then_block,
                 else_block,
             } => {
-                self.expr(cond);
-                let then_depth = self.region(then_block, true);
+                self.place(cond, None);
+                let then_depth = self.region(then_block, true, sink);
                 let else_depth = else_block
                     .as_ref()
-                    .map_or(0, |block| self.region(block, true));
+                    .map_or(0, |block| self.region(block, true, sink));
                 then_depth.max(else_depth)
             }
             HirExprKind::Some(inner)
             | HirExprKind::Unary { expr: inner, .. }
             | HirExprKind::Field {
                 receiver: inner, ..
-            } => self.expr(inner),
-        }
-    }
-
-
-
-    fn expr_sink(&mut self, expr: &'h HirExpr, target: usize) -> usize {
-        match &expr.kind {
-            HirExprKind::Str { .. } => target,
-            HirExprKind::Call {
-                callee,
-                args,
-                ..
-            } if expr.ty.is_string() => {
-                if matches!(
-                    &callee.kind,
-                    HirExprKind::Ident { name, .. } if crate::builtins::is_concat(name)
-                ) {
-                    for arg in args {
-                        self.expr(arg);
-                    }
-                    return target;
-                }
-                self.expr(expr)
-            }
-            HirExprKind::Ident { use_kind, .. } if expr.ty.is_string() => {
-                if matches!(*use_kind, UseKind::Move | UseKind::Promote) {
-                    target
-                } else {
-                    self.lookup(
-                        match &expr.kind {
-                            HirExprKind::Ident { name, .. } => name,
-                            _ => return target,
-                        },
-                    )
-                        .map_or(0, |local| local.value_depth)
-                }
-            }
-            _ => self.expr(expr),
+            } => self.place(inner, None),
         }
     }
 
@@ -229,65 +225,75 @@ impl<'h> Escape<'h, '_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::diag::{Diagnostic, Phase};
-    use crate::hir::{HirBlock, HirStmt};
+    use crate::diag::Phase;
+    use crate::hir::{HirBlock, HirExprKind, HirStmt};
 
-    fn gate_of(source: &str) -> Vec<Diagnostic> {
+    fn assert_ok(source: &str) {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        crate::codegen::gate(result.hir.as_ref().unwrap())
     }
 
     fn assert_rejects(source: &str, needle: &str) {
-        let diagnostics = gate_of(source);
+        let result = crate::frontend::check(source);
         assert!(
-            diagnostics.iter().any(|diagnostic| {
-                diagnostic.phase == Phase::Codegen
+            result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.phase == Phase::Ownership
                     && diagnostic.message.contains(needle)
                     && diagnostic.span.is_some()
             }),
-            "missing `{needle}` diagnostic: {diagnostics:?}"
+            "missing `{needle}` diagnostic: {:?}",
+            result.diagnostics
         );
     }
 
     #[test]
-    fn rejects_returning_moved_string() {
+    fn rejects_returning_string_from_inner_region() {
         assert_rejects(
-            "fun mk(): String {\n    var s = \"esc\"\n    return move s\n}\nfun main() { println(mk()) }\n",
-            "returning a moved `String`",
+            "fun mk(): String {\n    var s = \"esc\"\n    {\n        val x = move s\n        return x\n    }\n}\nfun main() { println(mk()) }\n",
+            "inner region",
         );
     }
 
     #[test]
-    fn rejects_returning_local_that_holds_moved_string() {
+    fn rejects_returning_function_local_without_move() {
         assert_rejects(
             "fun mk(): String {\n    var s = \"esc\"\n    val t = move s\n    return t\n}\nfun main() { println(mk()) }\n",
-            "returning a moved `String`",
+            "inner region",
         );
     }
 
-    /// Sema rejects this shape in source, so the assignment is wrapped in a block by hand.
+    /// `move` into an assign sink is legal from an inner block. A plain load of a string
+    /// allocated in that block is not, so the RHS use-kind is cleared by hand.
     #[test]
     fn rejects_assigning_inner_move_to_outer_local() {
-        let source = "fun main() {\n    var s = \"a\"\n    var x = \"b\"\n    s = move x\n    println(s)\n}\n";
+        let source = "fun main() {\n    var s = \"a\"\n    var src = \"b\"\n    var x = move src\n    s = move x\n    println(s)\n}\n";
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         let mut hir = result.hir.unwrap();
         let stmts = &mut hir.functions[0].body.stmts;
-        let assign = stmts.remove(2);
-        assert!(matches!(assign, HirStmt::Assign { .. }));
+        let assign = stmts.remove(3);
+        let decl = stmts.remove(2);
+        let HirStmt::Assign { name, mut value } = assign else {
+            panic!("expected assign");
+        };
+        if let HirExprKind::Ident { use_kind, .. } = &mut value.kind {
+            *use_kind = crate::hir::UseKind::Local;
+        }
         stmts.insert(
             2,
             HirStmt::Block(HirBlock {
-                stmts: vec![assign],
+                stmts: vec![decl, HirStmt::Assign { name, value }],
             }),
         );
 
-        let diagnostics = crate::codegen::gate(&hir);
+        let mut diagnostics = Vec::new();
+        for function in &hir.functions {
+            crate::escape::check_function(function, &mut diagnostics);
+        }
 
         assert!(
             diagnostics.iter().any(|diagnostic| {
-                diagnostic.phase == Phase::Codegen
+                diagnostic.phase == Phase::Ownership
                     && diagnostic
                         .message
                         .contains("moved in an inner region to `s`")
@@ -306,19 +312,35 @@ mod tests {
     }
 
     #[test]
-    fn allows_literals_params_and_same_region_moves() {
-        let source = r#"
+    fn allows_return_move_concat_and_promote() {
+        assert_ok(
+            r#"
 fun lit(): String { return "x" }
 fun id(s: String): String { return s }
-fun main() {
+fun mk(): String {
     var s = "ab"
-    val t = move s
+    return move s
+}
+fun main() {
+    var outer = "a"
+    {
+        var inner = "b"
+        outer = move inner
+    }
+    var left = "L"
+    var right = "R"
+    outer = concat(left, right)
+    {
+        var held = "p"
+        outer = promote held
+    }
+    val t = move outer
     val u = id(t)
     val c = 1
     val v = if (c > 0) { u } else { lit() }
     println(v)
 }
-"#;
-        assert_eq!(gate_of(source), vec![]);
+"#,
+        );
     }
 }

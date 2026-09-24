@@ -194,9 +194,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             } => {
                 let prev = self.alloc_sink;
                 if let Some(target) = alloc_in_binding {
-                    if let Some(slot) = self.lookup(target) {
-                        self.alloc_sink = Some(slot.home_arena);
-                    }
+                    let slot = self.lookup(target).ok_or_else(|| {
+                        not_yet_supported(
+                            &format!("hoisted alloc target `{target}` is not in scope"),
+                            value.span,
+                        )
+                    })?;
+                    self.alloc_sink = Some(slot.home_arena);
                 }
                 let value = self.emit_value(value, ty)?;
                 self.alloc_sink = prev;

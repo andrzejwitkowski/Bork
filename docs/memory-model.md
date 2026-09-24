@@ -331,5 +331,5 @@ Planned compiler behavior (not all implemented yet). Goal: keep the **no-GC, no 
 | `alloc_sink` on assign/return/`concat` | `codegen` | done — `emit_fn` + `expr` |
 | Call-scoped temp arenas | `codegen` | N/A for `concat` (single alloc) |
 | `hoist::annotate` | `hoist.rs` + HIR `alloc_in_binding` | done (linear sibling pattern) |
-| `promote` surface syntax + deep relocate | `sema`, `codegen` | done; assign sink only |
-| Escape in `frontend::check` (feature `codegen`) | `escape.rs` | done — LSP sees ownership phase |
+| `promote` surface syntax + deep relocate | `sema`, `codegen` | assign to an outer `var` only; `return` is not a sink |
+| Escape `place` in `frontend::check` | `escape.rs` | matches `alloc_sink`; returning a local `String` without `move` is an error |

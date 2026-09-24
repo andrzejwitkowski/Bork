@@ -1,65 +1,96 @@
 //! Hoist owned initializer allocation into a definite outer binding's arena.
 
+use std::collections::HashSet;
+
 use crate::hir::{HirBlock, HirExprKind, HirFunction, HirProgram, HirStmt, UseKind};
 
 pub fn annotate(program: &mut HirProgram) {
     for function in &mut program.functions {
-        annotate_function(function);
+        let visible: HashSet<String> = function
+            .params
+            .iter()
+            .map(|param| param.name.clone())
+            .collect();
+        annotate_block(&mut function.body, &visible);
     }
 }
 
-fn annotate_function(function: &mut HirFunction) {
-    annotate_block(&mut function.body);
-}
-
-fn annotate_block(block: &mut HirBlock) {
-    for stmt in &mut block.stmts {
-        match stmt {
-            HirStmt::Block(inner) => annotate_block(inner),
-            HirStmt::MoveBlock { body, .. } => annotate_block(body),
-            HirStmt::For { body, .. } => annotate_block(body),
+fn annotate_block(block: &mut HirBlock, outer: &HashSet<String>) {
+    let mut local = HashSet::new();
+    let len = block.stmts.len();
+    for index in 0..len {
+        try_hoist(&mut block.stmts, index, outer, &local);
+        match &mut block.stmts[index] {
+            HirStmt::Block(inner) | HirStmt::MoveBlock { body: inner, .. } => {
+                let mut nested = outer.clone();
+                nested.extend(local.iter().cloned());
+                annotate_block(inner, &nested);
+            }
+            HirStmt::For { body, .. } => {
+                let mut nested = outer.clone();
+                nested.extend(local.iter().cloned());
+                annotate_block(body, &nested);
+            }
+            HirStmt::VarDecl { name, .. } => {
+                local.insert(name.clone());
+            }
             _ => {}
         }
     }
-    annotate_siblings(&mut block.stmts);
 }
 
-fn annotate_siblings(stmts: &mut [HirStmt]) {
-    let len = stmts.len();
-    for index in 0..len.saturating_sub(1) {
-        let (_, outer_name) = match (&stmts[index], &stmts[index + 1]) {
-            (
-                HirStmt::VarDecl {
-                    name: inner,
-                    value,
-                    alloc_in_binding,
-                    ..
-                },
-                HirStmt::Assign { name: outer, value: rhs },
-            ) => {
-                if alloc_in_binding.is_some() || !value_may_hoist(value) {
-                    continue;
-                }
-                if !assign_moves_ident(rhs, inner) {
-                    continue;
-                }
-                (inner.clone(), outer.clone())
-            }
-            _ => continue,
-        };
-        if let HirStmt::VarDecl {
-            alloc_in_binding, ..
-        } = &mut stmts[index]
-        {
-            *alloc_in_binding = Some(outer_name);
-        }
+fn try_hoist(
+    stmts: &mut [HirStmt],
+    index: usize,
+    outer: &HashSet<String>,
+    local: &HashSet<String>,
+) {
+    let Some(outer_name) = hoist_target(&stmts[index], stmts.get(index + 1), outer, local) else {
+        return;
+    };
+    if let HirStmt::VarDecl {
+        alloc_in_binding, ..
+    } = &mut stmts[index]
+    {
+        *alloc_in_binding = Some(outer_name);
     }
+}
+
+fn hoist_target(
+    decl: &HirStmt,
+    next: Option<&HirStmt>,
+    outer: &HashSet<String>,
+    local: &HashSet<String>,
+) -> Option<String> {
+    let HirStmt::VarDecl {
+        name: inner,
+        value,
+        alloc_in_binding,
+        ..
+    } = decl
+    else {
+        return None;
+    };
+    let HirStmt::Assign {
+        name: outer_name,
+        value: rhs,
+    } = next?
+    else {
+        return None;
+    };
+    if alloc_in_binding.is_some() || !value_may_hoist(value) || !assign_moves_ident(rhs, inner) {
+        return None;
+    }
+    if !outer.contains(outer_name) && !local.contains(outer_name) {
+        return None;
+    }
+    Some(outer_name.clone())
 }
 
 fn value_may_hoist(value: &crate::hir::HirExpr) -> bool {
     matches!(
         value.kind,
-        HirExprKind::Str { .. } | HirExprKind::Call { .. } | HirExprKind::Some(_)
+        HirExprKind::Str { .. } | HirExprKind::Call { .. }
     )
 }
 

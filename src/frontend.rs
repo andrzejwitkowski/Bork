@@ -43,20 +43,8 @@ pub fn check(source: &str) -> CheckResult {
     let mut hir = diagnostics.is_empty().then_some(hir).flatten();
     if let Some(mut program) = hir {
         crate::hoist::annotate(&mut program);
-        #[cfg(feature = "codegen")]
-        {
-            let mut escape_diags = Vec::new();
-            for function in &program.functions {
-                crate::codegen::escape::check_function(function, &mut escape_diags);
-            }
-            for diagnostic in escape_diags {
-                diagnostics.push(crate::diag::Diagnostic {
-                    phase: crate::diag::Phase::Ownership,
-                    severity: diagnostic.severity,
-                    message: diagnostic.message,
-                    span: diagnostic.span,
-                });
-            }
+        for function in &program.functions {
+            crate::escape::check_function(function, &mut diagnostics);
         }
         hir = diagnostics.is_empty().then_some(program);
     }

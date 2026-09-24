@@ -171,10 +171,10 @@ fun main(): i32 {
 #[test]
 fn move_expr_preserves_type_and_use_kind() {
     let src = r#"
-fun main(): String {
+fun main() {
     var s: String = "hi"
     val t = move s
-    return t
+    println(t)
 }
 "#;
     let hir = hir_of(src);
