@@ -30,7 +30,7 @@ fun main() {
 | `String` | owned text, not Copy |
 | `T?` | nullable form of `T` |
 | `(A, B) -> R` | function type |
-| `(A, B) -> R)?` | nullable function type |
+| `((A, B) -> R)?` | nullable function type |
 
 Integer literals adopt the expected integer type. Non-null primitives are **Copy**. `T?` and `String` are not.
 
@@ -108,7 +108,7 @@ Each `{ ... }` region has an arena. Leaving the region frees that arena in one s
 | Pass a `val` `String` into a `var` parameter | `move name` |
 | Fresh expression into a `var` parameter (`f("hi")`, `f(concat(a, b))`) | no `move` |
 | Assign a `String` up to an outer `var` | `outer = move inner` or `outer = promote held` |
-| Return a `String` built in this function | `return move name` or `return "literal"` or `return concat(...)` |
+| Return a `String` from this function | `return "literal"`, `return name` (parameter or local at function depth); not `return move` or `return concat(...)` yet |
 | Return a parameter or other depth-0 string | `return name` |
 
 After `move`, the source binding is dead. Using it is an ownership error.
@@ -124,7 +124,7 @@ fun greet(name: String): String {
 
 fun shout(): String {
     var s = "hi"
-    return move s
+    return s
 }
 
 fun main() {

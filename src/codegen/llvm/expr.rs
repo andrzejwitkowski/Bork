@@ -260,14 +260,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 expr.span.or(callee.span),
             ));
         };
-        let args = args
-            .iter()
-            .zip(&function.params)
-            .map(|(arg, param)| {
-                self.emit_value(arg, &param.ty)
-                    .map(BasicMetadataValueEnum::from)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let args = self.without_alloc_sink(|emitter| {
+            args.iter()
+                .zip(&function.params)
+                .map(|(arg, param)| {
+                    emitter
+                        .emit_value(arg, &param.ty)
+                        .map(BasicMetadataValueEnum::from)
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })?;
         let call = self.cx.builder.build_call(target, &args, "call")?;
         Ok(call.try_as_basic_value().basic())
     }
@@ -286,8 +288,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 ));
             }
         };
-        let left_val = self.emit_value(left, &left.ty)?.into_struct_value();
-        let right_val = self.emit_value(right, &right.ty)?.into_struct_value();
+        let (left_val, right_val) = self.without_alloc_sink(|emitter| {
+            Ok((
+                emitter
+                    .emit_value(left, &left.ty)?
+                    .into_struct_value(),
+                emitter
+                    .emit_value(right, &right.ty)?
+                    .into_struct_value(),
+            ))
+        })?;
         let cx = self.cx;
         let builder = &cx.builder;
         let left_ptr = builder

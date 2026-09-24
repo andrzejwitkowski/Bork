@@ -173,6 +173,17 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.alloc_sink.unwrap_or_else(|| self.current_arena())
     }
 
+    /// Evaluate sub-expressions without treating them as the assign/return/`concat` sink.
+    pub(super) fn without_alloc_sink<R>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> Result<R, Diagnostic>,
+    ) -> Result<R, Diagnostic> {
+        let saved = self.alloc_sink.take();
+        let result = f(self);
+        self.alloc_sink = saved;
+        result
+    }
+
     pub fn lookup(&self, name: &str) -> Option<&Slot<'ctx>> {
         self.scopes.iter().rev().find_map(|scope| scope.get(name))
     }
@@ -298,10 +309,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
         let return_ty = &self.function.return_ty;
-        let prev = self.alloc_sink;
-        if return_ty.is_string() {
-            self.alloc_sink = self.function_arena;
-        }
         let value = match value {
             Some(value) if *return_ty != Ty::unit() => Some(self.emit_value(value, return_ty)?),
             Some(value) => {
@@ -310,7 +317,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             None => None,
         };
-        self.alloc_sink = prev;
         self.regions.sink_mut().unwind()?;
         match value {
             Some(value) => self.cx.builder.build_return(Some(&value)).map(drop)?,

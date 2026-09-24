@@ -98,11 +98,44 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                if value.ty.is_string() && self.place(value, Some(0)) > 0 {
+                if !value.ty.is_string() {
+                    return;
+                }
+                if self.place(value, Some(0)) > 0 {
                     reject(
                         self.diagnostics,
                         "returning a `String` whose bytes live in an inner region is not \
                          supported: that arena is freed before the value is returned",
+                        value.span,
+                    );
+                }
+                let concat = match &value.kind {
+                    HirExprKind::Call { callee, .. } => matches!(
+                        &callee.kind,
+                        HirExprKind::Ident { name, .. }
+                            if builtins::resolve(name) == Some(Builtin::Concat)
+                    ),
+                    _ => false,
+                };
+                if concat {
+                    reject(
+                        self.diagnostics,
+                        "returning the result of `concat` is not supported yet: returned \
+                         `String` bytes must outlive the callee arena",
+                        value.span,
+                    );
+                }
+                if matches!(
+                    &value.kind,
+                    HirExprKind::Ident {
+                        use_kind: UseKind::Move | UseKind::Promote,
+                        ..
+                    }
+                ) {
+                    reject(
+                        self.diagnostics,
+                        "returning a moved or promoted `String` is not supported yet: use \
+                         `return s` for parameters and locals, or return a string literal",
                         value.span,
                     );
                 }
@@ -161,7 +194,11 @@ impl<'h> Escape<'h, '_> {
             HirExprKind::Int { .. } | HirExprKind::Str { .. } | HirExprKind::None => 0,
             HirExprKind::Ident { name, use_kind } => {
                 if expr.ty.is_string() && matches!(*use_kind, UseKind::Move | UseKind::Promote) {
-                    sink.unwrap_or(self.depth)
+                    match sink {
+                        Some(0) => self.lookup(name).map_or(0, |local| local.value_depth),
+                        Some(depth) => depth,
+                        None => self.depth,
+                    }
                 } else {
                     self.lookup(name).map_or(0, |local| local.value_depth)
                 }
@@ -319,7 +356,7 @@ fun lit(): String { return "x" }
 fun id(s: String): String { return s }
 fun mk(): String {
     var s = "ab"
-    return move s
+    return s
 }
 fun main() {
     var outer = "a"

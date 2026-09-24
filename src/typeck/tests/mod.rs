@@ -243,14 +243,19 @@ fun main(): i32 {
 }
 
 #[test]
-fn move_val_string_is_move() {
+fn return_move_string_is_move_at_typeck() {
     let src = r#"
 fun main(): String {
     val s: String = "hi"
     return move s
 }
 "#;
-    let hir = hir_of(src);
+    let program = crate::parse(src).expect("parse");
+    let (_, sema_errors) = crate::sema::analyze(&program);
+    assert!(sema_errors.is_empty(), "{sema_errors:?}");
+    let (hir, type_errors) = crate::typeck::check(&program);
+    assert!(type_errors.is_empty(), "{type_errors:?}");
+    let hir = hir.expect("hir");
     assert!(matches!(
         &hir.functions[0].body.stmts[1],
         HirStmt::Return {
