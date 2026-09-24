@@ -149,7 +149,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let value = self.emit_stmts(body, value_ty);
         self.scopes.pop();
         let value = value?;
-        self.exit_region()?;
+        if !self.cx.current_block_terminated() {
+            self.exit_region()?;
+        }
         Ok(value)
     }
 
@@ -290,7 +292,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
         let return_ty = &self.function.return_ty;
         let prev = self.alloc_sink;
-        self.alloc_sink = self.regions.sink_mut().root();
+        if return_ty.is_string() {
+            self.alloc_sink = self.regions.sink_mut().root();
+        }
         let value = match value {
             Some(value) if *return_ty != Ty::unit() => Some(self.emit_value(value, return_ty)?),
             Some(value) => {
