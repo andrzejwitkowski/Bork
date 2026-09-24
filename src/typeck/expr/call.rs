@@ -89,7 +89,8 @@ pub(super) fn check_call(
     }
     for (index, (argument, expected)) in checked_args.iter().zip(regular_params).enumerate() {
         let matches_builtin_overload =
-            crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(&argument.ty);
+            (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(&argument.ty))
+            || (crate::builtins::is_concat(&name) && argument.ty.is_string());
         if !argument.ty.is_unknown() && &argument.ty != expected && !matches_builtin_overload {
             env.error(
                 format!(

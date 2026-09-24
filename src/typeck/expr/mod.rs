@@ -40,6 +40,7 @@ pub(super) fn check(
         ),
         Expr::Ident { name, span } => check_ident(name, *span, UseKind::Local, env),
         Expr::Move { name, span } => check_ident(name, *span, UseKind::Move, env),
+        Expr::Promote { name, span } => check_ident(name, *span, UseKind::Promote, env),
         Expr::None { span } => {
             let Some(ty) = expected.filter(|ty| ty.is_nullable()) else {
                 env.error("cannot infer type of `None`", Some(*span));
@@ -140,8 +141,8 @@ fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) ->
         );
     };
     let ty = binding.ty.clone();
-    let use_kind = if requested == UseKind::Move {
-        UseKind::Move
+    let use_kind = if requested == UseKind::Move || requested == UseKind::Promote {
+        requested
     } else if ty.is_copy() {
         UseKind::Copy
     } else if binding.kind == BindingKind::Val {

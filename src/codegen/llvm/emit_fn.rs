@@ -81,6 +81,7 @@ pub fn emit_function<'a, 'ctx>(
         function,
         llvm_fn,
         scopes: vec![HashMap::new()],
+        alloc_sink: None,
     };
     for (param, value) in function.params.iter().zip(llvm_fn.get_param_iter()) {
         emitter.declare_local(&param.name, &param.ty, value)?;
@@ -102,6 +103,7 @@ pub fn emit_function<'a, 'ctx>(
 pub(super) struct Slot<'ctx> {
     pub ptr: PointerValue<'ctx>,
     pub ty: Ty,
+    pub home_arena: PointerValue<'ctx>,
 }
 
 pub(super) struct FnEmitter<'s, 'r, 'a, 'ctx> {
@@ -111,6 +113,7 @@ pub(super) struct FnEmitter<'s, 'r, 'a, 'ctx> {
     function: &'s HirFunction,
     pub llvm_fn: FunctionValue<'ctx>,
     scopes: Vec<HashMap<String, Slot<'ctx>>>,
+    alloc_sink: Option<PointerValue<'ctx>>,
 }
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
@@ -157,6 +160,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .expect("function bodies always have an open arena")
     }
 
+    pub(super) fn sink_arena(&mut self) -> PointerValue<'ctx> {
+        self.alloc_sink.unwrap_or_else(|| self.current_arena())
+    }
+
     pub fn lookup(&self, name: &str) -> Option<&Slot<'ctx>> {
         self.scopes.iter().rev().find_map(|scope| scope.get(name))
     }
@@ -180,17 +187,30 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .emit_region(RegionSite::MoveBlock, body, None)
                 .map(drop),
             HirStmt::VarDecl {
-                name, ty, value, ..
+                name,
+                ty,
+                value,
+                alloc_in_binding,
             } => {
+                let prev = self.alloc_sink;
+                if let Some(target) = alloc_in_binding {
+                    if let Some(slot) = self.lookup(target) {
+                        self.alloc_sink = Some(slot.home_arena);
+                    }
+                }
                 let value = self.emit_value(value, ty)?;
+                self.alloc_sink = prev;
                 self.declare_local(name, ty, value)
             }
             HirStmt::Assign { name, value } => {
                 let slot = self.lookup(name).ok_or_else(|| {
                     not_yet_supported(&format!("assignment to `{name}`"), value.span)
                 })?;
-                let (ptr, ty) = (slot.ptr, slot.ty.clone());
+                let (ptr, ty, home) = (slot.ptr, slot.ty.clone(), slot.home_arena);
+                let prev = self.alloc_sink;
+                self.alloc_sink = Some(home);
                 let value = self.emit_value(value, &ty)?;
+                self.alloc_sink = prev;
                 self.cx.builder.build_store(ptr, value)?;
                 Ok(())
             }
@@ -264,6 +284,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
         let return_ty = &self.function.return_ty;
+        let prev = self.alloc_sink;
+        self.alloc_sink = self.regions.sink_mut().root();
         let value = match value {
             Some(value) if *return_ty != Ty::unit() => Some(self.emit_value(value, return_ty)?),
             Some(value) => {
@@ -272,6 +294,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             None => None,
         };
+        self.alloc_sink = prev;
         self.regions.sink_mut().unwind()?;
         match value {
             Some(value) => self.cx.builder.build_return(Some(&value)).map(drop)?,
@@ -313,11 +336,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .ok_or_else(|| not_yet_supported(&format!("local of type `{ty}`"), None))?;
         let ptr = self.entry_alloca(llvm_ty, name)?;
         self.cx.builder.build_store(ptr, value)?;
+        let home_arena = self.sink_arena();
         self.scopes.last_mut().expect("function scope").insert(
             name.to_owned(),
             Slot {
                 ptr,
                 ty: ty.clone(),
+                home_arena,
             },
         );
         Ok(())

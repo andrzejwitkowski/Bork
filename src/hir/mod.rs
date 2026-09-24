@@ -16,6 +16,7 @@ pub enum UseKind {
     Shared,
     Copy,
     Move,
+    Promote,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +55,8 @@ pub enum HirStmt {
         name: String,
         ty: Ty,
         value: HirExpr,
+        /// When set, owned payload for `value` is allocated in the named outer binding's arena.
+        alloc_in_binding: Option<String>,
     },
     Assign {
         name: String,

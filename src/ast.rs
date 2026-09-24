@@ -134,6 +134,10 @@ pub enum Expr {
         name: String,
         span: crate::span::Span,
     },
+    Promote {
+        name: String,
+        span: crate::span::Span,
+    },
     None {
         span: crate::span::Span,
     },

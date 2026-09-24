@@ -23,6 +23,7 @@ match {
     "Some" => "Some",
     "None" => "None",
     "move" => "move",
+    "promote" => "promote",
 } else {
     _
 }
@@ -285,6 +286,10 @@ Atom: Expr = {
         span: Span::new(start, end),
     },
     "move" <id:SpannedIdent> => Expr::Move {
+        name: id.name,
+        span: id.span,
+    },
+    "promote" <id:SpannedIdent> => Expr::Promote {
         name: id.name,
         span: id.span,
     },

@@ -82,6 +82,7 @@ pub(super) struct Analyzer {
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
+    pub(super) function_arena_id: Option<usize>,
 }
 
 impl Analyzer {
@@ -92,6 +93,7 @@ impl Analyzer {
             env: HashMap::new(),
             fun_sigs: HashMap::new(),
             loop_move_ban: Vec::new(),
+            function_arena_id: None,
         }
     }
 

@@ -177,6 +177,44 @@ impl<'h> Escape<'h, '_> {
         }
     }
 
+
+
+    fn expr_sink(&mut self, expr: &'h HirExpr, target: usize) -> usize {
+        match &expr.kind {
+            HirExprKind::Str { .. } => target,
+            HirExprKind::Call {
+                callee,
+                args,
+                ..
+            } if expr.ty.is_string() => {
+                if matches!(
+                    &callee.kind,
+                    HirExprKind::Ident { name, .. } if crate::builtins::is_concat(name)
+                ) {
+                    for arg in args {
+                        self.expr(arg);
+                    }
+                    return target;
+                }
+                self.expr(expr)
+            }
+            HirExprKind::Ident { use_kind, .. } if expr.ty.is_string() => {
+                if matches!(*use_kind, UseKind::Move | UseKind::Promote) {
+                    target
+                } else {
+                    self.lookup(
+                        match &expr.kind {
+                            HirExprKind::Ident { name, .. } => name,
+                            _ => return target,
+                        },
+                    )
+                        .map_or(0, |local| local.value_depth)
+                }
+            }
+            _ => self.expr(expr),
+        }
+    }
+
     fn lookup(&self, name: &str) -> Option<&Local> {
         self.scopes.iter().rev().find_map(|scope| scope.get(name))
     }

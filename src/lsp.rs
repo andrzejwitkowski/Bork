@@ -319,6 +319,23 @@ fun main() {
     }
 
     #[test]
+    fn assign_to_outer_var_has_no_ownership_error() {
+        let source = r#"
+fun main() {
+    var x: String = "old"
+    {
+        x = "new"
+    }
+}
+"#;
+        let diags = diagnostics_for_source(source);
+        assert!(
+            !diags.iter().any(|d| d.message.contains("not Copy")),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
     fn ownership_and_type_diagnostics_are_reported_together() {
         let source = r#"
 fun main(): i32 {

@@ -287,7 +287,7 @@ Planned compiler behavior (not all implemented yet). Goal: keep the **no-GC, no 
 
 - **Rule:** `outer.x = rhs` (or `outer = rhs`) where `outer` / `x` is bound in an **ancestor** arena is **mutation of the outer binding**, not “use of outer `var` inside the child” (no false “move into `Block`” on the LHS).
 - **Sema:** treat assign to a binding in a strictly older region as allowed for `var`; RHS still checked for move/Copy as today.
-- **Status:** partial — field-read / capture fixes exist; assign-up policy still TODO.
+- **Status:** partial — field-read / capture fixes exist; assign-up in `sema/walk.rs` (done).
 
 ### 2. Sink allocation (allocate the **assignment result** in the sink arena)
 
@@ -327,9 +327,9 @@ Planned compiler behavior (not all implemented yet). Goal: keep the **no-GC, no 
 
 | Item | Area | Notes |
 |------|------|--------|
-| Assign-up sema for `var` in ancestor | `sema` | LHS assign ≠ transfer sink on outer `var` |
-| `AllocArena` on assign RHS | `typeck` / `hir` / `codegen` | Sink §2 |
-| Call-scoped temp arenas | `codegen` | §3 |
-| `escape_arena` / hoist pass | `sema` or `typeck` | §4 |
-| `promote` surface syntax + deep relocate | `sema`, `codegen` | §5; mirror string `move` reloc |
-| Document temp lifetime in parent for sink-only rule | this doc | §2 vs §3 distinction |
+| Assign-up sema for `var` in ancestor | `sema` | done — LHS assign ≠ transfer sink on outer `var` |
+| `alloc_sink` on assign/return/`concat` | `codegen` | done — `emit_fn` + `expr` |
+| Call-scoped temp arenas | `codegen` | N/A for `concat` (single alloc) |
+| `hoist::annotate` | `hoist.rs` + HIR `alloc_in_binding` | done (linear sibling pattern) |
+| `promote` surface syntax + deep relocate | `sema`, `codegen` | done; assign sink only |
+| Escape in `frontend::check` (feature `codegen`) | `escape.rs` | done — LSP sees ownership phase |

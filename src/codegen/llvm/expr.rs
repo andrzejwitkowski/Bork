@@ -39,7 +39,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .basic_type(&slot.ty)
                     .expect("locals only hold lowerable types");
                 let value = self.cx.builder.build_load(ty, slot.ptr, name)?;
-                if *use_kind == UseKind::Move && value.is_struct_value() {
+                if matches!(*use_kind, UseKind::Move | UseKind::Promote) && value.is_struct_value() {
                     Ok(Some(self.copy_into_arena(value.into_struct_value())?.into()))
                 } else {
                     // Shared/Local/Copy: load the slot (string descriptors copy by value).
@@ -106,7 +106,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         source: StructValue<'ctx>,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
-        let arena = self.current_arena();
+        let arena = self.sink_arena();
         let cx = self.cx;
         let builder = &cx.builder;
         let src = builder
@@ -246,6 +246,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             if let ([arg], true) = (args, builtins::is_print(name)) {
                 return self.emit_print(arg, name == "println").map(|()| None);
             }
+            if builtins::is_concat(name) {
+                return self.emit_concat(args, expr).map(Some);
+            }
             return Err(not_yet_supported(
                 &format!("calls to `{name}`"),
                 expr.span.or(callee.span),
@@ -264,6 +267,71 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     /// Strings go to `bork_print*_str` as bytes + length; integers are widened to `i64`.
+
+
+    fn emit_concat(
+        &mut self,
+        args: &[HirExpr],
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let (left, right) = match args {
+            [left, right] => (left, right),
+            _ => {
+                return Err(not_yet_supported(
+                    "`concat` expects two `String` arguments",
+                    expr.span,
+                ));
+            }
+        };
+        let left_val = self.emit_value(left, &left.ty)?.into_struct_value();
+        let right_val = self.emit_value(right, &right.ty)?.into_struct_value();
+        let cx = self.cx;
+        let builder = &cx.builder;
+        let left_ptr = builder
+            .build_extract_value(left_val, 0, "concat.l.ptr")?
+            .into_pointer_value();
+        let left_len = builder
+            .build_extract_value(left_val, 1, "concat.l.len")?
+            .into_int_value();
+        let right_ptr = builder
+            .build_extract_value(right_val, 0, "concat.r.ptr")?
+            .into_pointer_value();
+        let right_len = builder
+            .build_extract_value(right_val, 1, "concat.r.len")?
+            .into_int_value();
+        let total = builder.build_int_add(left_len, right_len, "concat.len")?;
+        let arena = self.sink_arena();
+        let one = cx.context.i64_type().const_int(1, false);
+        let dst = builder
+            .build_call(
+                cx.arena_alloc_fn(),
+                &[arena.into(), total.into(), one.into()],
+                "concat.dst",
+            )?
+            .try_as_basic_value()
+            .basic()
+            .expect("bork_arena_alloc returns a pointer")
+            .into_pointer_value();
+        builder
+            .build_memcpy(dst, 1, left_ptr, 1, left_len)
+            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
+        let offset = unsafe {
+            builder.build_gep(
+                cx.context.i8_type(),
+                dst,
+                &[left_len],
+                "concat.r.off",
+            )?
+        };
+        builder
+            .build_memcpy(offset, 1, right_ptr, 1, right_len)
+            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
+        let out = cx.string_type().const_named_struct(&[]);
+        let out = builder.build_insert_value(out, dst, 0, "concat.out")?;
+        let out = builder.build_insert_value(out, total, 1, "concat.out")?;
+        Ok(out.into_struct_value().into())
+    }
+
     fn emit_print(&mut self, arg: &HirExpr, newline: bool) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let builder = &cx.builder;

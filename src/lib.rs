@@ -6,6 +6,7 @@ pub mod codegen;
 pub mod diag;
 pub mod dump;
 pub mod frontend;
+pub mod hoist;
 pub mod hir;
 mod layout;
 #[cfg(feature = "lsp")]

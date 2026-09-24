@@ -83,6 +83,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
                 name: name.clone(),
                 ty: declared_ty,
                 value,
+                alloc_in_binding: None,
             }
         }
         Stmt::Assign {

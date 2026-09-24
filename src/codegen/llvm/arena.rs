@@ -35,6 +35,10 @@ impl<'a, 'ctx> ArenaCalls<'a, 'ctx> {
         self.handles.last().copied()
     }
 
+    pub fn root(&self) -> Option<PointerValue<'ctx>> {
+        self.handles.first().copied()
+    }
+
     /// Pops every open arena, innermost first, ahead of a `return`.
     pub fn unwind(&self) -> Result<(), BuilderError> {
         for handle in self.handles.iter().rev() {
