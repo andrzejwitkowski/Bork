@@ -152,7 +152,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let value = self.emit_stmts(body, value_ty);
         self.scopes.pop();
         let value = value?;
-        if !self.cx.current_block_terminated() {
+        if self.cx.current_block_terminated() {
+            self.regions
+                .exit_after_return()
+                .map_err(schedule_error)?;
+        } else {
             self.exit_region()?;
         }
         Ok(value)

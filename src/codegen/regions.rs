@@ -198,6 +198,14 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         Ok(())
     }
 
+    /// Pops the region stack after an early `return` already emitted arena pops via `unwind`.
+    pub fn exit_after_return(&mut self) -> Result<(), ScheduleError> {
+        self.stack
+            .pop()
+            .ok_or_else(|| mismatch("region exit with no open region".into()))
+            .map(|_| ())
+    }
+
     pub fn finish(self) -> Result<S, ScheduleError> {
         if !self.stack.is_empty() || self.next_function != self.report.roots.len() {
             return Err(mismatch(format!(
