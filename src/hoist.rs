@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::hir::{HirBlock, HirExprKind, HirFunction, HirProgram, HirStmt, UseKind};
+use crate::hir::{HirBlock, HirExprKind, HirProgram, HirStmt, UseKind};
 
 pub fn annotate(program: &mut HirProgram) {
     for function in &mut program.functions {

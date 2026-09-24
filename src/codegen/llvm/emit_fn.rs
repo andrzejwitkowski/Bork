@@ -191,6 +191,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 ty,
                 value,
                 alloc_in_binding,
+                ..
             } => {
                 let prev = self.alloc_sink;
                 if let Some(target) = alloc_in_binding {
