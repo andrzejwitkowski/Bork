@@ -28,10 +28,11 @@ match {
 }
 
 BinTier<Op, Next>: Expr = {
-    <lhs:BinTier<Op, Next>> <op:Op> <rhs:Next> => Expr::Binary {
+    <start:@L> <lhs:BinTier<Op, Next>> <op:Op> <rhs:Next> <end:@R> => Expr::Binary {
         op,
         lhs: Box::new(lhs),
         rhs: Box::new(rhs),
+        span: Span::new(start, end),
     },
     <e:Next> => e,
 };
@@ -193,10 +194,11 @@ Expr: Expr = {
 };
 
 ExprElvis: Expr = {
-    <lhs:ExprRange> "?:" <rhs:ExprElvis> => Expr::Binary {
+    <start:@L> <lhs:ExprRange> "?:" <rhs:ExprElvis> <end:@R> => Expr::Binary {
         op: BinOp::Elvis,
         lhs: Box::new(lhs),
         rhs: Box::new(rhs),
+        span: Span::new(start, end),
     },
     <e:ExprRange> => e,
 };
@@ -230,14 +232,16 @@ ExprSuffix: Expr = {
         args: args.unwrap_or_default(),
         trailing,
     },
-    <receiver:ExprSuffix> <safe:FieldOp> <name:Ident> => Expr::Field {
+    <start:@L> <receiver:ExprSuffix> <safe:FieldOp> <name:Ident> <end:@R> => Expr::Field {
         receiver: Box::new(receiver),
         name,
         safe,
+        span: Span::new(start, end),
     },
-    <expr:ExprSuffix> "!!" => Expr::Unary {
+    <start:@L> <expr:ExprSuffix> "!!" <end:@R> => Expr::Unary {
         op: UnaryOp::NotNullAssert,
         expr: Box::new(expr),
+        span: Span::new(start, end),
     },
     <e:Atom> => e,
 };
@@ -273,8 +277,13 @@ MoveClosureBody: (Vec<SpannedName>, Block) = {
 Atom: Expr = {
     <n:Num> => Expr::Int(n),
     <s:StrLit> => Expr::Str(s),
-    "None" => Expr::None,
-    "Some" "(" <e:Expr> ")" => Expr::Some(Box::new(e)),
+    <start:@L> "None" <end:@R> => Expr::None {
+        span: Span::new(start, end),
+    },
+    <start:@L> "Some" "(" <expr:Expr> ")" <end:@R> => Expr::Some {
+        expr: Box::new(expr),
+        span: Span::new(start, end),
+    },
     "move" <id:SpannedIdent> => Expr::Move {
         name: id.name,
         span: id.span,

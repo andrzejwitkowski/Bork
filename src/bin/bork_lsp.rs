@@ -135,10 +135,7 @@ impl LanguageServer for Backend {
                     Some(uri) => docs.get(&uri),
                     None => docs.values().next(),
                 };
-                match doc {
-                    None => None,
-                    Some(doc) => Some(dump_from_analysis(&doc.analysis)),
-                }
+                doc.map(|doc| dump_from_analysis(&doc.analysis))
             }
         };
         let Some(result) = dump_result else {

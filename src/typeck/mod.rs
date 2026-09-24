@@ -4,17 +4,30 @@ mod stmt;
 
 use std::collections::HashMap;
 
-use crate::ast::{Program, Type};
+use crate::ast::{Function, Program, Type};
+use crate::span::Span;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirFunction, HirParam, HirProgram, Ty, TyKind};
 
-use env::{Env, FunSig};
+use env::Env;
+pub(crate) use env::FunSig;
 
 pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
-    let fun_sigs: HashMap<_, _> = program
+    for function in &program.functions {
+        if crate::builtins::is_print(&function.name) {
+            diagnostics.push(Diagnostic {
+                phase: Phase::Type,
+                severity: Severity::Error,
+                message: format!("cannot redefine builtin function `{}`", function.name),
+                span: builtin_redefine_span(function),
+            });
+        }
+    }
+    let mut fun_sigs: HashMap<_, _> = program
         .functions
         .iter()
+        .filter(|function| !crate::builtins::is_print(&function.name))
         .map(|function| {
             (
                 function.name.clone(),
@@ -29,10 +42,12 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
             )
         })
         .collect();
+    fun_sigs.extend(crate::builtins::signatures());
 
     let functions = program
         .functions
         .iter()
+        .filter(|function| !crate::builtins::is_print(&function.name))
         .map(|function| {
             let mut env = Env::new(&fun_sigs);
             let signature = env
@@ -105,6 +120,10 @@ pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {
         ),
         _ => Ty::from_ast(ty),
     }
+}
+
+fn builtin_redefine_span(function: &Function) -> Option<Span> {
+    function.params.first().map(|param| param.name.span)
 }
 
 #[cfg(test)]

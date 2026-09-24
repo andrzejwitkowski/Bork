@@ -5,7 +5,7 @@ mod call;
 mod control;
 mod field;
 
-use crate::ast::{BinOp, Expr, UnaryOp};
+use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
 use crate::span::Span;
 
@@ -40,14 +40,14 @@ pub(super) fn check(
         ),
         Expr::Ident { name, span } => check_ident(name, *span, UseKind::Local, env),
         Expr::Move { name, span } => check_ident(name, *span, UseKind::Move, env),
-        Expr::None => {
+        Expr::None { span } => {
             let Some(ty) = expected.filter(|ty| ty.is_nullable()) else {
-                env.error("cannot infer type of `None`", None);
-                return HirExpr::new(HirExprKind::None, Ty::unknown());
+                env.error("cannot infer type of `None`", Some(*span));
+                return HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span);
             };
-            HirExpr::new(HirExprKind::None, ty.clone())
+            HirExpr::spanned(HirExprKind::None, ty.clone(), *span)
         }
-        Expr::Some(inner) => {
+        Expr::Some { expr: inner, span } => {
             let expected_inner = expected
                 .filter(|ty| ty.is_nullable())
                 .map(|ty| ty.with_nullable(false));
@@ -56,22 +56,26 @@ pub(super) fn check(
                 inner.ty.with_nullable(true)
             } else {
                 if !inner.ty.is_unknown() {
-                    env.error(format!("`Some` value cannot have type {}", inner.ty), None);
+                    env.error(
+                        format!("`Some` value cannot have type {}", inner.ty),
+                        Some(*span),
+                    );
                 }
                 Ty::unknown()
             };
-            HirExpr::new(HirExprKind::Some(Box::new(inner)), ty)
+            HirExpr::spanned(HirExprKind::Some(Box::new(inner)), ty, *span)
         }
-        Expr::Binary { op, lhs, rhs } => {
+        Expr::Binary { op, lhs, rhs, span } => {
             if *op == BinOp::Elvis {
-                check_elvis(op, lhs, rhs, expected, return_ty, env)
+                check_elvis(op, lhs, rhs, *span, expected, return_ty, env)
             } else {
-                check_binary(op, lhs, rhs, expected, return_ty, env)
+                check_binary(op, lhs, rhs, *span, expected, return_ty, env)
             }
         }
         Expr::Unary {
             op: UnaryOp::NotNullAssert,
             expr,
+            span,
         } => {
             let expected_operand = expected
                 .filter(|ty| ty.supports_nullable())
@@ -83,24 +87,26 @@ pub(super) fn check(
                 if !operand.ty.is_unknown() {
                     env.error(
                         format!("operand of `!!` must be nullable, got {}", operand.ty),
-                        None,
+                        Some(*span),
                     );
                 }
                 Ty::unknown()
             };
-            HirExpr::new(
+            HirExpr::spanned(
                 HirExprKind::Unary {
                     op: UnaryOp::NotNullAssert,
                     expr: Box::new(operand),
                 },
                 result_ty,
+                *span,
             )
         }
         Expr::Field {
             receiver,
             name,
             safe,
-        } => check_field(receiver, name, *safe, return_ty, env),
+            span,
+        } => check_field(receiver, name, *safe, *span, return_ty, env),
         Expr::Call {
             callee,
             args,
@@ -138,6 +144,8 @@ fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) ->
         UseKind::Move
     } else if ty.is_copy() {
         UseKind::Copy
+    } else if binding.kind == BindingKind::Val {
+        UseKind::Shared
     } else {
         UseKind::Local
     };

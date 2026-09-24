@@ -98,6 +98,54 @@ fun main(): i32 { return f(41) }
 }
 
 #[test]
+fn print_i32_typechecks() {
+    let src = r#"
+fun main(): i32 {
+    println(42)
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn print_i64_typechecks() {
+    let src = r#"
+fun main(): i32 {
+    val value: i64 = 42
+    print(value)
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn println_string_typechecks() {
+    let src = r#"
+fun main(): i32 {
+    println("hello")
+    return 0
+}
+"#;
+    assert!(check(src).is_ok());
+}
+
+#[test]
+fn print_unknown_name_still_errors() {
+    let src = r#"
+fun main(): i32 {
+    printlnn(1)
+    return 0
+}
+"#;
+    assert!(check(src)
+        .diagnostics
+        .iter()
+        .any(|d| d.phase == Phase::Type));
+}
+
+#[test]
 fn for_range_ok() {
     let src = r#"
 fun main(): i32 {
@@ -141,6 +189,78 @@ fun main(): String {
                 ..
             },
             ..
+        }
+    ));
+}
+
+#[test]
+fn parent_val_string_read_in_nested_block_is_shared() {
+    let src = r#"
+fun main(): i32 {
+    val s: String = "hi"
+    {
+        s
+    }
+    return 0
+}
+"#;
+    let hir = hir_of(src);
+    let HirStmt::Block(block) = &hir.functions[0].body.stmts[1] else {
+        panic!("expected a nested block");
+    };
+    assert!(matches!(
+        block.stmts.as_slice(),
+        [HirStmt::Expr(HirExpr {
+            kind: HirExprKind::Ident {
+                use_kind: UseKind::Shared,
+                ..
+            },
+            ..
+        })]
+    ));
+}
+
+#[test]
+fn var_string_read_is_local() {
+    let src = r#"
+fun main(): i32 {
+    var s: String = "hi"
+    s
+    return 0
+}
+"#;
+    let hir = hir_of(src);
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::Expr(HirExpr {
+            kind: HirExprKind::Ident {
+                use_kind: UseKind::Local,
+                ..
+            },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn move_val_string_is_move() {
+    let src = r#"
+fun main(): String {
+    val s: String = "hi"
+    return move s
+}
+"#;
+    let hir = hir_of(src);
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::Return {
+            value: Some(HirExpr {
+                kind: HirExprKind::Ident {
+                    use_kind: UseKind::Move,
+                    ..
+                },
+                ..
+            })
         }
     ));
 }
@@ -399,4 +519,37 @@ fn unknown_string_field_is_type_error() {
     assert!(errors
         .iter()
         .any(|error| error.phase == Phase::Type && error.message.contains("unknown field")));
+}
+
+#[test]
+fn redefining_print_is_type_error() {
+    let src = r#"
+fun print(x: i32) {}
+fun main(): i32 {
+    return 0
+}
+"#;
+    let report = check(src);
+    assert!(!report.is_ok());
+    assert!(report.diagnostics.iter().any(|d| {
+        d.phase == Phase::Type
+            && d.message.contains("cannot redefine builtin function `print`")
+            && d.span.is_some()
+    }));
+}
+
+#[test]
+fn redefining_println_with_other_arity_is_rejected_not_bypassed() {
+    let src = r#"
+fun println(a: i32, b: i32) {}
+fun main(): i32 {
+    println("hi")
+    return 0
+}
+"#;
+    let report = check(src);
+    assert!(!report.is_ok());
+    assert!(report.diagnostics.iter().any(|d| d
+        .message
+        .contains("cannot redefine builtin function `println`")));
 }

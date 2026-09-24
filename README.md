@@ -53,6 +53,8 @@ fun main() {
 
 ## Compiler CLI
 
+Checking a program does not require LLVM or the `codegen` Cargo feature:
+
 ```bash
 cargo run --bin bork -- path/to/file.bork
 cargo run --bin bork -- --dump-arenas path/to/file.bork
@@ -60,10 +62,37 @@ cargo run --bin bork -- --dump-arenas path/to/file.bork
 
 `--dump-arenas` prints the compile-time arena / ownership tree (see [docs/memory-model.md](docs/memory-model.md)).
 
+To build a native executable on Ubuntu, install LLVM 18 and `clang`:
+
+```bash
+sudo apt-get update
+sudo apt-get install llvm-18-dev clang
+cargo run --features codegen -- build file.bork
+cargo run --features codegen -- build -o out file.bork
+```
+
+The Ubuntu packages are preferred because their dynamic `libLLVM-18` is on the
+system library path. Inkwell uses its `llvm18-1-prefer-dynamic` feature because
+Ubuntu does not ship the static `libPolly.a`. With a local or non-apt LLVM
+installation, set `LLVM_SYS_181_PREFIX` to its LLVM 18 prefix and, if needed,
+add the directory containing `libLLVM-18.so` to `LD_LIBRARY_PATH`.
+
+The runtime archive is built automatically. Set `BORK_RUNTIME_LIB` to override
+its path when invoking `bork build`, for example when using a separately built
+`libbork_runtime.a`.
+
+Run the full test suite, including the `bork_runtime` crate and the
+`bork build` golden tests:
+
+```bash
+cargo test --workspace --features codegen
+```
+
 ## Typecheck
 
 `bork file.bork` runs parse, ownership, and full typecheck.
-Native codegen / `bork build` is phase 2 — see `docs/superpowers/specs/2026-09-23-typed-hir-llvm-design.md`.
+`bork build` currently supports the phase 2 codegen subset — see
+`docs/superpowers/specs/2026-09-23-typed-hir-llvm-design.md`.
 
 ## Editor / LSP
 

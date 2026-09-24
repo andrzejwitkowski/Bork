@@ -176,14 +176,10 @@ fn walk(
                 note_use(az, name, Some(*span), node);
             }
         }
-        Expr::Some(inner)
-        | Expr::Unary {
-            expr: inner,
-            ..
+        Expr::Some { expr: inner, .. } | Expr::Unary { expr: inner, .. } => {
+            walk(az, inner, node, transfer)
         }
-        | Expr::Field {
-            receiver: inner, ..
-        } => walk(az, inner, node, transfer),
+        Expr::Field { receiver: inner, .. } => walk(az, inner, node, None),
         Expr::Binary { lhs, rhs, .. } => {
             walk(az, lhs, node, transfer);
             walk(az, rhs, node, transfer);
@@ -256,7 +252,7 @@ fn walk(
                 else_moved.as_ref(),
             );
         }
-        Expr::Int(_) | Expr::Str(_) | Expr::None => {}
+        Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
 }
 
@@ -359,7 +355,9 @@ fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
         Expr::Ident { name, .. } | Expr::Move { name, .. } => {
             az.env.get(name).and_then(|b| b.ty.as_option())
         }
-        Expr::Some(inner) => infer_type(az, inner).map(|ty| ty.with_nullable(true)),
+        Expr::Some { expr: inner, .. } => {
+            infer_type(az, inner).map(|ty| ty.with_nullable(true))
+        }
         _ => None,
     }
 }

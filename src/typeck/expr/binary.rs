@@ -1,5 +1,6 @@
 use crate::ast::{BinOp, Expr};
 use crate::hir::{HirExpr, HirExprKind, Ty};
+use crate::span::Span;
 
 use super::super::env::Env;
 use super::check;
@@ -8,6 +9,7 @@ pub(super) fn check_binary(
     op: &BinOp,
     lhs: &Expr,
     rhs: &Expr,
+    expr_span: Span,
     expected: Option<&Ty>,
     return_ty: &Ty,
     env: &mut Env<'_>,
@@ -20,7 +22,7 @@ pub(super) fn check_binary(
     };
 
     // Guide Int/None from the peer when the left side cannot invent a type alone.
-    let guide_from_rhs = matches!(lhs, Expr::Int(_) | Expr::None)
+    let guide_from_rhs = matches!(lhs, Expr::Int(_) | Expr::None { .. })
         && outer_numeric.is_none()
         && *op != BinOp::RangeTo;
 
@@ -91,13 +93,14 @@ pub(super) fn check_binary(
         BinOp::Elvis => unreachable!("Elvis is handled before other binary operators"),
     };
 
-    HirExpr::new(
+    HirExpr::spanned(
         HirExprKind::Binary {
             op: op.clone(),
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
         },
         result_ty,
+        expr_span,
     )
 }
 
@@ -105,6 +108,7 @@ pub(super) fn check_elvis(
     op: &BinOp,
     lhs: &Expr,
     rhs: &Expr,
+    expr_span: Span,
     expected: Option<&Ty>,
     return_ty: &Ty,
     env: &mut Env<'_>,
@@ -118,7 +122,7 @@ pub(super) fn check_elvis(
         if !lhs.ty.is_nullable() {
             env.error(
                 format!("left operand of `?:` must be nullable, got {}", lhs.ty),
-                None,
+                Some(expr_span),
             );
         }
         lhs.ty.with_nullable(false)
@@ -126,7 +130,7 @@ pub(super) fn check_elvis(
         if !lhs.ty.is_unknown() {
             env.error(
                 format!("left operand of `?:` cannot have type {}", lhs.ty),
-                None,
+                Some(expr_span),
             );
         }
         Ty::unknown()
@@ -139,16 +143,17 @@ pub(super) fn check_elvis(
                 "right operand of `?:` has type {}, expected {result_ty}",
                 rhs.ty
             ),
-            None,
+            Some(expr_span),
         );
     }
 
-    HirExpr::new(
+    HirExpr::spanned(
         HirExprKind::Binary {
             op: op.clone(),
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
         },
         result_ty,
+        expr_span,
     )
 }
