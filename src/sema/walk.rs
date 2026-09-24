@@ -121,11 +121,24 @@ fn walk_stmt(
             });
         }
         Stmt::Assign { name, name_span, value } => {
-            note_use(az, name, Some(*name_span), node);
+            let dest = az.env.get(name).cloned();
+            let assign_up = dest.as_ref().is_some_and(|b| {
+                !b.moved
+                    && matches!(b.kind, BindingKind::Var)
+                    && b.arena_id < node.id
+            });
+            if !assign_up {
+                note_use(az, name, Some(*name_span), node);
+            }
+            let (arena_id, arena_label) = if let Some(b) = dest {
+                (b.arena_id, b.arena_label.clone())
+            } else {
+                (node.id, node.label.clone())
+            };
             let sink = TransferSink::Binding {
                 dest: BindingKind::Var,
-                arena_id: node.id,
-                arena_label: node.label.clone(),
+                arena_id,
+                arena_label,
             };
             walk(az, value, node, Some(&sink));
         }
@@ -161,6 +174,7 @@ fn walk(
 ) {
     match expr {
         Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
+        Expr::Promote { name, span } => apply_expr_promote(az, name, Some(*span), node, transfer),
         Expr::Ident { name, span } => {
             if let Some(sink) = transfer {
                 let Some(binding) = az.env.get(name) else {
@@ -254,6 +268,89 @@ fn walk(
         }
         Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
+}
+
+fn apply_expr_promote(
+    az: &mut Analyzer,
+    name: &str,
+    span: Option<Span>,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+) {
+    let Some(TransferSink::Binding {
+        arena_id: sink_id,
+        arena_label: sink_label,
+        ..
+    }) = transfer else {
+        az.error(
+            "`promote` is only valid when assigning to a binding in an outer region",
+            Some(name.into()),
+            span,
+        );
+        return;
+    };
+    let Some(peek) = az.env.get(name).cloned() else {
+        report_move_source_err(az, name, MoveSourceErr::Unknown, span);
+        return;
+    };
+    if peek.ty.is_copy() {
+        az.error(
+            format!("`promote` is not needed for Copy binding `{name}`"),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    if peek.moved {
+        report_move_source_err(
+            az,
+            name,
+            MoveSourceErr::AlreadyMoved {
+                from: peek.arena_label.clone(),
+            },
+            span,
+        );
+        return;
+    }
+    if peek.arena_id <= *sink_id {
+        az.error(
+            format!(
+                "`promote {name}` cannot lift into `{sink_label}`: value already lives in that arena or further out"
+            ),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    if *sink_id >= node.id {
+        az.error(
+            format!(
+                "`promote {name}` must target a strictly outer arena than the current `{label}`",
+                label = node.label
+            ),
+            Some(name.into()),
+            span,
+        );
+        return;
+    }
+    let binding = match move_source(az, name) {
+        Ok(b) => b,
+        Err(e) => {
+            report_move_source_err(az, name, e, span);
+            return;
+        }
+    };
+    let from = binding.arena_label.clone();
+    if let Some(binding) = az.env.get_mut(name) {
+        binding.moved = true;
+    }
+    record_observation(
+        node,
+        name,
+        Ownership::Moved { from },
+        binding.ty.as_option(),
+        span,
+    );
 }
 
 fn apply_expr_move(
@@ -352,7 +449,7 @@ fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
             name: "String".into(),
             nullable: false,
         }),
-        Expr::Ident { name, .. } | Expr::Move { name, .. } => {
+        Expr::Ident { name, .. } | Expr::Move { name, .. } | Expr::Promote { name, .. } => {
             az.env.get(name).and_then(|b| b.ty.as_option())
         }
         Expr::Some { expr: inner, .. } => {

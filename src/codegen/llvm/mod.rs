@@ -114,10 +114,10 @@ mod tests {
                  if (x > 40) { return x } else { return 0 }\n\
              }\n",
         );
-        // Arenas: fun add, fun main, IfThen, IfElse. Each `return` pops all it is nested in:
-        // 1 in `add`, 2 per branch in `main`.
+        // Arenas: fun add, fun main, IfThen, IfElse. Each `return` unwinds open handles in
+        // that branch only (then: main+IfThen, else: IfElse), plus one pop in `add`.
         assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 4, "{ir}");
-        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 5, "{ir}");
+        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 4, "{ir}");
     }
 
     #[test]

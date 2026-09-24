@@ -328,3 +328,33 @@ fun main() {
         "{errs:?}"
     );
 }
+
+#[test]
+fn assign_to_outer_var_in_block_ok() {
+    let src = r#"
+fun main() {
+    var x: String = "old"
+    {
+        x = "new"
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.is_empty(), "{errs:?}");
+}
+
+#[test]
+fn assign_to_outer_var_still_rejects_read() {
+    let src = r#"
+fun main() {
+    var x: String = "old"
+    {
+        val t = x
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, errs) = analyze(&prog);
+    assert!(errs.iter().any(|e| e.message.contains("not Copy")), "{errs:?}");
+}

@@ -7,7 +7,6 @@ pub fn gate(hir: &HirProgram) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for function in &hir.functions {
         gate_block(&function.body, &mut diagnostics);
-        super::escape::check_function(function, &mut diagnostics);
     }
     diagnostics
 }

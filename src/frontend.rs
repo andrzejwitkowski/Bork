@@ -40,9 +40,18 @@ pub fn check(source: &str) -> CheckResult {
     let (hir, mut type_diagnostics) = typeck::check(&program);
     diagnostics.append(&mut type_diagnostics);
 
+    let mut hir = diagnostics.is_empty().then_some(hir).flatten();
+    if let Some(mut program) = hir {
+        crate::hoist::annotate(&mut program);
+        for function in &program.functions {
+            crate::escape::check_function(function, &mut diagnostics);
+        }
+        hir = diagnostics.is_empty().then_some(program);
+    }
+
     CheckResult {
         report: Some(report),
-        hir: diagnostics.is_empty().then_some(hir).flatten(),
+        hir,
         diagnostics,
     }
 }

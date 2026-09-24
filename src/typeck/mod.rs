@@ -15,7 +15,7 @@ pub(crate) use env::FunSig;
 pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     for function in &program.functions {
-        if crate::builtins::is_print(&function.name) {
+        if crate::builtins::is_intrinsic(&function.name) {
             diagnostics.push(Diagnostic {
                 phase: Phase::Type,
                 severity: Severity::Error,
@@ -27,7 +27,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let mut fun_sigs: HashMap<_, _> = program
         .functions
         .iter()
-        .filter(|function| !crate::builtins::is_print(&function.name))
+        .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| {
             (
                 function.name.clone(),
@@ -47,7 +47,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
     let functions = program
         .functions
         .iter()
-        .filter(|function| !crate::builtins::is_print(&function.name))
+        .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| {
             let mut env = Env::new(&fun_sigs);
             let signature = env
