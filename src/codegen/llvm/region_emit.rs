@@ -47,6 +47,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 }
 
 impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
+    fn short_circuit_logical_operands(&self) -> bool {
+        true
+    }
+
     fn begin_function_body(
         &mut self,
         _name: &str,

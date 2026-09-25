@@ -299,6 +299,11 @@ pub trait RegionVisitor {
         false
     }
 
+    /// When true, `&&` / `||` skip walking the RHS (LLVM short-circuit emission).
+    fn short_circuit_logical_operands(&self) -> bool {
+        false
+    }
+
     fn on_function_root(&mut self, _root: &ArenaNode) -> Result<(), WalkError> {
         Ok(())
     }
@@ -579,7 +584,9 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
         }
         HirExprKind::Binary { op, lhs, rhs, .. } => {
             walk_expr(driver, visitor, lhs)?;
-            if !matches!(op, BinOp::And | BinOp::Or) {
+            let skip_rhs = matches!(op, BinOp::And | BinOp::Or)
+                && visitor.short_circuit_logical_operands();
+            if !skip_rhs {
                 walk_expr(driver, visitor, rhs)?;
             }
             visitor.after_expr(driver, expr)
@@ -766,6 +773,15 @@ mod tests {
         let mut report = result.report.unwrap();
         stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
         assert!(!report.roots[0].children[0].codegen_push);
+    }
+
+    #[test]
+    fn stamp_walk_visits_logical_rhs_for_if_regions() {
+        let source = "fun main() {\n    if (false && if (true) { true } else { false }) { }\n}\n";
+        let result = check(source);
+        assert!(result.is_ok());
+        let mut report = result.report.unwrap();
+        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
     }
 
     #[cfg(feature = "codegen")]
