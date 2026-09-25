@@ -209,7 +209,7 @@ impl Ty {
     }
 
     pub fn is_array_elem_supported(&self) -> bool {
-        self.is_copy() || self.is_string()
+        self.is_copy() || (self.is_string() && !self.nullable)
     }
 
     pub fn is_nullable(&self) -> bool {

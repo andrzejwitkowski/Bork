@@ -232,7 +232,11 @@ impl<'h> Escape<'h, '_> {
                     .map(|element| self.place(element, None))
                     .max()
                     .unwrap_or(0);
-                deepest.max(self.depth)
+                let buffer = match sink {
+                    Some(0) | None => self.depth,
+                    Some(depth) => depth,
+                };
+                buffer.max(deepest)
             }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
