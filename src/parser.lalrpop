@@ -1,6 +1,6 @@
 use crate::ast::{
-    unescape_string_literal, BindingKind, BinOp, Block, Closure, Expr, Function, Param, Program,
-    Stmt, Type, UnaryOp,
+    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Closure, Expr, Function,
+    Param, Program, Stmt, Type, UnaryOp,
 };
 use crate::span::{Span, SpannedName};
 use lalrpop_util::ParseError;
@@ -178,15 +178,47 @@ Stmt: Stmt = {
         ty,
         value,
     },
-    <name:SpannedIdent> "=" <value:Expr> => Stmt::Assign {
-        name: name.name,
-        name_span: name.span,
-        value,
+    <lhs:Expr> "=" <value:Expr> =>? {
+        match lhs {
+            Expr::Ident { name, span } => Ok(Stmt::Assign {
+                target: AssignTarget::Name {
+                    name,
+                    name_span: span,
+                },
+                value,
+            }),
+            Expr::Index { receiver, index, .. } => match *receiver {
+                Expr::Ident { name, span } => Ok(Stmt::Assign {
+                    target: AssignTarget::Index {
+                        name,
+                        name_span: span,
+                        index: *index,
+                    },
+                    value,
+                }),
+                _ => Err(ParseError::User {
+                    error: "assignment target must be a name or name[index]",
+                }),
+            },
+            _ => Err(ParseError::User {
+                error: "assignment target must be a name or name[index]",
+            }),
+        }
     },
     "for" "(" <name:SpannedIdent> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
         name,
         iter,
         body,
+    },
+    "while" "(" <cond:Expr> ")" <body:Block> => Stmt::While {
+        cond,
+        body,
+    },
+    <start:@L> "break" <end:@R> => Stmt::Break {
+        span: Span::new(start, end),
+    },
+    <start:@L> "continue" <end:@R> => Stmt::Continue {
+        span: Span::new(start, end),
     },
     "return" <value:Expr?> => Stmt::Return(value),
     <e:Expr> => Stmt::Expr(e),
@@ -202,20 +234,24 @@ Expr: Expr = {
 };
 
 ExprElvis: Expr = {
-    <start:@L> <lhs:ExprRange> "?:" <rhs:ExprElvis> <end:@R> => Expr::Binary {
+    <start:@L> <lhs:ExprOr> "?:" <rhs:ExprElvis> <end:@R> => Expr::Binary {
         op: BinOp::Elvis,
         lhs: Box::new(lhs),
         rhs: Box::new(rhs),
         span: Span::new(start, end),
     },
-    <e:ExprRange> => e,
+    <e:ExprOr> => e,
 };
 
+ExprOr = BinTier<OrOp, ExprAnd>;
+ExprAnd = BinTier<AndOp, ExprRange>;
 ExprRange = BinTier<RangeOp, ExprCompare>;
 ExprCompare = BinTier<CompareOp, ExprAdd>;
 ExprAdd = BinTier<AddOp, ExprMul>;
 ExprMul = BinTier<MulOp, ExprSuffix>;
 
+OrOp: BinOp = { "||" => BinOp::Or };
+AndOp: BinOp = { "&&" => BinOp::And };
 RangeOp: BinOp = { ".." => BinOp::RangeTo };
 CompareOp: BinOp = {
     ">" => BinOp::Gt,
@@ -294,8 +330,15 @@ MoveClosureBody: (Vec<SpannedName>, Block) = {
 };
 
 Atom: Expr = {
+    <start:@L> "!" <expr:Atom> <end:@R> => Expr::Unary {
+        op: UnaryOp::Not,
+        expr: Box::new(expr),
+        span: Span::new(start, end),
+    },
     <n:Num> => Expr::Int(n),
     <f:FloatLit> => Expr::Float(f),
+    "true" => Expr::Bool(true),
+    "false" => Expr::Bool(false),
     <s:StrLit> => Expr::Str(s),
     <start:@L> "[" <elems:Comma<Expr>?> "]" <end:@R> => Expr::ArrayLit {
         elements: elems.unwrap_or_default(),

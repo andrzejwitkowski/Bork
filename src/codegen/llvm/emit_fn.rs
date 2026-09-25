@@ -2,21 +2,23 @@ use std::collections::HashMap;
 
 use inkwell::module::Linkage;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
+use inkwell::basic_block::BasicBlock;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
 use crate::codegen::regions::{RegionEmitter, RegionSite};
+use crate::region_walk::{RegionWalkRef, WalkDriver};
 use crate::diag::Diagnostic;
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, Ty};
+use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, Ty};
 
 use super::arena::ArenaCalls;
 use super::context::Codegen;
-use super::{not_yet_supported, schedule_error};
+use super::{not_yet_supported, region_walk_codegen_error, schedule_error};
 
 pub type Callees<'h, 'ctx> = HashMap<&'h str, (FunctionValue<'ctx>, &'h HirFunction)>;
 
-pub type Regions<'r, 'a, 'ctx> = RegionEmitter<'r, ArenaCalls<'a, 'ctx>>;
+pub type Regions<'report, 'a, 'ctx> = RegionEmitter<'report, ArenaCalls<'a, 'ctx>>;
 
 /// `main` keeps its C name and returns `i32` even when declared `unit`; other functions get
 /// internal `bork.`-prefixed symbols so they cannot collide with libc or the runtime.
@@ -64,10 +66,11 @@ pub fn declare_function<'ctx>(
     ))
 }
 
-pub fn emit_function<'a, 'ctx>(
+pub fn emit_function<'report, 'a, 'ctx>(
     cx: &'a Codegen<'ctx>,
     callees: &Callees<'_, 'ctx>,
-    regions: &mut Regions<'_, 'a, 'ctx>,
+    regions: &mut Regions<'report, 'a, 'ctx>,
+    roots: &'report [crate::sema::ArenaNode],
     function: &HirFunction,
 ) -> Result<(), Diagnostic> {
     let (llvm_fn, _) = callees[function.name.as_str()];
@@ -83,18 +86,10 @@ pub fn emit_function<'a, 'ctx>(
         scopes: vec![HashMap::new()],
         alloc_sink: None,
         function_arena: None,
+        loop_stack: Vec::new(),
+        walk: CodegenWalkState::new(),
     };
-    let body = emitter
-        .regions
-        .enter_function(&function.name, &function.body)
-        .map_err(schedule_error)?;
-    emitter.check_arena()?;
-    emitter.function_arena = emitter.regions.sink_mut().current();
-    for (param, value) in function.params.iter().zip(llvm_fn.get_param_iter()) {
-        emitter.declare_local(&param.name, &param.ty, value)?;
-    }
-    emitter.emit_stmts(body, None)?;
-    emitter.exit_region()?;
+    super::region_emit::emit_function_body(&mut emitter, roots, function)?;
     if !cx.current_block_terminated() {
         emitter.build_fallthrough()?;
     }
@@ -107,59 +102,87 @@ pub(super) struct Slot<'ctx> {
     pub home_arena: PointerValue<'ctx>,
 }
 
-pub(super) struct FnEmitter<'s, 'r, 'a, 'ctx> {
+pub(super) struct FnEmitter<'s, 'report, 'a, 'ctx> {
     pub cx: &'a Codegen<'ctx>,
     pub callees: &'s Callees<'s, 'ctx>,
-    regions: &'s mut Regions<'r, 'a, 'ctx>,
-    function: &'s HirFunction,
+    pub(super) regions: &'s mut Regions<'report, 'a, 'ctx>,
+    pub(super) function: &'s HirFunction,
     pub llvm_fn: FunctionValue<'ctx>,
-    scopes: Vec<HashMap<String, Slot<'ctx>>>,
+    pub(super) scopes: Vec<HashMap<String, Slot<'ctx>>>,
     alloc_sink: Option<PointerValue<'ctx>>,
     /// Function-body arena handle; stable for the whole emit even when sibling branches return.
-    function_arena: Option<PointerValue<'ctx>>,
+    pub(super) function_arena: Option<PointerValue<'ctx>>,
+    loop_stack: Vec<LoopLabels<'ctx>>,
+    pub(super) walk: CodegenWalkState<'ctx>,
 }
 
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub fn emit_stmts(
-        &mut self,
-        block: &HirBlock,
-        value_ty: Option<&Ty>,
-    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
-        let Some((last, prefix)) = block.stmts.split_last() else {
-            return Ok(None);
-        };
-        for stmt in prefix {
-            self.emit_stmt(stmt)?;
-        }
-        match (last, value_ty) {
-            (HirStmt::Expr(expr), Some(ty)) => {
-                self.ensure_open_block();
-                Ok(Some(self.emit_value(expr, ty)?))
-            }
-            _ => self.emit_stmt(last).map(|()| None),
+struct LoopLabels<'ctx> {
+    exit: BasicBlock<'ctx>,
+    continue_target: BasicBlock<'ctx>,
+}
+
+/// Driver pin and trailing-value slot while `region_walk` drives a function body.
+pub(super) struct CodegenWalkState<'ctx> {
+    pub trailing: Option<BasicValueEnum<'ctx>>,
+    driver: Option<*mut ()>,
+}
+
+impl<'ctx> CodegenWalkState<'ctx> {
+    fn new() -> Self {
+        Self {
+            trailing: None,
+            driver: None,
         }
     }
 
-    pub fn emit_region(
+    fn active(&self) -> bool {
+        self.driver.is_some()
+    }
+
+    fn driver_ptr(&self) -> *mut () {
+        self.driver
+            .expect("emit_expr region sync requires an active region walk driver")
+    }
+
+    fn driver_mut<'a>(ptr: *mut ()) -> &'a mut WalkDriver<'a, RegionWalkRef<'a>> {
+        unsafe { &mut *ptr.cast() }
+    }
+}
+
+impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
+    pub(super) fn pin_walk_driver<C: crate::region_walk::ArenaCursor, R>(
         &mut self,
-        site: RegionSite,
-        block: &HirBlock,
-        value_ty: Option<&Ty>,
-    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
-        let body = self.regions.enter(site, block).map_err(schedule_error)?;
-        self.check_arena()?;
-        self.scopes.push(HashMap::new());
-        let value = self.emit_stmts(body, value_ty);
-        self.scopes.pop();
-        let value = value?;
-        if self.cx.current_block_terminated() {
-            self.regions
-                .exit_after_return()
-                .map_err(schedule_error)?;
-        } else {
-            self.exit_region()?;
-        }
-        Ok(value)
+        driver: &mut WalkDriver<'_, C>,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> R {
+        let prev = self.walk.driver;
+        self.walk.driver = Some(std::ptr::from_mut(driver).cast());
+        let out = f(self);
+        self.walk.driver = prev;
+        out
+    }
+
+    pub(super) fn walk_driver_active(&self) -> bool {
+        self.walk.active()
+    }
+
+    pub(crate) fn codegen_driver_ptr(&self) -> *mut () {
+        self.walk.driver_ptr()
+    }
+
+    pub(super) fn codegen_driver_mut<'a>(ptr: *mut ()) -> &'a mut WalkDriver<'a, RegionWalkRef<'a>> {
+        CodegenWalkState::driver_mut(ptr)
+    }
+
+    pub(super) fn value_from_walk(
+        &mut self,
+        expr: &HirExpr,
+        missing: impl FnOnce() -> Diagnostic,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        Self::codegen_driver_mut(self.walk.driver_ptr())
+            .walk_expr(self, expr)
+            .map_err(region_walk_codegen_error)?;
+        self.walk.trailing.take().ok_or_else(|| missing())
     }
 
     pub fn current_arena(&mut self) -> PointerValue<'ctx> {
@@ -197,15 +220,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
-    fn emit_stmt(&mut self, stmt: &HirStmt) -> Result<(), Diagnostic> {
+    pub(super) fn emit_stmt(&mut self, stmt: &HirStmt) -> Result<(), Diagnostic> {
         self.ensure_open_block();
         match stmt {
             HirStmt::Return { value } => self.emit_return(value.as_ref()),
-            HirStmt::Block(body) => self.emit_region(RegionSite::Block, body, None).map(drop),
-            // MoveBlock captures are enforced by sema; codegen only opens the move region.
-            HirStmt::MoveBlock { body, .. } => self
-                .emit_region(RegionSite::MoveBlock, body, None)
-                .map(drop),
+            HirStmt::Block(_) | HirStmt::MoveBlock { .. } | HirStmt::For { .. } | HirStmt::While { .. } => {
+                Err(not_yet_supported("region statement outside region walk", None))
+            }
             HirStmt::VarDecl {
                 name,
                 ty,
@@ -223,35 +244,87 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     })?;
                     self.alloc_sink = Some(slot.home_arena);
                 }
-                let value = self.emit_value(value, ty)?;
+                let value = self.value_from_walk(
+                    value,
+                    || not_yet_supported("initializer produced no value", value.span),
+                )?;
                 self.alloc_sink = prev;
                 self.declare_local(name, ty, value)
             }
-            HirStmt::Assign { name, value } => {
+            HirStmt::Assign { target, value } => {
+                let name = target.name();
                 let slot = self.lookup(name).ok_or_else(|| {
                     not_yet_supported(&format!("assignment to `{name}`"), value.span)
                 })?;
-                let (ptr, ty, home) = (slot.ptr, slot.ty.clone(), slot.home_arena);
+                let (ptr, home, array_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
                 let prev = self.alloc_sink;
                 self.alloc_sink = Some(home);
-                let value = self.emit_value(value, &ty)?;
+                let stored = self.value_from_walk(
+                    value,
+                    || not_yet_supported("assignment value missing", value.span),
+                )?;
                 self.alloc_sink = prev;
-                self.cx.builder.build_store(ptr, value)?;
+                match target {
+                    HirAssignTarget::Name { .. } => {
+                        self.cx.builder.build_store(ptr, stored)?;
+                        Ok(())
+                    }
+                    HirAssignTarget::Index { index, .. } => {
+                        self.emit_index_store(ptr, &array_ty, index, stored, value.span)
+                    }
+                }
+            }
+            HirStmt::Expr(expr) => {
+                Self::codegen_driver_mut(self.codegen_driver_ptr())
+                    .walk_expr(self, expr)
+                    .map_err(region_walk_codegen_error)?;
+                self.walk.trailing.take();
                 Ok(())
             }
-            HirStmt::Expr(expr) => self.emit_expr(expr).map(drop),
-            HirStmt::For { name, iter, body } => {
-                self.scopes.push(HashMap::new());
-                let result = self.emit_for(name, iter, body);
-                self.scopes.pop();
-                result
-            }
+            HirStmt::Break { .. } => self.emit_break(),
+            HirStmt::Continue { .. } => self.emit_continue(),
         }
     }
 
-    /// `for (name in lo..hi)` over the half-open range, bounds evaluated once. The loop arena
-    /// is pushed before the header, reset at the latch after every iteration, and popped on exit.
-    fn emit_for(&mut self, name: &str, iter: &HirExpr, body: &HirBlock) -> Result<(), Diagnostic> {
+    fn emit_break(&mut self) -> Result<(), Diagnostic> {
+        let exit = self
+            .loop_stack
+            .last()
+            .map(|labels| labels.exit)
+            .ok_or_else(|| not_yet_supported("`break` outside of a loop", None))?;
+        self.cx.builder.build_unconditional_branch(exit)?;
+        Ok(())
+    }
+
+    fn emit_continue(&mut self) -> Result<(), Diagnostic> {
+        let target = self
+            .loop_stack
+            .last()
+            .map(|labels| labels.continue_target)
+            .ok_or_else(|| not_yet_supported("`continue` outside of a loop", None))?;
+        self.cx.builder.build_unconditional_branch(target)?;
+        Ok(())
+    }
+
+    /// `for (name in lo..hi)` — iterator expression is already evaluated by `region_walk`.
+    pub(super) fn emit_for_with_driver<C: crate::region_walk::ArenaCursor>(
+        &mut self,
+        driver: &mut WalkDriver<'_, C>,
+        name: &str,
+        iter: &HirExpr,
+        body: &HirBlock,
+    ) -> Result<(), Diagnostic> {
+        self.pin_walk_driver(driver, |emitter| {
+            emitter.emit_for_with_driver_inner(name, iter, body)
+        })
+    }
+
+    fn emit_for_with_driver_inner(
+        &mut self,
+        name: &str,
+        iter: &HirExpr,
+        body: &HirBlock,
+    ) -> Result<(), Diagnostic> {
         let HirExprKind::Binary {
             op: BinOp::RangeTo,
             lhs,
@@ -266,10 +339,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.declare_local(name, &index_ty, start.into())?;
         let index = self.lookup(name).expect("loop index was just declared").ptr;
 
-        let body = self
-            .regions
-            .enter(RegionSite::For, body)
-            .map_err(schedule_error)?;
+        let ptr = self.codegen_driver_ptr();
+        let driver = Self::codegen_driver_mut(ptr);
+        crate::region_walk::region_enter(driver, self, RegionSite::For, body)
+            .map_err(region_walk_codegen_error)?;
         self.check_arena()?;
 
         let cx = self.cx;
@@ -281,6 +354,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let exit_bb = context.append_basic_block(self.llvm_fn, "for.exit");
         builder.build_unconditional_branch(header_bb)?;
 
+        self.loop_stack.push(LoopLabels {
+            exit: exit_bb,
+            continue_target: latch_bb,
+        });
+
         builder.position_at_end(header_bb);
         let current = builder.build_load(i32_type, index, name)?.into_int_value();
         let in_range = builder.build_int_compare(IntPredicate::SLT, current, end, "for.cond")?;
@@ -288,9 +366,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
         builder.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
-        let emitted = self.emit_stmts(body, None);
+        let (peeled, _) = crate::hir::peel_blocks(body);
+        driver.walk_block(self, peeled, None).map_err(|err| {
+            region_walk_codegen_error(err)
+        })?;
         self.scopes.pop();
-        emitted?;
         if !cx.current_block_terminated() {
             builder.build_unconditional_branch(latch_bb)?;
         }
@@ -304,15 +384,86 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         builder.build_unconditional_branch(header_bb)?;
 
         builder.position_at_end(exit_bb);
-        self.exit_region()
+        self.loop_stack.pop();
+        crate::region_walk::region_exit(driver, self, RegionSite::For)
+            .map_err(region_walk_codegen_error)?;
+        Ok(())
+    }
+
+    pub(super) fn emit_while_with_driver<C: crate::region_walk::ArenaCursor>(
+        &mut self,
+        driver: &mut WalkDriver<'_, C>,
+        cond: &HirExpr,
+        body: &HirBlock,
+    ) -> Result<(), Diagnostic> {
+        self.pin_walk_driver(driver, |emitter| {
+            emitter.emit_while_with_driver_inner(cond, body)
+        })
+    }
+
+    fn emit_while_with_driver_inner(
+        &mut self,
+        cond: &HirExpr,
+        body: &HirBlock,
+    ) -> Result<(), Diagnostic> {
+        let ptr = self.codegen_driver_ptr();
+        let driver = Self::codegen_driver_mut(ptr);
+        crate::region_walk::region_enter(driver, self, RegionSite::While, body)
+            .map_err(region_walk_codegen_error)?;
+        self.check_arena()?;
+
+        let cx = self.cx;
+        let (context, builder) = (cx.context, &cx.builder);
+        let header_bb = context.append_basic_block(self.llvm_fn, "while.header");
+        let body_bb = context.append_basic_block(self.llvm_fn, "while.body");
+        let latch_bb = context.append_basic_block(self.llvm_fn, "while.latch");
+        let exit_bb = context.append_basic_block(self.llvm_fn, "while.exit");
+        builder.build_unconditional_branch(header_bb)?;
+
+        self.loop_stack.push(LoopLabels {
+            exit: exit_bb,
+            continue_target: latch_bb,
+        });
+
+        builder.position_at_end(header_bb);
+        let keep_going = self.emit_bool(cond)?;
+        builder.build_conditional_branch(keep_going, body_bb, exit_bb)?;
+
+        builder.position_at_end(body_bb);
+        self.scopes.push(HashMap::new());
+        let (peeled, _) = crate::hir::peel_blocks(body);
+        driver.walk_block(self, peeled, None).map_err(|err| {
+            region_walk_codegen_error(err)
+        })?;
+        self.scopes.pop();
+        if !cx.current_block_terminated() {
+            builder.build_unconditional_branch(latch_bb)?;
+        }
+
+        builder.position_at_end(latch_bb);
+        self.regions.latch().map_err(schedule_error)?;
+        self.check_arena()?;
+        builder.build_unconditional_branch(header_bb)?;
+
+        builder.position_at_end(exit_bb);
+        self.loop_stack.pop();
+        crate::region_walk::region_exit(driver, self, RegionSite::While)
+            .map_err(region_walk_codegen_error)?;
+        Ok(())
     }
 
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
         let return_ty = &self.function.return_ty;
         let value = match value {
-            Some(value) if *return_ty != Ty::unit() => Some(self.emit_value(value, return_ty)?),
+            Some(value) if *return_ty != Ty::unit() => Some(self.value_from_walk(
+                value,
+                || not_yet_supported("return value missing", value.span),
+            )?),
             Some(value) => {
-                self.emit_expr(value)?;
+                Self::codegen_driver_mut(self.codegen_driver_ptr())
+                    .walk_expr(self, value)
+                    .map_err(region_walk_codegen_error)?;
+                self.walk.trailing.take();
                 None
             }
             None => None,
@@ -346,7 +497,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(())
     }
 
-    fn declare_local(
+    pub(super) fn declare_local(
         &mut self,
         name: &str,
         ty: &Ty,
@@ -393,12 +544,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(builder.build_alloca(ty, name)?)
     }
 
-    fn exit_region(&mut self) -> Result<(), Diagnostic> {
+    pub(super) fn pop_region(&mut self) -> Result<(), Diagnostic> {
         self.regions.exit().map_err(schedule_error)?;
         self.check_arena()
     }
 
-    fn check_arena(&mut self) -> Result<(), Diagnostic> {
+    pub(super) fn check_arena(&mut self) -> Result<(), Diagnostic> {
         Ok(self.regions.sink_mut().take_error()?)
     }
+
 }

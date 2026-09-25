@@ -58,7 +58,7 @@ pub enum HirStmt {
         alloc_in_binding: Option<String>,
     },
     Assign {
-        name: String,
+        target: HirAssignTarget,
         value: HirExpr,
     },
     Expr(HirExpr),
@@ -67,11 +67,47 @@ pub enum HirStmt {
         iter: HirExpr,
         body: HirBlock,
     },
+    While {
+        cond: HirExpr,
+        body: HirBlock,
+    },
+    Break {
+        span: Span,
+    },
+    Continue {
+        span: Span,
+    },
     MoveBlock {
         /// `None` = capture list omitted in the source; `Some(vec![])` = explicit empty.
         captures: Option<Vec<String>>,
         body: HirBlock,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HirAssignTarget {
+    Name {
+        name: String,
+    },
+    Index {
+        name: String,
+        index: HirExpr,
+    },
+}
+
+impl HirAssignTarget {
+    pub fn name(&self) -> &str {
+        match self {
+            HirAssignTarget::Name { name } | HirAssignTarget::Index { name, .. } => name,
+        }
+    }
+
+    pub fn index(&self) -> Option<&HirExpr> {
+        match self {
+            HirAssignTarget::Index { index, .. } => Some(index),
+            HirAssignTarget::Name { .. } => None,
+        }
+    }
 }
 
 /// An expression annotated with the type it was inferred or checked at.
@@ -154,4 +190,22 @@ pub enum HirExprKind {
         then_block: HirBlock,
         else_block: Option<HirBlock>,
     },
+    Bool {
+        value: bool,
+    },
+}
+
+/// Peel nested bare `{ ... }` wrappers (same rule as `sema::peel_blocks` on AST).
+pub fn peel_blocks(block: &HirBlock) -> (&HirBlock, usize) {
+    let mut compacted = 0;
+    let mut current = block;
+    while let [HirStmt::Block(inner)] = current.stmts.as_slice() {
+        compacted += 1;
+        current = inner;
+    }
+    (current, compacted)
+}
+
+pub fn peel_to_body(block: &HirBlock) -> &HirBlock {
+    peel_blocks(block).0
 }

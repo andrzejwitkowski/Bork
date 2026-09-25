@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::builtins::{self, Builtin};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, UseKind};
+use crate::hir::{peel_to_body, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, UseKind};
 use crate::span::Span;
 
 pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>) {
@@ -30,14 +30,6 @@ pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>)
         diagnostics,
     };
     escape.region(&function.body, false, None);
-}
-
-fn peel_blocks(block: &HirBlock) -> &HirBlock {
-    let mut current = block;
-    while let [HirStmt::Block(inner)] = current.stmts.as_slice() {
-        current = inner;
-    }
-    current
 }
 
 fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
@@ -63,7 +55,7 @@ struct Escape<'h, 'd> {
 
 impl<'h> Escape<'h, '_> {
     fn region(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
-        let body = peel_blocks(body);
+        let body = peel_to_body(body);
         self.depth += 1;
         self.scopes.push(HashMap::new());
         let mut value = 0;
@@ -104,8 +96,11 @@ impl<'h> Escape<'h, '_> {
                 if self.place(value, Some(0)) > 0 {
                     reject(
                         self.diagnostics,
-                        "returning a `String` whose bytes live in an inner region is not \
-                         supported: that arena is freed before the value is returned",
+                        &format!(
+                            "returning a `{value_ty}` whose bytes live in an inner region is not \
+                             supported: that arena is freed before the value is returned",
+                            value_ty = value.ty
+                        ),
                         value.span,
                     );
                 }
@@ -126,17 +121,22 @@ impl<'h> Escape<'h, '_> {
                     .expect("regions open a scope")
                     .insert(name, local);
             }
-            HirStmt::Assign { name, value } => {
-                let target = self
+            HirStmt::Assign { target, value } => {
+                let name = target.name();
+                if let Some(index) = target.index() {
+                    self.place(index, None);
+                }
+                let depth = self
                     .lookup(name)
                     .map(|local| local.decl_depth)
                     .unwrap_or(0);
-                let value_depth = self.place(value, Some(target));
-                let Some(local) = self.lookup_mut(name) else {
-                    return;
-                };
-                let outlives = value_depth > target;
-                local.value_depth = value_depth.min(target);
+                let value_depth = self.place(value, Some(depth));
+                if target.index().is_none() {
+                    if let Some(local) = self.lookup_mut(name) {
+                        local.value_depth = value_depth.min(depth);
+                    }
+                }
+                let outlives = value_depth > depth;
                 if outlives && value.ty.uses_arena_storage() {
                     reject(
                         self.diagnostics,
@@ -155,6 +155,11 @@ impl<'h> Escape<'h, '_> {
                 self.place(iter, None);
                 self.region(body, false, None);
             }
+            HirStmt::While { cond, body } => {
+                self.place(cond, None);
+                self.region(body, false, None);
+            }
+            HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
         }
     }
 
@@ -191,7 +196,7 @@ impl<'h> Escape<'h, '_> {
     }
 
     fn check_return_string_in_block(&mut self, block: &'h HirBlock) {
-        let block = peel_blocks(block);
+        let block = peel_to_body(block);
         if let Some(HirStmt::Expr(expr)) = block.stmts.last() {
             self.check_return_string_form(expr);
         }
@@ -224,6 +229,7 @@ impl<'h> Escape<'h, '_> {
         match &expr.kind {
             HirExprKind::Int { .. }
             | HirExprKind::Float { .. }
+            | HirExprKind::Bool { .. }
             | HirExprKind::Str { .. }
             | HirExprKind::None => 0,
             HirExprKind::ArrayLit { elements } => {
@@ -382,7 +388,11 @@ mod tests {
         let stmts = &mut hir.functions[0].body.stmts;
         let assign = stmts.remove(3);
         let decl = stmts.remove(2);
-        let HirStmt::Assign { name, mut value } = assign else {
+        let HirStmt::Assign {
+            target,
+            mut value,
+        } = assign
+        else {
             panic!("expected assign");
         };
         if let HirExprKind::Ident { use_kind, .. } = &mut value.kind {
@@ -391,7 +401,7 @@ mod tests {
         stmts.insert(
             2,
             HirStmt::Block(HirBlock {
-                stmts: vec![decl, HirStmt::Assign { name, value }],
+                stmts: vec![decl, HirStmt::Assign { target, value }],
             }),
         );
 

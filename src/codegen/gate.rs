@@ -1,4 +1,4 @@
-use crate::ast::BinOp;
+use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt};
 use crate::span::Span;
@@ -22,13 +22,24 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
             HirStmt::Block(block) | HirStmt::MoveBlock { body: block, .. } => {
                 gate_block(block, diagnostics);
             }
-            HirStmt::VarDecl { value, .. }
-            | HirStmt::Assign { value, .. }
-            | HirStmt::Expr(value) => gate_expr(value, diagnostics),
+            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => {
+                gate_expr(value, diagnostics)
+            }
+            HirStmt::Assign { target, value } => {
+                if let Some(index) = target.index() {
+                    gate_expr(index, diagnostics);
+                }
+                gate_expr(value, diagnostics);
+            }
             HirStmt::For { iter, body, .. } => {
                 gate_expr(iter, diagnostics);
                 gate_block(body, diagnostics);
             }
+            HirStmt::While { cond, body } => {
+                gate_expr(cond, diagnostics);
+                gate_block(body, diagnostics);
+            }
+            HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
         }
     }
 }
@@ -37,6 +48,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
     match &expr.kind {
         HirExprKind::Int { .. }
         | HirExprKind::Float { .. }
+        | HirExprKind::Bool { .. }
         | HirExprKind::Str { .. }
         | HirExprKind::Ident { .. } => {}
         HirExprKind::ArrayLit { elements } => {
@@ -70,6 +82,8 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     | BinOp::Le
                     | BinOp::Eq
                     | BinOp::Ne
+                    | BinOp::And
+                    | BinOp::Or
                     | BinOp::RangeTo
             ) {
                 reject(
@@ -118,7 +132,10 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             );
             gate_expr(inner, diagnostics);
         }
-        HirExprKind::Unary { expr: inner, .. } => {
+        HirExprKind::Unary {
+            op: UnaryOp::NotNullAssert,
+            expr: inner,
+        } => {
             reject(
                 diagnostics,
                 "`!!` is not supported by codegen",
@@ -126,6 +143,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             );
             gate_expr(inner, diagnostics);
         }
+        HirExprKind::Unary { op: UnaryOp::Not, expr: inner } => gate_expr(inner, diagnostics),
         HirExprKind::Field { receiver, name, .. } => {
             if name != "length" || !receiver.ty.uses_arena_storage() {
                 reject(

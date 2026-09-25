@@ -21,6 +21,9 @@ pub(super) struct Env<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
     pub(super) diagnostics: Vec<Diagnostic>,
+    /// Types of `var`/`val` bindings in the order typeck checks them.
+    pub(super) decl_tys: Vec<Ty>,
+    pub(super) loop_depth: usize,
 }
 
 impl<'a> Env<'a> {
@@ -29,6 +32,8 @@ impl<'a> Env<'a> {
             scopes: vec![HashMap::new()],
             fun_sigs,
             diagnostics: Vec::new(),
+            decl_tys: Vec::new(),
+            loop_depth: 0,
         }
     }
 

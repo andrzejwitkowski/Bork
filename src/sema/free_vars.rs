@@ -1,6 +1,6 @@
 //! Free-variable collection for inferred move captures.
 
-use crate::ast::{Block, Expr, Stmt};
+use crate::ast::{AssignTarget, Block, Expr, Stmt};
 use crate::span::{Span, SpannedName};
 use std::collections::{BTreeMap, HashSet};
 
@@ -53,13 +53,23 @@ fn collect_stmt(
             collect_expr(value, free, bound);
             bound.insert(name.clone());
         }
-        Stmt::Assign {
-            name,
-            name_span,
-            value,
-        } => {
-            if !bound.contains(name) {
-                free.entry(name.clone()).or_insert(*name_span);
+        Stmt::Assign { target, value } => {
+            match target {
+                AssignTarget::Name { name, name_span } => {
+                    if !bound.contains(name) {
+                        free.entry(name.clone()).or_insert(*name_span);
+                    }
+                }
+                AssignTarget::Index {
+                    name,
+                    name_span,
+                    index,
+                } => {
+                    if !bound.contains(name) {
+                        free.entry(name.clone()).or_insert(*name_span);
+                    }
+                    collect_expr(index, free, bound);
+                }
             }
             collect_expr(value, free, bound);
         }
@@ -69,6 +79,11 @@ fn collect_stmt(
             inner.insert(name.name.clone());
             collect_block(body, free, &mut inner);
         }
+        Stmt::While { cond, body } => {
+            collect_expr(cond, free, bound);
+            collect_block(body, free, bound);
+        }
+        Stmt::Break { .. } | Stmt::Continue { .. } => {}
         Stmt::Return(Some(e)) | Stmt::Expr(e) => collect_expr(e, free, bound),
         Stmt::Return(None) => {}
     }
@@ -87,6 +102,7 @@ fn collect_expr(
         }
         // Operand of `move name` is transferred by the expression itself, not by
         // inferred `move { }` capture at block entry.
+        Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) => {}
         Expr::Move { .. } => {}
         Expr::Promote { .. } => {}
         Expr::Some { expr, .. } => collect_expr(expr, free, bound),
@@ -132,10 +148,7 @@ fn collect_expr(
                 collect_block(e, free, &mut bound.clone());
             }
         }
-        Expr::Float(_)
-        | Expr::Int(_)
-        | Expr::Str(_)
-        | Expr::None { .. } => {}
+        Expr::Str(_) | Expr::None { .. } => {}
         Expr::ArrayLit { elements, .. } => {
             for element in elements {
                 collect_expr(element, free, bound);

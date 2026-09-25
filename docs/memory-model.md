@@ -277,7 +277,11 @@ In Cursor/VS Code with the Bork extension:
 
 ## Native codegen and region schedule
 
-With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Ownership and arena layout are validated in `sema`; `src/codegen/regions.rs` walks HIR in lockstep with the arena report. The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, no general `&` / borrow-checker** model.
+With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Ownership and arena layout are validated in `sema`; `src/codegen/regions.rs` walks HIR in lockstep with the arena report.
+
+**Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After typeck, `region_walk::stamp_codegen_push` sets `ArenaNode.codegen_push` from typed HIR: codegen calls `bork_arena_push` only when that flag is true (function roots always push; trailing closures never push). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
+
+The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, no general `&` / borrow-checker** model.
 
 ## Assign-up, sink allocation, and escape
 
@@ -331,7 +335,8 @@ Examples:
 - Surface types carry the length **N**; runtime shape is still a descriptor `{ ptr, len }` with `len == N` for values of that type. Elements live in a contiguous buffer in the array value’s home arena (the arena active when the array was created, or the assign sink for `outer = …`).
 - **Whole-array** `move` / `promote` / assignment requires the same `[T; N]` on both sides.
 - **Slice** `a[lo..hi]` with compile-time literal bounds has type `[T; hi - lo]`. Codegen uses that **N** as the descriptor length and points into the same buffer (no copy). It does not emit a runtime bounds abort: typeck already rejected a slice that does not fit in the receiver. Escape rules treat the slice like the receiver array: it must not outlive the arena that owns the buffer.
-- **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts. There is no per-slot `move` or index assignment.
+- **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts.
+- **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
 
 ### Escape analysis (`escape::place`)
 

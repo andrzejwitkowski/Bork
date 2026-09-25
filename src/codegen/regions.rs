@@ -7,7 +7,7 @@
 //! | `ArenaNode.label`     | HIR site                                   | Events                                 |
 //! |-----------------------|--------------------------------------------|----------------------------------------|
 //! | `fun {name}`          | `HirFunction.body`                         | push on entry, pop on exit             |
-//! | `Block`               | `HirStmt::Block`                           | push / pop                             |
+//! | `Block`               | `HirStmt::Block`                           | push / pop when `codegen_push`         |
 //! | `MoveBlock (move)`    | `HirStmt::MoveBlock`                       | push / pop                             |
 //! | `ForLoop ({name})`    | `HirStmt::For` body (after `iter`)         | push before loop, reset at latch, pop after loop |
 //! | `IfThen`              | `HirExprKind::If` `then_block` (after `cond`) | push / pop around the branch        |
@@ -21,31 +21,11 @@
 
 use std::fmt;
 
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt};
+use crate::hir::{peel_blocks, HirBlock, HirProgram};
+use crate::region_walk::{self, WalkError};
 use crate::sema::{ArenaNode, ArenaReport};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegionSite {
-    Block,
-    MoveBlock,
-    For,
-    IfThen,
-    IfElse,
-    Closure,
-}
-
-impl RegionSite {
-    fn matches(self, label: &str) -> bool {
-        match self {
-            RegionSite::Block => label == "Block",
-            RegionSite::MoveBlock => label == "MoveBlock (move)",
-            RegionSite::For => label.starts_with("ForLoop ("),
-            RegionSite::IfThen => label == "IfThen",
-            RegionSite::IfElse => label == "IfElse",
-            RegionSite::Closure => label == "Closure" || label == "Closure (move)",
-        }
-    }
-}
+pub use crate::region_walk::RegionSite;
 
 /// Runtime arena operation, keyed by `ArenaNode::id`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,22 +37,22 @@ pub enum RegionEvent {
 
 /// Receives arena operations in emission order. LLVM codegen implements this with runtime calls.
 pub trait RegionSink {
-    fn push(&mut self, node: &ArenaNode);
-    fn reset(&mut self, node: &ArenaNode);
-    fn pop(&mut self, node: &ArenaNode);
+    fn push(&mut self, arena: usize);
+    fn reset(&mut self, arena: usize);
+    fn pop(&mut self, arena: usize);
 }
 
 impl RegionSink for Vec<RegionEvent> {
-    fn push(&mut self, node: &ArenaNode) {
-        self.push(RegionEvent::Push { arena: node.id });
+    fn push(&mut self, arena: usize) {
+        self.push(RegionEvent::Push { arena });
     }
 
-    fn reset(&mut self, node: &ArenaNode) {
-        self.push(RegionEvent::Reset { arena: node.id });
+    fn reset(&mut self, arena: usize) {
+        self.push(RegionEvent::Reset { arena });
     }
 
-    fn pop(&mut self, node: &ArenaNode) {
-        self.push(RegionEvent::Pop { arena: node.id });
+    fn pop(&mut self, arena: usize) {
+        self.push(RegionEvent::Pop { arena });
     }
 }
 
@@ -93,23 +73,44 @@ fn mismatch(message: String) -> ScheduleError {
     ScheduleError { message }
 }
 
-struct Open<'r> {
-    node: &'r ArenaNode,
+struct Open {
+    arena_id: usize,
+    label: String,
+    expected_children: usize,
     next_child: usize,
+    pushed: bool,
+    /// Children consumed by `region_walk` (schedule), not by `take_child`.
+    children_by_walk: bool,
 }
 
 /// Tracks the open arenas while a HIR walker emits code and forwards push/reset/pop to `S`.
-pub struct RegionEmitter<'r, S> {
-    report: &'r ArenaReport,
-    next_function: usize,
-    stack: Vec<Open<'r>>,
+pub struct RegionEmitter<'report, S> {
+    report: Option<&'report ArenaReport>,
+    function_count: usize,
+    pub(super) next_function: usize,
+    stack: Vec<Open>,
     sink: S,
 }
 
-impl<'r, S: RegionSink> RegionEmitter<'r, S> {
-    pub fn new(report: &'r ArenaReport, sink: S) -> Self {
+impl<'report, S: RegionSink> RegionEmitter<'report, S> {
+    pub fn new(report: &'report ArenaReport, sink: S) -> Self {
         Self {
-            report,
+            report: Some(report),
+            function_count: report.roots.len(),
+            next_function: 0,
+            stack: Vec::new(),
+            sink,
+        }
+    }
+
+    pub fn function_index(&self) -> usize {
+        self.next_function
+    }
+
+    pub fn for_schedule(function_count: usize, sink: S) -> Self {
+        Self {
+            report: None,
+            function_count,
             next_function: 0,
             stack: Vec::new(),
             sink,
@@ -138,8 +139,10 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
                 "function `{name}` entered inside an open region"
             )));
         }
-        let node = self
+        let report = self
             .report
+            .ok_or_else(|| mismatch("enter_function requires an arena report".into()))?;
+        let node = report
             .roots
             .get(self.next_function)
             .ok_or_else(|| mismatch(format!("no arena for function `{name}`")))?;
@@ -150,7 +153,7 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
             )));
         }
         self.next_function += 1;
-        self.open(node, body)
+        self.open(node, body, None)
     }
 
     pub fn enter<'h>(
@@ -159,7 +162,7 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
         body: &'h HirBlock,
     ) -> Result<&'h HirBlock, ScheduleError> {
         let node = self.take_child(site)?;
-        self.open(node, body)
+        self.open(node, body, Some(site))
     }
 
     pub fn skip(&mut self, site: RegionSite) -> Result<(), ScheduleError> {
@@ -171,13 +174,18 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
             .stack
             .last()
             .ok_or_else(|| mismatch("loop latch outside any region".into()))?;
-        if !RegionSite::For.matches(&open.node.label) {
+        if !RegionSite::For.matches(&open.label)
+            && !RegionSite::While.matches(&open.label)
+        {
             return Err(mismatch(format!(
                 "loop latch in non-loop arena `{}`",
-                open.node.label
+                open.label
             )));
         }
-        self.sink.reset(open.node);
+        if !open.pushed {
+            return Ok(());
+        }
+        self.sink.reset(open.arena_id);
         Ok(())
     }
 
@@ -186,44 +194,56 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
             .stack
             .pop()
             .ok_or_else(|| mismatch("region exit with no open region".into()))?;
-        if open.next_child != open.node.children.len() {
+        if !open.children_by_walk && open.next_child != open.expected_children {
             return Err(mismatch(format!(
                 "arena `{}` has {} child regions, HIR visited {}",
-                open.node.label,
-                open.node.children.len(),
+                open.label,
+                open.expected_children,
                 open.next_child
             )));
         }
-        self.sink.pop(open.node);
+        if open.pushed {
+            self.sink.pop(open.arena_id);
+        }
         Ok(())
     }
 
     /// Pops the region stack after an early `return` already emitted arena pops via `unwind`.
     pub fn exit_after_return(&mut self) -> Result<(), ScheduleError> {
-        self.stack
+        let open = self
+            .stack
             .pop()
-            .ok_or_else(|| mismatch("region exit with no open region".into()))
-            .map(|_| ())
+            .ok_or_else(|| mismatch("region exit with no open region".into()))?;
+        if open.pushed {
+            self.sink.pop(open.arena_id);
+        }
+        Ok(())
     }
 
     pub fn finish(self) -> Result<S, ScheduleError> {
-        if !self.stack.is_empty() || self.next_function != self.report.roots.len() {
+        if !self.stack.is_empty() || self.next_function != self.function_count {
             return Err(mismatch(format!(
                 "report has {} function arenas, HIR visited {}",
-                self.report.roots.len(),
+                self.function_count,
                 self.next_function
             )));
         }
         Ok(self.sink)
     }
 
-    fn take_child(&mut self, site: RegionSite) -> Result<&'r ArenaNode, ScheduleError> {
-        let open = self
+    fn take_child(&mut self, site: RegionSite) -> Result<&'report ArenaNode, ScheduleError> {
+        let frame = self
             .stack
-            .last_mut()
+            .len()
+            .checked_sub(1)
             .ok_or_else(|| mismatch(format!("{site:?} region outside any function")))?;
-        let parent: &'r ArenaNode = open.node;
-        let node = parent.children.get(open.next_child).ok_or_else(|| {
+        let parent_id = self.stack[frame].arena_id;
+        let child_index = self.stack[frame].next_child;
+        let report = self
+            .report
+            .ok_or_else(|| mismatch("take_child requires an arena report".into()))?;
+        let parent = find_node_by_id(report, parent_id)?;
+        let node = parent.children.get(child_index).ok_or_else(|| {
             mismatch(format!(
                 "{site:?} region has no matching child in arena `{}`",
                 parent.label
@@ -235,14 +255,16 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
                 node.label
             )));
         }
-        open.next_child += 1;
+        self.stack[frame].next_child += 1;
         Ok(node)
     }
 
-    fn open<'h>(
+    fn push_open<'h>(
         &mut self,
-        node: &'r ArenaNode,
+        node: &ArenaNode,
         body: &'h HirBlock,
+        site: Option<RegionSite>,
+        children_by_walk: bool,
     ) -> Result<&'h HirBlock, ScheduleError> {
         let (body, peeled) = peel_blocks(body);
         if peeled != node.compacted_braces {
@@ -251,139 +273,132 @@ impl<'r, S: RegionSink> RegionEmitter<'r, S> {
                 node.label, node.compacted_braces
             )));
         }
-        self.sink.push(node);
+        let pushed = site.is_none() || node.codegen_push;
+        if pushed {
+            self.sink.push(node.id);
+        }
         self.stack.push(Open {
-            node,
+            arena_id: node.id,
+            label: node.label.clone(),
+            expected_children: node.children.len(),
             next_child: 0,
+            pushed,
+            children_by_walk,
         });
         Ok(body)
     }
+
+    fn open<'h>(
+        &mut self,
+        node: &'report ArenaNode,
+        body: &'h HirBlock,
+        site: Option<RegionSite>,
+    ) -> Result<&'h HirBlock, ScheduleError> {
+        self.push_open(node, body, site, false)
+    }
+
+    /// Opens a region whose report child was already matched by `region_walk`.
+    pub fn open_known<'h>(
+        &mut self,
+        node: &ArenaNode,
+        body: &'h HirBlock,
+        site: Option<RegionSite>,
+    ) -> Result<&'h HirBlock, ScheduleError> {
+        self.push_open(node, body, site, true)
+    }
 }
 
-/// HIR counterpart of `sema::peel_blocks`.
-pub(super) fn peel_blocks(block: &HirBlock) -> (&HirBlock, usize) {
-    let mut compacted = 0;
-    let mut current = block;
-    while let [HirStmt::Block(inner)] = current.stmts.as_slice() {
-        compacted += 1;
-        current = inner;
+fn find_node_by_id<'a>(report: &'a ArenaReport, id: usize) -> Result<&'a ArenaNode, ScheduleError> {
+    for root in &report.roots {
+        if let Some(node) = find_node_in_tree(root, id) {
+            return Ok(node);
+        }
     }
-    (current, compacted)
+    Err(mismatch(format!("arena id {id} not in report")))
+}
+
+fn find_node_in_tree(node: &ArenaNode, id: usize) -> Option<&ArenaNode> {
+    if node.id == id {
+        return Some(node);
+    }
+    for child in &node.children {
+        if let Some(found) = find_node_in_tree(child, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn schedule_walk(err: ScheduleError) -> WalkError {
+    WalkError::message(err.to_string())
+}
+
+struct ScheduleVisitor<'e, 'report, S> {
+    emitter: &'e mut RegionEmitter<'report, S>,
+}
+
+impl<'e, 'report, S: RegionSink> region_walk::RegionVisitor for ScheduleVisitor<'e, 'report, S> {
+    fn begin_function_body(
+        &mut self,
+        _name: &str,
+        root: &ArenaNode,
+        body: &HirBlock,
+    ) -> Result<(), WalkError> {
+        self.emitter
+            .open_known(root, body, None)
+            .map_err(schedule_walk)?;
+        Ok(())
+    }
+
+    fn end_function_body(&mut self) -> Result<(), WalkError> {
+        self.emitter.exit().map_err(schedule_walk)?;
+        self.emitter.next_function += 1;
+        Ok(())
+    }
+
+    fn enter_region(
+        &mut self,
+        site: RegionSite,
+        child: &ArenaNode,
+        body: &HirBlock,
+    ) -> Result<(), WalkError> {
+        self.emitter
+            .open_known(child, body, Some(site))
+            .map_err(schedule_walk)?;
+        Ok(())
+    }
+
+    fn loop_latch(&mut self, site: RegionSite) -> Result<(), WalkError> {
+        if matches!(site, RegionSite::For | RegionSite::While) {
+            self.emitter.latch().map_err(schedule_walk)?;
+        }
+        Ok(())
+    }
+
+    fn exit_region(&mut self, _site: RegionSite) -> Result<(), WalkError> {
+        self.emitter.exit().map_err(schedule_walk)
+    }
+
+    fn skip_closure(&mut self, _child: &ArenaNode) -> Result<(), WalkError> {
+        Ok(())
+    }
+}
+
+fn walk_err(err: WalkError) -> ScheduleError {
+    mismatch(err.as_str().into())
 }
 
 /// Static region schedule for `hir`: each site's events once, with a single `Reset` per loop latch.
 pub fn schedule(hir: &HirProgram, report: &ArenaReport) -> Result<Vec<RegionEvent>, ScheduleError> {
-    let mut emitter = RegionEmitter::new(report, Vec::new());
-    for function in &hir.functions {
-        let body = emitter.enter_function(&function.name, &function.body)?;
-        schedule_block(&mut emitter, body)?;
-        emitter.exit()?;
+    let mut emitter = RegionEmitter::for_schedule(report.roots.len(), Vec::new());
+    {
+        let mut visitor = ScheduleVisitor {
+            emitter: &mut emitter,
+        };
+        region_walk::walk_program_readonly(hir, &report.roots, &mut visitor)
+            .map_err(walk_err)?;
     }
     emitter.finish()
-}
-
-fn schedule_region<S: RegionSink>(
-    emitter: &mut RegionEmitter<'_, S>,
-    site: RegionSite,
-    body: &HirBlock,
-) -> Result<(), ScheduleError> {
-    let body = emitter.enter(site, body)?;
-    schedule_block(emitter, body)?;
-    if site == RegionSite::For {
-        emitter.latch()?;
-    }
-    emitter.exit()
-}
-
-fn schedule_block<S: RegionSink>(
-    emitter: &mut RegionEmitter<'_, S>,
-    block: &HirBlock,
-) -> Result<(), ScheduleError> {
-    for stmt in &block.stmts {
-        match stmt {
-            HirStmt::Block(body) => schedule_region(emitter, RegionSite::Block, body)?,
-            HirStmt::MoveBlock { body, .. } => {
-                schedule_region(emitter, RegionSite::MoveBlock, body)?
-            }
-            HirStmt::For { iter, body, .. } => {
-                schedule_expr(emitter, iter)?;
-                schedule_region(emitter, RegionSite::For, body)?;
-            }
-            HirStmt::VarDecl { value, .. }
-            | HirStmt::Assign { value, .. }
-            | HirStmt::Expr(value)
-            | HirStmt::Return { value: Some(value) } => schedule_expr(emitter, value)?,
-            HirStmt::Return { value: None } => {}
-        }
-    }
-    Ok(())
-}
-
-fn schedule_expr<S: RegionSink>(
-    emitter: &mut RegionEmitter<'_, S>,
-    expr: &HirExpr,
-) -> Result<(), ScheduleError> {
-    match &expr.kind {
-        HirExprKind::Int { .. }
-        | HirExprKind::Float { .. }
-        | HirExprKind::Str { .. }
-        | HirExprKind::Ident { .. }
-        | HirExprKind::None => Ok(()),
-        HirExprKind::ArrayLit { elements } => {
-            for element in elements {
-                schedule_expr(emitter, element)?;
-            }
-            Ok(())
-        }
-        HirExprKind::Index {
-            receiver,
-            index,
-            use_kind: _,
-        } => {
-            schedule_expr(emitter, receiver)?;
-            schedule_expr(emitter, index)
-        }
-        HirExprKind::Slice { receiver, lo, hi } => {
-            schedule_expr(emitter, receiver)?;
-            schedule_expr(emitter, lo)?;
-            schedule_expr(emitter, hi)
-        }
-        HirExprKind::Some(inner)
-        | HirExprKind::Unary { expr: inner, .. }
-        | HirExprKind::Field {
-            receiver: inner, ..
-        } => schedule_expr(emitter, inner),
-        HirExprKind::Binary { lhs, rhs, .. } => {
-            schedule_expr(emitter, lhs)?;
-            schedule_expr(emitter, rhs)
-        }
-        HirExprKind::Call {
-            callee,
-            args,
-            has_trailing_closure,
-        } => {
-            schedule_expr(emitter, callee)?;
-            for arg in args {
-                schedule_expr(emitter, arg)?;
-            }
-            if *has_trailing_closure {
-                emitter.skip(RegionSite::Closure)?;
-            }
-            Ok(())
-        }
-        HirExprKind::If {
-            cond,
-            then_block,
-            else_block,
-        } => {
-            schedule_expr(emitter, cond)?;
-            schedule_region(emitter, RegionSite::IfThen, then_block)?;
-            if let Some(else_block) = else_block {
-                schedule_region(emitter, RegionSite::IfElse, else_block)?;
-            }
-            Ok(())
-        }
-    }
 }
 
 #[cfg(test)]
@@ -446,8 +461,18 @@ mod tests {
         let (events, report) = schedule_of(src);
         let root = &report.roots[0];
         assert_eq!(root.children.len(), 1);
+        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Push { .. })), 1);
+        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Pop { .. })), 1);
+        assert_eq!(max_depth(&events), 1);
+    }
+
+    #[test]
+    fn nested_block_with_arena_alloc_pushes_region() {
+        let src = "fun main() {\n    val anchor = 1\n    { val s = \"x\" }\n}";
+        let (events, report) = schedule_of(src);
+        let root = &report.roots[0];
+        assert_eq!(root.children.len(), 1);
         assert_eq!(count(&events, |e| matches!(e, RegionEvent::Push { .. })), 2);
-        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Pop { .. })), 2);
         assert_eq!(max_depth(&events), tree_depth(root));
     }
 
@@ -457,6 +482,7 @@ mod tests {
 fun main() {
     var total = 0
     for (i in 0..3) {
+        val _bump = "."
         if (i > 1) {
             total = total + i
         } else {
@@ -481,8 +507,8 @@ fun main() {
             .iter()
             .position(|e| *e == RegionEvent::Pop { arena: for_node.id });
         assert_eq!(reset_at.map(|i| i + 1), pop_for);
-        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Push { .. })), 4);
-        assert_eq!(max_depth(&events), tree_depth(root));
+        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Push { .. })), 2);
+        assert_eq!(max_depth(&events), 2);
     }
 
     #[test]
@@ -491,7 +517,7 @@ fun main() {
 fun main() {
     val s: String = "hi"
     move (s) {
-        val t = s
+        val t = "x"
     }
 }
 "#;
@@ -512,8 +538,8 @@ fun main() {
             e,
             RegionEvent::Push { arena } if *arena == closure.id
         )));
-        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Push { .. })), 3);
-        assert_eq!(max_depth(&events), 2);
+        assert_eq!(count(&events, |e| matches!(e, RegionEvent::Push { .. })), 2);
+        assert_eq!(max_depth(&events), 1);
     }
 
     #[test]

@@ -11,7 +11,7 @@ use super::policy::{
 };
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::{BindingKind, Block, Expr, Stmt, Type};
+use crate::ast::{AssignTarget, BindingKind, Block, Expr, Stmt, Type};
 use crate::span::{Span, SpannedName};
 
 pub(super) fn open_ordinary(
@@ -94,7 +94,7 @@ fn walk_stmt(
             kind,
             name,
             name_span,
-            ty,
+            ty: _,
             value,
         } => {
             let sink = TransferSink::Binding {
@@ -103,7 +103,11 @@ fn walk_stmt(
                 arena_label: node.label.clone(),
             };
             walk(az, value, node, Some(&sink));
-            let inferred = Ty::from_option(ty.clone().or_else(|| infer_type(az, value)));
+            let inferred = az
+                .decl_tys
+                .pop_front()
+                .map(ty_from_hir)
+                .unwrap_or(Ty::Unknown);
             shadows.push(bind_with(
                 az,
                 name,
@@ -120,7 +124,15 @@ fn walk_stmt(
                 span: Some(*name_span),
             });
         }
-        Stmt::Assign { name, name_span, value } => {
+        Stmt::Assign { target, value } => {
+            let (name, name_span, index) = match target {
+                AssignTarget::Name { name, name_span } => (name, name_span, None),
+                AssignTarget::Index {
+                    name,
+                    name_span,
+                    index,
+                } => (name, name_span, Some(index)),
+            };
             let dest = az.env.get(name).cloned();
             let assign_up = dest.as_ref().is_some_and(|b| {
                 !b.moved
@@ -129,6 +141,9 @@ fn walk_stmt(
             });
             if !assign_up {
                 note_use(az, name, Some(*name_span), node);
+            }
+            if let Some(index) = index {
+                walk(az, index, node, None);
             }
             let (arena_id, arena_label) = if let Some(b) = dest {
                 (b.arena_id, b.arena_label.clone())
@@ -160,6 +175,14 @@ fn walk_stmt(
             ));
             az.loop_move_ban.pop();
         }
+        Stmt::While { cond, body } => {
+            walk(az, cond, node, None);
+            az.loop_move_ban
+                .push(az.env.keys().cloned().collect());
+            node.children.push(open_ordinary(az, "WhileLoop", body, &[]));
+            az.loop_move_ban.pop();
+        }
+        Stmt::Break { .. } | Stmt::Continue { .. } => {}
         Stmt::Return(Some(e)) => walk(az, e, node, None),
         Stmt::Return(None) => {}
         Stmt::Expr(e) => walk(az, e, node, None),
@@ -280,7 +303,7 @@ fn walk(
                 else_moved.as_ref(),
             );
         }
-        Expr::Float(_) | Expr::Int(_) | Expr::Str(_) | Expr::None { .. } => {}
+        Expr::Float(_) | Expr::Int(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
 }
 
@@ -456,19 +479,31 @@ fn record_observation(
     });
 }
 
-fn infer_type(az: &Analyzer, expr: &Expr) -> Option<Type> {
-    match expr {
-        Expr::Int(_) => Some(Type::from_ident("Int", false)),
-        Expr::Str(_) => Some(Type::Named {
-            name: "String".into(),
-            nullable: false,
-        }),
-        Expr::Ident { name, .. } | Expr::Promote { name, .. } => {
-            az.env.get(name).and_then(|b| b.ty.as_option())
-        }
-        Expr::Some { expr: inner, .. } => {
-            infer_type(az, inner).map(|ty| ty.with_nullable(true))
-        }
-        _ => None,
+fn ty_from_hir(ty: crate::hir::Ty) -> Ty {
+    match hir_to_ast(&ty) {
+        Some(ty) => Ty::Known(ty),
+        None => Ty::Unknown,
     }
+}
+
+fn hir_to_ast(ty: &crate::hir::Ty) -> Option<Type> {
+    if ty.is_unknown() {
+        return None;
+    }
+    let kind = match &ty.kind {
+        crate::hir::TyKind::Prim(prim) => Type::from_ident(prim.as_str(), ty.nullable),
+        crate::hir::TyKind::Named(name) => Type::Named {
+            name: name.clone(),
+            nullable: ty.nullable,
+        },
+        crate::hir::TyKind::Array { elem, len } => Type::Array {
+            elem: Box::new(hir_to_ast(elem)?),
+            len: *len,
+            nullable: ty.nullable,
+        },
+        crate::hir::TyKind::Func { .. } | crate::hir::TyKind::Range(_) | crate::hir::TyKind::Unknown => {
+            return None;
+        }
+    };
+    Some(kind)
 }

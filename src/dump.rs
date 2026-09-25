@@ -62,13 +62,13 @@ fn dump_node(out: &mut String, node: &ArenaNode, prefix: &str, is_last: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{parse, sema::analyze};
+    use crate::frontend::check;
 
     #[test]
     fn dump_contains_fun_and_for() {
-        let prog = parse(crate::MVP_SAMPLE).unwrap();
-        let (report, errs) = analyze(&prog);
-        assert!(errs.is_empty());
+        let result = check(crate::MVP_SAMPLE);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let report = result.report.unwrap();
         let text = dump_arenas(&report);
         assert!(text.contains("fun main"), "{text}");
         assert!(text.contains("ForLoop"), "{text}");

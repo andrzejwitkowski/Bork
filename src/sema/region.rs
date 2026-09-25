@@ -29,6 +29,7 @@ impl RegionFrame {
                 id,
                 label,
                 compacted_braces: compacted,
+                codegen_push: false,
                 bindings: Vec::new(),
                 observations: Vec::new(),
                 children: Vec::new(),

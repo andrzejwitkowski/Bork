@@ -5,11 +5,11 @@ use inkwell::IntPredicate;
 use crate::diag::Diagnostic;
 use crate::hir::{HirExpr, Ty};
 
-use super::emit_fn::FnEmitter;
-use super::{codegen_error, not_yet_supported};
+use super::super::emit_fn::FnEmitter;
+use super::super::{codegen_error, not_yet_supported};
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(super) fn emit_array_lit(
+    pub(in crate::codegen::llvm) fn emit_array_lit(
         &mut self,
         elements: &[HirExpr],
         array_ty: &Ty,
@@ -37,7 +37,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(self.descriptor(base, len))
     }
 
-    pub(super) fn emit_index_load(
+    pub(in crate::codegen::llvm) fn emit_index_load(
         &mut self,
         receiver: &HirExpr,
         index: &HirExpr,
@@ -54,7 +54,36 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         builder_load(self, llvm_elem, ptr)
     }
 
-    pub(super) fn emit_slice(
+    pub(in crate::codegen::llvm) fn emit_index_store(
+        &mut self,
+        array_ptr: PointerValue<'ctx>,
+        array_ty: &Ty,
+        index: &HirExpr,
+        value: BasicValueEnum<'ctx>,
+        span: Option<crate::span::Span>,
+    ) -> Result<(), Diagnostic> {
+        let elem_ty = array_ty
+            .array_elem()
+            .ok_or_else(|| not_yet_supported("index assignment target", span))?;
+        let llvm_ty = self
+            .cx
+            .basic_type(array_ty)
+            .ok_or_else(|| not_yet_supported(&format!("array `{array_ty}`"), span))?;
+        let desc = self
+            .cx
+            .builder
+            .build_load(llvm_ty, array_ptr, "arr")?
+            .into_struct_value();
+        let idx = self.emit_int(index, &Ty::i32())?;
+        let (base, len) = self.descriptor_parts(desc)?;
+        self.guard_index(idx, len, span)?;
+        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
+        let elem_ptr = self.elem_ptr_at(base, idx, llvm_elem, stride)?;
+        self.cx.builder.build_store(elem_ptr, value)?;
+        Ok(())
+    }
+
+    pub(in crate::codegen::llvm) fn emit_slice(
         &mut self,
         receiver: &HirExpr,
         lo: &HirExpr,
@@ -93,7 +122,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         ))
     }
 
-    pub(super) fn emit_buffer_length(
+    pub(in crate::codegen::llvm) fn emit_buffer_length(
         &mut self,
         receiver: &HirExpr,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
@@ -112,7 +141,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?)
     }
 
-    pub(super) fn copy_array_into_arena(
+    pub(in crate::codegen::llvm) fn copy_array_into_arena(
         &mut self,
         source: StructValue<'ctx>,
         array_ty: &Ty,
@@ -318,7 +347,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     fn branch_abort_if(
         &mut self,
         cond: inkwell::values::IntValue<'ctx>,
-        span: Option<crate::span::Span>,
+        _span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {
         let ok = self.cx.context.append_basic_block(self.llvm_fn, "bounds.ok");
         let bad = self.cx.context.append_basic_block(self.llvm_fn, "bounds.bad");

@@ -29,6 +29,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))?;
                 Ok(Some(ty.const_int(*value as u64, true).into()))
             }
+            HirExprKind::Bool { value } => Ok(Some(
+                self.cx
+                    .context
+                    .bool_type()
+                    .const_int(*value as u64, false)
+                    .into(),
+            )),
             HirExprKind::Float { value } => {
                 let ty = self
                     .cx
@@ -74,6 +81,21 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     Ok(Some(value))
                 }
             }
+            HirExprKind::Unary { op, expr: inner } => match op {
+                crate::ast::UnaryOp::Not => {
+                    let value = self.emit_bool(inner)?;
+                    let one = self.cx.context.bool_type().const_int(1, false);
+                    Ok(Some(
+                        self.cx
+                            .builder
+                            .build_xor(value, one, "not")?
+                            .into(),
+                    ))
+                }
+                crate::ast::UnaryOp::NotNullAssert => {
+                    Err(not_yet_supported("`!!`", expr.span))
+                }
+            },
             HirExprKind::Binary { op, lhs, rhs } => self
                 .emit_binary(op, lhs, rhs, expr)
                 .map(Some),
@@ -82,7 +104,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 cond,
                 then_block,
                 else_block,
-            } => self.emit_if(cond, then_block, else_block.as_ref(), &expr.ty),
+            } => {
+                self.emit_if_with_driver(cond, then_block, else_block.as_ref(), Some(&expr.ty))?;
+                Ok(self.walk.trailing.take())
+            }
             _ => Err(not_yet_supported("this expression", expr.span)),
         }
     }
@@ -97,10 +122,44 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .emit_expr(expr)?
                 .ok_or_else(|| not_yet_supported("a `unit` value here", expr.span));
         }
+        if ty == &Ty::bool() {
+            return self.emit_bool(expr).map(Into::into);
+        }
         if matches!(ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
             return self.emit_float(expr, ty).map(Into::into);
         }
         self.emit_int(expr, ty).map(Into::into)
+    }
+
+    /// LLVM `i1` condition or value for a `bool` expression.
+    pub fn emit_bool(&mut self, expr: &HirExpr) -> Result<IntValue<'ctx>, Diagnostic> {
+        let value = if self.walk_driver_active() {
+            let ptr = self.codegen_driver_ptr();
+            super::emit_fn::FnEmitter::codegen_driver_mut(ptr)
+                .walk_expr(self, expr)
+                .map_err(super::region_walk_codegen_error)?;
+            self.walk.trailing
+                .take()
+                .ok_or_else(|| not_yet_supported("bool condition missing value", expr.span))?
+        } else {
+            self.emit_expr(expr)?
+                .ok_or_else(|| not_yet_supported("a `unit` value here", expr.span))?
+        };
+        if !value.is_int_value() {
+            return Err(not_yet_supported(
+                &format!("`{}` in bool context", expr.ty),
+                expr.span,
+            ));
+        }
+        let int = value.into_int_value();
+        if int.get_type().get_bit_width() == 1 {
+            return Ok(int);
+        }
+        let zero = self.cx.context.bool_type().const_int(0, false);
+        Ok(self
+            .cx
+            .builder
+            .build_int_compare(IntPredicate::NE, int, zero, "bool")?)
     }
 
     pub fn emit_float(
@@ -220,6 +279,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs: &HirExpr,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if matches!(op, BinOp::And | BinOp::Or) {
+            return self.emit_logical(op, lhs, rhs, expr);
+        }
         if matches!(expr.ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
             return self.emit_float_binary(op, lhs, rhs, expr);
         }
@@ -269,18 +331,24 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             BinOp::Sub => builder.build_float_sub(l, r, "fsub")?,
             BinOp::Mul => builder.build_float_mul(l, r, "fmul")?,
             BinOp::Div => builder.build_float_div(l, r, "fdiv")?,
-            BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le | BinOp::Eq | BinOp::Ne => {
-                let predicate = match op {
-                    BinOp::Gt => inkwell::FloatPredicate::OGT,
-                    BinOp::Lt => inkwell::FloatPredicate::OLT,
-                    BinOp::Ge => inkwell::FloatPredicate::OGE,
-                    BinOp::Le => inkwell::FloatPredicate::OLE,
-                    BinOp::Eq => inkwell::FloatPredicate::OEQ,
-                    BinOp::Ne => inkwell::FloatPredicate::ONE,
-                    _ => unreachable!(),
-                };
-                return Ok(builder.build_float_compare(predicate, l, r, "fcmp")?.into());
-            }
+            BinOp::Gt => return Ok(builder
+                .build_float_compare(inkwell::FloatPredicate::OGT, l, r, "fcmp")?
+                .into()),
+            BinOp::Lt => return Ok(builder
+                .build_float_compare(inkwell::FloatPredicate::OLT, l, r, "fcmp")?
+                .into()),
+            BinOp::Ge => return Ok(builder
+                .build_float_compare(inkwell::FloatPredicate::OGE, l, r, "fcmp")?
+                .into()),
+            BinOp::Le => return Ok(builder
+                .build_float_compare(inkwell::FloatPredicate::OLE, l, r, "fcmp")?
+                .into()),
+            BinOp::Eq => return Ok(builder
+                .build_float_compare(inkwell::FloatPredicate::OEQ, l, r, "fcmp")?
+                .into()),
+            BinOp::Ne => return Ok(builder
+                .build_float_compare(inkwell::FloatPredicate::ONE, l, r, "fcmp")?
+                .into()),
             _ => return Err(not_yet_supported("this operator", expr.span)),
         };
         Ok(value.into())
@@ -457,16 +525,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(())
     }
 
-    fn emit_if(
+    pub(super) fn emit_if_with_driver(
         &mut self,
         cond: &HirExpr,
         then_block: &HirBlock,
         else_block: Option<&HirBlock>,
-        ty: &Ty,
-    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
-        let result_ty = self.cx.basic_type(ty);
-        let value_ty = result_ty.is_some().then_some(ty);
-        let cond = self.emit_int(cond, &Ty::bool())?;
+        ty: Option<&Ty>,
+    ) -> Result<(), Diagnostic> {
+        let result_ty = ty.and_then(|ty| self.cx.basic_type(ty));
+        let value_ty = result_ty.is_some().then(|| ty.unwrap());
+        let cond = self.emit_bool(cond)?;
 
         let context = self.cx.context;
         let then_bb = context.append_basic_block(self.llvm_fn, "then");
@@ -484,7 +552,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let mut incoming: Vec<(BasicValueEnum<'ctx>, BasicBlock<'ctx>)> = Vec::new();
         for (site, block, bb) in branches {
             self.cx.builder.position_at_end(bb);
-            let value = self.emit_region(site, block, value_ty)?;
+            let value = self
+                .emit_region_with_driver(site, block, value_ty)
+                .map_err(super::region_walk_codegen_error)?;
             if self.cx.current_block_terminated() {
                 continue;
             }
@@ -503,22 +573,76 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
         self.cx.builder.position_at_end(merge_bb);
 
-        let Some(result_ty) = result_ty else {
-            return Ok(None);
-        };
-        if incoming.is_empty() {
-            return Ok(Some(result_ty.const_zero()));
+        if let Some(result_ty) = result_ty {
+            if !incoming.is_empty() {
+                let phi = self
+                    .cx
+                    .builder
+                    .build_phi(result_ty.as_basic_type_enum(), "if")?;
+                let incoming: Vec<(&dyn BasicValue<'ctx>, BasicBlock<'ctx>)> = incoming
+                    .iter()
+                    .map(|(value, block)| (value as &dyn BasicValue<'ctx>, *block))
+                    .collect();
+                phi.add_incoming(&incoming);
+                self.walk.trailing = Some(phi.as_basic_value());
+            } else if ty.is_some() {
+                self.walk.trailing = Some(result_ty.const_zero());
+            }
         }
-        let phi = self
-            .cx
-            .builder
-            .build_phi(result_ty.as_basic_type_enum(), "if")?;
-        let incoming: Vec<(&dyn BasicValue<'ctx>, BasicBlock<'ctx>)> = incoming
-            .iter()
-            .map(|(value, block)| (value as &dyn BasicValue<'ctx>, *block))
-            .collect();
-        phi.add_incoming(&incoming);
-        Ok(Some(phi.as_basic_value()))
+        Ok(())
+    }
+
+    fn emit_logical(
+        &mut self,
+        op: &BinOp,
+        lhs: &HirExpr,
+        rhs: &HirExpr,
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let cx = self.cx;
+        let context = cx.context;
+        let builder = &cx.builder;
+        let i1 = context.bool_type();
+        let lhs_val = self.emit_bool(lhs)?;
+        let rhs_bb = context.append_basic_block(self.llvm_fn, "log.rhs");
+        let merge_bb = context.append_basic_block(self.llvm_fn, "log.end");
+        let short_bb = context.append_basic_block(self.llvm_fn, "log.short");
+        let zero = i1.const_int(0, false);
+        let one = i1.const_int(1, false);
+        let lhs_true = builder.build_int_compare(IntPredicate::NE, lhs_val, zero, "lhs.t")?;
+        match op {
+            BinOp::And => {
+                builder.build_conditional_branch(lhs_true, rhs_bb, short_bb)?;
+                builder.position_at_end(rhs_bb);
+                let rhs_val = self.emit_bool(rhs)?;
+                builder.build_unconditional_branch(merge_bb)?;
+                builder.position_at_end(short_bb);
+                builder.build_unconditional_branch(merge_bb)?;
+                builder.position_at_end(merge_bb);
+                let phi = builder.build_phi(i1, "log")?;
+                phi.add_incoming(&[
+                    (&rhs_val as &dyn inkwell::values::BasicValue, rhs_bb),
+                    (&zero as &dyn inkwell::values::BasicValue, short_bb),
+                ]);
+                Ok(phi.as_basic_value())
+            }
+            BinOp::Or => {
+                builder.build_conditional_branch(lhs_true, short_bb, rhs_bb)?;
+                builder.position_at_end(short_bb);
+                builder.build_unconditional_branch(merge_bb)?;
+                builder.position_at_end(rhs_bb);
+                let rhs_val = self.emit_bool(rhs)?;
+                builder.build_unconditional_branch(merge_bb)?;
+                builder.position_at_end(merge_bb);
+                let phi = builder.build_phi(i1, "log")?;
+                phi.add_incoming(&[
+                    (&one as &dyn inkwell::values::BasicValue, short_bb),
+                    (&rhs_val as &dyn inkwell::values::BasicValue, rhs_bb),
+                ]);
+                Ok(phi.as_basic_value())
+            }
+            _ => Err(not_yet_supported("logical operator", expr.span)),
+        }
     }
 }
 
