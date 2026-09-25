@@ -55,14 +55,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 let slot = self
                     .lookup(name)
                     .ok_or_else(|| not_yet_supported(&format!("`{name}` as a value"), expr.span))?;
+                let slot_ty = slot.ty.clone();
+                let slot_ptr = slot.ptr;
                 let ty = self
                     .cx
-                    .basic_type(&slot.ty)
+                    .basic_type(&slot_ty)
                     .expect("locals only hold lowerable types");
-                let value = self.cx.builder.build_load(ty, slot.ptr, name)?;
+                let value = self.cx.builder.build_load(ty, slot_ptr, name)?;
                 if matches!(*use_kind, UseKind::Move | UseKind::Promote) && value.is_struct_value() {
-                    let copied = if slot.ty.is_array() {
-                        self.copy_array_into_arena(value.into_struct_value(), &slot.ty)?
+                    let copied = if slot_ty.is_array() {
+                        self.copy_array_into_arena(value.into_struct_value(), &slot_ty)?
                     } else {
                         self.copy_into_arena(value.into_struct_value())?
                     };
