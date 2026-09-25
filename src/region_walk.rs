@@ -745,9 +745,7 @@ pub fn stamp_codegen_push(program: &HirProgram, report: &mut crate::sema::ArenaR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::regions::{RegionEvent, schedule};
     use crate::frontend::check;
-    use crate::sema::ArenaReport;
 
     #[test]
     fn walk_consumes_every_report_child_on_mvp_sample() {
@@ -767,45 +765,52 @@ mod tests {
         assert!(!report.roots[0].children[0].codegen_push);
     }
 
-    fn node_by_id(report: &ArenaReport, id: usize) -> Option<&ArenaNode> {
-        fn in_tree(node: &ArenaNode, id: usize) -> Option<&ArenaNode> {
-            if node.id == id {
-                return Some(node);
-            }
-            for child in &node.children {
-                if let Some(found) = in_tree(child, id) {
-                    return Some(found);
-                }
-            }
-            None
-        }
-        report.roots.iter().find_map(|root| in_tree(root, id))
-    }
+    #[cfg(feature = "codegen")]
+    mod codegen {
+        use super::*;
+        use crate::codegen::regions::{RegionEvent, schedule};
+        use crate::sema::ArenaReport;
 
-    #[test]
-    fn schedule_pushes_match_codegen_push_flags() {
-        let samples = [
-            crate::MVP_SAMPLE,
-            "fun main() { { val x = 1 } }",
-            "fun main() {\n    val anchor = 1\n    { val s = \"x\" }\n}",
-        ];
-        for source in samples {
-            let result = check(source);
-            assert!(result.is_ok(), "{source:?}");
-            let mut report = result.report.unwrap();
-            stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
-            let hir = result.hir.as_ref().unwrap();
-            let events = schedule(hir, &report).expect("schedule");
-            for event in events {
-                if let RegionEvent::Push { arena } = event {
-                    let node = node_by_id(&report, arena).expect("push for unknown arena");
-                    let fun_root = report.roots.iter().any(|r| r.id == arena);
-                    assert!(
-                        fun_root || node.codegen_push,
-                        "arena `{}` ({}) pushed without codegen_push",
-                        node.label,
-                        arena
-                    );
+        fn node_by_id(report: &ArenaReport, id: usize) -> Option<&ArenaNode> {
+            fn in_tree(node: &ArenaNode, id: usize) -> Option<&ArenaNode> {
+                if node.id == id {
+                    return Some(node);
+                }
+                for child in &node.children {
+                    if let Some(found) = in_tree(child, id) {
+                        return Some(found);
+                    }
+                }
+                None
+            }
+            report.roots.iter().find_map(|root| in_tree(root, id))
+        }
+
+        #[test]
+        fn schedule_pushes_match_codegen_push_flags() {
+            let samples = [
+                crate::MVP_SAMPLE,
+                "fun main() { { val x = 1 } }",
+                "fun main() {\n    val anchor = 1\n    { val s = \"x\" }\n}",
+            ];
+            for source in samples {
+                let result = check(source);
+                assert!(result.is_ok(), "{source:?}");
+                let mut report = result.report.unwrap();
+                stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
+                let hir = result.hir.as_ref().unwrap();
+                let events = schedule(hir, &report).expect("schedule");
+                for event in events {
+                    if let RegionEvent::Push { arena } = event {
+                        let node = node_by_id(&report, arena).expect("push for unknown arena");
+                        let fun_root = report.roots.iter().any(|r| r.id == arena);
+                        assert!(
+                            fun_root || node.codegen_push,
+                            "arena `{}` ({}) pushed without codegen_push",
+                            node.label,
+                            arena
+                        );
+                    }
                 }
             }
         }
