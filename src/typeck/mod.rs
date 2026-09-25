@@ -61,6 +61,12 @@ pub fn check(program: &Program) -> (HirProgram, Vec<Ty>, Vec<Diagnostic>) {
                 .iter()
                 .zip(signature.params)
                 .map(|(param, ty)| {
+                    if ty.is_ref() && param.kind == crate::ast::BindingKind::Var {
+                        env.error(
+                            "reference parameter must be `val`",
+                            Some(param.name.span),
+                        );
+                    }
                     env.bind(param.name.name.clone(), param.kind, ty.clone());
                     HirParam {
                         kind: param.kind,
@@ -132,6 +138,26 @@ pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {
             },
             *nullable,
         ),
+        Type::Ref { inner, nullable } => {
+            if *nullable {
+                diagnostics.push(Diagnostic {
+                    phase: Phase::Type,
+                    severity: Severity::Error,
+                    message: "nullable reference types `&T?` are not supported".into(),
+                    span: None,
+                });
+            }
+            let inner_ty = lower_type(inner, diagnostics);
+            if !inner_ty.is_unknown() && inner_ty.is_copy() {
+                diagnostics.push(Diagnostic {
+                    phase: Phase::Type,
+                    severity: Severity::Error,
+                    message: format!("cannot borrow Copy type `{inner_ty}`"),
+                    span: None,
+                });
+            }
+            Ty::new(TyKind::Ref(Box::new(inner_ty)), false)
+        }
         _ => Ty::from_ast(ty),
     }
 }

@@ -181,7 +181,47 @@ action(1, 2) move { x, y ->
 | Empty | `move () { … }` | `f(…) move () { params -> … }` |
 | Inferred | `move { … }` | `f(…) move { params -> … }` |
 
-Ordinary (non-`move`) nested `{ … }` and non-`move` closures do **not** transfer ownership. A child reading a parent **`var`** of a non-Copy type is an error unless you `move` it. A child reading a parent **`val`** non-Copy is **Shared**.
+Ordinary (non-`move`) nested `{ … }` and non-`move` closures do **not** transfer ownership. A child reading a parent **`var`** of a non-Copy type is an error unless you `move` it or borrow it with `&`. A child reading a parent **`val`** non-Copy is **Shared** (no `&` required).
+
+### Borrow (`&`)
+
+Two related ideas:
+
+1. **Use-site** `&name` — borrows a `var` from an outer region for the current region. The owner stays live. Payload is not copied. The borrow ends when the region ends.
+2. **Type** `&T` — marks a **parameter** or **`val` local** as that borrow (see table below). You still *create* the borrow only with `&name` at the expression or call site. `&T` is not allowed on fields, `var` locals, or return types.
+
+**Status:** use-site `&name` and `&T` in function signatures are implemented (see [plan](superpowers/plans/2026-09-25-reference-type-and-borrow-hardening.md) for follow-ups).
+
+#### Views and locals
+
+- `val b = &a` binds a view in the current region. `b` dies with that region. `val b = a` without `&` is still an error for an outer `var`.
+- `var b = &a` and `var v: &T = …` are errors: a borrow is not `var` ownership.
+- `var c = b` and `move b` are errors when `b` is a view. `val d = b` reborrows the same view until the region ends.
+
+#### Arrays in child regions
+
+| Action in child / loop | Outer `var a: [T; N]` |
+|------------------------|------------------------|
+| Read element | `val b = &a` and `b[i]`, or `val r = a[lo..hi]` and `r[i]`; bare `a[i]` in the child **errors** |
+| Write element | `a[i] = v` or `(&a)[i] = v` (mutation of outer `var`, not a move into the child) |
+| View `val b = &a` | read `b[i]` OK; `b[i] = v` rejected (`b` is `val`) — use `(&a)[i] =` or a `&[T; N]` parameter |
+
+`&` binds looser than indexing: `&a[i]` is not a borrow of `a`.
+
+#### Function parameters: `T` vs `&T`
+
+| Formal | Call site | Callee may |
+|--------|-----------|------------|
+| `p: [T; N]` or `var p: String` | `move` outer `var` (or fresh value) | Own the binding for the call; mutate if `var` |
+| `p: &[T; N]` | `&outerArray` only | Read and **index-assign** `p[i] = …` (mutates owner’s buffer) |
+| `p: &String` | `&outerString` only | **Read only** — observe bytes in place; no reseat/replace of the string binding (no `&mut String` in v1) |
+
+Reference parameters show **Borrow ← call site** in arena dumps and LSP: the label `call site` means the owner lives in the caller’s region for the duration of the call, not a separate arena node.
+| `val p: String` (no `&`) | bare name from parent `val` | **Shared** read |
+
+A view or `&T` parameter must not be lifted above its owner (`return`, assignment into a longer-lived `var`, a field).
+
+A `var` formal `[T; N]` requires `move` at the call site. Passing `&outer` is a type error unless the parameter is written `&[T; N]`.
 
 ### Loops
 
@@ -281,7 +321,7 @@ With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_run
 
 **Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After typeck, `region_walk::stamp_codegen_push` sets `ArenaNode.codegen_push` from typed HIR: codegen calls `bork_arena_push` only when that flag is true (function roots always push; trailing closures never push). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
 
-The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, no general `&` / borrow-checker** model.
+The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, region-scoped borrow** model (not a full Rust-style borrow checker; see **Borrow** above and **Not planned**).
 
 ## Assign-up, sink allocation, and escape
 
@@ -345,7 +385,9 @@ Examples:
 
 ## Not planned (and not on the roadmap here)
 
-- General **`&` / `&mut`** and field-stored references across regions (Rust-like borrow checking).
+- **Field-stored** `&T` and **`&mut T` as a type** (exclusive/reseat borrows).
+- **`return` of `&T`** or storing a borrow in a struct field.
+- **`&mut String`** and mutating string contents through a shared `&String` (v1: `&String` is read-only).
 - Implicit deep copy on every cross-region read (use **Shared** for parent `val`, **move** / **promote** for ownership).
 - Storing borrows from a **child** arena into a **parent** field (parent must own bytes in its arena or observe parent `val` via **Shared**).
 

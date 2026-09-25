@@ -46,16 +46,39 @@ fn stmt_always_returns(stmt: &HirStmt) -> bool {
     }
 }
 
-fn assign_binding(env: &mut Env<'_>, name: &str, span: crate::span::Span) -> Option<Ty> {
+fn assign_binding(
+    env: &mut Env<'_>,
+    name: &str,
+    span: crate::span::Span,
+    index_assign: bool,
+) -> Option<Ty> {
     let binding = env.binding(name).cloned();
     if binding.is_none() {
         env.error(format!("unknown binding `{name}`"), Some(span));
     }
-    if binding.as_ref().is_some_and(|b| b.kind == BindingKind::Val) {
-        env.error(
-            format!("cannot assign to immutable `val` binding `{name}`"),
-            Some(span),
-        );
+    if let Some(b) = binding.as_ref() {
+        if b.kind == BindingKind::Val {
+            if b.ty.is_ref() {
+                if index_assign {
+                    if !b.ty.ref_inner().is_some_and(|inner| inner.is_array()) {
+                        env.error(
+                            format!("cannot index-assign through borrow `{name}`"),
+                            Some(span),
+                        );
+                    }
+                } else {
+                    env.error(
+                        format!("cannot assign to borrow binding `{name}`"),
+                        Some(span),
+                    );
+                }
+            } else {
+                env.error(
+                    format!("cannot assign to immutable `val` binding `{name}`"),
+                    Some(span),
+                );
+            }
+        }
     }
     binding.map(|b| b.ty)
 }
@@ -106,6 +129,12 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
             // Bind whatever type we can settle on, even after a bad initializer,
             // so later uses of `name` are not reported as unknown bindings.
             let declared_ty = declared_ty.unwrap_or_else(|| value.ty.clone());
+            if declared_ty.is_ref() && *kind == BindingKind::Var {
+                env.error(
+                    format!("cannot bind `var` `{name}` to a reference type; use `val`"),
+                    Some(*name_span),
+                );
+            }
             if !value.ty.is_unknown() && !declared_ty.is_unknown() && declared_ty != value.ty {
                 env.error(
                     format!(
@@ -126,11 +155,15 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
             }
         }
         Stmt::Assign { target, value } => {
-            let (name, name_span) = match target {
-                AssignTarget::Name { name, name_span }
-                | AssignTarget::Index { name, name_span, .. } => (name, name_span),
+            let (name, name_span, index_assign) = match target {
+                AssignTarget::Name { name, name_span } => (name, name_span, false),
+                AssignTarget::Index {
+                    name,
+                    name_span,
+                    ..
+                } => (name, name_span, true),
             };
-            let bound = assign_binding(env, name, *name_span);
+            let bound = assign_binding(env, name, *name_span, index_assign);
             match target {
                 AssignTarget::Name { name, name_span } => {
                     let value = expr::check(value, bound.as_ref(), return_ty, env);
@@ -150,6 +183,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
                     name,
                     name_span,
                     index,
+                    ..
                 } => {
                     let elem = bound.as_ref().and_then(|ty| ty.array_elem().cloned());
                     if bound.as_ref().is_some_and(|ty| {

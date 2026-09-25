@@ -16,6 +16,8 @@ pub enum UseKind {
     Copy,
     Move,
     Promote,
+    /// `&name` observes an outer binding in place. The owner stays live.
+    Borrow,
 }
 
 #[derive(Debug, Clone, PartialEq)]

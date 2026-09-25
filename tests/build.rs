@@ -239,6 +239,28 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
 }
 
 #[test]
+/// Requires `cargo test --features codegen` and LLVM 23 (see CI `bundle-llvm` smoke).
+#[test]
+fn builds_reference_param_in_while() {
+    let run = build_and_run(
+        "builds_reference_param_in_while",
+        "fun bump(buf: &[i32; 2]) {\n\
+            buf[0] = 9\n\
+        }\n\
+        fun main(): i32 {\n\
+            var a: [i32; 2] = [1, 2]\n\
+            var i = 0\n\
+            while (i < 1) {\n\
+                bump(&a)\n\
+                i = i + 1\n\
+            }\n\
+            return a[0]\n\
+        }\n",
+    );
+    assert_eq!(run.status.code(), Some(9));
+}
+
+#[test]
 fn builds_index_assign_i32() {
     let run = build_and_run(
         "builds_index_assign_i32",
