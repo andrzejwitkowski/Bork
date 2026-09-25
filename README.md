@@ -66,20 +66,37 @@ cargo run --bin bork -- --dump-arenas path/to/file.bork
 
 `--dump-arenas` prints the compile-time arena / ownership tree (see [docs/memory-model.md](docs/memory-model.md)).
 
-To build a native executable on Ubuntu, install LLVM 18 and `clang`:
+A from-source build with `--features codegen` needs LLVM 23, `clang`, and the shared libraries that `llvm-23-dev` installs with itself: `libz3`, `libedit`, `libxml2`, `libzstd`, and `libffi`. Ubuntu's default archive may not have LLVM 23 yet; use [apt.llvm.org](https://apt.llvm.org/):
 
 ```bash
+wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+source /etc/os-release
+echo "deb http://apt.llvm.org/${VERSION_CODENAME}/ llvm-toolchain-${VERSION_CODENAME}-23 main" | sudo tee /etc/apt/sources.list.d/llvm-23.list
 sudo apt-get update
-sudo apt-get install llvm-18-dev clang
+sudo apt-get install llvm-23-dev clang
 cargo run --features codegen -- build file.bork
 cargo run --features codegen -- build -o out file.bork
 ```
 
-The Ubuntu packages are preferred because their dynamic `libLLVM-18` is on the
-system library path. Inkwell uses its `llvm18-1-prefer-dynamic` feature because
-Ubuntu does not ship the static `libPolly.a`. With a local or non-apt LLVM
-installation, set `LLVM_SYS_181_PREFIX` to its LLVM 18 prefix and, if needed,
-add the directory containing `libLLVM-18.so` to `LD_LIBRARY_PATH`.
+Inkwell is pinned to `llvm23-1-force-dynamic`, so the compiler links `libLLVM.so`
+and does not fall back to static archives. `llvm-config-23` is usually enough.
+For a non-apt prefix, set `LLVM_SYS_231_PREFIX` to the directory that contains
+`bin/llvm-config`.
+
+A released `bork` binary does not need LLVM installed on the machine that runs
+it. Build a release binary and copy the SONAME next to it (`RUNPATH` is
+`$ORIGIN`):
+
+```bash
+cargo build --release --features codegen --bin bork
+scripts/bundle-llvm.sh
+```
+
+Ship `bork` and the copied `libLLVM*` file in the same directory. `bork build`
+still needs `clang` to link the user's program. Checking a program
+(`cargo run --bin bork`) does not link LLVM. The bundled `libLLVM.so` still
+loads ordinary system libraries (`libz3`, `libedit`, `libxml2`, `libzstd`,
+`libffi`); it does not load an LLVM install.
 
 The runtime archive is built automatically. Set `BORK_RUNTIME_LIB` to override
 its path when invoking `bork build`, for example when using a separately built

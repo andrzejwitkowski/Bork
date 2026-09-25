@@ -10,8 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 # Jobs below build without the `codegen` feature. `--features codegen` needs
-# apt packages `llvm-18-dev` and `clang` (Ubuntu's LLVM 18 lacks libPolly.a, so
-# Inkwell links libLLVM-18.so via `llvm18-1-prefer-dynamic`).
+# LLVM 23 from apt.llvm.org (`llvm-23-dev`) and `clang`. Inkwell links
+# libLLVM via `llvm23-1-force-dynamic`.
 
 jobs:
   build-and-test:
@@ -42,20 +42,45 @@ jobs:
     name: Test LLVM codegen
     runs-on: ubuntu-latest
     env:
-      LLVM_SYS_181_PREFIX: /usr/lib/llvm-18
+      LLVM_SYS_231_PREFIX: /usr/lib/llvm-23
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install LLVM 18 and clang
+      - name: Install LLVM 23 and clang
         run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
+          source /etc/os-release
+          echo "deb http://apt.llvm.org/${VERSION_CODENAME}/ llvm-toolchain-${VERSION_CODENAME}-23 main" | sudo tee /etc/apt/sources.list.d/llvm-23.list
           sudo apt-get update
-          sudo apt-get install --yes llvm-18-dev clang
+          sudo apt-get install --yes llvm-23-dev clang
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
       - name: Test with codegen
         run: cargo test --workspace --features codegen --verbose
+
+      - name: Bundle libLLVM beside the release binary
+        run: |
+          cargo build --release --features codegen --bin bork
+          scripts/bundle-llvm.sh target/release/bork
+          stage=$(mktemp -d)
+          cp target/release/bork "$stage/bork"
+          cp target/release/libLLVM* "$stage/"
+          resolved=$(ldd "$stage/bork" | sed -n 's/.*libLLVM[^ ]* => \([^ ]*\).*/\1/p')
+          case "$resolved" in
+            "$stage"/*) ;;
+            *)
+              echo "libLLVM resolved to ${resolved:-<missing>}, expected $stage"
+              ldd "$stage/bork"
+              exit 1
+              ;;
+          esac
+          printf 'fun main(): i32 {\n    return 7\n}\n' > "$stage/main.bork"
+          env -u LD_LIBRARY_PATH PATH="/usr/bin:/bin" "$stage/bork" build -o "$stage/main" "$stage/main.bork"
+          code=0
+          "$stage/main" || code=$?
+          test "$code" -eq 7

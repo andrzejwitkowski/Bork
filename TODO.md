@@ -20,7 +20,6 @@ Tracked work after fixed arrays/slices, `while`/`break`/`continue`, logical ops,
 
 - [ ] Extend **`codegen_arena_push_pop_counts_match_schedule`** to more samples (nested `if`, `move` blocks, string sinks) once those paths are stable in CI LLVM env.
 - [ ] **Integration**: `tests/build.rs` — quicksort/smoke binaries only if committed as fixtures (avoid orphan `.bork` in repo root).
-- [ ] **CI**: confirm `LLVM_SYS_181_PREFIX` / `LD_LIBRARY_PATH` documented in README or `docs/` for contributors.
 
 ## Docs
 
