@@ -77,6 +77,51 @@ fun main() {
 }
 
 #[test]
+fn inferred_view_rejects_index_assign() {
+    let src = r#"
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    {
+        val b = &a
+        b[0] = 9
+    }
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, _, diags) = check(&prog);
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.message.contains("inferred view")),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn reference_param_can_reborrow_to_nested_call() {
+    let src = r#"
+fun inner(buf: &[i32; 2]) {
+    buf[0] = 1
+}
+fun outer(p: &[i32; 2]) {
+    inner(&p)
+}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    outer(&a)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, _, diags) = check(&prog);
+    assert!(
+        diags
+            .iter()
+            .all(|d| !d.message.contains("borrow has type") && !d.message.contains("expects borrow")),
+        "{diags:?}"
+    );
+}
+
+#[test]
 fn string_ref_param_rejects_reassignment() {
     let src = r#"
 fun reseat(msg: &String) {

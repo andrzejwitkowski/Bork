@@ -227,7 +227,7 @@ fn check_trailing_closure(
 
     env.enter_scope();
     for (param, ty) in closure.params.iter().zip(param_tys) {
-        env.bind(param.name.clone(), BindingKind::Val, ty.clone());
+        env.bind(param.name.clone(), BindingKind::Val, ty.clone(), ty.is_ref());
     }
     let (_, body_ty) =
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);

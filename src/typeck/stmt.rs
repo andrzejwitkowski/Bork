@@ -60,7 +60,12 @@ fn assign_binding(
         if b.kind == BindingKind::Val {
             if b.ty.is_ref() {
                 if index_assign {
-                    if !b.ty.ref_inner().is_some_and(|inner| inner.is_array()) {
+                    if !b.explicit_ref {
+                        env.error(
+                            format!("cannot index-assign through inferred view `{name}`"),
+                            Some(span),
+                        );
+                    } else if !b.ty.ref_inner().is_some_and(|inner| inner.is_array()) {
                         env.error(
                             format!("cannot index-assign through borrow `{name}`"),
                             Some(span),
@@ -144,8 +149,9 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
                     Some(*name_span),
                 );
             }
+            let explicit_ref = ty.is_some() && declared_ty.is_ref();
             env.decl_tys.push(declared_ty.clone());
-            env.bind(name.clone(), *kind, declared_ty.clone());
+            env.bind(name.clone(), *kind, declared_ty.clone(), explicit_ref);
             HirStmt::VarDecl {
                 kind: *kind,
                 name: name.clone(),
@@ -266,6 +272,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
                 name.name.clone(),
                 BindingKind::Val,
                 elem.unwrap_or_else(Ty::unknown),
+                false,
             );
             let body = check_block(body, return_ty, env, false);
             env.exit_scope();

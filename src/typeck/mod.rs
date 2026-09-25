@@ -67,7 +67,12 @@ pub fn check(program: &Program) -> (HirProgram, Vec<Ty>, Vec<Diagnostic>) {
                             Some(param.name.span),
                         );
                     }
-                    env.bind(param.name.name.clone(), param.kind, ty.clone());
+                    env.bind(
+                        param.name.name.clone(),
+                        param.kind,
+                        ty.clone(),
+                        ty.is_ref(),
+                    );
                     HirParam {
                         kind: param.kind,
                         name: param.name.name.clone(),

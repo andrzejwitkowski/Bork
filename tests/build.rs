@@ -238,7 +238,6 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
     assert!(!binary.exists());
 }
 
-#[test]
 /// Requires `cargo test --features codegen` and LLVM 23 (see CI `bundle-llvm` smoke).
 #[test]
 fn builds_reference_param_in_while() {

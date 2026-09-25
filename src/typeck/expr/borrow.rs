@@ -16,7 +16,11 @@ pub(super) fn check_borrow(
     if inner.ty.is_copy() {
         env.error(format!("cannot borrow Copy type `{}`", inner.ty), Some(span));
     }
-    let ref_ty = Ty::new(TyKind::Ref(Box::new(inner.ty.clone())), false);
+    let ref_ty = if inner.ty.is_ref() {
+        inner.ty.clone()
+    } else {
+        Ty::new(TyKind::Ref(Box::new(inner.ty.clone())), false)
+    };
     if let Some(expected) = expected {
         if !expected.is_unknown() && expected != &ref_ty {
             if expected.ref_inner() != Some(&inner.ty) {

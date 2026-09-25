@@ -215,9 +215,9 @@ Two related ideas:
 | `p: [T; N]` or `var p: String` | `move` outer `var` (or fresh value) | Own the binding for the call; mutate if `var` |
 | `p: &[T; N]` | `&outerArray` only | Read and **index-assign** `p[i] = …` (mutates owner’s buffer) |
 | `p: &String` | `&outerString` only | **Read only** — observe bytes in place; no reseat/replace of the string binding (no `&mut String` in v1) |
+| `val p: String` (no `&`) | bare name from parent `val` | **Shared** read |
 
 Reference parameters show **Borrow ← call site** in arena dumps and LSP: the label `call site` means the owner lives in the caller’s region for the duration of the call, not a separate arena node.
-| `val p: String` (no `&`) | bare name from parent `val` | **Shared** read |
 
 A view or `&T` parameter must not be lifted above its owner (`return`, assignment into a longer-lived `var`, a field).
 
