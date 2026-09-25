@@ -139,24 +139,26 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let header = self.cx.context.append_basic_block(self.llvm_fn, "arr.copy.hdr");
             let body = self.cx.context.append_basic_block(self.llvm_fn, "arr.copy.body");
             let done = self.cx.context.append_basic_block(self.llvm_fn, "arr.copy.done");
-            let builder = &self.cx.builder;
-            builder.build_unconditional_branch(header)?;
-            builder.position_at_end(header);
-            let i_phi = builder.build_phi(self.cx.context.i64_type(), "i")?;
+            self.cx.builder.build_unconditional_branch(header)?;
+            self.cx.builder.position_at_end(header);
+            let i_phi = self.cx.builder.build_phi(self.cx.context.i64_type(), "i")?;
             i_phi.add_incoming(&[(&zero as &dyn inkwell::values::BasicValue<'_>, entry)]);
             let i = i_phi.as_basic_value().into_int_value();
-            let done_cond = builder.build_int_compare(IntPredicate::UGE, i, count, "done")?;
-            builder.build_conditional_branch(done_cond, done, body)?;
-            builder.position_at_end(body);
+            let done_cond = self
+                .cx
+                .builder
+                .build_int_compare(IntPredicate::UGE, i, count, "done")?;
+            self.cx.builder.build_conditional_branch(done_cond, done, body)?;
+            self.cx.builder.position_at_end(body);
             let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), llvm_elem, stride)?;
             let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), llvm_elem, stride)?;
             let loaded = builder_load(self, llvm_elem, src_slot)?.into_struct_value();
             let moved = self.copy_into_arena(loaded)?;
-            builder.build_store(dst_slot, moved)?;
-            let next = builder.build_int_add(i, one, "i.next")?;
-            builder.build_unconditional_branch(header)?;
+            self.cx.builder.build_store(dst_slot, moved)?;
+            let next = self.cx.builder.build_int_add(i, one, "i.next")?;
+            self.cx.builder.build_unconditional_branch(header)?;
             i_phi.add_incoming(&[(&next as &dyn inkwell::values::BasicValue<'_>, body)]);
-            builder.position_at_end(done);
+            self.cx.builder.position_at_end(done);
         } else {
             self.cx
                 .builder
@@ -295,13 +297,20 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         len: IntValue<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {
-        let cx = self.cx;
-        let builder = &cx.builder;
-        let idx = builder.build_int_s_extend(index, len.get_type(), "idx")?;
+        let idx = self
+            .cx
+            .builder
+            .build_int_s_extend(index, len.get_type(), "idx")?;
         let zero = len.get_type().const_int(0, false);
-        let neg = builder.build_int_compare(IntPredicate::SLT, idx, zero, "neg")?;
-        let ge = builder.build_int_compare(IntPredicate::UGE, idx, len, "oob")?;
-        let bad = builder.build_or(neg, ge, "idx.bad")?;
+        let neg = self
+            .cx
+            .builder
+            .build_int_compare(IntPredicate::SLT, idx, zero, "neg")?;
+        let ge = self
+            .cx
+            .builder
+            .build_int_compare(IntPredicate::UGE, idx, len, "oob")?;
+        let bad = self.cx.builder.build_or(neg, ge, "idx.bad")?;
         self.branch_abort_if(bad, span)?;
         Ok(())
     }
@@ -331,8 +340,8 @@ fn array_elem_layout(elem_ty: &Ty) -> Result<(usize, usize), Diagnostic> {
         TyKind::Prim(prim) if !elem_ty.nullable => match prim {
             Prim::I8 | Prim::U8 | Prim::Bool => Ok((1, 1)),
             Prim::I16 | Prim::U16 => Ok((2, 2)),
-            Prim::I32 | Prim::F32 => Ok((4, 4)),
-            Prim::I64 | Prim::F64 => Ok((8, 8)),
+            Prim::I32 | Prim::U32 | Prim::F32 => Ok((4, 4)),
+            Prim::I64 | Prim::U64 | Prim::F64 => Ok((8, 8)),
             Prim::Unit => Err(not_yet_supported("array element `unit`", None)),
         },
         _ => Err(not_yet_supported(&format!("array element `{elem_ty}`"), None)),
