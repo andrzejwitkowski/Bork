@@ -229,7 +229,7 @@ impl<'h> Escape<'h, '_> {
             HirExprKind::ArrayLit { elements } => {
                 let deepest = elements
                     .iter()
-                    .map(|element| self.place(element, None))
+                    .map(|element| self.place(element, sink))
                     .max()
                     .unwrap_or(0);
                 let buffer = match sink {
