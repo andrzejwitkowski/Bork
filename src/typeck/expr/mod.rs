@@ -35,6 +35,7 @@ pub(super) fn check(
                 .unwrap_or_else(Ty::i32);
             HirExpr::new(HirExprKind::Int { value: *value }, ty)
         }
+        Expr::Bool(value) => HirExpr::new(HirExprKind::Bool { value: *value }, Ty::bool()),
         Expr::Float(value) => {
             let ty = expected
                 .filter(|ty| ty.is_numeric() && !ty.is_integer())
@@ -96,6 +97,27 @@ pub(super) fn check(
             } else {
                 check_binary(op, lhs, rhs, *span, expected, return_ty, env)
             }
+        }
+        Expr::Unary {
+            op: UnaryOp::Not,
+            expr,
+            span,
+        } => {
+            let operand = check(expr, Some(&Ty::bool()), return_ty, env);
+            if !operand.ty.is_unknown() && operand.ty != Ty::bool() {
+                env.error(
+                    format!("operand of `!` must have type bool, got {}", operand.ty),
+                    operand.span.or(Some(*span)),
+                );
+            }
+            HirExpr::spanned(
+                HirExprKind::Unary {
+                    op: UnaryOp::Not,
+                    expr: Box::new(operand),
+                },
+                Ty::bool(),
+                *span,
+            )
         }
         Expr::Unary {
             op: UnaryOp::NotNullAssert,

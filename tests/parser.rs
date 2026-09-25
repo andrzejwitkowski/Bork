@@ -31,6 +31,20 @@ fn parses_mvp_sample() {
 }
 
 #[test]
+fn index_assign_is_assign_and_bare_index_is_expr() {
+    let prog = parse("fun main() {\n    a[i] = 1\n    a[i]\n}").expect("parse");
+    let stmts = &prog.functions[0].body.stmts;
+    assert!(matches!(
+        &stmts[0],
+        Stmt::Assign {
+            target: AssignTarget::Index { name, .. },
+            ..
+        } if name == "a"
+    ));
+    assert!(matches!(stmts[1], Stmt::Expr(Expr::Index { .. })));
+}
+
+#[test]
 fn parses_val_var_function_params() {
     let prog = parse("fun f(val x: Int, var y: String): Int { return x }").expect("parse");
     assert_eq!(prog.functions[0].params[0].kind, BindingKind::Val);
@@ -512,4 +526,61 @@ fun main() {
             ..
         } if captures.is_empty()
     ));
+}
+
+#[test]
+fn parses_bool_literals() {
+    let prog = parse("fun main() {\n    val b: bool = true\n    val c = false\n}").expect("parse");
+    let Stmt::VarDecl { value, .. } = &prog.functions[0].body.stmts[0] else {
+        panic!("expected val decl");
+    };
+    assert!(matches!(value, Expr::Bool(true)));
+    let Stmt::VarDecl { value, .. } = &prog.functions[0].body.stmts[1] else {
+        panic!("expected val decl");
+    };
+    assert!(matches!(value, Expr::Bool(false)));
+}
+
+#[test]
+fn parses_logical_and_or_and_not() {
+    let prog = parse(
+        r#"
+fun main(): i32 {
+    if (a && b || !c) { return 1 }
+    return 0
+}
+"#,
+    )
+    .expect("logical ops should parse");
+    let Stmt::Expr(Expr::If { cond, .. }) = &prog.functions[0].body.stmts[0] else {
+        panic!("expected if");
+    };
+    assert!(matches!(
+        cond.as_ref(),
+        Expr::Binary {
+            op: BinOp::Or,
+            lhs,
+            ..
+        } if matches!(lhs.as_ref(), Expr::Binary { op: BinOp::And, .. })
+    ));
+}
+
+#[test]
+fn parses_while_break_continue() {
+    let prog = parse(
+        r#"
+fun main() {
+    while (true) {
+        break
+        continue
+    }
+}
+"#,
+    )
+    .expect("while/break/continue should parse");
+    let Stmt::While { body, .. } = &prog.functions[0].body.stmts[0] else {
+        panic!("expected while");
+    };
+    assert!(matches!(&body.stmts[0], Stmt::Break { .. }));
+    assert!(matches!(&body.stmts[1], Stmt::Continue { .. }));
 }

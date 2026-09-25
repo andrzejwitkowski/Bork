@@ -239,6 +239,35 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
 }
 
 #[test]
+fn builds_index_assign_i32() {
+    let run = build_and_run(
+        "builds_index_assign_i32",
+        "fun main(): i32 {\n\
+            var a: [i32; 3] = [1, 2, 3]\n\
+            var i = 1\n\
+            a[i] = 9\n\
+            return a[1]\n\
+        }\n",
+    );
+    assert_eq!(run.status.code(), Some(9));
+}
+
+#[test]
+fn builds_index_assign_moved_string() {
+    let run = build_and_run(
+        "builds_index_assign_moved_string",
+        "fun main() {\n\
+            var a: [String; 2] = [\"a\", \"b\"]\n\
+            var s = \"z\"\n\
+            a[0] = move s\n\
+            println(a[0])\n\
+        }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "z\n");
+}
+
+#[test]
 fn builds_array_index_and_slice() {
     let run = build_and_run(
         "builds_array_index_and_slice",
@@ -265,4 +294,35 @@ fn build_rejects_returning_string_from_inner_region() {
         "stderr: {stderr}"
     );
     assert!(!binary.exists());
+}
+
+#[test]
+fn builds_logical_short_circuit() {
+    let run = build_and_run(
+        "builds_logical_short_circuit",
+        "fun side(): i32 { return 1 }\n\
+         fun main(): i32 {\n\
+            var n: i32 = 0\n\
+            if (false && side() == 1) { n = 1 }\n\
+            if (true || side() == 1) { return n }\n\
+            return 99\n\
+        }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+}
+
+#[test]
+fn builds_while_with_break() {
+    let run = build_and_run(
+        "builds_while_with_break",
+        "fun main(): i32 {\n\
+            var i: i32 = 0\n\
+            while (i < 10) {\n\
+                if (i == 3) { break }\n\
+                i = i + 1\n\
+            }\n\
+            return i\n\
+        }\n",
+    );
+    assert_eq!(run.status.code(), Some(3));
 }

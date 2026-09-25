@@ -114,14 +114,23 @@ pub enum Stmt {
         value: Expr,
     },
     Assign {
-        name: String,
-        name_span: crate::span::Span,
+        target: AssignTarget,
         value: Expr,
     },
     For {
         name: crate::span::SpannedName,
         iter: Expr,
         body: Block,
+    },
+    While {
+        cond: Expr,
+        body: Block,
+    },
+    Break {
+        span: crate::span::Span,
+    },
+    Continue {
+        span: crate::span::Span,
     },
     MoveBlock {
         /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
@@ -133,9 +142,23 @@ pub enum Stmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum AssignTarget {
+    Name {
+        name: String,
+        name_span: crate::span::Span,
+    },
+    Index {
+        name: String,
+        name_span: crate::span::Span,
+        index: Expr,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Int(i64),
     Float(f64),
+    Bool(bool),
     Str(String),
     ArrayLit {
         elements: Vec<Expr>,
@@ -223,11 +246,14 @@ pub enum BinOp {
     Ne,
     RangeTo,
     Elvis,
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOp {
     NotNullAssert,
+    Not,
 }
 
 pub fn unescape_string_literal(raw: &str) -> String {

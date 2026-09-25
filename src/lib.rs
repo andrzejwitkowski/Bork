@@ -1,3 +1,4 @@
+mod region_walk;
 pub mod arena;
 pub mod ast;
 mod builtins;

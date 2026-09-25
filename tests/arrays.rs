@@ -105,6 +105,105 @@ fun main() {
 }
 
 #[test]
+fn index_assign_i32_typechecks() {
+    let source = r#"
+fun main(): i32 {
+    var a: [i32; 3] = [1, 2, 3]
+    var i = 1
+    a[i] = 9
+    return a[1]
+}
+"#;
+    let result = frontend::check(source);
+    assert!(result.is_ok(), "{:?}", result.diagnostics);
+}
+
+#[test]
+fn index_assign_to_val_array_is_rejected() {
+    let source = r#"
+fun main() {
+    val a: [i32; 3] = [1, 2, 3]
+    a[1] = 9
+}
+"#;
+    let result = frontend::check(source);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("immutable") && d.message.contains("val")),
+        "{:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn index_assign_string_requires_move() {
+    let source = r#"
+fun main() {
+    var a: [String; 1] = ["a"]
+    var s = "b"
+    a[0] = s
+}
+"#;
+    let result = frontend::check(source);
+    assert!(
+        result.diagnostics.iter().any(|d| d.message.contains("move")),
+        "{:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn index_assign_moved_string_typechecks() {
+    let source = r#"
+fun main() {
+    var a: [String; 1] = ["a"]
+    var s = "b"
+    a[0] = move s
+    println(a[0])
+}
+"#;
+    let result = frontend::check(source);
+    assert!(result.is_ok(), "{:?}", result.diagnostics);
+}
+
+#[test]
+fn index_assign_rejects_bad_index_and_value_types() {
+    let bad_index = r#"
+fun main() {
+    var a: [i32; 1] = [1]
+    a["x"] = 2
+}
+"#;
+    let index_result = frontend::check(bad_index);
+    assert!(
+        index_result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("index") && d.message.contains("i32")),
+        "{:?}",
+        index_result.diagnostics
+    );
+
+    let bad_value = r#"
+fun main() {
+    var a: [i32; 1] = [1]
+    a[0] = "no"
+}
+"#;
+    let value_result = frontend::check(bad_value);
+    assert!(
+        value_result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("element") && d.message.contains("i32")),
+        "{:?}",
+        value_result.diagnostics
+    );
+}
+
+#[test]
 fn whole_array_assign_requires_matching_length() {
     let source = r#"
 fun main() {

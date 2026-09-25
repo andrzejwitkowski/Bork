@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::hir::{HirBlock, HirExprKind, HirProgram, HirStmt, UseKind};
+use crate::hir::{HirAssignTarget, HirBlock, HirExprKind, HirProgram, HirStmt, UseKind};
 
 pub fn annotate(program: &mut HirProgram) {
     for function in &mut program.functions {
@@ -26,7 +26,7 @@ fn annotate_block(block: &mut HirBlock, outer: &HashSet<String>) {
                 nested.extend(local.iter().cloned());
                 annotate_block(inner, &nested);
             }
-            HirStmt::For { body, .. } => {
+            HirStmt::For { body, .. } | HirStmt::While { body, .. } => {
                 let mut nested = outer.clone();
                 nested.extend(local.iter().cloned());
                 annotate_block(body, &nested);
@@ -72,10 +72,13 @@ fn hoist_target(
         return None;
     };
     let HirStmt::Assign {
-        name: outer_name,
+        target,
         value: rhs,
     } = next?
     else {
+        return None;
+    };
+    let HirAssignTarget::Name { name: outer_name } = target else {
         return None;
     };
     if alloc_in_binding.is_some() || !value_may_hoist(value) || !assign_moves_ident(rhs, inner) {

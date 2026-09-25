@@ -43,6 +43,8 @@ pub struct ArenaNode {
     pub id: usize,
     pub label: String,
     pub compacted_braces: usize,
+    /// Set by `region_walk::stamp_codegen_push` after typeck; `true` iff codegen should `arena_push`.
+    pub codegen_push: bool,
     pub bindings: Vec<BindingInfo>,
     pub observations: Vec<BindingInfo>,
     pub children: Vec<ArenaNode>,

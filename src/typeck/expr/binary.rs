@@ -81,6 +81,17 @@ pub(super) fn check_binary(
             }
             Ty::bool()
         }
+        BinOp::And | BinOp::Or => {
+            if !poisoned && (*lhs_ty != Ty::bool() || *rhs_ty != Ty::bool()) {
+                env.error(
+                    format!(
+                        "logical operands must have type bool, got {lhs_ty} and {rhs_ty}"
+                    ),
+                    span,
+                );
+            }
+            Ty::bool()
+        }
         BinOp::RangeTo => {
             if !poisoned && (*lhs_ty != Ty::i32() || *rhs_ty != Ty::i32()) {
                 env.error(

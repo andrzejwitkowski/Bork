@@ -26,7 +26,7 @@ fun main() {
 |---|---|
 | `i8` `i16` `i32` `i64` `u8` `u16` `u32` `u64` | integers |
 | `Int` `Long` `Byte` `Float` `Double` | aliases of `i32` `i64` `u8` `f32` `f64` |
-| `f32` `f64` `bool` `unit` | float, bool, unit |
+| `f32` `f64` `bool` `unit` | float, bool, unit (`true` / `false` literals) |
 | `String` | owned text, not Copy |
 | `[T; N]` | fixed-length array with **N** elements (`N` is a non-negative integer literal) |
 | `T?` | nullable form of `T` |
@@ -37,7 +37,7 @@ Integer literals adopt the expected integer type. Non-null primitives are **Copy
 
 `String` and `[T; N]` have one field: `.length` (`i32`, always **N** for arrays of that type). Unknown fields are type errors.
 
-Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]`. A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. There is no per-element `move` and no `a[i] = …`.
+Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]`. A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
 
 ## Bindings
 
@@ -69,6 +69,7 @@ move (s) {
 ```
 
 - `for (name in lo..hi)` is a half-open integer range. Bounds are evaluated once. The loop body arena resets every iteration.
+- `while (cond) { ... }` repeats while `cond` is true. `break` exits the innermost loop; `continue` starts the next iteration.
 - `move (a, b) { ... }` moves the listed non-Copy bindings into the block. `move () { ... }` moves nothing. `move { ... }` infers which parent `var`s the block consumes.
 - Names in an explicit capture list are already local inside the block. Do not write `move` again for them.
 
@@ -97,7 +98,7 @@ Precedence, tightest last: calls and suffixes, `*` `/`, `+` `-`, comparisons, `.
 | `promote name` | relocate an owned value into the arena of an outer `var` you are assigning to |
 | `"..."` | string; escapes `\n` `\r` `\t` `\\` `\"` |
 
-Comparisons: `>` `<` `>=` `<=` `==` `!=`. Arithmetic: `+` `-` `*` `/` on integers. `+` does not concatenate strings; use `concat`.
+Comparisons: `>` `<` `>=` `<=` `==` `!=`. Logical: `&&` `||` `!` on `bool` (`&&` and `||` short-circuit). Arithmetic: `+` `-` `*` `/` on integers. `+` does not concatenate strings; use `concat`.
 
 ## Ownership
 

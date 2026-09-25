@@ -18,13 +18,6 @@ pub(super) enum Ty {
 }
 
 impl Ty {
-    pub(super) fn from_option(ty: Option<Type>) -> Self {
-        match ty {
-            Some(t) => Ty::Known(t),
-            None => Ty::Unknown,
-        }
-    }
-
     pub(super) fn as_option(&self) -> Option<Type> {
         match self {
             Ty::Known(t) => Some(t.clone()),
@@ -80,6 +73,8 @@ pub(super) struct Analyzer {
     pub(super) errors: Vec<SemaError>,
     pub(super) env: HashMap<String, EnvBinding>,
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
+    /// `var`/`val` types from typeck, consumed in source order.
+    pub(super) decl_tys: std::collections::VecDeque<crate::hir::Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
 }
@@ -91,6 +86,7 @@ impl Analyzer {
             errors: Vec::new(),
             env: HashMap::new(),
             fun_sigs: HashMap::new(),
+            decl_tys: std::collections::VecDeque::new(),
             loop_move_ban: Vec::new(),
         }
     }

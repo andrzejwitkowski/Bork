@@ -1,9 +1,9 @@
-//! Compiler frontend orchestration (parse -> sema -> typeck -> HIR).
+//! Compiler frontend orchestration (parse -> typeck -> sema -> HIR).
 
 use crate::diag::{self, Diagnostic};
 use crate::hir::HirProgram;
 use crate::parse;
-use crate::sema::{analyze, ArenaReport};
+use crate::sema::ArenaReport;
 use crate::typeck;
 
 /// Outcome of one frontend run over a source string.
@@ -35,12 +35,17 @@ pub fn check(source: &str) -> CheckResult {
         }
     };
 
-    let (report, ownership_errors) = analyze(&program);
+    let (hir, decl_tys, mut type_diagnostics) = typeck::check(&program);
+    let (mut report, ownership_errors) =
+        crate::sema::analyze_with_decl_tys(&program, decl_tys);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
-    let (hir, mut type_diagnostics) = typeck::check(&program);
     diagnostics.append(&mut type_diagnostics);
 
-    let mut hir = diagnostics.is_empty().then_some(hir).flatten();
+    if diagnostics.is_empty() {
+        crate::region_walk::stamp_codegen_push(&hir, &mut report);
+    }
+
+    let mut hir = diagnostics.is_empty().then_some(hir);
     if let Some(mut program) = hir {
         crate::hoist::annotate(&mut program);
         for function in &program.functions {

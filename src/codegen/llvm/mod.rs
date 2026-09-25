@@ -5,6 +5,7 @@ mod array;
 mod context;
 mod emit_fn;
 mod expr;
+mod region_emit;
 
 use std::path::Path;
 
@@ -46,7 +47,7 @@ pub fn emit_module<'ctx>(
         .collect::<Result<Callees, Diagnostic>>()?;
     let mut regions = RegionEmitter::new(report, ArenaCalls::new(&cx));
     for function in &hir.functions {
-        emit_fn::emit_function(&cx, &callees, &mut regions, function)?;
+        emit_fn::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
     }
     regions.finish().map_err(schedule_error)?;
     cx.module
@@ -82,6 +83,18 @@ fn schedule_error(err: ScheduleError) -> Diagnostic {
     codegen_error(format!("internal arena schedule mismatch: {err}"), None)
 }
 
+pub(super) fn region_walk_codegen_error(err: crate::region_walk::WalkError) -> Diagnostic {
+    schedule_error(ScheduleError {
+        message: err.as_str().into(),
+    })
+}
+
+pub(super) fn resolve_walk_failure(walk: crate::region_walk::WalkError) -> Diagnostic {
+    walk.diagnostic()
+        .cloned()
+        .unwrap_or_else(|| region_walk_codegen_error(walk))
+}
+
 impl From<BuilderError> for Diagnostic {
     fn from(err: BuilderError) -> Self {
         codegen_error(format!("LLVM builder error: {err}"), None)
@@ -107,6 +120,44 @@ mod tests {
     }
 
     #[test]
+    fn codegen_arena_push_pop_counts_match_schedule() {
+        use crate::codegen::regions::{RegionEvent, schedule};
+        use crate::region_walk::stamp_codegen_push;
+
+        let sources = [
+            "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) { total = total + i }\n    return total\n}\n",
+            "fun main() {\n    val s = \"x\"\n    { println(s) }\n}\n",
+            "fun main(): i32 {\n    val x = 1\n    if (x > 0) { return 1 } else { return 0 }\n}\n",
+        ];
+        for source in sources {
+            let checked = check(source);
+            assert!(checked.is_ok(), "{source:?}");
+            let mut report = checked.report.unwrap();
+            stamp_codegen_push(checked.hir.as_ref().unwrap(), &mut report);
+            let events = schedule(checked.hir.as_ref().unwrap(), &report).expect("schedule");
+            let scheduled_pushes = events
+                .iter()
+                .filter(|e| matches!(e, RegionEvent::Push { .. }))
+                .count();
+            let scheduled_pops = events
+                .iter()
+                .filter(|e| matches!(e, RegionEvent::Pop { .. }))
+                .count();
+            let ir = ir_of(source);
+            assert_eq!(
+                ir.matches("call ptr @bork_arena_push()").count(),
+                scheduled_pushes,
+                "{source}"
+            );
+            assert_eq!(
+                ir.matches("call void @bork_arena_pop(").count(),
+                scheduled_pops,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn early_returns_pop_every_open_arena() {
         let ir = ir_of(
             "fun add(a: i32, b: i32): i32 { return a + b }\n\
@@ -115,10 +166,9 @@ mod tests {
                  if (x > 40) { return x } else { return 0 }\n\
              }\n",
         );
-        // Arenas: fun add, fun main, IfThen, IfElse. Each `return` unwinds open handles in
-        // that branch only (then: main+IfThen, else: IfElse), plus one pop in `add`.
-        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 4, "{ir}");
-        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 4, "{ir}");
+        // Only function-root arenas push; `if` branches here allocate nothing.
+        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 2, "{ir}");
+        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
     }
 
     #[test]
@@ -126,8 +176,8 @@ mod tests {
         let ir = ir_of(
             "fun main() {\n    val a = 1\n    {\n        val b = 2\n    }\n    val c = 3\n}\n",
         );
-        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 2, "{ir}");
-        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
+        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 1, "{ir}");
+        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 1, "{ir}");
     }
 
     fn block<'s>(ir: &'s str, label: &str) -> &'s str {
@@ -141,7 +191,7 @@ mod tests {
     #[test]
     fn for_loop_pushes_once_resets_at_latch_and_pops_on_exit() {
         let ir = ir_of(
-            "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) {\n        total = total + i\n    }\n    return total\n}\n",
+            "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) {\n        val _bump = \".\"\n        total = total + i\n    }\n    return total\n}\n",
         );
         assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 2, "{ir}");
         assert_eq!(
@@ -162,7 +212,7 @@ mod tests {
     #[test]
     fn move_copies_into_innermost_arena_and_shared_does_not() {
         let ir = ir_of(
-            "fun main() {\n    val s = \"x\"\n    {\n        println(s)\n    }\n    move {\n        val t = move s\n        println(t)\n    }\n}\n",
+            "fun main() {\n    val s = \"x\"\n    {\n        val _pad = \"q\"\n        println(s)\n    }\n    move {\n        val _pad = \"m\"\n        val t = move s\n        println(t)\n    }\n}\n",
         );
         assert_eq!(ir.matches("call ptr @bork_arena_alloc(").count(), 1, "{ir}");
         assert_eq!(ir.matches("@llvm.memcpy").count(), 2, "{ir}");
@@ -182,7 +232,7 @@ mod tests {
     #[test]
     fn return_inside_loop_pops_loop_arena_and_skips_dead_latch_reset() {
         let ir = ir_of(
-            "fun main(): i32 {\n    for (i in 0..5) {\n        return i\n    }\n    return 0\n}\n",
+            "fun main(): i32 {\n    for (i in 0..5) {\n        val _bump = \".\"\n        return i\n    }\n    return 0\n}\n",
         );
         assert!(!block(&ir, "for.latch").contains("@bork_arena"), "{ir}");
         assert_eq!(

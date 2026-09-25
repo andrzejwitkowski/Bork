@@ -2,8 +2,6 @@ use inkwell::builder::BuilderError;
 use inkwell::values::PointerValue;
 
 use crate::codegen::regions::RegionSink;
-use crate::sema::ArenaNode;
-
 use super::context::Codegen;
 
 /// Lowers region events to `bork_arena_*` runtime calls at the builder's position.
@@ -35,10 +33,6 @@ impl<'a, 'ctx> ArenaCalls<'a, 'ctx> {
         self.handles.last().copied()
     }
 
-    pub fn root(&self) -> Option<PointerValue<'ctx>> {
-        self.handles.first().copied()
-    }
-
     /// Pops every open arena, innermost first, ahead of a `return`.
     pub fn unwind(&mut self) -> Result<(), BuilderError> {
         for handle in self.handles.iter().rev() {
@@ -63,7 +57,7 @@ impl<'a, 'ctx> ArenaCalls<'a, 'ctx> {
 }
 
 impl RegionSink for ArenaCalls<'_, '_> {
-    fn push(&mut self, _node: &ArenaNode) {
+    fn push(&mut self, _arena: usize) {
         let call = self
             .cx
             .builder
@@ -81,7 +75,7 @@ impl RegionSink for ArenaCalls<'_, '_> {
         }
     }
 
-    fn reset(&mut self, _node: &ArenaNode) {
+    fn reset(&mut self, _arena: usize) {
         let Some(&handle) = self.handles.last() else {
             return;
         };
@@ -95,7 +89,7 @@ impl RegionSink for ArenaCalls<'_, '_> {
         }
     }
 
-    fn pop(&mut self, _node: &ArenaNode) {
+    fn pop(&mut self, _arena: usize) {
         let Some(handle) = self.handles.pop() else {
             return;
         };

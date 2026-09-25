@@ -12,7 +12,7 @@ use crate::hir::{HirFunction, HirParam, HirProgram, Ty, TyKind};
 use env::Env;
 pub(crate) use env::FunSig;
 
-pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
+pub fn check(program: &Program) -> (HirProgram, Vec<Ty>, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     for function in &program.functions {
         if crate::builtins::is_intrinsic(&function.name) {
@@ -44,6 +44,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
         .collect();
     fun_sigs.extend(crate::builtins::signatures());
 
+    let mut decl_tys = Vec::new();
     let functions = program
         .functions
         .iter()
@@ -77,6 +78,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
                 );
             }
             diagnostics.append(&mut env.diagnostics);
+            decl_tys.append(&mut env.decl_tys);
             HirFunction {
                 name: function.name.clone(),
                 params,
@@ -86,11 +88,7 @@ pub fn check(program: &Program) -> (Option<HirProgram>, Vec<Diagnostic>) {
         })
         .collect();
 
-    if diagnostics.is_empty() {
-        (Some(HirProgram { functions }), diagnostics)
-    } else {
-        (None, diagnostics)
-    }
+    (HirProgram { functions }, decl_tys, diagnostics)
 }
 
 pub(super) fn lower_type(ty: &Type, diagnostics: &mut Vec<Diagnostic>) -> Ty {

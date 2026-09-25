@@ -253,9 +253,8 @@ fun main(): String {
     let program = crate::parse(src).expect("parse");
     let (_, sema_errors) = crate::sema::analyze(&program);
     assert!(sema_errors.is_empty(), "{sema_errors:?}");
-    let (hir, type_errors) = crate::typeck::check(&program);
+    let (hir, _, type_errors) = crate::typeck::check(&program);
     assert!(type_errors.is_empty(), "{type_errors:?}");
-    let hir = hir.expect("hir");
     assert!(matches!(
         &hir.functions[0].body.stmts[1],
         HirStmt::Return {
@@ -557,4 +556,43 @@ fun main(): i32 {
     assert!(report.diagnostics.iter().any(|d| d
         .message
         .contains("cannot redefine builtin function `println`")));
+}
+
+#[test]
+fn logical_and_requires_bool_operands() {
+    let src = r#"
+fun main() {
+    val b: bool = true && 1
+}
+"#;
+    assert!(diags_of(src).iter().any(|d| d.message.contains("logical operands")));
+}
+
+#[test]
+fn while_break_continue_typecheck() {
+    let hir = hir_of(
+        r#"
+fun main(): i32 {
+    var i: i32 = 0
+    while (i < 3) {
+        if (i == 1) { break }
+        i = i + 1
+        continue
+    }
+    return i
+}
+"#,
+    );
+    assert!(hir.functions[0].body.stmts.iter().any(|s| matches!(s, HirStmt::While { .. })));
+}
+
+#[test]
+fn break_outside_loop_is_type_error() {
+    let src = r#"
+fun main(): i32 {
+    break
+    return 0
+}
+"#;
+    assert!(diags_of(src).iter().any(|d| d.message.contains("`break` outside")));
 }
