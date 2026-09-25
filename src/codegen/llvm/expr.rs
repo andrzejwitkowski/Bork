@@ -33,7 +33,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 let ty = self
                     .cx
                     .basic_type(&expr.ty)
-                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))?;
+                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))?
+                    .into_float_type();
                 Ok(Some(ty.const_float(*value).into()))
             }
             HirExprKind::Str { value } => Ok(Some(self.emit_str_literal(value)?.into())),
@@ -159,7 +160,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     /// `move` of a string copies its bytes into the current sink arena.
-    fn copy_into_arena(
+    pub(super) fn copy_into_arena(
         &mut self,
         source: StructValue<'ctx>,
     ) -> Result<StructValue<'ctx>, Diagnostic> {

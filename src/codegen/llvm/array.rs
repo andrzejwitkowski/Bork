@@ -44,7 +44,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         elem_ty: &Ty,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let desc = self
-            .emit_value(receiver, receiver.ty)?
+            .emit_value(receiver, &receiver.ty)?
             .into_struct_value();
         let idx = self.emit_int(index, &Ty::i32())?;
         let (base, len) = self.descriptor_parts(desc)?;
@@ -160,7 +160,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         } else {
             self.cx
                 .builder
-                .build_memcpy(dst_base, align, base, align, byte_len)
+                .build_memcpy(dst_base, align as u32, base, align as u32, byte_len)
                 .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
         }
         Ok(self.descriptor(dst_base, count))
@@ -227,9 +227,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .cx
             .basic_type(elem_ty)
             .ok_or_else(|| not_yet_supported(&format!("array element `{elem_ty}`"), None))?;
-        let size = llvm.size_of().unwrap_or(1) as usize;
-        let align = llvm.get_alignment() as usize;
-        Ok((llvm, size.max(1), align.max(1)))
+        let (size, align) = array_elem_layout(elem_ty)?;
+        Ok((llvm, size, align))
     }
 
     fn elem_ptr(
@@ -320,6 +319,23 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.cx.builder.build_unreachable()?;
         self.cx.builder.position_at_end(ok);
         Ok(())
+    }
+}
+
+fn array_elem_layout(elem_ty: &Ty) -> Result<(usize, usize), Diagnostic> {
+    if elem_ty.is_string() {
+        return Ok((16, 8));
+    }
+    use crate::hir::{Prim, TyKind};
+    match &elem_ty.kind {
+        TyKind::Prim(prim) if !elem_ty.nullable => match prim {
+            Prim::I8 | Prim::U8 | Prim::Bool => Ok((1, 1)),
+            Prim::I16 | Prim::U16 => Ok((2, 2)),
+            Prim::I32 | Prim::F32 => Ok((4, 4)),
+            Prim::I64 | Prim::F64 => Ok((8, 8)),
+            Prim::Unit => Err(not_yet_supported("array element `unit`", None)),
+        },
+        _ => Err(not_yet_supported(&format!("array element `{elem_ty}`"), None)),
     }
 }
 

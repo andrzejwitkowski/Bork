@@ -181,10 +181,12 @@ pub(super) fn check_slice(
             Ty::array(elem, len)
         }
         (Some(_), None) => {
-            env.error(
-                "slice bounds must be integer literals so the result type is `[T; N]`",
-                Some(span),
-            );
+            let msg = if const_i32(&lo).is_some() && const_i32(&hi).is_some() {
+                "slice lower bound must not exceed upper bound"
+            } else {
+                "slice bounds must be integer literals so the result type is `[T; N]`"
+            };
+            env.error(msg, Some(span));
             Ty::unknown()
         }
         _ => Ty::unknown(),

@@ -227,10 +227,12 @@ impl<'h> Escape<'h, '_> {
             | HirExprKind::Str { .. }
             | HirExprKind::None => 0,
             HirExprKind::ArrayLit { elements } => {
-                for element in elements {
-                    self.place(element, sink);
-                }
-                sink.unwrap_or(self.depth)
+                let deepest = elements
+                    .iter()
+                    .map(|element| self.place(element, None))
+                    .max()
+                    .unwrap_or(0);
+                deepest.max(self.depth)
             }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
