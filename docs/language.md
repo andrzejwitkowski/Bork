@@ -28,13 +28,16 @@ fun main() {
 | `Int` `Long` `Byte` `Float` `Double` | aliases of `i32` `i64` `u8` `f32` `f64` |
 | `f32` `f64` `bool` `unit` | float, bool, unit |
 | `String` | owned text, not Copy |
+| `[T; N]` | fixed-length array with **N** elements (`N` is a non-negative integer literal) |
 | `T?` | nullable form of `T` |
 | `(A, B) -> R` | function type |
 | `((A, B) -> R)?` | nullable function type |
 
-Integer literals adopt the expected integer type. Non-null primitives are **Copy**. `T?` and `String` are not.
+Integer literals adopt the expected integer type. Non-null primitives are **Copy**. `T?`, `String`, and `[T; N]` are not.
 
-`String` has one field: `.length` (`i32`). Unknown fields are type errors.
+`String` and `[T; N]` have one field: `.length` (`i32`, always **N** for arrays of that type). Unknown fields are type errors.
+
+Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]`. A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. There is no per-element `move` and no `a[i] = …`.
 
 ## Bindings
 
@@ -110,8 +113,10 @@ Each `{ ... }` region has an arena. Leaving the region frees that arena in one s
 | Assign a `String` up to an outer `var` | `outer = move inner` or `outer = promote held` |
 | Return a `String` from this function | `return "literal"`, `return name` (parameter or local at function depth); not `return move` or `return concat(...)` yet |
 | Return a parameter or other depth-0 string | `return name` |
+| Move or promote a whole array | `move a` / `outer = promote inner` (types must match, including **N**) |
+| Read an element | `a[i]` — Copy elements are copied; `String` is a shared view of the array buffer |
 
-After `move`, the source binding is dead. Using it is an ownership error.
+After `move`, the source binding is dead. Using it is an ownership error. Array elements are not moved on their own; `move` and `promote` apply to the whole `[T; N]` binding.
 
 `promote name` is only valid as the right-hand side of an assignment to a `var` in an outer region. It is for a value that already exists in a shorter-lived arena. It is not a return form.
 
@@ -315,8 +320,8 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 `bork build` lowers a checked program to a native executable only for a subset of the frontend.
 
-Supported: integer arithmetic and comparisons, `for` over `..`, `if`/`else`, `String` literals, `move` / `promote` of strings, `concat`, `print` / `println`, calls to user functions without trailing closures.
+Supported: integer and float arithmetic and comparisons, `for` over `..`, `if`/`else`, `String` literals, `[T; N]` literals with index, literal-bounds slice, and `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, calls to user functions without trailing closures.
 
-Rejected by codegen (the frontend still accepts them): trailing closures, `None`, `Some`, `!!`, `?:`, and field access.
+Rejected by codegen (the frontend still accepts them): trailing closures, `None`, `Some`, `!!`, `?:`, and field access other than `.length` on `String` or `[T; N]`.
 
 Division by zero, and signed division of the minimum value by `-1`, abort at runtime.

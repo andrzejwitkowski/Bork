@@ -84,6 +84,11 @@ Param: Param = {
 };
 
 Type: Type = {
+    "[" <elem:Type> ";" <len:ArrayTypeLen> "]" <q:"?"?> => Type::Array {
+        elem: Box::new(elem),
+        len,
+        nullable: q.is_some(),
+    },
     <name:Ident> <q:"?"?> => Type::from_ident(&name, q.is_some()),
     "(" <ty:ParenType> => ty,
 };
@@ -116,9 +121,11 @@ ParenType: Type = {
                     ret,
                     nullable: true,
                 }),
-                Type::Named { .. } | Type::Primitive { .. } => Err(ParseError::User {
-                    error: "only function types may be parenthesized for nullability",
-                }),
+                Type::Named { .. } | Type::Primitive { .. } | Type::Array { .. } => {
+                    Err(ParseError::User {
+                        error: "only function types may be parenthesized for nullability",
+                    })
+                }
             }
         }
     },
@@ -233,6 +240,17 @@ ExprSuffix: Expr = {
         args: args.unwrap_or_default(),
         trailing,
     },
+    <start:@L> <receiver:ExprSuffix> "[" <lo:ExprCompare> ".." <hi:ExprCompare> "]" <end:@R> => Expr::Slice {
+        receiver: Box::new(receiver),
+        lo: Box::new(lo),
+        hi: Box::new(hi),
+        span: Span::new(start, end),
+    },
+    <start:@L> <receiver:ExprSuffix> "[" <index:ExprCompare> "]" <end:@R> => Expr::Index {
+        receiver: Box::new(receiver),
+        index: Box::new(index),
+        span: Span::new(start, end),
+    },
     <start:@L> <receiver:ExprSuffix> <safe:FieldOp> <name:Ident> <end:@R> => Expr::Field {
         receiver: Box::new(receiver),
         name,
@@ -277,7 +295,12 @@ MoveClosureBody: (Vec<SpannedName>, Block) = {
 
 Atom: Expr = {
     <n:Num> => Expr::Int(n),
+    <f:FloatLit> => Expr::Float(f),
     <s:StrLit> => Expr::Str(s),
+    <start:@L> "[" <elems:Comma<Expr>?> "]" <end:@R> => Expr::ArrayLit {
+        elements: elems.unwrap_or_default(),
+        span: Span::new(start, end),
+    },
     <start:@L> "None" <end:@R> => Expr::None {
         span: Span::new(start, end),
     },
@@ -317,12 +340,25 @@ Ident: String = {
     r"[a-zA-Z_][a-zA-Z0-9_]*" => <>.to_string(),
 };
 
+ArrayTypeLen: u32 = {
+    <n:Num> =>? u32::try_from(n).map_err(|_| ParseError::User {
+        error: "array length is too large",
+    }),
+};
+
 Num: i64 = {
     r"[0-9]+" =>? <>.parse().map_err(|_| ParseError::User {
         error: "integer literal out of range for i64",
     }),
 };
 
+FloatLit: f64 = {
+    r"[0-9]+\.[0-9]+" =>? <>.parse().map_err(|_| ParseError::User {
+        error: "invalid float literal",
+    }),
+};
+
 StrLit: String = {
     r#""([^"\\]|\\.)*""# => unescape_string_literal(<>),
 };
+

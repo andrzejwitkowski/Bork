@@ -29,18 +29,46 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))?;
                 Ok(Some(ty.const_int(*value as u64, true).into()))
             }
+            HirExprKind::Float { value } => {
+                let ty = self
+                    .cx
+                    .basic_type(&expr.ty)
+                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))?
+                    .into_float_type();
+                Ok(Some(ty.const_float(*value).into()))
+            }
             HirExprKind::Str { value } => Ok(Some(self.emit_str_literal(value)?.into())),
+            HirExprKind::ArrayLit { elements } => Ok(Some(
+                self.emit_array_lit(elements, &expr.ty)?.into(),
+            )),
+            HirExprKind::Index { receiver, index, .. } => {
+                let elem = expr.ty.clone();
+                self.emit_index_load(receiver, index, &elem).map(Some)
+            }
+            HirExprKind::Slice { receiver, lo, .. } => {
+                Ok(Some(self.emit_slice(receiver, lo, &expr.ty)?.into()))
+            }
+            HirExprKind::Field { receiver, name, .. } if name == "length" => self
+                .emit_buffer_length(receiver)
+                .map(|v| Some(v.into())),
             HirExprKind::Ident { name, use_kind } => {
                 let slot = self
                     .lookup(name)
                     .ok_or_else(|| not_yet_supported(&format!("`{name}` as a value"), expr.span))?;
+                let slot_ty = slot.ty.clone();
+                let slot_ptr = slot.ptr;
                 let ty = self
                     .cx
-                    .basic_type(&slot.ty)
+                    .basic_type(&slot_ty)
                     .expect("locals only hold lowerable types");
-                let value = self.cx.builder.build_load(ty, slot.ptr, name)?;
+                let value = self.cx.builder.build_load(ty, slot_ptr, name)?;
                 if matches!(*use_kind, UseKind::Move | UseKind::Promote) && value.is_struct_value() {
-                    Ok(Some(self.copy_into_arena(value.into_struct_value())?.into()))
+                    let copied = if slot_ty.is_array() {
+                        self.copy_array_into_arena(value.into_struct_value(), &slot_ty)?
+                    } else {
+                        self.copy_into_arena(value.into_struct_value())?
+                    };
+                    Ok(Some(copied.into()))
                 } else {
                     // Shared/Local/Copy: load the slot (string descriptors copy by value).
                     Ok(Some(value))
@@ -48,7 +76,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             HirExprKind::Binary { op, lhs, rhs } => self
                 .emit_binary(op, lhs, rhs, expr)
-                .map(|value| Some(value.into())),
+                .map(Some),
             HirExprKind::Call { callee, args, .. } => self.emit_call(callee, args, expr),
             HirExprKind::If {
                 cond,
@@ -64,12 +92,44 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         expr: &HirExpr,
         ty: &Ty,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if ty.is_string() {
+        if ty.uses_arena_storage() {
             return self
                 .emit_expr(expr)?
                 .ok_or_else(|| not_yet_supported("a `unit` value here", expr.span));
         }
+        if matches!(ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
+            return self.emit_float(expr, ty).map(Into::into);
+        }
         self.emit_int(expr, ty).map(Into::into)
+    }
+
+    pub fn emit_float(
+        &mut self,
+        expr: &HirExpr,
+        ty: &Ty,
+    ) -> Result<inkwell::values::FloatValue<'ctx>, Diagnostic> {
+        let value = self
+            .emit_expr(expr)?
+            .ok_or_else(|| not_yet_supported("a `unit` value here", expr.span))?;
+        let target = self
+            .cx
+            .basic_type(ty)
+            .ok_or_else(|| not_yet_supported(&format!("type `{ty}`"), expr.span))?
+            .into_float_type();
+        if value.is_float_value() {
+            let float = value.into_float_value();
+            if float.get_type() == target {
+                return Ok(float);
+            }
+            return Ok(self
+                .cx
+                .builder
+                .build_float_cast(float, target, "cast")?);
+        }
+        Err(not_yet_supported(
+            &format!("`{}` in this position", expr.ty),
+            expr.span,
+        ))
     }
 
     pub fn emit_int(&mut self, expr: &HirExpr, ty: &Ty) -> Result<IntValue<'ctx>, Diagnostic> {
@@ -102,7 +162,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     /// `move` of a string copies its bytes into the current sink arena.
-    fn copy_into_arena(
+    pub(super) fn copy_into_arena(
         &mut self,
         source: StructValue<'ctx>,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
@@ -159,7 +219,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         lhs: &HirExpr,
         rhs: &HirExpr,
         expr: &HirExpr,
-    ) -> Result<IntValue<'ctx>, Diagnostic> {
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if matches!(expr.ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
+            return self.emit_float_binary(op, lhs, rhs, expr);
+        }
         let cx = self.cx;
         let builder = &cx.builder;
         if let Some(predicate) = comparison(op) {
@@ -168,7 +231,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let l = self.emit_int(lhs, &operand_ty)?;
             let r = self.emit_int(rhs, &operand_ty)?;
             let predicate = if unsigned { predicate.1 } else { predicate.0 };
-            return Ok(builder.build_int_compare(predicate, l, r, "cmp")?);
+            return Ok(builder.build_int_compare(predicate, l, r, "cmp")?.into());
         }
 
         let l = self.emit_int(lhs, &expr.ty)?;
@@ -187,7 +250,40 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             _ => return Err(not_yet_supported("this operator", expr.span)),
         };
-        Ok(value)
+        Ok(value.into())
+    }
+
+    fn emit_float_binary(
+        &mut self,
+        op: &BinOp,
+        lhs: &HirExpr,
+        rhs: &HirExpr,
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let cx = self.cx;
+        let builder = &cx.builder;
+        let l = self.emit_float(lhs, &expr.ty)?;
+        let r = self.emit_float(rhs, &expr.ty)?;
+        let value = match op {
+            BinOp::Add => builder.build_float_add(l, r, "fadd")?,
+            BinOp::Sub => builder.build_float_sub(l, r, "fsub")?,
+            BinOp::Mul => builder.build_float_mul(l, r, "fmul")?,
+            BinOp::Div => builder.build_float_div(l, r, "fdiv")?,
+            BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le | BinOp::Eq | BinOp::Ne => {
+                let predicate = match op {
+                    BinOp::Gt => inkwell::FloatPredicate::OGT,
+                    BinOp::Lt => inkwell::FloatPredicate::OLT,
+                    BinOp::Ge => inkwell::FloatPredicate::OGE,
+                    BinOp::Le => inkwell::FloatPredicate::OLE,
+                    BinOp::Eq => inkwell::FloatPredicate::OEQ,
+                    BinOp::Ne => inkwell::FloatPredicate::ONE,
+                    _ => unreachable!(),
+                };
+                return Ok(builder.build_float_compare(predicate, l, r, "fcmp")?.into());
+            }
+            _ => return Err(not_yet_supported("this operator", expr.span)),
+        };
+        Ok(value.into())
     }
 
     fn guard_int_div(

@@ -35,7 +35,28 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
 
 fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
     match &expr.kind {
-        HirExprKind::Int { .. } | HirExprKind::Str { .. } | HirExprKind::Ident { .. } => {}
+        HirExprKind::Int { .. }
+        | HirExprKind::Float { .. }
+        | HirExprKind::Str { .. }
+        | HirExprKind::Ident { .. } => {}
+        HirExprKind::ArrayLit { elements } => {
+            for element in elements {
+                gate_expr(element, diagnostics);
+            }
+        }
+        HirExprKind::Index {
+            receiver,
+            index,
+            use_kind: _,
+        } => {
+            gate_expr(receiver, diagnostics);
+            gate_expr(index, diagnostics);
+        }
+        HirExprKind::Slice { receiver, lo, hi } => {
+            gate_expr(receiver, diagnostics);
+            gate_expr(lo, diagnostics);
+            gate_expr(hi, diagnostics);
+        }
         HirExprKind::Binary { op, lhs, rhs } => {
             if !matches!(
                 op,
@@ -105,12 +126,14 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             );
             gate_expr(inner, diagnostics);
         }
-        HirExprKind::Field { receiver, .. } => {
-            reject(
-                diagnostics,
-                "field access is not supported by codegen",
-                expr.span.or(receiver.span),
-            );
+        HirExprKind::Field { receiver, name, .. } => {
+            if name != "length" || !receiver.ty.uses_arena_storage() {
+                reject(
+                    diagnostics,
+                    "field access is not supported by codegen",
+                    expr.span.or(receiver.span),
+                );
+            }
             gate_expr(receiver, diagnostics);
         }
     }
@@ -176,17 +199,19 @@ fun main(name: String?): String {
     }
 
     #[test]
-    fn field_rejection_has_codegen_span() {
-        let source = r#"fun main(): i32 { return "x".length }"#;
+    fn length_field_passes_codegen_gate() {
+        let source = r#"fun main(): i32 {
+    val a = [1, 2, 3]
+    return a.length
+}"#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
         let diagnostics = super::gate(result.hir.as_ref().unwrap());
 
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.phase == Phase::Codegen
-                && diagnostic.message.contains("field access")
-                && diagnostic.span.is_some()
-        }));
+        assert!(
+            diagnostics.is_empty(),
+            "`.length` on arrays should be allowed at the codegen gate: {diagnostics:?}"
+        );
     }
 }

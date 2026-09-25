@@ -358,7 +358,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .ok_or_else(|| not_yet_supported(&format!("local of type `{ty}`"), None))?;
         let ptr = self.entry_alloca(llvm_ty, name)?;
         self.cx.builder.build_store(ptr, value)?;
-        let home_arena = if ty.is_string() {
+        let home_arena = if ty.uses_arena_storage() {
             self.sink_arena()
         } else {
             self.function_arena

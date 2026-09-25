@@ -55,7 +55,10 @@ fn builds_reject_program_without_main() {
 #[test]
 fn gate_rejection_exits_one_without_binary() {
     let dir = scratch_dir("gate_rejection_exits_one_without_binary");
-    let (build, binary) = bork_build(&dir, "fun main(): i32 { return \"x\".length }\n");
+    let (build, binary) = bork_build(
+        &dir,
+        "fun main() {\n    val _: String? = None\n}\n",
+    );
     assert_eq!(build.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&build.stderr).contains("codegen"));
     assert!(!binary.exists());
@@ -233,6 +236,19 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
     assert!(stderr.contains("codegen"), "stderr: {stderr}");
     assert!(stderr.contains("not supported"), "stderr: {stderr}");
     assert!(!binary.exists());
+}
+
+#[test]
+fn builds_array_index_and_slice() {
+    let run = build_and_run(
+        "builds_array_index_and_slice",
+        "fun main(): i32 {\n\
+            val a = [10, 20, 30]\n\
+            val b = a[0..2]\n\
+            return b[1]\n\
+        }\n",
+    );
+    assert_eq!(run.status.code(), Some(20));
 }
 
 #[test]

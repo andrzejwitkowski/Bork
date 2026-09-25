@@ -325,9 +325,29 @@ fn schedule_expr<S: RegionSink>(
 ) -> Result<(), ScheduleError> {
     match &expr.kind {
         HirExprKind::Int { .. }
+        | HirExprKind::Float { .. }
         | HirExprKind::Str { .. }
         | HirExprKind::Ident { .. }
         | HirExprKind::None => Ok(()),
+        HirExprKind::ArrayLit { elements } => {
+            for element in elements {
+                schedule_expr(emitter, element)?;
+            }
+            Ok(())
+        }
+        HirExprKind::Index {
+            receiver,
+            index,
+            use_kind: _,
+        } => {
+            schedule_expr(emitter, receiver)?;
+            schedule_expr(emitter, index)
+        }
+        HirExprKind::Slice { receiver, lo, hi } => {
+            schedule_expr(emitter, receiver)?;
+            schedule_expr(emitter, lo)?;
+            schedule_expr(emitter, hi)
+        }
         HirExprKind::Some(inner)
         | HirExprKind::Unary { expr: inner, .. }
         | HirExprKind::Field {

@@ -1,5 +1,6 @@
 //! Expression type checking.
 
+pub(super) mod array;
 mod binary;
 mod call;
 mod control;
@@ -10,6 +11,8 @@ use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
 use crate::span::Span;
 
 use super::env::Env;
+
+use array::{check_array_lit, check_index, check_slice};
 
 use binary::{check_binary, check_elvis};
 use call::check_call;
@@ -32,6 +35,27 @@ pub(super) fn check(
                 .unwrap_or_else(Ty::i32);
             HirExpr::new(HirExprKind::Int { value: *value }, ty)
         }
+        Expr::Float(value) => {
+            let ty = expected
+                .filter(|ty| ty.is_numeric() && !ty.is_integer())
+                .cloned()
+                .unwrap_or_else(|| Ty::prim(crate::hir::Prim::F64));
+            HirExpr::new(HirExprKind::Float { value: *value }, ty)
+        }
+        Expr::ArrayLit { elements, span } => {
+            check_array_lit(elements, *span, expected, return_ty, env)
+        }
+        Expr::Index {
+            receiver,
+            index,
+            span,
+        } => check_index(receiver, index, *span, return_ty, env),
+        Expr::Slice {
+            receiver,
+            lo,
+            hi,
+            span,
+        } => check_slice(receiver, lo, hi, *span, return_ty, env),
         Expr::Str(value) => HirExpr::new(
             HirExprKind::Str {
                 value: value.clone(),
@@ -128,7 +152,7 @@ pub(super) fn check(
     }
 }
 
-fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) -> HirExpr {
+pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) -> HirExpr {
     let Some(binding) = env.binding(name) else {
         env.error(format!("unknown binding `{name}`"), Some(span));
         return HirExpr::spanned(

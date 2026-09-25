@@ -83,6 +83,10 @@ impl fmt::Display for Prim {
 pub enum TyKind {
     Prim(Prim),
     Named(String),
+    Array {
+        elem: Box<Ty>,
+        len: u32,
+    },
     Func { params: Vec<Ty>, ret: Box<Ty> },
     Range(Box<Ty>),
     Unknown,
@@ -127,8 +131,31 @@ impl Ty {
         Self::new(TyKind::Named("String".into()), nullable)
     }
 
+    pub fn array(elem: Ty, len: u32) -> Self {
+        Self::new(
+            TyKind::Array {
+                elem: Box::new(elem),
+                len,
+            },
+            false,
+        )
+    }
+
     pub fn from_ast(t: &ast::Type) -> Self {
         match t {
+            ast::Type::Array {
+                elem,
+                len,
+                nullable,
+            } => {
+                Self::new(
+                    TyKind::Array {
+                        elem: Box::new(Self::from_ast(elem)),
+                        len: *len,
+                    },
+                    *nullable,
+                )
+            }
             ast::Type::Primitive { name, nullable } => Self::new(
                 Prim::from_name(name).map_or(TyKind::Unknown, TyKind::Prim),
                 *nullable,
@@ -156,6 +183,33 @@ impl Ty {
 
     pub fn is_string(&self) -> bool {
         matches!(&self.kind, TyKind::Named(name) if name == "String")
+    }
+
+    pub fn is_array(&self) -> bool {
+        !self.nullable && matches!(&self.kind, TyKind::Array { .. })
+    }
+
+    pub fn array_elem(&self) -> Option<&Ty> {
+        match &self.kind {
+            TyKind::Array { elem, .. } => Some(elem),
+            _ => None,
+        }
+    }
+
+    pub fn array_len(&self) -> Option<u32> {
+        match &self.kind {
+            TyKind::Array { len, .. } => Some(*len),
+            _ => None,
+        }
+    }
+
+    /// Values whose payload bytes live in an arena (`String`, `[T]`).
+    pub fn uses_arena_storage(&self) -> bool {
+        self.is_string() || self.is_array()
+    }
+
+    pub fn is_array_elem_supported(&self) -> bool {
+        self.is_copy() || (self.is_string() && !self.nullable)
     }
 
     pub fn is_nullable(&self) -> bool {
@@ -193,6 +247,7 @@ impl fmt::Display for Ty {
         match &self.kind {
             TyKind::Prim(prim) => f.write_str(prim.as_str())?,
             TyKind::Named(name) => f.write_str(name)?,
+            TyKind::Array { elem, len } => write!(f, "[{elem}; {len}]")?,
             TyKind::Func { params, ret } => {
                 f.write_str("(")?;
                 for (index, param) in params.iter().enumerate() {
@@ -282,5 +337,6 @@ mod tests {
         );
         assert_eq!(Ty::range(Ty::i32()).to_string(), "Range<i32>");
         assert_eq!(Ty::unknown().to_string(), "<unknown>");
+        assert_eq!(Ty::array(Ty::i32(), 3).to_string(), "[i32; 3]");
     }
 }

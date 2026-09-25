@@ -36,9 +36,26 @@ impl<'ctx> Codegen<'ctx> {
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
     pub fn basic_type(&self, ty: &Ty) -> Option<BasicTypeEnum<'ctx>> {
         if ty.is_string() && !ty.nullable {
-            return Some(self.string_type().into());
+            return Some(self.buffer_descriptor_type().into());
+        }
+        if ty.is_array() {
+            return Some(self.buffer_descriptor_type().into());
+        }
+        if let TyKind::Prim(prim) = ty.kind {
+            if !ty.nullable {
+                return match prim {
+                    Prim::F32 => Some(self.context.f32_type().into()),
+                    Prim::F64 => Some(self.context.f64_type().into()),
+                    _ => self.int_type(ty).map(Into::into),
+                };
+            }
         }
         self.int_type(ty).map(Into::into)
+    }
+
+    /// Arena-backed buffer descriptor `{ ptr, i64 }` (`String`, `[T]`).
+    pub fn buffer_descriptor_type(&self) -> StructType<'ctx> {
+        self.string_type()
     }
 
     /// String descriptor `{ ptr, i64 }`: borrowed bytes and their length, no terminator.

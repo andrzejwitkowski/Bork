@@ -74,7 +74,7 @@ impl<'h> Escape<'h, '_> {
             match last {
                 HirStmt::Expr(expr) if yields => {
                     value = self.place(expr, sink);
-                    if sink.is_none() && value == self.depth && expr.ty.is_string() {
+                    if sink.is_none() && value == self.depth && expr.ty.uses_arena_storage() {
                         reject(
                             self.diagnostics,
                             "a `String` moved inside an `if` branch cannot be its value: \
@@ -98,7 +98,7 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                if !value.ty.is_string() {
+                if !value.ty.uses_arena_storage() {
                     return;
                 }
                 if self.place(value, Some(0)) > 0 {
@@ -137,12 +137,12 @@ impl<'h> Escape<'h, '_> {
                 };
                 let outlives = value_depth > target;
                 local.value_depth = value_depth.min(target);
-                if outlives && value.ty.is_string() {
+                if outlives && value.ty.uses_arena_storage() {
                     reject(
                         self.diagnostics,
                         &format!(
-                            "assigning a `String` moved in an inner region to `{name}` is not \
-                             supported: its arena is freed before `{name}` goes out of scope"
+                            "assigning a value whose bytes live in an inner region to `{name}` \
+                             is not supported: that arena is freed before `{name}` goes out of scope"
                         ),
                         value.span,
                     );
@@ -222,9 +222,40 @@ impl<'h> Escape<'h, '_> {
     /// `sink` is the consumer arena (`0` on return, the target's `decl_depth` on assign).
     fn place(&mut self, expr: &'h HirExpr, sink: Option<usize>) -> usize {
         match &expr.kind {
-            HirExprKind::Int { .. } | HirExprKind::Str { .. } | HirExprKind::None => 0,
+            HirExprKind::Int { .. }
+            | HirExprKind::Float { .. }
+            | HirExprKind::Str { .. }
+            | HirExprKind::None => 0,
+            HirExprKind::ArrayLit { elements } => {
+                let deepest = elements
+                    .iter()
+                    .map(|element| self.place(element, sink))
+                    .max()
+                    .unwrap_or(0);
+                let buffer = match sink {
+                    Some(0) | None => self.depth,
+                    Some(depth) => depth,
+                };
+                buffer.max(deepest)
+            }
+            HirExprKind::Index { receiver, index, .. } => {
+                self.place(index, None);
+                if !expr.ty.uses_arena_storage() {
+                    self.place(receiver, None);
+                    return 0;
+                }
+                self.array_value_depth(receiver)
+            }
+            HirExprKind::Slice { receiver, lo, hi } => {
+                let depth = self.place(receiver, None);
+                self.place(lo, None);
+                self.place(hi, None);
+                depth
+            }
             HirExprKind::Ident { name, use_kind } => {
-                if expr.ty.is_string() && matches!(*use_kind, UseKind::Move | UseKind::Promote) {
+                if expr.ty.uses_arena_storage()
+                    && matches!(*use_kind, UseKind::Move | UseKind::Promote)
+                {
                     match sink {
                         Some(0) => self.lookup(name).map_or(0, |local| local.value_depth),
                         Some(depth) => depth,
@@ -252,7 +283,7 @@ impl<'h> Escape<'h, '_> {
                     sink.unwrap_or(self.depth)
                 } else {
                     let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
-                    if expr.ty.is_string() {
+                    if expr.ty.uses_arena_storage() {
                         deepest
                     } else {
                         0
@@ -276,6 +307,16 @@ impl<'h> Escape<'h, '_> {
             | HirExprKind::Field {
                 receiver: inner, ..
             } => self.place(inner, None),
+        }
+    }
+
+    fn array_value_depth(&mut self, receiver: &'h HirExpr) -> usize {
+        if let HirExprKind::Ident { name, .. } = &receiver.kind {
+            self.lookup(name)
+                .map(|local| local.value_depth)
+                .unwrap_or(0)
+        } else {
+            self.place(receiver, None)
         }
     }
 
@@ -364,7 +405,7 @@ mod tests {
                 diagnostic.phase == Phase::Ownership
                     && diagnostic
                         .message
-                        .contains("moved in an inner region to `s`")
+                        .contains("that arena is freed before `s` goes out of scope")
                     && diagnostic.span.is_some()
             }),
             "{diagnostics:?}"
