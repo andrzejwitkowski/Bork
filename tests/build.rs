@@ -55,7 +55,10 @@ fn builds_reject_program_without_main() {
 #[test]
 fn gate_rejection_exits_one_without_binary() {
     let dir = scratch_dir("gate_rejection_exits_one_without_binary");
-    let (build, binary) = bork_build(&dir, "fun main(): i32 { return \"x\".unknown }\n");
+    let (build, binary) = bork_build(
+        &dir,
+        "fun main() {\n    val _: String? = None\n}\n",
+    );
     assert_eq!(build.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&build.stderr).contains("codegen"));
     assert!(!binary.exists());
