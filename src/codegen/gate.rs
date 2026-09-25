@@ -200,7 +200,10 @@ fun main(name: String?): String {
 
     #[test]
     fn length_field_passes_codegen_gate() {
-        let source = r#"fun main(): i32 { val a = [1, 2, 3]; return a.length }"#;
+        let source = r#"fun main(): i32 {
+    val a = [1, 2, 3]
+    return a.length
+}"#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
