@@ -19,7 +19,9 @@ lsp = ["dep:tower-lsp", "dep:tokio", "dep:serde_json"]
 codegen = ["dep:inkwell", "dep:tempfile"]
 
 [dependencies]
-inkwell = { version = "0.10", features = ["llvm18-1-prefer-dynamic"], optional = true }
+# crates.io 0.10.0 stops at LLVM 22. Drop the git pin once a release
+# exposes `llvm23-1-force-dynamic`.
+inkwell = { git = "https://github.com/TheDan64/inkwell", rev = "b7cbeed24af810e14cb36d703f057167b4c033a4", features = ["llvm23-1-force-dynamic"], optional = true }
 lalrpop-util = "0.23"
 tempfile = { version = "3", optional = true }
 tower-lsp = { version = "0.20", optional = true }

@@ -7,6 +7,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src/parser.lalrpop");
     lalrpop::process_src().unwrap();
     if env::var_os("CARGO_FEATURE_CODEGEN").is_some() {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
         build_runtime();
     }
 }

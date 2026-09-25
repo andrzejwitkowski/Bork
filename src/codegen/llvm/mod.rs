@@ -1,4 +1,4 @@
-//! Inkwell (LLVM 18) emission for the codegen subset.
+//! Inkwell (LLVM 23) emission for the codegen subset.
 
 mod arena;
 mod array;

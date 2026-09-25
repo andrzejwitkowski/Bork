@@ -1,4 +1,3 @@
-use inkwell::types::BasicType;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
 use inkwell::IntPredicate;
 
@@ -18,7 +17,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .array_elem()
             .ok_or_else(|| not_yet_supported("array literal type", None))?;
         let count = elements.len();
-        let (llvm_elem, stride, align) = self.elem_storage(elem_ty)?;
+        let (_, stride, align) = self.elem_storage(elem_ty)?;
         let cx = self.cx;
         let builder = &cx.builder;
         let len = cx.context.i64_type().const_int(count as u64, false);
@@ -30,7 +29,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let arena = self.sink_arena();
         let base = self.arena_alloc(arena, byte_len, align)?;
         for (index, element) in elements.iter().enumerate() {
-            let slot = self.elem_ptr(base, index, llvm_elem, stride)?;
+            let slot = self.elem_ptr(base, index, stride)?;
             let value = self.emit_value(element, elem_ty)?;
             builder.build_store(slot, value)?;
         }
@@ -50,7 +49,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (base, len) = self.descriptor_parts(desc)?;
         self.guard_index(idx, len, receiver.span)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let ptr = self.elem_ptr_at(base, idx, llvm_elem, stride)?;
+        let ptr = self.elem_ptr_at(base, idx, stride)?;
         builder_load(self, llvm_elem, ptr)
     }
 
@@ -77,8 +76,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let idx = self.emit_int(index, &Ty::i32())?;
         let (base, len) = self.descriptor_parts(desc)?;
         self.guard_index(idx, len, span)?;
-        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let elem_ptr = self.elem_ptr_at(base, idx, llvm_elem, stride)?;
+        let (_, stride, _) = self.elem_storage(elem_ty)?;
+        let elem_ptr = self.elem_ptr_at(base, idx, stride)?;
         self.cx.builder.build_store(elem_ptr, value)?;
         Ok(())
     }
@@ -176,7 +175,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (base, len) = self.descriptor_parts(desc)?;
         self.guard_index(idx, len, span)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let ptr = self.elem_ptr_at(base, idx, llvm_elem, stride)?;
+        let ptr = self.elem_ptr_at(base, idx, stride)?;
         builder_load(self, llvm_elem, ptr)
     }
 
@@ -228,7 +227,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         _array_ty: &Ty,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let count = values.len();
-        let (llvm_elem, stride, align) = self.elem_storage(elem_ty)?;
+        let (_, stride, align) = self.elem_storage(elem_ty)?;
         let cx = self.cx;
         let builder = &cx.builder;
         let len = cx.context.i64_type().const_int(count as u64, false);
@@ -240,7 +239,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let arena = self.sink_arena();
         let base = self.arena_alloc(arena, byte_len, align)?;
         for (index, value) in values.iter().enumerate() {
-            let slot = self.elem_ptr(base, index, llvm_elem, stride)?;
+            let slot = self.elem_ptr(base, index, stride)?;
             builder.build_store(slot, *value)?;
         }
         Ok(self.descriptor(base, len))
@@ -284,8 +283,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .build_int_compare(IntPredicate::UGE, i, count, "done")?;
             self.cx.builder.build_conditional_branch(done_cond, done, body)?;
             self.cx.builder.position_at_end(body);
-            let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), llvm_elem, stride)?;
-            let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), llvm_elem, stride)?;
+            let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), stride)?;
+            let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), stride)?;
             let loaded = builder_load(self, llvm_elem, src_slot)?.into_struct_value();
             let moved = self.copy_into_arena(loaded)?;
             self.cx.builder.build_store(dst_slot, moved)?;
@@ -371,7 +370,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &self,
         base: PointerValue<'ctx>,
         index: usize,
-        llvm_elem: inkwell::types::BasicTypeEnum<'ctx>,
         stride: usize,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
         let idx = self
@@ -379,14 +377,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .context
             .i32_type()
             .const_int(index as u64, false);
-        self.elem_ptr_at(base, idx, llvm_elem, stride)
+        self.elem_ptr_at(base, idx, stride)
     }
 
     fn elem_ptr_at(
         &self,
         base: PointerValue<'ctx>,
         index: IntValue<'ctx>,
-        llvm_elem: inkwell::types::BasicTypeEnum<'ctx>,
         stride: usize,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
         let offset = self.cx.builder.build_int_mul(
@@ -407,11 +404,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 "slot.bytes",
             )?
         };
-        Ok(self.cx.builder.build_pointer_cast(
-            bytes,
-            llvm_elem.ptr_type(inkwell::AddressSpace::default()),
-            "slot",
-        )?)
+        Ok(bytes)
     }
 
     fn truncate_i32(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
