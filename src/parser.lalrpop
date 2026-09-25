@@ -248,7 +248,16 @@ ExprAnd = BinTier<AndOp, ExprRange>;
 ExprRange = BinTier<RangeOp, ExprCompare>;
 ExprCompare = BinTier<CompareOp, ExprAdd>;
 ExprAdd = BinTier<AddOp, ExprMul>;
-ExprMul = BinTier<MulOp, ExprSuffix>;
+ExprMul = BinTier<MulOp, ExprUnary>;
+
+ExprUnary: Expr = {
+    <start:@L> "!" <inner:ExprUnary> <end:@R> => Expr::Unary {
+        op: UnaryOp::Not,
+        expr: Box::new(inner),
+        span: Span::new(start, end),
+    },
+    <e:ExprSuffix> => e,
+};
 
 OrOp: BinOp = { "||" => BinOp::Or };
 AndOp: BinOp = { "&&" => BinOp::And };
@@ -330,11 +339,6 @@ MoveClosureBody: (Vec<SpannedName>, Block) = {
 };
 
 Atom: Expr = {
-    <start:@L> "!" <expr:Atom> <end:@R> => Expr::Unary {
-        op: UnaryOp::Not,
-        expr: Box::new(expr),
-        span: Span::new(start, end),
-    },
     <n:Num> => Expr::Int(n),
     <f:FloatLit> => Expr::Float(f),
     "true" => Expr::Bool(true),

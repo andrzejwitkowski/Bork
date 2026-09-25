@@ -138,7 +138,10 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         }
         self.pin_walk_driver(driver, |emitter| {
             emitter.walk_step(|e| {
-                e.walk.trailing = e.emit_expr(expr)?;
+                if let Some(value) = e.emit_after_walk(expr)? {
+                    e.walk.eval_stack.push(value);
+                    e.walk.trailing = Some(value);
+                }
                 Ok(())
             })
         })

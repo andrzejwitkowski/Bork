@@ -438,6 +438,143 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(call.try_as_basic_value().basic())
     }
 
+    pub(in crate::codegen::llvm) fn emit_call_with_values(
+        &mut self,
+        callee: &HirExpr,
+        arg_values: &[BasicValueEnum<'ctx>],
+        expr: &HirExpr,
+    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
+        let HirExprKind::Ident { name, .. } = &callee.kind else {
+            return Err(not_yet_supported("indirect calls", callee.span));
+        };
+        let callees = self.callees;
+        let Some(&(target, function)) = callees.get(name.as_str()) else {
+            match (builtins::resolve(name), arg_values) {
+                (Some(builtins::Builtin::Print), [arg]) => {
+                    return self.emit_print_value(*arg, false).map(|()| None);
+                }
+                (Some(builtins::Builtin::Println), [arg]) => {
+                    return self.emit_print_value(*arg, true).map(|()| None);
+                }
+                (Some(builtins::Builtin::Concat), [left, right]) => {
+                    return self
+                        .emit_concat_values(*left, *right, expr)
+                        .map(Some);
+                }
+                _ => {}
+            }
+            return Err(not_yet_supported(
+                &format!("calls to `{name}`"),
+                expr.span.or(callee.span),
+            ));
+        };
+        let args = arg_values
+            .iter()
+            .zip(&function.params)
+            .map(|(value, param)| {
+                self.coerce_value_to_ty(*value, &param.ty, expr.span)
+                    .map(BasicMetadataValueEnum::from)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let call = self.cx.builder.build_call(target, &args, "call")?;
+        Ok(call.try_as_basic_value().basic())
+    }
+
+    fn coerce_value_to_ty(
+        &mut self,
+        value: BasicValueEnum<'ctx>,
+        ty: &Ty,
+        span: Option<crate::span::Span>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if ty == &Ty::bool() {
+            return self.value_as_bool(value, span).map(Into::into);
+        }
+        if matches!(ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
+            return Err(not_yet_supported("float call argument after walk", span));
+        }
+        self.value_as_int(value, ty, span).map(Into::into)
+    }
+
+    fn emit_concat_values(
+        &mut self,
+        left: BasicValueEnum<'ctx>,
+        right: BasicValueEnum<'ctx>,
+        _expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let left_val = left.into_struct_value();
+        let right_val = right.into_struct_value();
+        let cx = self.cx;
+        let builder = &cx.builder;
+        let left_ptr = builder
+            .build_extract_value(left_val, 0, "concat.l.ptr")?
+            .into_pointer_value();
+        let left_len = builder
+            .build_extract_value(left_val, 1, "concat.l.len")?
+            .into_int_value();
+        let right_ptr = builder
+            .build_extract_value(right_val, 0, "concat.r.ptr")?
+            .into_pointer_value();
+        let right_len = builder
+            .build_extract_value(right_val, 1, "concat.r.len")?
+            .into_int_value();
+        let total = builder.build_int_add(left_len, right_len, "concat.len")?;
+        let arena = self.sink_arena();
+        let one = cx.context.i64_type().const_int(1, false);
+        let dst = builder
+            .build_call(
+                cx.arena_alloc_fn(),
+                &[arena.into(), total.into(), one.into()],
+                "concat.dst",
+            )?
+            .try_as_basic_value()
+            .basic()
+            .expect("bork_arena_alloc returns a pointer")
+            .into_pointer_value();
+        builder
+            .build_memcpy(dst, 1, left_ptr, 1, left_len)
+            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
+        let offset = unsafe {
+            builder.build_gep(
+                cx.context.i8_type(),
+                dst,
+                &[left_len],
+                "concat.r.off",
+            )?
+        };
+        builder
+            .build_memcpy(offset, 1, right_ptr, 1, right_len)
+            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
+        let out = cx.string_type().const_named_struct(&[]);
+        let out = builder.build_insert_value(out, dst, 0, "concat.out")?;
+        let out = builder.build_insert_value(out, total, 1, "concat.out")?;
+        Ok(out.into_struct_value().into())
+    }
+
+    fn emit_print_value(
+        &mut self,
+        arg: BasicValueEnum<'ctx>,
+        newline: bool,
+    ) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let builder = &cx.builder;
+        if arg.is_struct_value() {
+            let desc = arg.into_struct_value();
+            let bytes = builder.build_extract_value(desc, 0, "print.ptr")?;
+            let len = builder.build_extract_value(desc, 1, "print.len")?;
+            builder.build_call(cx.print_str_fn(newline), &[bytes.into(), len.into()], "")?;
+        } else {
+            let int = arg.into_int_value();
+            let i64_ty = cx.context.i64_type();
+            let wide = if int.get_type().get_bit_width() < 64 {
+                builder.build_int_s_extend(int, i64_ty, "print.wide")?
+            } else {
+                builder.build_int_truncate(int, i64_ty, "print.wide")?
+            };
+            builder.build_call(cx.print_i64_fn(newline), &[wide.into()], "")?;
+        }
+        Ok(())
+    }
+
     fn emit_concat(
         &mut self,
         args: &[HirExpr],
@@ -592,6 +729,199 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(())
     }
 
+    pub(super) fn emit_after_walk(
+        &mut self,
+        expr: &HirExpr,
+    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
+        if !self.walk_driver_active() {
+            return Ok(self.emit_expr(expr)?);
+        }
+        match &expr.kind {
+            HirExprKind::Binary { op, rhs, .. }
+                if matches!(op, BinOp::And | BinOp::Or) =>
+            {
+                let lhs_val = self.pop_walk_operand(expr.span)?;
+                let lhs_bool = self.value_as_bool(lhs_val, expr.span)?;
+                return self
+                    .emit_logical_with_lhs(op, lhs_bool, rhs, expr)
+                    .map(Some);
+            }
+            HirExprKind::Binary { op, lhs, rhs, .. } => {
+                let rhs_val = self.pop_walk_operand(expr.span)?;
+                let lhs_val = self.pop_walk_operand(expr.span)?;
+                return self
+                    .combine_binary_values(op, lhs, rhs, lhs_val, rhs_val, expr)
+                    .map(Some);
+            }
+            HirExprKind::Unary {
+                op: crate::ast::UnaryOp::Not,
+                ..
+            } => {
+                let inner = self.pop_walk_operand(expr.span)?;
+                let value = self.value_as_bool(inner, expr.span)?;
+                let one = self.cx.context.bool_type().const_int(1, false);
+                return Ok(Some(
+                    self.cx
+                        .builder
+                        .build_xor(value, one, "not")?
+                        .into(),
+                ));
+            }
+            HirExprKind::Call { callee, args, .. } => {
+                let mut arg_values = Vec::with_capacity(args.len());
+                for _ in args {
+                    arg_values.push(self.pop_walk_operand(expr.span)?);
+                }
+                arg_values.reverse();
+                return self.emit_call_with_values(callee, &arg_values, expr);
+            }
+            HirExprKind::ArrayLit { elements, .. } => {
+                let mut values = Vec::with_capacity(elements.len());
+                for _ in elements {
+                    values.push(self.pop_walk_operand(expr.span)?);
+                }
+                values.reverse();
+                let elem_ty = expr
+                    .ty
+                    .array_elem()
+                    .ok_or_else(|| not_yet_supported("array literal type", expr.span))?;
+                return Ok(Some(
+                    self.emit_array_lit_values(&values, elem_ty, &expr.ty)?
+                        .into(),
+                ));
+            }
+            HirExprKind::Index { .. } => {
+                let index = self.pop_walk_operand(expr.span)?;
+                let receiver = self.pop_walk_operand(expr.span)?;
+                let elem = expr.ty.clone();
+                return self
+                    .emit_index_load_values(receiver, index, &elem, expr.span)
+                    .map(Some);
+            }
+            HirExprKind::Slice { .. } => {
+                let _hi = self.pop_walk_operand(expr.span)?;
+                let lo = self.pop_walk_operand(expr.span)?;
+                let receiver = self.pop_walk_operand(expr.span)?;
+                return Ok(Some(
+                    self.emit_slice_values(receiver, lo, &expr.ty, expr.span)?
+                        .into(),
+                ));
+            }
+            HirExprKind::Field { name, .. } if name == "length" => {
+                let receiver = self.pop_walk_operand(expr.span)?;
+                return Ok(Some(
+                    self.emit_buffer_length_value(receiver.into_struct_value())?
+                        .into(),
+                ));
+            }
+            _ => Ok(self.emit_expr(expr)?),
+        }
+    }
+
+    fn pop_walk_operand(
+        &mut self,
+        span: Option<crate::span::Span>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        self.walk
+            .eval_stack
+            .pop()
+            .ok_or_else(|| not_yet_supported("region walk eval stack underflow", span))
+    }
+
+    fn value_as_bool(
+        &mut self,
+        value: BasicValueEnum<'ctx>,
+        span: Option<crate::span::Span>,
+    ) -> Result<IntValue<'ctx>, Diagnostic> {
+        if !value.is_int_value() {
+            return Err(not_yet_supported("bool context", span));
+        }
+        let int = value.into_int_value();
+        if int.get_type().get_bit_width() == 1 {
+            return Ok(int);
+        }
+        let zero = self.cx.context.bool_type().const_int(0, false);
+        Ok(self
+            .cx
+            .builder
+            .build_int_compare(IntPredicate::NE, int, zero, "bool")?)
+    }
+
+    fn combine_binary_values(
+        &mut self,
+        op: &BinOp,
+        lhs: &HirExpr,
+        rhs: &HirExpr,
+        lhs_val: BasicValueEnum<'ctx>,
+        rhs_val: BasicValueEnum<'ctx>,
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if matches!(expr.ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
+            return Err(not_yet_supported("float binary after walk", expr.span));
+        }
+        if let Some(predicate) = comparison(op) {
+            let operand_ty = self.wider(&lhs.ty, &rhs.ty);
+            let l = self.value_as_int(lhs_val, &operand_ty, expr.span)?;
+            let r = self.value_as_int(rhs_val, &operand_ty, expr.span)?;
+            let unsigned = is_unsigned(&operand_ty);
+            let predicate = if unsigned { predicate.1 } else { predicate.0 };
+            return Ok(self
+                .cx
+                .builder
+                .build_int_compare(predicate, l, r, "cmp")?
+                .into());
+        }
+        let l = self.value_as_int(lhs_val, &expr.ty, expr.span)?;
+        let r = self.value_as_int(rhs_val, &expr.ty, expr.span)?;
+        let builder = &self.cx.builder;
+        Ok(match op {
+            BinOp::Add => builder.build_int_add(l, r, "add")?,
+            BinOp::Sub => builder.build_int_sub(l, r, "sub")?,
+            BinOp::Mul => builder.build_int_mul(l, r, "mul")?,
+            BinOp::Div if is_unsigned(&expr.ty) => {
+                self.guard_int_div(l, r, &expr.ty)?;
+                builder.build_int_unsigned_div(l, r, "div")?
+            }
+            BinOp::Div => {
+                self.guard_int_div(l, r, &expr.ty)?;
+                builder.build_int_signed_div(l, r, "div")?
+            }
+            _ => return Err(not_yet_supported("this binary operator", expr.span)),
+        }
+        .into())
+    }
+
+    fn value_as_int(
+        &mut self,
+        value: BasicValueEnum<'ctx>,
+        ty: &Ty,
+        span: Option<crate::span::Span>,
+    ) -> Result<IntValue<'ctx>, Diagnostic> {
+        let int = value
+            .into_int_value();
+        let target = self
+            .cx
+            .int_type(ty)
+            .ok_or_else(|| not_yet_supported(&format!("type `{ty}`"), span))?;
+        if int.get_type() == target {
+            return Ok(int);
+        }
+        Ok(self
+            .cx
+            .builder
+            .build_int_cast_sign_flag(int, target, !is_unsigned(ty), "cast")?)
+    }
+
+    fn emit_logical_with_lhs(
+        &mut self,
+        op: &BinOp,
+        lhs_val: IntValue<'ctx>,
+        rhs: &HirExpr,
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        self.emit_logical_from_lhs(op, lhs_val, rhs, expr)
+    }
+
     fn emit_logical(
         &mut self,
         op: &BinOp,
@@ -599,11 +929,21 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs: &HirExpr,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let lhs_val = self.emit_bool(lhs)?;
+        self.emit_logical_from_lhs(op, lhs_val, rhs, expr)
+    }
+
+    fn emit_logical_from_lhs(
+        &mut self,
+        op: &BinOp,
+        lhs_val: IntValue<'ctx>,
+        rhs: &HirExpr,
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let cx = self.cx;
         let context = cx.context;
         let builder = &cx.builder;
         let i1 = context.bool_type();
-        let lhs_val = self.emit_bool(lhs)?;
         let rhs_bb = context.append_basic_block(self.llvm_fn, "log.rhs");
         let merge_bb = context.append_basic_block(self.llvm_fn, "log.end");
         let short_bb = context.append_basic_block(self.llvm_fn, "log.short");
@@ -615,13 +955,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 builder.build_conditional_branch(lhs_true, rhs_bb, short_bb)?;
                 builder.position_at_end(rhs_bb);
                 let rhs_val = self.emit_bool(rhs)?;
+                let rhs_end = builder
+                    .get_insert_block()
+                    .expect("rhs emission positions builder");
                 builder.build_unconditional_branch(merge_bb)?;
                 builder.position_at_end(short_bb);
                 builder.build_unconditional_branch(merge_bb)?;
                 builder.position_at_end(merge_bb);
                 let phi = builder.build_phi(i1, "log")?;
                 phi.add_incoming(&[
-                    (&rhs_val as &dyn inkwell::values::BasicValue, rhs_bb),
+                    (&rhs_val as &dyn inkwell::values::BasicValue, rhs_end),
                     (&zero as &dyn inkwell::values::BasicValue, short_bb),
                 ]);
                 Ok(phi.as_basic_value())
@@ -632,12 +975,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 builder.build_unconditional_branch(merge_bb)?;
                 builder.position_at_end(rhs_bb);
                 let rhs_val = self.emit_bool(rhs)?;
+                let rhs_end = builder
+                    .get_insert_block()
+                    .expect("rhs emission positions builder");
                 builder.build_unconditional_branch(merge_bb)?;
                 builder.position_at_end(merge_bb);
                 let phi = builder.build_phi(i1, "log")?;
                 phi.add_incoming(&[
                     (&one as &dyn inkwell::values::BasicValue, short_bb),
-                    (&rhs_val as &dyn inkwell::values::BasicValue, rhs_bb),
+                    (&rhs_val as &dyn inkwell::values::BasicValue, rhs_end),
                 ]);
                 Ok(phi.as_basic_value())
             }

@@ -116,6 +116,7 @@ pub(super) struct FnEmitter<'s, 'report, 'a, 'ctx> {
     pub(super) walk: CodegenWalkState<'ctx>,
 }
 
+#[derive(Clone, Copy)]
 struct LoopLabels<'ctx> {
     exit: BasicBlock<'ctx>,
     continue_target: BasicBlock<'ctx>,
@@ -124,6 +125,8 @@ struct LoopLabels<'ctx> {
 /// Driver pin and trailing-value slot while `region_walk` drives a function body.
 pub(super) struct CodegenWalkState<'ctx> {
     pub trailing: Option<BasicValueEnum<'ctx>>,
+    /// Operand values produced by child `after_expr` calls (post-order walk).
+    pub eval_stack: Vec<BasicValueEnum<'ctx>>,
     driver: Option<*mut ()>,
 }
 
@@ -131,6 +134,7 @@ impl<'ctx> CodegenWalkState<'ctx> {
     fn new() -> Self {
         Self {
             trailing: None,
+            eval_stack: Vec::new(),
             driver: None,
         }
     }
@@ -287,22 +291,20 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     fn emit_break(&mut self) -> Result<(), Diagnostic> {
-        let exit = self
+        let labels = *self
             .loop_stack
             .last()
-            .map(|labels| labels.exit)
             .ok_or_else(|| not_yet_supported("`break` outside of a loop", None))?;
-        self.cx.builder.build_unconditional_branch(exit)?;
+        self.cx.builder.build_unconditional_branch(labels.exit)?;
         Ok(())
     }
 
     fn emit_continue(&mut self) -> Result<(), Diagnostic> {
-        let target = self
+        let labels = *self
             .loop_stack
             .last()
-            .map(|labels| labels.continue_target)
             .ok_or_else(|| not_yet_supported("`continue` outside of a loop", None))?;
-        self.cx.builder.build_unconditional_branch(target)?;
+        self.cx.builder.build_unconditional_branch(labels.continue_target)?;
         Ok(())
     }
 

@@ -81,7 +81,8 @@ fn collect_stmt(
         }
         Stmt::While { cond, body } => {
             collect_expr(cond, free, bound);
-            collect_block(body, free, bound);
+            let mut inner = bound.clone();
+            collect_block(body, free, &mut inner);
         }
         Stmt::Break { .. } | Stmt::Continue { .. } => {}
         Stmt::Return(Some(e)) | Stmt::Expr(e) => collect_expr(e, free, bound),

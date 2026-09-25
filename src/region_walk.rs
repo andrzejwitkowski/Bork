@@ -4,6 +4,7 @@
 //! Sema builds the tree from the AST (`sema::peel_blocks`); HIR bodies use
 //! `hir::peel_blocks` with the same rule — keep those peel implementations aligned.
 
+use crate::ast::BinOp;
 use crate::hir::{peel_blocks, HirBlock, HirExpr, HirExprKind, HirFunction, HirProgram, HirStmt, Ty};
 use crate::sema::ArenaNode;
 
@@ -71,11 +72,11 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
             matches!(*use_kind, crate::hir::UseKind::Move | crate::hir::UseKind::Promote)
                 && expr.ty.uses_arena_storage()
         }
-        HirExprKind::Call { callee, .. } => {
+        HirExprKind::Call { callee, args, .. } => {
             let HirExprKind::Ident { name, .. } = &callee.kind else {
-                return false;
+                return args.iter().any(expr_may_allocate_sink);
             };
-            crate::builtins::is_concat(name)
+            crate::builtins::is_concat(name) || args.iter().any(expr_may_allocate_sink)
         }
         HirExprKind::Binary { op, rhs, .. } if *op == crate::ast::BinOp::Elvis => {
             expr_may_allocate_sink(rhs)
@@ -576,9 +577,11 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             walk_expr(driver, visitor, inner)?;
             visitor.after_expr(driver, expr)
         }
-        HirExprKind::Binary { lhs, rhs, .. } => {
+        HirExprKind::Binary { op, lhs, rhs, .. } => {
             walk_expr(driver, visitor, lhs)?;
-            walk_expr(driver, visitor, rhs)?;
+            if !matches!(op, BinOp::And | BinOp::Or) {
+                walk_expr(driver, visitor, rhs)?;
+            }
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Call {
