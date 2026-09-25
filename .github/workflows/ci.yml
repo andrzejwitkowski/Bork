@@ -81,4 +81,6 @@ jobs:
           esac
           printf 'fun main(): i32 {\n    return 7\n}\n' > "$stage/main.bork"
           env -u LD_LIBRARY_PATH PATH="/usr/bin:/bin" "$stage/bork" build -o "$stage/main" "$stage/main.bork"
-          "$stage/main"
+          code=0
+          "$stage/main" || code=$?
+          test "$code" -eq 7
