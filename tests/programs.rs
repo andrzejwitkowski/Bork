@@ -43,7 +43,11 @@ fn parse_directives(source: &str) -> Directives {
         };
         let rest = rest.trim();
         if let Some(v) = rest.strip_prefix("exit:") {
-            d.exit = v.trim().parse().ok();
+            d.exit = Some(
+                v.trim()
+                    .parse()
+                    .expect("malformed `// exit:` directive in programs corpus"),
+            );
         } else if let Some(v) = rest.strip_prefix("stdout:") {
             let s = v.trim().replace("\\n", "\n");
             d.stdout = Some(s);
