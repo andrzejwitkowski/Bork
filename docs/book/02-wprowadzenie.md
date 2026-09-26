@@ -20,7 +20,7 @@ fun main() {
 }
 ```
 
-Program składa się z funkcji. Nie ma instrukcji zapisanych luzem na poziomie pliku. `main` jest zwykłą funkcją, która przy budowaniu programu wykonywalnego dostaje szczególną rolę. Punkt wejścia procesu nazywa się właśnie tak. Jeśli nie podasz typu wyniku, funkcja nie zwraca wartości. Taki `main` kończy się kodem wyjścia zero. `println` jest funkcją wbudowaną. Wypisuje argument i dodaje znak nowego wiersza. Ten program został zbudowany i uruchomiony. Na standardowym wyjściu pojawił się tekst `hi` oraz nowy wiersz, a proces zakończył się kodem zero.
+Program składa się z funkcji, więc nie ma instrukcji zapisanych luzem na poziomie pliku. `main` jest zwykłą funkcją, która przy budowaniu programu wykonywalnego dostaje szczególną rolę, bo punkt wejścia procesu nazywa się właśnie tak. Jeśli nie podasz typu wyniku, funkcja nie zwraca wartości i taki `main` kończy się kodem wyjścia zero. `println` jest funkcją wbudowaną, która wypisuje argument i dodaje znak nowego wiersza. Ten program został zbudowany i uruchomiony: na standardowym wyjściu pojawił się tekst `hi` oraz nowy wiersz, a proces zakończył się kodem zero.
 
 **Listing 1.2.** Wynik funkcji `main` staje się kodem wyjścia procesu.
 
@@ -47,7 +47,7 @@ cargo run --bin bork -- sciezka/do/pliku.bork
 cargo run --bin bork -- --dump-arenas sciezka/do/pliku.bork
 ```
 
-Pierwsze polecenie uruchamia sprawdzenie. Obejmuje ono składnię, typy i własność nazw. Drugie polecenie dopisuje na standardowe wyjście drzewo regionów. Komunikaty o błędach idą na standardowe wyjście błędów. Kod zero oznacza brak błędów. Kod jeden oznacza błąd w programie. Kod dwa oznacza złe wywołanie albo problem z odczytem pliku.
+Pierwsze polecenie uruchamia sprawdzenie, które obejmuje składnię, typy i własność nazw, a drugie dopisuje na standardowe wyjście drzewo regionów. Komunikaty o błędach idą na standardowe wyjście błędów. Kod zero oznacza brak błędów, kod jeden oznacza błąd w programie, a kod dwa oznacza złe wywołanie albo problem z odczytem pliku.
 
 Zbudowanie programu wymaga opcji kompilacji `codegen`, biblioteki LLVM 23, kompilatora `clang` i bibliotek, z którymi ta wersja LLVM jest powiązana. Szczegóły instalacji są w pliku `README` repozytorium. Ubuntu 24.04 nie ma LLVM 23 w domyślnym archiwum pakietów. Po złożeniu kompilatora budujesz program tak:
 
@@ -70,7 +70,7 @@ Słowo `codegen` w komunikacie jest nazwą fazy. Sprawdzenie tego samego pliku, 
 
 ## Dwa błędy, które pojawiają się na początku
 
-Instrukcje rozdziela się nową linią, nie średnikiem. Dwie instrukcje w jednym wierszu nie są programem.
+Instrukcje rozdziela się nową linią, a nie średnikiem, więc dwie instrukcje zapisane w jednym wierszu parser odrzuca.
 
 **Listing 1.4.** Parser odrzuca dwie deklaracje zapisane bez przejścia do nowego wiersza.
 
@@ -97,7 +97,7 @@ Komunikat, z kolumną wskazującą przypisanie, brzmi:
 err_val.bork:3:5: error: type: cannot assign to immutable `val` binding `n`
 ```
 
-Faza `type` pochodzi ze sprawdzania typów. Faza `ownership` pochodzi z analizy własności. Obie mogą pojawić się w jednym uruchomieniu. W wydruku błędy własności stoją przed błędami typów, chociaż sprawdzanie typów wykonuje się wcześniej. Powód tej kolejności jest techniczny i wraca w rozdziale 12. Tutaj wystarczy czytać fazę w komunikacie i nie zakładać, że pierwsza linia jest zawsze pierwszym błędem, który kompilator znalazł w czasie.
+Faza `type` pochodzi ze sprawdzania typów, a faza `ownership` z analizy własności, i obie mogą pojawić się w jednym uruchomieniu. W wydruku błędy własności stoją przed błędami typów, chociaż sprawdzanie typów wykonuje się wcześniej. Powód tej kolejności jest techniczny i wraca w rozdziale 12. Tutaj wystarczy czytać fazę w komunikacie i nie zakładać, że pierwsza linia jest zawsze pierwszym błędem, który kompilator znalazł w czasie.
 
 ## Co język przyjmuje, a czego nie przetłumaczy na kod maszynowy
 

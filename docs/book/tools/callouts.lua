@@ -34,6 +34,17 @@ local function kind_of(blockquote)
   return nil
 end
 
+local function drop_label(para)
+  local inl = para.content
+  if inl[1] and inl[1].t == "Strong" then
+    table.remove(inl, 1)
+    if inl[1] and (inl[1].t == "Space" or inl[1].t == "SoftBreak") then
+      table.remove(inl, 1)
+    end
+  end
+  return #inl > 0
+end
+
 function BlockQuote(el)
   local kind = kind_of(el)
   if not kind then
@@ -49,9 +60,53 @@ function BlockQuote(el)
   local blocks = {
     pandoc.RawBlock("latex", open),
   }
-  for _, block in ipairs(el.content) do
-    table.insert(blocks, block)
+  for i, block in ipairs(el.content) do
+    if i == 1 and block.t == "Para" then
+      if drop_label(block) then
+        table.insert(blocks, block)
+      end
+    else
+      table.insert(blocks, block)
+    end
   end
   table.insert(blocks, pandoc.RawBlock("latex", "\\end{tcolorbox}"))
   return blocks
+end
+
+local function latex_escape(s)
+  s = s:gsub("\\", "\\textbackslash{}")
+  s = s:gsub("%%", "\\%%")
+  s = s:gsub("%#", "\\#")
+  s = s:gsub("%$", "\\$")
+  s = s:gsub("&", "\\&")
+  s = s:gsub("_", "\\_")
+  s = s:gsub("{", "\\{")
+  s = s:gsub("}", "\\}")
+  s = s:gsub("%^", "\\textasciicircum{}")
+  s = s:gsub("~", "\\textasciitilde{}")
+  return s
+end
+
+function Code(el)
+  if FORMAT ~= "latex" and FORMAT ~= "beamer" then
+    return nil
+  end
+  local parts = {}
+  local buf = {}
+  local function flush()
+    if #buf > 0 then
+      table.insert(parts, latex_escape(table.concat(buf)))
+      buf = {}
+    end
+  end
+  for i = 1, #el.text do
+    local c = el.text:sub(i, i)
+    table.insert(buf, c)
+    if c == "_" or c == "/" or c == "." or c == ":" or c == "-" then
+      flush()
+      table.insert(parts, "\\hspace{0pt}")
+    end
+  end
+  flush()
+  return pandoc.RawInline("latex", "\\texttt{" .. table.concat(parts) .. "}")
 end

@@ -37,7 +37,7 @@ Tablica nie jest kopiowana, nawet gdy jej elementy są. Przypisanie całych tabl
 
 ## Indeks
 
-Indeks jest typu `i32` i jest liczony dopiero przy uruchomieniu. Nie wchodzi do typu, więc sprawdzenie nie odrzuca `a[9]` na tablicy trzyelementowej. Zbudowałem taki program. Plik wykonywalny powstaje, a uruchomienie kończy się sygnałem przerwania, z kodem powłoki 134. Generator kodu wstawia sprawdzenie zakresu i woła `abort`.
+Indeks jest typu `i32` i jest liczony dopiero przy uruchomieniu, więc nie wchodzi do typu i sprawdzenie nie odrzuca `a[9]` na tablicy trzyelementowej. Taki program został zbudowany: plik wykonywalny powstaje, a uruchomienie kończy się sygnałem przerwania, z kodem powłoki 134, bo generator kodu wstawia sprawdzenie zakresu i woła `abort`.
 
 **Listing 7.3.** Zapis elementu i wycinek, który widzi ten sam bufor. Program został zbudowany i kończy się kodem 12.
 

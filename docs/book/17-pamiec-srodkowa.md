@@ -5,10 +5,10 @@
 - kiedy kompilator w ogóle zajmuje się miejscem bajtów
 - jak dwie sąsiednie instrukcje przenoszą alokację do zmiennej docelowej
 - jak głębokość regionu decyduje, czy napis wolno zwrócić albo przypisać
-- po co oznaczenie regionów, analiza ucieczki i generator kodu idą jednym spacerem
+- po co oznaczenie regionów, analiza ucieczki i generator kodu idą jednym przejściem po drzewie
 - które regiony naprawdę pobierają bufor w czasie działania
 
-## Te trzy przejścia biegną tylko na programie bez wcześniejszych błędów
+## Tylko program bez wcześniejszych błędów
 
 Gdy lista komunikatów po sprawdzeniu typów i po analizie własności jest pusta, funkcja `frontend::check` robi jeszcze trzy rzeczy. Najpierw `region_walk::stamp_codegen_push` oznacza, które regiony mają pobrać bufor. Potem `hoist::annotate` dopisuje do deklaracji informację, w której zmiennej zewnętrznej alokować napis. Na końcu `escape::check_function` sprawdza każdą funkcję. Jeśli analiza ucieczki dopisze komunikat, reprezentacja pośrednia znika z wyniku, a drzewo regionów zostaje.
 
@@ -36,19 +36,19 @@ Powrót wartości trzymanej w arenie, gdy jej głębokość jest większa od zer
 
 Przypisanie liczy głębokość z miejscem przeznaczenia równym głębokości deklaracji celu. Jeśli bajty byłyby głębsze niż deklaracja celu, komunikat mówi, że przypisujesz wartość, której bajty żyją w regionie wewnętrznym.
 
-Gałąź warunku otwarta jako region, który produkuje wartość, bez miejsca przeznaczenia, z bajtami na głębokości tej gałęzi, daje błąd. Tekst komunikatu mówi o napisie w gałęzi. Warunek w kodzie jest szerszy: obejmuje każdy typ, dla którego `uses_arena_storage` jest prawdziwe, a więc także tablicę. Słowo w komunikacie jest węższe niż sprawdzany warunek.
+Gdy gałąź warunku jest regionem, który produkuje wartość, nie ma miejsca przeznaczenia, a bajty leżą na głębokości tej gałęzi, kompilator zgłasza błąd. Tekst komunikatu mówi o napisie w gałęzi. Warunek w kodzie jest szerszy: obejmuje każdy typ, dla którego `uses_arena_storage` jest prawdziwe, a więc także tablicę. Słowo w komunikacie jest węższe niż sprawdzany warunek.
 
 Komunikaty analizy ucieczki mają fazę `ownership`, tę samą co analiza własności. Część z nich nie ma zakresu źródłowego. Dotyczy to między innymi zwrotu wyniku `concat`. Wiersz poleceń pomija wtedy numer linii i kolumny.
 
-## Jeden spacer trzyma oznaczenie regionów i generator kodu w zgodzie
+## Jedno przejście trzyma oznaczenie regionów i generator kodu w zgodzie
 
-Plik `src/region_walk.rs` istnieje po to, żeby oznaczanie regionów, układ wywołań w generatorze kodu i emisja instrukcji LLVM nie miały trzech lekko różnych pętli po reprezentacji pośredniej. Komentarz na górze pliku mówi, że jest jeden spacer zsynchronizowany z dziećmi węzła regionu.
+Plik `src/region_walk.rs` istnieje po to, żeby oznaczanie regionów, układ wywołań w generatorze kodu i emisja instrukcji LLVM nie miały trzech lekko różnych pętli po reprezentacji pośredniej. Komentarz na górze pliku mówi, że jest jedno przejście po drzewie, zsynchronizowane z dziećmi węzła regionu.
 
 Miejsca, które otwierają dziecko raportu, nazywa typ `RegionSite`. Są to blok, pętla `for`, pętla `while`, gałęzie warunku i funkcja dopisana na końcu wywołania. Etykiety muszą pasować do tych, które wpisała analiza własności. Inaczej funkcja `take_child` nie znajdzie węzła i kompilator zgłosi wewnętrzną niezgodność harmonogramu regionów.
 
-Gość spaceru, w kodzie typ `RegionVisitor`, to obiekt, który odwiedza węzły i w wybranych miejscach wykonuje własną czynność. Ma osobne punkty na wejście w funkcję, na wejście w region, na zatrzask pętli, na wyjście z regionu, na pominięcie funkcji dopisanej na końcu i na chwilę po wyrażeniu. Domyślna ścieżka instrukcji nie obsługuje bloku i pętli. Te idą przez region. Jeśli ktoś wywoła je jak zwykłą instrukcję, dostanie `unreachable!`. To jest kontrola programisty kompilatora, a nie komunikat dla autora programu w Borku.
+Obiekt, który przechodzi po węzłach, w kodzie typ `RegionVisitor`, w wybranych miejscach wykonuje własną czynność. Ma osobne punkty na wejście w funkcję, na wejście w region, na powrót na początek obiegu pętli, na wyjście z regionu, na pominięcie funkcji dopisanej na końcu i na chwilę po wyrażeniu. Domyślna ścieżka instrukcji nie obsługuje bloku i pętli, bo te idą przez region. Jeśli ktoś wywoła je jak zwykłą instrukcję, dostanie `unreachable!`. To jest kontrola programisty kompilatora, a nie komunikat dla autora programu w Borku.
 
-Koniunkcja i alternatywa zwierają się. Prawa strona jest w osobnym bloku podstawowym, więc emisja nie schodzi w nią zwykłą ścieżką. Oznaczenie regionów i tak musi wiedzieć, czy prawa strona alokuje. Dlatego ogląda prawą stronę, a emisja jej nie emituje drugi raz.
+Koniunkcja i alternatywa zwierają się, więc prawa strona jest w osobnym bloku podstawowym i emisja nie schodzi w nią zwykłą ścieżką. Oznaczenie regionów i tak musi wiedzieć, czy prawa strona alokuje. Dlatego ogląda prawą stronę, a emisja jej nie emituje drugi raz.
 
 ## Który region pobiera bufor
 
@@ -58,14 +58,14 @@ Predykat jest prawdziwy, gdy w bloku jest literał napisu albo tablicy, przenies
 
 Oznaczanie ustawia korzeniowi funkcji flagę pobrania bufora zawsze. Dziecku ustawia wynik predykatu. Funkcji dopisanej na końcu wywołania ustawia tę flagę na fałsz wprost.
 
-Skutek, opisany w `docs/memory-model.md` i zrealizowany w `src/codegen/regions.rs`, jest taki. Wydruk drzewa nadal ma węzeł na każdy region, ale wygenerowany kod woła `bork_arena_push` tylko wtedy, gdy flaga jest prawdziwa. Blok, w którym są same liczby `i32`, ma węzeł w wydruku i nie ma własnego bufora w czasie działania. Funkcja zawsze pobiera jeden bufor na wejściu, nawet gdy nic nie alokuje. To jest uproszczenie tej wersji kompilatora. Bufor funkcji i tak wraca na listę wolnych przy wyjściu.
+Skutek, opisany w `docs/memory-model.md` i zrealizowany w `src/codegen/regions.rs`, jest taki, że w wydruku drzewa nadal jest węzeł na każdy region, ale wygenerowany kod woła `bork_arena_push` tylko wtedy, gdy flaga jest prawdziwa. Blok, w którym są same liczby `i32`, jest w tym wydruku osobnym węzłem, choć w czasie działania nie ma własnego bufora. Funkcja zawsze pobiera jeden bufor na wejściu, nawet gdy nic nie alokuje. To jest uproszczenie tej wersji kompilatora. Bufor funkcji i tak wraca na listę wolnych przy wyjściu.
 
-Pętla, jeśli flaga jest prawdziwa, wchodzi raz, na zatrzasku czyści wskaźnik bufora bez oddawania go do puli i wychodzi raz. Plik `TODO.md` prosi, żeby ten kontrakt nie rozszedł się między gośćmi spaceru. Dziś emisja i oznaczanie dzielą `region_walk`, więc utrzymanie zgodności jest prostsze niż przy dwóch ręcznych pętlach. Nadal da się ją zepsuć, nadpisując hak pętli i zapominając o zatrzasku.
+Pętla, jeśli flaga jest prawdziwa, wchodzi raz, przy powrocie na początek obiegu czyści wskaźnik bufora bez oddawania go do puli i wychodzi raz. Plik `TODO.md` prosi, żeby ten kontrakt nie rozszedł się między kodem, który przechodzi po drzewie. Dziś emisja i oznaczanie dzielą `region_walk`, więc utrzymanie zgodności jest prostsze niż przy dwóch ręcznych pętlach. Nadal da się ją zepsuć, nadpisując punkt pętli i zapominając o czyszczeniu przy powrocie na początek obiegu.
 
 ## Podsumowanie
 
 - Wyniesienie alokacji, oznaczenie buforów i analiza ucieczki biegną tylko po czystym sprawdzeniu typów i własności.
 - Wyniesienie rozpoznaje dokładnie dwie sąsiednie instrukcje i każe zbudować napis od razu w arenie celu.
 - Analiza ucieczki liczy głębokość bajtów. Zabrania zwrócić świeży napis, nawet z głębokości zero, gdy formą wyniku jest `concat`, `move` albo `promote`.
-- Wspólny spacer trzyma oznaczenie regionów i generator kodu przy tych samych dzieciach drzewa regionów.
+- Wspólne przejście `region_walk` trzyma oznaczenie regionów i generator kodu przy tych samych dzieciach drzewa regionów.
 - Flaga pobrania bufora odcina puste regiony od `bork_arena_push`. Funkcje dopisane na końcu wywołania nie pobierają bufora, bo i tak nie dochodzą do emisji.

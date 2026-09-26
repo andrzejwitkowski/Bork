@@ -26,7 +26,7 @@ Gdy drzewo regionów nie ma węzła, którego oczekujesz, błąd jest w zejściu
 
 Prefiks fazy mówi, którego katalogu nie czytać w pierwszej kolejności. Faza `parse` prowadzi do gramatyki. Faza `type` prowadzi do `src/typeck`. Faza `ownership` bez słów o użyciu po przeniesieniu i bez słów o braku kopiowania często pochodzi z `src/escape.rs`, a nie z `src/sema/policy.rs`. Słowa o regionie wewnętrznym, o `concat` i o wartości przeniesionej albo promowanej są z analizy ucieczki. Faza `codegen` prowadzi do kontroli albo do emisji.
 
-Komunikat o wewnętrznej niezgodności harmonogramu regionów znaczy, że wspólny spacer nie dostał dziecka węzła albo dostał je w złym miejscu. Porównaj etykietę w analizie własności z miejscem w typie `RegionSite`. Najczęstsza przyczyna przy nowej konstrukcji jest taka, że analiza własności otwiera region, a gość emisji o nim nie wie, albo odwrotnie.
+Komunikat o wewnętrznej niezgodności harmonogramu regionów znaczy, że wspólne przejście `region_walk` nie dostało dziecka węzła albo dostało je w złym miejscu. Porównaj etykietę w analizie własności z miejscem w typie `RegionSite`. Najczęstsza przyczyna przy nowej konstrukcji jest taka, że analiza własności otwiera region, a kod emisji o nim nie wie, albo odwrotnie.
 
 Awaria w `into_int_value` znaczy, że wartość LLVM nie jest liczbą całkowitą. Patrz, jaki typ ma wyrażenie. Napis i liczba zmiennoprzecinkowa na ścieżce `emit_call_with_values` są znanymi ofiarami. Poprawka należy do `coerce_value_to_ty`: dopasowanie wariantu wartości, a dla struktury przekazanie deskryptora bez rzutowania na `i64`. Nie zakrywaj tego łapaniem paniki.
 
@@ -48,11 +48,11 @@ Potem sprawdzanie typów. Warunek oczekuje `bool`. Głębokość pętli rośnie 
 
 Potem analiza własności. Region `WhileLoop` otwiera się zwykłą ścieżką. Obowiązuje ten sam zakaz przeniesienia co przy `for`. Jeśli zapomnisz zakazu, istniejący test przeniesienia nazwy zewnętrznej w pętli nie pokryje `while`, dopóki go nie skopiujesz. Warto go skopiować.
 
-Jeśli ciało jest blokiem, nie dokładaj drugiego regionu w sprawdzaniu typów. Analiza własności i reprezentacja pośrednia muszą mieć po jednym dziecku. Inaczej spacer się nie zepnie.
+Jeśli ciało jest blokiem, nie dokładaj drugiego regionu w sprawdzaniu typów, bo analiza własności i reprezentacja pośrednia muszą mieć po jednym dziecku. Inaczej przejście po drzewie się nie zepnie.
 
 Nowa instrukcja musi być odwiedzona w analizie ucieczki i w wyniesieniu alokacji. Inaczej deklaracja wewnątrz `while` nie będzie widziana. Dla tej pętli wystarczy zejść w ciało tak, jak przy `for`.
 
-We wspólnym spacerze dochodzi miejsce regionu i hak pętli `while`. Oznaczenie pobrania bufora zaczyna widzieć alokacje w ciele. Bez tego wygenerowany kod i raport przestaną pasować do siebie w chwili, gdy ciało alokuje napis.
+We wspólnym przejściu `region_walk` dochodzi miejsce regionu i punkt pętli `while`, więc oznaczenie pobrania bufora zaczyna widzieć alokacje w ciele. Bez tego wygenerowany kod i raport przestaną pasować do siebie w chwili, gdy ciało alokuje napis.
 
 Pętla `while` nie potrzebuje odmowy w kontroli przed generowaniem kodu, bo emisja ją umie. Nowa konstrukcja, której emisja nie umie, musi dostać odmowę w `src/codegen/gate.rs`, żeby użytkownik dostał komunikat zamiast awarii kompilatora. Lekcją jest napis jako argument funkcji użytkownika. Kontrola go nie zna, a emisja kończy się awarią.
 
@@ -64,9 +64,9 @@ Konstrukcja, która jest tylko skrótem składniowym, może skończyć się w pa
 
 ## Braki, które są już zapisane
 
-Plik `TODO.md` wymienia między innymi rozcięcie gościa generowania kodu, żeby emiter funkcji nie był jednocześnie gościem spaceru regionów. Wymienia kursor regionów zamiast makra, gdy makro dalej urośnie. Wymienia test, że harmonogram pętli to jedno wejście, wiele czyszczeń i jedno wyjście. Wymienia synchronizację kontroli przed generowaniem kodu z frontendem. Wymienia błędy spaceru zawsze jako błąd z komunikatem, bez gubienia tekstu użytkownika w opakowaniu o niezgodności harmonogramu. Wymienia więcej testów par wejście-wyjście na zagnieżdżonym warunku i na miejscach przeznaczenia napisów. Prosi też, żeby nie commitować luźnych plików `smoke.bork` w korzeniu repozytorium.
+Plik `TODO.md` wymienia między innymi rozcięcie kodu generowania, żeby emiter funkcji nie był jednocześnie obiektem przechodzącym po drzewie regionów, oraz kursor regionów zamiast makra, gdy makro dalej urośnie. Wymienia też test, że harmonogram pętli to jedno wejście, wiele czyszczeń i jedno wyjście, synchronizację kontroli przed generowaniem kodu ze sprawdzeniem oraz to, żeby błędy przejścia `region_walk` zawsze były zwykłym komunikatem, bez gubienia tekstu użytkownika w opakowaniu o niezgodności harmonogramu. Są tam jeszcze prośby o więcej testów par wejście-wyjście na zagnieżdżonym warunku i na miejscach przeznaczenia napisów oraz o to, żeby nie commitować luźnych plików `smoke.bork` w korzeniu repozytorium.
 
-Komunikat o niezgodności harmonogramu wokół liczb zmiennoprzecinkowych jest przykładem dwóch z tych punktów. Tekst użytkownika, że dodawanie zmiennoprzecinkowe nie jest obsługiwane, utonął w opakowaniu. Kontrola przed generowaniem kodu w ogóle nie powiedziała, że liczba zmiennoprzecinkowa nie jest tłumaczona.
+Komunikat o niezgodności harmonogramu wokół liczb zmiennoprzecinkowych jest przykładem dwóch z tych punktów. Informacja, którą powinien zobaczyć użytkownik, utonęła w opakowaniu: dodawanie liczb zmiennoprzecinkowych nie jest obsługiwane. Kontrola przed generowaniem kodu w ogóle nie powiedziała, że liczba zmiennoprzecinkowa nie jest tłumaczona.
 
 ## Czego nie robić w pierwszej poprawce
 
@@ -79,7 +79,7 @@ Nie naprawiaj awarii `into_int_value` przez odrzucenie wszystkich napisów w kon
 ## Podsumowanie
 
 - Polecenie `cargo test --workspace` nie uruchamia LLVM. Opcja `codegen` uruchamia testy w `tests/build.rs`.
-- Wydruk regionów debuguje analizę własności. Awaria `into_int_value` debuguje emisję. Niezgodność harmonogramu debuguje wspólny spacer.
-- Nowa konstrukcja idzie warstwami: gramatyka, drzewo składni, sprawdzanie typów, analiza własności, ucieczka i wyniesienie, spacer, kontrola, emisja, test binarki.
+- Wydruk regionów pokazuje błąd analizy własności, awaria `into_int_value` pokazuje błąd emisji, a niezgodność harmonogramu pokazuje błąd przejścia `region_walk`.
+- Nowa konstrukcja idzie warstwami: gramatyka, drzewo składni, sprawdzanie typów, analiza własności, ucieczka i wyniesienie, przejście po drzewie, kontrola, emisja, test binarki.
 - Jeśli emisji nie ma, odmowa w kontroli przed generowaniem kodu jest obowiązkowa.
 - Plik `TODO.md` jest listą znanych braków. Sprawdź ją, zanim opiszesz różnicę dokumentu i kodu jako własne odkrycie.

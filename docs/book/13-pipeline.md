@@ -31,7 +31,7 @@ Komentarz na początku `src/frontend.rs` streszcza kolejność pracy jako czytan
 
 ## Co zwraca sprawdzenie
 
-Funkcja `frontend::check` zwraca strukturę `CheckResult`. Ma ona trzy pola. Pole `report` to drzewo regionów. Jest obecne, gdy składnia się udała, także przy błędach typów, własności i ucieczki. Pole `hir` to reprezentacja pośrednia z typami. Jest obecna tylko przy pustej liście błędów. Pole `diagnostics` zbiera komunikaty.
+Funkcja `frontend::check` zwraca strukturę `CheckResult` z trzema polami. Pole `report` to drzewo regionów i jest obecne, gdy składnia się udała, także przy błędach typów, własności i ucieczki. Pole `hir` to reprezentacja pośrednia z typami i jest obecna tylko przy pustej liście błędów, a pole `diagnostics` zbiera komunikaty.
 
 Skrót HIR oznacza tę reprezentację pośrednią. Po angielsku high-level intermediate representation, czyli pośrednią postać programu, która ma już typy, ale nie ma jeszcze instrukcji maszynowych. Dalej piszę o niej jako o reprezentacji pośredniej, a skrót HIR zostawiam przy nazwach typów w kodzie Rusta, bo tak nazywają się struktury `HirProgram` i `HirExpr`.
 
@@ -47,7 +47,7 @@ Analiza własności nie dostaje całej reprezentacji pośredniej. Dostaje drzewo
 
 Drzewo składni pamięta kształt zapisu, pozycje w pliku i to, czy nazwa jest stała. Nie pamięta typów wywnioskowanych ani regionów. Reprezentacja pośrednia pamięta typ przy każdym wyrażeniu, sposób użycia nazwy oraz, po wyniesieniu alokacji, nazwę zmiennej, w której arenę mają trafić bajty. Nie pamięta numeru regionu. Drzewo regionów pamięta zagnieżdżenie, własność nazw i później znacznik, czy region dostanie bufor w czasie działania. Nie pamięta pełnych typów reprezentacji pośredniej. Część typów spłaszcza do typu nieznanego. Moduł LLVM pamięta instrukcje i stałe literały. Nie pamięta już tekstu źródłowego. Komunikaty powstają wcześniej.
 
-Komentarz w `src/hir/mod.rs` jest normą dla reszty kompilatora. Reprezentacja pośrednia nie niesie tożsamości regionu. Regiony żyją w drzewie z analizy własności. Generator kodu idzie po obu strukturach równocześnie, wspólnym spacerem. Gdy liczba dzieci w drzewie regionów nie zgadza się z liczbą miejsc w reprezentacji pośredniej, budowanie kończy się błędem wewnętrznym o niezgodności harmonogramu regionów. Nie jest to błąd, który programista Borka popełnił w składni. Jest to błąd zgodności dwóch przejść kompilatora.
+Komentarz w `src/hir/mod.rs` jest normą dla reszty kompilatora: reprezentacja pośrednia nie niesie tożsamości regionu, bo regiony żyją w drzewie z analizy własności. Generator kodu idzie po obu strukturach równocześnie, wspólnym przejściem po drzewie regionów, czyli funkcją `region_walk`. Gdy liczba dzieci w drzewie regionów nie zgadza się z liczbą miejsc w reprezentacji pośredniej, budowanie kończy się błędem wewnętrznym o niezgodności harmonogramu regionów. To nie jest błąd, który programista Borka popełnił w składni, tylko błąd zgodności dwóch przejść kompilatora.
 
 ## Co dzieje się przy budowaniu
 
@@ -84,5 +84,5 @@ Plik `src/arena.rs` nie jest jedną z faz tej kolejności. To model bufora o poj
 - Reprezentacja pośrednia zostaje w wyniku tylko dla programu bez komunikatów.
 - Drzewo regionów przeżywa błędy znaczenia i znika tylko przy błędzie składni.
 - Sprawdzanie typów jest przed analizą własności, bo ta druga potrzebuje typów deklaracji. Starsza notatka projektowa opisuje kolejność odwrotną.
-- Reprezentacja pośrednia nie ma numerów regionów. Generator kodu uzgadnia ją z drzewem regionów wspólnym spacerem.
+- Reprezentacja pośrednia nie ma numerów regionów. Generator kodu uzgadnia ją z drzewem regionów wspólnym przejściem `region_walk`.
 - Plik wykonywalny jest obiektem LLVM skonsolidowanym z `libbork_runtime.a` przez `clang`.

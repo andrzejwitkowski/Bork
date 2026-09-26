@@ -1,5 +1,41 @@
 # Raport redakcyjny
 
+## Ostatni przebieg
+
+Każdy rozdział został przeczytany jeszcze raz pod kątem trzech usterek: poszatkowanych zdań, kalek z angielskiego i zbyt częstej pierwszej osoby. Werdykt dla wszystkich rozdziałów, przedmowy i dodatków: do druku po tym przebiegu. Skład ramek zostawia sam nagłówek, a długie identyfikatory w tekście mogą się łamać.
+
+Przed: „Mają dwóch autorów. Pierwszym jest analiza nazw. Drugim jest analiza ucieczki.”
+
+Po: „Komunikaty tej fazy powstają w dwóch miejscach: w analizie nazw oraz w analizie ucieczki, która nie startuje, gdy wcześniejsze błędy nie są puste.”
+
+Przed: „Sprawdzanie typów nie zatrzymuje się na pierwszym błędzie. Zbiera listę.”
+
+Po: „Sprawdzanie typów nie zatrzymuje się na pierwszym błędzie, tylko zbiera całą listę, a potem i tak uruchamia się analiza własności.”
+
+Przed: „Ten dopisek powstaje, gdy błąd spaceru po regionach jest opakowywany jako niezgodność harmonogramu. Brzmi to surowo.”
+
+Po: „Ten dopisek powstaje, gdy błąd przejścia po drzewie regionów, czyli funkcji `region_walk`, jest opakowywany jako niezgodność harmonogramu. Komunikat jest napisany tak, jakby kompilator zepsuł się wewnętrznie.”
+
+Przed: „Dwie instrukcje w jednym wierszu nie są programem.”
+
+Po: „Instrukcje rozdziela się nową linią, a nie średnikiem, więc dwie instrukcje zapisane w jednym wierszu parser odrzuca.”
+
+Przed: „Wydruk ma węzeł, a w czasie działania pętla nie dostaje własnego bufora.”
+
+Po: „W wydruku drzewa regionów ten blok nadal jest osobnym węzłem, natomiast w czasie działania pętla nie dostaje własnego bufora.”
+
+Przed: „Region jest gruby.”
+
+Po: „Region jest gruboziarnisty, bo napis i duża tablica utworzone w tym samym bloku dzielą jeden bufor 4096 bajtów i giną razem.”
+
+Przed: „Literału ujemnego nie zapiszesz, więc tej ścieżki nie uruchamiałem z pliku `.bork`.”
+
+Po: „Literału ujemnego nie da się zapisać, więc tej ścieżki nie uruchamiano z pliku `.bork`.”
+
+Ten sam sposób łączenia zdań i te same zamiany słów (`region_walk` jako przejście po drzewie, bufor zamiast „czasu życia bajtów”, forma bezosobowa zamiast „sprawdziłem”) są w pozostałych rozdziałach, nie tylko w cytatach powyżej.
+
+## Przebieg poprzedni
+
 Każdy rozdział został przeczytany dwa razy. Pierwsze czytanie sprawdzało, czy programista, który nie zna Borka, dowie się z tekstu tego, co obiecuje lista „Ten rozdział obejmuje”. Drugie czytanie sprawdzało, czy zdanie jest pełne, czy termin jest objaśniony przy pierwszym użyciu i czy nagłówek da się zrozumieć bez znajomości wewnętrznych skrótów kompilatora. Zdanie, które brzmiało jak notatka, etykieta albo neologizm, zostało przepisane. Poniżej jest werdykt i dwa albo trzy przykłady poprawki. Wersja „przed” to zdanie odrzucone w redakcji. Wersja „po” jest w pliku, który wchodzi do PDF.
 
 ## Przedmowa

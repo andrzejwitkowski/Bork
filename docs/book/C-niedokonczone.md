@@ -20,17 +20,17 @@ Kompilator był złożony z opcją `codegen`, na LLVM 23.1.2 i rustc 1.98.1.
 
 Przekazanie napisu do funkcji użytkownika, czy literałem, czy przez `move`, czy przez stałą, przechodzi sprawdzenie i kontrolę przed generowaniem kodu, a potem kompilator kończy się awarią w `src/codegen/llvm/expr.rs`, w funkcji `value_as_int`, na wywołaniu `into_int_value`. Kod procesu kompilatora to 101.
 
-Porównanie `f64`, na przykład warunek `x > 1.0` przy `x` typu `f64`, kończy się awarią w tym samym miejscu, bo wartość jest liczbą zmiennoprzecinkową LLVM. Dodawanie `f32` daje komunikat, a nie awarię. Treść mówi o wewnętrznej niezgodności harmonogramu i o tym, że dodawanie zmiennoprzecinkowe po spacerze nie jest jeszcze obsługiwane. Dwa operatory na liczbach zmiennoprzecinkowych kończą się na dwa różne sposoby.
+Porównanie `f64`, na przykład warunek `x > 1.0` przy `x` typu `f64`, kończy się awarią w tym samym miejscu, bo wartość jest liczbą zmiennoprzecinkową LLVM. Dodawanie `f32` daje komunikat, a nie awarię. Treść mówi o wewnętrznej niezgodności harmonogramu i o tym, że dodawanie zmiennoprzecinkowe po przejściu `region_walk` nie jest jeszcze obsługiwane. Dwa operatory na liczbach zmiennoprzecinkowych kończą się na dwa różne sposoby.
 
 Indeks poza zakresem i dzielenie przez zero kompilują się. Proces użytkownika kończy się sygnałem przerwania, w powłoce kodem 134, bez tekstu z Borka.
 
-Przepełnienia bufora nie uruchamiałem dużym literałem w książce. Krótki przykład trudno przepchnąć ponad 4096 bajtów bez pętli, która alokuje, a pętla czyści bufor przy obiegu. Kod w bibliotece wykonawczej przerywa się tekstem `arena overflow`, z podaną liczbą bajtów i pojemnością 4096. Test jednostkowy biblioteki to zamyka. To nie jest komunikat kompilacji.
+Przepełnienia bufora nie uruchamiano dużym literałem w tej książce, bo krótki przykład trudno przepchnąć ponad 4096 bajtów bez pętli, która alokuje, a pętla czyści bufor przy obiegu. Kod w bibliotece wykonawczej przerywa się wtedy tekstem `arena overflow`, z podaną liczbą bajtów i pojemnością 4096. Test jednostkowy biblioteki to zamyka i nie jest to komunikat kompilacji.
 
 Zwrot wyniku `concat` i część błędów analizy ucieczki nie mają zakresu źródłowego. Wiersz poleceń pomija wtedy linię i kolumnę.
 
 Błąd zgłoszony przez regułę gramatyki, na przykład zły cel przypisania albo za duża liczba, wskazuje koniec pliku.
 
-Parametry funkcji dopisanej na końcu wywołania mają w analizie własności typ nieznany. Wydruk drzewa pokazuje współdzielenie dla parametrów, które sprawdzanie typów uważa za kopiowalne liczby. Sprawdzenie przechodzi. To myli przy czytaniu `--dump-arenas`. Nie jest błędem użytkownika.
+Parametry funkcji dopisanej na końcu wywołania mają w analizie własności typ nieznany, więc wydruk drzewa pokazuje współdzielenie dla parametrów, które sprawdzanie typów uważa za kopiowalne liczby. Sprawdzenie przechodzi. To myli przy czytaniu `--dump-arenas`, ale nie jest błędem użytkownika.
 
 Komunikat analizy ucieczki o gałęzi warunku mówi o napisie. Warunek w kodzie obejmuje każdy typ trzymany w buforze regionu, także tablicę.
 
@@ -48,4 +48,4 @@ Specyfikacje w `docs/superpowers` opisują świat sprzed tablic, sprzed pętli `
 
 ## Kolejność zaufania
 
-Gdy komentarz, specyfikacja i kod się różnią, kolejność przyjęta w książce jest taka. Najpierw test wykonawczy w `tests/build.rs`. Potem `frontend::check` na przykładzie. Potem kod fazy. Potem `docs/language.md`. Na końcu `docs/superpowers`. Zdanie w `README` o braku sprawdzania pożyczek i braku odśmiecania zgadza się z modelem. Przykład `concat` na dwóch zmiennych napisowych się nie zgadza.
+Gdy komentarz, specyfikacja i kod się różnią, kolejność przyjęta w książce jest taka: najpierw test wykonawczy w `tests/build.rs`, potem `frontend::check` na przykładzie, potem kod fazy, potem `docs/language.md`, a na końcu `docs/superpowers`. Zdanie w `README` o braku sprawdzania pożyczek i braku odśmiecania zgadza się z modelem. Przykład `concat` na dwóch zmiennych napisowych się nie zgadza.

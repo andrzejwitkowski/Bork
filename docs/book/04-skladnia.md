@@ -119,9 +119,9 @@ Poza nawiasami okrągłymi nowa linia jest znacząca. Nie ma reguły, która ci�
 
 ## Czego w składni nie ma
 
-Sprawdziłem trzy zapisy, które wyglądają naturalnie, jeśli przychodzisz z innego języka. Wszystkie kończą się błędem fazy `parse` i kodem wyjścia jeden.
+Trzy zapisy, które wyglądają naturalnie, jeśli przychodzisz z innego języka, kończą się błędem fazy `parse` i kodem wyjścia jeden.
 
-Słowo `struct` na początku pliku daje komunikat, że oczekiwano nowej linii albo słowa `fun`. Tak samo zachowuje się słowo `module`. Zapis `return -1` daje komunikat o nieoczekiwanym tokenie minusa. Minus jest tylko operatorem między dwiema wartościami. Liczbę ujemną da się uzyskać odejmowaniem, na przykład `0 - 1`. Nie ma literału ujemnego. Funkcji nie zagnieżdża się wewnątrz innych funkcji. Funkcje stoją wyłącznie na poziomie programu.
+Słowo `struct` na początku pliku daje komunikat, że oczekiwano nowej linii albo słowa `fun`, i tak samo zachowuje się słowo `module`. Zapis `return -1` daje komunikat o nieoczekiwanym tokenie minusa, bo minus jest tylko operatorem między dwiema wartościami, a liczbę ujemną da się uzyskać odejmowaniem, na przykład `0 - 1`. Nie ma literału ujemnego. Funkcji nie zagnieżdża się wewnątrz innych funkcji, bo funkcje stoją wyłącznie na poziomie programu.
 
 ## Podsumowanie
 

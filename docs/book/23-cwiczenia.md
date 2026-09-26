@@ -103,7 +103,7 @@ Uruchom `bork build` i powstały proces.
 
 **B4.** Budowanie się udaje. Proces kończy się sygnałem przerwania, w powłoce kodem 134.
 
-**B5.** Sprawdzenie przechodzi. Proces jest przerywany. Indeks nie jest częścią typu. Częścią typu jest długość.
+**B5.** Sprawdzenie przechodzi, ale proces jest przerywany, bo indeks nie jest częścią typu, natomiast częścią typu jest długość.
 
 **B6.** Suma `0 + 1 + 2 + 3` wynosi 6, bo zakres `0..4` jest otwarty z prawej strony.
 
@@ -113,17 +113,17 @@ Uruchom `bork build` i powstały proces.
 
 **C1.** Robi to `frontend::check` w `src/frontend.rs`. Sprawdzanie typów wykonuje się wcześniej i zwraca komunikaty. Analiza własności zwraca własne błędy. Wektor buduje się najpierw z nich, a dopiero potem dopisuje błędy typów.
 
-**C2.** Stała `ARENA_CAPACITY` jest w `crates/bork_runtime/src/lib.rs`. Ten plik wykonuje się w procesie użytkownika. Tę samą pojemność opisuje `src/arena.rs`. To model w kompilatorze. Analiza własności go nie woła.
+**C2.** Stała `ARENA_CAPACITY` jest w `crates/bork_runtime/src/lib.rs` i ten plik wykonuje się w procesie użytkownika. Tę samą pojemność opisuje `src/arena.rs`, ale to tylko model w kompilatorze, którego analiza własności nie woła.
 
 **C3.** Przy błędzie składni pole raportu w wyniku sprawdzenia jest puste. Wiersz poleceń drukuje drzewo tylko wtedy, gdy raport jest obecny.
 
 **C4.** Brak listy zgaduje nazwy. Pusta lista to jawne `move ()` i oznacza, że nic nie jest przenoszone.
 
-**C5.** Komentarz w `src/hir/mod.rs` mówi, że regiony żyją w raporcie z analizy własności. Generator kodu bierze je we wspólnym spacerze, zsynchronizowanym z reprezentacją pośrednią.
+**C5.** Komentarz w `src/hir/mod.rs` mówi, że regiony żyją w raporcie z analizy własności, a generator kodu bierze je we wspólnym przejściu `region_walk`, zsynchronizowanym z reprezentacją pośrednią.
 
 **C6.** Współdzielenie zwraca `classify_use`, w gałęzi wiązania stałego, po sprawdzeniu, że typ nie jest kopiowalny i że region nie jest ten sam.
 
-**C7.** Wywraca się `value_as_int`, przez `into_int_value`, wołane z `coerce_value_to_ty` przy emisji wywołania po spacerze. Kontrola przed generowaniem kodu ogląda kształt reprezentacji pośredniej: czy jest `Some`, funkcja na końcu wywołania, niedozwolony operator. Nie pyta, czy argument jest strukturą LLVM. Wywołanie z argumentem napisowym wygląda jak zwykłe wywołanie, więc kontrola milczy.
+**C7.** Wywraca się `value_as_int`, przez `into_int_value`, wołane z `coerce_value_to_ty` przy emisji wywołania po przejściu `region_walk`. Kontrola przed generowaniem kodu ogląda kształt reprezentacji pośredniej: czy jest `Some`, funkcja na końcu wywołania, niedozwolony operator. Nie pyta, czy argument jest strukturą LLVM. Wywołanie z argumentem napisowym wygląda jak zwykłe wywołanie, więc kontrola milczy.
 
 **C8.** Warstwy to gramatyka, drzewo składni, sprawdzanie typów, analiza własności, jeśli operator rusza nazwy, analiza ucieczki, jeśli rusza bajty, wspólny spacer, jeśli otwiera region, kontrola przed generowaniem kodu, potem emisja i test w `tests/build.rs`. Obowiązkowa przeciw awarii kompilatora jest kontrola, dopóki emisja wyrażeń nie ma gałęzi dla operatora. Inaczej dopasowanie operatora wpadnie w komunikat o braku wsparcia albo, co gorsza, w ścieżkę liczby całkowitej albo zmiennoprzecinkowej i w złe rzutowanie wartości LLVM.
 

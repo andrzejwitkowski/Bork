@@ -52,7 +52,7 @@ Katalog `tools/bork-lsp-extension` aktywuje się dla języka `bork` i dla plikó
 
 Plik `server.js` uruchamia `target/debug/bork-lsp` z katalogu otwartego projektu. Gdy tej binarki nie ma, woła `cargo run --quiet --bin bork-lsp`. Bez otwartego folderu rozszerzenie nie startuje serwera. Polecenie w interfejsie nazywa się `bork.dumpArenasView` i woła polecenie serwera `bork.dumpArenas`. Test `test/server.test.js` pilnuje tej różnicy nazw oraz wyboru binarki.
 
-W pliku `package.json` nie ma ustawień. Nie ma adaptera debuggera. Kolorowanie składni nie wie o błędach typów. Od tego są komunikaty serwera.
+W pliku `package.json` nie ma ustawień ani adaptera debuggera, a kolorowanie składni nie wie o błędach typów, bo od tego są komunikaty serwera.
 
 ## Podsumowanie
 

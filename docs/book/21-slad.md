@@ -33,13 +33,13 @@ fun main(): i32 {
 }
 ```
 
-Zakres `0..3` jest otwarty z prawej strony. Są trzy iteracje, a nie cztery. Indeks przyjmuje wartości 0, 1 i 2.
+Zakres `0..3` jest otwarty z prawej strony, więc są trzy iteracje, a nie cztery, i indeks przyjmuje wartości 0, 1 i 2.
 
 ## Czytanie składni widzi dwie funkcje
 
 W pliku nie ma nawiasu, który łamałby linię, więc funkcja normalizująca nowe linie zwraca brak zmiany i parser dostaje oryginał. Parser buduje dwie funkcje.
 
-Dla `add` drzewo składni ma dwa parametry. Nie napisano przy nich `val`, a goła forma parametru jest stała. Typ obu to `i32`. Ciało ma jeden powrót i dodawanie.
+Dla `add` drzewo składni ma dwa parametry. Nie napisano przy nich `val`, a goła forma parametru jest stała, typ obu to `i32`, a ciało ma jeden powrót i dodawanie.
 
 Dla `main` jest deklaracja zmiennej `total` bez adnotacji typu, pętla `for` z zakresem, deklaracja stałej `label`, blok z wywołaniem `println` oraz powrót.
 
@@ -49,7 +49,7 @@ Wejście jest w funkcji `bork::parse` w `src/lib.rs`. Reguły gramatyki to produ
 
 ## Sprawdzanie typów widzi liczby i napis
 
-Sprawdzanie typów widzi dwie sygnatury. Funkcja `add` bierze dwie liczby `i32` i zwraca `i32`. Funkcja `main` zwraca `i32`. Nazwa `println` jest wbudowana i nie koliduje.
+Sprawdzanie typów widzi dwie sygnatury: funkcja `add` bierze dwie liczby `i32` i zwraca `i32`, a funkcja `main` zwraca `i32`. Nazwa `println` jest wbudowana i nie koliduje.
 
 Zmienna `total` nie ma adnotacji. Inicjalizator `0` bez oczekiwanego typu jest literałem całkowitym, więc dostaje `i32`. Ten typ wpada do wektora typów deklaracji. Stała `label` ma typ `String`. Indeks `i` w pętli dostaje `i32`, bo granice zakresu są typu `i32`. Warunek pętli nie jest osobnym wyrażeniem logicznym. Zakres jest osobnym typem, który istnieje dopiero po sprawdzeniu typów.
 
@@ -92,9 +92,9 @@ Pliki tego kroku to `src/sema/analyze.rs`, `src/sema/walk.rs`, `src/sema/policy.
 
 ## Oznaczenie buforów, wyniesienie i ucieczka nie mają tu pracy poza korzeniem funkcji
 
-Komunikatów nie ma, więc oznaczanie schodzi wspólnym spacerem. Korzeń każdej funkcji dostaje flagę pobrania bufora.
+Komunikatów nie ma, więc oznaczanie schodzi wspólnym przejściem `region_walk`, a korzeń każdej funkcji dostaje flagę pobrania bufora.
 
-Ciało pętli to przypisanie liczby `i32` i wywołanie `add`. Ani jedno, ani drugie nie alokuje napisu w miejscu przeznaczenia. Predykat `block_may_allocate_sink` dla ciała złożonego z samej arytmetyki jest fałszywy. Węzeł pętli zostaje w raporcie, ale nie prosi o `bork_arena_push`. Wydruk ma węzeł, a w czasie działania pętla nie dostaje własnego bufora.
+Ciało pętli to przypisanie liczby `i32` i wywołanie `add`. Ani jedno, ani drugie nie alokuje napisu w miejscu przeznaczenia, więc predykat `block_may_allocate_sink` dla ciała złożonego z samej arytmetyki jest fałszywy. Węzeł pętli zostaje w raporcie, ale nie prosi o `bork_arena_push`: w wydruku drzewa regionów ten blok nadal jest osobnym węzłem, natomiast w czasie działania pętla nie dostaje własnego bufora.
 
 Blok z `println(label)` nie tworzy nowego napisu. Czyta wartość współdzieloną. Samo wywołanie `println` nie jest ani `concat`, ani literałem napisu. Literał `"sum"` stoi przy deklaracji `label` w ciele funkcji, a nie w bloku wewnętrznym. Blok wewnętrzny też nie musi pobierać własnego bufora.
 
@@ -112,9 +112,9 @@ Emisja modułu deklaruje `main` jako funkcję zwracającą `i32` bez parametrów
 
 Dla `main` otwiera blok wejścia, rezerwuje slot na `total` i slot na deskryptor `label`. Region funkcji pobiera bufor, bo korzeń zawsze ma flagę pobrania. Literał `"sum"` jest stałą globalną. Deskryptor ze wskaźnikiem i długością 3 ląduje w slocie. Bufor funkcji w tym programie może zostać nietknięty przez alokację, bo znaki są w stałej globalnej. Pobranie bufora i tak jest.
 
-Pętla trzyma indeks, porównuje go z 3, woła `bork.add` i przypisuje wynik. Zatrzask nie musi czyścić bufora pętli, jeśli wejście w pętlę w ogóle nie położyło uchwytu. Spacer i tak woła hak zatrzasku. Emiter na braku uchwytu tego regionu nie czyści cudzego bufora.
+Pętla trzyma indeks, porównuje go z 3, woła `bork.add` i przypisuje wynik. Miejsce powrotu na początek obiegu nie musi czyścić bufora pętli, jeśli wejście w pętlę w ogóle nie położyło uchwytu. Przejście `region_walk` i tak woła punkt zaczepienia tego miejsca, ale emiter na braku uchwytu tego regionu nie czyści cudzego bufora.
 
-Wypisanie schodzi do `bork_println_str`. Po bloku, jeśli nie było pobrania, nie ma zwrotu. Powrót ładuje `total` i zwraca. Zdjęcie uchwytów zdejmuje uchwyt funkcji.
+Wypisanie schodzi do `bork_println_str`. Po bloku, jeśli nie było pobrania, nie ma zwrotu, powrót ładuje `total` i zwraca, a zdjęcie uchwytów zdejmuje uchwyt funkcji.
 
 Funkcja `add` ładuje dwa parametry, dodaje je instrukcją całkowitą i wraca. Napisów w niej nie ma.
 

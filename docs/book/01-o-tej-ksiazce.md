@@ -26,18 +26,18 @@ Komunikaty w książce pochodzą z uruchomienia programu `bork` złożonego w ty
 
 Listingi są numerowane w obrębie rozdziału. Pod listingiem zdania omawiają, co program robi i jaki był wynik uruchomienia, jeśli uruchomienie było możliwe. Numer w nawiasie, na przykład `(1)`, odsyła do komentarza w kodzie tylko wtedy, gdy kod naprawdę ma taki znacznik.
 
-Ramki mają trzy role. Nota dopowiada fakt, który łatwo przeoczyć. Wskazówka mówi, co zrobić w praktyce. Ostrzeżenie dotyczy programu, który sprawdzenie akceptuje, a budowanie odrzuca albo na którym kompilator się wywraca. Osobno ostrzeżenie dotyczy zachowania, które przerywa już uruchomiony program.
+Ramki mają trzy role. Nota dopowiada fakt, który łatwo przeoczyć, wskazówka mówi, co zrobić w praktyce, a ostrzeżenie dotyczy albo programu, który sprawdzenie akceptuje, choć budowanie go odrzuca lub na którym kompilator się wywraca, albo zachowania, które przerywa już uruchomiony program.
 
-Kod Borka jest w blokach oznaczonych `bork`. Kod Rusta, który jest częścią kompilatora, jest w blokach `rust` i ma w podpisie ścieżkę pliku. Diagramy są zapisane w Mermaid. W pliku PDF są obrazkami.
+Kod Borka jest w blokach oznaczonych `bork`, a kod Rusta, który jest częścią kompilatora, jest w blokach `rust` i ma w podpisie ścieżkę pliku. Diagramy są zapisane w Mermaid, natomiast w pliku PDF są obrazkami.
 
 ## Czego książka nie obiecuje
 
-W tej wersji Bork nie ma modułów, polecenia `import`, pakietów ani przestrzeni nazw. Nie ma struktur, wyliczeń definiowanych przez programistę, cech ani typów ogólnych. Nie ma wyjątków. Nie ma jednoargumentowego minusa, więc nie zapiszesz literału ujemnego. Instrukcji nie rozdziela się średnikiem. Nie ma garbage collectora. Nie ma referencji w stylu `&` i `&mut` z Rusta. Nie ma interpretera, trybu `bork run` ani debuggera. Generator kodu nie tłumaczy funkcji dopisanej na końcu wywołania, wartości `Some` i `None`, operatora `?:` ani asercji `!!`.
+W tej wersji Bork nie ma modułów, polecenia `import`, pakietów ani przestrzeni nazw, nie ma też struktur, wyliczeń definiowanych przez programistę, cech ani typów ogólnych. Nie ma wyjątków ani jednoargumentowego minusa, więc nie zapiszesz literału ujemnego, a instrukcji nie rozdziela się średnikiem. Nie ma garbage collectora ani referencji w stylu `&` i `&mut` z Rusta, nie ma też interpretera, trybu `bork run` ani debuggera. Generator kodu nie tłumaczy funkcji dopisanej na końcu wywołania, wartości `Some` i `None`, operatora `?:` ani asercji `!!`.
 
-Napis przekazany do funkcji napisanej przez programistę jest akceptowany przy sprawdzaniu. Przy budowaniu kompilator przerywa pracę awaryjnie. To błąd kompilatora, a nie reguła języka. Rozdział 17 pokazuje miejsce w kodzie.
+Napis przekazany do funkcji napisanej przez programistę jest akceptowany przy sprawdzaniu, ale przy budowaniu kompilator przerywa pracę awaryjnie. To błąd kompilatora, a nie reguła języka, i rozdział 17 pokazuje miejsce w kodzie.
 
 ## O źródłach tej książki
 
-Rozdziały leżą w katalogu `docs/book`. Przykłady, które uruchamiałem, są w `docs/book/przyklady` razem z plikiem `WYNIKI.md`. Historia commitów projektu jest tłem rozdziału 19. Nie streszczam każdego pull requestu.
+Rozdziały leżą w katalogu `docs/book`, a przykłady uruchomione przy pisaniu książki są w `docs/book/przyklady` razem z plikiem `WYNIKI.md`. Historia commitów projektu jest tylko tłem rozdziału 19, bo książka nie streszcza każdego pull requestu.
 
-Język i kompilator są projektem Andrzeja Witkowskiego. Ta książka jest opisem tego kodu dla innych programistów i nie zmienia semantyki. Gdy dokument `docs/language.md` rozmija się z kompilatorem, opisuję to, co robi kompilator, i mówię, na czym polega różnica. Najważniejszy przykład dotyczy konkatenacji dwóch zmiennych napisowych wewnątrz bloku. Dokument pokazuje wywołanie bez `move`. Kompilator takiego programu nie przyjmuje.
+Język i kompilator są projektem Andrzeja Witkowskiego, a ta książka jest opisem tego kodu dla innych programistów i nie zmienia semantyki. Gdy dokument `docs/language.md` rozmija się z kompilatorem, opis dotyczy tego, co robi kompilator, i mówi, na czym polega różnica. Najważniejszy przykład dotyczy konkatenacji dwóch zmiennych napisowych wewnątrz bloku: dokument pokazuje wywołanie bez `move`, ale kompilator takiego programu nie przyjmuje.

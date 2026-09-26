@@ -48,7 +48,7 @@ Funkcja dopisana na końcu wywołania dokleja się jako ostatni argument typu fu
 
 ## Dlaczego generator kodu nie może iść tylko po tym drzewie
 
-Reprezentacja pośrednia nie ma numerów regionów. Komentarz w `src/hir/mod.rs` mówi, że regiony żyją w drzewie z analizy własności. Generator kodu ma iść wspólnym spacerem, opisanym w następnym rozdziale. Na każdym bloku, pętli, warunku i funkcji dopisanej na końcu bierze kolejne dziecko węzła regionu. Jeśli sprawdzanie typów wyrzuci albo wstawi blok inaczej niż analiza własności, spacer nie znajdzie dziecka.
+Reprezentacja pośrednia nie ma numerów regionów. Komentarz w `src/hir/mod.rs` mówi, że regiony żyją w drzewie z analizy własności, więc generator kodu ma iść wspólnym przejściem po tym drzewie, opisanym w następnym rozdziale. Na każdym bloku, pętli, warunku i funkcji dopisanej na końcu bierze kolejne dziecko węzła regionu. Jeśli sprawdzanie typów wyrzuci albo wstawi blok inaczej niż analiza własności, to przejście nie znajdzie dziecka.
 
 Funkcja `peel_blocks` jest skopiowana w reprezentacji pośredniej i w analizie własności. Komentarz przy kopii każe trzymać obie wersje w zgodzie. Nie ma jednego wspólnego traitu. Jest konwencja. Zmiana tylko w jednym miejscu psuje uzgodnienie drzew.
 
@@ -62,4 +62,4 @@ Testy w `src/typeck/tests/mod.rs` idą zwykle przez `frontend::check`, a nie prz
 - Słowo `move` w drzewie składni staje się rodzajem użycia na nazwie.
 - Sprawdzanie typów nie zgłasza błędów własności. Analiza własności nie czyta rodzaju użycia z reprezentacji pośredniej.
 - Oczekiwany typ steruje literałami, słowem `None` i tym, czy warunek bez `else` jest błędem, czy ma typ `unit`.
-- Dwa zejścia, sprawdzanie typów i analiza własności, spotykają się dopiero we wspólnym spacerze. Zgodność `peel_blocks` jest warunkiem tego spotkania.
+- Dwa zejścia, sprawdzanie typów i analiza własności, spotykają się dopiero we wspólnym przejściu `region_walk`. Zgodność `peel_blocks` jest warunkiem tego spotkania.

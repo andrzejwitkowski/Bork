@@ -45,7 +45,7 @@ Pętla `for` idzie po zakresie `lo..hi` typu `i32` i nie wykonuje ciała dla war
 
 ## Wyrażenia
 
-Najmocniej wiążą się wywołanie, indeks, wycinek, odczyt pola i przyrostkowe `!!`. Potem negacja `!`. Potem mnożenie i dzielenie. Potem dodawanie i odejmowanie. Potem porównania. Potem zakres `..`. Potem koniunkcja `&&`. Potem alternatywa `||`. Najsłabiej wiąże się `?:`. Operator `?:` jest prawostronnie łączny. Pozostałe operatory dwuargumentowe są lewostronnie łączne.
+Najmocniej wiążą się wywołanie, indeks, wycinek, odczyt pola i przyrostkowe `!!`, potem negacja `!`, mnożenie i dzielenie, dodawanie i odejmowanie, porównania, zakres `..`, koniunkcja `&&` oraz alternatywa `||`. Najsłabiej wiąże się `?:`. Operator `?:` jest prawostronnie łączny. Pozostałe operatory dwuargumentowe są lewostronnie łączne.
 
 ```text
 nazwa
@@ -89,6 +89,6 @@ cargo test --workspace
 cargo test --workspace --features codegen
 ```
 
-Kod zero oznacza sukces. Kod jeden oznacza zły program. Kod dwa oznacza złe wywołanie albo brak narzędzia. Kod 101 oznacza awarię procesu `bork`. Kod 134 w powłoce oznacza przerwanie procesu użytkownika przez `abort`.
+Kod zero oznacza sukces, kod jeden zły program, a kod dwa złe wywołanie albo brak narzędzia. Kod 101 oznacza awarię procesu `bork`, a kod 134 w powłoce przerwanie procesu użytkownika przez `abort`.
 
 Fazy komunikatów to `parse`, `ownership`, `type` i `codegen`.
