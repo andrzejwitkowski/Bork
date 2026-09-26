@@ -1,0 +1,6 @@
+fun main() {
+    val a = [10, 20, 30]
+    val b = a[0..2]
+    println(b[1])
+    println(b.length)
+}

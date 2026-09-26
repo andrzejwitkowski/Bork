@@ -1,0 +1,10 @@
+fun main() {
+    var out = "prefix"
+    val left = "L"
+    val right = "R"
+    {
+        var piece = concat(left, right)
+        out = move piece
+    }
+    println(out)
+}

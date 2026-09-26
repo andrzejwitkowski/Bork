@@ -1,0 +1,7 @@
+fun main() {
+    var outer = "a"
+    {
+        outer = "b"
+    }
+    println(outer)
+}

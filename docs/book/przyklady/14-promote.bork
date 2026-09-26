@@ -1,0 +1,8 @@
+fun main() {
+    var outer = "a"
+    {
+        var held = "temp"
+        outer = promote held
+    }
+    println(outer)
+}

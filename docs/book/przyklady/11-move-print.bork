@@ -1,0 +1,7 @@
+fun main() {
+    var s = "ab"
+    val t = move s
+    println(t)
+    print(4)
+    println(2)
+}
