@@ -75,6 +75,14 @@ for name in order:
 print(f"diagrams: {n}")
 PY
 
+REPO="$(cd "$ROOT/../.." && pwd)"
+LOGO="$REPO/assets/bork-logo.png"
+if [[ ! -f "$LOGO" ]]; then
+  echo "missing logo: $LOGO" >&2
+  exit 1
+fi
+printf '\\newcommand{\\borklogo}{%s}\n' "$LOGO" > "$WORK/logo-path.tex"
+
 pandoc "$WORK/book.md" \
   --from markdown+pipe_tables+fenced_code_blocks+backtick_code_blocks \
   --syntax-definition "$ROOT/tools/bork.xml" \
@@ -96,6 +104,7 @@ pandoc "$WORK/book.md" \
   -V geometry:margin=2.3cm \
   -V colorlinks=true \
   -V linkcolor=NavyBlue \
+  -H "$WORK/logo-path.tex" \
   -H "$ROOT/tools/header.tex" \
   -o "$OUT"
 

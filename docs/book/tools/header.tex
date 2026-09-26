@@ -15,3 +15,27 @@
 \emergencystretch=5em
 \tolerance=2000
 \setkeys{Gin}{width=\linewidth,height=0.82\textheight,keepaspectratio}
+% Strona tytułowa: logo z assets/bork-logo.png, wyśrodkowane nad tytułem.
+% Ścieżkę ustawia build-pdf.sh jako \borklogo.
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{titlepage}
+    \centering
+    \null\vfil
+    \@ifundefined{borklogo}{}{%
+      \includegraphics[width=6cm,height=6cm,keepaspectratio]{\borklogo}\par
+      \vspace{1.5cm}%
+    }%
+    {\LARGE \@title \par}%
+    \vskip 2.5em
+    {\large
+      \lineskip .75em
+      \begin{tabular}[t]{c}%
+        \@author
+      \end{tabular}\par}%
+    \vskip 1.5em
+    {\large \@date \par}%
+    \vfil\null
+  \end{titlepage}%
+}
+\makeatother

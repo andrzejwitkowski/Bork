@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/bork-logo.png" alt="Bork" width="280">
+</p>
+
 # Bork in Action
 
 Książka techniczna o języku Bork i jego kompilatorze. Opisuje drzewo `main` w rewizji `cd8fee4`, czyli stan repozytorium w chwili sprawdzania przykładów. Kod kompilatora nie został zmieniony na potrzeby tej książki.
