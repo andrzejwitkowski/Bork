@@ -153,7 +153,7 @@ fn walk_stmt(
                     && b.arena_id < node.id
             });
             if borrowed {
-                note_borrow(az, name, Some(*name_span), node);
+                note_borrow(az, name, Some(*name_span), node, None);
             } else if !assign_up {
                 note_use(az, name, Some(*name_span), node);
             }
@@ -240,7 +240,7 @@ fn walk(
                 if record_borrow {
                     match inner.as_ref() {
                         Expr::Ident { name, span: name_span } => {
-                            note_borrow(az, name, Some(*name_span), node);
+                            note_borrow(az, name, Some(*name_span), node, transfer);
                         }
                         _ => {
                             az.error("`&` borrows a name", None, Some(*span));
@@ -506,7 +506,13 @@ fn is_view_init(az: &Analyzer, value: &Expr) -> bool {
     }
 }
 
-fn note_borrow(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut ArenaNode) {
+fn note_borrow(
+    az: &mut Analyzer,
+    name: &str,
+    span: Option<Span>,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+) {
     let Some(binding) = az.env.get(name).cloned() else {
         return;
     };
@@ -519,9 +525,23 @@ fn note_borrow(az: &mut Analyzer, name: &str, span: Option<Span>, node: &mut Are
         return;
     }
     if binding.origin == BindingOrigin::View && binding.arena_id != node.id {
-        az.error(
-            format!("cannot lift borrow `{name}` out of {}", binding.arena_label),
-            Some(name.to_string()),
+        let reborrow_for_call = binding.arena_id < node.id
+            && matches!(transfer, Some(TransferSink::CallArg { .. }));
+        if !reborrow_for_call {
+            az.error(
+                format!("cannot lift borrow `{name}` out of {}", binding.arena_label),
+                Some(name.to_string()),
+                span,
+            );
+            return;
+        }
+        record_observation(
+            node,
+            name,
+            Ownership::Borrow {
+                from: binding.arena_label.clone(),
+            },
+            binding.ty.as_option(),
             span,
         );
         return;

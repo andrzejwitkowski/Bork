@@ -1,0 +1,9 @@
+// exit: 42
+fun pick(flag: i32): i32 {
+    val v = if (flag == 1) { 40 } else { 7 }
+    return v + 2
+}
+
+fun main(): i32 {
+    return pick(1)
+}

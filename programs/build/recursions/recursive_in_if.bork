@@ -1,0 +1,11 @@
+// exit: 12
+fun walk(n: i32): i32 {
+    if (n <= 0) {
+        return 0
+    }
+    return n + walk(n - 2)
+}
+
+fun main(): i32 {
+    return walk(6)
+}

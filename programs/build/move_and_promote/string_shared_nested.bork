@@ -1,0 +1,7 @@
+// stdout: x\n
+fun main() {
+    val s = "x"
+    {
+        println(s)
+    }
+}

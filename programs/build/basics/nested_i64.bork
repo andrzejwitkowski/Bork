@@ -1,0 +1,16 @@
+// exit: 42
+fun sub(a: i64, b: i64): i64 {
+    return a - b
+}
+
+fun main(): i32 {
+    var total = 1
+    {
+        val big: i64 = 100
+        total = total + 6
+        if (sub(big, 50) > 40) {
+            return total * 6
+        }
+    }
+    return 1
+}

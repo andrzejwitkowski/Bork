@@ -1,0 +1,14 @@
+// exit: 9
+fun bump(buf: &[i32; 2]) {
+    buf[0] = 9
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    var i = 0
+    while (i < 1) {
+        bump(&a)
+        i = i + 1
+    }
+    return a[0]
+}

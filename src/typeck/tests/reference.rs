@@ -122,6 +122,31 @@ fun main() {
 }
 
 #[test]
+fn reference_param_index_read_and_assign() {
+    let src = r#"
+fun read(buf: &[i32; 3], i: i32): i32 {
+    return buf[i]
+}
+fun write(buf: &[i32; 3]) {
+    buf[2] = 9
+}
+fun main(): i32 {
+    var a: [i32; 3] = [1, 2, 3]
+    write(&a)
+    return read(&a, 1)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, _, diags) = check(&prog);
+    assert!(
+        diags
+            .iter()
+            .all(|d| !d.message.contains("indexing requires an array type")),
+        "{diags:?}"
+    );
+}
+
+#[test]
 fn string_ref_param_rejects_reassignment() {
     let src = r#"
 fun reseat(msg: &String) {

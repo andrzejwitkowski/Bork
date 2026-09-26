@@ -1,0 +1,9 @@
+// stdout: bc\n
+fun main() {
+    var outer = "a"
+    {
+        var piece = concat("b", "c")
+        outer = move piece
+    }
+    println(outer)
+}

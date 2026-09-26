@@ -1,0 +1,9 @@
+// diag: expects borrow
+fun bump(buf: &[i32; 2]) {
+    buf[0] = 1
+}
+
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    bump(a)
+}

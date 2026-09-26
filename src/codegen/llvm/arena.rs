@@ -38,7 +38,7 @@ impl<'a, 'ctx> ArenaCalls<'a, 'ctx> {
         for handle in self.handles.iter().rev() {
             self.build_pop(*handle)?;
         }
-        self.handles.clear();
+        // Other exits (fall-through, another `return`) still need these handles for their pops.
         Ok(())
     }
 
