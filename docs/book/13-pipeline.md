@@ -1,88 +1,154 @@
 # Rozdział 12. Od pliku źródłowego do gotowego programu
 
-## Ten rozdział obejmuje
+Zanim kompilator wyemituje choć jedną instrukcję, musi odpowiedzieć na kilka pytań, które nie mają ze sobą nic wspólnego poza tym, że dotyczą tego samego pliku. Czy tekst w ogóle układa się w program, czy nazwy mają typy, które do siebie pasują, czy napis nie został użyty po tym, jak jego właściciel już go oddał, i czy bajty, które funkcja chce zwrócić, będą jeszcze żyły po jej powrocie. Każde z tych pytań ma własną fazę, bo pomyłka w odpowiedzi psuje inną rzecz. Zły kształt tekstu uniemożliwia w ogóle zbudowanie drzewa, zły typ psuje późniejsze wywołanie, a napis zwrócony ze zbyt krótkiego regionu psuje pamięć już w działającym procesie.
 
-- w jakiej kolejności kompilator sprawdza program
-- co zapamiętuje każda pośrednia struktura danych
-- dlaczego sprawdzanie typów wykonuje się przed analizą własności
-- kiedy znika reprezentacja pośrednia, a zostaje drzewo regionów
-- jak z poprawnego programu powstaje plik wykonywalny
+Ten rozdział obejmuje
 
-## Dwa wejścia, jedna wspólna kontrola
+- pytanie, na które odpowiada cały przebieg kompilacji, zanim powstanie plik wykonywalny,
+- dwa polecenia wiersza poleceń i to, który fragment pracy jest im wspólny,
+- trzy struktury, które kompilator niesie między fazami, oraz to, kiedy która z nich znika,
+- powód, dla którego błąd własności potrafi pojawić się w wydruku przed błędem typu,
+- moment, w którym program uznaje się za czysty i wolno ruszyć z tłumaczeniem na kod maszynowy.
 
-Kompilator nie ma interpretera i nie ma osobnej reprezentacji maszynowej niższego poziomu niż LLVM. Są dwa wejścia. Polecenie `bork plik.bork` kończy się na sprawdzeniu. Polecenie `bork build` woła to samo sprawdzenie, a potem, tylko gdy nie ma błędów, tłumaczy program na kod.
+## Po co dzielić jedno uruchomienie na fazy
+
+Pytanie tej części dotyczy wiedzy, bez której nie wolno emitować kodu. Kompilator musi wiedzieć, zanim przetłumaczy program na kod maszynowy, co konkretnie zepsułoby się, gdyby którąś odpowiedź pominął. Bez podziału na fazy jeden błąd składni mieszałby się z błędem typu, a generator kodu próbowałby czytać drzewo, którego w ogóle nie ma. Dlatego Bork prowadzi plik przez stałą kolejność, a każda faza albo dopisuje informację, której poprzednia nie miała, albo odmawia iść dalej.
+
+Najpierw powstaje drzewo składni, czyli struktura, która pamięta kształt tekstu, ale jeszcze nie wie, czy `n` jest liczbą, napisem czy nazwą, której wcale nie zadeklarowano. Potem sprawdzanie typów buduje drugie drzewo, reprezentację pośrednią, w której każde wyrażenie ma już typ. Równolegle w sensie danych, choć chwilę później w czasie, analiza własności buduje raport regionów. Raport nie przydziela przy tym ani jednego bajtu pamięci wykonawczej, tylko zapisuje, która nazwa jest lokalna, która została skopiowana, która jest współdzielona z zewnętrznego bloku, a która została przeniesiona. Gdy obie te fazy milczą, dochodzą jeszcze dwie decyzje o napisach. Jedna mówi, czy blok w ogóle potrzebuje własnego bufora, a druga, czy wartość, którą funkcja zwraca, przeżyje powrót. Dopiero czysty wynik wolno oddać generatorowi kodu.
 
 ```mermaid
 flowchart TD
-    src["Plik źródłowy"] --> parse["Czytanie składni"]
-    parse -->|błąd składni| stop1["Komunikat fazy parse. Brak drzewa regionów."]
-    parse --> types["Sprawdzanie typów"]
-    types --> own["Analiza własności nazw"]
-    own --> merge["Zebranie komunikatów"]
-    merge -->|są błędy| stop2["Brak reprezentacji pośredniej. Drzewo regionów zostaje."]
-    merge -->|brak błędów| later["Ustalenie, które regiony alokują. Wyniesienie alokacji. Analiza ucieczki."]
-    later -->|błąd ucieczki| stop2
-    later -->|program poprawny| build["Kontrola konstrukcji i generowanie kodu LLVM"]
-    build --> link["Konsolidacja z biblioteką wykonawczą"]
-    link --> bin["Program wykonywalny"]
+    plik["Plik źródłowy"] --> czytanie["Czytanie tekstu"]
+    czytanie -->|"składnia nie przechodzi"| stop["Komunikaty i kod wyjścia 1"]
+    czytanie --> typy["Sprawdzanie typów"]
+    typy --> wlasnosc["Analiza własności nazw"]
+    wlasnosc --> czysto{"Lista komunikatów pusta"}
+    czysto -->|nie| stop
+    czysto -->|tak| napisy["Miejsce napisów i ich czas życia"]
+    napisy -->|"napis nie przeżyje powrotu"| stop
+    napisy -->|"program czysty"| kontrola["Kontrola przed generowaniem kodu"]
+    kontrola --> maszyna["Emisja kodu i łączenie z biblioteką"]
+    maszyna --> bin["Plik wykonywalny"]
 ```
 
-Komentarz na początku `src/frontend.rs` streszcza kolejność pracy jako czytanie, sprawdzanie typów, analizę własności i reprezentację pośrednią. To jest skrót. Gdy nie ma błędów, dochodzą jeszcze trzy przejścia. Pierwsze oznacza, które regiony naprawdę potrzebują bufora. Drugie przenosi alokację napisu do areny zmiennej docelowej, jeśli widzi opisany wcześniej układ dwóch instrukcji. Trzecie jest analizą ucieczki. Reprezentacja pośrednia w wyniku sprawdzenia jest obecna tylko wtedy, gdy po analizie ucieczki lista błędów nadal jest pusta.
+Rysunek pokazuje drogę, a nie każdą strukturę po drodze. Czytanie tekstu jest jedyną fazą, po której porażce nie ma ani drzewa składni do dalszej pracy, ani raportu regionów. Wszystkie późniejsze odmowy zostawiają raport, bo analiza własności zdążyła go zbudować, nawet jeśli program i tak jest błędny. Plik wykonywalny powstaje wyłącznie na gałęzi, na której lista komunikatów została pusta i uruchomiono polecenie budowania.
 
-## Co zwraca sprawdzenie
+## Dwa polecenia, jeden wspólny początek
 
-Funkcja `frontend::check` zwraca strukturę `CheckResult` z trzema polami. Pole `report` to drzewo regionów i jest obecne, gdy składnia się udała, także przy błędach typów, własności i ucieczki. Pole `hir` to reprezentacja pośrednia z typami i jest obecna tylko przy pustej liście błędów, a pole `diagnostics` zbiera komunikaty.
+Pytanie jest tu praktyczne i dotyczy dwóch poleceń, które łatwo pomylić. Chodzi o to, czym różni się samo sprawdzenie pliku od zbudowania programu i dlaczego w ogóle są to dwa polecenia, skoro początek pracy jest ten sam. Samo sprawdzenie odpowiada, czy program jest do przyjęcia. Budowanie, gdy odpowiedź jest twierdząca, tłumaczy go na plik, który da się uruchomić. Gdyby budowanie szło własną, krótszą ścieżką, program z błędem typu mógłby dojść do emisji kodu i zepsuć się dopiero w środku generatora, komunikatem Rusta zamiast komunikatem o Twoim pliku.
 
-Skrót HIR oznacza tę reprezentację pośrednią. Po angielsku high-level intermediate representation, czyli pośrednią postać programu, która ma już typy, ale nie ma jeszcze instrukcji maszynowych. Dalej piszę o niej jako o reprezentacji pośredniej, a skrót HIR zostawiam przy nazwach typów w kodzie Rusta, bo tak nazywają się struktury `HirProgram` i `HirExpr`.
+Polecenie `bork plik.bork` kończy się na sprawdzeniu. Kod wyjścia 0 oznacza pustą listę komunikatów, a kod 1 oznacza, że coś odrzucono. Polecenie `bork build` woła to samo sprawdzenie, a dopiero przy pustej liście przechodzi przez kontrolę konstrukcji, których generator jeszcze nie umie, przez emisję pośredniego zapisu LLVM i przez wywołanie `clang`, który łączy wynik z biblioteką wykonawczą. Flaga `--dump-arenas` dopisuje drzewo regionów na standardowe wyjście i nie zmienia kodu wyjścia. Działa przy sprawdzeniu, a przy budowaniu tylko wtedy, gdy samo sprawdzenie już przeszło, bo przy błędzie budowanie kończy się wcześniej.
 
-Kolejność w liście komunikatów jest odwrotna do kolejności pracy. Najpierw dopisywane są błędy analizy własności, potem błędy typów. Sprawdzanie typów wykonało się wcześniej, bo analiza własności potrzebuje typów deklaracji. Wypis idzie w drugą stronę. Robią to linie 38–42 w `src/frontend.rs`.
+Weźmy program, który dodaje liczby w pętli, wypisuje etykietę ze współdzielonego napisu i zwraca sumę. To jest ten sam plik, który w zestawie przykładów nazywa się `18-trace.bork`. Nadaje się do prześledzenia całego początku kompilacji, bo ma funkcję pomocniczą, pętlę, liczbę kopiowaną przy odczycie i napis czytany z wewnętrznego bloku. Żadna z tych konstrukcji nie jest błędem, więc widać sam opis, który kompilator buduje, gdy nie ma czego odrzucić.
 
-## Dlaczego typy są przed własnością
+**Listing 12.1.** Program, który przechodzi całe sprawdzenie
 
-Starsza notatka projektowa opisuje kolejność odwrotną, najpierw własność, potem typy. Kod robi inaczej. Analiza własności czyta wektor typów w kolejności deklaracji `val` i `var`. Przy każdej deklaracji zdejmuje kolejny typ. Bez wcześniejszego sprawdzenia typów nie wie, czy nazwa jest kopiowana. Funkcja `sema::analyze`, używana w części testów, uruchamia sprawdzanie typów wewnętrznie jeszcze raz. Ścieżka `frontend::check` używa `analyze_with_decl_tys`, żeby nie płacić dwa razy.
+```bork
+fun add(a: i32, b: i32): i32 {
+    return a + b
+}
 
-Analiza własności nie dostaje całej reprezentacji pośredniej. Dostaje drzewo składni i cienki wektor typów deklaracji. Sygnatury wywołań buduje sobie z drzewa składni. Informacja, czy parametr jest stały, czy zmienny, jest informacją o własności, nie tylko o typie.
-
-## Co która struktura pamięta
-
-Drzewo składni pamięta kształt zapisu, pozycje w pliku i to, czy nazwa jest stała. Nie pamięta typów wywnioskowanych ani regionów. Reprezentacja pośrednia pamięta typ przy każdym wyrażeniu, sposób użycia nazwy oraz, po wyniesieniu alokacji, nazwę zmiennej, w której arenę mają trafić bajty. Nie pamięta numeru regionu. Drzewo regionów pamięta zagnieżdżenie, własność nazw i później znacznik, czy region dostanie bufor w czasie działania. Nie pamięta pełnych typów reprezentacji pośredniej. Część typów spłaszcza do typu nieznanego. Moduł LLVM pamięta instrukcje i stałe literały. Nie pamięta już tekstu źródłowego. Komunikaty powstają wcześniej.
-
-Komentarz w `src/hir/mod.rs` jest normą dla reszty kompilatora: reprezentacja pośrednia nie niesie tożsamości regionu, bo regiony żyją w drzewie z analizy własności. Generator kodu idzie po obu strukturach równocześnie, wspólnym przejściem po drzewie regionów, czyli funkcją `region_walk`. Gdy liczba dzieci w drzewie regionów nie zgadza się z liczbą miejsc w reprezentacji pośredniej, budowanie kończy się błędem wewnętrznym o niezgodności harmonogramu regionów. To nie jest błąd, który programista Borka popełnił w składni, tylko błąd zgodności dwóch przejść kompilatora.
-
-## Co dzieje się przy budowaniu
-
-Funkcja `codegen::build` w `src/codegen/mod.rs` wymaga czystego wyniku sprawdzenia. W przeciwnym razie zwraca komunikaty wcześniejszych faz. Potem funkcja `gate`, czyli kontrola przed generowaniem kodu, odrzuca konstrukcje spoza obsługiwanego zestawu. Następnie powstaje kontekst LLVM, moduł i plik obiektowy. Na końcu `link::link_executable` woła `clang` z plikiem obiektowym i z archiwum `libbork_runtime.a`.
-
-Błąd konsolidacji i brak `clang` są błędem narzędzia. Kod wyjścia wynosi dwa, a tekst zaczyna się od `error:` bez fazy. Błąd funkcji `gate` jest błędem programu fazy `codegen` i ma kod jeden.
-
-## Jak podzielony jest projekt
-
-```mermaid
-flowchart LR
-    borkbin["Program bork"] --> check["Sprawdzanie programu"]
-    borkbin --> codegen["Generowanie kodu"]
-    lspbin["Program bork-lsp"] --> check
-    codegen --> llvm["Biblioteka LLVM 23"]
-    codegen --> runtime["bork_runtime"]
-    clang["clang"] --> runtime
-    clang --> exe["Program użytkownika"]
+fun main(): i32 {
+    var total = 0
+    for (i in 0..3) {
+        total = add(total, i)
+    }
+    val label = "sum"
+    {
+        println(label)
+    }
+    return total
+}
 ```
 
-`bork_runtime` nie jest zwykłą zależnością, którą kod Rusta importuje słowem `use`. W Cargo jednostka kompilacji nazywa się skrzynką, po angielsku crate. Plik `build.rs`, przy opcji `codegen`, kompiluje skrzynkę `bork_runtime` jako bibliotekę statyczną i przekazuje ścieżkę przez zmienną `BORK_RUNTIME_LIB`. Program użytkownika jest z nią konsolidowany. Sam kompilator ładuje `libLLVM` dynamicznie.
+Sprawdzenie z wydrukiem regionów kończy się kodem 0 i pokazuje, co analiza własności zapisała, zanim ktokolwiek pomyślał o instrukcjach. Wydruk nie jest jeszcze kodem maszynowym ani nawet decyzją o tym, który blok dostanie bufor. Jest opisem nazw w funkcjach `add` i `main`, i właśnie dlatego da się go czytać razem z listingiem, nazwa po nazwie. Poniższy wycinek pochodzi z uruchomienia `bork --dump-arenas` na tym pliku i kończy się tak samo kodem 0.
 
-Opcja `lsp` jest domyślna. Dokłada biblioteki serwera językowego i program `bork-lsp`. Opcja `codegen` dokłada Inkwell, czyli bibliotekę Rusta, przez którą kompilator woła LLVM. Da się złożyć sam program sprawdzający, bez żadnej z tych opcji. Wtedy `bork build` odmawia pracy kodem dwa.
+```text
+Arenas
+├── fun add
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── total [Local]
+    ├── label [Local]
+    ├── ForLoop (i)
+    │   ├── i [Local]
+    │   └── total [Copy]
+    └── Block
+        └── label [Shared ← fun main]
+```
 
-## Czego w tej kolejności pracy nie ma
+Parametry `a` i `b` są lokalne w `add`, bo funkcja ich nie wynosi na zewnątrz. `total` w pętli jest kopią, bo liczba całkowita kopiuje się przy odczycie, więc pętla może czytać ją wielokrotnie. `label` w zagnieżdżonym bloku jest współdzielony z `main`, bo wewnętrzny blok czyta napis, którego nie zadeklarował. Cały ten wydruk mówi tylko o tym, kto nazwę widzi, i nie jest jeszcze decyzją o buforze pamięci. Budowanie tego samego pliku daje program, który wypisuje `sum` i kończy się kodem 3, bo pętla `0..3` dodaje 0, 1 i 2.
 
-Nie ma osobnego optymalizatora poza tym, co LLVM zrobi z gotowym modułem. Nie ma wklejania funkcji dopisanych na końcu wywołania, bo te funkcje nie dochodzą do LLVM. Nie ma osobnych kopii funkcji dla różnych typów, bo nie ma typów ogólnych. Jedyną adnotacją dokładaną do reprezentacji pośredniej po sprawdzeniu typów jest nazwa zmiennej, w której arenie mają powstać bajty napisu. Jest lokalna i dotyczy dwóch sąsiednich instrukcji.
+> **NOTA.**
+> Wydruk regionów przy udanym sprawdzeniu nie jest jeszcze opisem wygenerowanego kodu. Mówi wyłącznie o tym, jak kompilator sklasyfikował nazwy w tym przebiegu. O tym, czy blok dostanie własne wywołanie wejścia do regionu, decyduje późniejszy krok, opisany w rozdziale 16, i tylko wtedy, gdy lista komunikatów jest pusta. Dopóki w wydruku stoi samo `Shared`, nie wiesz jeszcze, czy ten blok w ogóle alokuje.
 
-Plik `src/arena.rs` nie jest jedną z faz tej kolejności. To model bufora o pojemności 4096 bajtów. Analiza własności go nie woła. Biblioteka wykonawcza ma własną kopię stałej pojemności.
+## Co zostaje, gdy program jest błędny
+
+Pytanie brzmi, które wyniki faz wolno zachować po odmowie i dlaczego nie wolno zachować wszystkich. Generator kodu potrzebuje reprezentacji pośredniej, w której każde wyrażenie ma typ i nie ma obok listy błędów. Gdyby przy błędzie ta reprezentacja została w strukturze wyniku, późniejszy kod mógłby ją przypadkiem przetłumaczyć. Raport regionów rządzi się inną zasadą i przydaje się do wydruku nawet wtedy, gdy program jest zły, bo pokazuje, jak daleko analiza własności doszła.
+
+Wynik jednego przebiegu, w kodzie źródłowym `CheckResult`, niesie trzy pola i nic więcej. Raport regionów jest obecny zawsze poza jedną sytuacją, mianowicie wtedy, gdy tekst w ogóle się nie sparsuje, bo wtedy nie ma drzewa, po którym analiza mogłaby przejść. Reprezentacja pośrednia jest obecna dokładnie wtedy, gdy lista komunikatów jest pusta. Lista komunikatów zbiera odmowy ze wszystkich faz, które zdążyły ruszyć. Po błędzie składni jest w niej jeden komunikat i oba drzewa są nieobecne. Po błędzie typu, własności albo czasu życia napisu raport zostaje, a reprezentacja pośrednia jest odrzucana, nawet jeśli sprawdzanie typów zdążyło ją w całości zbudować.
+
+Widać to na pliku, który ma naraz błąd własności i błąd typu. Nazwa `s` jest przenoszona, a potem używana w dodawaniu z liczbą. Składnia jest w porządku, więc obie późniejsze fazy mają po czym przejść i każda ma powód do odmowy. Dzięki temu na jednym przebiegu widać i kolejność komunikatów, i drzewo, które zostaje mimo błędów.
+
+**Listing 12.2.** Dwa niezależne błędy w jednym pliku
+
+```bork
+fun main() {
+    var s = "hi"
+    val t = move s
+    val u = s + 1
+}
+```
+
+Uruchomienie `bork --dump-arenas` na tym pliku kończy się kodem 1 i wypisuje obie odmowy, a pod nimi drzewo, które analiza własności zdążyła zbudować. Ścieżka w komunikacie zależy od tego, skąd uruchomiono polecenie, więc w Twoim terminalu będzie inna niż w wycinku poniżej. Treść błędów i kształt drzewa są natomiast stałe, bo wynikają z programu, a nie z katalogu. Oba komunikaty wskazują tę samą kolumnę, bo i przeniesienie, i dodawanie dotyczą tego samego odczytu `s`.
+
+```text
+/tmp/borkch/both.bork:4:13: error: ownership: use of `s` after move from fun main
+/tmp/borkch/both.bork:4:13: error: type: arithmetic operands must have the same numeric type, got String and i32
+Arenas
+└── fun main
+    ├── s [Moved ← fun main]
+    ├── t [Local]
+    └── u [Local]
+```
+
+Drzewo jest, choć program nie jest czysty, i właśnie dlatego łatwo je pomylić z wynikiem, na którym wolno budować. Nie ma za to reprezentacji pośredniej w wyniku, więc `bork build` nawet nie dochodzi do kontroli przed generowaniem kodu. Gdyby w tym pliku zepsuć nawias albo dokleić drugie `val` w tej samej linii bez nowego wiersza, odpadłoby także drzewo regionów, bo parsowanie zwróciłoby błąd wcześniej i reszta faz w ogóle by nie wystartowała. Różnica między tymi dwoma odmowami jest więc różnicą tego, co kompilator zdążył zapamiętać, a nie różnicą w kodzie wyjścia, bo w obu razach jest to 1.
+
+> **OSTRZEŻENIE.**
+> Pusta lista komunikatów nie oznacza, że generator kodu umie już każdą konstrukcję języka. Kontrola tuż przed emisją odrzuca między innymi wartość `None`, funkcję dopisaną na końcu wywołania i zwrot `i64` z `main`. To są odmowy fazy `codegen`, opisane w rozdziale 17, a nie dziury w sprawdzaniu typów. Program, który je zawiera, przechodzi `bork plik.bork` z kodem 0 i odpada dopiero przy `bork build`.
+
+## Dlaczego błąd własności bywa pierwszy
+
+Pytanie, które tu wraca z rozdziału 2, dotyczy kolejności na ekranie. Dlaczego komunikat z fazą `ownership` potrafi stać nad komunikatem z fazą `type`, skoro typy są liczone wcześniej. Kolejność na ekranie jest kolejnością składania listy, a nie kolejnością myślenia kompilatora. Gdyby wypis iść ściśle za czasem, czytelnik musiałby znać wnętrze `check`, żeby rozumieć wydruk. Wydruk jest stabilny, nawet jeśli przez to sprawia wrażenie odwróconego.
+
+Sprawdzanie typów idzie pierwsze, bo analiza własności potrzebuje typów deklaracji w kolejności, w jakiej występują w tekście. Bierze je z wektora, który sprawdzanie typów właśnie wypełniło, i zdejmuje po jednym przy każdej deklaracji. Dlatego typ musi być już policzony, zanim analiza zdecyduje, czy nazwę wolno skopiować. Po obu przejściach lista komunikatów powstaje tak, że najpierw trafiają do niej błędy własności, a potem, na koniec, błędy typów. W listingu 12.2 widać dokładnie ten układ. Użycie `s` po przeniesieniu jest wypisane wcześniej niż skarga, że do napisu dodano liczbę, choć skarga o typie powstała w czasie wcześniej.
+
+Jest jeszcze jeden skutek wspólnego wektora typów. Analiza własności nie zagląda do reprezentacji pośredniej. Widzi drzewo składni i kolejkę typów deklaracji. Dla zwykłych funkcji w `main` oba opisy się zgadzają i testy to pilnują. Dla parametrów funkcji dopisanej na końcu wywołania analiza nie dostaje typu, który sprawdzanie typów właśnie wyliczyło w osobnym zejściu, i zostawia typ nieznany. Rozdział 14 pokazuje, co z tego wynika dla współdzielenia, a rozdział 15 pokazuje to samo od strony typów.
+
+## Kiedy program jest czysty
+
+Pytanie brzmi, co jeszcze musi się udać po typach i własności, zanim wynik wolno nazwać czystym. Sam brak błędów typu i własności nie wystarcza, bo program może poprawnie przenosić nazwy i mimo to zwracać napis, którego bajty umrą razem z buforem wołanej funkcji. Taki błąd nie jest widoczny w drzewie składni, bo drzewo pamięta tylko, że w `return` stoi wywołanie. Wychodzi dopiero wtedy, gdy kompilator wie, w którym regionie wartość powstała i czy wolno ją wynieść do wywołującego.
+
+Gdy lista po typach i własności jest pusta, dochodzą trzy rzeczy, nadal wewnątrz tego samego przebiegu. Najpierw zaznacza się, które bloki w ogóle wołają wejście do regionu przy generowaniu kodu. Potem dopisuje się przy deklaracjach informację, czy napis ma powstać od razu w buforze miejsca, do którego za chwilę zostanie przeniesiony. Na końcu każda funkcja jest sprawdzana pod kątem ucieczki, i dopiero ta trójka domyka sprawdzenie.
+
+Wynik `concat` zwrócony wprost jest odrzucany, podobnie jak próba wyniesienia wartości z regionu zagnieżdżonego dalej, niż pozwala wynik funkcji. Jeśli któraś z tych odmów dojdzie, reprezentacja pośrednia znowu znika z wyniku, a raport regionów zostaje. Szczegóły tych trzech kroków są treścią rozdziału 16. Tutaj ważne jest tylko ich miejsce w kolejce, bo stoją za typami i własnością, a przed jakąkolwiek emisją kodu.
+
+> **WSKAZÓWKA.**
+> Gdy `--dump-arenas` pokazuje drzewo, a mimo to kod wyjścia wynosi 1, czytaj komunikat nad drzewem, zanim zaczniesz poprawiać regiony. Drzewo przy błędzie bywa kompletne i przez to wygląda wiarygodnie, ale budowanie i tak się nie zacznie. Najpierw zdejmij odmowę z fazy wypisanej w linii `error`, a dopiero potem wracaj do etykiet przy nazwach.
+
+## Od czystego wyniku do pliku na dysku
+
+Ostatnie pytanie tego rozdziału dotyczy już tylko polecenia `build`. Co dzieje się z czystą reprezentacją pośrednią i dlaczego sam fakt, że sprawdzenie przeszło, nie gwarantuje pliku wykonywalnego. Generator kodu zakłada, że drzewo jest typowane i że błędy języka zostały już zgłoszone. Nie umie jednak każdej konstrukcji, którą język opisuje, więc między czystym wynikiem a emisją stoi jeszcze kontrola. Bez niej nieobsłużony wariant trafiłby do dopasowania, które kończy się awarią procesu kompilatora albo, co gorsza, do ścieżki liczby całkowitej i do złego rzutowania wartości.
+
+Kontrola ogląda kształt programu, zanim powstanie choć jedna instrukcja. Pyta między innymi, czy jest funkcja `main`, czy `main` zwraca `i32` albo nic, czy nie ma wartości `None`, funkcji dopisanej na końcu wywołania ani operatora, którego emisja jeszcze nie tłumaczy. Przy odmowie dostajesz komunikat fazy `codegen` i kod 1, bez pliku wynikowego. Przy zgodzie powstaje zapis LLVM, z niego plik obiektowy, a `clang` linkuje go z `libbork_runtime.a`. Biblioteka wykonawcza wstawia między innymi bufor regionu, wypisywanie i sprawdzenia, które przerywają proces przy dzieleniu przez zero albo przy indeksie poza tablicą. Samo wywołanie `clang` i nazwy symboli są w rozdziale 17. Z punktu widzenia tego rozdziału liczy się podział odpowiedzialności. Fazy wcześniejsze pilnują języka, a kontrola pilnuje, żeby generator nie dostał kształtu, którego jeszcze nie umie.
+
+Na końcu zostaje mapa do kodu, bo cały ten rozdział da się streścić jednym przebiegiem. Funkcja `check` w pliku `src/frontend.rs` układa fazy w opisanej kolejności i zwraca `CheckResult`. Polecenia w `src/main.rs` albo wypisują komunikaty i ewentualnie drzewo regionów, albo, gdy wynik jest czysty, wołają budowanie. Kontrola przed emisją siedzi w `src/codegen/gate.rs`, a złożenie zapisu pośredniego z linkowaniem jest w `src/codegen/llvm/`. Czytanie tekstu, własność, typy i decyzje o napisach mają własne rozdziały dalej w tej części.
 
 ## Podsumowanie
 
-- Sprawdzenie czyta składnię, sprawdza typy, analizuje własność, a przy braku błędów ustala bufory regionów, wynosi alokację i sprawdza ucieczkę.
-- Reprezentacja pośrednia zostaje w wyniku tylko dla programu bez komunikatów.
-- Drzewo regionów przeżywa błędy znaczenia i znika tylko przy błędzie składni.
-- Sprawdzanie typów jest przed analizą własności, bo ta druga potrzebuje typów deklaracji. Starsza notatka projektowa opisuje kolejność odwrotną.
-- Reprezentacja pośrednia nie ma numerów regionów. Generator kodu uzgadnia ją z drzewem regionów wspólnym przejściem `region_walk`.
-- Plik wykonywalny jest obiektem LLVM skonsolidowanym z `libbork_runtime.a` przez `clang`.
+- Kompilator odpowiada po kolei na pytania o kształt tekstu, o typy, o własność nazw i o czas życia bajtów napisu, bo każda pominięta odpowiedź psuje inny, późniejszy krok.
+- Polecenia `bork plik.bork` i `bork build` zaczynają się od tego samego sprawdzenia, a plik wykonywalny powstaje tylko wtedy, gdy lista komunikatów jest pusta i kontrola przed generowaniem kodu niczego nie odrzuci.
+- Raport regionów zostaje także przy błędnym programie, o ile tekst w ogóle się sparsuje, natomiast reprezentacja pośrednia jest w wyniku tylko przy pustej liście komunikatów.
+- Błędy własności są wypisywane przed błędami typów, ponieważ tak składa się lista, choć typy liczy się wcześniej, żeby analiza własności mogła zdjąć typ każdej deklaracji.
+- Wydruk regionów opisuje klasyfikację nazw, a nie instrukcje, i nie zastępuje kontroli, która tuż przed emisją odrzuca konstrukcje jeszcze nieprzetłumaczone na kod maszynowy.

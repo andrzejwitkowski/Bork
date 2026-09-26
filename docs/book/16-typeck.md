@@ -1,65 +1,122 @@
 # Rozdział 15. Jak kompilator sprawdza typy
 
-## Ten rozdział obejmuje
+Drzewo składni wie, że w pliku jest dodawanie, ale nie wie, czy wolno dodać te dwie rzeczy do siebie. Wie, że jest deklaracja, ale nie wie, czy prawa strona pasuje do typu napisanego po dwukropku. Gdyby generator kodu dostał takie drzewo wprost, musiałby sam zgadywać, czy literał `1` jest wartością `i32`, czy `i64`, i każda pomyłka kończyłaby się złą instrukcją albo awarią przy rzutowaniu wartości. Sprawdzanie typów zdejmuje to zgadywanie, zanim ktokolwiek emituje kod, i zostawia drugie drzewo, w którym typ jest już wpisany przy każdym wyrażeniu.
 
-- po co obok drzewa składni powstaje drugie drzewo, już z typami
-- jakie typy istnieją tylko po sprawdzeniu, a jakich nie ma w składni
-- jak oczekiwany typ zmienia znaczenie literału, pustej wartości i warunku
-- dlaczego funkcje wbudowane przyjmują więcej, niż mówi ich nominalna sygnatura
-- dlaczego samo drzewo z typami nie wystarcza generatorowi kodu
+Ten rozdział obejmuje
 
-## Drugie drzewo opisuje program po typach
+- pytanie, na które odpowiada sprawdzanie typów, i dlaczego nie wystarczy do tego samo drzewo składni,
+- sposób, w jaki oczekiwany typ spływa w dół wyrażenia i zmienia odczyt literału,
+- odmowy, które zostają nawet wtedy, gdy literał da się dopasować, na przykład pustą tablicę i zapis do `val`,
+- granicę między tą fazą a analizą własności, która idzie tuż po niej,
+- miejsce w źródłach, w którym powstaje reprezentacja pośrednia.
 
-Drzewo składni, opisane w rozdziale 13, ma kształt tekstu. Nie wie jeszcze, jaki typ ma literał `0` ani czy nazwa została skopiowana. Sprawdzanie typów buduje drugie drzewo. W kodzie nazywa się ono reprezentacją pośrednią. Skrót HIR, od angielskiego high-level intermediate representation, pojawia się w nazwach struktur `HirProgram` i `HirExpr`. W zdaniach zostaję przy reprezentacji pośredniej. Rozdział 12 wprowadził to pojęcie przy opisie kolejności pracy kompilatora.
+## Po co wpisywać typ przy każdym wyrażeniu
 
-Każde wyrażenie w nowym drzewie niesie typ, zakres źródłowy i rodzaj wyrażenia. Wyrażenia `move` i `promote` z drzewa składni stają się zwykłymi nazwami. Rodzaj użycia, w kodzie `UseKind`, mówi wtedy, że było to przeniesienie albo promocja. Pozostałe warianty tego rodzaju to użycie lokalne, współdzielenie i kopia. Sprawdzanie typów wpisuje rodzaj użycia w funkcji `check_ident`. Nie zgłasza przy tym błędów własności. Własność zgłasza analiza opisana w poprzednim rozdziale. Reprezentacja pośrednia tylko zapisuje, jak sprawdzanie typów widziało odczyt. Generator kodu później ufa temu zapisowi, gdy kopiuje deskryptor napisu. Na liczbach i na napisach używanych w `main` testy trzymają oba opisy razem. Na parametrach funkcji dopisanej na końcu wywołania analiza własności i tak widzi typ nieznany, o czym była mowa w rozdziale 14.
+Pytanie tej fazy brzmi, jaki typ ma każde wyrażenie i czy w miejscu, w którym stoi, taki typ jest dopuszczalny. Bez tej odpowiedzi nie da się odróżnić dodawania dwóch liczb od dodawania liczby do napisu, ani zwrotu `i32` z funkcji, która obiecała `i64`. Błąd wyszedłby dopiero przy emisji, często jako wewnętrzna panika kompilatora, a nie jako komunikat o Twoim pliku. Osobna faza zamienia te pomyłki w diagnostykę fazy `type` i, gdy nic nie odrzuci, w drzewo, któremu generator może ufać.
 
-Wywołanie traci ciało funkcji dopisanej na końcu jako osobną wartość i zostawia flagę, że taka funkcja była. Ciało i tak jest sprawdzane tam, gdzie sprawdzanie typów schodzi w blok. Flaga służy później kontroli przed generowaniem kodu. Deklaracja zmiennej dostaje typ oraz pole `alloc_in_binding`. Na tym etapie pole jest puste. Wypełni je dopiero wyniesienie alokacji, opisane w następnym rozdziale. Parametry w reprezentacji pośredniej nie mają zakresów źródłowych. Zostają same napisy z nazwami.
+To drugie drzewo nazywa się reprezentacją pośrednią. W kodzie nosi skrót HIR, od angielskiego high-level intermediate representation, i ten skrót zostaje w nazwach struktur `HirProgram` oraz `HirExpr`. W dalszych zdaniach pada sama nazwa reprezentacja pośrednia, bez powtarzania skrótu. Każde wyrażenie niesie w niej typ, zakres w pliku i rodzaj wyrażenia. Sprawdzanie typów buduje ją zawsze, nawet gdy zbierze błędy. Do wyniku przebiegu, opisanego w rozdziale 12, trafia ona tylko wtedy, gdy lista komunikatów na końcu jest pusta. Dzięki temu generator nie dostaje drzewa, obok którego leżą odmowy.
 
-## Jakie typy pojawiają się dopiero teraz
+```mermaid
+flowchart TD
+    drzewo["Drzewo składni"] --> sygnatury["Zebranie sygnatur funkcji"]
+    sygnatury --> ciala["Sprawdzenie ciał, z typem oczekiwanym spływającym w dół"]
+    ciala --> posrednia["Reprezentacja pośrednia i kolejka typów deklaracji"]
+    posrednia --> zgodne{"Wyrażenia pasują do miejsc, w których stoją"}
+    zgodne -->|nie| komunikat["Komunikaty fazy type"]
+    zgodne -->|tak| dalej["Analiza własności bierze kolejkę typów deklaracji"]
+```
 
-Typ w reprezentacji pośredniej, struktura `Ty` w pliku `src/hir/ty.rs`, ma rodzaj i znacznik, czy wartość może być pusta. Rodzaj jest typem prostym, nazwą, tablicą o długości, typem funkcji, zakresem albo typem nieznanym.
+Rysunek zaczyna się od sygnatur, bo ciało funkcji wolno sprawdzać dopiero wtedy, gdy wiadomo, jakie funkcje w ogóle istnieją i co przyjmują. Przy okazji kompilator odmawia ponownego zdefiniowania funkcji wbudowanej, takiej jak `println` albo `concat`, bo te nazwy są już zajęte przez język. Dopiero po zebraniu sygnatur sprawdzanie schodzi do ciał. Kolejka typów deklaracji, którą rysunek stawia obok reprezentacji pośredniej, jest osobnym produktem tej samej fazy. Analiza własności zdejmuje z niej typ przy każdej deklaracji, w kolejności tekstu, i dlatego sprawdzanie typów musi skończyć się wcześniej, choć jego komunikaty są dopisywane do wydruku na końcu.
 
-Zakres i typ nieznany nie mają odpowiednika w drzewie składni. Zakres istnieje tylko jako typ wyrażenia `lo..hi`. Typ nieznany tłumi dalsze komunikaty, gdy wcześniejszy błąd i tak zepsuł wyrażenie. Porównanie z typem nieznanym nie dokłada kolejnego oczekiwania. Nie tłumi natomiast analizy własności.
+## Dlaczego literał `1` nie ma jednego typu
 
-Funkcja `is_copy` jest prawdziwa dla typu prostego, który nie może być pusty. Funkcja `uses_arena_storage` jest prawdziwa dla napisu i dla tablicy, która nie może być pusta. Drugi predykat mówi analizie ucieczki i generatorowi kodu, że wartość ma bajty w buforze regionu, a nie samą liczbę w rejestrze.
+Pytanie, które najłatwiej pomylić z prostą tabelą, brzmi, skąd bierze się typ liczby zapisanej bez przyrostka. W wielu językach `1` jest zawsze `i32` albo zawsze `int`, a resztę załatwia rzutowanie. Bork robi inaczej tam, gdzie otoczenie już wie, jakiego typu liczbowego się spodziewa. Oczekiwany typ spływa w dół, do literału, i literał przyjmuje właśnie ten typ, o ile jest liczbowy. Gdy otoczenie nic nie oczekuje, literał zostaje `i32`. Dzięki temu da się podać `1` funkcji, która chce `i64`, bez dopisku przy literale, a jednocześnie gołe `val n = 1` nie staje się niespodziewanie typem szerszym.
 
-Tłumaczenie typu ze składni, funkcja `lower_type`, odrzuca pustą tablicę, czyli zapis `[T]?`, oraz każdą nazwę poza `String`.
+Widać to na parze programów, które różnią się tylko tym, czy do funkcji trafia literał, czy nazwa już zadeklarowana. Funkcja `f` chce `i64` i zwraca `i32`, żeby wynik dało się zwrócić z `main`. Pierwszy plik powinien przejść, bo literał stoi dokładnie w miejscu, które oczekuje szerszego typu. Drugi powinien odpaść, bo nazwa zdążyła dostać typ `i32`, zanim ktokolwiek poprosił o `i64`.
 
-## Jak sprawdzanie typów schodzi po programie
+**Listing 15.1.** Literał w miejscu, które oczekuje `i64`
 
-Funkcja `typeck::check` zbiera sygnatury, odmawia ponownego zdefiniowania funkcji wbudowanych, a potem sprawdza ciała. Środowisko ma stos zakresów, mapę funkcji, listę komunikatów, wektor typów deklaracji i głębokość pętli. Wektor typów deklaracji, w kodzie `decl_tys`, rośnie przy każdej deklaracji, w kolejności źródła. Analiza własności zdejmuje z niego typy po kolei. Dlatego sprawdzanie typów musi skończyć się wcześniej. Rozdział 12 tłumaczy, czemu komunikaty i tak wypisują się w odwrotnej kolejności.
+```bork
+fun f(x: i64): i32 {
+    return 0
+}
+fun main(): i32 {
+    return f(1)
+}
+```
 
-Instrukcje są w pliku `src/typeck/stmt.rs`. Wyrażenia są podzielone. Plik `expr/mod.rs` rozdziela rodzaje i obsługuje nazwy. Plik `expr/binary.rs` obsługuje arytmetykę, porównania, koniunkcję, alternatywę i zakres. Plik `expr/call.rs` obsługuje wywołania, funkcję dopisaną na końcu i funkcje wbudowane. Plik `expr/control.rs` obsługuje warunek i blok użyty jako wartość. Plik `expr/array.rs` obsługuje literał tablicy, indeks i wycinek. Plik `expr/field.rs` obsługuje odczyt pola i odczyt z operatorem `?.`.
+Ten plik przechodzi sprawdzenie z kodem 0. Literał `1` stoi w argumencie, argument oczekuje `i64`, więc `1` jest wartością `i64`, a nie `i32`, które dostałby w gołej deklaracji. Ta sama liczba zapisana najpierw do nazwy bez adnotacji jest już `i32`, i tej nazwy nie wolno potem wstawić w miejsce `i64`, bo nazwa ma typ ustalony przy deklaracji. Oczekiwany typ nie wraca wstecz do wcześniejszej linii.
 
-Ostatnia instrukcja bloku, który ma dać wartość, musi być gołym wyrażeniem. W przeciwnym razie typ bloku to `unit`. Robi to funkcja `check_value_block_in_current_scope`. Dlatego `return` w gałęzi warunku nie jest wartością tej gałęzi. Jest instrukcją. Gałąź jako wyrażenie ma typ `unit`, jeśli ostatnią rzeczą w niej nie jest gołe wyrażenie.
+**Listing 15.2.** Nazwa typu `i32` w miejscu, które oczekuje `i64`
 
-## Oczekiwany typ steruje literałem i pustą wartością
+```bork
+fun f(x: i64): i32 {
+    return 0
+}
+fun main(): i32 {
+    val n = 1
+    return f(n)
+}
+```
 
-Sprawdzanie typów przekazuje w dół oczekiwany typ, jeśli otoczenie go zna. Literał całkowity bez oczekiwania ma typ `i32`. Gdy otoczenie oczekuje typu całkowitego, literał przyjmuje ten typ. Literał zmiennoprzecinkowy bez oczekiwania ma typ `f64`. Słowo `None` bez oczekiwanego typu jest błędem. Nie staje się „jakimś” typem pustym.
+```text
+/tmp/borkch/namearg.bork:6:14: error: type: argument 1 to `f` has type i32, expected i64
+```
 
-Warunek bez `else`, gdy nikt nie oczekuje wartości, ma typ `unit`. Gdy otoczenie oczekuje typu, a drugiej gałęzi nie ma, komunikat mówi, że warunek produkujący wartość wymaga gałęzi `else`. Zakres tego komunikatu bywa pusty.
+Komunikat nazywa argument, typ zastany i typ oczekiwany. Kompilator nie próbuje przy tym sam rzutować `n` na szerszy typ. Gdyby to zrobił, błąd w szerokości liczby chowałby się w milczącym przekształceniu i wychodził dopiero w wyniku, który nie mieści się w tym, co programista napisał. Ten sam mechanizm dotyczy także instrukcji zwrotu. Wyrażenie `return 1` w funkcji o wyniku `i64` przechodzi, bo oczekiwany typ dociera do literału, natomiast `val n = 1 + 2` i potem `return n` z takiej funkcji już nie, bo suma bez oczekiwanego typu jest `i32`.
 
-## Funkcje wbudowane są specjalnym przypadkiem
+> **WSKAZÓWKA.**
+> Gdy komunikat mówi, że zastany typ to `i32`, a oczekiwany to `i64`, sprawdź, czy wartość powstała w miejscu bez adnotacji i bez kontekstu liczbowego. Literał wpisany od razu w argument albo w `return` często przyjmie szerszy typ, a ta sama cyfra zapisana wcześniej do `val` już nie.
 
-Plik `expr/call.rs` rozpoznaje `print`, `println` i `concat`, zanim sprawdzi liczbę argumentów zwykłej funkcji. Dlatego `print` przyjmuje napis, choć tabela sygnatur w `src/builtins.rs` mówi, że `print` bierze `i32` i zwraca `unit`. To jest przypadek szczególny, a nie ogólna zasada, że jeden typ można podstawić pod drugi. Inna funkcja o parametrze `i32` napisu nie przyjmie.
+## Co pozostaje błędem, choć otoczenie coś oczekuje
 
-Funkcja dopisana na końcu wywołania dokleja się jako ostatni argument typu funkcyjnego. Jej ciało jest sprawdzane w nowym zakresie. Analiza własności robi osobne zejście po drzewie składni i nie widzi typów wyliczonych dla parametrów tej funkcji. Dwa zejścia mają dwa środowiska. Stąd wydruk drzewa regionów potrafi pokazać współdzielenie tam, gdzie sprawdzanie typów widzi kopię. Rozdział 14 opisał ten skutek od strony analizy własności.
+Pytanie brzmi, których braków kompilator nie uzupełni, nawet gdy oczekiwany typ spływa w dół. Nie każdy węzeł da się uratować kontekstem. Pusta tablica nie ma ani typu elementu, ani długości, a wpisanie ich z powietrza, bez adnotacji przy nazwie, zgadłoby strukturę, której w tekście nie ma. Zapis do nazwy zadeklarowanej jako `val` jest z kolei błędem niezależnie od typu, bo `val` nie jest miejscem, do którego wolno przypisać po raz drugi. Oba przypadki warto zobaczyć, bo wyglądają jak coś, co „dałoby się wywnioskować”, a jednak są odrzucane.
 
-## Dlaczego generator kodu nie może iść tylko po tym drzewie
+**Listing 15.3.** Pusta tablica bez adnotacji
 
-Reprezentacja pośrednia nie ma numerów regionów. Komentarz w `src/hir/mod.rs` mówi, że regiony żyją w drzewie z analizy własności, więc generator kodu ma iść wspólnym przejściem po tym drzewie, opisanym w następnym rozdziale. Na każdym bloku, pętli, warunku i funkcji dopisanej na końcu bierze kolejne dziecko węzła regionu. Jeśli sprawdzanie typów wyrzuci albo wstawi blok inaczej niż analiza własności, to przejście nie znajdzie dziecka.
+```bork
+fun main() {
+    val a = []
+}
+```
 
-Funkcja `peel_blocks` jest skopiowana w reprezentacji pośredniej i w analizie własności. Komentarz przy kopii każe trzymać obie wersje w zgodzie. Nie ma jednego wspólnego traitu. Jest konwencja. Zmiana tylko w jednym miejscu psuje uzgodnienie drzew.
+```text
+/tmp/borkch/emptyarr.bork:2:13: error: type: empty array literal requires an explicit type, e.g. `val a: [i32; 0] = []`
+```
 
-Pole `alloc_in_binding` jest puste po sprawdzeniu typów. Wypełnia je wyniesienie alokacji, już na gotowym drzewie, w funkcji `frontend::check`. To jedyna adnotacja dokładana między sprawdzeniem typów a generowaniem kodu.
+Komunikat podaje kształt adnotacji, który tę samą pustą tablicę przeprowadza przez sprawdzenie. Chodzi o to, że długość i typ elementu są częścią typu tablicy w Borku, a nie szczegółem, który wolno dopisać później w generatorze. Plik z adnotacją `[i32; 0]` przy tej samej pustej tablicy kończy się kodem 0, co potwierdza, że brakuje informacji w tekście, a nie że pusta tablica jest w ogóle zabroniona. Podobnie odrzucany jest zapis do `val`, i tu oczekiwany typ w ogóle nie wchodzi w grę.
 
-Testy w `src/typeck/tests/mod.rs` idą zwykle przez `frontend::check`, a nie przez samo sprawdzanie typów. Dzięki temu łapią także własność. Plik `nullable.rs` trzyma operator `?:`, wykrzykniki `!!` i porównania wartości pustych. Plik `closures.rs` trzyma liczbę argumentów funkcji dopisanej na końcu wywołania. Gdy dodajesz operator, dopisujesz tu przypadek z dokładnym tekstem komunikatu. Rozdział 21 wraca do tej kolejności pracy.
+**Listing 15.4.** Drugi zapis do niezmiennej nazwy
+
+```bork
+fun main(): i32 {
+    val n = 1
+    n = 2
+    return n
+}
+```
+
+```text
+/tmp/borkch/valas.bork:3:5: error: type: cannot assign to immutable `val` binding `n`
+```
+
+Pozostałe odmowy tej fazy są tego samego rodzaju. Warunek pętli albo `if` musi być `bool`, zwrot musi pasować do typu funkcji, a dwa operandy dodawania muszą być tym samym typem liczbowym. Lista operatorów nie wnosi tu nowego mechanizmu. Gdy typy operandów się rozmijają, komunikat podaje oba, tak jak przy dodawaniu liczby do napisu, i na tym kończy się ta gałąź. Pełne zestawienie miejsc, w których typ oczekiwany jest porównywany z typem zastanym, jest w `src/typeck/stmt.rs` i w katalogu `src/typeck/expr/`.
+
+> **NOTA.**
+> Sprawdzanie typów nie pyta, czy nazwę wolno skopiować albo przenieść. Wyrażenie `move` i promocja zapisana w tekście stają się w reprezentacji pośredniej zwykłą nazwą z dopiskiem, jakiego użycia sprawdzanie się dopatrzyło. Odmowę, że nazwa została użyta po przeniesieniu, zgłasza analiza z rozdziału 14, nawet jeśli typ tego wyrażenia jest poza tym w porządku.
+
+## Gdzie ta faza się kończy, a gdzie tylko zapisuje
+
+Pytanie brzmi, czego świadomie nie ma w komunikatach fazy `type`, choć reprezentacja pośrednia już coś o tym pamięta. Generator kodu później ufa rodzajowi użycia zapisanemu przy nazwie, gdy kopiuje deskryptor napisu albo liczbę. Ten zapis nie jest jednak werdyktem własności. Werdykt własności przychodzi z osobnego przejścia po drzewie składni i potrafi, przy funkcji dopisanej na końcu wywołania, widzieć typ nieznany tam, gdzie sprawdzanie typów widzi kopię. Dwa przejścia mają dwa środowiska, i rozdział 14 pokazał skutek od strony współdzielenia. Tutaj ten sam skutek widać od strony kolejki. Parametry takiej funkcji nie trafiają do kolejki typów deklaracji, którą zdejmuje analiza, więc analiza nie dostaje typu wyliczonego w zagnieżdżonym zakresie.
+
+Dla zwykłych funkcji i dla `main` oba opisy trzymają się razem, i testy kompilatora tego pilnują. Warto o rozjeździe wiedzieć tylko po to, żeby wydruk regionów przy błędzie w funkcji dopisanej na końcu wywołania nie wyglądał jak sprzeczność z komunikatem o typie. To wciąż ten sam program, czytany dwa razy, z inną ilością informacji o parametrach. Żadna z tych faz nie naprawia drugiej w locie.
+
+Na końcu zostaje mapa do kodu. Wejście fazy to `check` w `src/typeck/mod.rs`. Oczekiwany typ jest argumentem sprawdzenia wyrażenia w `src/typeck/expr/mod.rs` i schodzi do literałów, wywołań i operandów. Porównanie typu zastanego z oczekiwanym przy deklaracji, zwrocie i przypisaniu jest w `src/typeck/stmt.rs`. Struktury reprezentacji pośredniej, razem z rodzajem użycia nazwy, są w `src/hir/`. Kolejka typów deklaracji opuszcza tę fazę jako drugi wynik `check` i jest zużywana przez analizę własności, zanim powstanie wydruk, o którym mówił rozdział 12.
 
 ## Podsumowanie
 
-- Reprezentacja pośrednia niesie typ i rodzaj użycia nazwy. Nie niesie numeru regionu.
-- Słowo `move` w drzewie składni staje się rodzajem użycia na nazwie.
-- Sprawdzanie typów nie zgłasza błędów własności. Analiza własności nie czyta rodzaju użycia z reprezentacji pośredniej.
-- Oczekiwany typ steruje literałami, słowem `None` i tym, czy warunek bez `else` jest błędem, czy ma typ `unit`.
-- Dwa zejścia, sprawdzanie typów i analiza własności, spotykają się dopiero we wspólnym przejściu `region_walk`. Zgodność `peel_blocks` jest warunkiem tego spotkania.
+- Sprawdzanie typów wpisuje typ przy każdym wyrażeniu i odrzuca miejsce, w którym typ zastany nie pasuje do oczekiwanego, bo generator kodu nie powinien tego zgadywać sam.
+- Literał liczby przyjmuje typ liczbowy oczekiwany przez otoczenie, a w braku takiego otoczenia zostaje `i32`, więc `f(1)` przy parametrze `i64` przechodzi, a nazwa zadeklarowana jako gołe `1` już nie.
+- Pusta tablica bez adnotacji i drugi zapis do `val` są odrzucane także wtedy, gdy reszta otoczenia ma jasny typ, bo kompilator nie dopisuje długości tablicy ani nie zdejmuje niezmienności.
+- Ta faza nie rozstrzyga własności, tylko zapisuje rodzaj użycia nazwy w reprezentacji pośredniej, a odmowy o przeniesieniu zostawia analizie z poprzedniego rozdziału.
+- Reprezentacja pośrednia trafia do wyniku przebiegu tylko przy pustej liście komunikatów, natomiast kolejka typów deklaracji jest budowana zawsze i zasila analizę własności.

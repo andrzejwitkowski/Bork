@@ -204,87 +204,73 @@ Po: „Jak pisać programy, które kompilator potrafi zbudować.”
 
 ## Rozdział 12. Od pliku źródłowego do gotowego programu
 
-Werdykt: do druku. Kolejność faz, trzy struktury danych i droga do pliku wykonywalnego są opisane zanim czytelnik wejdzie w pliki źródłowe.
+Werdykt: do druku po przepisaniu od czystej kartki. Rozdział zaczyna od pytania, co kompilator musi wiedzieć, zanim wolno mu emitować kod, a nazwy plików stoją na końcu jako mapa. Prześledzony jest `18-trace.bork` (wydruk regionów, kod 0, wypis `sum`, kod procesu 3) oraz plik z błędem własności i typu naraz.
 
-Przed: „Komentarz streszcza potok jako czytanie, sprawdzanie typów i analizę własności.”
+Zdania do 5 słów: 0 z 128, czyli 0,00%. Słów w prozie, bez listingów: 2279.
 
-Po: „Komentarz na początku `src/frontend.rs` streszcza kolejność pracy jako czytanie, sprawdzanie typów, analizę własności i reprezentację pośrednią.”
+Przed: „Analiza własności nie dostaje całej reprezentacji pośredniej. Dostaje drzewo składni i cienki wektor typów deklaracji.”
 
-Przed: „Jak ułożone są crate'y. Opcja codegen dokłada Inkwell. Nie ma monomorfizacji.”
-
-Po: „Jak podzielony jest projekt. W Cargo jednostka kompilacji nazywa się skrzynką, po angielsku crate. Opcja `codegen` dokłada Inkwell, czyli bibliotekę Rusta, przez którą kompilator woła LLVM. Nie ma osobnych kopii funkcji dla różnych typów, bo nie ma typów ogólnych.”
+Po: „Zanim kompilator wyemituje choć jedną instrukcję, musi odpowiedzieć na kilka pytań, które nie mają ze sobą nic wspólnego poza tym, że dotyczą tego samego pliku.”
 
 ## Rozdział 13. Jak kompilator czyta tekst programu
 
-Werdykt: do druku. Lekser, parser, kolejność operatorów, drzewo składni i błąd na końcu pliku są objaśnione.
+Werdykt: do druku po przepisaniu od czystej kartki. Widać, po co drzewo składni powstaje wcześniej niż typy, czemu nowa linia w nawiasie nie kończy instrukcji i czemu błąd lewej strony przypisania wskazuje koniec pliku. Wydruki pochodzą z uruchomienia kompilatora.
 
-Przed: „Dzięki temu sztuczka z nawiasami działa.”
+Zdania do 5 słów: 0 z 96, czyli 0,00%. Słów w prozie, bez listingów: 1683.
 
-Po: „Dzięki temu zamiana nowych linii wewnątrz nawiasów na odstęp naprawdę ukrywa je przed lekserem.”
+Przed: „Słowa kluczowe w lekserze to `if`, `fun`, `val`, `var`, `for`, `in`, `return`, `Some`, `None`, `move` i `promote`.”
 
-Przed: „Długość pliku w bajtach się nie zmienia, więc pozycje komunikatów nie jadą.”
-
-Po: „Długość pliku w bajtach się nie zmienia, więc pozycje komunikatów się nie przesuwają.”
+Po: „Zamiana jest bajt za bajt, więc pozycja błędu w komunikacie nadal wskazuje oryginalny plik, a nie przerobioną kopię.”
 
 ## Rozdział 14. Jak kompilator sprawdza własność nazw
 
-Werdykt: do druku. Czytelnik odróżnia drzewo regionów od bufora, poznaje regułę odczytu oraz zachowanie pętli i warunku.
+Werdykt: do druku po przepisaniu od czystej kartki. Cztery odpowiedzi o odczycie są narysowane, zanim padną nazwy funkcji, a pętla i scalanie gałęzi `if` mają własne przebiegi z komunikatem.
 
-Przed: „Sema nie alokuje płyt. ArenaNode.id, brak RegionKind, open_ordinary kontra open_move.”
+Zdania do 5 słów: 0 z 81, czyli 0,00%. Słów w prozie, bez listingów: 1353.
 
-Po: „Analiza własności odpowiada na pytanie, czy daną nazwę wolno w tym miejscu odczytać. Nie przydziela ona pamięci. Zamiast bufora powstaje drzewo.”
+Przed: „Korzeń drzewa dla całego programu trzyma struktura `ArenaReport`. Ma ona po jednym korzeniu na funkcję.”
 
-Przed: „classify_use: moved, ta sama arena, Copy, Val, inaczej not Copy.”
-
-Po: „Jeśli wiązanie jest już przeniesione, odczyt jest błędem. Jeśli numer regionu jest ten sam, odczyt jest lokalny. Jeśli typ jest kopiowalny, odczyt jest kopią. Jeśli wiązanie jest stałe, odczyt jest współdzieleniem. W pozostałych przypadkach odczyt jest błędem.”
+Po: „Liczbę całkowitą wolno przeczytać wiele razy, bo odczyt nic nie zabiera. Napis albo tablica tak się nie zachowują.”
 
 ## Rozdział 15. Jak kompilator sprawdza typy
 
-Werdykt: do druku. Widać, po co jest drugie drzewo, jak działa oczekiwany typ i dlaczego generator kodu nie może iść tylko po nim.
+Werdykt: do druku po przepisaniu od czystej kartki. Oczekiwany typ jest pokazany na parze programów, z których jeden przechodzi (`f(1)` przy parametrze `i64`), a drugi dostaje komunikat o argumencie `i32`. Pusta tablica i zapis do `val` są odmowami, których kontekst nie uzupełnia.
 
-Przed: „Jak checker schodzi po programie. Checker przekazuje expected w dół.”
+Zdania do 5 słów: 0 z 81, czyli 0,00%. Słów w prozie, bez listingów: 1480.
 
-Po: „Jak sprawdzanie typów schodzi po programie. Sprawdzanie typów przekazuje w dół oczekiwany typ, jeśli otoczenie go zna.”
+Przed: „Typ w reprezentacji pośredniej, struktura `Ty` w pliku `src/hir/ty.rs`, ma rodzaj i znacznik, czy wartość może być pusta.”
 
-Przed: „HIR wycina Move do UseKind. Typeck nie krzyczy własnością.”
-
-Po: „Wyrażenia `move` i `promote` z drzewa składni stają się zwykłymi nazwami. Sprawdzanie typów nie zgłasza przy tym błędów własności.”
+Po: „Oczekiwany typ spływa w dół, do literału, i literał przyjmuje właśnie ten typ, o ile jest liczbowy.”
 
 ## Rozdział 16. Jak kompilator wybiera miejsce na napis
 
-Werdykt: do druku. Wyniesienie dwóch instrukcji, głębokość bajtów i to, który region pobiera bufor, są opisane bez metafor z pierwszej wersji.
+Werdykt: do druku po przepisaniu od czystej kartki. Trzy pytania o miejsce padają dopiero po czystych typach i własności. Listing `15-assign-up.bork` wypisuje `b` po zamknięciu bloku, a zwrot `concat` daje komunikat fazy `ownership` bez numeru wiersza.
 
-Przed: „Stempel, escape i region_walk. Pytanie, czy konsument jest wystarczająco płytki.”
+Zdania do 5 słów: 0 z 74, czyli 0,00%. Słów w prozie, bez listingów: 1280.
 
-Po: „Oznaczenie regionów, analiza ucieczki i generator kodu idą jednym spacerem. Plik `src/escape.rs` pyta, na jakiej głębokości leżą bajty i czy odbiorca leży nie głębiej niż one.”
+Przed: „Plik `src/escape.rs` pyta, na jakiej głębokości leżą bajty i czy odbiorca leży nie głębiej niż one.”
 
-Przed: „Hoist: dwie linie albo nic. Bajty lądują w arenę celu.”
-
-Po: „Albo dwie sąsiednie linie pasują do wzorca, albo alokacja zostaje w bieżącym regionie. Wyniesienie każe zbudować napis od razu w arenie celu.”
+Po: „Literał jest kładziony w regionie nazwy, która go przyjmuje, a nie w bloku, w którym akurat stoi znak równości.”
 
 ## Rozdział 17. Jak powstaje kod maszynowy
 
-Werdykt: do druku. Kontrola przed generowaniem kodu, moduł, biblioteka wykonawcza i luka z napisem jako argumentem są rozdzielone.
+Werdykt: do druku po przepisaniu od czystej kartki. Kontrola przed emisją, deskryptor `{ ptr, i64 }` i awaria przy napisie przekazanym do funkcji użytkownika są rozdzielone. `None` daje fazę `codegen`, a `26-pass-string.bork` kończy się kodem 101 w `src/codegen/llvm/expr.rs`.
 
-Przed: „Bramka puszcza String jako argument. Emisja panikuje. Płyty w bork_runtime.”
+Zdania do 5 słów: 0 z 77, czyli 0,00%. Słów w prozie, bez listingów: 1253.
 
-Po: „Ta kontrola nie wie o awarii, która powstaje później, gdy argumentem wywołania jest napis. Biblioteka wykonawcza trzyma pulę buforów. Pobranie zdejmuje bufor z listy albo alokuje nowy.”
+Przed: „Symbol `main` jest funkcją `main` w konwencji C. W LLVM ma typ `i32` bez parametrów.”
 
-Przed: „Pula w muteksie schowanym za jednorazową inicjalizacją.”
-
-Po: „Plik `crates/bork_runtime/src/lib.rs` trzyma pulę w muteksie, czyli w blokadzie, którą inicjuje się raz.”
+Po: „Przekazanie napisu do funkcji napisanej przez programistę przechodzi sprawdzenie, przechodzi kontrolę kształtów i wywraca emisję.”
 
 ## Rozdział 18. Komunikaty błędów, polecenia i edytor
 
-Werdykt: do druku. Jedna struktura komunikatu, polecenia, serwer i ograniczenie podpowiedzi są opisane tak, że widać, czego edytor nie pokaże.
+Werdykt: do druku po przepisaniu od czystej kartki. Linia terminala jest rozłożona na pola, a podpowiedź w edytorze ma pokazany prawdziwy tekst dla parametru `x` (`Local` w regionie `fun add`). Różnica bajtów i pozycji protokołu jest opisana bez skrótu z nazwy funkcji w roli podmiotu zdania.
 
-Przed: „Zielony plik może paść na bramkę. Hover: arena, nie typ HIR.”
+Zdania do 5 słów: 0 z 85, czyli 0,00%. Słów w prozie, bez listingów: 1424.
 
-Po: „Plik bez podkreśleń w edytorze może nadal paść przy `bork build`, albo komunikatem kontroli, albo awarią kompilatora. Podpowiedź pod kursorem pokazuje etykietę regionu i własność, a nie typ.”
+Przed: „Plik `src/main.rs` przyjmuje dwie formy. Pierwsza to `bork`, opcjonalnie z `--dump-arenas`, i ścieżka pliku.”
 
-Przed: „Tekst mówi, w jakiej arenę leży nazwa.”
-
-Po: „Tekst w Markdownie mówi, przy jakiej etykiecie regionu leży nazwa, i jaki jest rodzaj własności.”
+Po: „Odpowiedź nie jest typem w sensie reprezentacji pośredniej. Jest zdaniem o regionie i o tym, jak nazwa została sklasyfikowana.”
 
 ## Rozdział 19. Jak czytać repozytorium
 

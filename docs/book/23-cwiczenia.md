@@ -125,7 +125,7 @@ Uruchom `bork build` i powstały proces.
 
 **C7.** Wywraca się `value_as_int`, przez `into_int_value`, wołane z `coerce_value_to_ty` przy emisji wywołania po przejściu `region_walk`. Kontrola przed generowaniem kodu ogląda kształt reprezentacji pośredniej: czy jest `Some`, funkcja na końcu wywołania, niedozwolony operator. Nie pyta, czy argument jest strukturą LLVM. Wywołanie z argumentem napisowym wygląda jak zwykłe wywołanie, więc kontrola milczy.
 
-**C8.** Warstwy to gramatyka, drzewo składni, sprawdzanie typów, analiza własności, jeśli operator rusza nazwy, analiza ucieczki, jeśli rusza bajty, wspólny spacer, jeśli otwiera region, kontrola przed generowaniem kodu, potem emisja i test w `tests/build.rs`. Obowiązkowa przeciw awarii kompilatora jest kontrola, dopóki emisja wyrażeń nie ma gałęzi dla operatora. Inaczej dopasowanie operatora wpadnie w komunikat o braku wsparcia albo, co gorsza, w ścieżkę liczby całkowitej albo zmiennoprzecinkowej i w złe rzutowanie wartości LLVM.
+**C8.** Warstwy z rozdziału 21 idą w tej kolejności. Najpierw jest gramatyka i drzewo składni, potem sprawdzanie typów, potem analiza własności, gdy operator przenosi nazwy albo je współdzieli, potem kontrola czasu życia bajtów i wyniesienie alokacji, gdy operator obchodzi się z napisem albo tablicą, potem wspólne przejście reprezentacji pośredniej i raportu regionów, gdy operator otwiera region, a na końcu kontrola przed generowaniem kodu, emisja i test w `tests/build.rs`. Obowiązkowa, dopóki emisja nie ma gałęzi dla tego operatora, jest właśnie kontrola przed generowaniem kodu. Bez niej dopasowanie wpadnie albo w komunikat o braku wsparcia, albo w ścieżkę liczby i w złe rzutowanie wartości LLVM, czyli w awarię kompilatora zamiast w diagnostykę.
 
 ## Podsumowanie
 

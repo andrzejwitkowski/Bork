@@ -1,78 +1,150 @@
 # Rozdział 14. Jak kompilator sprawdza własność nazw
 
-## Ten rozdział obejmuje
+Liczbę całkowitą wolno przeczytać wiele razy, bo odczyt nic nie zabiera. Napis albo tablica tak się nie zachowują. Ich bajty mają jednego właściciela, i drugi odczyt albo musi być jawnym przeniesieniem, albo, w przypadku niezmiennej nazwy czytanej z zewnętrznego bloku, świadomym współdzieleniem. Gdyby kompilator pominął to rozróżnienie, generator kodu albo skopiowałby deskryptor napisu w dwa miejsca, które oba uważają się za właściciela, albo pozwoliłby użyć nazwy, która już nic nie trzyma.
 
-- czym jest analiza własności i czym różni się od bufora pamięci
-- jak powstaje drzewo regionów dla każdej funkcji
-- według jakiej reguły nazwa jest kopiowana, współdzielona albo musi być przeniesiona
-- jak pętla i warunek zmieniają to, co wolno przenieść
-- czego ta analiza świadomie nie sprawdza
+Ten rozdział obejmuje
 
-## Analiza własności opisuje nazwy, a nie bajty
+- pytanie, na które odpowiada analiza własności, i co psuje się w programie, gdy odpowiedzi brakuje,
+- cztery odpowiedzi, które kompilator może dać o odczycie nazwy, oraz kiedy która obowiązuje,
+- zakaz przenoszenia nazwy z zewnątrz pętli do jej wnętrza,
+- to, jak instrukcja `if` scala ślady przeniesienia z obu gałęzi,
+- miejsce w źródłach, do którego warto zajrzeć po przeczytaniu reguł, a nie zamiast nich.
 
-Analiza własności odpowiada na pytanie, czy daną nazwę wolno w tym miejscu odczytać. W kodzie katalog tej analizy nazywa się `sema`, od angielskiego semantic analysis, czyli analizy znaczenia nazw. Dalej piszę o niej jako o analizie własności. Nie przydziela ona pamięci. Plik `src/arena.rs`, który opisuje bufor o pojemności 4096 bajtów, zaczyna się komentarzem, że ta analiza go nie używa. Zamiast bufora powstaje drzewo. Każdy węzeł drzewa opisuje jeden region: które nazwy w nim powstały i które nazwy z zewnątrz zostały w nim użyte.
+## Po co w ogóle pytać, kto nazwę posiada
 
-Węzeł nazywa się w kodzie `ArenaNode`. Ma numer, etykietę tekstową, listę wiązań, listę obserwacji i listę dzieci. Numer pochodzi z licznika w strukturze `Analyzer` i jest zwykłą liczbą całkowitą bez znaku. Nie ma osobnego typu identyfikatora regionu. Nie ma też wyliczenia rodzaju regionu, choć starsze notatki projektowe o takim wyliczeniu wspominały. Region jest albo zwykły, albo jest blokiem `move`. Różnicę widać po funkcji, która go otwiera. Zwykły region otwiera `open_ordinary`. Blok `move` otwiera `open_move`. Etykieta, na przykład `fun main`, `Block` albo `ForLoop (i)`, jest napisem do wydruku i do komunikatów.
+Pytanie tej fazy brzmi, co wolno zrobić z nazwą w miejscu, w którym tekst jej używa. Wolno ją przeczytać na miejscu, wolno skopiować, wolno współdzielić z bloku, który ją zadeklarował, albo trzeba ją przenieść, a po przeniesieniu już nie wolno jej tknąć. Bez tej odpowiedzi późniejszy kod nie wie, czy odczyt `s` jest nieszkodliwy, czy właśnie oddaje jedyne prawo do bajtów. Sprawdzanie typów tego nie rozstrzyga, bo napis i liczba potrafią mieć poprawny typ w wyrażeniu, które i tak łamie własność.
 
-Korzeń drzewa dla całego programu trzyma struktura `ArenaReport`. Ma ona po jednym korzeniu na funkcję.
+Analiza nie przydziela pamięci i nie woła funkcji wykonawczych. Buduje raport regionów, czyli drzewo, którego korzeniami są funkcje, a dziećmi bloki, pętle i gałęzie warunku. Przy nazwie zapisuje, jak została użyta. Region w tym raporcie nie jest buforem o stałej pojemności. Bufor, jeśli w ogóle powstanie, jest decyzją późniejszą, opisaną w rozdziale 16. Tutaj region jest tylko zakresem, w którym nazwa została zadeklarowana albo odczytana, i etykietą, którą zobaczysz w wydruku, na przykład `fun main` albo `Block`.
 
-## Co pamięta jedno wiązanie
+```mermaid
+flowchart TD
+    odczyt["Odczyt nazwy"] --> przeniesiona{"Nazwa już przeniesiona"}
+    przeniesiona -->|tak| blad["Odmowa: użycie po przeniesieniu"]
+    przeniesiona -->|nie| tenSam{"Ten sam region co deklaracja"}
+    tenSam -->|tak| lokalna["Użycie lokalne"]
+    tenSam -->|nie| kopia{"Typ da się skopiować"}
+    kopia -->|tak| kopiowanie["Kopia"]
+    kopia -->|nie| val{"Nazwa jest val"}
+    val -->|tak| wspolne["Współdzielenie z regionu deklaracji"]
+    val -->|nie| move["Odmowa: trzeba przenieść przez move"]
+```
 
-Wiązanie w środowisku analizy, w kodzie typ `EnvBinding`, pamięta numer regionu, etykietę tego regionu, typ, rodzaj własności, flagę przeniesienia i pochodzenie nazwy. Typ jest albo znany, albo nieznany. Znany typ pochodzi z drzewa składni. Typ nieznany, w kodzie `Unknown`, dostają parametry funkcji dopisanej na końcu wywołania. Analiza własności nie czyta typów, które sprawdzanie typów wyliczyło dla tych parametrów. Pochodzenie nazwy jest albo deklaracją, albo przechwyceniem w bloku `move`.
+Rysunek jest całą polityką odczytu, skróconą do pytań, które naprawdę zmieniają wynik. Kopiują się nienullowalne typy pierwotne, takie jak `i32`, `i64`, `f64` i `bool`. Napis, tablica i typ z pytajnikiem się nie kopiują. Typ, którego ta analiza nie dostała z kolejki typów deklaracji, też nie jest traktowany jak kopia, nawet jeśli sprawdzanie typów w swoim drzewie widzi liczbę. Ten rozjazd dotyczy parametrów funkcji dopisanej na końcu wywołania i wraca w rozdziale 15. W zwykłym `main`, przy deklaracjach z kolejki, oba opisy się zgadzają.
 
-Rodzaj własności, w kodzie typ `Ownership`, ma cztery warianty. `Local` oznacza nazwę powstałą w bieżącym regionie. `Copy` oznacza odczyt wartości, którą wolno skopiować. `Shared` oznacza odczyt nazwy stałej, której nie wolno skopiować, i pamięta etykietę regionu, z którego nazwa pochodzi. `Moved` oznacza, że własność została przeniesiona, i też pamięta etykietę źródła.
+## Cztery odpowiedzi i jeden ślad w wydruku
 
-Wydruk drzewa pomija obserwacje lokalne, żeby nie powtarzać deklaracji. Obserwacje kopiowania, współdzielenia i przeniesienia zostają na wydruku.
+Pytanie, które tu warto rozebrać na przykładzie, brzmi, jak te cztery odpowiedzi wyglądają w programie, a nie w diagramie. Weźmy najpierw odczyt, który jest legalny, bo niezmienny napis z `main` jest tylko czytany w bloku wewnętrznym. To jest plik `10-shared.bork` z zestawu przykładów. Sprawdzenie kończy się kodem 0, a wydruk pokazuje współdzielenie, nie przeniesienie.
 
-## Jak otwiera się region
+**Listing 14.1.** Niezmienny napis czytany w bloku wewnętrznym
 
-Wejście do analizy jednej funkcji nazywa się `analyze_with_decl_tys`. Najpierw zapisuje, czy parametry każdej funkcji są stałe, czy zmienne. Potem woła `open_ordinary` z etykietą złożoną ze słowa `fun` i nazwy funkcji, z ciałem funkcji i z listą parametrów.
+```bork
+fun main() {
+    val s = "x"
+    {
+        println(s)
+    }
+}
+```
 
-Otwarcie regionu, czy zwykłego, czy blokiem `move`, zaczyna się od zdjęcia opakowań. Funkcja `peel_blocks` usuwa bloki, które zawierają tylko jeden wewnętrzny blok, i liczy, ile takich nawiasów zdjęła. Licznik ląduje w polu `compacted_braces`. Dzięki temu zapis `{ { instrukcje } }` nie tworzy dwóch regionów. Potem analiza bierze nowy numer, buduje ramkę regionu i wiąże parametry. Dla bloku `move` dodatkowo przechwytuje nazwy z listy. Przechwycenie przenosi źródło, cieniuje nazwę jako przechwyconą, dopisuje przeniesienie do dziecka, a po zamknięciu regionu oznacza źródło u rodzica jako przeniesione. Następnie analiza schodzi w instrukcje. Na końcu zdejmuje cienie, czyli przywraca nazwy, które były widoczne przed wejściem.
+```text
+Arenas
+└── fun main
+    ├── s [Local]
+    └── Block
+        └── s [Shared ← fun main]
+```
 
-Lista nazw przy `move` jest rozstrzygana w funkcji `resolve_move_captures`. Jeśli programista podał listę, wygrywa ona ze zgadywaniem, także gdy jest pusta. Jeśli listy nie ma, kompilator zbiera nazwy wolne w bloku, odrzuca parametry i zostawia nazwy żywe, których typ nie jest kopiowalny. Wyrażenie `move` i wyrażenie `promote` nie liczą się jako zmienne wolne. Ta różnica jest zapisana w drzewie składni. Brak listy to wartość pusta. Pusta lista to lista podana jawnie. Nie wolno ich spłaszczyć do jednego pustego wektora, bo znaczą co innego.
+`Local` przy deklaracji znaczy, że w swoim regionie nazwa jest zwykłym właścicielem. `Shared` przy odczycie w bloku znaczy, że blok nie przejął bajtów, tylko czyta nazwę zadeklarowaną w `fun main`. `println` jest funkcją wbudowaną i ten odczyt przez współdzielenie przyjmuje. Gdyby `s` było `var`, a nie `val`, ten sam tekst zostałby odrzucony, bo zmienna nazwa, która nie jest kopią, nie wchodzi do obcego regionu bez `move`.
 
-## Reguła jednego odczytu
+**Listing 14.2.** Zmienna nazwa użyta w bloku bez przeniesienia
 
-Decyzja o kopiowaniu, współdzieleniu i przeniesieniu mieści się w funkcji `classify_use` w pliku `src/sema/policy.rs`. Kolejność sprawdzeń jest stała.
+```bork
+fun main() {
+    var s = "hi"
+    {
+        val t = s
+    }
+}
+```
 
-Jeśli wiązanie jest już przeniesione, odczyt jest błędem. Komunikat mówi, że nazwy użyto po przeniesieniu, i podaje etykietę regionu, z którego ją przeniesiono.
+```text
+/tmp/borkch/needmove.bork:4:17: error: ownership: `s` is not Copy; move it into `Block` with `move`
+Arenas
+└── fun main
+    ├── s [Local]
+    └── Block
+        └── t [Local]
+```
 
-Jeśli numer regionu wiązania jest taki sam jak numer bieżącego regionu, odczyt jest lokalny. Nazwa żyje w tym regionie, więc nie przekracza jego granicy.
+Komunikat mówi wprost, co zrobić. Trzeba napisać `val t = move s`, i wtedy własność przechodzi do `t`, a `s` jest od tej pory zużyte. Drugi odczyt `s` po takim przeniesieniu dostaje osobną odmowę, tę o użyciu po przeniesieniu, którą listing 12.2 już pokazał na dodawaniu. Wydruk przy błędzie i tak powstaje, bo tekst się sparsuje. Nie wolno go czytać jako zgody na budowanie. Kod wyjścia jest 1, a reprezentacji pośredniej w wyniku nie ma.
 
-Jeśli typ jest kopiowalny, odczyt jest kopią. Źródło zostaje żywe. Kopiowalne są tylko typy proste, które nie mogą być puste. Mowa o tym była w rozdziale 4.
+Pozostałe odmowy odczytu działają według tego samego rysunku. Użycie nazwy, której nie zadeklarowano, jest błędem własności o nieznanej nazwie. Przeniesienie nazwy, która już została przeniesiona, mówi, skąd poszło pierwsze przeniesienie. Pełna lista komunikatów jest w `classify_use` i w funkcjach obok, w pliku `src/sema/policy.rs`, i nie wnosi nowych pytań ponad te z rysunku.
 
-Jeśli wiązanie jest stałe, odczyt jest współdzieleniem. Region wewnętrzny widzi bajty regionu zewnętrznego, ale ich nie kopiuje i nie unieważnia nazwy.
+> **NOTA.**
+> Słowo region w tym rozdziale znaczy węzeł raportu, a nie bufor wykonawczy o pojemności 4096 bajtów. Ten drugi byt też bywa w kodzie nazywany areną i jest opisany przy bibliotece wykonawczej. Wydruk `--dump-arenas` pokazuje węzły raportu, czyli zakresy nazw, a nie zawartość bufora.
 
-W pozostałych przypadkach odczyt jest błędem. Chodzi o zmienną z regionu zewnętrznego, której nie wolno skopiować. Komunikat każe przenieść nazwę słowem `move` do regionu o bieżącej etykiecie.
+## Dlaczego pętla nie może przejąć nazwy z zewnątrz
 
-Przypisanie do zmiennej z regionu zewnętrznego omija tę regułę po lewej stronie. Jeśli cel jest zmienną, nie został przeniesiony, a jego region ma mniejszy numer niż region bieżący, analiza nie traktuje lewej strony jako odczytu. Prawa strona jest sprawdzana osobno. Dzięki temu zapis `outer = wyrażenie` zmienia istniejącą zmienną, a nie próbuje jej przenieść.
+Pytanie brzmi, co złego jest w przeniesieniu, które w pojedynczym bloku byłoby legalne, gdy to przeniesienie stoi w pętli. Pętla wykonuje ciało wiele razy, więc przeniesienie, które wygląda niewinnie w jednym obrocie, powtórzy się w następnym. Pierwszy obrót oddałby własność, a drugi próbowałby oddać ją jeszcze raz, z nazwy, która już nic nie trzyma. Kompilator nie czeka na drugi obrót w działającym programie. Widzi przeniesienie nazwy zadeklarowanej poza pętlą i odmawia od razu, bo żaden poprawny przebieg wielokrotny nie istnieje.
 
-Krótsze podpowiedzi, gdy programista napisał gołą nazwę tam, gdzie potrzebne jest `move`, buduje funkcja `bare_ident_move_message`. Dla argumentu wywołania tekst każe użyć `move`, żeby przekazać własność. Dla przypisania w tej samej okolicy każe użyć `move`, żeby własność przenieść. Gdy regiony się różnią, zostaje dłuższy tekst o braku kopiowania.
+**Listing 14.3.** Przeniesienie nazwy zewnętrznej w pętli
 
-## Pętla zabrania przenosić to, co było widać na wejściu
+```bork
+fun main() {
+    var s = "hi"
+    for (i in 0..2) {
+        val t = move s
+    }
+}
+```
 
-Przy pętli `for` i przy pętli `while` analiza odkłada na stos zbiór wszystkich nazw widocznych w tej chwili. Zbiór nazywa się w kodzie `loop_move_ban`. Po ciele pętli analiza go zdejmuje. Próba przeniesienia nazwy z tego zbioru kończy się błędem. Komunikat tłumaczy, że kolejna iteracja zobaczyłaby nazwę już przeniesioną. Nazwa utworzona wewnątrz pętli do zbioru nie należy, więc wolno ją przenieść w tej samej iteracji, w której powstała.
+```text
+/tmp/borkch/loopmove.bork:4:22: error: ownership: cannot move `s` inside a loop: it would already be moved on later iterations
+Arenas
+└── fun main
+    ├── s [Local]
+    └── ForLoop (i)
+        ├── i [Local]
+        └── t [Local]
+```
 
-## Warunek scala przeniesienia z obu gałęzi
+`i` jest lokalne w pętli i jest kopią, gdyby je odczytać w zagnieżdżonym bloku, bo zakres liczbowy daje wartości kopiowalne. Zakaz dotyczy `s`, które pochodzi z `main`. To samo tyczy się pętli `while`. Nazwę zadeklarowaną w samym ciele pętli wolno w tym ciele przenosić, bo każdy obrót tworzy ją od nowa. Wydruk powyżej pokazuje `t` jako lokalne właśnie dlatego, że deklaracja stoi w pętli. Odmowa dotyczy źródła przeniesienia, nie celu.
 
-Przy `if` analiza zapamiętuje, które nazwy są przeniesione, schodzi w gałąź prawdziwą, przywraca flagi, schodzi w gałąź `else`, jeśli druga gałąź istnieje, przywraca flagi jeszcze raz i scala wynik funkcją `apply_moved_merge`. Nazwa jest przeniesiona po całym warunku, gdy była przeniesiona już przed nim albo gdy została przeniesiona w obu gałęziach. Sama gałąź prawdziwa, bez `else`, nie zostawia przeniesienia na zewnątrz. Nie ma tu śledzenia, że nazwa jest martwa tylko przy prawdziwym warunku. Albo obie gałęzie ją przenoszą, albo po warunku nazwa jest nadal żywa, o ile żyła wcześniej.
+> **OSTRZEŻENIE.**
+> Zakaz nie zależy od tego, ile razy pętla naprawdę się wykona. Nie obchodzi go warunek, który w praktyce wykonałby się raz, ani `break` po pierwszym przeniesieniu. Analiza nie próbuje udowodnić, że pętla kręci się najwyżej jeden raz, i każdy `move` nazwy z zewnątrz w `for` albo w `while` jest odrzucany.
 
-## Czego ta analiza nie sprawdza
+## Jak warunek scala dwa ślady przeniesienia
 
-Nie sprawdza, czy bajty wyniku `concat` przeżyją powrót z funkcji. To robi analiza ucieczki, opisana w rozdziale 16. Nie nadaje typów parametrom funkcji dopisanej na końcu wywołania i zostawia je jako nieznane. Typ nieznany nie jest kopiowalny. Test `unknown_type_is_not_treated_as_copy` pilnuje tego wyboru. Lepiej dostać zbędny komunikat o braku kopiowania przy programie, który i tak ma błąd typu, niż puścić wartość, która mogłaby uciec z regionu. Skutek uboczny widać w wydruku drzewa. Parametr takiej funkcji, który sprawdzanie typów uznało za liczbę całkowitą, w wydruku potrafi wyglądać jak współdzielenie.
+Pytanie brzmi, co kompilator ma powiedzieć o nazwie po instrukcji `if`, skoro jedna gałąź mogła ją przenieść, a druga nie. Gdyby uznać nazwę za zużytą już po jednej gałęzi, legalny program, w którym druga gałąź nazwę zostawia, też zostałby odrzucony. Gdyby nigdy nie uznawać jej za zużytą, program, który przenosi ją w obu gałęziach, a potem używa za warunkiem, przeszedłby sprawdzenie i zepsuł się dopiero w ruchu. Analiza uznaje nazwę za zużytą dopiero wtedy, gdy nie ma gałęzi, która by ją zachowała. Po `if` z `else` nazwa jest zużyta wtedy, gdy była zużyta już przed warunkiem albo gdy przeniosły ją obie gałęzie.
 
-Indeks pętli `for` jest w tej analizie zwykłą liczbą całkowitą. Nie ma ścieżek wyjątków, bo język ich nie ma. Pole `compacted_braces` liczy zdjęte nawiasy, a nie bajty w buforze.
+Dlatego przeniesienie w obu gałęziach, a potem kolejne przeniesienie za warunkiem, jest odrzucane. W przebiegu poniżej komunikat mówi, że `s` zostało już przeniesione z `fun main`. Plik jest krótki, żeby widać było samą regułę scalania, bez drugiego, niezależnego błędu w gałęzi. Druga gałąź też używa `move`, więc po warunku nie zostaje żadna ścieżka, na której `s` jeszcze żyje.
 
-Słowo `promote` jest obsługiwane przy zejściu w wyrażenie, w funkcji `apply_expr_promote`. W katalogu testów jednostkowych analizy nie ma osobnego pliku o promocji. Zachowanie jest w zejściu i w testach wyższego poziomu, które budują program. Milczenie testów jednostkowych nie znaczy, że promocja jest niezaimplementowana. Program z rozdziału 8, który przypisuje `promote`, daje się zbudować.
+**Listing 14.4.** Przeniesienie w obu gałęziach
 
-Wydruk drzewa nie powstaje w tej analizie. Powstaje w pliku `src/dump.rs`. Serwer edytora używa tej samej funkcji.
+```bork
+fun main() {
+    var s = "hi"
+    if (1 > 0) {
+        val t = move s
+    } else {
+        val u = move s
+    }
+    val v = move s
+}
+```
+
+```text
+/tmp/borkch/ifboth2.bork:8:18: error: ownership: cannot move `s`: already moved from fun main
+```
+
+Przeniesienie tylko w jednej gałęzi, przy nieszkodliwej drugiej, nie zostawia nazwy zużytej za warunkiem, i kolejne `move` po takim `if` przechodzi sprawdzenie. Instrukcja `if` bez `else` jest jeszcze ostrożniejsza w drugą stronę. Ślad przeniesienia z samej gałęzi nie jest przenoszony do kodu za warunkiem, więc nazwa po jednostronnym `if` zostaje w stanie sprzed tej instrukcji. To jest reguła scalania, a nie pozwolenie, żeby w gałęzi użyć nazwy już wcześniej przeniesionej. Jeśli nazwa była zużyta, zanim warunek się zaczął, po warunku też jest zużyta.
+
+Na końcu zostaje mapa do kodu, już po regułach, a nie zamiast nich. Wejście analizy to `analyze_with_decl_tys` w `src/sema/analyze.rs`, wołane z `check` po sprawdzeniu typów, bo potrzebuje kolejki typów deklaracji. Cztery odpowiedzi o odczycie liczy `classify_use` w `src/sema/policy.rs`. Scalanie śladu po `if` jest w `apply_moved_merge` w `src/sema/env.rs`. Zagnieżdżony blok, w którym jedyną instrukcją jest kolejny blok, jest spłaszczany przez `peel_blocks` w `src/sema/mod.rs`, żeby puste owinięcie klamrami nie tworzyło osobnego regionu. Wydruk, który widziałeś w listingach, składa `src/dump.rs`.
 
 ## Podsumowanie
 
-- Analiza własności buduje drzewo regionów i flagi przeniesienia. Nie przydziela buforów o pojemności 4096 bajtów.
-- Funkcja `classify_use` jest definicją kopiowania, współdzielenia i przeniesienia.
-- Brak listy przy `move` oznacza zgadywanie. Pusta lista oznacza rezygnację ze zgadywania.
-- Pętla zabrania przenosić nazwy widoczne na wejściu. Warunek zostawia przeniesienie tylko wtedy, gdy zrobiły je obie gałęzie.
-- Analiza ucieczki i wyniesienie alokacji są później i nie leżą w tym katalogu.
-- Parametry funkcji dopisanej na końcu wywołania mają tu typ nieznany, więc wydruk drzewa potrafi pokazać współdzielenie tam, gdzie sprawdzanie typów widzi kopię.
+- Analiza własności odpowiada, czy odczyt nazwy jest lokalny, jest kopią, jest współdzieleniem, czy wymaga przeniesienia, bo bez tego generator nie wie, kto trzyma bajty napisu.
+- Kopiują się nienullowalne typy pierwotne, a napis, tablica i typ z pytajnikiem wymagają albo współdzielenia niezmiennej nazwy, albo jawnego `move`.
+- Po przeniesieniu nazwy drugi odczyt jest odrzucany, a przeniesienie nazwy zadeklarowanej poza pętlą jest odrzucane od razu, bo kolejny obrót nie miałby już czego przenieść.
+- Po `if` z `else` nazwa jest zużyta za warunkiem tylko wtedy, gdy przeniosły ją obie gałęzie albo była zużyta już wcześniej, a samo `if` bez `else` nie wynosi śladu przeniesienia na zewnątrz.
+- Raport regionów opisuje zakresy nazw i zostaje także przy błędzie, natomiast nie jest buforem pamięci i nie zastępuje decyzji z rozdziału 16 o tym, gdzie napis fizycznie powstanie.

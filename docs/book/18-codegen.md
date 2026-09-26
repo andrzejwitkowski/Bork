@@ -1,82 +1,89 @@
 # Rozdział 17. Jak powstaje kod maszynowy
 
-## Ten rozdział obejmuje
+Czyste sprawdzenie mówi tylko tyle, że program jest do przyjęcia jako tekst Borka. Nie jest jeszcze plikiem, który da się uruchomić. Między jednym a drugim stoi tłumaczenie na kod maszynowy, i to tłumaczenie ma własne odmowy, bo generator nie umie każdej konstrukcji, którą wcześniejsze fazy już opisują. Gdyby puścić je wszystkie do emisji, część skończyłaby się czytelnym komunikatem, a część awarią procesu kompilatora, ze śladem stosu Rusta zamiast wskazania na Twój plik.
 
-- co kontrola przed generowaniem kodu przepuszcza, a co odrzuca komunikatem
-- jak wygląda moduł LLVM i jak nazywają się funkcje
-- jak emisja traktuje liczby, napisy, tablice i regiony
-- jakie funkcje ma biblioteka wykonawcza i jak program jest z nią konsolidowany
-- które programy przechodzą kontrolę, a potem wywracają kompilator
+Ten rozdział obejmuje
 
-## Kontrola przed generowaniem kodu odrzuca konstrukcje, których emisja nie zna
+- pytanie, co jeszcze musi się udać po czystym sprawdzeniu, zanim powstanie plik wykonywalny,
+- kontrolę, która odrzuca kształty nieobsłużone przez emisję, zanim ta emisja w ogóle ruszy,
+- sposób, w jaki napis jest reprezentowany w kodzie pośrednim, i z czym ten kod jest łączony,
+- awarię, która dziś zastępuje komunikat przy przekazaniu napisu do funkcji napisanej przez programistę,
+- program z rozdziału 12 doprowadzony aż do uruchomienia.
 
-Zanim powstanie moduł LLVM, funkcja `gate` w pliku `src/codegen/gate.rs` schodzi po reprezentacji pośredniej i zbiera komunikaty fazy `codegen`. Nie próbuje przetłumaczyć programu częściowo. Pierwsze trafienie zostaje komunikatem. Reszta konstrukcji i tak jest odwiedzana, więc jeden plik może dostać kilka komunikatów o braku wsparcia.
+## Po co osobna kontrola tuż przed emisją
 
-Bez własnego komunikatu tej kontroli przechodzą literały, nazwy, tablice, indeks, wycinek, arytmetyka całkowita, porównania liczb całkowitych, koniunkcja, alternatywa, zakres, negacja, wywołanie bez funkcji dopisanej na końcu, warunek oraz pole `length` na typie trzymanym w arenie.
+Pytanie tej fazy brzmi, czy czystą reprezentację pośrednią da się przetłumaczyć na kod, który ten kompilator naprawdę umie wyemitować. Sprawdzanie typów odpowiada, czy program ma sens w języku. Nie odpowiada, czy dana konstrukcja ma już ścieżkę w generatorze. Wartość `None`, operator `?:`, funkcja dopisana na końcu wywołania albo zwrot `i64` z `main` są w języku opisane i przez sprawdzenie przechodzą. Emisja tych konstrukcji na razie nie tłumaczy. Bez kontroli przed generowaniem kodu taki plik wszedłby w dopasowanie, które albo skarży się za późno, albo bierze wartość za liczbę i rzutuje ją źle.
 
-Odrzucane są między innymi funkcja dopisana na końcu wywołania, słowa `None` i `Some`, operator `?:`, wykrzykniki `!!` oraz pole inne niż `length`. Dokładne teksty są w rozdziale 10. Ta kontrola nie wie o awarii, która powstaje później, gdy argumentem wywołania jest napis. Taki program przechodzi kontrolę i wywraca się w emisji. Plik `TODO.md` prosi, żeby kontrola była zsynchronizowana z tym, co emisja umie, albo żeby istniał test mówiący, które programy poprawne dla sprawdzania są świadomie odrzucane. Listy dla napisu przekazanego do funkcji użytkownika nie ma.
+Kontrola ogląda kształt drzewa, nie bajty. Szuka między innymi braku funkcji `main`, niedozwolonego wyniku `main`, wartości `None` i `Some`, operatora `?:`, dostępu do pola, wykrzykników `!!` oraz funkcji dopisanej na końcu wywołania. Gdy coś znajdzie, dostajesz komunikat fazy `codegen` i kod wyjścia 1, bez pliku wynikowego. Pozostałe odmowy tej kontroli, na przykład nieobsłużony operator dwuargumentowy, działają tak samo. Pełna lista kształtów jest w funkcji `gate` w pliku `src/codegen/gate.rs`.
 
-## Moduł wymaga funkcji main i deklaruje pozostałe funkcje wcześniej
+**Listing 17.1.** Wartość `None`, którą sprawdzenie przyjmuje, a budowanie odrzuca
 
-Funkcja `emit_module` w `src/codegen/llvm/mod.rs` wymaga funkcji o nazwie `main`. Potem tworzy moduł LLVM o nazwie `bork` i budowniczego instrukcji. Deklaruje każdą funkcję z reprezentacji pośredniej, zanim wyemituje którekolwiek ciało. Dzięki temu wywołanie funkcji zdefiniowanej niżej w pliku ma już symbol. Następnie emiter regionów dostaje drzewo regionów i deklaracje wywołań biblioteki wykonawczej. Potem emitowane są ciała. Na końcu emiter regionów kończy pracę, a moduł jest weryfikowany.
+```bork
+fun main(): i32 {
+    val n: i32? = None
+    return 0
+}
+```
 
-Symbol `main` jest funkcją `main` w konwencji C. W LLVM ma typ `i32` bez parametrów. Wynik `unit` i tak zwraca stałe zero. Inna funkcja nazywa się `bork.` z dopisaną nazwą z programu i ma powiązanie wewnętrzne. Nie jest eksportowana.
+```text
+/tmp/borkch/none.bork:2:19: error: codegen: `None` is not supported by codegen
+```
 
-Funkcja `main`, która zwraca coś poza `i32` i `unit`, odpada komunikatem, że taki wynik nie jest jeszcze obsługiwany przez generowanie kodu. Sprawdziłem to dla `i64`, `f64` i `bool`. Parametry funkcji `main` są odrzucane już przy deklaracji.
+Sam `bork` na tym pliku, bez słowa `build`, kończy się kodem 0, bo typy i własność są w porządku. Odmowa pojawia się dopiero przy budowaniu. To samo dotyczy pliku `24-main-i64.bork`, który jest w zestawie przykładów. Sprawdzenie przechodzi, a budowanie mówi `` `main` returning `i64` is not supported by codegen yet ``. Plik bez funkcji `main` w ogóle, `25-no-main.bork`, pada komunikatem `` `fun main` is required to build an executable ``. Ograniczenie wyniku dotyczy właśnie `main`, które w kodzie maszynowym jest funkcją `main` z C i ma zwracać `i32`. Funkcja pomocnicza może liczyć na `i64`. `main` zadeklarowane bez typu wyniku jest zamieniane na `i32` równe zero.
 
-## Liczby, napisy i miejsce przeznaczenia
+```mermaid
+flowchart TD
+    czyste["Czysta reprezentacja pośrednia i raport regionów"] --> kontrola["Kontrola kształtów, których emisja nie tłumaczy"]
+    kontrola -->|odmowa| stop["Komunikat fazy codegen i kod 1"]
+    kontrola -->|zgodna| llvm["Zapis pośredni LLVM"]
+    llvm --> obiekt["Plik obiektowy"]
+    obiekt --> clang["clang i biblioteka wykonawcza"]
+    clang --> bin["Plik wykonywalny"]
+```
 
-Liczba całkowita jest wartością LLVM o odpowiadającej szerokości. Wartość `bool` jest liczbą całkowitą. Liczba zmiennoprzecinkowa, tam gdzie emisja w ogóle dojdzie do instrukcji arytmetycznej, używa operacji zmiennoprzecinkowych LLVM. Dodawanie `f32` po przejściu `region_walk` zwraca błąd: wewnętrzna niezgodność harmonogramu, a w treści informacja, że dodawanie zmiennoprzecinkowe po tym przejściu nie jest jeszcze obsługiwane. Porównanie `f64` wpada w funkcję, która oczekuje liczby całkowitej, i kompilator kończy się awarią. Arytmetyka `i64` w funkcji pomocniczej, porównana potem w `main`, działa. Program z odejmowaniem dwóch wartości `i64` i progiem w warunku kończy się kodem 7. Ograniczenie liczb zmiennoprzecinkowych nie jest ograniczeniem szerokich liczb całkowitych.
+Rysunek stawia kontrolę przed zapisem pośrednim celowo. Zapis pośredni powstaje dopiero dla programu, który kontrola przepuściła, a plik obiektowy powstaje z tego zapisu przez maszynę docelową LLVM. Na końcu `clang` łączy plik obiektowy z biblioteką `libbork_runtime.a`. Bez tej biblioteki wygenerowany kod nie miałby bufora regionu, wypisywania ani sprawdzeń, które przerywają proces przy dzieleniu przez zero i przy indeksie poza tablicą.
 
-Napis i tablica są strukturą z wskaźnika i długości typu `i64`. Literał napisu jest prywatną stałą globalną, a w wartości ląduje stały deskryptor. Pole `length` w języku ma typ `i32`. W deskryptorze długość jest typu `i64`.
+> **NOTA.**
+> Dodawanie i porównywanie liczb zmiennoprzecinkowych przechodzi sprawdzenie typów, a przy budowaniu pada inaczej niż `None`. Komunikat mówi o wewnętrznej niezgodności harmonogramu regionów i o tym, że operator zmiennoprzecinkowy nie jest jeszcze obsługiwany po przejściu regionów. To wciąż odmowa fazy `codegen`, tylko zgłoszona już w czasie emisji, nie w kontroli kształtów.
 
-Lokalny slot to alokacja na stosie funkcji, instrukcja `alloca`, w bloku wejścia. Dla typu trzymanego w arenie slot pamięta identyfikator regionu, w którym bajty powinny żyć. Na czas emisji wyniku przypisania, powrotu i wywołania `concat` emiter ustawia miejsce przeznaczenia alokacji. Na czas argumentów to miejsce czyści. Dzięki temu bajty wyniku idą do areny odbiorcy, a podwyrażenia nie alokują się wszystkie w tym samym miejscu. Rozdział 9 opisał tę regułę od strony języka.
+## Jak napis wygląda w kodzie pośrednim
 
-Przeniesienie i promocja deskryptora wołają kopiowanie do areny celu. Dla tablicy jest osobna funkcja kopiująca. Wyniesienie alokacji sprawia, że kopii czasem nie trzeba, bo bajty już powstały we właściwej arenie. Osobnego przejścia, które usuwałoby zbędne kopiowanie pamięci, nie ma. Model pamięci wymienia je jako rzecz do zrobienia.
+Pytanie brzmi, co generator właściwie emituje dla napisu, skoro w Borku napis nie jest liczbą. W zapisie pośrednim LLVM napis i wycinek tablicy są strukturą z dwóch pól. Pierwsze jest wskaźnikiem na bajty, drugie jest długością typu `i64`. Nie ma na końcu bajtu zerowego, bo długość jest osobno, i właśnie ten opis widzi biblioteka wykonawcza, gdy wypisuje napis. Liczby całkowite i logiczne zostają liczbami LLVM, bez takiej struktury. Dzięki temu kopiowanie liczby jest kopiowaniem wartości, a kopiowanie napisu, tam gdzie analiza na to pozwala, jest kopiowaniem dwóch pól, nie treści.
 
-## Regiony w wygenerowanym kodzie są stosem uchwytów
+Funkcje inne niż `main` dostają w module nazwy z przedrostkiem `bork.`, żeby nie zderzyły się z nazwami z biblioteki C. Funkcja `main` zostaje w module pod zwykłą nazwą `main`, bez przedrostka. Wejście do regionu, wyjście z niego, czyszczenie bufora i alokacja w buforze są wywołaniami biblioteki wykonawczej, odpowiednio `bork_arena_push`, `bork_arena_pop`, `bork_arena_reset` i `bork_arena_alloc`. Wypisanie liczby i napisu idzie przez `bork_println_i64` oraz `bork_println_str`. Pojemność jednego bufora to 4096 bajtów i ta stała żyje w bibliotece, czyli w procesie uruchomionego programu, a nie w analizie własności. Pozostałe symbole biblioteki są wołane analogicznie, gdy emisja potrzebuje dzielenia z kontrolą zera albo odczytu tablicy z kontrolą indeksu. Ich deklaracje są przy emisji w `src/codegen/llvm/context.rs`, a ciała w `crates/bork_runtime/src/lib.rs`.
 
-Emiter regionów tłumaczy wejście, czyszczenie i wyjście na wywołania biblioteki wykonawczej. Wejście woła `bork_arena_push` i kładzie uchwyt na stos. Czyszczenie woła `bork_arena_reset`: wskaźnik w buforze wraca do zera, a bufor zostaje. Wyjście woła `bork_arena_pop` i zwraca bufor do puli. Na martwym punkcie wstawienia, na przykład po instrukcji powrotu, czyszczenie i zdjęcie są pomijane.
+Weźmy znowu program z listingu 12.1, ten z pętlą i etykietą `sum`. Budowanie tego pliku kończy się kodem 0. Uruchomiony plik wypisuje `sum` i kończy się kodem 3, bo dodaje 0, 1 i 2. Po drodze generator widzi kopię liczby `total` w pętli i współdzielenie napisu `label` w bloku, czyli dokładnie to, co wydruk regionów pokazał w rozdziale 12, i tłumaczy to na odczyt liczby oraz na wypisanie dwóch pól deskryptora. Nie ma tu `None`, nie ma zwrotu innego niż `i32` i nie ma przekazania napisu do funkcji napisanej obok `println`, więc kontrola i emisja mają ścieżkę, którą umieją dojść do końca.
 
-Powrót z funkcji zdejmuje uchwyty, które funkcja jeszcze trzyma. Historia poprawek w repozytorium dotyczyła podwójnego zdjęcia albo zostawienia uchwytu. Testy generowania kodu liczą pary wejść i wyjść. Gdy ruszasz instrukcję `return`, uruchom te testy, nie tylko gotową binarkę.
+> **WSKAZÓWKA.**
+> Gdy `bork plik.bork` milczy, a `bork build` wypisuje fazę `codegen`, nie szukaj błędu typu. Szukaj konstrukcji, której emisja jeszcze nie tłumaczy, albo braku `main` w kształcie, którego generator oczekuje. Poprawka typu nic tu nie zmieni, dopóki kształt zostaje ten sam.
 
-Alokacja użytkowa to `bork_arena_alloc`. Bierze uchwyt, rozmiar i wyrównanie. Wyrównanie musi być potęgą dwójki. Biblioteka wykonawcza przerywa program, gdy koniec alokacji przekroczy 4096 bajtów.
+## Gdzie kompilator sam się wywraca
 
-## Co emisja naprawdę tłumaczy
+Pytanie, które zostaje po kontrolach, brzmi, czy każda nieobsłużona wartość kończy się komunikatem, czy któraś wywraca sam kompilator. Przekazanie napisu do funkcji napisanej przez programistę jest właśnie takim wyjątkiem. Przechodzi ono sprawdzenie, przechodzi kontrolę kształtów i wywraca emisję. Kontrola widzi zwykłe wywołanie, bo nie pyta, czy argument jest strukturą LLVM. Emisja próbuje potraktować ten argument jak liczbę, a dostaje strukturę `{ ptr, i64 }`, i proces kompilatora kończy się awarią.
 
-Tłumaczenie wyrażeń jest w plikach `src/codegen/llvm/expr.rs` oraz `src/codegen/llvm/array/emit.rs`. Następujące zachowania zostały sprawdzone zbudowanym programem.
+**Listing 17.2.** Napis przekazany do funkcji użytkownika
 
-Arytmetyka `i32` i `i64` oraz porównania liczb całkowitych działają. Dzielenie ma strażnika, który woła `abort`, gdy dzielnik jest zerem, a także przy skrajnym przypadku minimalnej liczby całkowitej dzielonej przez minus jeden. Warunek jest albo wartością scaloną z dwóch gałęzi, albo sterowaniem ze skokiem. Pętle `for` i `while` obsługują `break` i `continue`. Koniunkcja i alternatywa zwierają się. `println` i `print` wypisują liczby, literały napisowe i napisy lokalne w `main`. `concat` dwóch napisów, które da się załadować jako struktury w `main`, buduje jeden bufor w miejscu przeznaczenia i kopiuje do niego oba argumenty. Nie ma osobnej areny tymczasowej na czas zwykłego wywołania. Literał tablicy, indeks ze strażnikiem, wycinek jako przesunięcie wskaźnika plus nowy deskryptor oraz pole `length` działają. Przypisanie elementu tablicy, w tym elementu napisowego przez `move` w `main`, też działa.
+```bork
+fun f(var a: String) {
+    println(a)
+}
 
-Wywołanie funkcji użytkownika idzie albo przez emisję, która najpierw liczy argumenty, albo przez ścieżkę po przejściu `region_walk`, która dostaje gotowe wartości. Ta druga ścieżka woła `coerce_value_to_ty`. Dla `bool` zwęża wartość do liczby całkowitej, dla liczby zmiennoprzecinkowej zwraca błąd, że argument wywołania po tym przejściu nie jest obsługiwany, a dla reszty woła `value_as_int`. Ta funkcja zakłada, że wartość LLVM jest liczbą całkowitą, i woła `into_int_value` bez sprawdzenia wariantu, więc struktura napisu powoduje awarię kompilatora. W tej rewizji jest to linia 901 w `src/codegen/llvm/expr.rs`. Ślad biblioteki Inkwell nie jest kontraktem języka, tylko objawem tej luki.
+fun main() {
+    f("hello")
+}
+```
 
-Wywołanie, którego wywoływaną rzeczą nie jest nazwa, daje komunikat, że wywołania pośrednie nie są jeszcze obsługiwane, o ile ścieżka w ogóle tam wejdzie. Funkcja dopisana na końcu wywołania zwykle odpada wcześniej, w kontroli przed generowaniem kodu.
+Budowanie tego pliku, `26-pass-string.bork`, nie daje linii `error: codegen`. Proces kompilatora kończy się kodem 101. Miejsce w źródłach to `src/codegen/llvm/expr.rs`, okolice wywołania, które oczekuje wartości całkowitej, a dostaje strukturę. W przebiegu, z którego pochodzi ten opis, komunikat panic wskazuje wiersz 901 tego pliku i mówi, że znaleziona wartość jest strukturą, a oczekiwano wariantu całkowitego. To jest błąd kompilatora, nie reguła języka, i `println` oraz `concat` tej ścieżki nie biorą, bo są obsłużone osobno, bez rzutowania argumentu na liczbę.
 
-## Biblioteka wykonawcza trzyma pulę buforów
+> **OSTRZEŻENIE.**
+> Awaria z kodem 101 nie jest diagnostyką, którą edytor umie pokazać jako błąd w pliku. Dopóki emisja wywołania nie rozróżnia liczby od deskryptora napisu, taki program trzeba rozpoznać po śladzie, a nie po fazie `codegen`. Funkcje wbudowane są bezpieczną drogą wypisania napisu. Funkcja z parametrem typu `String` dziś nią nie jest.
 
-Plik `crates/bork_runtime/src/lib.rs` trzyma pulę w muteksie, czyli w blokadzie, którą inicjuje się raz. Pobranie zdejmuje bufor z wektora albo alokuje nowy. Zwrot czyści wskaźnik i odkłada bufor. Regiony żywe w tym samym czasie dostają różne bufory. Regiony sąsiednie w czasie mogą dostać ten sam.
-
-Funkcje widoczne z C są następujące. `bork_arena_push` zwraca wskaźnik na bufor z puli. `bork_arena_reset` zeruje przesunięcie i zostawia bufor. `bork_arena_pop` zwraca bufor do puli. `bork_arena_alloc` przesuwa wskaźnik i zwraca adres. `bork_print_i64` i `bork_println_i64` piszą liczbę na standardowe wyjście i opróżniają bufor. `bork_print_str` i `bork_println_str` piszą napis podany wskaźnikiem i długością.
-
-Nie ma symbolu `bork_abort`. Generator kodu deklaruje `abort` z biblioteki C.
-
-Testy biblioteki wykonawczej sprawdzają wyrównanie i przepełnienie. Są w tym samym pliku, pod warunkiem kompilacji testów, i wchodzą w `cargo test --workspace` nawet bez opcji `codegen` kompilatora. Archiwum do konsolidacji powstaje dopiero przy tej opcji, w pliku `build.rs`.
-
-## Konsolidacja używa clang i statycznego archiwum
-
-Plik `src/codegen/link.rs` woła `clang`. W uproszczeniu polecenie łączy plik obiektowy z archiwum `libbork_runtime.a` oraz z bibliotekami `gcc_s`, `util`, `rt`, `pthread`, `m` i `dl`. Ścieżka archiwum pochodzi ze zmiennej środowiskowej `BORK_RUNTIME_LIB` albo z wartości wkompilowanej pod tą samą nazwą. Plik `build.rs` ustawia ścieżkę wyszukiwania bibliotek na katalog, w którym leży sama binarka `bork`, żeby `libLLVM` mogło leżeć obok niej. Skrypt `scripts/bundle-llvm.sh` kopiuje używany plik `libLLVM`.
-
-Maszyna, która tylko uruchamia skompilowany program w Borku, nie potrzebuje LLVM. Maszyna, która uruchamia `bork build`, potrzebuje `clang`. Jeśli biblioteka LLVM nie została spakowana obok binarki, potrzebuje też instalacji LLVM 23.
-
-## Co zostało uruchomione przy pisaniu tej książki
-
-Kompilator złożony z opcją `codegen`, na LLVM 23.1.2, zbudował i uruchomił między innymi zwrot 42 z dodawania, sumę pętli równą 10, pętlę `while` z `break` o wyniku 3, pętlę z `continue` o sumie 8, wypisanie `hi`, współdzielenie napisu, przeniesienie napisu dające `ab`, konkatenację dającą `LR`, promocję dającą `temp`, przypisanie napisu, sekwencje ucieczki, dzielenie `8/2` z kodem 4, tablicę z wycinkiem i kodem 12, wycinek drukujący `20` i `2`, indeks poza zakresem oraz dzielenie przez zero jako przerwanie procesu, a także brak funkcji `main` jako komunikat. Wyniki są powtórzone w `docs/book/przyklady/WYNIKI.md`.
+Na końcu zostaje mapa do kodu. Kontrola kształtów jest w `gate` w `src/codegen/gate.rs`. Złożenie modułu LLVM, łącznie z wymaganiem `main`, jest w `emit_module` w `src/codegen/llvm/mod.rs`. Reguła, że `main` zwraca `i32`, jest w `declare_function` w `src/codegen/llvm/emit_fn.rs`. Deskryptor `{ ptr, i64 }` jest budowany w `src/codegen/llvm/context.rs`. Rzutowanie, które przy napisie w argumencie funkcji użytkownika oczekuje liczby, jest w `src/codegen/llvm/expr.rs`.
 
 ## Podsumowanie
 
-- Kontrola przed generowaniem kodu odcina wartości puste, operator `?:`, wykrzykniki `!!` i funkcję dopisaną na końcu wywołania zwykłym komunikatem.
-- Nie odcina napisu jako argumentu funkcji użytkownika. Emisja wtedy kończy się awarią kompilatora.
-- `main` to funkcja `main` w konwencji C, zwracająca `i32`. Pozostałe funkcje nazywają się `bork` z kropką i nazwą.
-- Regiony w LLVM to stos uchwytów do biblioteki wykonawczej. Pętla czyści bufor, a nie oddaje go do puli przy każdym obrocie.
-- Napis i tablica to struktura ze wskaźnika i długości. Literał napisu leży w stałej globalnej.
-- Program jest konsolidowany przez `clang` ze statyczną biblioteką wykonawczą. Sam kompilator ładuje `libLLVM` w wersji 23.
+- Plik wykonywalny powstaje tylko z czystej reprezentacji pośredniej, i tylko wtedy, gdy kontrola przed emisją nie odrzuci kształtu, którego generator jeszcze nie tłumaczy.
+- Wartość `None`, zwrot `i64` z `main` i brak `main` przechodzą sprawdzenie, a padają przy budowaniu komunikatem fazy `codegen`, bez pliku wynikowego.
+- Napis w kodzie pośrednim jest parą wskaźnika i długości, a `clang` łączy wynik z biblioteką wykonawczą, która daje bufor regionu, wypisywanie i sprawdzenia indeksu oraz dzielenia.
+- Dodawanie i porównywanie liczb zmiennoprzecinkowych jest odrzucane dopiero przy emisji, komunikatem o nieobsłużonym operatorze po przejściu regionów, mimo że typy były poprawne.
+- Przekazanie napisu do funkcji napisanej przez programistę nie daje komunikatu, tylko awarię procesu kompilatora z kodem 101, bo emisja bierze deskryptor za liczbę.
