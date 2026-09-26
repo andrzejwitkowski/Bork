@@ -1,24 +1,18 @@
-# Rozdział 5. Funkcje, wywołania i domknięcia
+# Rozdział 5. Funkcje, parametry i wywołania
 
 ## Ten rozdział obejmuje
 
-- Deklarację `fun`, parametry `val`/`var`, typ wyniku
-- Wywołania, trailing closure i trzy formy `move` przy domknięciu
-- Wbudowane `print`, `println`, `concat` — i zakaz ich przesłaniania
-- Co codegen naprawdę umie wywołać
-- Panicę przy przekazaniu `String` do funkcji użytkownika
+- jak zadeklarować funkcję, parametr i typ wyniku
+- kiedy przy argumentie trzeba napisać `move`
+- co robią trzy funkcje wbudowane
+- jak dopisać funkcję na końcu wywołania
+- dlaczego napis przekazany do własnej funkcji wywraca budowanie
 
 ## Kształt funkcji
 
-```text
-fun nazwa(parametry): TypWyniku { ciało }
-```
+Funkcję zapisuje się jako `fun nazwa(parametry): TypWyniku`, a potem blok ciała. Pominięty typ wyniku oznacza typ pusty `unit`, a nie nazwę `Unit`. Parametr ma jedną z trzech postaci: `nazwa: Typ`, `val nazwa: Typ` albo `var nazwa: Typ`. Postać bez słowa jest stała, tak jak `val`.
 
-Pominięty typ wyniku to `unit`, nie nazwa `Unit`. Parametr to
-`nazwa: Typ`, `val nazwa: Typ` albo `var nazwa: Typ`. Goła forma jest
-`val`.
-
-**Listing 5.1.** Oba rodzaje parametrów. Uruchomione checker; HIR ma `Val` i `Var`, wynik `i32`.
+**Listing 5.1.** Dwa rodzaje parametrów. Sprawdzenie przechodzi. W reprezentacji pośredniej pierwszy parametr jest stały, drugi zmienny, a wynik ma typ `i32`.
 
 ```bork
 fun add(val a: Int, var b: Int): Int {
@@ -26,44 +20,37 @@ fun add(val a: Int, var b: Int): Int {
 }
 ```
 
-`var` na parametrze znaczy: wołający, który przekazuje wiązanie nie-Copy,
-musi je oddać (`move`). Dla `i32` różnica nie boli, bo `i32` jest Copy.
-Dla `String` boli i jest sprawdzana.
+Słowo `var` przy parametrze znaczy, że wywołujący, który przekazuje wartość niekopiowaną, musi ją oddać słowem `move`. Dla `i32` różnica nie boli, bo liczba jest kopiowana. Dla napisu różnica jest sprawdzana.
 
-Ciało jest blokiem. Ostatnie wyrażenie **nie** jest niejawnym wynikiem
-funkcji. Wynik idzie przez `return`. Typeck wymaga, żeby każda ścieżka
-funkcji o wyniku innym niż `unit` wykonała `return`.
+Ciało funkcji jest blokiem. Ostatnie wyrażenie w bloku nie staje się samo wynikiem funkcji. Wynik przekazuje się słowem `return`. Jeśli funkcja deklaruje wynik inny niż `unit`, każda ścieżka musi wykonać `return`.
 
-**Listing 5.2.** Uruchomione.
+**Listing 5.2.** Funkcja z zadeklarowanym wynikiem, która do niego nie wraca.
+
+```bork
+fun f(): i32 {
+    val n = 1
+}
+
+fun main(): i32 {
+    return f()
+}
+```
+
+Komunikat nie ma numeru linii, bo błąd dotyczy całej funkcji:
 
 ```text
 missing_ret.bork: error: type: function must return a value of type i32 on all paths
 ```
 
-dla funkcji, która ma tylko `val n = 1`.
+Samotne `return` bez wartości ma typ `unit`. W funkcji o wyniku `i32` dostaniesz informację, że pusty powrót ma typ `unit`, a oczekiwano `i32`. `return` z wartością sprawdza zgodność z zadeklarowanym wynikiem.
 
-`return` bez wartości ma typ `unit`. W funkcji `i32` dostaniesz
-`empty return has type unit, expected i32`. `return` z wartością sprawdza
-zgodność z zadeklarowanym wynikiem.
-
-Nie ma rekurencji wzajemnej opisanej osobno: funkcje są w jednej mapie
-`fun_sigs` po nazwie, więc wołanie wstecz działa o tyle, o ile typeck
-widzi sygnaturę zebraną z całego programu przed ciałami. Nie ma przeciążeń.
-Dwie funkcje o tej samej nazwie nie są modelem, który książka może obiecać;
-mapa jest `HashMap` po gołej nazwie i komentarz w `sema/env.rs` mówi wprost:
-„MVP: keyed by bare function name (no local shadowing of callees yet)”.
+Nie ma przeciążania. Nazwy funkcji są trzymane w mapie po samym identyfikatorze. Komentarz w `src/sema/env.rs` mówi wprost, że to jest uproszczenie obecnej wersji i że lokalne przesłonięcie wywoływanej funkcji nie jest obsłużone. Wywołanie funkcji zdefiniowanej niżej w pliku działa, bo sygnatury są zbierane z całego programu, zanim sprawdzane są ciała.
 
 ## Własność na granicy wywołania
 
-Macierz, którą sema egzekwuje dla typu nie-Copy:
+Dla wartości, która nie jest kopiowana, analiza własności stosuje prostą tabelę. Stałą nazwę wolno przekazać do parametru stałego. Przekazanie jej do parametru zmiennego wymaga `move`. Zmienną nazwę trzeba przenieść zarówno do parametru stałego, jak i do zmiennego. Literał, wywołanie `concat` i inne wyrażenie, które dopiero tworzy wartość, nie wymaga `move`.
 
-| Źródło | Parametr `val` | Parametr `var` |
-|---|---|---|
-| `val` nazwa | użycie w miejscu (Shared, jeśli region na to pozwala) | trzeba `move` |
-| `var` nazwa | trzeba `move` | trzeba `move` |
-| literał, `concat(...)`, inne świeże wyrażenie | bez `move` | bez `move` |
-
-**Listing 5.3.** Świeży literał do `var`. Checker: tak. `bork build`: panic kompilatora w `value_as_int`.
+**Listing 5.3.** Literał napisu przekazany do parametru zmiennego. Sprawdzenie przechodzi. Budowanie przerywa kompilator.
 
 ```bork
 fun f(var a: String) {
@@ -75,24 +62,11 @@ fun main() {
 }
 ```
 
-To jest zgodne z regułą frontendu (świeże wyrażenie nie wymaga `move`) i
-niezgodne z tym, co backend umie obniżyć. Panic, sprawdzony:
+Brak słowa `move` jest zgodny z regułą sprawdzania. Świeży literał nie jest nazwą, którą trzeba przenieść. Generator kodu tej reguły nie dotrzymuje. Proces `bork build` kończy się kodem 101. Ślad wskazuje `src/codegen/llvm/expr.rs`, funkcję `value_as_int`, i mówi, że znaleziono strukturę, a oczekiwano liczby całkowitej. Ta sama awaria występuje przy `f(move s)` oraz przy przekazaniu stałego napisu do parametru funkcji użytkownika. `println` i `concat` działają, bo mają własne fragmenty generatora, a nie ogólną ścieżkę argumentu. Dopóki ta dziura istnieje, funkcja, która ma przejść przez `bork build`, powinna przyjmować i zwracać liczby. Napisy zostawiaj w `main` i przekazuj je do `print`, `println` albo `concat`.
 
-```text
-thread 'main' panicked at src/codegen/llvm/expr.rs:901:14:
-Found StructValue(...) but expected the IntValue variant
-```
+Zwrócenie napisu, który już żyje na poziomie funkcji, sprawdzenie i budowanie akceptują.
 
-Ta sama panica jest na `f(move s)` i na `show(s)` gdy `s` jest `val String`.
-`println(s)` i `concat` działają, bo są intrinsicami, nie wywołaniami
-`bork.f`. Dopóki ta dziura istnieje, funkcja użytkownika w programie
-`bork build` powinna przyjmować i zwracać prymitywy. Napisy zostaw w
-`main` i przekazuj je do `print` / `println` / `concat`.
-
-Zwracanie napisu, który już żyje na głębokości funkcji, checker i codegen
-akceptują.
-
-**Listing 5.4.** Uruchomione: stdout `hi\n`.
+**Listing 5.4.** Zwrot lokalnego napisu i jego wypisanie. Program został uruchomiony. Na wyjściu jest `hi` oraz nowy wiersz.
 
 ```bork
 fun shout(): String {
@@ -105,40 +79,23 @@ fun main() {
 }
 ```
 
-`return "hi"` też działa (stdout `hi\n`). `return name` dla parametru
-przechodzi checker (`fun greet(name: String): String { return name }`).
-Wywołanie `println(greet("Ada"))` znowu panikuje na argumencie `String` do
-`greet`, nie na `return`.
+Zapis `return "hi"` też działa i daje ten sam wydruk. Zapis `return name` dla parametru przechodzi sprawdzenie. Wywołanie `println(greet("Ada"))`, w którym `greet` przyjmuje napis, znowu przerywa kompilator na argumencie, nie na instrukcji `return`.
 
-`return concat("a", "b")` checker odrzuca bez numeru linii, bo diagnostyka
-escape nie ma spanu:
+Zapis `return concat("a", "b")` jest odrzucany przy sprawdzaniu. Komunikat nie ma numeru linii:
 
 ```text
 err_ret_concat.bork: error: ownership: returning the result of `concat` is not supported yet: returned `String` bytes must outlive the callee arena
 ```
 
-`return move s` jest w tej samej rodzinie: `returning a moved or promoted
-String is not supported yet: use return s for parameters and locals, or
-return a string literal`.
+Podobny komunikat dotyczy `return move`. Tekst radzi użyć `return` ze zwykłą nazwą parametru albo nazwy lokalnej, albo zwrócić literał.
 
-## Wbudowane
+## Funkcje wbudowane
 
-Trzy nazwy są intrinsicami (`src/builtins.rs`). Ponowna deklaracja jest
-błędem typu, zanim ciało w ogóle ma znaczenie.
+Trzy nazwy nie są funkcjami, które wolno zdefiniować. Próba deklaracji jest błędem typu, zanim ciało w ogóle ma znaczenie. Dla `fun println(n: i32)` komunikat brzmi `cannot redefine builtin function println`.
 
-**Listing 5.5.** Uruchomione.
+`print` wypisuje jeden argument i opróżnia bufor wyjścia. `println` robi to samo i dodaje nowy wiersz. Argumentem może być `i32`, `i64` albo napis, chociaż w wewnętrznej tabeli sygnatura nominalna mówi o jednym `i32`. To jest specjalny przypadek, nie ogólna zasada, że każdy parametr `i32` przyjmie napis. `concat` przyjmuje dwa napisy i zwraca jeden nowy. Bufor wyniku powstaje w arenie miejsca, do którego wynik jest zapisywany. Gdy takiego miejsca nie ma, powstaje w arenie bieżącego bloku.
 
-```text
-err_builtin.bork:1:13: error: type: cannot redefine builtin function `println`
-```
-
-| Nazwa | Efekt | Sygnatura nominalna |
-|---|---|---|
-| `print` | pisze na stdout i robi flush | w tabeli `(i32) -> unit`, ale przyjmuje też `i64` i `String` |
-| `println` | to samo plus `\n` | j.w. |
-| `concat` | jeden nowy `String` | `(String, String) -> String` |
-
-**Listing 5.6.** Kolejność i flush. Uruchomione, stdout dokładnie `1\ntail7` (bez końcowej nowej linii).
+**Listing 5.5.** Kolejność wypisywania. Program został uruchomiony. Na wyjściu jest dokładnie cyfra 1, nowy wiersz, słowo `tail` i cyfra 7, bez końcowego nowego wiersza.
 
 ```bork
 fun main() {
@@ -148,17 +105,11 @@ fun main() {
 }
 ```
 
-`print` i `println` biorą jeden argument. `concat` bierze dwa. Wynik
-`concat` ląduje w arenie aktualnego sinku, a gdy sinku nie ma — w arenie
-bieżącego bloku. Rozdział 9 rozbiera to na reguły.
+## Funkcja dopisana na końcu wywołania
 
-## Trailing closure
+Ostatni argument może być blokiem stojącym po nawiasie wywołania. Parametry tego bloku zapisuje się przed strzałką `->`.
 
-Ostatni argument może być blokiem po liście nawiasów. Parametry domknięcia
-stoją przed `->`.
-
-**Listing 5.7.** Tylko check. Ostatni parametr `action` ma typ
-`(Int, Int) -> Int`.
+**Listing 5.6.** Ostatni parametr ma typ funkcji. Sprawdzenie przechodzi. Budowanie odrzuca konstrukcję.
 
 ```bork
 fun action(a: Int, b: Int, block: (Int, Int) -> Int): Int {
@@ -173,65 +124,31 @@ fun main(): i32 {
 }
 ```
 
-Błędy typeck, które tu pilnują kontraktu:
+Sprawdzanie typów pilnuje trzech rzeczy. Ostatni parametr wywoływanej funkcji musi być typem funkcji. Liczba parametrów bloku musi się zgadzać. Typ wyniku bloku musi pasować do typu wyniku tego parametru. Komunikaty mówią o tym wprost, po angielsku, słowami `trailing closure`. Wywołanie, którego celem nie jest nazwa funkcji, dostaje komunikat `only named functions can be called`. Generator kodu i tak odrzuca wywołanie pośrednie osobnym tekstem.
 
-- `function … requires a function type as its last parameter when called with a trailing closure`,
-- `trailing closure expects N parameters, got M`,
-- `trailing closure body has type …, expected …`,
-- `only named functions can be called` — nie wywołasz wartości typu funkcji, nawet jeśli typ jest w HIR; callee musi być nazwą funkcji albo, w typecku, wiązaniem typu funkcyjnego, ale codegen i tak odrzuca wywołanie pośrednie tekstem `indirect calls`.
+Analiza własności nie dostaje typów parametrów takiego bloku. Wpisuje im typ nieznany. Skutek widać w drzewie regionów. Parametry bloku są lokalne, a ich odczyt w gałęzi warunku bywa oznaczony jako współdzielenie, mimo że `Int` jest kopiowany. Program mimo to przechodzi sprawdzenie. Drzewo jest w tym miejscu mylące. Nie jest to błąd twojego programu.
 
-Sema dla parametrów domknięcia wpisuje `Ty::Unknown`. Nie dostaje typów z
-sygnatury. Skutek: wewnątrz domknięcia polityka Copy/Move dla tych parametrów
-jest zachowawcza. Parametry z listingu 5.7 są w dumpie `Local`, a odczyt
-`acc` w gałęzi `if` jest `Shared ← Closure`, nie `Copy`, mimo że `Int` jest
-Copy. To rozjazd semy z typeckiem, widoczny w drzewie aren, a nie błąd
-użytkownika. Program check przechodzi.
+Bloku funkcji nie zapiszesz w stałej poza wywołaniem. Gramatyka ma taką funkcję tylko jako argument końcowy albo jako blok `move`. Typ funkcji istnieje, ale nie ma osobnego literału funkcji.
 
-Domknięcie nie jest wartością pierwszej kategorii, którą można zapisać w
-`val f = { ... }` poza wywołaniem. Gramatyka ma closure tylko jako trailing
-albo jako blok `move`. Typ funkcyjny istnieje, ale nie ma literału funkcji
-poza tym miejscem.
+## Trzy formy przeniesienia przy bloku
 
-## Trzy formy domknięcia z `move`
+Zwykły blok po wywołaniu niczego nie przenosi. Odczyt zewnętrznej zmiennej napisowej jest wtedy błędem. Zapis `move ()` przed blokiem też niczego nie przenosi, ale robi to jawnie. Zapis `move (a, b)` przenosi dokładnie wymienione nazwy. Zapis `move` bez nawiasu przenosi każdą żywą, niekopiowaną nazwę z regionu zewnętrznego, której blok używa.
 
-| Składnia | Co przenosi |
-|---|---|
-| `f(...) { ... }` | nic; odczyt zewnętrznego `var String` jest błędem |
-| `f(...) move () { ... }` | jawnie nic |
-| `f(...) move (a, b) { ... }` | dokładnie wymienione nazwy |
-| `f(...) move { ... }` | wnioskuje: każde żywe, nie-Copy imię z rodzica, którego ciało używa |
+To samo da się napisać jako instrukcję, bez wywołania. Rozdział 8 ma zbudowane programy dla tych instrukcji. Formy stojące po wywołaniu odpadają przy budowaniu komunikatem `trailing closures are not supported by codegen`.
 
-To samo da się napisać jako instrukcję, bez wywołania: `move (a) { ... }`,
-`move () { ... }`, `move { ... }`. Rozdział 8 ma uruchomione binarki dla
-form instrukcji. Formy trailing są w języku frontendu i odpadają na bramce:
+Wnioskowanie, które nazwy przenieść, nie patrzy na wyrażenia `move nazwa` i `promote nazwa` jak na zwykłe użycie nazwy. W przeciwnym razie przeniesienie zapisane w wyrażeniu byłoby liczone drugi raz jako przeniesienie całego bloku.
 
-```text
-trail_move.bork:6:12: error: codegen: trailing closures are not supported by codegen
-```
+## Co z tego wynika dla programów, które mają się zbudować
 
-Wnioskowanie nie patrzy na `move nazwa` i `promote nazwa` jako na
-swobodne zmienne (`free_vars` je pomija). Inaczej wyrażeniowy `move` byłby
-liczony drugi raz jako przechwycenie regionu.
+Ciało wywołanej funkcji ma własne regiony. Argumenty są liczone w regionie wywołującego. Wynik liczbowy wraca w rejestrze. Wynik napisowy nie dostaje dziś bufora należącego do wywołującego, dlatego analiza ucieczki zabrania zwrócić świeże bajty. Listing 5.4 działa, bo napis `"hi"` jest literałem albo wartością na poziomie funkcji, a `println` tylko czyta adres i długość.
 
-## Wywołanie a region
-
-Ciało wołanej funkcji ma własne regiony i własne `bork_arena_push` na czas
-aktywacji. Argumenty są liczone w regionie wołającego. Wynik, jeśli jest
-prymitywem, wraca w rejestrze. Wynik `String` nie dostaje dziś bufora
-własności wołającego, dlatego escape zabrania `return` świeżych bajtów.
-Listing 5.4 działa, bo `"hi"` jest literałem w stałych albo lokalną wartością
-na głębokości 0, a `println` tylko czyta deskryptor.
-
-> **TIP.** W programie, który ma przejść `bork build`, trzymaj funkcje przy
-> liczbach. Napisy drukuj z `main`. To nie jest styl na zawsze. To jest
-> obwód dziury w `coerce_value_to_ty`, która każdą wartość nie-bool i
-> nie-float przepycha przez `into_int_value`.
+> **WSKAZÓWKA.** W programie, który ma przejść przez `bork build`, trzymaj funkcje przy liczbach. Napisy wypisuj z `main`. To nie jest zalecenie na zawsze. To jest obejście błędu w funkcji `coerce_value_to_ty`, która wartość inną niż `bool` próbuje potraktować jako liczbę całkowitą. Liczba zmiennoprzecinkowa na części ścieżek dostaje komunikat, że nie jest obsługiwana. Napis dostaje awarię.
 
 ## Podsumowanie
 
-- Wynik funkcji jest jawny (`return`). Brak ścieżki to błąd typu.
-- Goły parametr jest `val`. `var` wymaga `move` przy przekazaniu wiązania nie-Copy.
-- Świeży literał nie wymaga `move`, ale `String` jako argument funkcji użytkownika wywraca codegen.
-- `print`, `println` i `concat` są wbudowane i nie wolno ich zadeklarować.
-- Trailing closure jest w typecku i semie. Bramka codegen ją odcina.
-- Sema nie typuje parametrów domknięcia; w dumpie potrafią wyglądać jak nie-Copy.
+- Wynik funkcji zapisuje się słowem `return`. Brak powrotu na którejś ścieżce jest błędem typu.
+- Parametr bez `val` i bez `var` jest stały. Parametr zmienny wymaga `move`, gdy przekazuje się istniejącą nazwę wartości niekopiowanej.
+- Świeży literał nie wymaga `move`, ale napis jako argument funkcji użytkownika wywraca budowanie.
+- `print`, `println` i `concat` są wbudowane. Nie wolno ich zadeklarować ponownie.
+- Funkcja dopisana na końcu wywołania jest sprawdzana i nie jest tłumaczona na kod maszynowy.
+- Analiza własności nie zna typów parametrów takiej funkcji, więc drzewo regionów potrafi pokazać współdzielenie tam, gdzie typ jest kopiowany.

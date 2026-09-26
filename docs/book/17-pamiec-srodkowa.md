@@ -1,146 +1,71 @@
-# Rozdział 16. Hoist, escape i `region_walk`
+# Rozdział 16. Jak kompilator wybiera miejsce na napis
 
 ## Ten rozdział obejmuje
 
-- Kiedy te trzy passy w ogóle biegną
-- Wzorzec hoista i jego granice
-- Model głębokości w `escape::place`
-- Po co jest jeden spacer regionów
-- Flaga `codegen_push`
+- kiedy kompilator w ogóle zajmuje się miejscem bajtów
+- jak dwie sąsiednie instrukcje przenoszą alokację do zmiennej docelowej
+- jak głębokość regionu decyduje, czy napis wolno zwrócić albo przypisać
+- po co oznaczenie regionów, analiza ucieczki i generator kodu idą jednym spacerem
+- które regiony naprawdę pobierają bufor w czasie działania
 
-## Tylko na czystym programie
+## Te trzy przejścia biegną tylko na programie bez wcześniejszych błędów
 
-W `frontend::check`, gdy wektor diagnostyk po semie i typecku jest pusty:
+Gdy lista komunikatów po sprawdzeniu typów i po analizie własności jest pusta, funkcja `frontend::check` robi jeszcze trzy rzeczy. Najpierw `region_walk::stamp_codegen_push` oznacza, które regiony mają pobrać bufor. Potem `hoist::annotate` dopisuje do deklaracji informację, w której zmiennej zewnętrznej alokować napis. Na końcu `escape::check_function` sprawdza każdą funkcję. Jeśli analiza ucieczki dopisze komunikat, reprezentacja pośrednia znika z wyniku, a drzewo regionów zostaje.
 
-1. `region_walk::stamp_codegen_push(&hir, &mut report)` ustawia
-   `ArenaNode.codegen_push`.
-2. `hoist::annotate` dopisuje `alloc_in_binding`.
-3. `escape::check_function` na każdej funkcji może dopisać diagnostyki i
-   wtedy HIR wraca do `None`.
+Przy błędzie typu wyniesienie alokacji się nie wykona. Nie zobaczysz drugiego komunikatu o ucieczce obok błędu typu. Przejścia zakładają drzewo, które sprawdzanie typów uważa za spójne. Łączona diagnostyka, w której jeden plik pokazuje naraz błąd typu i błąd ucieczki, w tej wersji nie powstaje.
 
-Przy błędzie typu hoist się nie wykona. Nie zobaczysz „drugiego” błędu
-escape obok błędu typu. To upraszcza passy (zakładają drzewo, które typeck
-uważa za spójne) i utrudnia diagnostykę łączoną.
+## Wyniesienie alokacji rozpoznaje dokładnie dwie sąsiednie instrukcje
 
-## Hoist
+Plik `src/hoist.rs` rozwiązuje następujący układ. Programista deklaruje zmienną wewnętrzną, a w następnym wierszu przenosi ją do zmiennej, która żyje dalej. Bajty i tak mają wylądować w arenie tej dalszej zmiennej. Kompilator może więc zbudować je od razu tam, zamiast budować je w bieżącym buforze i zaraz kopiować.
 
-`src/hoist.rs`. Cel: inicjalizator, który i tak natychmiast ucieka do
-zewnętrznego `var`, budować od razu w jego arenie.
+Funkcja `try_hoist` patrzy na instrukcję o numerze `i` oraz na następną. Pierwsza musi być deklaracją zmiennej o nazwie wewnętrznej, jeszcze bez wskazania miejsca alokacji. Druga musi być przypisaniem do nazwy, a nie do indeksu tablicy. Wartość deklaracji musi być literałem napisowym albo wywołaniem. Prawa strona przypisania musi być nazwą wewnętrzną użytą jako przeniesienie. Nazwa celu musi być już w zakresie: wśród parametrów, wśród nazw z zewnątrz albo wśród nazw zadeklarowanych wcześniej w tym bloku.
 
-`try_hoist` patrzy na instrukcję `i` oraz `i+1`:
+Gdy te warunki są spełnione, pole `alloc_in_binding` dostaje nazwę celu. Generator kodu czyta to pole przy emisji deklaracji i każe alokować wynik w arenie tej nazwy. Jeśli pole jest puste, inicjalizator idzie do bieżącej areny, a późniejsze przeniesienie kopiuje bajty funkcją `copy_into_arena`.
 
-- `i` to `VarDecl` o nazwie `inner`, jeszcze bez `alloc_in_binding`,
-- `i+1` to `Assign` na nazwę (nie na indeks),
-- wartość deklaracji to literał napisowy albo wywołanie,
-- prawa strona przypisania to identyfikator `inner` z `UseKind::Move`,
-- nazwa celu jest w zbiorze `outer` (parametry i nazwy z zewnątrz) albo
-  w nazwach już zadeklarowanych w tym bloku.
+Zbiór nazw zewnętrznych, przy zejściu w blok, w pętlę `for` i w pętlę `while`, jest sumą nazw widzianych do tej pory. Wyniesienie nie przeskakuje między gałęziami warunku. Nie patrzy, która instrukcja dominuje nad inną w grafie sterowania. Albo dwie sąsiednie linie pasują do wzorca, albo alokacja zostaje w bieżącym regionie.
 
-Wtedy `alloc_in_binding = Some(cel)`.
+## Analiza ucieczki liczy głębokość bajtów
 
-Zbiór `outer` przy zejściu w blok, `for` i `while` jest sumą dotychczasowych
-nazw. Hoist nie przeskakuje między gałęziami `if`. Nie patrzy na dominację.
-Dwie linie albo nic.
+Plik `src/escape.rs` pyta, na jakiej głębokości leżą bajty i czy odbiorca leży nie głębiej niż one. Tylko wtedy bajty jeszcze istnieją w chwili użycia. Głębokość zero to region funkcji. Każdy region wewnętrzny jest o jeden głębszy.
 
-Codegen czyta pole przy emisji deklaracji i ustawia sink alokacji na dom
-celu. Jeśli pole jest puste, inicjalizator idzie do bieżącej płyty, a
-`move` przy przypisaniu kopiuje bajty (`copy_into_arena`).
+Wiązanie pamięta dwie liczby. `decl_depth` to głębokość deklaracji nazwy. `value_depth` to głębokość bajtów. Druga liczba potrafi być mniejsza od pierwszej, gdy wyniesienie alokacji albo miejsce przeznaczenia położyło bajty wyżej, czyli bliżej funkcji. Samo przejście nie zapisuje tej poprawki z powrotem do analizy własności. Albo odrzuca program, albo go przepuszcza.
 
-## Escape
+Funkcja `place` wylicza głębokość wyrażenia. Literał liczbowy, logiczny, napisowy i słowo `None` mają głębokość zero, bo nie zależą od bufora wewnętrznego regionu. Literał tablicy bierze maksimum z głębokości elementów i z głębokości bufora tablicy. Bufor idzie do miejsca przeznaczenia, a gdy go nie ma, do bieżącej głębokości. Indeks wartości trzymanej w arenie ma głębokość tablicy, a nie głębokość bloku, w którym stoi indeks. Wycinek ma głębokość odbiorcy. Przeniesienie i promocja przy znanym miejscu przeznaczenia mają głębokość tego miejsca. Przy powrocie z funkcji, gdzie miejsce przeznaczenia ma głębokość zero, zostaje głębokość źródła. Wynik `concat` ma głębokość miejsca przeznaczenia albo głębokość bieżącą. Inne wywołanie typu trzymanego w arenie bierze maksimum głębokości argumentów. Warunek bierze maksimum obu gałęzi.
 
-`src/escape.rs`. Pytanie: na jakiej głębokości leżą bajty, i czy konsument
-jest co najmniej tak płytki, żeby je jeszcze widzieć.
+Powrót wartości trzymanej w arenie, gdy jej głębokość jest większa od zera, jest błędem. Potem funkcja `check_return_string_form` osobno zabrania zwrócić wynik `concat` oraz wartość przeniesioną albo promowaną, nawet gdy wyliczona głębokość wyszła zero. Dlatego `return concat(...)` pada także w funkcji bez zagnieżdżonego bloku. Nie ma jeszcze areny wyniku po stronie wywołującego, więc świeży napis nie ma gdzie przeżyć powrotu.
 
-`Local { decl_depth, value_depth }` na wiązaniu. `value_depth` potrafi
-być płytsze niż deklaracja, gdy hoist albo sink położył bajty wyżej. Sam
-pass nie zapisuje tego z powrotem do semy. Odrzuca albo przepuszcza.
+Przypisanie liczy głębokość z miejscem przeznaczenia równym głębokości deklaracji celu. Jeśli bajty byłyby głębsze niż deklaracja celu, komunikat mówi, że przypisujesz wartość, której bajty żyją w regionie wewnętrznym.
 
-`place(expr, sink)`:
+Gałąź warunku otwarta jako region, który produkuje wartość, bez miejsca przeznaczenia, z bajtami na głębokości tej gałęzi, daje błąd. Tekst komunikatu mówi o napisie w gałęzi. Warunek w kodzie jest szerszy: obejmuje każdy typ, dla którego `uses_arena_storage` jest prawdziwe, a więc także tablicę. Słowo w komunikacie jest węższe niż sprawdzany warunek.
 
-| Wyrażenie | Głębokość bajtów |
-|---|---|
-| literał liczbowy, bool, napis, `None` | 0 |
-| literał tablicy | maksimum z głębokości elementów i z głębokości bufora; bufor to sink, a gdy sink jest `None` albo 0, bieżąca głębokość |
-| indeks typu z areną | głębokość wartości tablicy, nie bieżącego bloku |
-| wycinek | głębokość odbiorcy |
-| identyfikator Move/Promote przy sinku `Some(d)` | `d` |
-| identyfikator Move/Promote przy sinku `Some(0)` (return) | `value_depth` źródła |
-| `concat` | sink albo bieżąca głębokość |
-| inne wołanie typu z areną | maksimum głębokości argumentów |
-| `if` | maksimum gałęzi |
+Komunikaty analizy ucieczki mają fazę `ownership`, tę samą co analiza własności. Część z nich nie ma zakresu źródłowego. Dotyczy to między innymi zwrotu wyniku `concat`. Wiersz poleceń pomija wtedy numer linii i kolumny.
 
-`return` wartości z areną przy głębokości > 0 jest błędem. Potem
-`check_return_string_form` osobno zabrania `concat` i `move`/`promote` w
-wyniku, nawet gdy głębokość wyszła 0. Stąd `return concat` pada także w
-funkcji bez zagnieżdżenia.
+## Jeden spacer trzyma oznaczenie regionów i generator kodu w zgodzie
 
-Przypisanie liczy `place` ze sinkiem równym `decl_depth` celu. Jeśli
-`value_depth` celu zostałoby głębsze niż deklaracja, błąd „assigning a
-value whose bytes live in an inner region”.
+Plik `src/region_walk.rs` istnieje po to, żeby oznaczanie regionów, układ wywołań w generatorze kodu i emisja instrukcji LLVM nie miały trzech lekko różnych pętli po reprezentacji pośredniej. Komentarz na górze pliku mówi, że jest jeden spacer zsynchronizowany z dziećmi węzła regionu.
 
-Gałąź `if` otwarta jako region produkujący wartość (`yields: true`), bez
-sinku, z bajtami na głębokości tej gałęzi, daje błąd o `String` w gałęzi.
-Tekst jest na sztywno o `String`. Warunek jest `uses_arena_storage`.
+Miejsca, które otwierają dziecko raportu, nazywa typ `RegionSite`. Są to blok, pętla `for`, pętla `while`, gałęzie warunku i funkcja dopisana na końcu wywołania. Etykiety muszą pasować do tych, które wpisała analiza własności. Inaczej funkcja `take_child` nie znajdzie węzła i kompilator zgłosi wewnętrzną niezgodność harmonogramu regionów.
 
-Diagnostyki escape mają `Phase::Ownership`. Część z nich ma `span: None`
-(`concat` na `return`). CLI pomija wtedy numer linii.
+Gość spaceru, w kodzie typ `RegionVisitor`, to obiekt, który odwiedza węzły i w wybranych miejscach wykonuje własną czynność. Ma osobne punkty na wejście w funkcję, na wejście w region, na zatrzask pętli, na wyjście z regionu, na pominięcie funkcji dopisanej na końcu i na chwilę po wyrażeniu. Domyślna ścieżka instrukcji nie obsługuje bloku i pętli. Te idą przez region. Jeśli ktoś wywoła je jak zwykłą instrukcję, dostanie `unreachable!`. To jest kontrola programisty kompilatora, a nie komunikat dla autora programu w Borku.
 
-## Jeden spacer
+Koniunkcja i alternatywa zwierają się. Prawa strona jest w osobnym bloku podstawowym, więc emisja nie schodzi w nią zwykłą ścieżką. Oznaczenie regionów i tak musi wiedzieć, czy prawa strona alokuje. Dlatego ogląda prawą stronę, a emisja jej nie emituje drugi raz.
 
-`src/region_walk.rs` istnieje po to, żeby stempel, harmonogram codegenu i
-emisja LLVM nie miały trzech lekko różnych pętli po HIR. Komentarz na
-górze pliku: jeden spacer zsynchronizowany z dziećmi `ArenaNode`.
+## Który region pobiera bufor
 
-`RegionSite` nazywa miejsca, które otwierają dziecko raportu: blok, pętla
-`for`, `while`, gałęzie `if`, domknięcie. Etykiety muszą pasować do tych,
-które sema wpisała. Inaczej `take_child` nie znajdzie węzła.
+Funkcja `codegen_push_for_region` decyduje o wywołaniu `bork_arena_push` w wygenerowanym kodzie. Etykieta funkcji dopisanej na końcu wywołania nigdy nie pobiera bufora. Dla pozostałych regionów decyduje predykat `block_may_allocate_sink` na ciele po zdjęciu opakowań.
 
-`RegionVisitor` ma haki: wejście w funkcję, `enter_region`, `loop_latch`,
-`exit_region`, `skip_closure`, `after_expr`, oraz nadpisywalne
-`for_loop`, `while_loop`, `if_expr`. Domyślna ścieżka instrukcji nie
-obsługuje bloku i pętli — te idą przez region. Jeśli ktoś wywoła je jak
-zwykłą instrukcję, dostanie `unreachable!`. To jest assert na programiście
-kompilatora, nie diagnostyka użytkownika.
+Predykat jest prawdziwy, gdy w bloku jest literał napisu albo tablicy, przeniesienie lub promocja typu trzymanego w arenie, wywołanie `concat`, przypisanie albo powrót czegoś, co może alokować, zagnieżdżony blok albo gałąź, która może alokować. Jest fałszywy dla samych liczb, dla `break`, dla `continue` i dla słowa `None`.
 
-`short_circuit_logical_operands` pozwala emisji `&&` / `||` nie schodzić
-w prawy operand zwykłą ścieżką, bo prawa strona jest w osobnym bloku
-podstawowym. Stempel i tak musi wiedzieć, czy prawa strona alokuje. Stąd
-poprawka, która dla stempla ogląda prawą stronę, a dla emisji nie.
+Oznaczanie ustawia korzeniowi funkcji flagę pobrania bufora zawsze. Dziecku ustawia wynik predykatu. Funkcji dopisanej na końcu wywołania ustawia tę flagę na fałsz wprost.
 
-## Kto dostaje `bork_arena_push`
+Skutek, opisany w `docs/memory-model.md` i zrealizowany w `src/codegen/regions.rs`, jest taki. Wydruk drzewa nadal ma węzeł na każdy region, ale wygenerowany kod woła `bork_arena_push` tylko wtedy, gdy flaga jest prawdziwa. Blok, w którym są same liczby `i32`, ma węzeł w wydruku i nie ma własnego bufora w czasie działania. Funkcja zawsze pobiera jeden bufor na wejściu, nawet gdy nic nie alokuje. To jest uproszczenie tej wersji kompilatora. Bufor funkcji i tak wraca na listę wolnych przy wyjściu.
 
-`codegen_push_for_region`:
-
-- etykieta domknięcia → nigdy,
-- w przeciwnym razie `block_may_allocate_sink` na obranym ciele.
-
-Predykat jest prawdziwy, gdy w bloku jest literał napisu albo tablicy,
-`move`/`promote` typu z areną, `concat`, przypisanie lub `return` czegoś,
-co może alokować, zagnieżdżony blok albo gałąź, która może alokować.
-Fałszywy dla samych liczb, `break`, `continue`, `None`.
-
-`stamp_codegen_push` ustawia korzeniowi funkcji `codegen_push = true`
-zawsze. Dziecku ustawia wynik predykatu. Domknięciu trailing ustawia
-`false` jawnie.
-
-Skutek, opisany w `docs/memory-model.md` i zrealizowany w
-`src/codegen/regions.rs`: dump nadal ma węzeł na każdy region, ale LLVM
-woła `bork_arena_push` tylko gdy flaga jest prawdziwa. Blok, w którym są
-same `i32`, ma węzeł w dumpu i nie ma płyty w runtime. Funkcja zawsze
-pcha jedną płytę na wejściu, nawet gdy nic nie alokuje. To jest
-uproszczenie, nie konieczność modelu. Płyta funkcji i tak wraca na listę
-przy `pop`.
-
-Pętla: jeden enter (jeśli flaga), na zatrzasku `reset`, na końcu jeden
-exit. `TODO.md` prosi, żeby ten kontrakt nie rozjechał się między
-visitorami. Dziś emisja i stempel dzielą `region_walk`, więc rozjazd
-jest trudniejszy niż przy dwóch ręcznych pętlach. Nadal da się go zrobić,
-nadpisując hak i zapominając o `latch`.
+Pętla, jeśli flaga jest prawdziwa, wchodzi raz, na zatrzasku czyści wskaźnik bufora bez oddawania go do puli i wychodzi raz. Plik `TODO.md` prosi, żeby ten kontrakt nie rozszedł się między gośćmi spaceru. Dziś emisja i oznaczanie dzielą `region_walk`, więc utrzymanie zgodności jest prostsze niż przy dwóch ręcznych pętlach. Nadal da się ją zepsuć, nadpisując hak pętli i zapominając o zatrzasku.
 
 ## Podsumowanie
 
-- Hoist, stempel i escape biegną tylko po czystym typecku i semie.
-- Hoist rozpoznaje dokładnie dwie sąsiednie instrukcje.
-- Escape liczy głębokość bajtów i zabrania `return` świeżego napisu, nawet z głębokości 0, gdy formą jest `concat` albo `move`.
-- `region_walk` jest wspólnym spacerem stempla i LLVM. HIR i raport muszą mieć tyle samo dzieci.
-- `codegen_push` odcina puste regiony od `bork_arena_push`. Domknięcia nie pchają nigdy, i tak nie dochodzą do emisji.
+- Wyniesienie alokacji, oznaczenie buforów i analiza ucieczki biegną tylko po czystym sprawdzeniu typów i własności.
+- Wyniesienie rozpoznaje dokładnie dwie sąsiednie instrukcje i każe zbudować napis od razu w arenie celu.
+- Analiza ucieczki liczy głębokość bajtów. Zabrania zwrócić świeży napis, nawet z głębokości zero, gdy formą wyniku jest `concat`, `move` albo `promote`.
+- Wspólny spacer trzyma oznaczenie regionów i generator kodu przy tych samych dzieciach drzewa regionów.
+- Flaga pobrania bufora odcina puste regiony od `bork_arena_push`. Funkcje dopisane na końcu wywołania nie pobierają bufora, bo i tak nie dochodzą do emisji.

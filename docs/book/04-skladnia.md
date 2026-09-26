@@ -1,63 +1,44 @@
-# Rozdział 3. Składnia, wiązania i układ pliku
+# Rozdział 3. Z czego składa się plik źródłowy
 
 ## Ten rozdział obejmuje
 
-- Kształt pliku: funkcje, komentarze, nowe linie
-- `val` i `var`, cień nazw, adnotacje
-- Które słowa są słowami kluczowymi, a które tylko terminalami gramatyki
-- Wyrażenia, które wyglądają jak instrukcje
-- Layout nawiasów okrągłych, czyli dlaczego wywołanie może złamać linię
+- jak wygląda plik z programem i jak zapisuje się komentarz
+- dlaczego nowa linia rozdziela instrukcje
+- czym różni się nazwa stała od nazwy zmiennej
+- kiedy kilka par nawiasów klamrowych staje się jednym regionem
+- dlaczego wywołanie funkcji wolno zapisać w wielu wierszach
 
-## Plik
+## Plik jest listą funkcji
 
-Plik `.bork` to zero lub więcej funkcji. Pusta treść i sam znak nowej linii
-parsują się do `Program { functions: vec![] }`. Komentarz `//` biegnie do
-końca linii i jest zjadany przez lexer, zanim parser zobaczy tokeny.
+Plik o rozszerzeniu `.bork` zawiera zero lub więcej funkcji. Pusty plik oraz plik złożony z samej pustej linii dają się odczytać jako program bez funkcji. Komentarz zaczyna się od `//` i trwa do końca wiersza. Nie ma komentarza blokowego, atrybutów ani polecenia `import`.
 
-**Listing 3.1.** Komentarz nie psuje instrukcji. Uruchomione: kod wyjścia 1.
+**Listing 3.1.** Komentarz nie zmienia wyniku funkcji.
 
 ```bork
 fun main(): i32 {
     // komentarz
-    val n = 1 // tez
+    val n = 1 // też komentarz
     return n
 }
 ```
 
-Nie ma komentarza blokowego. Nie ma atrybutów, pragm ani `import`.
+Program został zbudowany. Proces kończy się kodem wyjścia 1, bo funkcja zwraca liczbę 1.
 
-Słowa rozpoznawane w lekserze jako osobne tokeny to: `if`, `fun`, `val`,
-`var`, `for`, `in`, `return`, `Some`, `None`, `move`, `promote`. Słowa
-`while`, `break`, `continue`, `true`, `false` są zwykłymi terminalami
-gramatyki: lekser oddaje je jako identyfikatory-słowa, a parser oczekuje
-konkretnego napisu. Skutek praktyczny jest taki, że nie użyjesz ich jako
-nazwy, bo produkcja identyfikatora nie pokrywa się z tymi literałami tam,
-gdzie gramatyka oczekuje słowa. `else` ma osobną regułę: przed `else` wolno
-złamanie linii i komentarz, i to nadal jest token `else`, nie `NL` plus
-`else`. Dzięki temu `if` w następnej linii może mieć `else`.
+Słowa rozpoznawane przez lekser jako osobne tokeny to `if`, `fun`, `val`, `var`, `for`, `in`, `return`, `Some`, `None`, `move` i `promote`. Słowa `while`, `break`, `continue`, `true` i `false` są w gramatyce zapisane wprost. Nie użyjesz ich jako nazw. Słowo `else` ma osobną regułę. Przed nim wolno złamać wiersz i wstawić komentarz, a parser i tak widzi `else`, nie osobny koniec instrukcji. Dzięki temu warunek może mieć drugą gałąź w następnym wierszu.
 
-Identyfikator to `[A-Za-z_][A-Za-z0-9_]*`. Nie ma unicode w nazwach.
+Nazwa składa się z liter alfabetu łacińskiego, cyfr i znaku podkreślenia, a nie może zaczynać się od cyfry. Polskie znaki w nazwach nie są przyjmowane.
 
-## Jedna instrukcja na linię
+## Nowa linia kończy instrukcję
 
-**Listing 3.2.** Średnik. Uruchomione.
+**Listing 3.2.** Średnik nie jest częścią języka.
 
-```text
-semi.bork:2:14: error: parse: unexpected token `;`; expected ... "}" , "NL"
-```
+Źródło `val n = 1;` kończy się błędem fazy `parse`. Komunikat mówi, że token średnika jest nieoczekiwany i że w tym miejscu parser spodziewa się między innymi nowej linii albo końca bloku.
 
-dla źródła `val n = 1;`.
+Pusta linia między instrukcjami jest w porządku, bo kilka przejść do nowego wiersza skleja się w jeden separator. Dwie instrukcje bez tego separatora nie są poprawne. Gdy komunikat wymienia token `NL`, prawie zawsze dwie rzeczy stoją w jednym wierszu albo w kodzie został średnik przyniesiony z C albo z Rusta.
 
-Parser traktuje `NL` jako separator w ciele bloku. Pusta linia jest zlepiana
-przez regułę „jednego lub więcej” złamań, więc kilka pustych linii między
-instrukcjami jest w porządku. Dwie instrukcje bez `NL` nie są.
+## Nazwy stałe i nazwy zmienne
 
-> **TIP.** Gdy komunikat mówi `expected "NL"`, prawie zawsze dwie rzeczy
-> stoją w jednej linii albo został średnik przywieziony z C lub Rusta.
-
-## Wiązania
-
-**Listing 3.3.** `val` jest stałe, `var` można przypisać. Fragment uruchomiony w większych programach.
+**Listing 3.3.** `val` wprowadza nazwę, której nie wolno przypisać ponownie. `var` wprowadza nazwę, którą wolno zmienić.
 
 ```bork
 val n = 1
@@ -66,39 +47,17 @@ var s: String = "hi"
 count = count + 1
 ```
 
-Reguły, które typeck naprawdę egzekwuje:
+Adnotacja typu po dwukropku jest opcjonalna, gdy wyrażenie po prawej stronie ma znany typ. Przypisanie do nazwy stałej jest błędem sprawdzania typów. Tekst tego błędu był w rozdziale 1. Nazwa wprowadzona w bloku przesłania nazwę z bloku zewnętrznego aż do końca bloku wewnętrznego. Inicjalizator nowej nazwy może jeszcze odczytać przesłanianą nazwę. Program, który na zewnątrz ma `val n = 1`, a w bloku `val n = n + 1` i zwraca to wewnętrzne `n`, został zbudowany i kończy się kodem 2. Drzewo regionów pokazuje w bloku lokalne `n` oraz osobną obserwację, że zewnętrzne `n` zostało skopiowane.
 
-- `: Typ` jest opcjonalne, gdy inicjalizator wyznacza typ.
-- Przypisanie do `val` to `cannot assign to immutable val binding`.
-- Nazwa w bloku przesłania zewnętrzną do końca bloku.
-- Cień może czytać zewnętrzną nazwę w swoim inicjalizatorze. Program
-  `val n = 1` / w bloku `val n = n + 1` / `return n` daje kod wyjścia 2.
-  Dump pokazuje w bloku lokalne `n` oraz obserwację `n [Copy]` — odczyt
-  zewnętrznej wartości Copy.
+Przypisanie po lewej stronie może dotyczyć tylko nazwy albo elementu tablicy zapisanego jako `nazwa[indeks]`. Pole, wywołanie i dowolne inne wyrażenie po lewej stronie znaku równości nie przechodzą składni. Komunikat gramatyki brzmi `assignment target must be a name or name[index]`. Ten rodzaj błędu, zgłaszany przez samą gramatykę, dostaje pozycję na końcu pliku, a nie przy lewym składniku. To ograniczenie tłumaczenia błędu parsera na diagnostykę, opisane w `diag::from_parse`. Nie jest decyzją, że błąd „jest na końcu programu”.
 
-Przypisanie po lewej stronie może być tylko nazwą albo `nazwa[indeks]`.
-Pole, wywołanie i dowolne inne wyrażenie dostają błąd użytkownika gramatyki:
-`assignment target must be a name or name[index]`. Ten błąd, jako
-`ParseError::User`, dostaje span **na końcu pliku**, nie na lewym składniku.
-To jest ograniczenie `diag::from_parse`, nie decyzji językowej.
+Słowo `var` albo `val` przy lokalnej nazwie stoi na początku instrukcji i jest obowiązkowe. Nie ma zapisu `n := 1` ani samego `n = 1` w roli deklaracji. Przy parametrze funkcji te słowa są opcjonalne. Rozdział 5 wyjaśnia, co wtedy znaczą.
 
-`var` i `val` przy parametrze omawia rozdział 5. Przy lokalnej zmiennej
-słowo stoi na początku instrukcji i jest obowiązkowe: nie ma gołego
-`n := 1` ani `n = 1` jako deklaracji.
+## Blok jest instrukcją i otwiera region
 
-## Blok jest instrukcją i regionem
+Samotna para nawiasów klamrowych w ciele funkcji jest instrukcją. Otwiera region o etykiecie `Block` w drzewie regionów. Kilka warstw nawiasów, które nie zawierają nic poza jednym wewnętrznym blokiem, analiza własności skleja w jeden region.
 
-```bork
-{
-    val m = n
-}
-```
-
-Blok zagnieżdżony otwiera region semy z etykietą `Block`. Kilka warstw
-nawiasów, które nie zawierają nic poza jednym wewnętrznym blokiem, sema
-skleja. `peel_blocks` zdejmuje takie opakowania.
-
-**Listing 3.4.** Trzy warstwy, jeden region. Uruchomione checker.
+**Listing 3.4.** Trzy pary nawiasów, a w drzewie regionów jeden blok.
 
 ```bork
 fun main() {
@@ -113,31 +72,15 @@ fun main() {
 }
 ```
 
-```text
-└── fun main
-    ├── n [Local]
-    └── Block (compacted 2 braces)
-        ├── m [Local]
-        └── n [Copy]
-```
+Sprawdzenie przechodzi. Wypis drzewa zawiera węzeł `Block (compacted 2 braces)`. Zewnętrzna para nawiasów zostaje regionem. Dwie kolejne, które tylko owijają wewnętrzną treść, znikają z drzewa i zostają licznikiem. To nie jest ozdoba wypisu. Generator kodu i analiza własności muszą zdejmować takie opakowania w ten sam sposób. W przeciwnym razie drzewo regionów rozminie się z drzewem programu używanym przy tłumaczeniu na kod. Funkcja `peel_blocks` występuje w dwóch miejscach, w analizie własności i w reprezentacji pośredniej, a komentarz w kodzie każe trzymać je w zgodzie.
 
-Zewnętrzny `{` zostaje regionem. Dwa kolejne, które tylko owijają, znikają
-z drzewa i zostają licznikiem `compacted_braces`. To nie jest optymalizacja
-„na oko”: codegen i sema muszą zdejmować tak samo, inaczej rozjadą się
-dzieci `ArenaNode` z miejscami w HIR. Funkcja `hir::peel_blocks` jest
-bliźniacza i komentarz w `sema` każe je trzymać w zgodzie.
+Warunek, pętla, funkcja i funkcja dopisana na końcu wywołania nie sklejają się z otoczeniem. Każde z nich ma w drzewie własną etykietę.
 
-`if`, `for`, `while`, `fun` i domknięcie nie sklejają się z otoczeniem.
-Każde ma własną etykietę (`IfThen`, `IfElse`, `ForLoop (i)`, `WhileLoop`,
-`fun nazwa`, `Closure`).
+## Wyrażenie zapisane jako instrukcja
 
-## Wyrażenia, których używasz jako instrukcji
+Każde wyrażenie może stać samodzielnie jako instrukcja. Jego wartość jest wtedy porzucana. Warunek bez drugiej gałęzi jest typowym przykładem. Służy do sterowania, a gdy nikt nie oczekuje od niego wartości, jego typem jest typ pusty. Typ pusty nazywa się `unit`. Funkcja, która nie deklaruje typu wyniku, też ma wynik `unit`.
 
-Każde wyrażenie może być instrukcją (`Stmt::Expr`). Wartość jest wtedy
-wyrzucana. `if` bez `else` jest typowym przypadkiem: służy do sterowania, a
-jego typem wyniku przy braku oczekiwanego typu jest `unit`.
-
-**Listing 3.5.** `if` sterujący. Uruchomione: kod 1.
+**Listing 3.5.** Warunek, który tylko zmienia zmienną.
 
 ```bork
 fun main(): i32 {
@@ -149,20 +92,13 @@ fun main(): i32 {
 }
 ```
 
-Gdy `if` ma produkować wartość, obie gałęzie muszą być blokami i musi być
-`else`. Szczegóły typów są w rozdziale 6. Tu ważna jest składnia: warunek
-jest w nawiasach okrągłych, gałęzie są blokami, nie pojedynczymi
-wyrażeniami. Nie napiszesz `if n > 0 n else 0`.
+Program został zbudowany i kończy się kodem 1. Składnia warunku wymaga nawiasów okrągłych wokół wyrażenia logicznego i wymaga bloków w gałęziach. Nie napiszesz `if n > 0 n else 0`. Gdy warunek ma dać wartość, obie gałęzie są blokami i potrzebna jest gałąź `else`. Szczegóły typów są w rozdziale 6.
 
-## Łamanie linii w nawiasach
+## Łamanie wiersza wewnątrz nawiasów
 
-Wywołanie i każda para `(...)` może złamać linię. Przed parserem
-`layout::normalize_parenthesized_newlines` zamienia `\n` na `\r` wewnątrz
-nawiasów okrągłych na tej samej głębokości klamer, pomijając stringi i
-komentarze. Lexer traktuje `\r` jak zwykły biały znak, więc `NL` nie
-rozdziela instrukcji w środku listy argumentów.
+Wywołanie i każda para nawiasów okrągłych może zająć wiele wierszy. Zanim parser zobaczy tekst, funkcja `normalize_parenthesized_newlines` w pliku `src/layout.rs` zamienia znak nowej linii na znak powrotu karetki wewnątrz nawiasów, na tej samej głębokości nawiasów klamrowych, na której nawias został otwarty. Pomija przy tym napisy i komentarze. Lekser traktuje powrót karetki jak zwykły odstęp, więc nowa linia w środku listy argumentów nie kończy instrukcji.
 
-**Listing 3.6.** Uruchomione: `add(1, 2)` zwraca 3.
+**Listing 3.6.** Argumenty funkcji w osobnych wierszach.
 
 ```bork
 fun add(a: i32, b: i32): i32 {
@@ -177,40 +113,21 @@ fun main(): i32 {
 }
 ```
 
-> **NOTE.** Normalizacja nie przesuwa offsetów diagnostyk w sposób, który
-> gubiłby miejsce błędu: `\n` i `\r` mają po jednym bajcie, więc spany
-> zostają. Testy w `tests/parser.rs` pilnują wieloliniowego wywołania i
-> stabilnego miejsca błędu.
+Program został zbudowany. Wynik wynosi 3, więc kod wyjścia też wynosi 3. Zamiana znaku nowej linii na powrót karetki nie zmienia długości pliku w bajtach, bo oba znaki zajmują jeden bajt. Pozycje błędów pozostają tam, gdzie były. Testy w `tests/parser.rs` sprawdzają wielowierszowe wywołanie i stabilność miejsca błędu.
 
-Poza nawiasami złamanie linii jest znaczące. Nie ma kontynuacji wyrażenia
-„bo linia skończyła się operatorem”, w stylu niektórych języków. Operator na
-końcu linii kończy wyrażenie albo jest błędem parsowania.
+Poza nawiasami okrągłymi nowa linia jest znacząca. Nie ma reguły, która ciągnęłaby wyrażenie do następnego wiersza tylko dlatego, że wiersz skończył się operatorem.
 
-## Czego parser nie ma
+## Czego w składni nie ma
 
-Sprawdzone, kod 1, faza `parse`:
+Sprawdziłem trzy zapisy, które wyglądają naturalnie, jeśli przychodzisz z innego języka. Wszystkie kończą się błędem fazy `parse` i kodem wyjścia jeden.
 
-| Źródło | Komunikat |
-|---|---|
-| `struct Point { x: i32 }` | `unexpected token struct; expected "NL", "fun"` |
-| `module foo` | `unexpected token module; expected "NL", "fun"` |
-| `return -1` | `unexpected token -` wśród atomów |
-
-Minus jest tylko operatorem binarnym (`+` i `-` na tym samym piętrze).
-Liczbę ujemną da się dostać odejmowaniem: `0 - 1`. Nie ma literału
-ujemnego. To ogranicza też testy dzielenia `i32::MIN / -1`, które codegen
-umie obsłużyć w `guard_int_div`, ale których nie da się zapisać jako
-literału.
-
-`fun` zagnieżdżone w funkcji nie istnieje. Funkcje są tylko na poziomie
-programu.
+Słowo `struct` na początku pliku daje komunikat, że oczekiwano nowej linii albo słowa `fun`. Tak samo zachowuje się słowo `module`. Zapis `return -1` daje komunikat o nieoczekiwanym tokenie minusa. Minus jest tylko operatorem między dwiema wartościami. Liczbę ujemną da się uzyskać odejmowaniem, na przykład `0 - 1`. Nie ma literału ujemnego. Funkcji nie zagnieżdża się wewnątrz innych funkcji. Funkcje stoją wyłącznie na poziomie programu.
 
 ## Podsumowanie
 
-- Plik to lista `fun`. Komentarz to tylko `//`.
-- Instrukcję kończy nowa linia. Średnik jest błędem parsowania.
-- `val` nie przyjmuje przypisania. `var` przyjmuje. Cień nazw działa i może
-  czytać przesłaniane imię w inicjalizatorze.
-- Gołe wielokrotne `{ { { } } }` sklejają się do jednego regionu.
-- Wewnątrz `(...)` nowe linie są białym znakiem. Poza nimi są separatorami.
-- Nie ma `struct`, modułów ani jednoargumentowego minusa.
+- Plik źródłowy jest listą funkcji. Komentarz to tylko `//` do końca wiersza.
+- Instrukcję kończy nowa linia. Średnik jest błędem składni.
+- Nazwa wprowadzona przez `val` nie przyjmuje późniejszego przypisania. Nazwa wprowadzona przez `var` przyjmuje. Nazwa w bloku może przesłonić nazwę zewnętrzną i w swoim inicjalizatorze może ją jeszcze odczytać.
+- Kilka par nawiasów, które tylko owijają jeden blok, składa się na jeden region.
+- Wewnątrz nawiasów okrągłych nowa linia jest odstępem. Poza nimi rozdziela instrukcje.
+- Nie ma struktur, modułów ani jednoargumentowego minusa.

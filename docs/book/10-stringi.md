@@ -1,38 +1,28 @@
-# Rozdział 9. Gdzie żyją bajty `String`
+# Rozdział 9. Jak Bork przechowuje napisy w pamięci
 
 ## Ten rozdział obejmuje
 
-- Deskryptor kontra bajty
-- Pięć reguł z `docs/language.md`, skonfrontowanych z kompilatorem
-- Hoist sąsiednich dwóch linii
-- `concat` i to, czego przykładowy rozdział dokumentacji nie kompiluje
-- Czego jeszcze nie ma: arena wyniku, `promote` na `return`
+- czym w gotowym programie jest wartość napisu
+- gdzie powstają znaki, gdy zapisujesz wynik do zmiennej
+- kiedy kompilator buduje napis od razu w arenie zmiennej docelowej
+- jak czytać przykłady z dokumentacji, które kompilator odrzuca
+- czego jeszcze nie da się zwrócić z funkcji
 
-## Deskryptor
+## Adres i długość, a osobno znaki
 
-Wartość `String` w LLVM to struktura `{ ptr, i64 }`: adres bajtów i
-długość. Bajty są albo w globalu (literał), albo w płycie areny. Koniec
-regionu unieważnia płytę, nie deskryptor na stosie. Dlatego checker musi
-odrzucić deskryptor, którego `ptr` wskazywałby w martwą płytę, zanim
-codegen go wyemituje. To robi `escape::place`.
+W kodzie maszynowym wartość typu `String` jest parą. Pierwszy element to adres znaków, drugi to długość zapisana na 64 bitach. Same znaki leżą albo w stałej programu, albo w buforze areny. Koniec regionu unieważnia bufor, a nie parę leżącą na stosie. Dlatego kompilator musi odrzucić parę, której adres wskazywałby w już zwolniony bufor, zanim generator kodu ją wyemituje. Robi to analiza ucieczki, funkcja `place` w `src/escape.rs`.
 
-Głębokość 0 to region funkcji. Każdy zagnieżdżony region, który naprawdę
-otwiera scope w escape, zwiększa głębokość. `place` zwraca głębokość puli,
-w której leżą bajty wyrażenia.
+Głębokość zero oznacza region funkcji. Każdy region zagnieżdżony, który analiza ucieczki naprawdę otwiera, zwiększa głębokość. Funkcja `place` odpowiada na pytanie, w jakiej głębokości leżą znaki danego wyrażenia.
 
-## Reguła 1. Alokujesz tam, gdzie stoisz
+## Znaki powstają tam, gdzie stoisz
 
-Bez sinku literał i `concat` biorą bieżącą pulę. Wyjście z bloku czyści
-pulę. Nazwa zadeklarowana w bloku i tak nie jest widoczna na zewnątrz.
-Problem zaczyna się, gdy deskryptor wynosisz przypisaniem albo `return`.
+Bez miejsca przeznaczenia literał i wynik `concat` biorą bieżącą arenę. Wyjście z bloku czyści tę arenę. Nazwa zadeklarowana w bloku i tak nie jest widoczna na zewnątrz. Problem zaczyna się wtedy, gdy parę adresu i długości wynosisz przypisaniem albo instrukcją `return`.
 
-## Reguła 2. Sink przypisania
+## Zapis do zmiennej wybiera jej arenę
 
-Gdy prawa strona jest zapisywana do `var`, bajty **wyniku** (nie każdego
-podwyrażenia) idą do areny tego `var`. Argumenty wywołania są liczone przy
-wyczyszczonym `alloc_sink`, więc tymczasowe zostają w bloku.
+Gdy prawa strona jest zapisywana do zmiennej, znaki wyniku trafiają do areny tej zmiennej. Nie dotyczy to każdego podwyrażenia. Argumenty wywołania są liczone tak, jakby miejsca przeznaczenia chwilowo nie było, więc wartości tymczasowe zostają w bloku.
 
-**Listing 9.1.** Uruchomione: stdout `b\n`. Literał nie potrzebuje zmiennej pośredniej.
+**Listing 9.1.** Literał zapisany wprost do zmiennej z zewnątrz. Program został zbudowany. Na wyjściu jest `b` oraz nowy wiersz.
 
 ```bork
 fun main() {
@@ -44,84 +34,35 @@ fun main() {
 }
 ```
 
-`outer = concat(left, right)` kładzie **wynik** w puli `outer`. Napisy
-`left` i `right` są czytane tam, gdzie już żyją.
+Nie potrzebujesz zmiennej pośredniej. Zapis `outer = concat(lewy, prawy)` kładzie wynik w arenie zmiennej `outer`. Napisy `lewy` i `prawy` są czytane tam, gdzie już żyją.
 
-## Reguła 3. Hoist dwóch sąsiednich linii
+## Dwie sąsiednie instrukcje mogą uniknąć drugiej kopii
 
-Gdy w bloku jest
+Gdy w bloku jest najpierw `var piece = literał albo wywołanie`, a zaraz potem `outer = move piece`, i nazwa `outer` jest już widoczna, kompilator ustawia przy deklaracji informację, że bajty mają powstać w arenie `outer`. W reprezentacji pośredniej to pole nazywa się `alloc_in_binding`. Druga instrukcja nie kopiuje wtedy znaków drugi raz.
 
-```text
-var piece = <literał albo wywołanie>
-outer = move piece
-```
+Rozpoznanie jest celowo wąskie. Leży w `src/hoist.rs` i obejmuje tylko następną instrukcję, bez niczego pomiędzy. Inicjalizator musi być literałem napisu albo wywołaniem, nie tablicą i nie dowolnym wyrażeniem. Prawa strona przypisania musi być przeniesieniem tej samej nazwy. Cel musi być nazwą, nie elementem tablicy. Nazwa celu musi być parametrem albo zmienną zadeklarowaną wcześniej.
 
-i `outer` jest już w zasięgu, `hoist::annotate` ustawia na deklaracji
-`alloc_in_binding = Some(outer)`. Codegen buduje `piece` od razu w puli
-`outer`. Druga linia nie kopiuje znaków drugi raz.
+Pętla, warunek, funkcja dopisana na końcu wywołania i jakakolwiek instrukcja między tymi dwiema wyłączają to rozpoznanie. Zostaje kopia przy `move` albo jawne `promote`.
 
-Wzór jest celowo wąski (`src/hoist.rs`):
+> **NOTA.** Kompilator nie dowodzi, że nazwa pośrednia istnieje tylko po to, żeby nakarmić zmienną zewnętrzną. Patrzy na dwie sąsiednie instrukcje. Gdy je rozdzielisz, płacisz kopię.
 
-- tylko następna instrukcja, nic pomiędzy,
-- inicjalizator to `Str` albo `Call`, nie tablica i nie inne wyrażenie,
-- prawa strona przypisania to `move` tej samej nazwy,
-- cel to nazwa, nie `a[i]`,
-- `outer` jest parametrem albo wcześniejszym `var` w tym bloku lub w
-  `outer` przekazanym przy zejściu.
+## Promote, gdy znaki już powstały za głęboko
 
-Pętla, `if`, domknięcie i luka między liniami wyłączają hoist. Zostaje
-kopia przy `move` albo jawny `promote`.
+Listing 8.3 pokazuje `promote`. Nazwa `held` powstała w arenie bloku. `promote` kopiuje znaki do areny zmiennej zewnętrznej i oznacza źródło jako przeniesione. Nie pomija kopii. Kopii unikasz wtedy, gdy wynik od razu zapisujesz do zmiennej zewnętrznej, albo gdy dwie sąsiednie instrukcje pozwolą zbudować wartość od razu w jej arenie.
 
-> **NOTE.** Hoist nie dowodzi, że „`inner` istnieje tylko po to, żeby
-> nakarmić `outer`”. Patrzy na dwie sąsiednie instrukcje. Rozdziel je, a
-> płacisz kopię.
+## Czego analiza ucieczki nie przepuści
 
-## Reguła 4. `promote`, gdy bajty już leżą źle
+Komunikaty z `src/escape.rs` sprawdzone na przykładach są takie. Zwrot wartości, której znaki żyją głębiej niż region funkcji, mówi, że zwracany napis żyje w regionie wewnętrznym i że arena zostanie zwolniona przed powrotem. Zwrot wyniku `concat` mówi, że nie jest to jeszcze obsługiwane, bo znaki zwróconego napisu musiałyby przeżyć arenę wywoływanej funkcji. Zwrot napisu przeniesionego albo użytego ze słowem `promote` radzi użyć zwykłej nazwy albo literału. Przypisanie wartości, której bajty żyją głębiej niż zmienna docelowa, mówi, że taki zapis nie jest obsługiwany. Wartość warunku, która jest napisem przeniesionym tylko w gałęzi, jest odrzucana, bo arena gałęzi ginie razem z gałęzią.
 
-Listing 8.3. `held` powstał w wewnętrznej puli. `promote` kopiuje do puli
-`outer` i oznacza źródło jako moved. Nie omija kopii. Omija ją hoist albo
-przypisanie świeżego wyniku wprost do `outer` (reguła 2).
+Zapis `return if (c > 0) { concat("a", "b") } else { "x" }` wpada w komunikat o `concat`, nie w komunikat o gałęzi. Sprawdziłem to na osobnym pliku. Pozycja w pliku bywa pusta.
 
-## Reguła 5. Escape odrzuca resztę
+## Przykład z dokumentacji, który się nie kompiluje
 
-Komunikaty z `escape.rs`, sprawdzone tam, gdzie dało się je wywołać:
+Plik `docs/language.md` pokazuje w bloku wywołanie `concat(left, right)`, gdy `left` i `right` są zmiennymi. Taki program nie przechodzi sprawdzenia. Obie nazwy są zmienne, więc w bloku wewnętrznym trzeba je przenieść. Komunikaty, które dostałem, mówią, że `left` nie jest kopiowane i trzeba je przenieść do bloku, i to samo o `right`.
 
-| Komunikat | Kiedy |
-|---|---|
-| `` returning a `String` whose bytes live in an inner region... `` | `return` wartości o głębokości > 0 |
-| `returning the result of concat is not supported yet...` | `return concat(...)` |
-| `returning a moved or promoted String is not supported yet...` | `return move` / `return promote` |
-| `assigning a value whose bytes live in an inner region to nazwa...` | przypisanie w górę, którego sink nie uratował |
-| `a String moved inside an if branch cannot be its value...` | wartość `if` z bajtami gałęzi |
+Działają dwie poprawki. W obu wynik na wyjściu to `LR` oraz nowy wiersz, a nie `prefixLR`. `concat` nie dopisuje znaków do istniejącego bufora. Buduje nowy napis, a przypisanie zastępuje parę adresu i długości trzymaną w zmiennej. Stary napis `"prefix"` zostaje w arenie aż do końca regionu funkcji, ale nazwa już na niego nie wskazuje.
 
-`return if (c > 0) { concat("a", "b") } else { "x" }` wpada w komunikat o
-`concat`, nie w komunikat o gałęzi. Sprawdzone na `err_if_string.bork`.
-Span znowu bywa pusty.
-
-## `concat` i błąd w podręczniku
-
-`docs/language.md` pokazuje:
-
-```bork
-var left = "L"
-var right = "R"
-{
-    var piece = concat(left, right)
-    out = move piece
-}
-```
-
-Ten program **nie** przechodzi checku. `left` i `right` są `var`. W bloku
-trzeba je przenieść. Sprawdzone:
-
-```text
-concat.bork:6:28: error: ownership: `left` is not Copy; move it into `Block` with `move`
-concat.bork:6:34: error: ownership: `right` is not Copy; move it into `Block` with `move`
-```
-
-Dwie wersje, które przechodzą i drukują `LR\n`:
-
-**Listing 9.2.** `val` jest Shared. Uruchomione.
+**Listing 9.2.** Stałe napisy są w bloku tylko oglądane. Program został zbudowany.
 
 ```bork
 fun main() {
@@ -136,7 +77,9 @@ fun main() {
 }
 ```
 
-**Listing 9.3.** `var` z jawnym `move`. Uruchomione. Po bloku `left` i `right` są martwe.
+W drzewie regionów widać, że `piece` zostało przeniesione, a `left` i `right` są współdzielone z regionu funkcji. Dwie sąsiednie instrukcje pasują do rozpoznania z `hoist.rs`, więc znaki wyniku mogą powstać od razu w arenie `out`. Dla programisty skutek jest ten sam niezależnie od tego, czy kopiowanie zostało pominięte. Po bloku `out` da się wypisać.
+
+**Listing 9.3.** Zmienne napisy trzeba przenieść jawnie. Program został zbudowany. Po bloku `left` i `right` są martwe.
 
 ```bork
 fun main() {
@@ -151,35 +94,17 @@ fun main() {
 }
 ```
 
-W obu wypadkach stdout to `LR`, nie `prefixLR`. `concat` nie dokleja do
-istniejącego bufora. Buduje nowy napis i przypisanie **zastępuje**
-deskryptor `out`. Stary `"prefix"` zostaje śmieciem w puli aż do końca
-regionu funkcji.
+## Czego jeszcze nie ma
 
-Dump listingu 9.2: w bloku `piece [Moved ← Block]`, `left [Shared ← fun main]`,
-`right [Shared ← fun main]`. Hoist może ustawić `alloc_in_binding` na
-`piece`, bo następna linia to `out = move piece`, a inicjalizator jest
-wywołaniem. Efekt widoczny dla programisty jest ten sam: `out` po bloku
-da się wydrukować.
+Kompilator nie zgaduje więcej układów niż te dwie sąsiednie instrukcje. Nie ma bufora wyniku, który należałby do funkcji wywołującej. Nie ma `promote` przy `return`. Nawet `concat` stojący w jednej gałęzi warunku nie może być zwrócony.
 
-## Co jeszcze nie działa
-
-Z `docs/language.md` i z kodu, bez dorabiania:
-
-- hoist tylko dla wzorca dwóch linii, nie dla ogólnego „ta zmienna ucieka”,
-- brak bufora zwracanego, który należałby do wołającego,
-- `promote` nie występuje na `return`,
-- `return` świeżego `concat` nawet w jednej gałęzi `if` jest odrzucany.
-
-Dodatkowo codegen: nawet poprawny checkerowo przekaz `String` do funkcji
-użytkownika panikuje. `concat` i `println` są wyjątkami, bo mają własne
-emitory (`emit_concat`, `emit_print`), nie `coerce_value_to_ty`.
+Osobno, przy budowaniu, poprawne sprawdzenie nie wystarcza, żeby przekazać napis do funkcji użytkownika. Taki program przerywa kompilator. `concat` i `println` są wyjątkiem, bo mają własne fragmenty generowania kodu.
 
 ## Podsumowanie
 
-- `String` to deskryptor. Bajty leżą w globalu albo w płycie 4 KiB.
-- Przypisanie do `var` alokuje wynik w puli tego `var`.
-- Dwie sąsiednie linie `var piece = ...` / `outer = move piece` mogą zbudować bajty od razu u celu.
-- `promote` kopiuje, gdy bajty już powstały za głęboko.
-- Przykład `concat(left, right)` na dwóch `var` z dokumentacji języka nie kompiluje się. Trzeba `val` albo `move`.
-- `concat` zastępuje deskryptor. Nie dokleja do starego bufora w miejscu.
+- Wartość napisu jest adresem i długością. Znaki leżą w stałej albo w buforze areny o pojemności 4096 bajtów.
+- Przypisanie do zmiennej alokuje wynik w arenie tej zmiennej.
+- Dwie sąsiednie instrukcje, deklaracja i zaraz potem przeniesienie do zmiennej zewnętrznej, mogą zbudować znaki od razu w arenie celu.
+- `promote` kopiuje, gdy znaki już powstały w zbyt krótkim regionie.
+- Przykład `concat` na dwóch zmiennych napisowych z dokumentacji języka nie kompiluje się. Trzeba użyć stałych albo słowa `move`.
+- `concat` zastępuje wartość zmiennej. Nie dopisuje znaków do starego bufora.

@@ -1,121 +1,65 @@
-# Rozdział 15. Typeck i typowany HIR
+# Rozdział 15. Jak kompilator sprawdza typy
 
 ## Ten rozdział obejmuje
 
-- `Ty`, `Prim`, `UseKind`
-- Jak checker schodzi po instrukcjach i wyrażeniach
-- Różnicę AST i HIR na `move` / `promote`
-- Wnioskowanie literałów i truciznę `Unknown`
-- Dlaczego HIR nie wystarcza backendowi sam
+- po co obok drzewa składni powstaje drugie drzewo, już z typami
+- jakie typy istnieją tylko po sprawdzeniu, a jakich nie ma w składni
+- jak oczekiwany typ zmienia znaczenie literału, pustej wartości i warunku
+- dlaczego funkcje wbudowane przyjmują więcej, niż mówi ich nominalna sygnatura
+- dlaczego samo drzewo z typami nie wystarcza generatorowi kodu
 
-## Po co osobne drzewo
+## Drugie drzewo opisuje program po typach
 
-AST jest kształtem źródła. HIR jest tym samym kształtem po typach, z
-kilkoma rzeczami wyciętymi albo doklejonymi:
+Drzewo składni, opisane w rozdziale 13, ma kształt tekstu. Nie wie jeszcze, jaki typ ma literał `0` ani czy nazwa została skopiowana. Sprawdzanie typów buduje drugie drzewo. W kodzie nazywa się ono reprezentacją pośrednią. Skrót HIR, od angielskiego high-level intermediate representation, pojawia się w nazwach struktur `HirProgram` i `HirExpr`. W zdaniach zostaję przy reprezentacji pośredniej. Rozdział 12 wprowadził to pojęcie przy opisie kolejności pracy kompilatora.
 
-- każde wyrażenie to `HirExpr { ty, span, kind }`,
-- `Expr::Move` i `Expr::Promote` stają się `Ident { use_kind: Move | Promote }`,
-- `Call` traci ciało domknięcia jako `Option<Closure>` i zostawia flagę
-  `has_trailing_closure` (ciało i tak jest osobno w miejscach, gdzie
-  typeck schodził w blok; flaga służy bramce),
-- `VarDecl` dostaje `ty` oraz `alloc_in_binding`, na starcie `None`,
-- nie ma spanów na parametrach, są gołe `String`.
+Każde wyrażenie w nowym drzewie niesie typ, zakres źródłowy i rodzaj wyrażenia. Wyrażenia `move` i `promote` z drzewa składni stają się zwykłymi nazwami. Rodzaj użycia, w kodzie `UseKind`, mówi wtedy, że było to przeniesienie albo promocja. Pozostałe warianty tego rodzaju to użycie lokalne, współdzielenie i kopia. Sprawdzanie typów wpisuje rodzaj użycia w funkcji `check_ident`. Nie zgłasza przy tym błędów własności. Własność zgłasza analiza opisana w poprzednim rozdziale. Reprezentacja pośrednia tylko zapisuje, jak sprawdzanie typów widziało odczyt. Generator kodu później ufa temu zapisowi, gdy kopiuje deskryptor napisu. Na liczbach i na napisach używanych w `main` testy trzymają oba opisy razem. Na parametrach funkcji dopisanej na końcu wywołania analiza własności i tak widzi typ nieznany, o czym była mowa w rozdziale 14.
 
-`UseKind` to `Local`, `Shared`, `Copy`, `Move`, `Promote`. Typeck
-wpisuje go w `check_ident`. **Nie** emituje błędów własności. Komentarz i
-podział odpowiedzialności są świadome: własność krzyczy sema, HIR tylko
-opisuje, jak typeck widział użycie. Codegen później ufa `UseKind` przy
-kopii deskryptora. Gdyby typeck i sema się rozjechały, backend kopiowałby
-co innego, niż sema pozwoliła. Na prymitywach i na napisach w `main` testy
-trzymają je razem. Na parametrach domknięcia sema i tak ma `Unknown`.
+Wywołanie traci ciało funkcji dopisanej na końcu jako osobną wartość i zostawia flagę, że taka funkcja była. Ciało i tak jest sprawdzane tam, gdzie sprawdzanie typów schodzi w blok. Flaga służy później kontroli przed generowaniem kodu. Deklaracja zmiennej dostaje typ oraz pole `alloc_in_binding`. Na tym etapie pole jest puste. Wypełni je dopiero wyniesienie alokacji, opisane w następnym rozdziale. Parametry w reprezentacji pośredniej nie mają zakresów źródłowych. Zostają same napisy z nazwami.
 
-## `Ty`
+## Jakie typy pojawiają się dopiero teraz
 
-`src/hir/ty.rs`. `Ty { kind, nullable }`.
+Typ w reprezentacji pośredniej, struktura `Ty` w pliku `src/hir/ty.rs`, ma rodzaj i znacznik, czy wartość może być pusta. Rodzaj jest typem prostym, nazwą, tablicą o długości, typem funkcji, zakresem albo typem nieznanym.
 
-`TyKind`: `Prim(Prim)`, `Named(String)`, `Array { elem, len }`,
-`Func { params, ret }`, `Range(Box<Ty>)`, `Unknown`.
+Zakres i typ nieznany nie mają odpowiednika w drzewie składni. Zakres istnieje tylko jako typ wyrażenia `lo..hi`. Typ nieznany tłumi dalsze komunikaty, gdy wcześniejszy błąd i tak zepsuł wyrażenie. Porównanie z typem nieznanym nie dokłada kolejnego oczekiwania. Nie tłumi natomiast analizy własności.
 
-`Range` i `Unknown` nie mają odpowiednika w `ast::Type`. Zakres istnieje
-tylko po typecku, jako typ wyrażenia `lo..hi`.
+Funkcja `is_copy` jest prawdziwa dla typu prostego, który nie może być pusty. Funkcja `uses_arena_storage` jest prawdziwa dla napisu i dla tablicy, która nie może być pusta. Drugi predykat mówi analizie ucieczki i generatorowi kodu, że wartość ma bajty w buforze regionu, a nie samą liczbę w rejestrze.
 
-`is_copy`: nienullowalny prymityw. `uses_arena_storage`: `String` albo
-nienullowalna tablica. To drugie jest predykatem „czy escape i codegen
-muszą myśleć o płycie”.
+Tłumaczenie typu ze składni, funkcja `lower_type`, odrzuca pustą tablicę, czyli zapis `[T]?`, oraz każdą nazwę poza `String`.
 
-`lower_type` odrzuca `[T]?` i każdą nazwę poza `String`.
+## Jak sprawdzanie typów schodzi po programie
 
-## Zejście
+Funkcja `typeck::check` zbiera sygnatury, odmawia ponownego zdefiniowania funkcji wbudowanych, a potem sprawdza ciała. Środowisko ma stos zakresów, mapę funkcji, listę komunikatów, wektor typów deklaracji i głębokość pętli. Wektor typów deklaracji, w kodzie `decl_tys`, rośnie przy każdej deklaracji, w kolejności źródła. Analiza własności zdejmuje z niego typy po kolei. Dlatego sprawdzanie typów musi skończyć się wcześniej. Rozdział 12 tłumaczy, czemu komunikaty i tak wypisują się w odwrotnej kolejności.
 
-`typeck::check` zbiera sygnatury, odmawia redefinicji wbudowanych, potem
-sprawdza ciała. `Env` ma stos zakresów, mapę funkcji, diagnostyki, wektor
-`decl_tys` (dopisywany przy każdej deklaracji, w kolejności źródła) i
-`loop_depth`.
+Instrukcje są w pliku `src/typeck/stmt.rs`. Wyrażenia są podzielone. Plik `expr/mod.rs` rozdziela rodzaje i obsługuje nazwy. Plik `expr/binary.rs` obsługuje arytmetykę, porównania, koniunkcję, alternatywę i zakres. Plik `expr/call.rs` obsługuje wywołania, funkcję dopisaną na końcu i funkcje wbudowane. Plik `expr/control.rs` obsługuje warunek i blok użyty jako wartość. Plik `expr/array.rs` obsługuje literał tablicy, indeks i wycinek. Plik `expr/field.rs` obsługuje odczyt pola i odczyt z operatorem `?.`.
 
-Instrukcje są w `typeck/stmt.rs`. Wyrażenia są podzielone:
+Ostatnia instrukcja bloku, który ma dać wartość, musi być gołym wyrażeniem. W przeciwnym razie typ bloku to `unit`. Robi to funkcja `check_value_block_in_current_scope`. Dlatego `return` w gałęzi warunku nie jest wartością tej gałęzi. Jest instrukcją. Gałąź jako wyrażenie ma typ `unit`, jeśli ostatnią rzeczą w niej nie jest gołe wyrażenie.
 
-| Plik | Co |
-|---|---|
-| `expr/mod.rs` | dyspozytor, identyfikatory, `UseKind` |
-| `expr/binary.rs` | arytmetyka, porównania, `&&` `\|\|`, zakres |
-| `expr/call.rs` | wołania, trailing closure, wbudowane |
-| `expr/control.rs` | `if`, bloki jako wartość |
-| `expr/array.rs` | literał, indeks, wycinek |
-| `expr/field.rs` | `.` i `?.` |
+## Oczekiwany typ steruje literałem i pustą wartością
 
-Ostatnia instrukcja bloku, który ma produkować wartość, musi być
-`Stmt::Expr`. W przeciwnym razie typ bloku to `unit`
-(`check_value_block_in_current_scope`). Dlatego `return` w gałęzi `if`
-nie jest „wartością gałęzi”. Jest instrukcją, a gałąź jako wyrażenie ma
-typ `unit`, jeśli ostatnią rzeczą nie jest gołe wyrażenie.
+Sprawdzanie typów przekazuje w dół oczekiwany typ, jeśli otoczenie go zna. Literał całkowity bez oczekiwania ma typ `i32`. Gdy otoczenie oczekuje typu całkowitego, literał przyjmuje ten typ. Literał zmiennoprzecinkowy bez oczekiwania ma typ `f64`. Słowo `None` bez oczekiwanego typu jest błędem. Nie staje się „jakimś” typem pustym.
 
-## Literały i oczekiwany typ
+Warunek bez `else`, gdy nikt nie oczekuje wartości, ma typ `unit`. Gdy otoczenie oczekuje typu, a drugiej gałęzi nie ma, komunikat mówi, że warunek produkujący wartość wymaga gałęzi `else`. Zakres tego komunikatu bywa pusty.
 
-Checker przekazuje `expected: Option<&Ty>` w dół. Literał całkowity bez
-oczekiwania to `i32`. Z oczekiwaniem całkowitym przyjmuje ten typ. Float
-bez oczekiwania to `f64`. `None` bez oczekiwania to błąd, nie „jakiś
-nullable”.
+## Funkcje wbudowane są specjalnym przypadkiem
 
-`Unknown` tłumi kaskadę: porównanie z `Unknown` nie dokłada kolejnego
-`expected`. Nie tłumi semy.
+Plik `expr/call.rs` rozpoznaje `print`, `println` i `concat`, zanim sprawdzi liczbę argumentów zwykłej funkcji. Dlatego `print` przyjmuje napis, choć tabela sygnatur w `src/builtins.rs` mówi, że `print` bierze `i32` i zwraca `unit`. To jest przypadek szczególny, a nie ogólna zasada, że jeden typ można podstawić pod drugi. Inna funkcja o parametrze `i32` napisu nie przyjmie.
 
-## Wbudowane a zwykłe wołanie
+Funkcja dopisana na końcu wywołania dokleja się jako ostatni argument typu funkcyjnego. Jej ciało jest sprawdzane w nowym zakresie. Analiza własności robi osobne zejście po drzewie składni i nie widzi typów wyliczonych dla parametrów tej funkcji. Dwa zejścia mają dwa środowiska. Stąd wydruk drzewa regionów potrafi pokazać współdzielenie tam, gdzie sprawdzanie typów widzi kopię. Rozdział 14 opisał ten skutek od strony analizy własności.
 
-`call.rs` rozpoznaje `print` / `println` / `concat` zanim sprawdzi
-arność użytkownika. Dlatego `print` przyjmuje `String`, choć tabela
-`builtins::signatures` mówi `(i32) -> unit`. To jest specjalny przypadek,
-nie ogólna podtypowość. Inna funkcja o parametrze `i32` nie przyjmie
-`String`.
+## Dlaczego generator kodu nie może iść tylko po tym drzewie
 
-Trailing closure dokleja się jako ostatni argument typu funkcyjnego.
-Ciało jest sprawdzane w nowym zakresie. Sema robi osobny spacer po AST i
-**nie** widzi typów wyliczonych dla parametrów domknięcia. Dwa spacery,
-dwa środowiska. To jest powód rozjazdu `Shared` kontra `Copy` z rozdziału 5.
+Reprezentacja pośrednia nie ma numerów regionów. Komentarz w `src/hir/mod.rs` mówi, że regiony żyją w drzewie z analizy własności. Generator kodu ma iść wspólnym spacerem, opisanym w następnym rozdziale. Na każdym bloku, pętli, warunku i funkcji dopisanej na końcu bierze kolejne dziecko węzła regionu. Jeśli sprawdzanie typów wyrzuci albo wstawi blok inaczej niż analiza własności, spacer nie znajdzie dziecka.
 
-## HIR a backend
+Funkcja `peel_blocks` jest skopiowana w reprezentacji pośredniej i w analizie własności. Komentarz przy kopii każe trzymać obie wersje w zgodzie. Nie ma jednego wspólnego traitu. Jest konwencja. Zmiana tylko w jednym miejscu psuje uzgodnienie drzew.
 
-Backend nie powinien odtwarzać zasięgu z HIR. Ma iść `region_walk`, który
-na każdym `For`, bloku, `if` i domknięciu bierze kolejne dziecko
-`ArenaNode`. Jeśli typeck wyrzuci albo wstawi blok inaczej niż sema,
-spacer padnie. `peel_blocks` musi być wspólny. Jest skopiowany w `hir` i
-w `sema` z komentarzem, żeby się nie rozjechał. Nie ma jednego wspólnego
-traitu. Jest konwencja.
+Pole `alloc_in_binding` jest puste po sprawdzeniu typów. Wypełnia je wyniesienie alokacji, już na gotowym drzewie, w funkcji `frontend::check`. To jedyna adnotacja dokładana między sprawdzeniem typów a generowaniem kodu.
 
-`alloc_in_binding` jest puste po typecku. Wypełnia je hoist, już na HIR,
-mutowalnie, w `frontend::check`. To jedyna adnotacja middle-endu.
-
-## Testy
-
-`src/typeck/tests/mod.rs` jest duży i idzie przez `frontend::check`, nie
-przez sam typeck. Dzięki temu łapie też własność. `nullable.rs` trzyma
-`?:`, `!!` i porównania na nullable. `closures.rs` trzyma arność trailing
-closure. Gdy dodajesz operator, dopisujesz tu przypadek z dokładnym
-tekstem diagnostyki. Rozdział 21.
+Testy w `src/typeck/tests/mod.rs` idą zwykle przez `frontend::check`, a nie przez samo sprawdzanie typów. Dzięki temu łapią także własność. Plik `nullable.rs` trzyma operator `?:`, wykrzykniki `!!` i porównania wartości pustych. Plik `closures.rs` trzyma liczbę argumentów funkcji dopisanej na końcu wywołania. Gdy dodajesz operator, dopisujesz tu przypadek z dokładnym tekstem komunikatu. Rozdział 21 wraca do tej kolejności pracy.
 
 ## Podsumowanie
 
-- HIR niesie typ i `UseKind`. Nie niesie identyfikatora regionu.
-- `move` w AST staje się `UseKind::Move` na identyfikatorze.
-- Typeck nie zgłasza błędów własności. Sema nie czyta `UseKind`.
-- Oczekiwany typ steruje literałami, `None` i tym, czy `if` bez `else` jest błędem czy `unit`.
-- Dwa spacery, typeck i sema, spotykają się dopiero w `region_walk`. Zgodność `peel_blocks` jest warunkiem tej zgody.
+- Reprezentacja pośrednia niesie typ i rodzaj użycia nazwy. Nie niesie numeru regionu.
+- Słowo `move` w drzewie składni staje się rodzajem użycia na nazwie.
+- Sprawdzanie typów nie zgłasza błędów własności. Analiza własności nie czyta rodzaju użycia z reprezentacji pośredniej.
+- Oczekiwany typ steruje literałami, słowem `None` i tym, czy warunek bez `else` jest błędem, czy ma typ `unit`.
+- Dwa zejścia, sprawdzanie typów i analiza własności, spotykają się dopiero we wspólnym spacerze. Zgodność `peel_blocks` jest warunkiem tego spotkania.

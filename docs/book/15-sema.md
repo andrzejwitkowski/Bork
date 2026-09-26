@@ -1,132 +1,78 @@
-# Rozdział 14. Analiza regionów (`sema`)
+# Rozdział 14. Jak kompilator sprawdza własność nazw
 
 ## Ten rozdział obejmuje
 
-- `ArenaNode`, `Ownership`, `Analyzer`
-- Wejście w region: `open_ordinary` i `open_move`
-- `classify_use` i politykę transferu
-- Scalanie `moved` po `if` i zakaz w pętli
-- Czego sema świadomie nie wie
+- czym jest analiza własności i czym różni się od bufora pamięci
+- jak powstaje drzewo regionów dla każdej funkcji
+- według jakiej reguły nazwa jest kopiowana, współdzielona albo musi być przeniesiona
+- jak pętla i warunek zmieniają to, co wolno przenieść
+- czego ta analiza świadomie nie sprawdza
 
-## Sema nie alokuje płyt
+## Analiza własności opisuje nazwy, a nie bajty
 
-`src/arena.rs` zaczyna się komentarzem, że sema go nie używa. Sema buduje
-drzewo opisujące, które nazwy w którym bloku żyją i jak przekroczyły
-granicę. Identyfikator to `ArenaNode.id: usize` z licznika
-`Analyzer::alloc_id`. Nie ma typu `ArenaId`. Nie ma też enumu `RegionKind`,
-choć plany o nim wspominały. Region jest albo zwykły (`open_ordinary`),
-albo move (`open_move`). Reszta to etykieta napisowa.
+Analiza własności odpowiada na pytanie, czy daną nazwę wolno w tym miejscu odczytać. W kodzie katalog tej analizy nazywa się `sema`, od angielskiego semantic analysis, czyli analizy znaczenia nazw. Dalej piszę o niej jako o analizie własności. Nie przydziela ona pamięci. Plik `src/arena.rs`, który opisuje bufor o pojemności 4096 bajtów, zaczyna się komentarzem, że ta analiza go nie używa. Zamiast bufora powstaje drzewo. Każdy węzeł drzewa opisuje jeden region: które nazwy w nim powstały i które nazwy z zewnątrz zostały w nim użyte.
 
-## Struktury
+Węzeł nazywa się w kodzie `ArenaNode`. Ma numer, etykietę tekstową, listę wiązań, listę obserwacji i listę dzieci. Numer pochodzi z licznika w strukturze `Analyzer` i jest zwykłą liczbą całkowitą bez znaku. Nie ma osobnego typu identyfikatora regionu. Nie ma też wyliczenia rodzaju regionu, choć starsze notatki projektowe o takim wyliczeniu wspominały. Region jest albo zwykły, albo jest blokiem `move`. Różnicę widać po funkcji, która go otwiera. Zwykły region otwiera `open_ordinary`. Blok `move` otwiera `open_move`. Etykieta, na przykład `fun main`, `Block` albo `ForLoop (i)`, jest napisem do wydruku i do komunikatów.
 
-`ArenaReport { roots }` — jeden korzeń na funkcję.
+Korzeń drzewa dla całego programu trzyma struktura `ArenaReport`. Ma ona po jednym korzeniu na funkcję.
 
-`ArenaNode` ma `id`, `label`, `compacted_braces`, `codegen_push`,
-`bindings`, `observations`, `children`. `bindings` to deklaracje i
-przechwycenia. `observations` to użycia spoza deklaracji (Copy, Shared,
-Move). Dump pomija obserwacje `Local`, żeby nie dublować deklaracji, z
-wyjątkiem miejsc, gdzie Local i tak wpada w listę bindings.
+## Co pamięta jedno wiązanie
 
-`Ownership` to `Local`, `Copy`, `Shared { from }`, `Moved { from }`.
+Wiązanie w środowisku analizy, w kodzie typ `EnvBinding`, pamięta numer regionu, etykietę tego regionu, typ, rodzaj własności, flagę przeniesienia i pochodzenie nazwy. Typ jest albo znany, albo nieznany. Znany typ pochodzi z drzewa składni. Typ nieznany, w kodzie `Unknown`, dostają parametry funkcji dopisanej na końcu wywołania. Analiza własności nie czyta typów, które sprawdzanie typów wyliczyło dla tych parametrów. Pochodzenie nazwy jest albo deklaracją, albo przechwyceniem w bloku `move`.
 
-`EnvBinding` pamięta `arena_id`, `arena_label`, `ty` (`Known(ast::Type)`
-albo `Unknown`), `kind`, `moved`, `origin` (`Declared` albo `Captured`).
+Rodzaj własności, w kodzie typ `Ownership`, ma cztery warianty. `Local` oznacza nazwę powstałą w bieżącym regionie. `Copy` oznacza odczyt wartości, którą wolno skopiować. `Shared` oznacza odczyt nazwy stałej, której nie wolno skopiować, i pamięta etykietę regionu, z którego nazwa pochodzi. `Moved` oznacza, że własność została przeniesiona, i też pamięta etykietę źródła.
 
-`Analyzer` trzyma środowisko `HashMap<String, EnvBinding>`, sygnatury
-`fun_sigs`, kolejkę `decl_tys`, stos `loop_move_ban` i wektor błędów
-`SemaError { message, name, span }`.
+Wydruk drzewa pomija obserwacje lokalne, żeby nie powtarzać deklaracji. Obserwacje kopiowania, współdzielenia i przeniesienia zostają na wydruku.
 
-## Wejście
+## Jak otwiera się region
 
-`analyze_with_decl_tys` rejestruje kind parametrów każdej funkcji, potem
-`analyze_function` woła `open_ordinary(az, "fun {name}", body, params)`.
+Wejście do analizy jednej funkcji nazywa się `analyze_with_decl_tys`. Najpierw zapisuje, czy parametry każdej funkcji są stałe, czy zmienne. Potem woła `open_ordinary` z etykietą złożoną ze słowa `fun` i nazwy funkcji, z ciałem funkcji i z listą parametrów.
 
-`open_ordinary` / `open_move` (`src/sema/walk.rs`):
+Otwarcie regionu, czy zwykłego, czy blokiem `move`, zaczyna się od zdjęcia opakowań. Funkcja `peel_blocks` usuwa bloki, które zawierają tylko jeden wewnętrzny blok, i liczy, ile takich nawiasów zdjęła. Licznik ląduje w polu `compacted_braces`. Dzięki temu zapis `{ { instrukcje } }` nie tworzy dwóch regionów. Potem analiza bierze nowy numer, buduje ramkę regionu i wiąże parametry. Dla bloku `move` dodatkowo przechwytuje nazwy z listy. Przechwycenie przenosi źródło, cieniuje nazwę jako przechwyconą, dopisuje przeniesienie do dziecka, a po zamknięciu regionu oznacza źródło u rodzica jako przeniesione. Następnie analiza schodzi w instrukcje. Na końcu zdejmuje cienie, czyli przywraca nazwy, które były widoczne przed wejściem.
 
-1. `peel_blocks` zdejmuje opakowania z samych bloków i liczy je.
-2. `open_frame` bierze nowe `id`, buduje `RegionFrame`, wiąże parametry.
-3. Dla move: `bind_capture` każdego imienia z listy (jawnej albo
-   wywnioskowanej). Przechwycenie woła `move_source`, cieniuje nazwę jako
-   `Captured`, dopisuje `Ownership::Moved` do dziecka i po `finish`
-   ustawia `moved` u rodzica.
-4. `walk_block` schodzi w instrukcje.
-5. `finish` zdejmuje cienie.
+Lista nazw przy `move` jest rozstrzygana w funkcji `resolve_move_captures`. Jeśli programista podał listę, wygrywa ona ze zgadywaniem, także gdy jest pusta. Jeśli listy nie ma, kompilator zbiera nazwy wolne w bloku, odrzuca parametry i zostawia nazwy żywe, których typ nie jest kopiowalny. Wyrażenie `move` i wyrażenie `promote` nie liczą się jako zmienne wolne. Ta różnica jest zapisana w drzewie składni. Brak listy to wartość pusta. Pusta lista to lista podana jawnie. Nie wolno ich spłaszczyć do jednego pustego wektora, bo znaczą co innego.
 
-`resolve_move_captures`: jawna lista wygrywa. Przy `None` zbierane są
-`free_vars_in_block`, odfiltrowane o parametry, zostają nazwy żywe i
-nie-Copy. `Expr::Move` i `Expr::Promote` nie są zmiennymi wolnymi.
+## Reguła jednego odczytu
 
-## Klasyfikacja użycia
+Decyzja o kopiowaniu, współdzieleniu i przeniesieniu mieści się w funkcji `classify_use` w pliku `src/sema/policy.rs`. Kolejność sprawdzeń jest stała.
 
-`classify_use` w `src/sema/policy.rs` jest całym modelem Copy/Shared/Move
-w kilkunastu liniach:
+Jeśli wiązanie jest już przeniesione, odczyt jest błędem. Komunikat mówi, że nazwy użyto po przeniesieniu, i podaje etykietę regionu, z którego ją przeniesiono.
 
-1. `binding.moved` → błąd `use of nazwa after move from etykieta`.
-2. Ta sama `arena_id` → `Local`.
-3. `ty.is_copy()` → `Copy`.
-4. `Val` → `Shared { from: etykieta rodzica }`.
-5. Inaczej → `` nazwa is not Copy; move it into etykieta with move ``.
+Jeśli numer regionu wiązania jest taki sam jak numer bieżącego regionu, odczyt jest lokalny. Nazwa żyje w tym regionie, więc nie przekracza jego granicy.
 
-Assign-up obchodzi krok 1–5 dla **lewej** strony: jeśli cel jest `Var`,
-nie moved, i `arena_id < node.id`, sema nie woła `note_use`.
+Jeśli typ jest kopiowalny, odczyt jest kopią. Źródło zostaje żywe. Kopiowalne są tylko typy proste, które nie mogą być puste. Mowa o tym była w rozdziale 4.
 
-`bare_ident_move_message` daje krótsze podpowiedzi przy transferze:
-`use move nazwa to pass ownership` dla argumentu, `use move nazwa to
-transfer ownership` dla przypisania w tej samej okolicy, oraz dłuższy
-tekst „not Copy” gdy areny się różnią.
+Jeśli wiązanie jest stałe, odczyt jest współdzieleniem. Region wewnętrzny widzi bajty regionu zewnętrznego, ale ich nie kopiuje i nie unieważnia nazwy.
 
-## Pętla i `if`
+W pozostałych przypadkach odczyt jest błędem. Chodzi o zmienną z regionu zewnętrznego, której nie wolno skopiować. Komunikat każe przenieść nazwę słowem `move` do regionu o bieżącej etykiecie.
 
-Na `For` i `While` sema pcha na `loop_move_ban` zbiór wszystkich kluczy
-środowiska i zdejmuje go po ciele. `move_source` zwraca `InLoop`, a
-`error_move_in_loop` buduje zdanie o kolejnych iteracjach.
+Przypisanie do zmiennej z regionu zewnętrznego omija tę regułę po lewej stronie. Jeśli cel jest zmienną, nie został przeniesiony, a jego region ma mniejszy numer niż region bieżący, analiza nie traktuje lewej strony jako odczytu. Prawa strona jest sprawdzana osobno. Dzięki temu zapis `outer = wyrażenie` zmienia istniejącą zmienną, a nie próbuje jej przenieść.
 
-Na `If` sema zapamiętuje zbiór `moved`, schodzi w `then`, przywraca flagi,
-schodzi w `else` jeśli jest, przywraca znowu i woła `apply_moved_merge`:
-nazwa jest moved po `if`, gdy była moved wcześniej **albo** (moved w then
-**i** moved w else, gdy else istnieje). Then-only nie zostaje.
+Krótsze podpowiedzi, gdy programista napisał gołą nazwę tam, gdzie potrzebne jest `move`, buduje funkcja `bare_ident_move_message`. Dla argumentu wywołania tekst każe użyć `move`, żeby przekazać własność. Dla przypisania w tej samej okolicy każe użyć `move`, żeby własność przenieść. Gdy regiony się różnią, zostaje dłuższy tekst o braku kopiowania.
 
-To jest analiza na flagach boolowskich, nie na siatce ścieżek. Nie ma
-„moved jeśli warunek jest prawdziwy”. Albo obie gałęzie, albo nic.
+## Pętla zabrania przenosić to, co było widać na wejściu
 
-## Czego sema nie robi
+Przy pętli `for` i przy pętli `while` analiza odkłada na stos zbiór wszystkich nazw widocznych w tej chwili. Zbiór nazywa się w kodzie `loop_move_ban`. Po ciele pętli analiza go zdejmuje. Próba przeniesienia nazwy z tego zbioru kończy się błędem. Komunikat tłumaczy, że kolejna iteracja zobaczyłaby nazwę już przeniesioną. Nazwa utworzona wewnątrz pętli do zbioru nie należy, więc wolno ją przenieść w tej samej iteracji, w której powstała.
 
-- Nie sprawdza, czy bajty `concat` przeżyją `return`. To escape.
-- Nie typuje parametrów trailing closure (`Ty::Unknown` w `walk.rs`).
-- Nie rozumie indeksu `for` inaczej niż jako `Int`.
-- Nie ma ścieżek wyjątków, bo język ich nie ma.
-- Nie kompaktuje aren bajtowo. `compacted_braces` dotyczy tylko gołych
-  nawiasów w AST.
+## Warunek scala przeniesienia z obu gałęzi
 
-`Ty::Unknown` nie jest Copy. Test `unknown_type_is_not_treated_as_copy`
-trzyma ten konserwatyzm. Lepiej dostać zbędne „not Copy” przy już błędnym
-typie niż puścić ucieczkę.
+Przy `if` analiza zapamiętuje, które nazwy są przeniesione, schodzi w gałąź prawdziwą, przywraca flagi, schodzi w gałąź `else`, jeśli druga gałąź istnieje, przywraca flagi jeszcze raz i scala wynik funkcją `apply_moved_merge`. Nazwa jest przeniesiona po całym warunku, gdy była przeniesiona już przed nim albo gdy została przeniesiona w obu gałęziach. Sama gałąź prawdziwa, bez `else`, nie zostawia przeniesienia na zewnątrz. Nie ma tu śledzenia, że nazwa jest martwa tylko przy prawdziwym warunku. Albo obie gałęzie ją przenoszą, albo po warunku nazwa jest nadal żywa, o ile żyła wcześniej.
 
-`promote` jest w `apply_expr_promote`. W katalogu `src/sema/tests/` nie ma
-osobnego pliku o promote. Zachowanie jest w `walk.rs` i w testach
-wyższego poziomu (check + codegen). Gdy czytasz semę, nie wnioskuj z
-milczenia testów jednostkowych, że promote jest niezaimplementowany.
-Listing 8.3 przechodzi `bork build`.
+## Czego ta analiza nie sprawdza
 
-## Testy, które definiują kontrakt
+Nie sprawdza, czy bajty wyniku `concat` przeżyją powrót z funkcji. To robi analiza ucieczki, opisana w rozdziale 16. Nie nadaje typów parametrom funkcji dopisanej na końcu wywołania i zostawia je jako nieznane. Typ nieznany nie jest kopiowalny. Test `unknown_type_is_not_treated_as_copy` pilnuje tego wyboru. Lepiej dostać zbędny komunikat o braku kopiowania przy programie, który i tak ma błąd typu, niż puścić wartość, która mogłaby uciec z regionu. Skutek uboczny widać w wydruku drzewa. Parametr takiej funkcji, który sprawdzanie typów uznało za liczbę całkowitą, w wydruku potrafi wyglądać jak współdzielenie.
 
-| Plik | Co zamyka |
-|---|---|
-| `sema/tests/smoke.rs` | `peel_blocks`, próbka MVP |
-| `sema/tests/infer.rs` | brak fałszywych move przy Copy |
-| `sema/tests/expr_move.rs` | wyrażeniowy `move`, ponowny move, assign-up |
-| `sema/tests/regional.rs` | bloki move, pętle, scalanie `if`, kompaktowanie |
-| `sema/tests/call.rs` | `val`/`var` na granicy wywołania |
-| `sema/policy.rs` testy | `classify_use` i treść podpowiedzi |
+Indeks pętli `for` jest w tej analizie zwykłą liczbą całkowitą. Nie ma ścieżek wyjątków, bo język ich nie ma. Pole `compacted_braces` liczy zdjęte nawiasy, a nie bajty w buforze.
 
-Dump ASCII jest w `src/dump.rs`, nie w semie. Sema produkuje drzewo, dump
-je drukuje. LSP używa tego samego `dump_arenas`.
+Słowo `promote` jest obsługiwane przy zejściu w wyrażenie, w funkcji `apply_expr_promote`. W katalogu testów jednostkowych analizy nie ma osobnego pliku o promocji. Zachowanie jest w zejściu i w testach wyższego poziomu, które budują program. Milczenie testów jednostkowych nie znaczy, że promocja jest niezaimplementowana. Program z rozdziału 8, który przypisuje `promote`, daje się zbudować.
+
+Wydruk drzewa nie powstaje w tej analizie. Powstaje w pliku `src/dump.rs`. Serwer edytora używa tej samej funkcji.
 
 ## Podsumowanie
 
-- Sema buduje drzewo `ArenaNode` i flagi `moved`. Nie dotyka płyt 4 KiB.
-- `classify_use` jest definicją Copy, Shared i Move.
-- `None` kontra `Some([])` przy przechwyceniu jest różnicą językową i różnicą w AST.
-- Pętla zabrania move nazw widocznych na wejściu. `if` wymaga zgodności obu gałęzi.
-- Escape i hoist są później i nie żyją w tym katalogu.
-- Parametry domknięcia mają w semie typ `Unknown`, więc dump potrafi pokazać Shared tam, gdzie typeck widzi Copy.
+- Analiza własności buduje drzewo regionów i flagi przeniesienia. Nie przydziela buforów o pojemności 4096 bajtów.
+- Funkcja `classify_use` jest definicją kopiowania, współdzielenia i przeniesienia.
+- Brak listy przy `move` oznacza zgadywanie. Pusta lista oznacza rezygnację ze zgadywania.
+- Pętla zabrania przenosić nazwy widoczne na wejściu. Warunek zostawia przeniesienie tylko wtedy, gdy zrobiły je obie gałęzie.
+- Analiza ucieczki i wyniesienie alokacji są później i nie leżą w tym katalogu.
+- Parametry funkcji dopisanej na końcu wywołania mają tu typ nieznany, więc wydruk drzewa potrafi pokazać współdzielenie tam, gdzie sprawdzanie typów widzi kopię.

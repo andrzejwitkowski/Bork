@@ -1,77 +1,53 @@
-# Dodatek B. Słowniczek
+# Dodatek B. Słownik pojęć
 
-**Arena.** W runtime: płyta 4096 bajtów i offset. W semie: węzeł
-`ArenaNode` w drzewie regionów. To nie jest ten sam obiekt.
+Każde hasło jest zdaniem albo krótkim akapitem. Angielski termin z kodu podaję raz, obok polskiego, i dalej trzymam polski, chyba że w zdaniu chodzi o nazwę w źródle.
 
-**Arena pool.** Lista wolnych płyt w `bork_runtime`. `pop` oddaje płytę,
-`push` ją bierze. `reset` nie oddaje.
+**Analiza ucieczki.** Przejście w pliku `src/escape.rs`, które liczy głębokość bajtów i odrzuca użycie, które przeżyłoby zwolnienie bufora regionu. Komunikat ma fazę `ownership`. W kodzie funkcja licząca głębokość nazywa się `place`.
 
-**Assign-up.** Przypisanie do `var` z regionu przodka. Nie jest odczytem
-lewej strony. Prawa strona może alokować w arenie celu.
+**Analiza własności.** Przejście w katalogu `src/sema`, które buduje drzewo regionów i decyduje, czy nazwę wolno skopiować, współdzielić albo trzeba przenieść. Po angielsku semantic analysis. Nie przydziela buforów.
 
-**AST.** Drzewo z `src/ast.rs` po parserze, bez typów wywnioskowanych.
+**Arena.** Bufor jednego regionu, o pojemności 4096 bajtów, z przesuwającym się wskaźnikiem. W źródłach ta sama nazwa oznacza jeszcze węzeł drzewa regionów, `ArenaNode`. To nie jest ten sam obiekt. Rozdział 2 i rozdział 14 rozdzielają te znaczenia.
 
-**Bramka (`gate`).** Przejście po HIR, które odrzuca konstrukcje spoza
-podzbioru codegen, zanim powstanie moduł LLVM.
+**Drzewo składni.** Nietypowany wynik parsera, w kodzie AST, od angielskiego abstract syntax tree. Definicja jest w `src/ast.rs`.
 
-**Bump.** Alokacja przez przesunięcie offsetu. Brak zwalniania
-pojedynczego obiektu.
+**Głębokość.** Liczba regionów między funkcją a miejscem, w którym leżą bajty. Zero to region funkcji. Analiza ucieczki porównuje głębokość bajtów z głębokością odbiorcy.
 
-**Check.** `frontend::check`: parse, typeck, sema, a przy braku błędów
-także stempel, hoist i escape.
+**Kontrola przed generowaniem kodu.** Zejście po reprezentacji pośredniej w `src/codegen/gate.rs`, zanim powstanie moduł LLVM. Odrzuca konstrukcje, których emisja nie tłumaczy, komunikatem fazy `codegen`. Nie łapie każdego miejsca, w którym emisja kończy się awarią.
 
-**Codegen.** Feature Cargo i faza diagnostyki. Obniżenie HIR do obiektu
-LLVM i linkowanie.
+**Kopiowanie.** Przekroczenie granicy regionu przez wartość typu prostego, która nie może być pusta. Źródło zostaje żywe. W wydruku drzewa znacznik to `Copy`.
 
-**Copy.** Przejście granicy regionu dla nienullowalnego prymitywu. Źródło
-zostaje.
+**Miejsce przeznaczenia.** Odbiorca bajtów wyniku: cel przypisania, powrót albo wynik `concat`. Steruje tym, w której arenie powstanie bufor wyniku. W kodzie bywa nazywane sink.
 
-**Deskryptor.** Wartość `{ ptr, len }` dla `String` i `[T; N]`. Bajty są
-gdzie indziej.
+**Promocja.** Zapis `promote nazwa` po prawej stronie przypisania do zmiennej z regionu zewnętrznego. Kopiuje bajty do areny tej zmiennej i unieważnia źródło.
 
-**Escape.** Pass `escape::place`. Pilnuje, żeby bajty nie były użyte po
-śmierci płyty. Diagnostyka ma fazę `ownership`.
+**Przeniesienie.** Zapis `move`, po którym źródłowa nazwa jest martwa. Bajty w starej arenie zostają niedostępne aż do wyczyszczenia bufora. W wydruku drzewa znacznik to `Moved`.
 
-**HIR.** Typowane drzewo. Nie niesie identyfikatora regionu.
+**Pula buforów.** Lista wolnych aren w bibliotece wykonawczej. Zwrot bufora oddaje go na listę. Wyczyszczenie wskaźnika bufora nie oddaje go na listę. Pobranie bierze bufor z listy albo alokuje nowy.
 
-**Hoist.** Rozpoznanie dwóch sąsiednich instrukcji i ustawienie
-`alloc_in_binding`, żeby bajty powstały od razu w arenie celu.
+**Reprezentacja pośrednia.** Drzewo programu po sprawdzeniu typów. Po angielsku high-level intermediate representation, w kodzie HIR. Niesie typ i rodzaj użycia nazwy. Nie niesie numeru regionu.
 
-**Local.** Nazwa zadeklarowana w tym regionie.
+**Region.** Fragment programu i czas życia pamięci z nim związany: ciało funkcji, blok, gałąź warunku, ciało pętli albo funkcja dopisana na końcu wywołania, o ile zdjęcie opakowań nie skleiło go z otoczeniem.
 
-**Move.** Przeniesienie własności. Wiązanie źródłowe jest martwe. Bajty w
-starej płycie zostają śmieciem aż do `reset`.
+**Rodzaj użycia.** Adnotacja na nazwie w reprezentacji pośredniej: użycie lokalne, współdzielenie, kopia, przeniesienie albo promocja. W kodzie `UseKind`. Nie zastępuje analizy własności.
 
-**Ownership.** Faza diagnostyki semy i escape. Nie jest osobnym passem o
-tej nazwie w kodzie.
+**Sprawdzenie.** Funkcja `frontend::check`: czytanie składni, sprawdzanie typów, analiza własności, a przy braku błędów także oznaczenie buforów, wyniesienie alokacji i analiza ucieczki.
 
-**Promote.** `promote nazwa` przy assign-up. Kopiuje bajty do areny
-zewnętrznego `var` i unieważnia źródło.
+**Typ nieznany.** Typ w reprezentacji pośredniej, który nie ma odpowiednika w składni. Tłumi część dalszych komunikatów o typie. Nie jest kopiowalny. W kodzie `Unknown`.
 
-**Region.** Blok, ciało funkcji, gałąź `if`, ciało pętli albo domknięcie,
-o ile `peel_blocks` go nie skleił z otoczeniem.
+**Wartość pusta.** Typ z dopiskiem `?`. Sprawdzanie typów ją rozumie. Generowanie kodu jej nie tłumaczy.
 
-**Shared.** Odczyt `val` nie-Copy z regionu rodzica. Dziecko nie kopiuje
-bajtów i nie zabija nazwy.
+**Współdzielenie.** Odczyt stałej, której nie wolno skopiować, z regionu zewnętrznego. Region wewnętrzny nie kopiuje bajtów i nie unieważnia nazwy. W wydruku drzewa znacznik to `Shared`.
 
-**Sink.** Miejsce, które konsumuje wartość: cel przypisania, `return`,
-albo wynik `concat`. Steruje, gdzie bump położy bajty wyniku.
+**Wyniesienie alokacji.** Rozpoznanie dwóch sąsiednich instrukcji i ustawienie pola `alloc_in_binding`, żeby bajty powstały od razu w arenie zmiennej docelowej. Plik `src/hoist.rs`.
 
-**Span.** Para offsetów bajtowych w pliku źródłowym.
+**Zakres źródłowy.** Para przesunięć bajtowych w pliku. W kodzie `Span`. Część komunikatów go nie ma. Wiersz poleceń pomija wtedy numer linii.
 
-**UseKind.** Adnotacja HIR na identyfikatorze: Local, Shared, Copy, Move,
-Promote. Nie zastępuje analizy semy.
+**Zdjęcie opakowań.** Usunięcie bloków, które zawierają tylko jeden wewnętrzny blok, żeby nie tworzyć regionu na same nawiasy. W kodzie `peel_blocks`. Licznik zdjętych nawiasów ląduje w `compacted_braces`.
 
-**`codegen_push`.** Flaga na `ArenaNode`. LLVM woła `bork_arena_push`
-tylko gdy jest ustawiona (korzeń funkcji zawsze).
+**`codegen_push`.** Flaga na węźle regionu. Wygenerowany kod woła `bork_arena_push` tylko wtedy, gdy flaga jest ustawiona. Korzeń funkcji ma ją zawsze.
 
-**`decl_tys`.** Wektor typów deklaracji w kolejności źródła, przekazany z
-typecku do semy.
+**`decl_tys`.** Wektor typów deklaracji w kolejności źródła, przekazany ze sprawdzania typów do analizy własności.
 
-**`loop_move_ban`.** Zbiór nazw, których nie wolno przenieść w ciele
-pętli, bo były widoczne na wejściu.
+**`loop_move_ban`.** Zbiór nazw, których nie wolno przenieść w ciele pętli, bo były widoczne na wejściu do pętli.
 
-**`peel_blocks`.** Zdjęcie zagnieżdżonych bloków, które zawierają tylko
-jeden blok. Licznik ląduje w `compacted_braces`.
-
-**`unit`.** Typ funkcji bez zadeklarowanego wyniku. Nie jest nazwą `Unit`.
+**`unit`.** Typ funkcji bez zadeklarowanego wyniku. W składni pisze się małymi literami. Nie nazywa się `Unit`.

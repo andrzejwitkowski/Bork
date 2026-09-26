@@ -1,103 +1,43 @@
 # O tej książce
 
-Ta książka uczy języka Bork i jednocześnie jest mapą kodu kompilatora
-napisanego w Ruście. Nie jest specyfikacją życzeń. Jeśli funkcja nie występuje
-w parserze, typecku, semantyce albo codegenie, nie jest opisana jako część
-języka. Jeśli jest tylko w specyfikacji z `docs/superpowers/specs/` albo w
-`TODO.md`, jest oznaczona jako plan albo dług.
+Ta książka uczy języka Bork i jednocześnie objaśnia kod kompilatora napisanego w Ruście. Nie jest listą życzeń. Jeśli jakiejś funkcji nie ma w parserze, w sprawdzaniu typów, w analizie własności albo w generatorze kodu, nie opisuję jej jako części języka. Jeśli występuje tylko w notatkach projektowych z katalogu `docs/superpowers` albo w pliku `TODO.md`, zaznaczam, że jest to plan albo zaległość, a nie gotowa możliwość.
 
-## Dla kogo
+## Dla kogo jest ta książka
 
-Książka zakłada, że piszesz już w jakimś języku programowania. Najwygodniej,
-jeśli znasz choć jeden z trzech punktów odniesienia, których Bork używa w
-dokumentacji projektu:
+Zakładam, że piszesz już w jakimś języku programowania. Najwygodniej będzie, jeśli znasz choć jeden z trzech punktów odniesienia, do których Bork sam się porównuje.
 
-- Kotlin albo inny język z blokami, `if` jako wyrażeniem i trailing lambda,
-- Rust albo C++, na tyle żeby słowa „własność”, „przeniesienie” i „alias”
-  nie były puste,
-- odrobinę kompilatorów: wiesz, że lexer, parser, AST i backend to kolejne
-  fazy, nawet jeśli nigdy nie pisałeś LALRPOP ani LLVM IR.
+Kotlin albo inny język z blokami, z warunkiem użytym jako wyrażenie i z funkcją dopisywaną na końcu wywołania da ci znajomą składnię. Rust albo C++ da ci słownictwo własności i przeniesienia, nawet jeśli w Borku działa ono inaczej niż sprawdzanie pożyczek. Odrobina wiedzy o kompilatorach wystarczy w części drugiej. Wystarczy wiedzieć, że program najpierw jest czytany jako tekst, potem dostaje strukturę, potem jest sprawdzany, a na końcu zamieniany na kod maszynowy. Nie musisz znać biblioteki Inkwell ani protokołu serwera językowego.
 
-Nie musisz znać Inkwella ani `tower-lsp`. Rozdziały o backendzie tłumaczą te
-biblioteki w zakresie, w jakim repo ich używa.
-
-Część I da się czytać bez zaglądania do `.rs`. Część II cytuje nazwy funkcji i
-plików. Część III zakłada, że masz repo otwarte obok książki.
+Część pierwszą da się czytać bez zaglądania do plików Rusta. Część druga podaje nazwy funkcji i plików. Część trzecia zakłada, że masz repozytorium otwarte obok książki.
 
 ## Jak czytać
 
 Są trzy sensowne przejścia.
 
-**Ścieżka języka.** Przedmowa, rozdziały 1–11, dodatki A i C. Zatrzymaj się
-na każdym listingu oznaczonym „uruchomione” i odpal go sam. Listingi
-oznaczone „tylko check” przechodzą `bork plik.bork`, ale `bork build` ich nie
-obniża albo obniżenie kończy się paniką.
+Ścieżka języka prowadzi przez przedmowę, rozdziały od 1 do 11 oraz dodatki A i C. Przy każdym listingu, o którym piszę, że został uruchomiony, warto uruchomić go samodzielnie. Listing, o którym piszę, że przechodzi tylko sprawdzenie, kompilator akceptuje poleceniem `bork plik.bork`, ale polecenie `bork build` albo go odrzuca, albo kończy się awarią kompilatora.
 
-**Ścieżka kompilatora.** Rozdział 2 (po co regiony), potem 12–18, potem 20.
-Rozdział 20 przeprowadza jeden krótki program przez `parse`, typeck, semę,
-hoist, escape, bramkę i LLVM. To jest najszybszy sposób zobaczyć, które
-struktury danych naprawdę niosą informację.
+Ścieżka kompilatora zaczyna się od rozdziału 2, bo bez powodu istnienia regionów dalsze fazy wyglądają jak zbiór niepowiązanych przejść. Potem idą rozdziały od 12 do 18 i rozdział 20. Rozdział 20 przeprowadza jeden krótki program przez kolejne funkcje kompilatora.
 
-**Ścieżka kontrybutora.** Rozdziały 19–22 i dodatek C. Rozdział 21 opisuje,
-które testy łapią którą fazę i jak dodać nową konstrukcję, idąc śladem
-`while` / `break` / `continue`, które w kodzie już są.
+Ścieżka osoby, która chce zmieniać kompilator, to rozdziały od 19 do 22 i dodatek C. Rozdział 21 pokazuje, które testy łapią którą fazę, i jak nowe słowo kluczowe, na przykład `while`, musiało przejść przez wszystkie warstwy.
 
-> **TIP.** Komunikaty w książce pochodzą z uruchomienia `target/debug/bork`.
-> Format linii to `plik:linia:kolumna: error: faza: treść`. Kolumna liczy
-> znaki Unicode od początku linii, nie bajty. Gdy diagnostyka nie ma spanu,
-> CLI pomija numer linii. Tak jest na przykład przy `returning the result of
-> concat`.
+Komunikaty w książce pochodzą z uruchomienia programu `bork` złożonego w tym środowisku z LLVM 23.1.2. Linia błędu ma postać `plik:linia:kolumna: error: faza: treść`. Kolumna liczy znaki od początku wiersza. Gdy błąd nie ma pozycji w pliku, numer linii znika. Tak jest na przykład przy próbie zwrócenia wyniku funkcji `concat`.
 
-## Konwencje
+## Umowy typograficzne
 
-**Listing 4.2.** tak podpisany jest numerowany w obrębie rozdziału. Pod
-listingiem numer w nawiasie, `(1)`, odnosi się do komentarza w kodzie.
+Listingi są numerowane w obrębie rozdziału. Pod listingiem zdania omawiają, co program robi i jaki był wynik uruchomienia, jeśli uruchomienie było możliwe. Numer w nawiasie, na przykład `(1)`, odsyła do komentarza w kodzie tylko wtedy, gdy kod naprawdę ma taki znacznik.
 
-Ramki:
+Ramki mają trzy role. Nota dopowiada fakt, który łatwo przeoczyć. Wskazówka mówi, co zrobić w praktyce. Ostrzeżenie dotyczy programu, który sprawdzenie akceptuje, a budowanie odrzuca albo na którym kompilator się wywraca. Osobno ostrzeżenie dotyczy zachowania, które przerywa już uruchomiony program.
 
-> **NOTE.** Fakt o modelu albo o kodzie, który łatwo przegapić.
-
-> **TIP.** Co zrobić w praktyce.
-
-> **WARNING.** Pułapka: program, który typeck przyjmie, a `bork build`
-> odrzuci albo na którym kompilator spanikuje. Osobno: zachowanie runtime,
-> które kończy proces.
-
-Kod Bork jest w blokach `bork`. Kod Rusta, który jest częścią kompilatora,
-jest w blokach `rust` i ma ścieżkę pliku w podpisie.
-
-Diagramy są w Mermaid. W PDF są wyrenderowane do obrazków.
+Kod Borka jest w blokach oznaczonych `bork`. Kod Rusta, który jest częścią kompilatora, jest w blokach `rust` i ma w podpisie ścieżkę pliku. Diagramy są zapisane w Mermaid. W pliku PDF są obrazkami.
 
 ## Czego książka nie obiecuje
 
-Bork w tej rewizji nie ma:
+W tej wersji Bork nie ma modułów, polecenia `import`, pakietów ani przestrzeni nazw. Nie ma struktur, wyliczeń definiowanych przez programistę, cech ani typów ogólnych. Nie ma wyjątków. Nie ma jednoargumentowego minusa, więc nie zapiszesz literału ujemnego. Instrukcji nie rozdziela się średnikiem. Nie ma garbage collectora. Nie ma referencji w stylu `&` i `&mut` z Rusta. Nie ma interpretera, trybu `bork run` ani debuggera. Generator kodu nie tłumaczy funkcji dopisanej na końcu wywołania, wartości `Some` i `None`, operatora `?:` ani asercji `!!`.
 
-- modułów, `import`, pakietów ani przestrzeni nazw,
-- struktur, enumów użytkownika, traitów, generyków,
-- wyjątków, `panic` jako konstrukcji języka, typu `Result`,
-- operatora jednoargumentowego minusa (literał ujemny nie parsuje się),
-- średników jako separatorów instrukcji,
-- garbage collectora,
-- referencji `&` / `&mut` i borrow checkera w stylu Rusta,
-- JIT, interpretera `bork run`, debuggera,
-- codegenu dla trailing closures, `Some`, `None`, `?:` i `!!`.
+Napis przekazany do funkcji napisanej przez programistę jest akceptowany przy sprawdzaniu. Przy budowaniu kompilator przerywa pracę awaryjnie. To błąd kompilatora, a nie reguła języka. Rozdział 17 pokazuje miejsce w kodzie.
 
-`String` przekazywany do funkcji użytkownika jest akceptowany przez frontend,
-ale `bork build` na tej ścieżce panikuje w `value_as_int`. To błąd
-kompilatora, nie reguła języka. Szczegóły są w rozdziale 17 i dodatku C.
+## O źródłach tej książki
 
-## O kodzie źródłowym książki
+Rozdziały leżą w katalogu `docs/book`. Przykłady, które uruchamiałem, są w `docs/book/przyklady` razem z plikiem `WYNIKI.md`. Historia commitów projektu jest tłem rozdziału 19. Nie streszczam każdego pull requestu.
 
-Rozdziały leżą w `docs/book/`. Przykłady, które uruchamialiśmy, są w
-`docs/book/przyklady/` razem z plikiem `WYNIKI.md`. Historia commitów
-projektu (parser, sema, typowany HIR, LLVM, sink/hoist/escape, tablice,
-LLVM 23) jest tłem rozdziału 19; książka nie streszcza każdego pull requestu.
-
-## O autorze języka i o tej książce
-
-Język i kompilator są projektem Andrzeja Witkowskiego (historia `git` na
-`main`). Ta książka jest opisem tego kodu dla innych programistów. Nie
-zmienia semantyki. Gdy dokumentacja w `docs/language.md` rozjeżdża się z
-kompilatorem, książka staje po stronie kompilatora i mówi o rozjeździe wprost.
-Najważniejszy przykład: rozdział o konkatenacji w `docs/language.md` woła
-`concat` na dwóch `var String` bez `move`. Frontend tego nie przyjmuje.
+Język i kompilator są projektem Andrzeja Witkowskiego. Ta książka jest opisem tego kodu dla innych programistów i nie zmienia semantyki. Gdy dokument `docs/language.md` rozmija się z kompilatorem, opisuję to, co robi kompilator, i mówię, na czym polega różnica. Najważniejszy przykład dotyczy konkatenacji dwóch zmiennych napisowych wewnątrz bloku. Dokument pokazuje wywołanie bez `move`. Kompilator takiego programu nie przyjmuje.

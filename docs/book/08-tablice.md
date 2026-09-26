@@ -1,25 +1,20 @@
-# Rozdział 7. Tablice
+# Rozdział 7. Tablice o znanej z góry długości
 
 ## Ten rozdział obejmuje
 
-- Typ `[T; N]` i literał `[1, 2, 3]`
-- Indeks, przypisanie elementu, wycinek o stałych granicach
-- `.length`
-- Własność całej tablicy i współdzielenie elementu `String`
-- Co robi runtime, gdy indeks nie mieści się w `N`
+- jak zapisać typ tablicy i literał tablicy
+- czym różni się odczyt elementu od wycinka o stałych granicach
+- jak czytać długość
+- jak własność dotyczy całej tablicy i pojedynczego napisu w tablicy
+- co dzieje się w czasie działania, gdy indeks nie mieści się w tablicy
 
-## Długość jest typem
+## Dlaczego długość należy do typu tablicy
 
-`N` w `[T; N]` jest literałem całkowitym w typie, nie wyrażeniem. Za duże
-`N` dla `u32` daje błąd gramatyki `array length is too large`. Pusta
-tablica nie ma skąd wziąć `N` ani `T`:
+Tablicę zapisuje się jako `[T; N]`. `T` jest typem elementu, a `N` jest liczbową długością. Długość nie jest wyrażeniem liczonym w czasie działania. Jest częścią typu, tak jak szerokość liczby `i32` jest częścią typu, a nie wartością trzymaną obok liczby. Tablica trzech liczb `i32` ma inny typ niż tablica dwóch liczb `i32`. Nie przypiszesz jednej do drugiej.
 
-```text
-err_empty.bork:2:13: error: type: empty array literal requires an explicit type, e.g. `val a: [i32; 0] = []`
-```
+`N` w zapisie typu musi być literałem całkowitym. Za duża liczba, która nie mieści się w `u32`, daje błąd gramatyki `array length is too large`. Pusta tablica nie ma skąd wziąć ani typu elementu, ani długości.
 
-Z adnotacją działa. **Listing 7.1.** Uruchomione: kod 0, bo `length` zera
-zwrócone jako kod wyjścia.
+**Listing 7.1.** Pusta tablica z jawnym typem. Program został zbudowany. Długość wynosi zero, więc kod wyjścia też wynosi zero.
 
 ```bork
 fun main(): i32 {
@@ -28,32 +23,23 @@ fun main(): i32 {
 }
 ```
 
-Elementy literału muszą mieć jeden typ. Liczba elementów musi równać się
-`N`.
+Bez adnotacji zapis `val a = []` daje komunikat, że pusty literał wymaga jawnego typu, i podaje przykład `val a: [i32; 0] = []`.
 
-**Listing 7.2.** Uruchomione checker.
+Elementy literału muszą mieć jeden typ, a ich liczba musi równać się `N`.
 
-```text
-array_mismatch.bork:2:23: error: type: array literal has 3 elements, expected 2
-array_mismatch.bork:2:9: error: type: initializer for `a` has type [i32; 3], expected [i32; 2]
-```
+**Listing 7.2.** Trzy elementy w tablicy, która według typu ma dwa.
 
-dla `val a: [i32; 2] = [1, 2, 3]`.
+Sprawdzenie wypisuje dwa błędy fazy `type`. Pierwszy mówi, że literał ma 3 elementy, a oczekiwano 2. Drugi mówi, że inicjalizator nazwy `a` ma typ `[i32; 3]`, a oczekiwano `[i32; 2]`. Źródło to `val a: [i32; 2] = [1, 2, 3]`.
 
-Dozwolony element to typ Copy albo nienullowalny `String`. `String?` jako
-element jest odrzucany. Nullowalna tablica jako całość też.
+Dozwolony element to wartość kopiowana albo niepusty napis. Napis, który może być pusty, nie może być elementem. Tablica, która sama może być pusta w sensie `?`, też jest odrzucana.
 
-Tablica nie jest Copy, nawet gdy elementy są. Przypisanie całych tablic
-wymaga identycznego `T` i `N`. Nie ma `[i32; 3]` w miejsce `[i32; 2]`.
+Tablica nie jest kopiowana, nawet gdy jej elementy są. Przypisanie całych tablic wymaga identycznego typu elementu i identycznej długości.
 
 ## Indeks
 
-Indeks jest `i32` i jest liczony w runtime. Nie jest częścią typu, więc
-typeck **nie** odrzuca `a[9]` na tablicy trzyelementowej. Sprawdzone:
-checker mówi tak, `bork build` produkuje binarkę, uruchomienie kończy się
-SIGABRT (134). `guard_index` woła `abort`.
+Indeks jest typu `i32` i jest liczony dopiero przy uruchomieniu. Nie wchodzi do typu, więc sprawdzenie nie odrzuca `a[9]` na tablicy trzyelementowej. Zbudowałem taki program. Plik wykonywalny powstaje, a uruchomienie kończy się sygnałem przerwania, z kodem powłoki 134. Generator kodu wstawia sprawdzenie zakresu i woła `abort`.
 
-**Listing 7.3.** Uruchomione: kod 12. Po zapisie `a[1] = 9` wycinek widzi ten sam bufor, więc `b[1]` to 9, a `a.length` to 3.
+**Listing 7.3.** Zapis elementu i wycinek, który widzi ten sam bufor. Program został zbudowany i kończy się kodem 12.
 
 ```bork
 fun main(): i32 {
@@ -64,33 +50,17 @@ fun main(): i32 {
 }
 ```
 
-`val` nie przyjmuje przypisania elementu:
+Po zapisie pod indeksem 1 leży 9. Wycinek od zera do dwóch, bez dwójki, obejmuje dwa pierwsze elementy i nie kopiuje ich do nowego bufora. Dlatego `b[1]` też jest 9. Długość `a` wynosi 3. Suma wynosi 12 i tyle wynosi kod wyjścia.
 
-```text
-val_index.bork:3:5: error: type: cannot assign to immutable `val` binding `a`
-```
+Nazwa wprowadzona przez `val` nie przyjmuje zapisu elementu. Komunikat jest ten sam co przy zwykłym przypisaniu do stałej: nie można przypisać do niezmiennej nazwy `a`. Indeks złego typu daje `array index must be i32` albo, przy zapisie, informację, że indeks ma inny typ, a oczekiwano `i32`.
 
-Indeks złego typu: `array index must be i32` albo, przy przypisaniu,
-`array index has type …, expected i32`.
+## Wycinek o stałych granicach
 
-## Wycinek
+Zapis `a[początek..koniec]` wymaga, żeby obie granice były literałami typu `i32`. Typ wyniku to tablica o długości `koniec - początek`. Wycinek nie kopiuje bufora. Nowy opis tablicy wskazuje w środek starej, a długość bierze z typu.
 
-`a[lo..hi]` wymaga, żeby `lo` i `hi` były literałami `i32`. Typ wyniku to
-`[T; hi-lo]`. Wycinek nie kopiuje bufora. Deskryptor wskazuje w środek
-tablicy, a długość bierze z typu.
+Wycinek `[1..9]` na tablicy `[i32; 3]` jest błędem typu: `slice [1..9] is out of bounds`. Granice, które nie są literałami, dają komunikat, że granice muszą być literałami całkowitymi, żeby typ wyniku miał znaną długość. Generator kodu nie wstawia drugiego sprawdzenia wycinka w czasie działania. Ufa sprawdzeniu typów. Indeks jest sprawdzany w czasie działania, bo nie da się go wpisać do typu.
 
-Poza zakresem:
-
-```text
-err_slice.bork:3:13: error: type: slice [1..9] is out of bounds for `[i32; 3]`
-```
-
-Granice, które nie są literałami: `slice bounds must be integer literals so
-the result type is [T; N]`. Codegen **nie** wstawia drugiego sprawdzenia
-wycinka w runtime. Ufa typeckowi. Indeks w runtime sprawdzany jest, bo nie
-da się go włożyć do typu.
-
-**Listing 7.4.** Uruchomione: stdout `20\n2\n`.
+**Listing 7.4.** Wycinek i jego długość. Program został zbudowany. Na wyjściu są wiersze `20` oraz `2`.
 
 ```bork
 fun main() {
@@ -101,20 +71,15 @@ fun main() {
 }
 ```
 
-Escape traktuje wycinek jak odbiorcę: nie może przeżyć areny, która trzyma
-bufor. Test `rejects_slice_escaping_inner_region` oczekuje fazy
-`ownership` i tekstu `inner region`.
+Analiza ucieczki traktuje wycinek jak tablicę, z której powstał. Wycinek nie może przeżyć areny, która trzyma bufor. Test `rejects_slice_escaping_inner_region` oczekuje fazy `ownership` i tekstu `inner region`.
 
 ## Napis jako element
 
-Odczyt `a[i]`, gdy element jest `String`, jest widokiem Shared na bufor
-tablicy, niezależnie od `val` czy `var` tablicy. Nie ma `move` jednego
-elementu. `move` i `promote` dotyczą całej tablicy.
+Odczyt `a[i]`, gdy element jest napisem, jest oglądaniem napisu leżącego w buforze tablicy. Nie ma przeniesienia jednego elementu. Słowa `move` i `promote` dotyczą całej tablicy albo, przy zapisie do elementu, wartości po prawej stronie.
 
-Zapis elementu nie-Copy używa areny tablicy jako sinku przypisania i
-wymaga `move` albo `promote` po prawej.
+Zapis elementu, który nie jest kopiowany, wymaga `move` albo `promote` po prawej stronie. Arena tablicy jest miejscem, w którym lądują bajty nowego elementu.
 
-**Listing 7.5.** Uruchomione: stdout `z\n`.
+**Listing 7.5.** Zapis przeniesionego napisu do tablicy. Program został zbudowany. Na wyjściu jest `z` oraz nowy wiersz.
 
 ```bork
 fun main() {
@@ -125,29 +90,19 @@ fun main() {
 }
 ```
 
-Bez `move` checker mówi, że trzeba `move` (test
-`index_assign_string_requires_move`). Po `move` nazwa `s` jest martwa.
-Dump listingu 7.5: `s [Moved ← fun main]`.
+Bez `move` sprawdzenie mówi, że własność trzeba przenieść. Po `move` nazwa `s` jest martwa. W drzewie regionów `s` jest oznaczone jako przeniesione z regionu funkcji `main`.
 
-## Reprezentacja
+## Jak tablica wygląda w gotowym programie
 
-W runtime tablica i napis mają ten sam kształt deskryptora LLVM:
-`{ ptr, i64 }`. Dla tablicy `len` równa się `N`. Bajty elementów leżą w
-arenie domu tej wartości: arena aktywna w miejscu utworzenia albo arena
-sinku, gdy tablica jest od razu zapisywana do zewnętrznego `var`.
+W reprezentacji LLVM tablica i napis mają ten sam kształt. Jest to para: adres bufora i długość zapisana na 64 bitach. Dla tablicy długość w tej parze równa się `N` z typu. Bajty elementów leżą w arenie, w której tablica powstała, albo w arenie zmiennej, do której tablica jest od razu zapisywana.
 
-`length` w codegenie jest wycięciem pola `i64` i obcięciem do `i32`.
-Dlatego typ pola w języku to `i32`, mimo że w deskryptorze długość jest
-64-bitowa. Przy `N`, które mieści się w gramatyce jako `u32`, obcięcie do
-`i32` jest prawdziwe tylko dopóki `N` mieści się w `i32`. Gramatyka
-przyjmuje `u32`. To jest krawędź, której testy nie spinają dużym `N`. Nie
-udawaj, że `length` tablicy o `N > 2^31-1` jest dobrze określone.
+Pole `length` w języku ma typ `i32`. Generator kodu wycina długość z pary i obcina ją do 32 bitów. Dopóki `N` mieści się w `i32`, wynik jest zgodny z typem. Gramatyka przyjmuje większe `N`, bo długość w typie jest liczbą `u32`. Testy nie sprawdzają tablicy dłuższej niż maksymalna wartość `i32`. Nie zakładaj, że pole `length` takiej tablicy jest dobrze określone.
 
 ## Podsumowanie
 
-- `[T; N]` niesie długość w typie. Literał musi mieć dokładnie `N` elementów.
-- `[]` wymaga adnotacji.
-- Indeks spoza zakresu aboruje proces. Zły wycinek jest błędem typu.
-- Wycinek jest widokiem, nie kopią, i ma typ `[T; hi-lo]`.
-- Element `String` czyta się jako Shared. Zapis elementu wymaga `move`.
-- Całą tablicę wolno `move` / `promote` tylko na identyczny `[T; N]`.
+- Długość tablicy jest częścią jej typu. Literał musi mieć dokładnie tyle elementów, ile mówi typ.
+- Pusty literał `[]` wymaga adnotacji typu.
+- Indeks spoza zakresu przerywa program. Zły wycinek jest błędem kompilacji.
+- Wycinek o stałych granicach wskazuje w istniejący bufor i ma typ tablicy o długości równej różnicy granic.
+- Element napisowy czyta się bez kopiowania. Zapis takiego elementu wymaga `move`.
+- Całą tablicę wolno przenieść tylko do tablicy o tym samym typie elementu i tej samej długości.

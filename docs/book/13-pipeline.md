@@ -1,172 +1,88 @@
-# Rozdział 12. Pipeline od źródła do binarki
+# Rozdział 12. Od pliku źródłowego do gotowego programu
 
 ## Ten rozdział obejmuje
 
-- Kolejność faz w `frontend::check` i w `codegen::build`
-- Co niesie każda struktura danych
-- Dlaczego typeck jest przed semą, wbrew starszej specyfikacji
-- Kiedy HIR znika, a raport aren zostaje
-- Diagram crate'ów i przepływu
+- w jakiej kolejności kompilator sprawdza program
+- co zapamiętuje każda pośrednia struktura danych
+- dlaczego sprawdzanie typów wykonuje się przed analizą własności
+- kiedy znika reprezentacja pośrednia, a zostaje drzewo regionów
+- jak z poprawnego programu powstaje plik wykonywalny
 
-## Jedno przejście, dwie bramy
+## Dwa wejścia, jedna wspólna kontrola
 
-Kompilator nie ma interpretera i nie ma MIR. Są dwie bramy wejścia:
-`bork plik.bork` kończy na `frontend::check`, `bork build` woła ten sam
-check i potem, tylko przy pustych diagnostykach, bramkę HIR oraz LLVM.
+Kompilator nie ma interpretera i nie ma osobnej reprezentacji maszynowej niższego poziomu niż LLVM. Są dwa wejścia. Polecenie `bork plik.bork` kończy się na sprawdzeniu. Polecenie `bork build` woła to samo sprawdzenie, a potem, tylko gdy nie ma błędów, tłumaczy program na kod.
 
 ```mermaid
 flowchart TD
-    src["plik .bork"] --> parse["parse<br/>LALRPOP + layout"]
-    parse -->|błąd| dparse["diagnostyka parse<br/>brak reportu, brak HIR"]
-    parse --> typeck["typeck::check<br/>AST → HIR + decl_tys"]
-    typeck --> sema["sema::analyze_with_decl_tys<br/>ArenaReport"]
-    sema --> merge["diagnostyki: najpierw ownership, potem type"]
-    merge -->|są błędy| stop["HIR = None<br/>report zostaje"]
-    merge -->|czysto| stamp["region_walk::stamp_codegen_push"]
-    stamp --> hoist["hoist::annotate"]
-    hoist --> escape["escape::check_function"]
-    escape -->|są błędy| stop2["HIR = None"]
-    escape -->|czysto| ok["CheckResult.is_ok"]
-    ok --> gate["codegen::gate"]
-    gate -->|odrzuca| dcg["diagnostyka codegen"]
-    gate --> llvm["llvm::emit_module"]
-    llvm --> obj["plik obiektowy"]
-    obj --> clang["clang + libbork_runtime.a"]
-    clang --> bin["binarka"]
+    src["Plik źródłowy"] --> parse["Czytanie składni"]
+    parse -->|błąd składni| stop1["Komunikat fazy parse. Brak drzewa regionów."]
+    parse --> types["Sprawdzanie typów"]
+    types --> own["Analiza własności nazw"]
+    own --> merge["Zebranie komunikatów"]
+    merge -->|są błędy| stop2["Brak reprezentacji pośredniej. Drzewo regionów zostaje."]
+    merge -->|brak błędów| later["Ustalenie, które regiony alokują. Wyniesienie alokacji. Analiza ucieczki."]
+    later -->|błąd ucieczki| stop2
+    later -->|program poprawny| build["Kontrola konstrukcji i generowanie kodu LLVM"]
+    build --> link["Konsolidacja z biblioteką wykonawczą"]
+    link --> bin["Program wykonywalny"]
 ```
 
-Komentarz na górze `src/frontend.rs` mówi „parse -> typeck -> sema -> HIR”.
-To jest skrót. Po czystym typecku i semie dochodzą stempel, hoist i escape.
-HIR w `CheckResult` jest obecny **wtedy i tylko wtedy**, gdy lista
-diagnostyk jest pusta po escape.
+Komentarz na początku `src/frontend.rs` streszcza kolejność pracy jako czytanie, sprawdzanie typów, analizę własności i reprezentację pośrednią. To jest skrót. Gdy nie ma błędów, dochodzą jeszcze trzy przejścia. Pierwsze oznacza, które regiony naprawdę potrzebują bufora. Drugie przenosi alokację napisu do areny zmiennej docelowej, jeśli widzi opisany wcześniej układ dwóch instrukcji. Trzecie jest analizą ucieczki. Reprezentacja pośrednia w wyniku sprawdzenia jest obecna tylko wtedy, gdy po analizie ucieczki lista błędów nadal jest pusta.
 
-## `CheckResult`
+## Co zwraca sprawdzenie
 
-```rust
-pub struct CheckResult {
-    pub report: Option<ArenaReport>,
-    pub hir: Option<HirProgram>,
-    pub diagnostics: Vec<Diagnostic>,
-}
-```
+Funkcja `frontend::check` zwraca strukturę `CheckResult`. Ma ona trzy pola. Pole `report` to drzewo regionów. Jest obecne, gdy składnia się udała, także przy błędach typów, własności i ucieczki. Pole `hir` to reprezentacja pośrednia z typami. Jest obecna tylko przy pustej liście błędów. Pole `diagnostics` zbiera komunikaty.
 
-| Pole | Kiedy `Some` / niepuste |
-|---|---|
-| `report` | parse się udał, także przy błędach typu, własności i escape |
-| `hir` | zero diagnostyk |
-| `diagnostics` | zbiór ze wszystkich faz, które zdążyły pobiec |
+Skrót HIR oznacza tę reprezentację pośrednią. Po angielsku high-level intermediate representation, czyli pośrednią postać programu, która ma już typy, ale nie ma jeszcze instrukcji maszynowych. Dalej piszę o niej jako o reprezentacji pośredniej, a skrót HIR zostawiam przy nazwach typów w kodzie Rusta, bo tak nazywają się struktury `HirProgram` i `HirExpr`.
 
-`is_ok()` to pusty wektor, nie osobna flaga.
+Kolejność w liście komunikatów jest odwrotna do kolejności pracy. Najpierw dopisywane są błędy analizy własności, potem błędy typów. Sprawdzanie typów wykonało się wcześniej, bo analiza własności potrzebuje typów deklaracji. Wypis idzie w drugą stronę. Robią to linie 38–42 w `src/frontend.rs`.
 
-Kolejność w wektorze: najpierw błędy semy (`from_sema`), potem doklejone
-błędy typeck. Typeck **liczył się pierwszy**, bo sema potrzebuje
-`decl_tys`. Drukuje się odwrotnie. To nie jest przypadek testu, tylko
-`frontend::check` linie 38–42.
+## Dlaczego typy są przed własnością
 
-## Dlaczego typeck przed semą
+Starsza notatka projektowa opisuje kolejność odwrotną, najpierw własność, potem typy. Kod robi inaczej. Analiza własności czyta wektor typów w kolejności deklaracji `val` i `var`. Przy każdej deklaracji zdejmuje kolejny typ. Bez wcześniejszego sprawdzenia typów nie wie, czy nazwa jest kopiowana. Funkcja `sema::analyze`, używana w części testów, uruchamia sprawdzanie typów wewnętrznie jeszcze raz. Ścieżka `frontend::check` używa `analyze_with_decl_tys`, żeby nie płacić dwa razy.
 
-Starsza specyfikacja typed HIR (`docs/superpowers/specs/2026-09-23-typed-hir-llvm-design.md`)
-opisuje kolejność „najpierw własność, potem typy”. Kod robi odwrotnie.
-Sema czyta `Vec<hir::Ty>` w kolejności deklaracji `val`/`var` i zdejmuje
-ją `pop_front` przy każdym `VarDecl`. Bez typecku nie wie, czy nazwa jest
-Copy. Funkcja `sema::analyze` (używana w części testów) woła typeck
-wewnętrznie jeszcze raz. Frontend używa `analyze_with_decl_tys`, żeby nie
-płacić dwa razy.
-
-Sema nie dostaje całego HIR. Dostaje AST i cienki wektor typów deklaracji.
-Sygnatury wołań (`fun_sigs: HashMap<String, Vec<BindingKind>>`) buduje
-sobie z AST, nie z HIR. Kind parametru (`val`/`var`) jest informacją
-własności, nie tylko typem.
+Analiza własności nie dostaje całej reprezentacji pośredniej. Dostaje drzewo składni i cienki wektor typów deklaracji. Sygnatury wywołań buduje sobie z drzewa składni. Informacja, czy parametr jest stały, czy zmienny, jest informacją o własności, nie tylko o typie.
 
 ## Co która struktura pamięta
 
-| Struktura | Pamięta | Nie pamięta |
-|---|---|---|
-| `ast::Program` | składnię, spany, rodzaje wiązań | typów wywnioskowanych, aren |
-| `hir::HirProgram` | typy na wyrażeniach, `UseKind`, `alloc_in_binding` po hoiście | identyfikatorów regionów |
-| `sema::ArenaReport` | drzewo regionów, własność nazw, później `codegen_push` | typów HIR w pełni (część typów spłyca się do `Unknown`) |
-| moduł LLVM | instrukcje, globalne literały, deklaracje runtime | źródła; diagnostyka jest wcześniej |
+Drzewo składni pamięta kształt zapisu, pozycje w pliku i to, czy nazwa jest stała. Nie pamięta typów wywnioskowanych ani regionów. Reprezentacja pośrednia pamięta typ przy każdym wyrażeniu, sposób użycia nazwy oraz, po wyniesieniu alokacji, nazwę zmiennej, w której arenę mają trafić bajty. Nie pamięta numeru regionu. Drzewo regionów pamięta zagnieżdżenie, własność nazw i później znacznik, czy region dostanie bufor w czasie działania. Nie pamięta pełnych typów reprezentacji pośredniej. Część typów spłaszcza do typu nieznanego. Moduł LLVM pamięta instrukcje i stałe literały. Nie pamięta już tekstu źródłowego. Komunikaty powstają wcześniej.
 
-Komentarz w `src/hir/mod.rs` jest normą dla reszty kompilatora: „HIR carries
-no region identity. Arenas and nesting live in `sema::ArenaReport`”.
-Codegen idzie po HIR i po raporcie **równocześnie**, spacerem
-`region_walk`. Rozjazd liczby dzieci areny z liczbą miejsc w HIR jest
-błędem wewnętrznym (`internal arena schedule mismatch`), nie błędem
-użytkownika.
+Komentarz w `src/hir/mod.rs` jest normą dla reszty kompilatora. Reprezentacja pośrednia nie niesie tożsamości regionu. Regiony żyją w drzewie z analizy własności. Generator kodu idzie po obu strukturach równocześnie, wspólnym spacerem. Gdy liczba dzieci w drzewie regionów nie zgadza się z liczbą miejsc w reprezentacji pośredniej, budowanie kończy się błędem wewnętrznym o niezgodności harmonogramu regionów. Nie jest to błąd, który programista Borka popełnił w składni. Jest to błąd zgodności dwóch przejść kompilatora.
 
-## `bork build` po checku
+## Co dzieje się przy budowaniu
 
-`codegen::build` (`src/codegen/mod.rs`):
+Funkcja `codegen::build` w `src/codegen/mod.rs` wymaga czystego wyniku sprawdzenia. W przeciwnym razie zwraca komunikaty wcześniejszych faz. Potem funkcja `gate`, czyli kontrola przed generowaniem kodu, odrzuca konstrukcje spoza obsługiwanego zestawu. Następnie powstaje kontekst LLVM, moduł i plik obiektowy. Na końcu `link::link_executable` woła `clang` z plikiem obiektowym i z archiwum `libbork_runtime.a`.
 
-1. Wymaga czystego `CheckResult`. Inaczej zwraca diagnostyki frontendu.
-2. `gate(hir)` — czysto składniowy filtr na HIR.
-3. `Context::create()`, `emit_module`, `write_object`.
-4. `link::link_executable` woła `clang` z plikiem obiektowym i
-   `libbork_runtime.a`.
+Błąd konsolidacji i brak `clang` są błędem narzędzia. Kod wyjścia wynosi dwa, a tekst zaczyna się od `error:` bez fazy. Błąd funkcji `gate` jest błędem programu fazy `codegen` i ma kod jeden.
 
-Błąd linkera i brak `clang` to `BuildError::Toolchain`, kod wyjścia 2,
-tekst `error: …` bez fazy. Błąd bramki to `BuildError::Diagnostics`, kod 1.
-
-## Diagram zależności crate'ów
+## Jak podzielony jest projekt
 
 ```mermaid
 flowchart LR
-    subgraph binarki
-        borkbin["bin bork<br/>src/main.rs"]
-        lsbbin["bin bork-lsp<br/>src/bin/bork_lsp.rs"]
-    end
-    subgraph crate_bork["crate bork"]
-        fe["frontend"]
-        tc["typeck"]
-        sema["sema"]
-        hir["hir"]
-        cg["codegen<br/>feature codegen"]
-        lsp["lsp<br/>feature lsp"]
-    end
-    runtime["crate bork_runtime<br/>staticlib, C ABI"]
-    llvm["libLLVM-23<br/>przez inkwell"]
-    clang["clang"]
-
-    borkbin --> fe
-    borkbin --> cg
-    lsbbin --> lsp
-    lsp --> fe
-    fe --> tc
-    fe --> sema
-    fe --> hir
-    tc --> hir
-    cg --> hir
-    cg --> llvm
-    cg --> runtime
-    clang --> runtime
+    borkbin["Program bork"] --> check["Sprawdzanie programu"]
+    borkbin --> codegen["Generowanie kodu"]
+    lspbin["Program bork-lsp"] --> check
+    codegen --> llvm["Biblioteka LLVM 23"]
+    codegen --> runtime["bork_runtime"]
+    clang["clang"] --> runtime
+    clang --> exe["Program użytkownika"]
 ```
 
-`bork_runtime` nie jest zależnością Cargo crate'a `bork` w sensie `use`.
-`build.rs` przy feature `codegen` kompiluje go `rustc --crate-type staticlib`
-do `libbork_runtime.a` i przekazuje ścieżkę przez `BORK_RUNTIME_LIB`.
-Program użytkownika linkuje ten archiwum. Sam kompilator linkuje
-`libLLVM-23` dynamicznie (`llvm23-1-force-dynamic`).
+`bork_runtime` nie jest zwykłą zależnością, którą kod Rusta importuje słowem `use`. W Cargo jednostka kompilacji nazywa się skrzynką, po angielsku crate. Plik `build.rs`, przy opcji `codegen`, kompiluje skrzynkę `bork_runtime` jako bibliotekę statyczną i przekazuje ścieżkę przez zmienną `BORK_RUNTIME_LIB`. Program użytkownika jest z nią konsolidowany. Sam kompilator ładuje `libLLVM` dynamicznie.
 
-Feature `lsp` (domyślny) dokłada `tower-lsp`, `tokio`, `serde_json` i binarkę
-`bork-lsp`. Feature `codegen` dokłada `inkwell` i `tempfile`. Da się złożyć
-checker bez żadnego z nich (`--no-default-features`). Wtedy `bork build`
-odmawia kodem 2.
+Opcja `lsp` jest domyślna. Dokłada biblioteki serwera językowego i program `bork-lsp`. Opcja `codegen` dokłada Inkwell, czyli bibliotekę Rusta, przez którą kompilator woła LLVM. Da się złożyć sam program sprawdzający, bez żadnej z tych opcji. Wtedy `bork build` odmawia pracy kodem dwa.
 
-## Czego w potoku nie ma
+## Czego w tej kolejności pracy nie ma
 
-Nie ma osobnej reprezentacji MIR, nie ma optymalizatora poza tym, co LLVM
-zrobi na module, nie ma passu inliningu domknięć (domknięcia nie dochodzą
-do LLVM), nie ma monomorfizacji (nie ma generyków). Hoist jest jedyną
-adnotacją middle-endu na HIR i jest lokalny.
+Nie ma osobnego optymalizatora poza tym, co LLVM zrobi z gotowym modułem. Nie ma wklejania funkcji dopisanych na końcu wywołania, bo te funkcje nie dochodzą do LLVM. Nie ma osobnych kopii funkcji dla różnych typów, bo nie ma typów ogólnych. Jedyną adnotacją dokładaną do reprezentacji pośredniej po sprawdzeniu typów jest nazwa zmiennej, w której arenie mają powstać bajty napisu. Jest lokalna i dotyczy dwóch sąsiednich instrukcji.
 
-`src/arena.rs` nie stoi na tym wykresie jako faza. To bliźniaczy model
-płyty 4 KiB. Sema go nie woła. Runtime ma własną kopię stałej.
+Plik `src/arena.rs` nie jest jedną z faz tej kolejności. To model bufora o pojemności 4096 bajtów. Analiza własności go nie woła. Biblioteka wykonawcza ma własną kopię stałej pojemności.
 
 ## Podsumowanie
 
-- Check to parse, typeck, sema, potem przy braku błędów stempel, hoist i escape.
-- HIR istnieje w wyniku tylko dla programu bez diagnostyk.
-- Raport aren przeżywa błędy semantyczne i ginie tylko przy błędzie parsowania.
-- Typeck jest przed semą, bo sema konsumuje typy deklaracji. Starsza specyfikacja opisuje odwrotność.
-- HIR nie ma identyfikatorów regionów. Codegen synchronizuje HIR z raportem w `region_walk`.
-- Binarka to obiekt LLVM zlinkowany z `libbork_runtime.a` przez `clang`.
+- Sprawdzenie czyta składnię, sprawdza typy, analizuje własność, a przy braku błędów ustala bufory regionów, wynosi alokację i sprawdza ucieczkę.
+- Reprezentacja pośrednia zostaje w wyniku tylko dla programu bez komunikatów.
+- Drzewo regionów przeżywa błędy znaczenia i znika tylko przy błędzie składni.
+- Sprawdzanie typów jest przed analizą własności, bo ta druga potrzebuje typów deklaracji. Starsza notatka projektowa opisuje kolejność odwrotną.
+- Reprezentacja pośrednia nie ma numerów regionów. Generator kodu uzgadnia ją z drzewem regionów wspólnym spacerem.
+- Plik wykonywalny jest obiektem LLVM skonsolidowanym z `libbork_runtime.a` przez `clang`.

@@ -1,168 +1,79 @@
-# Rozdział 19. Mapa repozytorium
+# Rozdział 19. Jak czytać repozytorium
 
 ## Ten rozdział obejmuje
 
-- Drzewo katalogów, które ma znaczenie
-- Odpowiedzialność modułów jednym zdaniem
-- Historię, która tłumaczy, dlaczego kod leży warstwami
-- Kolejność czytania, gdy chcesz zrozumieć całość
-- Pliki, które wyglądają na dokumentację, a są z innego etapu
+- które katalogi mają znaczenie przy czytaniu kompilatora
+- za co odpowiada każdy większy plik
+- w jakiej kolejności rosły warstwy, które widać w kodzie
+- od czego zacząć, gdy chcesz zrozumieć drogę pliku źródłowego
+- które dokumenty wyglądają na opis bieżącego kodu, a opisują wcześniejszy etap
 
-## Drzewo
+## Katalogi, które mają znaczenie
 
-```text
-Cargo.toml                 workspace: bork + crates/bork_runtime
-build.rs                   lalrpop; przy codegen także staticlib runtime
-src/lib.rs                 parse(), reeksporte, próbki MVP i PROCESS_USER
-src/main.rs                CLI check i build
-src/bin/bork_lsp.rs        binarka serwera
-src/parser.lalrpop         gramatyka
-src/ast.rs                 AST
-src/layout.rs              nowe linie w nawiasach
-src/span.rs                Span, SpannedName
-src/diag.rs                Diagnostic
-src/frontend.rs            check()
-src/typeck/                AST → HIR
-src/hir/                   Hir* i Ty
-src/sema/                  ArenaReport, walk, policy
-src/escape.rs              głębokość bajtów (prywatny moduł)
-src/hoist.rs               alloc_in_binding
-src/region_walk.rs         wspólny spacer (prywatny)
-src/dump.rs                ASCII aren
-src/builtins.rs            print, println, concat
-src/arena.rs               model 4 KiB, nie faza potoku
-src/lsp.rs                 adapter protokołu
-src/codegen/               bramka, regiony, link, llvm/
-crates/bork_runtime/       C ABI płyt i druku
-tests/parser.rs            parse
-tests/arrays.rs            tablice przez check
-tests/build.rs             bork build i uruchomienie binarki
-tools/bork-lsp-extension/  klient VS Code / Cursor
-docs/language.md           opis powierzchni
-docs/memory-model.md       model pamięci
-docs/superpowers/          specyfikacje i plany, część nieaktualna
-TODO.md                    dług po tablicach i region_walk
-scripts/bundle-llvm.sh     kopiowanie libLLVM obok bork
-```
+W korzeniu plik `Cargo.toml` opisuje przestrzeń roboczą: skrzynkę `bork` i skrzynkę `crates/bork_runtime`. Plik `build.rs` uruchamia generowanie parsera. Przy opcji `codegen` buduje też statyczną bibliotekę wykonawczą. Plik `src/lib.rs` wystawia funkcję `parse`, eksporty modułów i próbki używane w testach. Plik `src/main.rs` jest wierszem poleceń. Plik `src/bin/bork_lsp.rs` jest binarką serwera. Gramatyka jest w `src/parser.lalrpop`. Drzewo składni jest w `src/ast.rs`. Zamiana nowych linii w nawiasach jest w `src/layout.rs`. Zakres źródłowy jest w `src/span.rs`. Komunikat jest w `src/diag.rs`. Sklejenie faz jest w `src/frontend.rs`.
 
-Moduły prywatne (`escape`, `region_walk`, `layout`, `builtins`) są
-widoczne w crate, nie w API `bork::*`. Z zewnątrz wchodzisz przez
-`parse`, `frontend`, `sema`, `hir`, `typeck`, `dump`, `diag`, `lsp`,
-`codegen`, `arena`, `span`, `ast`.
+Sprawdzanie typów leży w `src/typeck/`. Reprezentacja pośrednia leży w `src/hir/`. Analiza własności leży w `src/sema/`. Analiza ucieczki jest w `src/escape.rs`. Wyniesienie alokacji jest w `src/hoist.rs`. Wspólny spacer regionów jest w `src/region_walk.rs`. Wydruk drzewa jest w `src/dump.rs`. Funkcje wbudowane są w `src/builtins.rs`. Model bufora 4096 bajtów, nieużywany przez analizę własności, jest w `src/arena.rs`. Adapter protokołu edytora jest w `src/lsp.rs`. Generowanie kodu jest w `src/codegen/`. Biblioteka wykonawcza jest w `crates/bork_runtime/`.
 
-## Jedno zdanie na moduł
+Testy czytania składni są w `tests/parser.rs`. Testy tablic przez samo sprawdzenie są w `tests/arrays.rs`. Testy budowania i uruchamiania binarki są w `tests/build.rs`. Klient edytora jest w `tools/bork-lsp-extension/`. Opis języka jest w `docs/language.md`. Model pamięci jest w `docs/memory-model.md`. Starsze specyfikacje i plany są w `docs/superpowers/`. Lista znanych braków jest w `TODO.md`. Skrypt kopiujący bibliotekę LLVM obok binarki `bork` jest w `scripts/bundle-llvm.sh`.
 
-| Moduł | Zdanie |
-|---|---|
-| `ast` | Nietypowane drzewo po parserze |
-| `layout` | Zamiana `\n` na `\r` w nawiasach, bez ruszania długości |
-| `span` | Para bajtów |
-| `diag` | Faza, treść, span |
-| `frontend` | Skleja fazy w `CheckResult` |
-| `typeck` | Produkuje HIR i błędy typu |
-| `hir` | Typowane drzewo bez identyfikatorów regionów |
-| `sema` | Drzewo aren i błędy nazw |
-| `escape` | Odrzuca bajty, które przeżyłyby swoją płytę |
-| `hoist` | Dwie sąsiednie linie → alokacja u celu |
-| `region_walk` | Jeden spacer HIR z raportem |
-| `dump` | Drzewo na tekst |
-| `builtins` | Trzy intrinsics |
-| `arena` | Bump 4096 i pula, referencyjny model |
-| `codegen` | Bramka, obiekt LLVM, `clang` |
-| `codegen::llvm` | Inkwell: funkcje, wyrażenia, tablice, uchwyty aren |
-| `lsp` | Pozycje UTF-16, hover, dump |
-| `bork_runtime` | Płyty i druk dla zlinkowanego programu |
+Moduły `escape`, `region_walk`, `layout` i `builtins` są prywatne. Widać je wewnątrz skrzynki, a nie w publicznym API. Z zewnątrz wchodzisz przez `parse`, `frontend`, `sema`, `hir`, `typeck`, `dump`, `diag`, `lsp`, `codegen`, `arena`, `span` i `ast`.
 
-## Jak repo rosło
+## Za co odpowiada każdy moduł
 
-Kolejność na `main`, skrócona do rzeczy, które widać w kodzie, nie do
-listy PR:
+Moduł `ast` trzyma nietypowane drzewo po parserze. Moduł `layout` zamienia znak nowej linii na znak powrotu karetki wewnątrz nawiasów i nie zmienia długości pliku. Moduł `span` trzyma parę przesunięć bajtowych. Moduł `diag` trzyma fazę, treść i zakres. Moduł `frontend` skleja fazy w wynik sprawdzenia. Moduł `typeck` produkuje reprezentację pośrednią i błędy typu. Moduł `hir` trzyma typowane drzewo bez numerów regionów. Moduł `sema` buduje drzewo regionów i błędy nazw. Plik `escape.rs` odrzuca bajty, które byłyby użyte po zwolnieniu ich bufora. Plik `hoist.rs` rozpoznaje dwie sąsiednie instrukcje i ustawia miejsce alokacji. Plik `region_walk.rs` jest jednym spacerem reprezentacji pośredniej razem z raportem regionów. Plik `dump.rs` zamienia drzewo na tekst. Plik `builtins.rs` deklaruje `print`, `println` i `concat`. Plik `arena.rs` opisuje bufor i pulę jako model w kompilatorze. Katalog `codegen` ma kontrolę przed generowaniem kodu, emisję LLVM i konsolidację. Katalog `codegen/llvm` tłumaczy funkcje, wyrażenia, tablice i uchwyty regionów przez bibliotekę Inkwell. Moduł `lsp` liczy pozycje UTF-16, podpowiedź i wydruk. Skrzynka `bork_runtime` trzyma bufory i wypisywanie dla zlinkowanego programu.
 
-1. Parser LALRPOP i AST, próbka z trailing closure (`MVP_SAMPLE`).
-2. LSP najpierw od samego parse. Dziś serwer woła pełny `check`.
-3. Składnia nullable, napisów, `Some`/`None`.
-4. Sema regionów, `--dump-arenas`, hover własności.
-5. Wyrażeniowy `move` i `val`/`var` na parametrach.
-6. Typowany HIR i `frontend::check` (`Phase` w diagnostyce).
-7. LLVM, `bork build`, runtime, bramka.
-8. Sink, hoist, `promote`, `concat`, escape.
-9. Tablice `[T; N]`, wycinki, `while`/`break`/`continue`, `&&`/`||`,
-   wspólny `region_walk`.
-10. Pin LLVM 23 i skrypt pakowania `libLLVM`.
+## Jak rosły warstwy widoczne w kodzie
 
-Specyfikacje w `docs/superpowers/specs/` opisują kroki 1, 4, 5, 6 i
-projekt LSP. Nie opisują tablic ani `while`. `TODO.md` jest świeższy niż
-te specyfikacje i mówi wprost, żeby plany w `docs/superpowers/plans/`
-przenieść albo usunąć, gdy zostaną wchłonięte. Czytaj je jako historię
-decyzji, nie jako kontrakt. Rozjazdy są w dodatku C.
+Kolejność na gałęzi `main`, skrócona do rzeczy, które widać w źródłach, jest następująca. Najpierw był parser i drzewo składni, z próbką funkcji dopisanej na końcu wywołania. Serwer edytora najpierw wołał samo czytanie składni. Dziś woła pełne sprawdzenie. Potem doszła składnia wartości pustych, napisów oraz słów `Some` i `None`. Potem analiza regionów, wydruk drzewa i podpowiedź własności. Potem wyrażeniowe `move` oraz `val` i `var` na parametrach. Potem typowana reprezentacja pośrednia i funkcja `frontend::check` z fazą w komunikacie. Potem LLVM, polecenie `bork build`, biblioteka wykonawcza i kontrola przed generowaniem kodu. Potem miejsce przeznaczenia alokacji, wyniesienie, słowo `promote`, funkcja `concat` i analiza ucieczki. Potem tablice o długości w typie, wycinki, pętle `while` z `break` i `continue`, koniunkcja i alternatywa oraz wspólny spacer regionów. Na końcu przypięcie LLVM 23 i skrypt pakowania biblioteki.
 
-## Kolejność czytania
+Specyfikacje w `docs/superpowers/specs/` opisują wczesne kroki i projekt serwera. Nie opisują tablic ani pętli `while`. Plik `TODO.md` jest świeższy i mówi wprost, żeby plany w `docs/superpowers/plans/` przenieść albo usunąć, gdy zostaną wchłonięte. Czytaj je jako historię decyzji. Kontraktem jest kod. Dodatek C wymienia miejsca, w których dokument i kod mówią co innego.
 
-Gdy celem jest „rozumiem, co się dzieje z plikiem `.bork`”:
+## Od czego zacząć czytanie
 
-1. `docs/language.md` i `docs/memory-model.md` — powierzchnia i model.
-   Potem ta książka tam, gdzie dokument się rozjeżdża (`concat` na `var`).
-2. `src/lib.rs` — `parse` i dwie próbki. Próbka MVP to test „parser i sema
-   dają radę”, nie test codegen.
-3. `src/frontend.rs` — cały potok w 60 liniach.
-4. `src/ast.rs` równolegle z początkiem `parser.lalrpop` (produkcje
-   `Program`, `Stmt`, `Expr`). Nie czytaj 400 linii gramatyki ciągiem,
-   dopóki nie znasz enumów.
-5. `src/hir/ty.rs` — `is_copy` i `uses_arena_storage`. To dwa predykaty,
-   do których wraca reszta.
-6. `src/sema/policy.rs` — `classify_use`. Potem `sema/walk.rs` tylko wokół
-   `open_ordinary`, `Assign` i `If`.
-7. `src/typeck/expr/control.rs` i `expr/call.rs` — miejsca, gdzie język
-   jest najbardziej „kotlinowy”.
-8. `src/escape.rs` funkcja `place` i `src/hoist.rs` funkcja `try_hoist`.
-   Są krótkie.
-9. `src/region_walk.rs` od `RegionVisitor` i `stamp_codegen_push`, nie od
-   makr kursora. Makra `arena_cursor` są mechaniką pożyczania. `TODO.md`
-   sam proponuje je kiedyś zastąpić typem kursora.
-10. `src/codegen/gate.rs`, potem `codegen/mod.rs` (`build`), potem
-    `llvm/mod.rs` (`emit_module`), potem `llvm/emit_fn.rs` i
-    `llvm/expr.rs`. `array/emit.rs` na końcu, gdy wiesz, jak wygląda
-    deskryptor.
-11. `crates/bork_runtime/src/lib.rs` — 150 linii, cały runtime.
-12. `tests/build.rs` — co naprawdę zwraca proces.
+Gdy celem jest zrozumienie, co dzieje się z plikiem o rozszerzeniu `.bork`, idź w tej kolejności.
 
-Gdy celem jest tylko język, zatrzymaj się po punkcie 7 i czytaj testy
-`sema` oraz `typeck` zamiast LLVM.
+Najpierw przeczytaj `docs/language.md` i `docs/memory-model.md`, a potem tę książkę w miejscach, gdzie dokument rozmija się z kompilatorem. Najważniejszy przykład to `concat` na dwóch zmiennych napisowych. Potem otwórz `src/lib.rs` i zobacz funkcję `parse` oraz dwie próbki. Próbka pierwszej wersji sprawdza, że parser i analiza własności dają radę. Nie jest testem generowania kodu. Potem przeczytaj `src/frontend.rs`. Cała kolejność faz mieści się tam w kilkudziesięciu liniach.
+
+Drzewo składni w `src/ast.rs` czytaj równolegle z początkiem gramatyki, czyli z produkcjami programu, instrukcji i wyrażenia. Nie czytaj kilkuset linii gramatyki ciągiem, dopóki nie znasz wariantów drzewa. Potem przeczytaj `src/hir/ty.rs`, zwłaszcza `is_copy` i `uses_arena_storage`. Do tych dwóch predykatów wraca reszta kompilatora. Potem `src/sema/policy.rs` i funkcję `classify_use`. Zejście w `src/sema/walk.rs` czytaj najpierw wokół otwarcia zwykłego regionu, wokół przypisania i wokół warunku.
+
+Wyrażenia w `src/typeck/expr/control.rs` i `src/typeck/expr/call.rs` pokazują miejsca, w których składnia najbardziej przypomina Kotlina. Funkcja `place` w `src/escape.rs` i funkcja `try_hoist` w `src/hoist.rs` są krótkie. Spacer w `src/region_walk.rs` zacznij od typu gościa i od stempla pobrania bufora, a nie od makr kursora. Makra `arena_cursor` są mechaniką pożyczania w Ruście. Plik `TODO.md` sam proponuje je kiedyś zastąpić typem kursora.
+
+Kontrolę przed generowaniem kodu czytaj w `src/codegen/gate.rs`, potem wejście budowania w `src/codegen/mod.rs`, potem `emit_module` w `src/codegen/llvm/mod.rs`, potem emisję funkcji i wyrażeń. Emisję tablic zostaw na koniec, gdy wiesz, jak wygląda deskryptor. Biblioteka wykonawcza w `crates/bork_runtime/src/lib.rs` ma około stu pięćdziesięciu linii i jest całym kodem wykonawczym. Testy w `tests/build.rs` mówią, co naprawdę zwraca proces.
+
+Gdy celem jest tylko język, zatrzymaj się przed generowaniem kodu i czytaj testy analizy własności oraz sprawdzania typów.
 
 ```mermaid
 flowchart TD
-    docs["docs/language.md<br/>docs/memory-model.md"] --> fe["frontend.rs"]
-    fe --> ast["ast.rs + parser.lalrpop"]
-    fe --> ty["hir/ty.rs"]
-    ty --> policy["sema/policy.rs"]
-    policy --> walk["sema/walk.rs"]
-    ty --> tcx["typeck/expr"]
-    walk --> esc["escape.rs + hoist.rs"]
+    docs["Opis języka i model pamięci"] --> fe["frontend: kolejność faz"]
+    fe --> ast["Drzewo składni i gramatyka"]
+    fe --> ty["Typy: kopia i bufor regionu"]
+    ty --> policy["Reguła odczytu nazwy"]
+    policy --> walk["Zejście po regionach"]
+    ty --> tcx["Sprawdzanie wyrażeń"]
+    walk --> esc["Ucieczka i wyniesienie alokacji"]
     tcx --> esc
-    esc --> rw["region_walk.rs"]
-    rw --> gate["codegen/gate.rs"]
-    gate --> llvm["llvm/emit_fn.rs + expr.rs"]
-    llvm --> rt["bork_runtime"]
+    esc --> rw["Wspólny spacer regionów"]
+    rw --> gate["Kontrola przed kodem maszynowym"]
+    gate --> llvm["Emisja funkcji i wyrażeń"]
+    llvm --> rt["Biblioteka wykonawcza"]
 ```
 
-## Pułapki nawigacji
+## Pułapki przy nawigacji
 
-- `src/arena.rs` i `ArenaNode` to nie jest ta sama arena. Pierwsza ma
-  `offset` i 4096 bajtów. Druga ma dzieci i wiązania.
-- `sema::analyze` i `frontend::check` nie są wymienne. Pierwsza liczy
-  typeck wewnętrznie. Druga podaje `decl_tys`.
-- `UseKind` w HIR i `Ownership` w raporcie mają podobne nazwy (`Copy`,
-  `Shared`, `Move`) i nie są tym samym typem.
-- Feature `codegen` wyłącza pół plików z kompilacji. Ostrzeżenia
-  `dead_code` na `region_walk` bez tego feature są oczekiwane: spacer
-  jest wtedy używany tylko przez stempel, a część metod tylko przez LLVM.
-- `docs/superpowers/plans/` potrafi opisywać LLVM 18. `Cargo.toml` pinuje
-  Inkwell z feature `llvm23-1-force-dynamic`. Wierz manifeście.
+Plik `src/arena.rs` i węzeł `ArenaNode` nie są tym samym obiektem. Pierwszy ma przesunięcie i pojemność 4096 bajtów. Drugi ma dzieci i wiązania w drzewie regionów.
+
+Funkcja `sema::analyze` i funkcja `frontend::check` nie są wymienne. Pierwsza liczy sprawdzanie typów wewnętrznie jeszcze raz. Druga podaje gotowy wektor typów deklaracji.
+
+Rodzaj użycia w reprezentacji pośredniej i rodzaj własności w raporcie mają podobne nazwy, między innymi kopia, współdzielenie i przeniesienie. Nie są tym samym typem w Ruście.
+
+Opcja `codegen` wyłącza część plików z kompilacji, gdy jest wyłączona. Ostrzeżenia o martwym kodzie na spacerze regionów bez tej opcji są oczekiwane. Spacer jest wtedy używany przez oznaczenie regionów, a część metod tylko przez emisję LLVM.
+
+Plany w `docs/superpowers/plans/` potrafią opisywać LLVM 18. Plik `Cargo.toml` przypina Inkwell z opcją `llvm23-1-force-dynamic`. Wierz manifestowi.
 
 ## Podsumowanie
 
-- Potok mieści się w `frontend.rs`. Reszta katalogu `src/` to fazy.
-- Czytaj `policy.rs` przed `walk.rs`, a `ty.rs` przed jednym i drugim.
-- Specyfikacje w `docs/superpowers` są historią. `TODO.md` i kod są stanem.
-- `arena.rs` nie stoi na ścieżce checku.
-- Testy `tests/build.rs` są definicją tego, co binarka robi, nie komentarze w LLVM.
+- Kolejność faz mieści się w `src/frontend.rs`. Reszta katalogu `src` to poszczególne fazy.
+- Regułę odczytu nazwy czytaj przed zejściem po regionach, a predykaty typu przed jednym i przed drugim.
+- Specyfikacje w `docs/superpowers` są historią. Plik `TODO.md` i kod są stanem.
+- Plik `src/arena.rs` nie stoi na ścieżce sprawdzenia.
+- Testy w `tests/build.rs` definiują to, co robi binarka. Komentarze przy emisji LLVM tego nie zastępują.

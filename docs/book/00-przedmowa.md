@@ -1,43 +1,13 @@
 # Przedmowa
 
-Bork powstał jako odpowiedź na konkretne tarcie. Rust daje natywny kod i
-bezpieczeństwo pamięci, ale lifetime'y i borrow checker są osobnym językiem,
-którego uczy się dłużej niż samej składni. Kotlin daje czytelne bloki,
-trailing closures i składnię, w której DSL prawie nie wygląda jak DSL. C daje
-deterministyczny czas życia i zero garbage collectora, ale każdy `free` jest
-osobną decyzją. Bork stawia te trzy obserwacje obok siebie i wybiera czwartą
-drogę: **nawiasy klamrowe są regionami pamięci**.
+Bork powstał z praktycznego zderzenia trzech przyzwyczajeń. W Kotlinie pisze się krótko. Blok kodu, funkcja przekazana na końcu wywołania i warunek zapisany jako wyrażenie nie wymagają od programisty osobnego rytuału. W Rustcie program natywny jest szybki i nie ma garbage collectora, ale czas życia każdej referencji trzeba opisać i obronić przed sprawdzaniem pożyczek. W C pamięć zwalnia się ręcznie, więc każdy `free` jest osobną decyzją, którą łatwo pomylić.
 
-Region nie jest lifetime'em dopiętym do jednej zmiennej. Jest pulą. Wszystko,
-co w bloku alokuje bajty `String` albo bufor tablicy, żyje w tej puli. Wyjście
-z bloku zeruje offset puli jednym ruchem. Nie ma GC, nie ma ogólnego `&` i
-`&mut`, nie ma ręcznego `free`. Przepływ danych między pulami jest jawny:
-wartość Copy się kopiuje, `val` typu nie-Copy dziecko może obserwować w
-miejscu (Shared), a `var` trzeba przenieść (`move`) albo świadomie podnieść
-(`promote`).
+Bork wybiera inną zasadę. Nawiasy klamrowe nie są tylko sposobem grupowania instrukcji. Oznaczają region pamięci. Napis albo tablica utworzona w takim bloku żyje tak długo, jak długo wykonanie pozostaje w tym bloku. Wyjście z bloku zwalnia cały bufor regionu naraz. Nie ma odśmiecania w tle i nie ma ogólnych referencji, które można by schować w polu struktury. Struktur zresztą w obecnej wersji języka nie ma.
 
-Ta książka jest przewodnikiem po języku **takim, jaki akceptuje dzisiejszy
-frontend**, i po kompilatorze **takim, jaki leży w tym repozytorium**. To
-rozróżnienie jest ważne. Parser i typeck przyjmują nullable, `?:`, `!!`,
-`Some`, `None` i trailing closures. `bork build` obniża do kodu maszynowego
-węższy podzbiór i przy kilku konstrukcjach, które frontend uważa za poprawne,
-albo odmawia diagnostyką fazy `codegen`, albo — co gorsza — panikuje w
-procesie kompilatora. Dodatki C wymienia te miejsca bez owijania.
+Ta książka opisuje język taki, jaki przyjmuje kompilator w tym repozytorium, oraz sam kompilator, plik po pliku. To rozróżnienie jest ważne. Część kompilatora, która sprawdza program, rozumie wartości puste, operator `?:`, wykrzykniki `!!` oraz funkcję dopisaną na końcu wywołania. Generator kodu maszynowego tłumaczy węższy zestaw konstrukcji. Niektóre programy, które przechodzą sprawdzenie, dostają przy budowaniu zwykły komunikat błędu. Inne, i to trzeba powiedzieć wprost, kończą się awarią samego kompilatora. Dodatek C wymienia te miejsca.
 
-Nazwa diagnostyk jest częścią projektu. Gdy program jest niepoprawny, komunikat
-mówi, że kompilator *borks*. Fazy nazywają się `parse`, `ownership`, `type` i
-`codegen`. Nie ma osobnego rozdziału o wyjątkach, bo język nie ma wyjątków,
-`Result` ani `try`. Błąd programisty jest albo błędem kompilacji, albo
-`abort` w czasie wykonania (dzielenie przez zero, indeks poza tablicą,
-przepełnienie areny 4096 bajtów).
+Nazwa diagnostyki jest częścią projektu. Gdy program jest niepoprawny, komunikat mówi, w której fazie kompilator przerwał pracę. Język nie ma wyjątków, typu `Result` ani instrukcji `try`. Błąd programisty jest albo błędem kompilacji, albo przerwaniem programu w czasie działania, na przykład przy dzieleniu przez zero albo przy indeksie spoza tablicy.
 
-Książka jest po polsku. Terminy, które w kodzie i w komunikatach kompilatora
-zostają po angielsku — borrow checker, lexer, arena, IR, HIR, move, Copy,
-Shared — zostają po angielsku. Tłumaczenie `move` na „przenieś” w tekście
-objaśniającym nie zmienia tego, co trzeba napisać w pliku `.bork`.
+Książka jest po polsku. Terminy, które w kodzie i w komunikatach kompilatora pozostają angielskie, podaję przy pierwszym użyciu i potem trzymam się jednego brzmienia. Słowo `move` w pliku źródłowym zostaje słowem `move`. W zdaniu objaśniającym mówię o przeniesieniu własności.
 
-Jeśli czytasz to jako autor kompilatora albo jako ktoś, kto chce dopisać
-kolejną konstrukcję, część III jest właściwym wejściem. Jeśli chcesz najpierw
-napisać program, zacznij od części I i trzymaj się programów, które
-`bork build` naprawdę linkuje. Bramka codegen jest węższa niż gramatyką, i
-książka powtarza to za każdym razem, gdy różnica ma znaczenie.
+Jeśli chcesz najpierw napisać program, czytaj część pierwszą i trzymaj się przykładów, które dają się zbudować. Jeśli chcesz czytać kod kompilatora albo dopisać nową konstrukcję, część trzecia prowadzi przez repozytorium w kolejności, w której kolejne fazy naprawdę na sobie polegają.

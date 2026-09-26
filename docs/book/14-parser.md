@@ -1,127 +1,66 @@
-# Rozdział 13. Lexer, parser i AST
+# Rozdział 13. Jak kompilator czyta tekst programu
 
 ## Ten rozdział obejmuje
 
-- LALRPOP i wbudowany lekser
-- Piętra pierwszeństwa
-- AST: które enumy naprawdę istnieją
-- Normalizację nawiasów
-- Jak błąd parsowania staje się `Diagnostic`
+- czym jest lekser i czym jest parser w tym projekcie
+- w jakiej kolejności wiążą się operatory
+- jakie węzły ma drzewo składni
+- po co kompilator przerabia nowe linie wewnątrz nawiasów
+- jak błąd czytania staje się komunikatem
 
-## Narzędzie
+## Jedna gramatyka czyta i składa
 
-Gramatyka jest w `src/parser.lalrpop`. `build.rs` woła
-`lalrpop::process_src()`. Moduł `parser` jest publiczny przez
-`lalrpop_mod!`. Wejście do reszty kompilatora to `bork::parse` w
-`src/lib.rs`: najpierw `normalize_parenthesized_newlines`, potem
-`ProgramParser::new().parse`. Typ błędu to
-`ParseError<usize, String, &'static str>`.
+Lekser zamienia tekst na tokeny, czyli słowa, liczby, operatory i końce wierszy. Parser układa tokeny w drzewo. W Borku obie te rzeczy są zapisane w jednym pliku, `src/parser.lalrpop`. Narzędzie LALRPOP generuje z tej gramatyki kod Rusta. Plik `build.rs` uruchamia to generowanie przy każdej kompilacji kompilatora. Wejście dla reszty programu to funkcja `parse` w `src/lib.rs`. Najpierw normalizuje nowe linie w nawiasach, potem woła parser programu. Błąd ma typ `ParseError` z biblioteki LALRPOP.
 
-Nie ma osobnego pliku tokenów. Lekser jest blokiem `match` w gramatyce.
+Nie ma osobnego pliku z listą tokenów. Lekser jest blokiem dopasowań na początku gramatyki.
 
-## Lekser
+## Co lekser pomija, a co zamienia na token
 
-Pomijane: spacje, tabulatory, `\r`, `\f`, oraz `//` do końca linii.
-Złamania linii, które nie stoją tuż przed `else`, stają się tokenem `NL`.
-`else` wchłania poprzedzające puste linie i komentarze, żeby `if` mógł
-złamać linię przed `else`.
+Pomijane są spacje, tabulatory i komentarz `//` do końca wiersza. Znak powrotu karetki też jest odstępem. Dzięki temu zamiana nowych linii wewnątrz nawiasów na odstęp naprawdę ukrywa je przed lekserem. Przejście do nowego wiersza, które nie stoi tuż przed `else`, staje się tokenem `NL`. Słowo `else` wchłania poprzedzające puste wiersze i komentarze, żeby warunek mógł złamać linię przed drugą gałęzią.
 
-Słowa kluczowe w `match`: `if`, `fun`, `val`, `var`, `for`, `in`,
-`return`, `Some`, `None`, `move`, `promote`. Reszta, w tym `while` i
-`true`, idzie ścieżką domyślną i jest porównywana jako literał terminala
-w produkcji.
+Słowa kluczowe w lekserze to `if`, `fun`, `val`, `var`, `for`, `in`, `return`, `Some`, `None`, `move` i `promote`. Reszta, w tym `while` i `true`, idzie zwykłą ścieżką i jest porównywana jako konkretny napis w regule gramatyki.
 
-Liczba całkowita to `[0-9]+` i mieści się w `i64`, inaczej błąd użytkownika
-`integer literal out of range for i64`. Float to `cyfry.cyfry`
-(`invalid float literal` przy przepełnieniu parsowania). Napis przechodzi
-przez `unescape_string_literal` w `ast.rs`.
+Liczba całkowita musi zmieścić się w `i64`. W przeciwnym razie gramatyka zgłasza `integer literal out of range for i64`. Liczba z kropką, która nie da się odczytać, daje `invalid float literal`. Napis przechodzi przez funkcję usuwającą sekwencje ucieczki, zapisaną w `src/ast.rs`.
 
-## Piętra
+## Kolejność operatorów
 
-Od najciaśniejszego do najluźniejszego, tak jak produkcje wołają siebie:
+Najmocniej wiążą się wywołanie, indeks, wycinek, odczyt pola i przyrostkowe `!!`. Potem jest negacja `!`. Potem mnożenie i dzielenie. Potem dodawanie i odejmowanie. Potem porównania. Potem zakres `..`. Potem koniunkcja `&&`. Potem alternatywa `||`. Najsłabiej wiąże się `?:`.
 
-| Produkcja | Operatory |
-|---|---|
-| `ExprSuffix` | wywołanie, `[i]`, `[lo..hi]`, `.` / `?.`, przyrostkowe `!!` |
-| `ExprUnary` | `!` |
-| `ExprMul` | `*` `/` |
-| `ExprAdd` | `+` `-` |
-| `ExprCompare` | `> < >= <= == !=` |
-| `ExprRange` | `..` |
-| `ExprAnd` | `&&` |
-| `ExprOr` | `\|\|` |
-| `ExprElvis` | `?:` |
+Operator `?:` jest prawostronnie łączny, bo prawa strona reguły woła z powrotem tę samą regułę. Pozostałe operatory dwuargumentowe są lewostronnie łączne.
 
-`?:` jest prawostronnie łączny, bo prawa produkcja woła z powrotem
-`ExprElvis`. Reszta binarna jest lewostronna przez `BinTier`.
+Dokument `docs/language.md` w jednym zdaniu o kolejności wymienia wywołania, mnożenie, dodawanie, porównania, zakres i `?:`. Pomija `&&`, `||` i `!`, które w gramatyce są. Ta książka trzyma się gramatyki. Koniunkcja wiąże mocniej niż alternatywa. Obie wiążą słabiej niż porównanie i mocniej niż `?:`.
 
-`docs/language.md` w jednym zdaniu o pierwszeństwie wymienia wywołania,
-`*` `/`, `+` `-`, porównania, `..` i `?:`. Pomija `&&`, `||` i `!`, które
-w gramatyce są. Książka trzyma się gramatyki. `&&` wiąże ciaśniej niż
-`||`, oba luźniej niż porównanie i ciaśniej niż `?:`.
+Indeks i granice wycinka używają reguły porównania, nie pełnego wyrażenia. Bez dodatkowych nawiasów nie włożysz `?:`, `||`, `&&` ani `..` do środka nawiasów kwadratowych.
 
-Indeks i granice wycinka używają `ExprCompare`, nie pełnego `Expr`. Bez
-dodatkowych nawiasów nie włożysz `?:`, `||`, `&&` ani `..` w środek
-`[...]`.
+## Drzewo składni
 
-## AST
+Plik `src/ast.rs` definiuje drzewo. Program ma listę funkcji. Funkcja ma nazwę, parametry, typ wyniku i ciało. Parametr ma rodzaj wiązania, stały albo zmienny, nazwę z zakresem źródłowym i typ.
 
-Plik `src/ast.rs`. Skrót, który wystarcza, żeby czytać typeck.
+Typ w drzewie składni jest albo typem prostym, albo nazwą, albo tablicą o długości, albo typem funkcji. Każdy z nich może mieć znacznik pustej wartości, choć później sprawdzanie typów odrzuca pustą tablicę.
 
-`Program` ma `functions`. `Function` ma `name`, `params`, `return_type`,
-`body`. `Param` ma `BindingKind` (`Val` albo `Var`), `SpannedName` i
-`Type`.
+Instrukcja jest blokiem, deklaracją, przypisaniem, pętlą `for`, pętlą `while`, `break`, `continue`, blokiem `move`, powrotem albo wyrażeniem użytym jako instrukcja. Cel przypisania jest albo nazwą, albo indeksem. Inny cel ginie już w gramatyce.
 
-`Type` to `Primitive`, `Named`, `Array { elem, len, nullable }`,
-`Func { params, ret, nullable }`.
+Wyrażenie jest literałem, indeksem, wycinkiem, nazwą, przeniesieniem, promocją, `None`, `Some`, działaniem, negacją, odczytem pola, wywołaniem albo warunkiem. Wywołanie może nieść funkcję dopisaną na końcu. Ta funkcja ma parametry, ciało, znacznik `move` i opcjonalną listę przenoszonych nazw.
 
-`Stmt` to `Block`, `VarDecl`, `Assign`, `For`, `While`, `Break`,
-`Continue`, `MoveBlock`, `Return`, `Expr`. `AssignTarget` to `Name` albo
-`Index`. Cel inny niż te dwa ginie już w gramatyce.
+Lista przenoszonych nazw jest wartością opcjonalną. Brak listy oznacza zgadywanie. Lista pusta oznacza jawne „nic nie przenoś”. Tej różnicy nie wolno spłaszczyć do jednego pustego wektora.
 
-`Expr` to literały (`Int`, `Float`, `Bool`, `Str`, `ArrayLit`), `Index`,
-`Slice`, `Ident`, `Move`, `Promote`, `None`, `Some`, `Binary`, `Unary`,
-`Field`, `Call`, `If`. `Call` niesie `trailing: Option<Closure>`.
-`Closure` ma `params`, `body`, `is_move`, `captures`.
+Zakres źródłowy jest parą `start` i `end` w bajtach. Notatka projektowa pierwszej wersji parsera mówiła, że zakresów nie będzie. To jest nieaktualne. Zakresy są w całym drzewie.
 
-`BinOp` obejmuje arytmetykę, porównania, `RangeTo`, `Elvis`, `And`, `Or`.
-`UnaryOp` to `Not` i `NotNullAssert` (`!!`).
+## Po co przerabiać nowe linie
 
-Spany są `Span { start, end }` w bajtach. Nazwy często są
-`SpannedName { name, span }`. Specyfikacja parsera MVP mówiła „bez spanów”.
-To jest nieaktualne.
+Funkcja w `src/layout.rs` zamienia `\n` na `\r` wewnątrz nawiasów okrągłych, na głębokości nawiasów klamrowych z chwili otwarcia nawiasu. Pomija napisy i komentarze. Długość pliku w bajtach się nie zmienia, więc pozycje komunikatów się nie przesuwają. Testy w `tests/parser.rs` sprawdzają pusty program, próbkę z funkcją na końcu wywołania, przypisanie do indeksu, parametry stałe i zmienne, bloki `move`, komentarze, kolejność operatorów, pętlę `while` i miejsca błędów. To jest pierwszy plik testowy, który warto czytać, gdy ruszasz gramatykę.
 
-`MoveBlock.captures` i `Closure.captures` są `Option<Vec<...>>`. `None`
-znaczy „wnioskuj”. `Some` puste znaczy „jawnie nic”. Tej różnicy nie wolno
-spłaszczyć do pustego wektora.
+## Od błędu parsera do komunikatu
 
-## Layout
+Funkcja `from_parse` w `src/diag.rs` zamienia warianty błędu LALRPOP na fazę `parse`. Błąd zgłoszony przez regułę gramatyki dostaje zakres o początku i końcu równym długości pliku, czyli pozycję na końcu. Dlatego zdanie `assignment target must be a name or name[index]` wskazuje koniec pliku. Poprawka byłaby lokalna albo w tłumaczeniu błędu, albo w akcji gramatyki, która dziś nie niesie pozycji. Nikt jej jeszcze nie zrobił.
 
-`src/layout.rs`. Wewnątrz `(...)` na głębokości klamer z momentu otwarcia
-nawiasu, `\n` staje się `\r`. Pomiń stringi i komentarze. Długość pliku w
-bajtach się nie zmienia, więc diagnostyka nie jedzie.
-
-Testy: `tests/parser.rs` (pusta programa, próbka MVP, przypisanie indeksu,
-`val`/`var` parametrów, `move`, komentarze, pierwszeństwo, `while`,
-błędy lokalizacji). To jest pierwszy plik testowy, który warto czytać, gdy
-ruszasz gramatykę.
-
-## Z błędu parsowania w diagnostykę
-
-`diag::from_parse` mapuje warianty `ParseError` na `Phase::Parse`.
-`User { error }` dostaje span `Span::new(source.len(), source.len())`.
-Dlatego „assignment target must be a name or name[index]” wskazuje koniec
-pliku. Poprawka byłaby lokalna w `from_parse` albo w akcji `=>?`, która
-dziś nie niesie pozycji. Nikt jej jeszcze nie zrobił.
-
-`frontend::check` przy błędzie parse wraca natychmiast. Typeck i sema się
-nie wykonują.
+Funkcja `frontend::check` przy błędzie składni wraca natychmiast. Sprawdzanie typów i analiza własności się nie wykonują.
 
 ## Podsumowanie
 
-- Gramatyka LALRPOP jest jedynym lekserem i parserem.
-- Nowa linia jest tokenem `NL`, chyba że layout zamienił ją w `\r` wewnątrz nawiasów, albo stoi przed `else`.
-- `Option` przy liście `move` odróżnia wnioskowanie od pustej listy.
-- Pierwszeństwo obejmuje `!`, `&&` i `||`, nawet jeśli skrót w `language.md` je pomija.
-- Błąd `User` z gramatyki ma span na EOF.
-- AST nie niesie typów wywnioskowanych. To robota HIR.
+- Gramatyka LALRPOP jest jedynym lekserem i jedynym parserem.
+- Nowa linia jest tokenem, chyba że wewnątrz nawiasów została zamieniona na odstęp albo stoi przed `else`.
+- Brak listy przy `move` oznacza zgadywanie. Pusta lista oznacza świadomą rezygnację ze zgadywania.
+- Kolejność operatorów obejmuje negację, koniunkcję i alternatywę, nawet jeśli skrót w dokumentacji języka je pomija.
+- Błąd zgłoszony przez regułę gramatyki ma pozycję na końcu pliku.
+- Drzewo składni nie niesie typów wywnioskowanych. To robota sprawdzania typów.

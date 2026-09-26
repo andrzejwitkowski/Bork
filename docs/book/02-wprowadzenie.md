@@ -1,32 +1,18 @@
-# Rozdział 1. Pierwszy program i narzędzia
+# Rozdział 1. Pierwszy program i sposób jego uruchomienia
 
 ## Ten rozdział obejmuje
 
-- Co Bork jest, a czego w tej rewizji nie jest
-- Program, który drukuje wiersz, i program, którego kodem wyjścia jest wynik
-- Różnicę między `bork plik.bork` a `bork build`
-- Jak czytać pierwszą diagnostykę
-- Gdzie kończy się „język”, a zaczyna „podzbiór codegen”
+- czym jest program napisany w Borku
+- jak sprawdzić plik, nie budując programu wykonywalnego
+- jak zbudować program i jak odczytać jego kod wyjścia
+- jak czytać pierwszy komunikat o błędzie
+- które konstrukcje język już rozumie, a których generator kodu jeszcze nie tłumaczy
 
-## Jedno zdanie
+## Program, który wypisuje jeden wiersz
 
-Bork jest małym językiem natywnym. Składnia jest zbliżona do Kotlina: `fun`,
-`val`, `var`, bloki w `{}`, `if` jako wyrażenie, trailing closure. Pamięcią
-nie zarządza garbage collector. Bajty wartości, które nie mieszczą się w
-rejestrze — dziś przede wszystkim `String` i tablice `[T; N]` — leżą w
-arenach przypiętych do bloków. Kompilator, gdy program jest zły, wypisuje
-diagnostykę i kończy się kodem 1. Stąd hasło z `README`: when your code is
-invalid, the compiler borks.
+Bork jest językiem kompilowanym do kodu maszynowego. Kompilator czyta plik tekstowy, sprawdza, czy program jest poprawny, i na życzenie tłumaczy go na plik, który da się uruchomić. Składnia jest zbliżona do Kotlina. Funkcję rozpoczyna słowo `fun`, nazwę niezmienną słowo `val`, nazwę zmienną słowo `var`, a grupę instrukcji obejmuje się nawiasami klamrowymi. Pamięcią nie zarządza garbage collector. Sens tej decyzji wyjaśnia następny rozdział. Tutaj celem jest zobaczyć działający program i pierwszy błąd.
 
-Repozytorium jest kompilatorem napisanym w Ruście. Nie ma tu interpretera.
-Ścieżka natywna idzie przez LLVM (biblioteka Inkwell, pin na LLVM 23) i małą
-bibliotekę runtime `bork_runtime`, linkowaną statycznie do programu
-użytkownika. Sprawdzenie programu — parse, typy, własność — nie potrzebuje
-LLVM. Zbudowanie binarki potrzebuje.
-
-## Dwa pierwsze programy
-
-**Listing 1.1.** Drukuje `hi` i nową linię. Uruchomione: kod wyjścia 0, stdout `hi\n`.
+**Listing 1.1.** Funkcja `main` wypisuje słowo i przechodzi do nowego wiersza.
 
 ```bork
 fun main() {
@@ -34,11 +20,9 @@ fun main() {
 }
 ```
 
-`fun main` bez `: Typ` zwraca `unit`. Taki `main` kompiluje się do funkcji
-`main` w C ABI, która zwraca `i32` równe 0. `println` jest wbudowany. Nie
-jest funkcją, którą wolno zdefiniować ponownie.
+Program składa się z funkcji. Nie ma instrukcji zapisanych luzem na poziomie pliku. `main` jest zwykłą funkcją, która przy budowaniu programu wykonywalnego dostaje szczególną rolę. Punkt wejścia procesu nazywa się właśnie tak. Jeśli nie podasz typu wyniku, funkcja nie zwraca wartości. Taki `main` kończy się kodem wyjścia zero. `println` jest funkcją wbudowaną. Wypisuje argument i dodaje znak nowego wiersza. Ten program został zbudowany i uruchomiony. Na standardowym wyjściu pojawił się tekst `hi` oraz nowy wiersz, a proces zakończył się kodem zero.
 
-**Listing 1.2.** Wynik funkcji jest kodem wyjścia procesu. Uruchomione: kod 42.
+**Listing 1.2.** Wynik funkcji `main` staje się kodem wyjścia procesu.
 
 ```bork
 fun add(a: i32, b: i32): i32 {
@@ -50,72 +34,55 @@ fun main(): i32 {
 }
 ```
 
-(1) Parametr bez `val`/`var` jest `val`.
-(2) `main` z wynikiem `i32` przekazuje tę liczbę jako kod wyjścia. Innych
-typów wyniku `main` codegen nie obniża: `i64`, `f64` i `bool` dostają
-diagnostykę `main returning … is not supported by codegen yet`.
+Funkcja `add` przyjmuje dwie liczby typu `i32` i zwraca ich sumę. Parametr zapisany jako `nazwa: Typ`, bez słowa `val` albo `var`, jest nazwą niezmienną. `main` z zadeklarowanym wynikiem `i32` przekazuje tę liczbę systemowi jako kod wyjścia. Po zbudowaniu i uruchomieniu proces kończy się kodem 42. Innych typów wyniku funkcji `main` generator kodu nie obsługuje. Próba zwrócenia `i64`, `f64` albo `bool` przechodzi sprawdzenie typów, a przy budowaniu dostaje komunikat, że taki wynik nie jest jeszcze obsługiwany.
 
-> **NOTE.** Nie ma instrukcji na poziomie pliku. Program to lista funkcji.
-> `main` jest zwykłą funkcją o zastrzeżonej nazwie tylko na etapie `bork build`.
-> Samo sprawdzenie pliku bez `main` przechodzi, jeśli reszta jest poprawna.
+> **NOTA.** Sprawdzenie pliku bez funkcji `main` może się udać, jeśli reszta programu jest poprawna. Budowanie programu wykonywalnego wymaga `main`. Brak tej funkcji jest błędem fazy generowania kodu, a nie błędem typu.
 
-## Sprawdzić i zbudować
+## Sprawdzenie i zbudowanie
 
-Z katalogu repozytorium, bez LLVM, wystarczy checker:
+Samą poprawność programu sprawdzisz bez biblioteki LLVM. LLVM to biblioteka, która później tłumaczy sprawdzony program na kod maszynowy. Na tym etapie nie jest potrzebna. Z katalogu repozytorium:
 
 ```text
-cargo run --bin bork -- path/to/file.bork
-cargo run --bin bork -- --dump-arenas path/to/file.bork
+cargo run --bin bork -- sciezka/do/pliku.bork
+cargo run --bin bork -- --dump-arenas sciezka/do/pliku.bork
 ```
 
-Pierwsza komenda uruchamia `frontend::check`: parse, typeck, analizę
-własności, a przy czystym programie także hoist i escape. Druga dopisuje na
-stdout drzewo aren. Diagnostyki idą na stderr. Kod wyjścia 0 oznacza brak
-diagnostyk, 1 oznacza błąd programu, 2 oznacza złą linię poleceń albo brak
-pliku.
+Pierwsze polecenie uruchamia sprawdzenie. Obejmuje ono składnię, typy i własność nazw. Drugie polecenie dopisuje na standardowe wyjście drzewo regionów. Komunikaty o błędach idą na standardowe wyjście błędów. Kod zero oznacza brak błędów. Kod jeden oznacza błąd w programie. Kod dwa oznacza złe wywołanie albo problem z odczytem pliku.
 
-Zbudowanie binarki wymaga feature `codegen`, LLVM 23, `clang` i bibliotek,
-które ciągnięte są z `libLLVM` (`libz3`, `libedit`, `libxml2`, `libzstd`,
-`libffi`). Na Ubuntu 24.04 pakietu LLVM 23 nie ma w domyślnym archiwum;
-`README` wskazuje apt.llvm.org. Po złożeniu:
+Zbudowanie programu wymaga opcji kompilacji `codegen`, biblioteki LLVM 23, kompilatora `clang` i bibliotek, z którymi ta wersja LLVM jest powiązana. Szczegóły instalacji są w pliku `README` repozytorium. Ubuntu 24.04 nie ma LLVM 23 w domyślnym archiwum pakietów. Po złożeniu kompilatora budujesz program tak:
 
 ```text
-cargo run --features codegen -- build file.bork
-cargo run --features codegen -- build -o out file.bork
+cargo run --features codegen -- build plik.bork
+cargo run --features codegen -- build -o wyjscie plik.bork
 ```
 
-Domyślna nazwa wyjścia to ścieżka wejścia bez rozszerzenia. Kompilator
-odmawia, gdy wyjście nadpisałoby plik źródłowy (`error: output path would
-overwrite input file`, kod 2). Bez feature `codegen` podkomenda `build`
-kończy się komunikatem, że `bork build` wymaga złożenia z tą flagą, też kodem 2.
+Jeśli nie podasz `-o`, nazwa pliku wynikowego powstaje przez odcięcie rozszerzenia `.bork`. Kompilator odmawia pracy, gdy plik wynikowy nadpisałby plik źródłowy. Komunikat brzmi wtedy `error: output path would overwrite input file`, a kod wyjścia wynosi dwa. Bez opcji `codegen` podpolecenie `build` kończy się informacją, że ta opcja jest wymagana, również kodem dwa.
 
-**Listing 1.3.** Diagnostyka braku `main`. Uruchomione, `bork build`, kod 1, binarka nie powstaje.
+**Listing 1.3.** Próba zbudowania pliku, w którym nie ma funkcji `main`.
+
+Źródło to jedna funkcja pomocnicza zwracająca liczbę 7. Budowanie kończy się kodem jeden i nie zostawia pliku wykonywalnego. Komunikat, przepisany z uruchomienia, brzmi:
 
 ```text
 nomain.bork: error: codegen: `fun main` is required to build an executable
 ```
 
-Źródło to jedna funkcja `helper`. Faza to `codegen`, nie `type`. Frontend
-uważa plik za poprawny.
+Słowo `codegen` w komunikacie jest nazwą fazy. Sprawdzenie tego samego pliku, bez budowania, kończy się sukcesem. Język nie wymaga, żeby każdy plik miał `main`. Wymaga tego dopiero tłumaczenie na program wykonywalny.
 
-## Pierwszy błąd, który zobaczysz często
+## Dwa błędy, które pojawiają się na początku
 
-**Listing 1.4.** Dwie instrukcje w jednej linii. Uruchomione.
+Instrukcje rozdziela się nową linią, nie średnikiem. Dwie instrukcje w jednym wierszu nie są programem.
+
+**Listing 1.4.** Parser odrzuca dwie deklaracje zapisane bez przejścia do nowego wiersza.
 
 ```bork
 fun main() { val a = 1 val b = 2 }
 ```
 
-```text
-err_two_stmt.bork:1:24: error: parse: unexpected token `val`; expected "!!", "!=", ... "}", "NL"
-```
+Komunikat zaczyna się od fazy `parse` i mówi, że token `val` jest nieoczekiwany, a wśród rzeczy oczekiwanych jest `NL`, czyli znak nowej linii. Lista oczekiwanych tokenów jest surowa. Pochodzi wprost z generatora parserów i nie została przepisana na zdanie dla człowieka. Średnik jest traktowany tak samo. W wierszu `val n = 1;` kompilator zgłasza nieoczekiwany token średnika.
 
-Instrukcje rozdziela się znakiem nowej linii, nie średnikiem. Średnik jest
-nieoczekiwanym tokenem. Lista `expected` jest surowa: LALRPOP wypisuje
-terminale, których mógłby użyć w tym stanie parsera. Nie jest to przyjazny
-tekst i książka nie będzie udawać, że jest.
+Drugi częsty błąd dotyczy zmiany nazwy, która miała pozostać stała.
 
-**Listing 1.5.** Przypisanie do `val`. Uruchomione.
+**Listing 1.5.** Przypisanie do nazwy wprowadzonej przez `val`.
 
 ```bork
 fun main() {
@@ -124,24 +91,19 @@ fun main() {
 }
 ```
 
+Komunikat, z kolumną wskazującą przypisanie, brzmi:
+
 ```text
 err_val.bork:3:5: error: type: cannot assign to immutable `val` binding `n`
 ```
 
-Faza `type` przychodzi z typecku. Faza `ownership` przychodzi z semy i z
-analizy escape. Obie mogą pojawić się w jednym uruchomieniu. Kolejność w
-wyjściu jest taka, że komunikaty własności idą pierwsze, nawet gdy typeck
-policzył się wcześniej. Rozdział 12 tłumaczy, dlaczego pipeline jest w tej
-kolejności.
+Faza `type` pochodzi ze sprawdzania typów. Faza `ownership` pochodzi z analizy własności. Obie mogą pojawić się w jednym uruchomieniu. W wydruku błędy własności stoją przed błędami typów, chociaż sprawdzanie typów wykonuje się wcześniej. Powód tej kolejności jest techniczny i wraca w rozdziale 12. Tutaj wystarczy czytać fazę w komunikacie i nie zakładać, że pierwsza linia jest zawsze pierwszym błędem, który kompilator znalazł w czasie.
 
-## Co już wolno, a czego `build` nie obniży
+## Co język przyjmuje, a czego nie przetłumaczy na kod maszynowy
 
-Następujący program przechodzi `bork plik.bork` (sprawdzone, kod 0) i jest
-próbką z `src/lib.rs` (`MVP_SAMPLE`). `bork build` kończy się kodem 1 i
-komunikatem zawierającym `codegen` oraz `not supported`. Test
-`build_rejects_mvp_sample_at_codegen_gate` pilnuje dokładnie tego.
+Poniższy program przechodzi sprawdzenie. Jest to próbka zapisana w kodzie kompilatora jako `MVP_SAMPLE`. Budowanie kończy się kodem jeden. Test `build_rejects_mvp_sample_at_codegen_gate` pilnuje, żeby w komunikacie były słowa `codegen` i `not supported`.
 
-**Listing 1.6.** Trailing closure. Tylko check. Codegen odrzuca.
+**Listing 1.6.** Funkcja przekazana na końcu wywołania. Sprawdzenie kończy się sukcesem. Budowanie jest odrzucane.
 
 ```bork
 fun action(a: Int, b: Int, block: (Int, Int) -> Int): Int {
@@ -164,39 +126,18 @@ fun main(): i32 {
 }
 ```
 
-To jest język, nie martwa gramatyka. Typeck sprawdza arność domknięcia i typ
-wyniku. Sema buduje węzeł `Closure` w drzewie aren. Bramka w
-`src/codegen/gate.rs` odrzuca `has_trailing_closure` tekstem `trailing
-closures are not supported by codegen`.
+To jest prawdziwy fragment języka, a nie martwa reguła gramatyki. Sprawdzanie typów kontroluje liczbę parametrów funkcji dopisanej na końcu i typ jej wyniku. Analiza własności buduje dla niej osobny region. Generator kodu zatrzymuje się wcześniej i wypisuje `trailing closures are not supported by codegen`.
 
-> **WARNING.** Część programów, które check puszcza, nie dostaje grzecznej
-> diagnostyki na `bork build`, tylko panic procesu kompilatora (kod 101).
-> Najważniejszy przypadek: argument `String` do funkcji użytkownika.
-> `println` i `concat` działają. Rozdział 17 pokazuje miejsce w
-> `coerce_value_to_ty`.
+> **OSTRZEŻENIE.** Nie każdy program odrzucony przy budowaniu dostaje taki komunikat. Przekazanie napisu do funkcji napisanej przez programistę przechodzi sprawdzenie, a potem proces kompilatora przerywa się awaryjnie, z kodem 101 i śladem stosu Rusta. Funkcje wbudowane `println` i `concat` tego nie robią. Rozdział 5 i rozdział 17 opisują tę różnicę na konkretnych plikach.
 
-## Drzewo aren, zanim zrozumiesz regiony
+## Drzewo regionów, zanim wyjaśnimy regiony
 
-Dla listingu 1.2 `--dump-arenas` wypisuje:
-
-```text
-Arenas
-├── fun add
-│   ├── a [Local]
-│   └── b [Local]
-└── fun main
-```
-
-`Local` znaczy: nazwa powstała w tym regionie. `main` nie ma lokalnych nazw,
-bo jedyną instrukcją jest `return`. W rozdziale 8 zobaczysz `Copy`,
-`Shared ← …` i `Moved ← …`. Dump jest tym samym tekstem, który komenda
-edytora **Bork: Dump Arenas** wkłada do kanału wyjścia.
+Dla listingu 1.2 polecenie z `--dump-arenas` wypisuje drzewo. Węzeł `fun add` ma dwie nazwy lokalne, `a` oraz `b`. Węzeł `fun main` nie ma nazw lokalnych, bo jedyną instrukcją jest `return`. Znacznik `Local` przy nazwie oznacza, że nazwa powstała w tym regionie. W rozdziale 8 pojawią się pozostałe znaczniki: kopiowanie, współdzielenie i przeniesienie. Ten sam tekst drzewa pokazuje w edytorze polecenie Bork: Dump Arenas.
 
 ## Podsumowanie
 
-- Program Bork to lista funkcji. Instrukcje rozdziela nowa linia.
-- `bork plik.bork` sprawdza. `bork build` obniża podzbiór do binarki przez LLVM.
-- `main(): i32` zwraca kod wyjścia. `main()` bez typu kończy się zerem.
-- Diagnostyka ma fazę: `parse`, `ownership`, `type` albo `codegen`.
-- Trailing closures, nullable i `?:` są w języku frontendu. Codegen ich nie obniża.
-- Przekazanie `String` do funkcji użytkownika jest dziś dziurą codegenu: panic, nie komunikat.
+- Program w Borku jest listą funkcji, a instrukcje rozdziela nowa linia.
+- Polecenie `bork plik.bork` sprawdza program. Polecenie `bork build` tłumaczy obsługiwany podzbiór na plik wykonywalny.
+- Funkcja `main` z wynikiem `i32` przekazuje ten wynik jako kod wyjścia. Funkcja `main` bez typu wyniku kończy się zerem.
+- Komunikat błędu ma fazę. Na tym etapie spotkasz `parse`, `type` i `codegen`. Faza `ownership` dojdzie w rozdziałach o własności.
+- Funkcja dopisana na końcu wywołania jest częścią języka sprawdzanego przez kompilator i nie jest jeszcze tłumaczona na kod maszynowy.

@@ -1,87 +1,52 @@
-# Rozdział 11. Biblioteka, brak modułów i idiomy
+# Rozdział 11. Funkcje wbudowane i sposób pisania programów
 
 ## Ten rozdział obejmuje
 
-- Dlaczego nie ma rozdziału o module w sensie językowym
-- Całą bibliotekę standardową, która naprawdę istnieje
-- Idiomy, które check i `bork build` udźwigną
-- Idiomy tylko frontendu
-- Krótki katalog „tak się tego nie pisze”
+- dlaczego w języku nie ma modułów
+- jakie funkcje wbudowane naprawdę istnieją
+- jak pisać programy, które dają się zbudować
+- jak pisać programy, które na razie tylko przechodzą sprawdzenie
+- których zapisów kompilator nie przyjmie, choć wyglądają znajomo
 
 ## Modułów nie ma
 
-Parser na poziomie programu oczekuje `NL` albo `fun`. Token `module` i
-token `struct` są błędami `expected "NL", "fun"`. Nie ma `import`, ścieżek,
-widoczności `pub` ani crate'ów użytkownika. Jeden plik, jedna lista
-funkcji, jedna mapa nazw.
+Parser na poziomie programu oczekuje nowej linii albo słowa `fun`. Słowa `module` i `struct` są błędami składni. Nie ma `import`, ścieżek plików, widoczności ani osobnych jednostek kompilacji po stronie języka. Jeden plik zawiera jedną listę funkcji i jedną mapę nazw.
 
-Słowo „moduł” w tej książce dalej występuje, ale o crate'ach Rusta:
-`bork` i `bork_runtime`. To nie jest mechanizm języka Bork.
+Słowo moduł wraca w tej książce tylko przy opisie dwóch skrzynek Rusta, `bork` i `bork_runtime`. Skrzynka, po angielsku crate, jest jednostką kompilacji w Cargo. To podział kodu kompilatora, nie mechanizm języka Bork. Serwer edytora i rozszerzenie w `tools/bork-lsp-extension` są narzędziami obok języka. Nie dodają składni.
 
-LSP i rozszerzenie edytora (`tools/bork-lsp-extension`) są narzędziami
-obok języka. Nie dodają składni.
+## Cała biblioteka, która istnieje
 
-## Cała biblioteka
+W `src/builtins.rs` są trzy nazwy. Nic więcej nie jest zarejestrowane.
 
-Trzy intrinsics. Nic więcej nie jest zarejestrowane w `builtins::resolve`.
+`print` wypisuje jedną wartość `i32`, `i64` albo napis i opróżnia bufor standardowego wyjścia. `println` robi to samo i dodaje nowy wiersz. `concat` przyjmuje dwa napisy i zwraca nowy napis. Bufor powstaje w arenie miejsca, do którego wynik jest zapisywany, a gdy takiego miejsca nie ma, w arenie bieżącego bloku.
 
-| Piszesz | Dostajesz |
-|---|---|
-| `print(x)` | `x` na stdout, flush, `x` to `i32`, `i64` albo `String` |
-| `println(x)` | to samo i `\n` |
-| `concat(a, b)` | nowy `String` w sinku albo w bieżącej arenie |
+Nie ma asercji, formatowania, czytania standardowego wejścia, plików, zegara ani argumentów wiersza poleceń. Funkcja `main` nie dostaje `argv`. Generator kodu odrzuca `main` z parametrami już przy deklaracji funkcji LLVM.
 
-Nie ma `assert`, `format`, wejścia z stdin, plików, alokacji poza areną,
-zegara ani argumentów wiersza poleceń. `main` nie dostaje `argv`. Codegen
-odrzuca `main` z parametrami przy deklaracji funkcji LLVM (`emit_fn`).
+Biblioteka wykonawcza ma funkcje, których nie wołasz z Borka wprost. Należą do nich pobranie bufora areny, jego zwrot, wyczyszczenie wskaźnika, alokacja w buforze oraz wypisywanie liczb i napisów. Rozdział 17 wymienia ich nazwy w C, bo taki jest sposób połączenia wygenerowanego kodu z biblioteką wykonawczą.
 
-Runtime C ABI, którego nie wołasz z Borka wprost, to `bork_arena_push`,
-`bork_arena_pop`, `bork_arena_reset`, `bork_arena_alloc`, `bork_print_i64`,
-`bork_println_i64`, `bork_print_str`, `bork_println_str`. Rozdział 17.
+## Jak pisać programy, które kompilator potrafi zbudować
 
-## Idiomy, które warto kopiować
+Wynik liczbowy jako kod wyjścia jest wygodny, gdy ćwiczysz budowanie bez wypisywania. Funkcja `main`, która zwraca 7, została zbudowana i kończy się kodem 7. Tak samo robi test `builds_return_constant`.
 
-**Wynik liczbowy jako kod wyjścia**, gdy ćwiczysz codegen bez drukowania.
+Pętla z liczbowym akumulatorem nie walczy z własnością. Listing 6.3 jest wzorem. Indeks i suma są typu `i32`, więc ciało pętli je kopiuje.
 
-```bork
-fun main(): i32 {
-    return 7
-}
-```
+Napis, który ma przeżyć blok, trzymaj w `main` i wypisz na końcu. Listing 9.1 pokazuje przypisanie literału do zmiennej z zewnątrz. Nie zwracaj świeżego napisu z funkcji pomocniczej, dopóki nie ma bufora należącego do wywołującego.
 
-Uruchomione: kod 7. Tak robi test `builds_return_constant`.
+Stała napisowa, którą blok wewnętrzny tylko czyta, jest prostsza niż przenoszenie w tę i z powrotem. Listing 2.2 jest wzorem współdzielenia.
 
-**Pętla i akumulator Copy.** Listing 6.3. Indeks i akumulator są `i32`,
-więc ciało nie walczy z własnością.
+Gdy chcesz, żeby kompilator zbudował napis od razu w arenie zmiennej docelowej, napisz deklarację i w następnym wierszu przeniesienie. Nie wstawiaj między nie `println`.
 
-**Napis w `main`, druk na końcu.** Listing 9.1. Nie zwracaj świeżego napisu
-z pomocnika, dopóki nie ma areny wyniku.
+Tablicy używaj z wycinkiem o stałych granicach, gdy długość jest znana w typie. Listing 7.4 to pokazuje. Wycinka o granicach trzymanych w zmiennych sprawdzanie typów nie przyjmie, bo typ wyniku nie miałby znanej długości.
 
-**`val` dla napisu, który dziecko tylko czyta.** Listing 2.2. Shared jest
-tańsze pojęciowo niż `move` wte i wewte.
+Warunek, który ma dać liczbę, zapisuj z dwiema gałęziami-blokami. Listing 6.1 jest wzorem.
 
-**Dwie linie, gdy hoist ma pomóc.** `var piece = concat(...)` i od razu
-`outer = move piece`. Nie wstawiaj między nie `println`.
+## Programy tylko do sprawdzenia
 
-**Tablica i wycinek o stałych granicach**, gdy długość jest znana.
-Listing 7.4. Nie używaj wycinka jako „vec slice” z granicami z zmiennych:
-typeck tego nie przyjmie.
+Pisz je, gdy ćwiczysz kompilator albo edytor. Nie wkładaj ich do programu, który ma być plikiem wykonywalnym.
 
-**`if` z dwoma blokami**, gdy potrzebujesz wartości. Listing 6.1.
+Należą tu funkcja dopisana na końcu wywołania, blok `move` stojący po wywołaniu, `Some`, `None`, `?:`, `!!` i `?.`. Należy tu także próba trzymania funkcji w stałej i wywołania jej pośrednio. Osobno należy tu napis jako parametr funkcji użytkownika. Sprawdzenie go przyjmuje, a budowanie przerywa kompilator. W `bork build` trzymaj się od tej kombinacji z daleka.
 
-## Idiomy tylko frontendu
-
-Pisz je, gdy ćwiczysz checker albo LSP. Nie wkładaj ich do programu, który
-ma być binarką.
-
-- Trailing closure i `move { }` po wywołaniu.
-- `Some`, `None`, `?:`, `!!`, `?.`.
-- Wartość typu funkcji w `val` i próba wywołania pośredniego.
-- `String` jako parametr funkcji użytkownika. To nawet nie jest „tylko
-  frontend”: frontend jest za, codegen panikuje. Trzymaj się z daleka od
-  tej kombinacji w `bork build`.
-
-**Listing 11.1.** Fragment próbki `PROCESS_USER_SAMPLE` z `src/lib.rs`. Cała próbka przechodzi check (uruchomione). `bork build` odrzuca `?:`, `Some` i `None`.
+**Listing 11.1.** Fragment próbki `PROCESS_USER_SAMPLE` z `src/lib.rs`. Cała próbka przechodzi sprawdzenie. Budowanie odrzuca `?:`, `Some` i `None`.
 
 ```bork
 fun processUser(name: String?, score: i32): i32 {
@@ -96,40 +61,24 @@ fun processUser(name: String?, score: i32): i32 {
 }
 ```
 
-## Tak się tego nie pisze
+Oryginalna próbka w `lib.rs` jest dłuższa. Ma dodatkową nazwę i zagnieżdżony blok. Też przechodzi sprawdzenie. Zostawiam ją w źródle kompilatora jako test, nie jako program do zbudowania.
 
-| Pokusa | Co się stanie |
-|---|---|
-| `val s = "a" + "b"` | błąd typu, `+` nie jest konkatenacją |
-| `return -1` | błąd parsowania, minus nie jest jednoargumentowy |
-| `val n = 1;` | błąd parsowania, średnik |
-| `var x = s` dla `var s: String` | `use move s to transfer ownership` |
-| `concat(left, right)` gdy oba są `var` w zagnieżdżonym bloku | `not Copy; move it into Block` |
-| `return concat(a, b)` | escape, „not supported yet” |
-| `a[i]` z indeksem spoza `N` | kompiluje się, proces aboruje |
-| `1 / 0` | kompiluje się, proces aboruje |
-| drugie `fun println` | `cannot redefine builtin` |
-| `struct` albo `module` | błąd parsowania na poziomie programu |
+## Zapisy, które wyglądają znajomo i są błędami
+
+Dodawanie dwóch napisów operatorem `+` jest błędem typu. Operator nie skleja tekstu. `return -3` jest błędem składni, bo minus nie jest operatorem jednoargumentowym. `val n = 1;` jest błędem składni. Przypisanie `var x = s` przy zmiennej napisowej `s` prosi o `move`. Wywołanie `concat` na dwóch zmiennych napisowych wewnątrz bloku prosi o przeniesienie każdej z nich. `return concat(a, b)` odpada w analizie ucieczki. Indeks spoza tablicy kompiluje się i przerywa program. Dzielenie `1 / 0` kompiluje się i przerywa program. Druga deklaracja `println` jest błędem typu. Słowa `struct` i `module` są błędami składni na poziomie programu.
 
 ## Styl, który pasuje do regionów
 
-Krótki blok robi jedną pulę tymczasową. Długi blok funkcji trzyma dane,
-które mają przeżyć pętlę. Pętla nie powinna przenosić stanu z zewnątrz;
-powinna czytać Copy albo Shared `val` i zapisywać wynik do zewnętrznego
-`var` przez przypisanie.
+Krótki blok robi jedną arenę na wartości tymczasowe. Długi blok funkcji trzyma dane, które mają przeżyć pętlę. Pętla nie powinna przenosić stanu utworzonego przed nią. Powinna czytać wartości kopiowane albo stałe współdzielone i zapisywać wynik do zmiennej z zewnątrz przez przypisanie.
 
-Nazwy `val` dla progów i napisów tylko do odczytu, `var` dla akumulatorów.
-To nie jest konwencja formatowania. To jest różnica, którą sema sprawdza.
+Stałych używaj do progów i do napisów, które są tylko czytane. Zmiennych używaj do akumulatorów. To nie jest rada stylistyczna obok kompilatora. To jest różnica, którą analiza własności sprawdza.
 
-Nie ma rustowego `clone()`. Świadoma kopia napisu to `concat(s, "")` tylko
-wtedy, gdy oba argumenty są legalne w tym regionie, albo przypisanie
-literału. Nie ma ogólnego głębokiego kopiowania tablicy poza zbudowaniem
-nowego literału. Wycinek nie jest kopią.
+Nie ma odpowiednika rustowego `clone`. Świadoma kopia napisu wymaga zbudowania nowego napisu, na przykład przez `concat`, gdy oba argumenty są w danym regionie legalne, albo przez przypisanie literału. Nie ma ogólnego kopiowania tablicy poza zbudowaniem nowego literału. Wycinek nie jest kopią.
 
 ## Podsumowanie
 
-- Biblioteka standardowa to `print`, `println` i `concat`.
-- Modułów, struktur i `import` nie ma. Jeden plik.
-- Idiom binarki: liczby w funkcjach, napisy w `main`, `val` do Shared, `var` do akumulatora.
-- Nullable i trailing closures są prawdziwym językiem frontendu i nie są językiem `bork build`.
-- `+` na napisach, średnik, minus jednoargumentowy i gołe użycie `var String` są błędami, nie lukami stylu.
+- Biblioteka języka to `print`, `println` i `concat`.
+- Modułów, struktur i `import` nie ma. Program jest jednym plikiem.
+- Program, który ma się zbudować, trzyma funkcje przy liczbach, napisy w `main`, stałe przy samym odczycie i zmienne przy akumulatorach.
+- Brak wartości i funkcja dopisana na końcu wywołania są prawdziwą częścią sprawdzanego języka i nie są częścią `bork build`.
+- Operator `+` na napisach, średnik, minus jednoargumentowy i gołe użycie zmiennej napisowej są błędami kompilacji.

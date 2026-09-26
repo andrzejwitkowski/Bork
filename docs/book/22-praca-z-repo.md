@@ -1,178 +1,85 @@
-# Rozdział 21. Testy, debugowanie i nowa funkcja języka
+# Rozdział 21. Testy, szukanie przyczyny błędu i nowa konstrukcja języka
 
 ## Ten rozdział obejmuje
 
-- Którą komendą odpalić który zestaw
-- Gdzie szukać, gdy binarka kłamie, a checker milczy
-- Ścieżkę dodania konstrukcji, na przykładzie `while`
-- Dług z `TODO.md`, którego nie trzeba odkrywać drugi raz
-- Czego nie robić przy pierwszym patchu
+- które polecenie uruchamia który zestaw testów
+- gdzie szukać, gdy binarka się wywraca, a sprawdzenie milczy
+- w jakiej kolejności warstw doszła do języka pętla `while`
+- które braki są już zapisane w `TODO.md`
+- czego nie robić w pierwszej poprawce
 
-## Testy
+## Dwa polecenia testów, bo generowanie kodu jest osobną opcją
 
-Z `README` i z `.github/workflows/ci.yml`:
+Z pliku `README` i z `.github/workflows/ci.yml` wynikają dwa polecenia. Pierwsze to `cargo test --workspace`. Drugie to `cargo test --workspace --features codegen`.
 
-```text
-cargo test --workspace
-cargo test --workspace --features codegen
-```
+Pierwsze polecenie nie składa LLVM. Łapie parser, analizę własności, sprawdzanie typów, analizę ucieczki przez `frontend::check`, serwer edytora oraz testy jednostkowe puli w bibliotece wykonawczej. Kontrolę przed generowaniem kodu łapie tylko o tyle, o ile test tej kontroli jest za warunkiem opcji `codegen`. Zadanie ciągłej integracji o nazwie `codegen` jest osobne. Instaluje LLVM 23 i `clang`, puszcza przestrzeń roboczą z tą opcją i jeszcze sprawdza spakowaną bibliotekę LLVM.
 
-Pierwsza komenda **nie** składa LLVM. Łapie parser, semę, typeck, escape
-przez `frontend::check`, LSP, runtime (`bork_runtime` ma własne testy
-jednostkowe puli) i bramkę o tyle, o ile test bramki jest za
-`cfg(feature = "codegen")`. Job CI `codegen` jest osobny: instaluje
-LLVM 23 i `clang`, puszcza workspace z feature i jeszcze smoke
-spakowanego `libLLVM`.
+Testy w `tests/parser.rs` utwierdzają tokeny, nowe linie, słowo `move`, kolejność operatorów i zakresy błędów. Testy w `src/sema/tests` utwierdzają własność nazw. Testy w `src/typeck/tests` utwierdzają typy, często przez pełne sprawdzenie. Plik `tests/arrays.rs` sprawdza tablice bez uruchamiania binarki. Plik `tests/build.rs` buduje program i sprawdza kod wyjścia albo standardowe wyjście. Plik `src/codegen/gate.rs` trzyma teksty o braku wsparcia. Plik `src/lsp.rs` sprawdza pozycje, podpowiedź i wydruk. Skrzynka `bork_runtime` sprawdza przesunięcie wskaźnika, wyrównanie i przepełnienie. Test `tools/bork-lsp-extension/test/server.test.js` pilnuje ścieżki binarki wobec `cargo run`.
 
-| Test | Co utwierdza |
-|---|---|
-| `tests/parser.rs` | tokeny, NL, `move`, pierwszeństwo, spany błędów |
-| `src/sema/tests/*` | własność nazw |
-| `src/typeck/tests/*` | typy, często przez pełny `check` |
-| `tests/arrays.rs` | tablice bez uruchamiania binarki |
-| `tests/build.rs` | `bork build` i kod wyjścia albo stdout |
-| `src/codegen/gate.rs` | teksty `not supported` |
-| `src/lsp.rs` | pozycje, hover, dump |
-| `crates/bork_runtime` | bump, align, overflow |
-| `tools/bork-lsp-extension/test/server.test.js` | ścieżka binarki kontra `cargo run` |
+Plik `tests/build.rs` jest kompilowany tylko z opcją `codegen`. Bez niej znika z zestawu. Nie dziw się, że samo `cargo test` nie widzi testu sumy pętli `for`.
 
-`tests/build.rs` jest za `#![cfg(feature = "codegen")]`. Bez feature
-plik znika z kompilacji. Nie dziw się, że `cargo test` „nie widzi”
-`builds_for_loop_sum`.
+Testy budowania piszą źródło do katalogu tymczasowego cargo, wołają binarkę `bork` z podpoleceniem `build` i ścieżką `-o`, a potem uruchamiają powstały program. Gdy dodajesz zachowanie widoczne w czasie działania, dopisuj tu oczekiwany kod albo tekst wyjścia. Test jednostkowy samej emisji tego nie zastępuje. Listingi w tej książce opierają się na tym samym kontrakcie.
 
-Testy build piszą źródło do `CARGO_TARGET_TMPDIR`, wołają
-`CARGO_BIN_EXE_bork` z `build -o`, potem uruchamiają binarkę. Gdy
-dodajesz zachowanie runtime, dopisuj tu oczekiwany kod albo stdout, nie
-tylko test jednostkowy emisji. Książka oparła listingi na tym samym
-kontrakcie.
+## Gdzie szukać, gdy wynik nie zgadza się z oczekiwaniem
 
-## Debugowanie
+Gdy drzewo regionów nie ma węzła, którego oczekujesz, błąd jest w zejściu analizy własności, w `src/sema/walk.rs`, a nie w LLVM. Gdy drzewo jest, a `bork build` kończy się awarią kompilatora, błąd jest w emisji albo w funkcji `coerce_value_to_ty`. Wydruk drzewa dostaniesz poleceniem `cargo run --bin bork -- --dump-arenas plik.bork`.
 
-**Checker.** `cargo run --bin bork -- --dump-arenas plik.bork`. Gdy drzewo
-nie ma węzła, którego oczekujesz, błąd jest w semie (`walk.rs`), nie w
-LLVM. Gdy drzewo jest, a `bork build` panikuje, błąd jest w emisji albo w
-`coerce_value_to_ty`.
+Prefiks fazy mówi, którego katalogu nie czytać w pierwszej kolejności. Faza `parse` prowadzi do gramatyki. Faza `type` prowadzi do `src/typeck`. Faza `ownership` bez słów o użyciu po przeniesieniu i bez słów o braku kopiowania często pochodzi z `src/escape.rs`, a nie z `src/sema/policy.rs`. Słowa o regionie wewnętrznym, o `concat` i o wartości przeniesionej albo promowanej są z analizy ucieczki. Faza `codegen` prowadzi do kontroli albo do emisji.
 
-**Faza.** Prefiks `parse` / `ownership` / `type` / `codegen` mówi, którego
-katalogu nie czytać. `ownership` bez słowa `after move` i bez `not Copy`
-często jest z `escape.rs`, nie z `policy.rs`. Słowa `inner region`,
-`concat`, `moved or promoted` są z escape.
+Komunikat o wewnętrznej niezgodności harmonogramu regionów znaczy, że wspólny spacer nie dostał dziecka węzła albo dostał je w złym miejscu. Porównaj etykietę w analizie własności z miejscem w typie `RegionSite`. Najczęstsza przyczyna przy nowej konstrukcji jest taka, że analiza własności otwiera region, a gość emisji o nim nie wie, albo odwrotnie.
 
-**Rozjazd spaceru.** Komunikat `internal arena schedule mismatch` znaczy:
-`region_walk` nie dostał dziecka `ArenaNode` albo dostał je w złym
-miejscu. Porównaj etykietę w semie z `RegionSite`. Najczęstsza przyczyna
-przy nowej konstrukcji: sema otwiera region, a visitor LLVM o nim nie wie,
-albo odwrotnie.
+Awaria w `into_int_value` znaczy, że wartość LLVM nie jest liczbą całkowitą. Patrz, jaki typ ma wyrażenie. Napis i liczba zmiennoprzecinkowa na ścieżce `emit_call_with_values` są znanymi ofiarami. Poprawka należy do `coerce_value_to_ty`: dopasowanie wariantu wartości, a dla struktury przekazanie deskryptora bez rzutowania na `i64`. Nie zakrywaj tego łapaniem paniki.
 
-**Panic `into_int_value`.** Wartość LLVM nie jest intem. Patrz, jaki `ty`
-ma wyrażenie. `String` i float na ścieżce `emit_call_with_values` są
-znanymi ofiarami. Naprawa należy do `coerce_value_to_ty`: dopasowanie
-`BasicValueEnum`, a dla struktur przekazanie deskryptora bez kastu na
-`i64`. Nie maskuj tego `catch_unwind`.
+Przerwanie procesu użytkownika bez komunikatu kompilatora to zwykle indeks albo dzielenie. Uruchom binarkę pod debuggerem i zobacz, czy stanęła w `abort`. Przepełnienie bufora regionu daje panikę Rusta z tekstem `arena overflow`, bo biblioteka wykonawcza jest pisana w Ruście i ta panika nie jest łapana przez program w Borku.
 
-**Runtime abort bez diagnostyki.** Indeks albo dzielenie. Odpal binarkę
-pod debuggerem i zobacz, czy stanąłeś w `abort`. Przepełnienie areny daje
-panic Rusta z tekstem `arena overflow`, bo runtime jest pisany w Ruście i
-`panic` nie jest łapany.
+Weryfikacja modułu LLVM po emisji wywraca budowanie, gdy reprezentacja pośrednia LLVM jest zepsuta, na przykład przy złym typie scalenia gałęzi albo przy braku powrotu. To lepsze niż cichy zły kod. Gdy weryfikacja pada, błędu nie szukaj w `clang`.
 
-**LLVM verify.** `module.verify()` po emisji wywraca build, gdy IR jest
-zepsuty (zły typ PHI, brak `ret`). To lepsze niż cichy zły kod. Gdy
-verify pada, IR jest już zły; nie szukaj błędu w `clang`.
+> **WSKAZÓWKA.** Binarka `bork` bez opcji `codegen` jest szybka, gdy poprawiasz komunikaty sprawdzenia. Włączaj tę opcję dopiero wtedy, gdy sprawdzenie jest czyste i chcesz zobaczyć kontrolę przed generowaniem kodu albo sam proces.
 
-> **TIP.** `bork` bez feature `codegen` jest szybki do iteracji po
-> komunikatach. Przepinaj feature dopiero, gdy check jest czysty i chcesz
-> zobaczyć bramkę albo proces.
+## Jak do języka doszła pętla while
 
-## Ścieżka nowej konstrukcji
+Poniżej jest kolejność, którą widać po fakcie na `while`, `break` i `continue`. Nie jest to przepis skopiowany z planu. Jest to kolejność warstw, które musiały ruszyć, bo każda z nich w kodzie o pętli `while` wie.
 
-Poniżej jest ścieżka, którą widać po fakcie na `while` / `break` /
-`continue`. Nie jest to przepis z planu, tylko kolejność warstw, które
-musiały ruszyć, bo każda z nich w kodzie o `while` wie.
+Najpierw gramatyka. Dochodzi terminal i produkcja instrukcji. Dla `while` warunek jest w nawiasach, a ciało jest blokiem. `break` i `continue` są instrukcjami z zakresem źródłowym. Test w `tests/parser.rs` sprawdza, że nowa linia działa i że słowo nie jest identyfikatorem w złym miejscu.
 
-1. **Gramatyka.** Terminal i produkcja `Stmt`. Dla `while`: warunek w
-   nawiasach, ciało blokiem. `break` i `continue` jako instrukcje ze
-   spanem. Test w `tests/parser.rs`, że NL działa i że słowo nie jest
-   identyfikatorem w złym miejscu.
+Potem drzewo składni dostaje warianty instrukcji `while`, `break` i `continue`. Na tym etapie nie ma typów.
 
-2. **AST.** Wariant `Stmt::While`, `Break`, `Continue`. Bez typów.
+Potem sprawdzanie typów. Warunek oczekuje `bool`. Głębokość pętli rośnie tak samo jak przy `for`. `break` poza pętlą jest błędem typu. Dochodzi nowy wariant instrukcji w reprezentacji pośredniej. Test trzyma dokładny tekst komunikatu.
 
-3. **Typeck.** Warunek oczekuje `bool`. `loop_depth` rośnie tak samo jak
-   przy `for`. `break` poza pętlą to błąd typu. Nowy `HirStmt`. Test
-   tekstu diagnostyki.
+Potem analiza własności. Region `WhileLoop` otwiera się zwykłą ścieżką. Obowiązuje ten sam zakaz przeniesienia co przy `for`. Jeśli zapomnisz zakazu, istniejący test przeniesienia nazwy zewnętrznej w pętli nie pokryje `while`, dopóki go nie skopiujesz. Warto go skopiować.
 
-4. **Sema.** Region `WhileLoop` przez `open_ordinary`. Ten sam
-   `loop_move_ban` co `for`. Jeśli zapomnisz zakazu, test
-   `move_outer_binding_inside_loop_errors` nie pokryje `while`, dopóki go
-   nie skopiujesz. Warto skopiować.
+Jeśli ciało jest blokiem, nie dokładaj drugiego regionu w sprawdzaniu typów. Analiza własności i reprezentacja pośrednia muszą mieć po jednym dziecku. Inaczej spacer się nie zepnie.
 
-5. **HIR a peel.** Jeśli ciało jest blokiem, nie dokładaj drugiego
-   regionu w typecku. Sema i HIR muszą mieć po jednym dziecku.
+Nowa instrukcja musi być odwiedzona w analizie ucieczki i w wyniesieniu alokacji. Inaczej deklaracja wewnątrz `while` nie będzie widziana. Dla tej pętli wystarczy zejść w ciało tak, jak przy `for`.
 
-6. **Escape / hoist.** Nowa instrukcja w spacerze `escape` i w
-   `hoist`, inaczej deklaracja w `while` nie będzie widziana. Dla `while`
-   wystarczy zejść w ciało jak w `for`.
+We wspólnym spacerze dochodzi miejsce regionu i hak pętli `while`. Oznaczenie pobrania bufora zaczyna widzieć alokacje w ciele. Bez tego wygenerowany kod i raport przestaną pasować do siebie w chwili, gdy ciało alokuje napis.
 
-7. **`region_walk`.** `RegionSite` i hak `while_loop`. Stempel
-   `codegen_push` zacznie widzieć alokacje w ciele. Bez tego LLVM i
-   raport się rozjadą w chwili, gdy ciało alokuje napis.
+Pętla `while` nie potrzebuje odmowy w kontroli przed generowaniem kodu, bo emisja ją umie. Nowa konstrukcja, której emisja nie umie, musi dostać odmowę w `src/codegen/gate.rs`, żeby użytkownik dostał komunikat zamiast awarii kompilatora. Lekcją jest napis jako argument funkcji użytkownika. Kontrola go nie zna, a emisja kończy się awarią.
 
-8. **Bramka.** `while` nie potrzebuje odmowy, bo emisja go umie. Nowa
-   konstrukcja, której emisja nie umie, **musi** dostać `reject` w
-   `gate.rs`, żeby użytkownik dostał diagnostykę zamiast paniki. To jest
-   lekcja z `String` jako argumentu: bramka go nie zna, emisja panikuje.
+Emisja dokłada bloki podstawowe: nagłówek, ciało, zatrzask, czyszczenie bufora, jeśli region go pobrał, oraz `break` jako skok do bloku wyjścia. Potem test w `tests/build.rs` ma konkretny kod wyjścia. Dla `while` z `break` przy wartości 3 jest to 3.
 
-9. **Emisja.** Bloki podstawowe: nagłówek, ciało, zatrzask, `reset` jeśli
-   region wypchnął płytę, `break` jako skok do bloku wyjścia. Potem test
-   w `tests/build.rs` z konkretnym kodem wyjścia. Dla `while`+`break` jest
-   to 3.
+Na końcu dokument. `docs/language.md`, a jeśli ruszasz pamięć, także `docs/memory-model.md`. Plik `TODO.md` prosi, żeby dokument nadążał za kontrolą przed generowaniem kodu. Ta książka opisuje jedną rewizję i nie zaktualizuje się sama. Przy zmianie semantyki aktualizuj co najmniej `docs/language.md`.
 
-10. **Dokument.** `docs/language.md` i, jeśli ruszasz pamięć,
-    `docs/memory-model.md`. `TODO.md` prosi, żeby dokument nadążał za
-    bramką. Ta książka jest trzecim opisem. Przy zmianie semantyki
-    aktualizuj co najmniej `language.md`. Książka w `docs/book` opisuje
-    jedną rewizję; nie zaktualizuje się sama.
+Konstrukcja, która jest tylko skrótem składniowym, może skończyć się w parserze zamianą na istniejące drzewo. W tym repozytorium prawie nic się tak nie dzieje. Wyrażeniowe `move` i regionalne `move` są osobnymi węzłami. Nowy skrót lepiej zostawić osobnym węzłem, jeśli ma własny komunikat.
 
-Konstrukcja, która jest tylko cukrem składniowym, może skończyć się w
-parserze desugaringiem do istniejącego AST. W tym repozytorium prawie nic
-się tak nie dzieje. `move` wyrażeniowy i `move` regionalny są osobnymi
-węzłami. Nowy cukier lepiej zostawić osobnym węzłem, jeśli ma własną
-diagnostykę.
+## Braki, które są już zapisane
 
-## Dług, który już jest zapisany
+Plik `TODO.md` wymienia między innymi rozcięcie gościa generowania kodu, żeby emiter funkcji nie był jednocześnie gościem spaceru regionów. Wymienia kursor regionów zamiast makra, gdy makro dalej urośnie. Wymienia test, że harmonogram pętli to jedno wejście, wiele czyszczeń i jedno wyjście. Wymienia synchronizację kontroli przed generowaniem kodu z frontendem. Wymienia błędy spaceru zawsze jako błąd z komunikatem, bez gubienia tekstu użytkownika w opakowaniu o niezgodności harmonogramu. Wymienia więcej testów par wejście-wyjście na zagnieżdżonym warunku i na miejscach przeznaczenia napisów. Prosi też, żeby nie commitować luźnych plików `smoke.bork` w korzeniu repozytorium.
 
-Z `TODO.md`, skrót bez udawania, że to robimy w tej książce:
+Komunikat o niezgodności harmonogramu wokół liczb zmiennoprzecinkowych jest przykładem dwóch z tych punktów. Tekst użytkownika, że dodawanie zmiennoprzecinkowe nie jest obsługiwane, utonął w opakowaniu. Kontrola przed generowaniem kodu w ogóle nie powiedziała, że liczba zmiennoprzecinkowa nie jest tłumaczona.
 
-- rozciąć visitor codegenu, żeby `FnEmitter` nie był jednocześnie
-  `RegionVisitor` (cykl `codegen_walk` ↔ `expr`),
-- kursor aren zamiast makra, gdy makro dalej urośnie,
-- test, że harmonogram pętli to jeden enter, wiele resetów, jeden exit,
-- bramka zsynchronizowana z frontendem,
-- błędy spaceru zawsze jako `WalkError::from_diagnostic`, bez gubienia
-  tekstu użytkownika w opakowaniu `schedule_error`,
-- więcej testów push/pop na zagnieżdżonym `if` i sinkach napisów,
-- nie commitować luźnych `smoke.bork` w korzeniu repo.
+## Czego nie robić w pierwszej poprawce
 
-`internal arena schedule mismatch` wokół floatów jest przykładem punktu
-drugiego i czwartego: tekst użytkownika („float binary…”) utonął w
-opakowaniu, a bramka w ogóle nie powiedziała „float nie jest obniżany”.
-
-## Pierwszy patch
-
-Nie zaczynaj od LLVM. Dopisz test parsera albo typeck, który na czerwono
-nazywa zachowanie, i doprowadź `frontend::check` do tego tekstu. Bramkę
-dodaj w tym samym patchu, jeśli emisji nie będzie. Pusta bramka przy nowej
-składni jest tym, co zamienia przyszłą panikę w diagnostykę.
+Nie zaczynaj od LLVM. Dopisz test parsera albo sprawdzania typów, który na czerwono nazywa zachowanie, i doprowadź `frontend::check` do tego tekstu. Odmowę w kontroli przed generowaniem kodu dodaj w tym samym patchu, jeśli emisji nie będzie. Brak takiej odmowy przy nowej składni zamienia przyszłą awarię kompilatora w coś, co użytkownik zobaczy dopiero jako panikę.
 
 Nie zmieniaj `peel_blocks` tylko w jednym z dwóch miejsc.
 
-Nie „naprawiaj” paniki `into_int_value` przez odrzucenie wszystkich
-`String` w bramce, jeśli w `main` napisy działają. To obcięłoby listingi,
-które są legalne. Wąskie miejsce to kasta argumentu wołania.
+Nie naprawiaj awarii `into_int_value` przez odrzucenie wszystkich napisów w kontroli, jeśli w `main` napisy działają. To obcięłoby listingi, które są legalne. Wąskie miejsce to rzutowanie argumentu wywołania.
 
 ## Podsumowanie
 
-- `cargo test --workspace` nie uruchamia LLVM. Feature `codegen` uruchamia `tests/build.rs`.
-- Dump aren debuguje semę. Panic `into_int_value` debuguje emisję. `schedule mismatch` debuguje `region_walk`.
-- Nowa konstrukcja idzie warstwami: gramatyka, AST, typeck, sema, walk, bramka, emisja, test binarki.
-- Jeśli emisji nie ma, bramka jest obowiązkowa.
-- `TODO.md` jest listą znanych cięć. Sprawdź ją, zanim opiszesz rozjazd jako odkrycie.
+- Polecenie `cargo test --workspace` nie uruchamia LLVM. Opcja `codegen` uruchamia testy w `tests/build.rs`.
+- Wydruk regionów debuguje analizę własności. Awaria `into_int_value` debuguje emisję. Niezgodność harmonogramu debuguje wspólny spacer.
+- Nowa konstrukcja idzie warstwami: gramatyka, drzewo składni, sprawdzanie typów, analiza własności, ucieczka i wyniesienie, spacer, kontrola, emisja, test binarki.
+- Jeśli emisji nie ma, odmowa w kontroli przed generowaniem kodu jest obowiązkowa.
+- Plik `TODO.md` jest listą znanych braków. Sprawdź ją, zanim opiszesz różnicę dokumentu i kodu jako własne odkrycie.

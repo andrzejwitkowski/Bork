@@ -1,60 +1,43 @@
-# Rozdział 8. Regiony, Copy, Shared i Move
+# Rozdział 8. Kopiowanie, współdzielenie i przeniesienie wartości
 
 ## Ten rozdział obejmuje
 
-- Drzewo aren i znaczniki w `--dump-arenas`
-- Wyrażeniowy `move` i `promote`
-- Regionalny `move (...)`, `move ()` i wnioskowany `move { }`
-- Assign-up: przypisanie do zewnętrznego `var`
-- Co jest błędem własności, a co dopiero błędem escape
+- jak czytać drzewo regionów
+- jak przenieść wartość słowem `move` i jak słowem `promote` skopiować ją do zmiennej z regionu zewnętrznego
+- czym różnią się trzy formy bloku `move`
+- dlaczego przypisanie do zmiennej z zewnątrz bloku nie jest odczytem tej zmiennej
+- które błędy pochodzą z nazw, a które z czasu życia bajtów
 
-## Dwa sprawdzania, jedna faza
+## Własność nazw i czas życia bajtów mają jedną fazę w komunikacie
 
-Własność nazw sprawdza sema (`src/sema`). To, czy **bajty** przeżyją
-użycie, sprawdza `escape::check_function`, ale tylko gdy typeck i sema
-nie zgłosiły nic wcześniej. Oba źródła drukują się jako `ownership`.
-Dlatego „przeszło semę” nie znaczy „przeszło książkowe reguły napisów”.
-Znaczy: nazwy nie są użyte po `move` i nie-Copy nie wycieka przez gołe
-imię. Escape jest drugim sitem.
+Własność nazw sprawdza analiza w katalogu `src/sema`. To, czy bajty przeżyją użycie, sprawdza osobne przejście, analiza ucieczki, w pliku `src/escape.rs`. Analiza ucieczki uruchamia się tylko wtedy, gdy sprawdzanie typów i analiza nazw nie zgłosiły wcześniej żadnego błędu. Oba źródła drukują fazę `ownership`. Dlatego program, który przeszedł analizę nazw, nie musi jeszcze spełniać wszystkich reguł napisów. Znaczy to tyle, że nazwy nie są użyte po przeniesieniu i że wartość niekopiowana nie ucieka przez gołą nazwę. Czas życia bajtów sprawdza dopiero analiza ucieczki.
 
-Raport semy zostaje nawet przy błędach. HIR zostaje tylko przy pustej
-liście diagnostyk, i to po escape. Na błędzie parsowania nie ma nawet
-raportu.
+Drzewo regionów zostaje nawet przy błędach. Reprezentacja pośrednia zostaje tylko wtedy, gdy lista błędów jest pusta, i to po analizie ucieczki. Przy błędzie składni nie ma nawet drzewa.
 
-## Znaczniki dumpu
+## Znaczniki w drzewie
 
-| Znacznik | Znaczenie |
-|---|---|
-| `[Local]` | deklaracja w tym regionie albo parametr |
-| `[Copy]` | odczyt prymitywu z regionu rodzica |
-| `[Shared ← etykieta]` | odczyt `val` nie-Copy z rodzica |
-| `[Moved ← etykieta]` | własność zabrana z tamtego regionu |
+Wypis `--dump-arenas` opisuje każdą nazwę krótkim znacznikiem. `Local` oznacza deklarację w tym regionie albo parametr. `Copy` oznacza odczyt wartości kopiowanej z regionu otaczającego. `Shared` z nazwą regionu oznacza odczyt stałej, która nie jest kopiowana. `Moved` z nazwą regionu oznacza, że własność została zabrana z tamtego regionu.
 
-Etykiety węzłów: `fun nazwa`, `Block`, `Block (compacted K braces)`,
-`ForLoop (i)`, `WhileLoop`, `IfThen`, `IfElse`, `MoveBlock (move)`,
-`Closure`, `Closure (move)`.
+Węzły mają etykiety `fun nazwa`, `Block`, `ForLoop (i)`, `WhileLoop`, `IfThen`, `IfElse`, `MoveBlock (move)`, `Closure` i `Closure (move)`. Sklejone nawiasy dopisują do etykiety informację, ile par zostało scalonych.
 
-## Wyrażeniowy `move`
+## Przeniesienie zapisane przy nazwie
 
-`move nazwa` konsumuje wiązanie. Po nim użycie nazwy jest błędem
-`use of nazwa after move from etykieta`.
+Zapis `move nazwa` zużywa nazwę. Późniejsze użycie daje `use of nazwa after move from etykieta`.
 
-Gołe przekazanie `var` nie-Copy w przypisaniu albo w argumencie nie
-zgaduje `move` za ciebie.
+Sam zapis zmiennej napisowej po prawej stronie przypisania albo w argumencie nie dopisuje `move` za programistę.
 
-**Listing 8.1.** Uruchomione checker.
+**Listing 8.1.** Brak `move` przy przypisaniu napisu.
 
-```text
-err_move.bork:3:13: error: ownership: use `move s` to transfer ownership
+```bork
+fun main() {
+    var s: String = "hi"
+    var x = s
+}
 ```
 
-dla `var s: String = "hi"` oraz `var x = s`.
+Komunikat brzmi `use move s to transfer ownership`. W wywołaniu tekst jest inny: `use move s to pass ownership`. Gdy analiza widzi przeniesienie między różnymi regionami, potrafi powiedzieć, że nazwa nie jest kopiowana i trzeba ją przenieść do nazwanego regionu słowem `move`.
 
-W wywołaniu tekst jest inny: `use move s to pass ownership`. Gdy sema
-widzi przeniesienie między różnymi arenami w przypisaniu, potrafi powiedzieć
-`` `s` is not Copy; move it into `Block` with `move` ``.
-
-**Listing 8.2.** Move i druk. Uruchomione: stdout `ab\n42\n`.
+**Listing 8.2.** Przeniesienie i wypisanie. Program został zbudowany. Na wyjściu są wiersze `ab` oraz `42`.
 
 ```bork
 fun main() {
@@ -66,15 +49,13 @@ fun main() {
 }
 ```
 
-Dump: `s [Moved ← fun main]`, `t [Local]`.
+W drzewie `s` jest przeniesione z regionu `fun main`, a `t` jest nazwą lokalną.
 
-## `promote`
+## Słowo promote
 
-`promote nazwa` jest legalne tylko po prawej stronie przypisania do `var`
-w **ściśle zewnętrznym** regionie. Kopiuje bajty do areny celu i
-unieważnia źródło.
+`promote nazwa` jest legalne tylko po prawej stronie przypisania do zmiennej z regionu ściśle zewnętrznego. Kopiuje bajty do areny tej zmiennej i unieważnia nazwę źródłową.
 
-**Listing 8.3.** Uruchomione: stdout `temp\n`.
+**Listing 8.3.** Podniesienie napisu, który już powstał w bloku wewnętrznym. Program został zbudowany. Na wyjściu jest `temp` oraz nowy wiersz.
 
 ```bork
 fun main() {
@@ -87,30 +68,17 @@ fun main() {
 }
 ```
 
-Dump pokazuje `held` dwa razy w bloku: jako `Local` (deklaracja) i jako
-`Moved ← Block` (obserwacja po promote).
+W drzewie nazwa `held` pojawia się w bloku dwa razy. Raz jako deklaracja lokalna, raz jako przeniesienie po `promote`.
 
-Błędy, sprawdzone albo obecne w `sema/walk.rs`:
+Są trzy typowe błędy. Użycie `promote` poza przypisaniem do zmiennej zewnętrznej daje komunikat, że `promote` jest legalne tylko przy takim przypisaniu. Użycie na wartości kopiowanej daje komunikat, że `promote` nie jest potrzebne. Użycie w tym samym regionie, na przykład `val x = promote held` obok deklaracji `held`, daje komunikat, że `promote held` nie może trafić do `fun main`, bo wartość już żyje w tej arenie albo jeszcze wyżej. Ostatni komunikat sprawdziłem uruchomieniem.
 
-| Sytuacja | Komunikat |
-|---|---|
-| `promote` poza assign-up | `` `promote` is only valid when assigning to a binding in an outer region `` |
-| źródło Copy | `` `promote` is not needed for Copy binding … `` |
-| cel nie jest głębiej niż źródło | `` `promote held` cannot lift into `fun main`: value already lives in that arena or further out `` |
+`promote` nie występuje przy `return`. Nie ma miejsca przeznaczenia, do którego analiza mogłaby skopiować bajty wyniku.
 
-Ostatni dostaniesz, gdy `held` i cel są w tym samym regionie (`val x = promote held` na głębokości `main`). Sprawdzone.
+## Przypisanie do zmiennej z zewnątrz
 
-`promote` na `return` nie istnieje. Nie ma takiej produkcji w roli
-wyniku, która miałaby sink powrotny.
+Zapis `outer = wartość`, gdy `outer` jest zmienną z regionu otaczającego i nie została wcześniej przeniesiona, nie jest odczytem tej zmiennej w bloku wewnętrznym. Analiza nie traktuje lewej strony jak użycia, które wymagałoby `move`. Prawa strona dostaje jako miejsce alokacji arenę zmiennej `outer`, a nie arenę bloku, w którym stoi przypisanie.
 
-## Assign-up
-
-`outer = rhs`, gdy `outer` jest `var` w przodku i nie jest moved, **nie**
-jest „użyciem `var` rodzica w dziecku”. Sema pomija `note_use` na lewej
-stronie. Prawa strona dostaje sink transferu równy arenie `outer`, nie
-arenie bloku.
-
-**Listing 8.4.** Uruchomione: stdout `b\n`. W bloku nie ma lokalnych nazw.
+**Listing 8.4.** Przypisanie literału do zmiennej z zewnątrz. Program został zbudowany. Na wyjściu jest `b` oraz nowy wiersz. W bloku wewnętrznym nie ma żadnej nazwy lokalnej.
 
 ```bork
 fun main() {
@@ -122,12 +90,11 @@ fun main() {
 }
 ```
 
-To jest mutacja. Nie potrzebujesz `inner`. `docs/language.md` mówi to samo
-i tutaj kompilator jest zgodny z dokumentem.
+To jest zmiana istniejącej zmiennej. Nie potrzebujesz nazwy pośredniej. W tym przykładzie dokument `docs/language.md` i kompilator mówią to samo.
 
-## Regionalny `move`
+## Blok, który przenosi kilka nazw naraz
 
-**Listing 8.5.** Uruchomione: stdout `A\nB\n`.
+**Listing 8.5.** Dwa bloki `move`. Program został zbudowany. Na wyjściu są wiersze `A` oraz `B`.
 
 ```bork
 fun main() {
@@ -144,39 +111,17 @@ fun main() {
 }
 ```
 
-Dump:
+Pierwszy blok wymienia `a` w nawiasie. Wewnątrz nazwa `a` jest już lokalna. Nie pisze się przy niej drugi raz `move`. Drugi blok nie ma listy. Kompilator przenosi te niekopiowane nazwy z zewnątrz, których blok używa. Używa `b`, więc przenosi `b`. W drzewie oba bloki nazywają się `MoveBlock (move)`. Przy każdym widać, skąd nazwa została przeniesiona.
 
-```text
-├── a [Local]
-├── b [Local]
-├── MoveBlock (move)
-│   ├── a [Moved ← fun main]
-│   └── x [Local]
-└── MoveBlock (move)
-    ├── b [Moved ← fun main]
-    └── y [Local]
-```
+Nazwy z listy są już w regionie bloku. Ponowne `move` takiej nazwy w tym samym regionie jest błędem. Komunikat mówi, że nazwa została już przeniesiona do tego regionu jako przechwycenie.
 
-Nazwy z listy przechwycenia są już lokalne w bloku. Nie pisze się
-`val x = move a` dla nich drugi raz. Sema odrzuca ponowny move
-przechwycenia w tym samym regionie: `cannot move nazwa: it was already
-moved into this region as a capture`.
+Zapis `move () { }` nie zgaduje listy. Nic nie jest przenoszone. Odczyt zewnętrznej zmiennej napisowej wewnątrz takiego bloku jest zwykłym błędem mówiącym, że wartość nie jest kopiowana.
 
-`move () { }` nie wnioskuje. Nic nie jest przeniesione. Odczyt
-zewnętrznego `var String` wewnątrz jest wtedy zwykłym błędem „not Copy”.
+Jawna lista wygrywa ze zgadywaniem. Pusta jawna lista wyłącza zgadywanie. W drzewie składni różnica jest między brakiem listy a listą pustą. Nie wolno tych dwóch zapisów utożsamić, gdy będziesz czytał parser.
 
-`move { }` bez nawiasów przenosi każdą żywą, nie-Copy nazwę rodzica, której
-ciało używa jako zmiennej wolnej. Nazwy nieczytane zostają. Copy się nie
-przenosi. W listingu 8.5 drugi blok wspomina tylko `b`, więc `a` już i tak
-było martwe po pierwszym bloku, a `b` pada ofiarą wnioskowania.
+## Pętla jeszcze raz
 
-Jawna lista wygrywa z wnioskowaniem. Pusta jawna lista wyłącza wnioskowanie.
-To jest różnica między `None` a `Some([])` w AST (`captures`).
-
-## Pętla
-
-Zakaz z rozdziału 2 dotyczy też regionalnego `move`. Lokal utworzony w
-ciele wolno przenieść:
+Zakaz z rozdziału 2 dotyczy także bloku `move`. Nazwę utworzoną w ciele pętli wolno przenieść.
 
 ```bork
 for (i in 1..10) {
@@ -187,23 +132,19 @@ for (i in 1..10) {
 }
 ```
 
-Checker takich programów pilnuje test `move_loop_local_binding_is_ok`.
-Każda iteracja ma świeże `a`. Zewnętrzne `a` byłoby błędem „inside a loop”.
+Test `move_loop_local_binding_is_ok` pilnuje, że takie przeniesienie przechodzi. Każdy obieg ma świeże `a`. Ta sama nazwa utworzona przed pętlą byłaby błędem.
 
-## Shared kontra błąd
+## Stała i zmienna
 
-Odczyt `val` nie-Copy w dziecku jest Shared i jest poprawny (listing 2.2).
-Odczyt `var` nie-Copy w dziecku bez `move` jest błędem. Nie ma trzeciej
-możliwości „pożycz na chwilę `var`”. Albo przenosisz, albo trzymasz `val`.
+Odczyt stałej niekopiowanej w regionie wewnętrznym jest współdzieleniem i jest poprawny. Pokazuje to listing 2.2. Odczyt zmiennej niekopiowanej bez `move` jest błędem. Nie ma trzeciej możliwości w rodzaju chwilowego pożyczenia zmiennej. Albo przenosisz własność, albo trzymasz wartość w stałej.
 
-`Some(s)` i argumenty zagnieżdżone podlegają tej samej regule: nazwany
-`var` nie-Copy w środku konstruktora też chce `move`. Literał nie chce.
+Ta sama zasada dotyczy wartości schowanej w `Some` i argumentów zagnieżdżonych w większym wyrażeniu. Zmienna napisowa użyta w środku konstruktora też chce `move`. Literał nie chce.
 
 ## Podsumowanie
 
-- Sema pilnuje nazw. Escape pilnuje bajtów. Obie diagnostyki nazywają się `ownership`.
-- `move nazwa` zużywa wiązanie. Gołe `var` nie-Copy w przypisaniu i w wywołaniu jest błędem z podpowiedzią `move`.
-- `promote` podnosi bajty do zewnętrznego `var` i też zużywa źródło.
-- Assign-up nie jest odczytem lewej strony.
-- `move (a, b)`, `move ()` i `move { }` to trzy różne listy przechwycenia.
-- Wnioskowanie nie rusza wartości Copy i nie rusza nazw, których ciało nie wspomina.
+- Analiza nazw pilnuje nazw. Analiza ucieczki pilnuje bajtów. Obie wypisują fazę `ownership`.
+- `move nazwa` zużywa nazwę. Zwykłe użycie zmiennej niekopiowanej w przypisaniu i w wywołaniu jest błędem, a komunikat podpowiada `move`.
+- `promote` kopiuje bajty do zmiennej z regionu zewnętrznego i też zużywa nazwę źródłową.
+- Lewa strona przypisania do zmiennej z zewnątrz nie jest odczytem tej zmiennej.
+- `move (a, b)`, `move ()` i `move` bez listy to trzy różne polecenia. Pusta lista nie jest tym samym co brak listy.
+- Zgadywanie listy nie rusza wartości kopiowanych i nie rusza nazw, których blok nie wspomina.

@@ -1,112 +1,51 @@
-# Dodatek C. Niedokończone, rozjazdy i paniki kompilatora
+# Dodatek C. Czego kompilator jeszcze nie potrafi
 
-Ten dodatek jest listą miejsc, w których kod jest węższy niż język
-frontendu, dokumentacja jest węższa albo szersza niż kod, albo kompilator
-zachowuje się w sposób, którego nie da się nazwać diagnostyką. Nic z tej
-listy nie jest propozycją naprawy. Książka nie zmienia kompilatora.
+Ten dodatek wymienia miejsca, w których kod jest węższy niż to, co rozumie sprawdzenie programu, dokumentacja mówi co innego niż kod, albo kompilator kończy się awarią zamiast komunikatem. Nic z tej listy nie jest propozycją naprawy. Książka nie zmienia kompilatora.
 
-## Świadomie niezaimplementowane
+## Rzeczy świadomie niezaimplementowane
 
-Z `escape.rs`, `docs/language.md` i `docs/memory-model.md`:
+Z pliku `src/escape.rs`, z `docs/language.md` i z `docs/memory-model.md` wynika następująca lista. Nie ma areny wyniku po stronie wywołującego, więc zwrot przeniesienia, zwrot wyniku `concat` i zwrot bajtów z regionu wewnętrznego są odrzucane. Promocja na powrocie z funkcji też jest odrzucana. Wyniesienie alokacji działa tylko dla dwóch sąsiednich instrukcji. Nie ma usuwania zbędnego kopiowania pamięci, gdy bajty już leżą w buforze celu. Nie ma osobnej areny tymczasowej na czas zwykłego wywołania. Generowanie kodu nie tłumaczy funkcji dopisanej na końcu wywołania, słów `Some` i `None`, wykrzykników `!!`, operatora `?:` ani pól innych niż `length`. Funkcja `main` nie ma parametrów i nie zwraca typu innego niż `i32` i `unit`. Wywołanie pośrednie, w którym rzeczą wywoływaną nie jest nazwa, nie jest tłumaczone. Nie ma modułów, struktur, typów ogólnych, wyjątków, sprawdzania pożyczek ani odśmiecania.
 
-- arena wyniku po stronie wołającego, więc `return move`, `return concat`
-  i `return` bajtów z wewnętrznego regionu są odrzucane,
-- `promote` na `return`,
-- hoist poza wzorcem dwóch sąsiednich linii,
-- elizja `memcpy`, gdy bajty już leżą w puli celu,
-- osobna arena tymczasowa na czas zwykłego wołania,
-- codegen trailing closures, `Some`, `None`, `!!`, `?:`,
-- codegen pól innych niż `.length`,
-- `main` z parametrami oraz `main` zwracające typ inny niż `i32` i `unit`,
-- wywołanie pośrednie,
-- moduły, struktury, generyki, wyjątki, borrow checker, GC.
+Plik `TODO.md` wymienia prace nad samym kompilatorem, a nie nad semantyką języka. Są to rozcięcie gościa generowania kodu, kursor regionów zamiast makra, test zgodności kontroli przed generowaniem kodu ze sprawdzeniem, więcej testów par wejście-wyjście oraz uporządkowanie planów w `docs/superpowers/plans/`.
 
-Z `TODO.md` (refactor, nie semantyka języka): rozcięcie visitora codegenu,
-kursor aren zamiast makra, test zgodności bramki z frontendem, więcej
-złotych testów push/pop, uporządkowanie `docs/superpowers/plans/`.
+## Gdzie dokument mówi co innego niż kod
 
-## Rozjazdy dokumentu z kodem
+Przykład `concat(left, right)` przy dwóch zmiennych napisowych w `docs/language.md` jest pokazany jako wzorzec. Sprawdzenie odrzuca go komunikatem, że `left` nie jest kopiowalne i trzeba je przenieść do bloku. Zdanie o kolejności operatorów w tym samym dokumencie pomija `&&`, `||` i `!`. Gramatyka te piętra ma.
 
-| Dokument | Mówi | Kod robi |
-|---|---|---|
-| `docs/language.md`, przykład `concat(left, right)` przy `var` | program jest wzorcem | checker: `` `left` is not Copy; move it into `Block` `` |
-| `docs/language.md`, pierwszeństwo | pomija `&&` `\|\|` `!` | gramatyka ma te piętra |
-| `docs/superpowers/specs/2026-09-23-typed-hir-llvm-design.md` | LLVM 18, kolejność „własność potem typy” | LLVM 23, typeck potem sema |
-| specyfikacja LSP | diagnostyki parsera | `frontend::check` |
-| specyfikacja MVP aren | brak pełnego typecku | typeck jest |
-| `README`, nagłówek „Parse diagnostics” | parse | akapit niżej i kod: pełny check |
-| specyfikacja parsera | wynik `Unit`, brak spanów | prymityw `unit`, spany są |
-| `language.md` o `MIN / -1` | runtime abort | strażnik w `guard_int_div` jest; literału ujemnego nie da się zapisać |
+Notatka projektowa z 23 września 2026 o reprezentacji pośredniej i LLVM mówi o LLVM 18 i o kolejności „najpierw własność, potem typy”. Kod używa LLVM 23, a sprawdzanie typów wykonuje się przed analizą własności. Specyfikacja serwera edytora mówi o komunikatach parsera. Kod woła pełne `frontend::check`. Specyfikacja pierwszej wersji regionów mówi o braku pełnego sprawdzania typów. Sprawdzanie typów jest. Nagłówek w `README` mówi o diagnostyce składni, a akapit niżej i kod robią pełne sprawdzenie. Specyfikacja parsera mówi o wyniku `Unit` i o braku zakresów źródłowych. W kodzie typ nazywa się `unit` i zakresy są. Dokument języka mówi, że dzielenie minimalnej liczby całkowitej przez minus jeden przerywa program. Strażnik w `guard_int_div` ten przypadek obsługuje, ale literału ujemnego nie da się zapisać, bo nie ma jednoargumentowego minusa.
 
-## Paniki i ostre krawędzie, sprawdzone
+## Awarie i ostre krawędzie, które zostały uruchomione
 
-Uruchomione `bork build` (LLVM 23.1.2, rustc 1.98.1):
+Kompilator był złożony z opcją `codegen`, na LLVM 23.1.2 i rustc 1.98.1.
 
-1. **Argument `String` do funkcji użytkownika** (`f("hello")`, `f(move s)`,
-   `show(s)` dla `val s`) panikuje w `src/codegen/llvm/expr.rs` w
-   `value_as_int` (`into_int_value`). Frontend jest czysty. Bramka milczy.
-   Kod procesu kompilatora 101.
+Przekazanie napisu do funkcji użytkownika, czy literałem, czy przez `move`, czy przez stałą, przechodzi sprawdzenie i kontrolę przed generowaniem kodu, a potem kompilator kończy się awarią w `src/codegen/llvm/expr.rs`, w funkcji `value_as_int`, na wywołaniu `into_int_value`. Kod procesu kompilatora to 101.
 
-2. **Porównanie `f64`** (`if (x > 1.0)` przy `x: f64`) panikuje w tym
-   samym miejscu, bo wartość jest `FloatValue`. **Dodawanie `f32`** daje
-   diagnostykę, nie panikę: `internal arena schedule mismatch: float
-   binary after walk is not supported by codegen yet`. Dwa operatory
-   float, dwa różne złe zakończenia.
+Porównanie `f64`, na przykład warunek `x > 1.0` przy `x` typu `f64`, kończy się awarią w tym samym miejscu, bo wartość jest liczbą zmiennoprzecinkową LLVM. Dodawanie `f32` daje komunikat, a nie awarię. Treść mówi o wewnętrznej niezgodności harmonogramu i o tym, że dodawanie zmiennoprzecinkowe po spacerze nie jest jeszcze obsługiwane. Dwa operatory na liczbach zmiennoprzecinkowych kończą się na dwa różne sposoby.
 
-3. **Indeks poza zakresem** i **dzielenie przez zero** kompilują się.
-   Proces użytkownika kończy się SIGABRT, kod 134, bez tekstu Bork.
+Indeks poza zakresem i dzielenie przez zero kompilują się. Proces użytkownika kończy się sygnałem przerwania, w powłoce kodem 134, bez tekstu z Borka.
 
-4. **Przepełnienie areny** nie było odpalane dużym literałem w książce
-   (trudno przekroczyć 4096 krótkim przykładem bez pętli alokującej, a
-   pętla resetuje płytę). Kod w `bork_runtime` panikuje tekstem `arena
-   overflow: need {end} bytes, capacity 4096`. Test jednostkowy runtime
-   to zamyka. To nie jest diagnostyka kompilacji.
+Przepełnienia bufora nie uruchamiałem dużym literałem w książce. Krótki przykład trudno przepchnąć ponad 4096 bajtów bez pętli, która alokuje, a pętla czyści bufor przy obiegu. Kod w bibliotece wykonawczej przerywa się tekstem `arena overflow`, z podaną liczbą bajtów i pojemnością 4096. Test jednostkowy biblioteki to zamyka. To nie jest komunikat kompilacji.
 
-5. **`return concat` i część błędów escape** nie mają spanu. CLI pomija
-   linię i kolumnę.
+Zwrot wyniku `concat` i część błędów analizy ucieczki nie mają zakresu źródłowego. Wiersz poleceń pomija wtedy linię i kolumnę.
 
-6. **`ParseError::User`** (zły cel przypisania, za duża liczba) wskazuje
-   koniec pliku.
+Błąd zgłoszony przez regułę gramatyki, na przykład zły cel przypisania albo za duża liczba, wskazuje koniec pliku.
 
-7. **Sema parametrów trailing closure** używa `Ty::Unknown`. Dump pokazuje
-   `Shared` dla parametrów `Int`, które typeck uważa za Copy. Check
-   przechodzi. To mylące przy czytaniu `--dump-arenas`, nie jest błędem
-   użytkownika.
+Parametry funkcji dopisanej na końcu wywołania mają w analizie własności typ nieznany. Wydruk drzewa pokazuje współdzielenie dla parametrów, które sprawdzanie typów uważa za kopiowalne liczby. Sprawdzenie przechodzi. To myli przy czytaniu `--dump-arenas`. Nie jest błędem użytkownika.
 
-8. **Komunikat escape o gałęzi `if`** mówi `String`, a warunek obejmuje
-   każdy `uses_arena_storage` (także tablicę).
+Komunikat analizy ucieczki o gałęzi warunku mówi o napisie. Warunek w kodzie obejmuje każdy typ trzymany w buforze regionu, także tablicę.
 
-9. **`u32` / alias `Byte` w `main(): i32`** nie jest ograniczeniem codegenu
-   szerokich intów. `i64` w funkcji pomocniczej i porównanie działają
-   (kod wyjścia 7 na `sub`). Ograniczenie `main` dotyczy typu **wyniku**
-   `main`, nie lokalnego `i64`.
+To, że `u32` albo alias `Byte` nie może być wynikiem `main` zwracającego `i32`, nie jest ograniczeniem szerokich liczb całkowitych w ogóle. Funkcja pomocnicza na `i64` i porównanie w `main` działają. Na sprawdzonym programie z odejmowaniem kod wyjścia wyniósł 7. Ograniczenie `main` dotyczy typu wyniku `main`, a nie lokalnej wartości `i64`.
 
-10. **`src/arena.rs` kontra `bork_runtime`.** Dwie stałe 4096. Sema nie
-    woła żadnej. Łatwo „naprawić” zły plik.
+Są dwie stałe 4096: w `src/arena.rs` i w bibliotece wykonawczej. Analiza własności nie woła żadnej. Łatwo poprawić zły plik.
 
-11. **Opakowanie `internal arena schedule mismatch`.** Potrafi ukryć
-    zwykłe „not supported yet” w tekście, który brzmi jak bug wewnętrzny.
-    Czasem jest bugiem wewnętrznym (rozjazd dzieci areny), czasem jest
-    tylko prefiksem.
+Opakowanie o wewnętrznej niezgodności harmonogramu potrafi ukryć zwykły komunikat o braku wsparcia w tekście, który brzmi jak błąd wewnętrzny kompilatora. Czasem niezgodność naprawdę dotyczy dzieci drzewa regionów. Czasem jest tylko przedrostkiem.
 
-12. **Specyfikacje w `docs/superpowers`** opisują świat przed tablicami,
-    przed `while` i przed LLVM 23. `TODO.md` każe je przenieść, gdy
-    wchłoną się w ten plik albo w zamknięte PR. Nie są mapą kodu.
+Specyfikacje w `docs/superpowers` opisują świat sprzed tablic, sprzed pętli `while` i sprzed LLVM 23. Plik `TODO.md` każe je przenieść, gdy wchłoną się w dokument albo w zamknięte poprawki. Nie są mapą bieżącego kodu.
 
-## Co jest stabilne
+## Co jest pokryte testami
 
-Żeby lista dziur nie przesłoniła reszty: parser, typeck liczb i tablic,
-sema Copy/Shared/Move, dump aren, `for`/`while`/`break`/`continue`,
-`println` liczb i napisów w `main`, `concat` i `promote` w `main`,
-wycinki o literałowych granicach oraz linkowanie z runtime są pokryte
-testami `tests/build.rs` albo `frontend::check` i zostały powtórzone przy
-pisaniu tej książki. Dziury są na brzegach: nullable w codegenie, floaty,
-`String` jako argument wołania, powrót świeżego napisu.
+Żeby lista braków nie przesłoniła reszty: parser, sprawdzanie typów liczb i tablic, reguła kopiowania, współdzielenia i przeniesienia, wydruk drzewa regionów, pętle `for` i `while` z `break` i `continue`, wypisywanie liczb i napisów w `main`, `concat` i promocja w `main`, wycinki o granicach będących literałami oraz konsolidacja z biblioteką wykonawczą są pokryte testami w `tests/build.rs` albo pełnym sprawdzeniem. Zostały powtórzone przy pisaniu tej książki. Braki są na brzegach: wartości puste w generowaniu kodu, liczby zmiennoprzecinkowe, napis jako argument wywołania i powrót świeżego napisu.
 
-## Jak czytać niejasność
+## Kolejność zaufania
 
-Gdy komentarz, specyfikacja i kod się różnią, kolejność zaufania przyjęta
-w książce jest taka: test wykonawczy (`tests/build.rs`), potem
-`frontend::check` na przykładzie, potem kod fazy, potem `docs/language.md`,
-na końcu `docs/superpowers`. Hasło README o borrow checkerze i GC jest
-zgodne z modelem. Przykład `concat` na dwóch `var` nie jest.
+Gdy komentarz, specyfikacja i kod się różnią, kolejność przyjęta w książce jest taka. Najpierw test wykonawczy w `tests/build.rs`. Potem `frontend::check` na przykładzie. Potem kod fazy. Potem `docs/language.md`. Na końcu `docs/superpowers`. Zdanie w `README` o braku sprawdzania pożyczek i braku odśmiecania zgadza się z modelem. Przykład `concat` na dwóch zmiennych napisowych się nie zgadza.

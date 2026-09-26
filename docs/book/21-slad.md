@@ -1,22 +1,19 @@
-# Rozdział 20. Jeden program przez cały kompilator
+# Rozdział 20. Jeden program od źródła do uruchomienia
 
 ## Ten rozdział obejmuje
 
-- Program śledzony, uruchomiony od źródła do kodu wyjścia
-- Co widzi parser i jaki jest AST w zarysie
-- Co typeck dopisuje do HIR
-- Jakie drzewo aren wypisuje sema
-- Dlaczego hoist i escape milczą
-- Które funkcje LLVM i runtime naprawdę pracują
+- krótki program, który został zbudowany i uruchomiony
+- co widzi czytanie składni
+- co dopisuje sprawdzanie typów
+- jakie drzewo regionów wypisuje analiza własności
+- dlaczego wyniesienie alokacji i analiza ucieczki w tym programie milczą
+- które funkcje wygenerowanego kodu i biblioteki wykonawczej naprawdę pracują
 
-Program jest krótki celowo. Ma funkcję, pętlę, wywołanie, napis `val` i
-blok, który ten napis tylko czyta. Wszystko to `bork build` obniża.
-Nie ma w nim `String` przekazywanego do funkcji użytkownika, bo ta ścieżka
-wywraca kompilator i ślad by się urwał paniką.
+Program jest krótki celowo. Ma funkcję, pętlę, wywołanie, stały napis i blok, który ten napis tylko czyta. Polecenie `bork build` tłumaczy go na plik wykonywalny. Nie ma w nim napisu przekazywanego do funkcji użytkownika, bo ta ścieżka kończy się awarią kompilatora i ślad urwałby się w emisji.
 
-## Program
+## Program, który zwraca trzy i wypisuje sumę
 
-**Listing 20.1.** Uruchomione. Stdout `sum\n`. Kod wyjścia 3, bo `0+1+2`.
+**Listing 20.1.** Uruchomiony. Standardowe wyjście to `sum` i nowa linia. Kod wyjścia to 3, bo suma `0 + 1 + 2` wynosi 3.
 
 ```bork
 fun add(a: i32, b: i32): i32 {
@@ -36,59 +33,39 @@ fun main(): i32 {
 }
 ```
 
-Zakres `0..3` jest prawostronnie otwarty. Trzy iteracje, nie cztery.
+Zakres `0..3` jest otwarty z prawej strony. Są trzy iteracje, a nie cztery. Indeks przyjmuje wartości 0, 1 i 2.
 
-## Krok 1. Layout i parse
+## Czytanie składni widzi dwie funkcje
 
-W pliku nie ma nawiasu, który łamałby linię, więc
-`normalize_parenthesized_newlines` zwraca `None` i parser dostaje oryginał.
-`ProgramParser` buduje dwie `Function`.
+W pliku nie ma nawiasu, który łamałby linię, więc funkcja normalizująca nowe linie zwraca brak zmiany i parser dostaje oryginał. Parser buduje dwie funkcje.
 
-Dla `add` AST ma dwa `Param` z `BindingKind::Val` (nie napisano `val`, a
-goła forma jest `val`), typ `i32`, ciało z jednym `Return` i `Binary Add`.
+Dla `add` drzewo składni ma dwa parametry. Nie napisano przy nich `val`, a goła forma parametru jest stała. Typ obu to `i32`. Ciało ma jeden powrót i dodawanie.
 
-Dla `main`: `VarDecl` `total` bez adnotacji, `For` z `Binary RangeTo`,
-`VarDecl` `label`, `Stmt::Block` z `Expr` wywołania `println`, `Return`.
+Dla `main` jest deklaracja zmiennej `total` bez adnotacji typu, pętla `for` z zakresem, deklaracja stałej `label`, blok z wywołaniem `println` oraz powrót.
 
-Gdyby tu był średnik, `parse` zwróciłby `UnrecognizedToken` i `check`
-skończyłby się jednym `Diagnostic` fazy `parse`, bez raportu. Nie ma.
+Gdyby w pliku był średnik, czytanie składni zwróciłoby nierozpoznany token. Sprawdzenie skończyłoby się jednym komunikatem fazy `parse`, bez drzewa regionów. Średnika nie ma.
 
-Wejście: `bork::parse` w `src/lib.rs`. Gramatyka: produkcje `Function`,
-`Stmt`, `ExprRange`, `Atom`.
+Wejście jest w funkcji `bork::parse` w `src/lib.rs`. Reguły gramatyki to produkcje funkcji, instrukcji, zakresu i atomu.
 
-## Krok 2. Typeck
+## Sprawdzanie typów widzi liczby i napis
 
-`typeck::check` widzi dwie sygnatury: `add (i32, i32) -> i32`, `main`
-`-> i32`. `println` jest wbudowane, nie koliduje.
+Sprawdzanie typów widzi dwie sygnatury. Funkcja `add` bierze dwie liczby `i32` i zwraca `i32`. Funkcja `main` zwraca `i32`. Nazwa `println` jest wbudowana i nie koliduje.
 
-`total` bez adnotacji, inicjalizator `0` bez oczekiwanego typu poza tym,
-że literał całkowity domyślnie jest `i32`. Do `decl_tys` wpada `i32`.
-`label` to `String`. `i` w `for` dostaje `i32`, bo granice zakresu są
-`i32`. Warunek nie jest osobnym wyrażeniem bool; zakres jest osobnym
-typem `Range`.
+Zmienna `total` nie ma adnotacji. Inicjalizator `0` bez oczekiwanego typu jest literałem całkowitym, więc dostaje `i32`. Ten typ wpada do wektora typów deklaracji. Stała `label` ma typ `String`. Indeks `i` w pętli dostaje `i32`, bo granice zakresu są typu `i32`. Warunek pętli nie jest osobnym wyrażeniem logicznym. Zakres jest osobnym typem, który istnieje dopiero po sprawdzeniu typów.
 
-Wywołanie `add(total, i)`: callee jest nazwą, arność 2, oba argumenty
-`i32`. `UseKind` odczytu `total` w ciele pętli wychodzi `Copy` (inny
-region, typ Copy). `println(label)`: builtin, argument `String`, w HIR
-`UseKind` odczytu `label` to `Shared`.
+Wywołanie `add(total, i)` ma nazwę jako rzecz wywoływaną i dwa argumenty typu `i32`. Odczyt `total` w ciele pętli dostaje rodzaj użycia oznaczający kopię, bo region jest inny, a typ jest kopiowalny. Wywołanie `println(label)` jest funkcją wbudowaną. Argument jest napisem. Odczyt `label` dostaje rodzaj użycia oznaczający współdzielenie.
 
-`return total` zgadza się z `i32`. Ścieżka funkcji zawsze wraca. HIR
-`add` to jeden `HirStmt::Return` z `Binary`.
+Powrót `total` zgadza się z `i32`. Ścieżka funkcji zawsze wraca. Reprezentacja pośrednia funkcji `add` to jeden powrót z dodawaniem.
 
-Pliki: `src/typeck/mod.rs`, `stmt.rs`, `expr/call.rs`, `expr/binary.rs`.
+Pliki tego kroku to `src/typeck/mod.rs`, `src/typeck/stmt.rs`, `src/typeck/expr/call.rs` i `src/typeck/expr/binary.rs`.
 
-## Krok 3. Sema
+## Analiza własności widzi kopię w pętli i współdzielenie w bloku
 
-`analyze_with_decl_tys` dostaje kolejkę typów deklaracji: `total`, potem
-`label`. `fun_sigs` pamięta, że oba parametry `add` są `Val`.
+Analiza dostaje kolejkę typów deklaracji: najpierw `total`, potem `label`. Pamięta, że oba parametry `add` są stałe.
 
-Korzeń `fun add` wiąże `a` i `b` jako `Local`. W ciele nie ma odczytu
-spoza regionu, który warto obserwować poza parametrami. Dump nie pokazuje
-osobnych obserwacji Copy dla parametrów użytych w tym samym regionie:
-`classify_use` zwraca `Local`, a dump lokalne obserwacje przy deklaracji
-pomija.
+Korzeń `fun add` wiąże `a` i `b` jako nazwy lokalne. Wydruk nie pokazuje osobnych obserwacji kopiowania dla parametrów użytych w tym samym regionie. Reguła odczytu zwraca użycie lokalne, a wydruk pomija lokalne obserwacje przy deklaracji.
 
-Korzeń `fun main`:
+Korzeń `fun main` wygląda tak. Ten tekst pochodzi z uruchomienia ze znacznikiem `--dump-arenas`, a nie z rekonstrukcji na papierze.
 
 ```text
 Arenas
@@ -105,109 +82,59 @@ Arenas
         └── label [Shared ← fun main]
 ```
 
-To jest wyjście `--dump-arenas` z uruchomienia, nie rekonstrukcja.
-`ForLoop` powstał w `walk` na `Stmt::For`. `i` jest `RegionParam`.
-`total` w ciele przechodzi `classify_use`: inna arena, `is_copy` → `Copy`.
-Przypisanie `total = ...` jest assign-up (cel `Var`, `arena_id` mniejszy),
-więc lewa strona nie jest błędem „użyłeś var rodzica”. Prawa strona to
-`i32`, więc i tak Copy.
+Węzeł pętli powstał przy zejściu w instrukcję `for`. Indeks `i` jest parametrem tego regionu. Nazwa `total` w ciele przechodzi regułę odczytu: inny region i typ kopiowalny, więc obserwacja to kopia. Przypisanie `total = ...` idzie do zmiennej z regionu zewnętrznego. Cel jest zmienną, a numer jego regionu jest mniejszy, więc lewa strona nie jest błędem użycia zmiennej rodzica. Prawa strona to `i32`, więc i tak jest kopią.
 
-Blok po pętli: `open_ordinary` z etykietą `Block`. `label` jest `Val` i
-nie-Copy, inna arena → `Shared { from: "fun main" }`.
+Blok po pętli otwiera zwykły region o etykiecie `Block`. Stała `label` nie jest kopiowalna i żyje w innym regionie, więc obserwacja to współdzielenie z etykietą `fun main`.
 
-`loop_move_ban` na czas `for` zawiera `total`. Nikt nie woła `move`, więc
-zakaz milczy. `peel_blocks` nic nie skleja: żaden blok nie jest gołym
-opakowaniem.
+Na czas pętli zbiór zakazu przeniesienia zawiera `total`. Nikt nie woła `move`, więc zakaz milczy. Zdjęcie opakowań nic nie skleja, bo żaden blok nie jest gołym opakowaniem drugiego bloku.
 
-Pliki: `src/sema/analyze.rs`, `walk.rs`, `policy.rs` (`classify_use`),
-`region.rs` (`RegionFrame`), `dump.rs`.
+Pliki tego kroku to `src/sema/analyze.rs`, `src/sema/walk.rs`, `src/sema/policy.rs`, `src/sema/region.rs` i `src/dump.rs`.
 
-## Krok 4. Stempel, hoist, escape
+## Oznaczenie buforów, wyniesienie i ucieczka nie mają tu pracy poza korzeniem funkcji
 
-Diagnostyk nie ma, więc `stamp_codegen_push` schodzi `region_walk`.
-Korzeń każdej funkcji dostaje `codegen_push = true`.
+Komunikatów nie ma, więc oznaczanie schodzi wspólnym spacerem. Korzeń każdej funkcji dostaje flagę pobrania bufora.
 
-Ciało pętli: przypisanie `i32` i wywołanie `add` nie alokują sinku
-napisowego. Predykat `block_may_allocate_sink` dla ciała złożonego z
-samej arytmetyki jest fałszywy. Węzeł `ForLoop` zostaje w raporcie, ale
-**nie** prosi o `bork_arena_push`. To jest ten przypadek z modelu pamięci:
-„węzeł w dumpu, brak płyty”.
+Ciało pętli to przypisanie liczby `i32` i wywołanie `add`. Ani jedno, ani drugie nie alokuje napisu w miejscu przeznaczenia. Predykat `block_may_allocate_sink` dla ciała złożonego z samej arytmetyki jest fałszywy. Węzeł pętli zostaje w raporcie, ale nie prosi o `bork_arena_push`. Wydruk ma węzeł, a w czasie działania pętla nie dostaje własnego bufora.
 
-Blok z `println(label)` nie tworzy nowego napisu. Czyta Shared. Predykat
-alokacji sinku na samym wywołaniu `println` nie jest `concat` ani
-literałem. Literał `"sum"` stoi przy deklaracji `label` w ciele funkcji,
-nie w bloku. Blok wewnętrzny też nie musi pchać własnej płyty.
+Blok z `println(label)` nie tworzy nowego napisu. Czyta wartość współdzieloną. Samo wywołanie `println` nie jest ani `concat`, ani literałem napisu. Literał `"sum"` stoi przy deklaracji `label` w ciele funkcji, a nie w bloku wewnętrznym. Blok wewnętrzny też nie musi pobierać własnego bufora.
 
-Hoist: nigdzie nie ma pary `var inner` / `outer = move inner`.
-`alloc_in_binding` zostaje puste.
+Wyniesienie alokacji nie znajduje pary: deklaracja zmiennej wewnętrznej i zaraz potem przeniesienie do zmiennej zewnętrznej. Pole miejsca alokacji zostaje puste.
 
-Escape: `return total` nie jest typem z areną. `label` nie wraca z
-wewnętrznego regionu. `place` nie zgłasza nic.
+Analiza ucieczki widzi powrót liczby `total`, a nie typu trzymanego w buforze. Stała `label` nie wraca z regionu wewnętrznego. Funkcja licząca głębokość nic nie zgłasza.
 
-HIR zostaje w `CheckResult`.
+Reprezentacja pośrednia zostaje w wyniku sprawdzenia.
 
-Pliki: `src/region_walk.rs` (`stamp_codegen_push`,
-`block_may_allocate_sink`), `src/hoist.rs`, `src/escape.rs`.
+## Kontrola, moduł i wygenerowane wywołania
 
-## Krok 5. Bramka i moduł
+Kontrola przed generowaniem kodu nie znajduje funkcji dopisanej na końcu wywołania, słów `None` i `Some`, operatora `?:`, wykrzykników `!!` ani obcego pola. Przechodzi.
 
-`gate` nie znajduje trailing closure, `None`, `Some`, `?:`, `!!` ani
-obcego pola. Przechodzi.
+Emisja modułu deklaruje `main` jako funkcję zwracającą `i32` bez parametrów oraz `bork.add` jako funkcję wewnętrzną. Potem emituje ciała.
 
-`emit_module` deklaruje `main` jako `i32 ()` oraz `bork.add` jako funkcję
-wewnętrzną. Potem emituje ciała.
+Dla `main` otwiera blok wejścia, rezerwuje slot na `total` i slot na deskryptor `label`. Region funkcji pobiera bufor, bo korzeń zawsze ma flagę pobrania. Literał `"sum"` jest stałą globalną. Deskryptor ze wskaźnikiem i długością 3 ląduje w slocie. Bufor funkcji w tym programie może zostać nietknięty przez alokację, bo znaki są w stałej globalnej. Pobranie bufora i tak jest.
 
-`emit_function` dla `main` otwiera blok wejścia, `alloca` na `total` i na
-deskryptor `label`. Region funkcji pcha płytę (`codegen_push` korzenia).
-Literał `"sum"` jest globalem; deskryptor `{ ptr, len: 3 }` ląduje w
-slocie. Płyta funkcji w tym programie może zostać nietknięta przez
-`alloc`, bo znaki są w globalu. Push i tak jest.
+Pętla trzyma indeks, porównuje go z 3, woła `bork.add` i przypisuje wynik. Zatrzask nie musi czyścić bufora pętli, jeśli wejście w pętlę w ogóle nie położyło uchwytu. Spacer i tak woła hak zatrzasku. Emiter na braku uchwytu tego regionu nie czyści cudzego bufora.
 
-Pętla: indeks w rejestrze albo w `alloca`, porównanie z 3, ciało woła
-`bork.add`, dodawanie jest `build_int_add` po stronie `add` i przypisanie
-w `main`. Zatrzask nie musi resetować płyty, jeśli enter pętli w ogóle nie
-wypchnął uchwytu. Spacer i tak woła `loop_latch`; `ArenaCalls` na braku
-uchwytu regionu nie resetuje cudzej płyty.
+Wypisanie schodzi do `bork_println_str`. Po bloku, jeśli nie było pobrania, nie ma zwrotu. Powrót ładuje `total` i zwraca. Zdjęcie uchwytów zdejmuje uchwyt funkcji.
 
-`println` obniża się do `bork_println_str`. Po bloku, jeśli nie było
-pusha, nie ma popa. `return total` ładuje `i32` i zwraca. `unwind` zdejmuje
-uchwyt funkcji.
+Funkcja `add` ładuje dwa parametry, dodaje je instrukcją całkowitą i wraca. Napisów w niej nie ma.
 
-`add` to `load` dwóch parametrów, `build_int_add`, `ret`. Bez napisów.
+## Plik obiektowy, konsolidacja i proces
 
-Pliki: `src/codegen/gate.rs`, `src/codegen/llvm/mod.rs`,
-`src/codegen/llvm/emit_fn.rs`, `src/codegen/llvm/expr.rs`,
-`src/codegen/llvm/arena.rs`, `src/codegen/regions.rs`.
+Zapis obiektu bierze natywny cel. Na maszynie, na której książka była sprawdzana, był to Linux x86-64. Ustawia trójkę docelową i układ danych, potem pisze plik obiektowy. Konsolidacja woła `clang` z archiwum biblioteki wykonawczej.
 
-## Krok 6. Obiekt, link, proces
-
-`write_object` bierze natywny target (na maszynie, na której książka była
-sprawdzana: Linux x86-64), ustawia triple i data layout, pisze plik
-obiektowy. `link_executable` woła `clang` z `libbork_runtime.a`.
-
-Proces `main` zwraca 3. `println` pisze trzy bajty `sum` i nową linię,
-potem flush. Pula aren w runtime żyje w statycznym `Mutex`. Po `pop`
-płyta funkcji wraca na listę. Proces się kończy, więc pula znika z
-pamięcią procesu.
+Proces zwraca 3. Wypisanie pisze trzy bajty słowa `sum` i nową linię, potem opróżnia bufor wyjścia. Pula buforów w bibliotece wykonawczej żyje w statycznym muteksie. Po zwrocie bufor funkcji wraca na listę. Proces się kończy, więc pula znika razem z pamięcią procesu.
 
 ## Czego ten ślad nie pokrywa
 
-Nie było hoista, `promote`, `move` napisu, wycinka, `while`, zwierania ani
-błędu escape. Każde z nich ma listing w części I i test w `tests/build.rs`
-albo w `src/escape.rs`. Ślad miał pokazać **szczęśliwą ścieżkę przez
-wszystkie funkcje graniczne**, nie każdy hak.
+Nie było wyniesienia alokacji, promocji, przeniesienia napisu, wycinka, pętli `while`, zwierania ani błędu ucieczki. Każde z nich ma listing w części pierwszej i test w `tests/build.rs` albo w `src/escape.rs`. Ślad miał pokazać udaną drogę przez funkcje graniczne, a nie każdy hak.
 
-Gdy będziesz powtarzał ślad na programie z `var piece = concat(...)` i
-`out = move piece`, zatrzymaj się dłużej w kroku 4: `hoist::annotate`
-ustawi `alloc_in_binding`, a w kroku 5 emisja deklaracji ustawi
-`alloc_sink` na dom `out` zanim wyemituje `concat`. Reszta kroków jest ta
-sama.
+Gdy będziesz powtarzał ślad na programie, który deklaruje kawałek napisu wynikiem `concat` i w następnym wierszu przenosi go do zmiennej zewnętrznej, zatrzymaj się dłużej przy wyniesieniu. Pole miejsca alokacji zostanie ustawione, a emisja deklaracji ustawi miejsce przeznaczenia na dom zmiennej zewnętrznej, zanim wyemituje `concat`. Reszta kroków jest ta sama.
 
 ## Podsumowanie
 
-- Śledzony program zwraca 3 i drukuje `sum`. Checker i `bork build` są zgodne.
-- Parser widzi dwie funkcje i zakres `..`. Typeck widzi `i32` i `String`.
-- Sema oznacza `total` jako Copy w pętli i `label` jako Shared w bloku.
-- Pętla bez alokacji nie dostaje własnej płyty, choć ma węzeł w dumpu.
-- Hoist i escape nie mają tu nic do roboty. To też jest wynik, nie pominięcie.
-- LLVM woła `bork.add` i `bork_println_str`. Runtime dostaje deskryptor literału z globala.
+- Śledzony program zwraca 3 i drukuje `sum`. Sprawdzenie i `bork build` są zgodne.
+- Parser widzi dwie funkcje i zakres. Sprawdzanie typów widzi `i32` i `String`.
+- Analiza własności oznacza `total` jako kopię w pętli i `label` jako współdzielenie w bloku.
+- Pętla bez alokacji nie dostaje własnego bufora, choć ma węzeł w wydruku.
+- Wyniesienie alokacji i analiza ucieczki nie mają tu nic do zrobienia. To też jest wynik.
+- Wygenerowany kod woła `bork.add` i `bork_println_str`. Biblioteka wykonawcza dostaje deskryptor literału ze stałej globalnej.

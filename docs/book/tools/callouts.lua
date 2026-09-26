@@ -3,8 +3,11 @@
 
 local colors = {
   NOTE = "noteblue",
+  NOTA = "noteblue",
   TIP = "tipgreen",
+  ["WSKAZÓWKA"] = "tipgreen",
   WARNING = "warnorange",
+  ["OSTRZEŻENIE"] = "warnorange",
 }
 
 local function kind_of(blockquote)
@@ -17,8 +20,16 @@ local function kind_of(blockquote)
     return nil
   end
   local label = pandoc.utils.stringify(inline)
-  if label == "NOTE." or label == "TIP." or label == "WARNING." then
-    return label:sub(1, -2)
+  local known = {
+    ["NOTE."] = "NOTE",
+    ["NOTA."] = "NOTA",
+    ["TIP."] = "WSKAZÓWKA",
+    ["WSKAZÓWKA."] = "WSKAZÓWKA",
+    ["WARNING."] = "OSTRZEŻENIE",
+    ["OSTRZEŻENIE."] = "OSTRZEŻENIE",
+  }
+  if known[label] then
+    return known[label]
   end
   return nil
 end
