@@ -60,6 +60,20 @@ pub(super) fn bare_ident_move_message(
     if binding.ty.is_copy() || binding.moved {
         return None;
     }
+    if matches!(binding.origin, BindingOrigin::View) {
+        return match sink {
+            TransferSink::Binding {
+                dest: BindingKind::Var,
+                ..
+            } => Some(format!(
+                "cannot bind a borrow view to `var`; use `val` for `{name}`"
+            )),
+            TransferSink::CallArg { .. } => Some(format!(
+                "cannot move borrow `{name}`; pass it with `&` to a reference parameter"
+            )),
+            _ => None,
+        };
+    }
     if matches!(
         sink,
         TransferSink::Binding { arena_id, .. }

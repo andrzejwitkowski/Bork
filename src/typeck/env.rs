@@ -9,6 +9,8 @@ use crate::span::Span;
 pub(super) struct Binding {
     pub(super) kind: BindingKind,
     pub(super) ty: Ty,
+    /// Written `&T` in a type annotation or a `&T` parameter (not inferred `val b = &a`).
+    pub(super) explicit_ref: bool,
 }
 
 #[derive(Clone)]
@@ -37,11 +39,21 @@ impl<'a> Env<'a> {
         }
     }
 
-    pub(super) fn bind(&mut self, name: String, kind: BindingKind, ty: Ty) {
+    pub(super) fn bind(
+        &mut self,
+        name: String,
+        kind: BindingKind,
+        ty: Ty,
+        explicit_ref: bool,
+    ) {
         self.scopes
             .last_mut()
             .expect("type environment always has a scope")
-            .insert(name, Binding { kind, ty });
+            .insert(name, Binding {
+                kind,
+                ty,
+                explicit_ref,
+            });
     }
 
     pub(super) fn binding(&self, name: &str) -> Option<&Binding> {

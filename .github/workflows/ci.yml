@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "feat/**"]
   pull_request:
-    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -31,6 +29,9 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --verbose
+
+      - name: Programs corpus (frontend)
+        run: cargo test programs_corpus_check --verbose
 
       - name: Test without LSP feature
         run: cargo test --workspace --no-default-features --verbose
@@ -62,6 +63,9 @@ jobs:
 
       - name: Test with codegen
         run: cargo test --workspace --features codegen --verbose
+
+      - name: Programs corpus (build + regression)
+        run: cargo test programs_corpus --features codegen --verbose
 
       - name: Bundle libLLVM beside the release binary
         run: |

@@ -32,6 +32,10 @@ pub enum Type {
         ret: Box<Type>,
         nullable: bool,
     },
+    Ref {
+        inner: Box<Type>,
+        nullable: bool,
+    },
 }
 
 impl Type {
@@ -88,6 +92,18 @@ impl Type {
                 ret,
                 nullable,
             },
+            Type::Ref { inner, .. } => Type::Ref { inner, nullable },
+        }
+    }
+
+    pub fn is_reference(&self) -> bool {
+        matches!(self, Type::Ref { .. })
+    }
+
+    pub fn reference_inner(&self) -> Option<&Type> {
+        match self {
+            Type::Ref { inner, .. } => Some(inner),
+            _ => None,
         }
     }
 }
@@ -151,6 +167,7 @@ pub enum AssignTarget {
         name: String,
         name_span: crate::span::Span,
         index: Expr,
+        borrowed: bool,
     },
 }
 
@@ -254,6 +271,7 @@ pub enum BinOp {
 pub enum UnaryOp {
     NotNullAssert,
     Not,
+    Borrow,
 }
 
 pub fn unescape_string_literal(raw: &str) -> String {

@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 pub(super) enum BindingOrigin {
     Declared,
     Captured,
+    View,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,6 +74,7 @@ pub(super) struct Analyzer {
     pub(super) errors: Vec<SemaError>,
     pub(super) env: HashMap<String, EnvBinding>,
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
+    pub(super) fun_param_tys: HashMap<String, Vec<crate::ast::Type>>,
     /// `var`/`val` types from typeck, consumed in source order.
     pub(super) decl_tys: std::collections::VecDeque<crate::hir::Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
@@ -86,6 +88,7 @@ impl Analyzer {
             errors: Vec::new(),
             env: HashMap::new(),
             fun_sigs: HashMap::new(),
+            fun_param_tys: HashMap::new(),
             decl_tys: std::collections::VecDeque::new(),
             loop_move_ban: Vec::new(),
         }
@@ -130,25 +133,6 @@ pub(super) struct Shadow(pub(super) String, pub(super) Option<EnvBinding>);
 pub(super) fn shadow_insert(az: &mut Analyzer, name: String, binding: EnvBinding) -> Shadow {
     let prev = az.env.insert(name.clone(), binding);
     Shadow(name, prev)
-}
-
-pub(super) fn bind(
-    az: &mut Analyzer,
-    name: &str,
-    arena_id: usize,
-    arena_label: &str,
-    ty: Ty,
-    kind: BindingKind,
-) -> Shadow {
-    bind_with(
-        az,
-        name,
-        arena_id,
-        arena_label,
-        ty,
-        kind,
-        BindingOrigin::Declared,
-    )
 }
 
 pub(super) fn bind_with(

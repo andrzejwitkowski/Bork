@@ -35,6 +35,9 @@ impl<'ctx> Codegen<'ctx> {
 
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
     pub fn basic_type(&self, ty: &Ty) -> Option<BasicTypeEnum<'ctx>> {
+        if let Some(inner) = ty.ref_inner() {
+            return self.basic_type(inner);
+        }
         if ty.is_string() && !ty.nullable {
             return Some(self.buffer_descriptor_type().into());
         }

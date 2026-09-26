@@ -1,0 +1,14 @@
+fun inner(a: &[i32; 2]) {
+    a[0] = 2
+}
+
+fun outer(a: &[i32; 2]) {
+    for (i in 0..1) {
+        inner(&a)
+    }
+}
+
+fun main() {
+    var x: [i32; 2] = [1, 2]
+    outer(&x)
+}

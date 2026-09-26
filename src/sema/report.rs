@@ -9,6 +9,8 @@ pub enum Ownership {
     Copy,
     Shared { from: String },
     Moved { from: String },
+    /// `&name` from an outer region. The owner stays live.
+    Borrow { from: String },
 }
 
 impl Ownership {
@@ -18,6 +20,7 @@ impl Ownership {
             Ownership::Copy => "Copy".into(),
             Ownership::Shared { from } => format!("Shared ← {from}"),
             Ownership::Moved { from } => format!("Moved ← {from}"),
+            Ownership::Borrow { from } => format!("Borrow ← {from}"),
         }
     }
 

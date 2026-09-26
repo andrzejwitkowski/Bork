@@ -143,7 +143,10 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             );
             gate_expr(inner, diagnostics);
         }
-        HirExprKind::Unary { op: UnaryOp::Not, expr: inner } => gate_expr(inner, diagnostics),
+        HirExprKind::Unary {
+            op: UnaryOp::Not | UnaryOp::Borrow,
+            expr: inner,
+        } => gate_expr(inner, diagnostics),
         HirExprKind::Field { receiver, name, .. } => {
             if name != "length" || !receiver.ty.uses_arena_storage() {
                 reject(

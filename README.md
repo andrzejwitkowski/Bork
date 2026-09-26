@@ -109,6 +109,8 @@ Run the full test suite, including the `bork_runtime` crate and the
 cargo test --workspace --features codegen
 ```
 
+Runnable `.bork` examples grouped by frontend vs codegen live in [`programs/`](programs/README.md); `cargo test programs_corpus --features codegen` runs that corpus.
+
 ## Typecheck
 
 `bork file.bork` runs parse, ownership, and full typecheck.
