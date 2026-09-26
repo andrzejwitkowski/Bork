@@ -1,0 +1,10 @@
+fun main() {
+    var out = "prefix"
+    var left = "L"
+    var right = "R"
+    {
+        var piece = concat(move left, move right)
+        out = move piece
+    }
+    println(out)
+}

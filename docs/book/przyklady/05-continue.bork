@@ -1,0 +1,10 @@
+fun main(): i32 {
+    var s = 0
+    for (i in 0..5) {
+        if (i == 2) {
+            continue
+        }
+        s = s + i
+    }
+    return s
+}

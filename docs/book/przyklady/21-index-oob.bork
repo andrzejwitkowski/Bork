@@ -1,0 +1,4 @@
+fun main(): i32 {
+    val a = [1, 2, 3]
+    return a[9]
+}

@@ -1,0 +1,10 @@
+fun action(a: Int, b: Int, block: (Int, Int) -> Int): Int {
+    return block(a, b)
+}
+
+fun main(): i32 {
+    val threshold = 5
+    return action(1, 2) { acc, current ->
+        if (current > threshold) { acc + current } else { acc }
+    }
+}
