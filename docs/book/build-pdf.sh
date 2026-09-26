@@ -42,14 +42,18 @@ order = [
 fig = work / "fig"
 fig.mkdir()
 n = 0
-fence = re.compile(r"```mermaid\n(.*?)\n```", re.S)
+fence = re.compile(
+    r"(?:<!--\s*figura:\s*(.*?)\s*-->\n)?```mermaid\n(.*?)\n```",
+    re.S,
+)
 
 def render(body: str) -> str:
     global n
     def repl(match: re.Match) -> str:
         global n
         n += 1
-        src = match.group(1).strip() + "\n"
+        caption = (match.group(1) or f"Diagram {n}").strip()
+        src = match.group(2).strip() + "\n"
         encoded = base64.urlsafe_b64encode(src.encode()).decode().rstrip("=")
         url = "https://mermaid.ink/img/" + encoded + "?type=png&bgColor=white"
         dest = fig / f"diagram-{n}.png"
@@ -60,7 +64,7 @@ def render(body: str) -> str:
             if not data.startswith(b"\x89PNG"):
                 raise RuntimeError("not png")
             dest.write_bytes(data)
-            return f"![Diagram {n}]({dest.as_posix()})"
+            return f"![{caption}]({dest.as_posix()})"
         except Exception as err:
             print(f"mermaid {n} failed: {err}", file=sys.stderr)
             return "```text\n" + src + "```"

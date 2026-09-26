@@ -1,6 +1,6 @@
 # Rozdział 14. Jak kompilator sprawdza własność nazw
 
-Liczbę całkowitą wolno przeczytać wiele razy, bo odczyt nic nie zabiera. Napis albo tablica tak się nie zachowują. Ich bajty mają jednego właściciela, i drugi odczyt albo musi być jawnym przeniesieniem, albo, w przypadku niezmiennej nazwy czytanej z zewnętrznego bloku, świadomym współdzieleniem. Gdyby kompilator pominął to rozróżnienie, generator kodu albo skopiowałby deskryptor napisu w dwa miejsca, które oba uważają się za właściciela, albo pozwoliłby użyć nazwy, która już nic nie trzyma.
+Liczbę całkowitą wolno przeczytać wiele razy, bo odczyt nic nie zabiera. Napis albo tablica tak się nie zachowują. Taka wartość ma jednego właściciela, i drugi odczyt albo musi być jawnym przeniesieniem, albo, w przypadku niezmiennej nazwy czytanej z zewnętrznego bloku, świadomym współdzieleniem. Gdyby kompilator pominął to rozróżnienie, generator kodu albo skopiowałby deskryptor napisu w dwa miejsca, które oba uważają się za właściciela, albo pozwoliłby użyć nazwy, która już nic nie trzyma.
 
 Ten rozdział obejmuje
 
@@ -12,10 +12,11 @@ Ten rozdział obejmuje
 
 ## Po co w ogóle pytać, kto nazwę posiada
 
-Pytanie tej fazy brzmi, co wolno zrobić z nazwą w miejscu, w którym tekst jej używa. Wolno ją przeczytać na miejscu, wolno skopiować, wolno współdzielić z bloku, który ją zadeklarował, albo trzeba ją przenieść, a po przeniesieniu już nie wolno jej tknąć. Bez tej odpowiedzi późniejszy kod nie wie, czy odczyt `s` jest nieszkodliwy, czy właśnie oddaje jedyne prawo do bajtów. Sprawdzanie typów tego nie rozstrzyga, bo napis i liczba potrafią mieć poprawny typ w wyrażeniu, które i tak łamie własność.
+Pytanie tej fazy brzmi, co wolno zrobić z nazwą w miejscu, w którym tekst jej używa. Wolno ją przeczytać na miejscu, wolno skopiować, wolno współdzielić z bloku, który ją zadeklarował, albo trzeba ją przenieść, a po przeniesieniu już nie wolno jej tknąć. Bez tej odpowiedzi późniejszy kod nie wie, czy odczyt `s` jest nieszkodliwy, czy właśnie oddaje jedyne prawo do napisu. Sprawdzanie typów tego nie rozstrzyga, bo napis i liczba potrafią mieć poprawny typ w wyrażeniu, które i tak łamie własność.
 
 Analiza nie przydziela pamięci i nie woła funkcji wykonawczych. Buduje raport regionów, czyli drzewo, którego korzeniami są funkcje, a dziećmi bloki, pętle i gałęzie warunku. Przy nazwie zapisuje, jak została użyta. Region w tym raporcie nie jest buforem o stałej pojemności. Bufor, jeśli w ogóle powstanie, jest decyzją późniejszą, opisaną w rozdziale 16. Tutaj region jest tylko zakresem, w którym nazwa została zadeklarowana albo odczytana, i etykietą, którą zobaczysz w wydruku, na przykład `fun main` albo `Block`.
 
+<!-- figura: Rysunek 14.1. Cztery odpowiedzi kompilatora o odczycie nazwy -->
 ```mermaid
 flowchart TD
     odczyt["Odczyt nazwy"] --> przeniesiona{"Nazwa już przeniesiona"}
@@ -29,7 +30,7 @@ flowchart TD
     val -->|nie| move["Odmowa: trzeba przenieść przez move"]
 ```
 
-Rysunek jest całą polityką odczytu, skróconą do pytań, które naprawdę zmieniają wynik. Kopiują się nienullowalne typy pierwotne, takie jak `i32`, `i64`, `f64` i `bool`. Napis, tablica i typ z pytajnikiem się nie kopiują. Typ, którego ta analiza nie dostała z kolejki typów deklaracji, też nie jest traktowany jak kopia, nawet jeśli sprawdzanie typów w swoim drzewie widzi liczbę. Ten rozjazd dotyczy parametrów funkcji dopisanej na końcu wywołania i wraca w rozdziale 15. W zwykłym `main`, przy deklaracjach z kolejki, oba opisy się zgadzają.
+Rysunek 14.1 jest całą polityką odczytu, skróconą do pytań, które naprawdę zmieniają wynik. Kopiują się nienullowalne typy pierwotne, takie jak `i32`, `i64`, `f64` i `bool`. Napis, tablica i typ z pytajnikiem się nie kopiują. Typ, którego ta analiza nie dostała z kolejki typów deklaracji, też nie jest traktowany jak kopia, nawet jeśli sprawdzanie typów w swoim drzewie widzi liczbę. Ten rozjazd dotyczy parametrów funkcji dopisanej na końcu wywołania i wraca w rozdziale 15. W zwykłym `main`, przy deklaracjach z kolejki, oba opisy się zgadzają.
 
 ## Cztery odpowiedzi i jeden ślad w wydruku
 
@@ -54,7 +55,7 @@ Arenas
         └── s [Shared ← fun main]
 ```
 
-`Local` przy deklaracji znaczy, że w swoim regionie nazwa jest zwykłym właścicielem. `Shared` przy odczycie w bloku znaczy, że blok nie przejął bajtów, tylko czyta nazwę zadeklarowaną w `fun main`. `println` jest funkcją wbudowaną i ten odczyt przez współdzielenie przyjmuje. Gdyby `s` było `var`, a nie `val`, ten sam tekst zostałby odrzucony, bo zmienna nazwa, która nie jest kopią, nie wchodzi do obcego regionu bez `move`.
+`Local` przy deklaracji znaczy, że w swoim regionie nazwa jest zwykłym właścicielem. `Shared` przy odczycie w bloku znaczy, że blok nie przejął napisu, tylko czyta nazwę zadeklarowaną w `fun main`. `println` jest funkcją wbudowaną i ten odczyt przez współdzielenie przyjmuje. Gdyby `s` było `var`, a nie `val`, ten sam tekst zostałby odrzucony, bo zmienna nazwa, która nie jest kopią, nie wchodzi do obcego regionu bez `move`.
 
 **Listing 14.2.** Zmienna nazwa użyta w bloku bez przeniesienia
 
@@ -143,7 +144,7 @@ Na końcu zostaje mapa do kodu, już po regułach, a nie zamiast nich. Wejście 
 
 ## Podsumowanie
 
-- Analiza własności odpowiada, czy odczyt nazwy jest lokalny, jest kopią, jest współdzieleniem, czy wymaga przeniesienia, bo bez tego generator nie wie, kto trzyma bajty napisu.
+- Analiza własności odpowiada, czy odczyt nazwy jest lokalny, jest kopią, jest współdzieleniem, czy wymaga przeniesienia, bo bez tego generator nie wie, kto trzyma napis.
 - Kopiują się nienullowalne typy pierwotne, a napis, tablica i typ z pytajnikiem wymagają albo współdzielenia niezmiennej nazwy, albo jawnego `move`.
 - Po przeniesieniu nazwy drugi odczyt jest odrzucany, a przeniesienie nazwy zadeklarowanej poza pętlą jest odrzucane od razu, bo kolejny obrót nie miałby już czego przenieść.
 - Po `if` z `else` nazwa jest zużyta za warunkiem tylko wtedy, gdy przeniosły ją obie gałęzie albo była zużyta już wcześniej, a samo `if` bez `else` nie wynosi śladu przeniesienia na zewnątrz.

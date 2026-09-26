@@ -6,11 +6,11 @@
 - jak przenieść wartość słowem `move` i jak słowem `promote` skopiować ją do zmiennej z regionu zewnętrznego
 - czym różnią się trzy formy bloku `move`
 - dlaczego przypisanie do zmiennej z zewnątrz bloku nie jest odczytem tej zmiennej
-- które błędy pochodzą z nazw, a które z czasu życia bajtów
+- które błędy pochodzą z nazw, a które z tego, jak długo żyje pamięć napisu
 
 ## Jedna faza dla nazw i dla bufora
 
-Własność nazw sprawdza analiza w katalogu `src/sema`. To, czy bajty przeżyją użycie, sprawdza osobne przejście, analiza ucieczki, w pliku `src/escape.rs`. Analiza ucieczki uruchamia się tylko wtedy, gdy sprawdzanie typów i analiza nazw nie zgłosiły wcześniej żadnego błędu. Oba źródła drukują fazę `ownership`. Dlatego program, który przeszedł analizę nazw, nie musi jeszcze spełniać wszystkich reguł napisów. Znaczy to tyle, że nazwy nie są użyte po przeniesieniu i że wartość niekopiowana nie ucieka przez gołą nazwę. Czas życia bajtów sprawdza dopiero analiza ucieczki.
+Własność nazw sprawdza analiza w katalogu `src/sema`. To, czy pamięć napisu przeżyje użycie, sprawdza osobne przejście, analiza ucieczki, w pliku `src/escape.rs`. Analiza ucieczki uruchamia się tylko wtedy, gdy sprawdzanie typów i analiza nazw nie zgłosiły wcześniej żadnego błędu. Oba źródła drukują fazę `ownership`. Dlatego program, który przeszedł analizę nazw, nie musi jeszcze spełniać wszystkich reguł napisów. Znaczy to tyle, że nazwy nie są użyte po przeniesieniu i że wartość niekopiowana nie ucieka przez gołą nazwę. Czas życia napisu sprawdza dopiero analiza ucieczki.
 
 Drzewo regionów zostaje nawet przy błędach. Reprezentacja pośrednia zostaje tylko wtedy, gdy lista błędów jest pusta, i to po analizie ucieczki. Przy błędzie składni nie ma nawet drzewa.
 
@@ -53,7 +53,7 @@ W drzewie `s` jest przeniesione z regionu `fun main`, a `t` jest nazwą lokalną
 
 ## Słowo promote
 
-`promote nazwa` jest legalne tylko po prawej stronie przypisania do zmiennej z regionu ściśle zewnętrznego. Kopiuje bajty do areny tej zmiennej i unieważnia nazwę źródłową.
+`promote nazwa` jest legalne tylko po prawej stronie przypisania do zmiennej z regionu ściśle zewnętrznego. Kopiuje treść napisu do bufora tej zmiennej i unieważnia nazwę źródłową.
 
 **Listing 8.3.** Podniesienie napisu, który już powstał w bloku wewnętrznym. Program został zbudowany. Na wyjściu jest `temp` oraz nowy wiersz.
 
@@ -72,7 +72,7 @@ W drzewie nazwa `held` pojawia się w bloku dwa razy. Raz jako deklaracja lokaln
 
 Są trzy typowe błędy. Użycie `promote` poza przypisaniem do zmiennej zewnętrznej daje komunikat, że `promote` jest legalne tylko przy takim przypisaniu, a użycie na wartości kopiowanej daje komunikat, że `promote` nie jest potrzebne. Użycie w tym samym regionie, na przykład `val x = promote held` obok deklaracji `held`, daje komunikat, że `promote held` nie może trafić do `fun main`, bo wartość już żyje w tej arenie albo jeszcze wyżej. Ostatni komunikat został potwierdzony uruchomieniem kompilatora.
 
-`promote` nie występuje przy `return`. Nie ma miejsca przeznaczenia, do którego analiza mogłaby skopiować bajty wyniku.
+`promote` nie występuje przy `return`. Nie ma miejsca przeznaczenia, do którego analiza mogłaby skopiować treść wyniku.
 
 ## Przypisanie do zmiennej z zewnątrz
 
@@ -142,9 +142,9 @@ Ta sama zasada dotyczy wartości schowanej w `Some` i argumentów zagnieżdżony
 
 ## Podsumowanie
 
-- Analiza nazw pilnuje nazw. Analiza ucieczki pilnuje bajtów. Obie wypisują fazę `ownership`.
+- Analiza nazw pilnuje nazw, a analiza ucieczki pilnuje pamięci napisu, i obie wypisują fazę `ownership`.
 - `move nazwa` zużywa nazwę. Zwykłe użycie zmiennej niekopiowanej w przypisaniu i w wywołaniu jest błędem, a komunikat podpowiada `move`.
-- `promote` kopiuje bajty do zmiennej z regionu zewnętrznego i też zużywa nazwę źródłową.
+- `promote` kopiuje treść napisu do zmiennej z regionu zewnętrznego i też zużywa nazwę źródłową.
 - Lewa strona przypisania do zmiennej z zewnątrz nie jest odczytem tej zmiennej.
 - `move (a, b)`, `move ()` i `move` bez listy to trzy różne polecenia. Pusta lista nie jest tym samym co brak listy.
 - Zgadywanie listy nie rusza wartości kopiowanych i nie rusza nazw, których blok nie wspomina.

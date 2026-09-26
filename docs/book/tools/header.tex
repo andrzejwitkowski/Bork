@@ -1,3 +1,11 @@
+\usepackage{float}
+\usepackage{caption}
+\captionsetup{labelformat=empty,labelsep=none,justification=justified,singlelinecheck=false,font=small,skip=6pt}
+% Szablon Pandoca ustawia \fps@figure{htbp} wcześniej w preambule.
+% H trzyma rysunek w miejscu źródła, więc akapit, który go omawia, nie wskakuje na poprzednią stronę.
+\makeatletter
+\def\fps@figure{H}
+\makeatother
 \usepackage{xcolor}
 \definecolor{noteblue}{HTML}{1F4E79}
 \definecolor{tipgreen}{HTML}{1B6B3A}
@@ -14,7 +22,8 @@
 \makeatother
 \emergencystretch=5em
 \tolerance=2000
-\setkeys{Gin}{width=\linewidth,height=0.82\textheight,keepaspectratio}
+% Wysokość zostawia miejsce na podpis i akapit omawiający rysunek na tej samej stronie.
+\setkeys{Gin}{width=\linewidth,height=0.52\textheight,keepaspectratio}
 % Strona tytułowa: logo z assets/bork-logo.png, wyśrodkowane nad tytułem.
 % Ścieżkę ustawia build-pdf.sh jako \borklogo.
 \makeatletter

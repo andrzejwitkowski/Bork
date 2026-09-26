@@ -14,7 +14,7 @@ Ten rozdział obejmuje
 
 Pytanie brzmi, co w linii komunikatu jest miejscem w pliku, co jest fazą, a co jest treścią, którą naprawdę trzeba przeczytać. Bez tego podziału łatwo poprawiać typ tam, gdzie zepsuła się składnia, albo szukać `move` tam, gdzie generator nie umie `None`. Linia z terminala ma stały układ. Zaczyna się od ścieżki pliku, potem jest wiersz i kolumna, gdy kompilator ma zakres, następnie słowo `error`, nazwa fazy i treść. Kod wyjścia przy każdej takiej odmowie wynosi 1, także wtedy, gdy komunikatów jest kilka.
 
-Fazy są cztery i każda odpowiada innej części tej książki. Faza `parse` jest odmową czytania tekstu z rozdziału 13. Faza `type` jest odmową sprawdzania typów z rozdziału 15. Faza `ownership` jest odmową własności z rozdziału 14 albo odmową czasu życia bajtów z rozdziału 16, bo zwrot wyniku `concat` też jest wypisywany jako `ownership`. Faza `codegen` jest odmową budowania z rozdziału 17 i nie pojawia się przy samym sprawdzeniu, tylko przy `bork build`. Kolejność na ekranie, gdy w jednym pliku są i własność, i typ, jest taka, że `ownership` stoi wyżej, o czym mówił rozdział 12. Nie znaczy to, że własność była liczona pierwsza.
+Fazy są cztery i każda odpowiada innej części tej książki. Faza `parse` jest odmową czytania tekstu z rozdziału 13. Faza `type` jest odmową sprawdzania typów z rozdziału 15. Faza `ownership` jest odmową własności z rozdziału 14 albo odmową dotyczącą czasu życia napisu z rozdziału 16, bo zwrot wyniku `concat` też jest wypisywany jako `ownership`. Faza `codegen` jest odmową budowania z rozdziału 17 i nie pojawia się przy samym sprawdzeniu, tylko przy `bork build`. Kolejność na ekranie, gdy w jednym pliku są i własność, i typ, jest taka, że `ownership` stoi wyżej, o czym mówił rozdział 12. Nie znaczy to, że własność była liczona pierwsza.
 
 Weźmy plik z dwoma błędami naraz, ten sam, który listing 12.2 rozbierał od strony struktur wyniku. W tym rozdziale liczy się sama linia, którą widać w terminalu, a nie to, które drzewo zostało w pamięci. Oba komunikaty da się rozłożyć na te same pola, i właśnie ten rozkład jest narzędziem, a nie ozdobą wydruku. Poprawka, która zmienia tylko jedno z tych pól, zostawia drugą linię bez zmiany.
 
@@ -44,6 +44,7 @@ Pytanie brzmi, które polecenie dochodzi do której fazy, skoro początek pracy 
 
 Nie ma osobnego polecenia, które uruchamiałoby same typy albo samą własność. Jedno sprawdzenie zawsze idzie tak daleko, jak da się dojść, i zbiera, co zdąży. Dlatego plik z błędem składni nie pokaże przy okazji błędu typu, nawet jeśli dalej w tekście typy też są złe. Po poprawieniu nawiasu następne uruchomienie może pokazać fazę `type` albo `ownership`, i to nie jest zmiana zdania kompilatora o starym błędzie. To jest pierwsza faza, która w ogóle dostała drzewo.
 
+<!-- figura: Rysunek 18.1. Które polecenie dochodzi do sprawdzania, a które do budowania -->
 ```mermaid
 flowchart TD
     plik["Polecenie bork albo bork build"] --> check["Wspólne sprawdzenie"]
@@ -57,7 +58,7 @@ flowchart TD
     budowanie -->|tak| codegen["Kontrola i emisja, ewentualnie faza codegen"]
 ```
 
-Rysunek rozdziela milczenie od sukcesu budowania. Kod 0 przy samym `bork` znaczy, że program jest czysty, a nie że powstał plik wykonywalny. Kod 0 przy `bork build` znaczy, że plik powstał, o ile po drodze nie było awarii procesu, takiej jak w rozdziale 17 przy napisie przekazanym do funkcji użytkownika. Ta awaria nie ma linii `error`. Ma kod 101 i ślad, i edytor jej nie podkreśli, bo nie jest diagnostyką.
+Rysunek 18.1 rozdziela milczenie od sukcesu budowania. Kod 0 przy samym `bork` znaczy, że program jest czysty, a nie że powstał plik wykonywalny. Kod 0 przy `bork build` znaczy, że plik powstał, o ile po drodze nie było awarii procesu, takiej jak w rozdziale 17 przy napisie przekazanym do funkcji użytkownika. Ta awaria nie ma linii `error`. Ma kod 101 i ślad, i edytor jej nie podkreśli, bo nie jest diagnostyką.
 
 > **NOTA.**
 > Flaga `--dump-arenas` przy budowaniu działa tylko wtedy, gdy sprawdzenie już przeszło. Przy komunikacie z fazy `type` albo `ownership` budowanie kończy się przed emisją, ale samo polecenie `bork --dump-arenas plik.bork` drzewo jeszcze wypisze, bo wydruk nie wymaga czystego wyniku, tylko sparsowanego tekstu.
@@ -85,7 +86,7 @@ Na końcu zostaje mapa, włącznie z tym, czego w terminalu nie widać. Składan
 ## Podsumowanie
 
 - Linia w terminalu składa się ze ścieżki, zwykle wiersza i kolumny, słowa `error`, nazwy fazy i treści, a kod wyjścia przy odmowie wynosi 1.
-- Fazy `parse`, `type`, `ownership` i `codegen` wskazują odpowiednio czytanie tekstu, typy, własność albo czas życia bajtów oraz budowanie, i nie wolno ich czytać jako kolejności liczenia w czasie.
+- Fazy `parse`, `type`, `ownership` i `codegen` wskazują odpowiednio czytanie tekstu, typy, własność albo czas życia napisu oraz budowanie, i nie wolno ich czytać jako kolejności liczenia w czasie.
 - Polecenie `bork` kończy się na sprawdzeniu, `bork build` dochodzi do emisji tylko przy pustej liście, a `--dump-arenas` dokłada drzewo regionów, o ile tekst w ogóle się sparsuje.
 - Edytor dostaje ten sam werdykt, ale pozycję przeliczoną z bajtów na wiersz i kolumnę protokołu oraz treść zaczynającą się od nazwy fazy.
 - Najechanie na nazwę pokazuje region i klasyfikację własności, na przykład `Local` dla parametru używanego w jego własnej funkcji, i nie jest osobnym sprawdzeniem typów.

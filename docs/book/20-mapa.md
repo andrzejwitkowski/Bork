@@ -20,7 +20,7 @@ Moduły `escape`, `region_walk`, `layout` i `builtins` są prywatne. Widać je w
 
 ## Za co odpowiada każdy moduł
 
-Moduł `ast` trzyma nietypowane drzewo po parserze. Moduł `layout` zamienia znak nowej linii na znak powrotu karetki wewnątrz nawiasów i nie zmienia długości pliku. Moduł `span` trzyma parę przesunięć bajtowych. Moduł `diag` trzyma fazę, treść i zakres. Moduł `frontend` skleja fazy w wynik sprawdzenia. Moduł `typeck` produkuje reprezentację pośrednią i błędy typu. Moduł `hir` trzyma typowane drzewo bez numerów regionów. Moduł `sema` buduje drzewo regionów i błędy nazw. Plik `escape.rs` odrzuca bajty, które byłyby użyte po zwolnieniu ich bufora. Plik `hoist.rs` rozpoznaje dwie sąsiednie instrukcje i ustawia miejsce alokacji. Plik `region_walk.rs` jest jednym przejściem po reprezentacji pośredniej razem z raportem regionów. Plik `dump.rs` zamienia drzewo na tekst. Plik `builtins.rs` deklaruje `print`, `println` i `concat`. Plik `arena.rs` opisuje bufor i pulę jako model w kompilatorze. Katalog `codegen` ma kontrolę przed generowaniem kodu, emisję LLVM i konsolidację. Katalog `codegen/llvm` tłumaczy funkcje, wyrażenia, tablice i uchwyty regionów przez bibliotekę Inkwell. Moduł `lsp` liczy pozycje UTF-16, podpowiedź i wydruk. Skrzynka `bork_runtime` trzyma bufory i wypisywanie dla zlinkowanego programu.
+Moduł `ast` trzyma nietypowane drzewo po parserze. Moduł `layout` zamienia znak nowej linii na znak powrotu karetki wewnątrz nawiasów i nie zmienia długości pliku. Moduł `span` trzyma parę przesunięć bajtowych. Moduł `diag` trzyma fazę, treść i zakres. Moduł `frontend` skleja fazy w wynik sprawdzenia. Moduł `typeck` produkuje reprezentację pośrednią i błędy typu. Moduł `hir` trzyma typowane drzewo bez numerów regionów. Moduł `sema` buduje drzewo regionów i błędy nazw. Plik `escape.rs` odrzuca użycie napisu, którego pamięć byłaby czytana po zwolnieniu bufora. Plik `hoist.rs` rozpoznaje dwie sąsiednie instrukcje i ustawia miejsce alokacji. Plik `region_walk.rs` jest jednym przejściem po reprezentacji pośredniej razem z raportem regionów. Plik `dump.rs` zamienia drzewo na tekst. Plik `builtins.rs` deklaruje `print`, `println` i `concat`. Plik `arena.rs` opisuje bufor i pulę jako model w kompilatorze. Katalog `codegen` ma kontrolę przed generowaniem kodu, emisję LLVM i konsolidację. Katalog `codegen/llvm` tłumaczy funkcje, wyrażenia, tablice i uchwyty regionów przez bibliotekę Inkwell. Moduł `lsp` liczy pozycje UTF-16, podpowiedź i wydruk. Skrzynka `bork_runtime` trzyma bufory i wypisywanie dla zlinkowanego programu.
 
 ## Jak rosły warstwy widoczne w kodzie
 
@@ -42,6 +42,7 @@ Kontrolę przed generowaniem kodu czytaj w `src/codegen/gate.rs`, potem wejście
 
 Gdy celem jest tylko język, zatrzymaj się przed generowaniem kodu i czytaj testy analizy własności oraz sprawdzania typów.
 
+<!-- figura: Rysunek 19.1. Kolejność czytania źródeł kompilatora -->
 ```mermaid
 flowchart TD
     docs["Opis języka i model pamięci"] --> fe["frontend: kolejność faz"]
@@ -57,6 +58,8 @@ flowchart TD
     gate --> llvm["Emisja funkcji i wyrażeń"]
     llvm --> rt["Biblioteka wykonawcza"]
 ```
+
+Rysunek 19.1 zbiera tę kolejność w jednym miejscu, od dokumentów języka do biblioteki wykonawczej. Nie jest to spis każdego pliku w repozytorium, tylko ścieżka, którą da się przejść bez skakania między katalogami. Strzałka znaczy „przeczytaj to dopiero, gdy poprzedni węzeł jest już zrozumiały”, a nie zależność kompilacji. Pliki wymienione wyżej w tym podrozdziale stoją na tej ścieżce w tej samej kolejności.
 
 ## Pułapki przy nawigacji
 

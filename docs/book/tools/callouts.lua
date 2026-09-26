@@ -45,6 +45,18 @@ local function drop_label(para)
   return #inl > 0
 end
 
+-- [H] jest ustawione w header.tex. Kara broni przed łamaniem strony
+-- między rysunkiem a akapitem, który się do niego odwołuje.
+function Figure(el)
+  if FORMAT ~= "latex" and FORMAT ~= "beamer" then
+    return nil
+  end
+  return {
+    el,
+    pandoc.RawBlock("latex", "\\nopagebreak"),
+  }
+end
+
 function BlockQuote(el)
   local kind = kind_of(el)
   if not kind then

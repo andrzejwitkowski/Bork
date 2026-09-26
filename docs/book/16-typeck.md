@@ -16,6 +16,7 @@ Pytanie tej fazy brzmi, jaki typ ma każde wyrażenie i czy w miejscu, w którym
 
 To drugie drzewo nazywa się reprezentacją pośrednią. W kodzie nosi skrót HIR, od angielskiego high-level intermediate representation, i ten skrót zostaje w nazwach struktur `HirProgram` oraz `HirExpr`. W dalszych zdaniach pada sama nazwa reprezentacja pośrednia, bez powtarzania skrótu. Każde wyrażenie niesie w niej typ, zakres w pliku i rodzaj wyrażenia. Sprawdzanie typów buduje ją zawsze, nawet gdy zbierze błędy. Do wyniku przebiegu, opisanego w rozdziale 12, trafia ona tylko wtedy, gdy lista komunikatów na końcu jest pusta. Dzięki temu generator nie dostaje drzewa, obok którego leżą odmowy.
 
+<!-- figura: Rysunek 15.1. Od drzewa składni do reprezentacji pośredniej -->
 ```mermaid
 flowchart TD
     drzewo["Drzewo składni"] --> sygnatury["Zebranie sygnatur funkcji"]
@@ -26,7 +27,7 @@ flowchart TD
     zgodne -->|tak| dalej["Analiza własności bierze kolejkę typów deklaracji"]
 ```
 
-Rysunek zaczyna się od sygnatur, bo ciało funkcji wolno sprawdzać dopiero wtedy, gdy wiadomo, jakie funkcje w ogóle istnieją i co przyjmują. Przy okazji kompilator odmawia ponownego zdefiniowania funkcji wbudowanej, takiej jak `println` albo `concat`, bo te nazwy są już zajęte przez język. Dopiero po zebraniu sygnatur sprawdzanie schodzi do ciał. Kolejka typów deklaracji, którą rysunek stawia obok reprezentacji pośredniej, jest osobnym produktem tej samej fazy. Analiza własności zdejmuje z niej typ przy każdej deklaracji, w kolejności tekstu, i dlatego sprawdzanie typów musi skończyć się wcześniej, choć jego komunikaty są dopisywane do wydruku na końcu.
+Rysunek 15.1 zaczyna się od sygnatur, bo ciało funkcji wolno sprawdzać dopiero wtedy, gdy wiadomo, jakie funkcje w ogóle istnieją i co przyjmują. Przy okazji kompilator odmawia ponownego zdefiniowania funkcji wbudowanej, takiej jak `println` albo `concat`, bo te nazwy są już zajęte przez język. Dopiero po zebraniu sygnatur sprawdzanie schodzi do ciał. Kolejka typów deklaracji, którą rysunek stawia obok reprezentacji pośredniej, jest osobnym produktem tej samej fazy. Analiza własności zdejmuje z niej typ przy każdej deklaracji, w kolejności tekstu, i dlatego sprawdzanie typów musi skończyć się wcześniej, choć jego komunikaty są dopisywane do wydruku na końcu.
 
 ## Dlaczego literał `1` nie ma jednego typu
 

@@ -14,7 +14,7 @@ Ten rozdział obejmuje
 
 Pytanie tej fazy brzmi, czy czystą reprezentację pośrednią da się przetłumaczyć na kod, który ten kompilator naprawdę umie wyemitować. Sprawdzanie typów odpowiada, czy program ma sens w języku. Nie odpowiada, czy dana konstrukcja ma już ścieżkę w generatorze. Wartość `None`, operator `?:`, funkcja dopisana na końcu wywołania albo zwrot `i64` z `main` są w języku opisane i przez sprawdzenie przechodzą. Emisja tych konstrukcji na razie nie tłumaczy. Bez kontroli przed generowaniem kodu taki plik wszedłby w dopasowanie, które albo skarży się za późno, albo bierze wartość za liczbę i rzutuje ją źle.
 
-Kontrola ogląda kształt drzewa, nie bajty. Szuka między innymi braku funkcji `main`, niedozwolonego wyniku `main`, wartości `None` i `Some`, operatora `?:`, dostępu do pola, wykrzykników `!!` oraz funkcji dopisanej na końcu wywołania. Gdy coś znajdzie, dostajesz komunikat fazy `codegen` i kod wyjścia 1, bez pliku wynikowego. Pozostałe odmowy tej kontroli, na przykład nieobsłużony operator dwuargumentowy, działają tak samo. Pełna lista kształtów jest w funkcji `gate` w pliku `src/codegen/gate.rs`.
+Kontrola ogląda kształt drzewa, a nie treść napisu w pamięci. Szuka między innymi braku funkcji `main`, niedozwolonego wyniku `main`, wartości `None` i `Some`, operatora `?:`, dostępu do pola, wykrzykników `!!` oraz funkcji dopisanej na końcu wywołania. Gdy coś znajdzie, dostajesz komunikat fazy `codegen` i kod wyjścia 1, bez pliku wynikowego. Pozostałe odmowy tej kontroli, na przykład nieobsłużony operator dwuargumentowy, działają tak samo. Pełna lista kształtów jest w funkcji `gate` w pliku `src/codegen/gate.rs`.
 
 **Listing 17.1.** Wartość `None`, którą sprawdzenie przyjmuje, a budowanie odrzuca
 
@@ -31,6 +31,7 @@ fun main(): i32 {
 
 Sam `bork` na tym pliku, bez słowa `build`, kończy się kodem 0, bo typy i własność są w porządku. Odmowa pojawia się dopiero przy budowaniu. To samo dotyczy pliku `24-main-i64.bork`, który jest w zestawie przykładów. Sprawdzenie przechodzi, a budowanie mówi `` `main` returning `i64` is not supported by codegen yet ``. Plik bez funkcji `main` w ogóle, `25-no-main.bork`, pada komunikatem `` `fun main` is required to build an executable ``. Ograniczenie wyniku dotyczy właśnie `main`, które w kodzie maszynowym jest funkcją `main` z C i ma zwracać `i32`. Funkcja pomocnicza może liczyć na `i64`. `main` zadeklarowane bez typu wyniku jest zamieniane na `i32` równe zero.
 
+<!-- figura: Rysunek 17.1. Od czystego programu do pliku wykonywalnego -->
 ```mermaid
 flowchart TD
     czyste["Czysta reprezentacja pośrednia i raport regionów"] --> kontrola["Kontrola kształtów, których emisja nie tłumaczy"]
@@ -41,7 +42,7 @@ flowchart TD
     clang --> bin["Plik wykonywalny"]
 ```
 
-Rysunek stawia kontrolę przed zapisem pośrednim celowo. Zapis pośredni powstaje dopiero dla programu, który kontrola przepuściła, a plik obiektowy powstaje z tego zapisu przez maszynę docelową LLVM. Na końcu `clang` łączy plik obiektowy z biblioteką `libbork_runtime.a`. Bez tej biblioteki wygenerowany kod nie miałby bufora regionu, wypisywania ani sprawdzeń, które przerywają proces przy dzieleniu przez zero i przy indeksie poza tablicą.
+Rysunek 17.1 stawia kontrolę przed zapisem pośrednim celowo. Zapis pośredni powstaje dopiero dla programu, który kontrola przepuściła, a plik obiektowy powstaje z tego zapisu przez maszynę docelową LLVM. Na końcu `clang` łączy plik obiektowy z biblioteką `libbork_runtime.a`. Bez tej biblioteki wygenerowany kod nie miałby bufora regionu, wypisywania ani sprawdzeń, które przerywają proces przy dzieleniu przez zero i przy indeksie poza tablicą.
 
 > **NOTA.**
 > Dodawanie i porównywanie liczb zmiennoprzecinkowych przechodzi sprawdzenie typów, a przy budowaniu pada inaczej niż `None`. Komunikat mówi o wewnętrznej niezgodności harmonogramu regionów i o tym, że operator zmiennoprzecinkowy nie jest jeszcze obsługiwany po przejściu regionów. To wciąż odmowa fazy `codegen`, tylko zgłoszona już w czasie emisji, nie w kontroli kształtów.

@@ -77,7 +77,7 @@ Analiza ucieczki traktuje wycinek jak tablicę, z której powstał. Wycinek nie 
 
 Odczyt `a[i]`, gdy element jest napisem, jest oglądaniem napisu leżącego w buforze tablicy. Nie ma przeniesienia jednego elementu. Słowa `move` i `promote` dotyczą całej tablicy albo, przy zapisie do elementu, wartości po prawej stronie.
 
-Zapis elementu, który nie jest kopiowany, wymaga `move` albo `promote` po prawej stronie. Arena tablicy jest miejscem, w którym lądują bajty nowego elementu.
+Zapis elementu, który nie jest kopiowany, wymaga `move` albo `promote` po prawej stronie. Bufor tablicy jest miejscem, w którym ląduje treść nowego elementu.
 
 **Listing 7.5.** Zapis przeniesionego napisu do tablicy. Program został zbudowany. Na wyjściu jest `z` oraz nowy wiersz.
 

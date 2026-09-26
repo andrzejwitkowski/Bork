@@ -140,7 +140,7 @@ Wnioskowanie, które nazwy przenieść, nie patrzy na wyrażenia `move nazwa` i 
 
 ## Co z tego wynika dla programów, które mają się zbudować
 
-Ciało wywołanej funkcji ma własne regiony. Argumenty są liczone w regionie wywołującego. Wynik liczbowy wraca w rejestrze. Wynik napisowy nie dostaje dziś bufora należącego do wywołującego, dlatego analiza ucieczki zabrania zwrócić świeże bajty. Listing 5.4 działa, bo napis `"hi"` jest literałem albo wartością na poziomie funkcji, a `println` tylko czyta adres i długość.
+Ciało wywołanej funkcji ma własne regiony. Argumenty są liczone w regionie wywołującego. Wynik liczbowy wraca w rejestrze. Wynik napisowy nie dostaje dziś bufora należącego do wywołującego, dlatego analiza ucieczki zabrania zwrócić napis utworzony w regionie tej funkcji. Listing 5.4 działa, bo napis `"hi"` jest literałem albo wartością na poziomie funkcji, a `println` tylko czyta adres i długość.
 
 > **WSKAZÓWKA.** W programie, który ma przejść przez `bork build`, trzymaj funkcje przy liczbach, a napisy wypisuj z `main`. To nie jest zalecenie na zawsze, tylko obejście błędu w funkcji `coerce_value_to_ty`, która wartość inną niż `bool` próbuje potraktować jako liczbę całkowitą. Liczba zmiennoprzecinkowa na części ścieżek dostaje komunikat, że nie jest obsługiwana, a napis kończy się awarią kompilatora.
 

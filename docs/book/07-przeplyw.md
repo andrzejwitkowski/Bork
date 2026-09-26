@@ -135,7 +135,7 @@ Operator `!` wymaga wartości `bool`. Program, który liczy `val flag = !false` 
 
 Powrót z wnętrza bloku musi zwolnić regiony, które funkcja otworzyła. Generator kodu zdejmuje je przy `return` i nie zdejmuje ich drugi raz na ścieżce, która już wróciła. Seria poprawek w historii repozytorium dotyczyła właśnie podwójnego zwolnienia albo zostawienia uchwytu bufora. Test `builds_nested_loops_with_regions_and_early_return` zwraca 63 i pilnuje, że wczesny powrót z zagnieżdżonych pętli daje oczekiwany wynik.
 
-Dla programisty skutek jest taki. `return` w środku bloku jest legalny dla wartości kopiowanej i dla napisu, który żyje na poziomie funkcji. Nie jest legalny dla napisu, którego bajty żyją głębiej.
+Dla programisty skutek jest taki. `return` w środku bloku jest legalny dla wartości kopiowanej i dla napisu, który żyje na poziomie funkcji. Nie jest legalny dla napisu, którego pamięć leży w głębszym regionie.
 
 **Listing 6.7.** Zwrot napisu utworzonego w bloku wewnętrznym. Sprawdzenie i budowanie kończą się kodem jeden. Plik wykonywalny nie powstaje.
 
@@ -153,7 +153,7 @@ fun main() {
 }
 ```
 
-Komunikat fazy `ownership` mówi, że zwracany jest napis, którego bajty żyją w regionie wewnętrznym, i że ta arena jest zwalniana, zanim wartość zostanie zwrócona. Faza nazywa się tak samo jak faza analizy własności, bo analiza ucieczki dokłada błędy do tej samej grupy. Gdy analiza ucieczki zgłosi błąd, reprezentacja pośrednia jest wyrzucana. Drzewo regionów zostaje.
+Komunikat fazy `ownership` mówi, że zwracany jest napis, którego pamięć leży w regionie wewnętrznym, i że ta arena jest zwalniana, zanim wartość zostanie zwrócona. Faza nazywa się tak samo jak faza analizy własności, bo analiza ucieczki dokłada błędy do tej samej grupy. Gdy analiza ucieczki zgłosi błąd, reprezentacja pośrednia jest wyrzucana. Drzewo regionów zostaje.
 
 ## Podsumowanie
 

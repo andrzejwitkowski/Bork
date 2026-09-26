@@ -1,6 +1,6 @@
 # Rozdział 12. Od pliku źródłowego do gotowego programu
 
-Zanim kompilator wyemituje choć jedną instrukcję, musi odpowiedzieć na kilka pytań, które nie mają ze sobą nic wspólnego poza tym, że dotyczą tego samego pliku. Czy tekst w ogóle układa się w program, czy nazwy mają typy, które do siebie pasują, czy napis nie został użyty po tym, jak jego właściciel już go oddał, i czy bajty, które funkcja chce zwrócić, będą jeszcze żyły po jej powrocie. Każde z tych pytań ma własną fazę, bo pomyłka w odpowiedzi psuje inną rzecz. Zły kształt tekstu uniemożliwia w ogóle zbudowanie drzewa, zły typ psuje późniejsze wywołanie, a napis zwrócony ze zbyt krótkiego regionu psuje pamięć już w działającym procesie.
+Zanim kompilator wyemituje choć jedną instrukcję, musi odpowiedzieć na kilka pytań, które nie mają ze sobą nic wspólnego poza tym, że dotyczą tego samego pliku. Czy tekst w ogóle układa się w program, czy nazwy mają typy, które do siebie pasują, czy napis nie został użyty po tym, jak jego właściciel już go oddał, i czy pamięć napisu, który funkcja chce zwrócić, pożyje po jej powrocie. Każde z tych pytań ma własną fazę, bo pomyłka w odpowiedzi psuje inną rzecz. Zły kształt tekstu uniemożliwia w ogóle zbudowanie drzewa, zły typ psuje późniejsze wywołanie, a napis zwrócony ze zbyt krótkiego regionu psuje pamięć już w działającym procesie.
 
 Ten rozdział obejmuje
 
@@ -16,6 +16,7 @@ Pytanie tej części dotyczy wiedzy, bez której nie wolno emitować kodu. Kompi
 
 Najpierw powstaje drzewo składni, czyli struktura, która pamięta kształt tekstu, ale jeszcze nie wie, czy `n` jest liczbą, napisem czy nazwą, której wcale nie zadeklarowano. Potem sprawdzanie typów buduje drugie drzewo, reprezentację pośrednią, w której każde wyrażenie ma już typ. Równolegle w sensie danych, choć chwilę później w czasie, analiza własności buduje raport regionów. Raport nie przydziela przy tym ani jednego bajtu pamięci wykonawczej, tylko zapisuje, która nazwa jest lokalna, która została skopiowana, która jest współdzielona z zewnętrznego bloku, a która została przeniesiona. Gdy obie te fazy milczą, dochodzą jeszcze dwie decyzje o napisach. Jedna mówi, czy blok w ogóle potrzebuje własnego bufora, a druga, czy wartość, którą funkcja zwraca, przeżyje powrót. Dopiero czysty wynik wolno oddać generatorowi kodu.
 
+<!-- figura: Rysunek 12.1. Droga pliku od tekstu źródłowego do programu wykonywalnego -->
 ```mermaid
 flowchart TD
     plik["Plik źródłowy"] --> czytanie["Czytanie tekstu"]
@@ -31,7 +32,7 @@ flowchart TD
     maszyna --> bin["Plik wykonywalny"]
 ```
 
-Rysunek pokazuje drogę, a nie każdą strukturę po drodze. Czytanie tekstu jest jedyną fazą, po której porażce nie ma ani drzewa składni do dalszej pracy, ani raportu regionów. Wszystkie późniejsze odmowy zostawiają raport, bo analiza własności zdążyła go zbudować, nawet jeśli program i tak jest błędny. Plik wykonywalny powstaje wyłącznie na gałęzi, na której lista komunikatów została pusta i uruchomiono polecenie budowania.
+Rysunek 12.1 pokazuje drogę pliku, a nie każdą strukturę po drodze. Czytanie tekstu jest jedyną fazą, po której porażce nie ma ani drzewa składni do dalszej pracy, ani raportu regionów. Wszystkie późniejsze odmowy zostawiają raport, bo analiza własności zdążyła go zbudować, nawet jeśli program i tak jest błędny. Plik wykonywalny powstaje wyłącznie na gałęzi, na której lista komunikatów została pusta i uruchomiono polecenie budowania.
 
 ## Dwa polecenia, jeden wspólny początek
 
@@ -128,7 +129,7 @@ Jest jeszcze jeden skutek wspólnego wektora typów. Analiza własności nie zag
 
 ## Kiedy program jest czysty
 
-Pytanie brzmi, co jeszcze musi się udać po typach i własności, zanim wynik wolno nazwać czystym. Sam brak błędów typu i własności nie wystarcza, bo program może poprawnie przenosić nazwy i mimo to zwracać napis, którego bajty umrą razem z buforem wołanej funkcji. Taki błąd nie jest widoczny w drzewie składni, bo drzewo pamięta tylko, że w `return` stoi wywołanie. Wychodzi dopiero wtedy, gdy kompilator wie, w którym regionie wartość powstała i czy wolno ją wynieść do wywołującego.
+Pytanie brzmi, co jeszcze musi się udać po typach i własności, zanim wynik wolno nazwać czystym. Sam brak błędów typu i własności nie wystarcza, bo program może poprawnie przenosić nazwy i mimo to zwracać napis, którego pamięć umrze razem z buforem wołanej funkcji. Taki błąd nie jest widoczny w drzewie składni, bo drzewo pamięta tylko, że w `return` stoi wywołanie. Wychodzi dopiero wtedy, gdy kompilator wie, w którym regionie wartość powstała i czy wolno ją wynieść do wywołującego.
 
 Gdy lista po typach i własności jest pusta, dochodzą trzy rzeczy, nadal wewnątrz tego samego przebiegu. Najpierw zaznacza się, które bloki w ogóle wołają wejście do regionu przy generowaniu kodu. Potem dopisuje się przy deklaracjach informację, czy napis ma powstać od razu w buforze miejsca, do którego za chwilę zostanie przeniesiony. Na końcu każda funkcja jest sprawdzana pod kątem ucieczki, i dopiero ta trójka domyka sprawdzenie.
 
@@ -147,7 +148,7 @@ Na końcu zostaje mapa do kodu, bo cały ten rozdział da się streścić jednym
 
 ## Podsumowanie
 
-- Kompilator odpowiada po kolei na pytania o kształt tekstu, o typy, o własność nazw i o czas życia bajtów napisu, bo każda pominięta odpowiedź psuje inny, późniejszy krok.
+- Kompilator odpowiada po kolei na pytania o kształt tekstu, o typy, o własność nazw i o czas życia napisu, bo każda pominięta odpowiedź psuje inny, późniejszy krok.
 - Polecenia `bork plik.bork` i `bork build` zaczynają się od tego samego sprawdzenia, a plik wykonywalny powstaje tylko wtedy, gdy lista komunikatów jest pusta i kontrola przed generowaniem kodu niczego nie odrzuci.
 - Raport regionów zostaje także przy błędnym programie, o ile tekst w ogóle się sparsuje, natomiast reprezentacja pośrednia jest w wyniku tylko przy pustej liście komunikatów.
 - Błędy własności są wypisywane przed błędami typów, ponieważ tak składa się lista, choć typy liczy się wcześniej, żeby analiza własności mogła zdjąć typ każdej deklaracji.

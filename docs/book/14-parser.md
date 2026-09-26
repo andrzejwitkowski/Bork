@@ -16,6 +16,7 @@ Pytanie tej fazy brzmi, czy ciąg znaków da się odczytać jako program Borka, 
 
 Drzewo, które z tego powstaje, nazywa się drzewem składni. W źródłach kompilatora jego typ to `Program` z pliku `src/ast.rs`, ale w tym rozdziale ważniejsze jest to, co ono reprezentuje. Każdy węzeł odpowiada kawałkowi tekstu, a nie kawałkowi pamięci wykonawczej. Węzeł deklaracji pamięta, czy nazwa była `val`, czy `var`, czy podano typ, i jakie wyrażenie stoi po prawej stronie. Węzeł wyrażenia pamięta, czy to literał, nazwa, wywołanie, dodawanie albo przeniesienie zapisane słowem `move`. Nie pamięta, czy ta nazwa jest liczbą, ani czy wolno ją skopiować. To są pytania późniejszych faz, i drzewo zostawia je puste celowo, żeby błąd składni nie udawał błędu typu.
 
+<!-- figura: Rysunek 13.1. Jak z tekstu powstaje drzewo składni albo jeden błąd czytania -->
 ```mermaid
 flowchart TD
     tekst["Tekst pliku"] --> uklad["Nowa linia w nawiasie przestaje dzielić instrukcje"]
@@ -25,7 +26,7 @@ flowchart TD
     drzewo --> dalej["Sprawdzanie typów i analiza własności"]
 ```
 
-Rysunek podkreśla jedną rzecz, którą łatwo przegapić przy czytaniu komunikatu. Między plikiem a gramatyką jest jeszcze ciche przygotowanie tekstu, opisane w następnej części, i ono nie produkuje własnego komunikatu. Albo gramatyka dostaje tekst, w którym nowa linia w nawiasie już nie kończy instrukcji, albo, gdy coś nie pasuje, cały przebieg kończy się jednym błędem fazy `parse`. Rozdział 12 mówił, że przy tej odmowie nie powstaje raport regionów, i tutaj widać powód. Nie ma drzewa, po którym analiza mogłaby przejść, więc nie ma też czego wypisać pod flagą `--dump-arenas`.
+Rysunek 13.1 podkreśla jedną rzecz, którą łatwo przegapić przy czytaniu komunikatu. Między plikiem a gramatyką jest jeszcze ciche przygotowanie tekstu, opisane w następnej części, i ono nie produkuje własnego komunikatu. Albo gramatyka dostaje tekst, w którym nowa linia w nawiasie już nie kończy instrukcji, albo, gdy coś nie pasuje, cały przebieg kończy się jednym błędem fazy `parse`. Rozdział 12 mówił, że przy tej odmowie nie powstaje raport regionów, i tutaj widać powód. Nie ma drzewa, po którym analiza mogłaby przejść, więc nie ma też czego wypisać pod flagą `--dump-arenas`.
 
 ## Dlaczego nowa linia raz dzieli instrukcję, a raz nie
 

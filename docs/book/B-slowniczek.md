@@ -2,7 +2,7 @@
 
 Każde hasło jest zdaniem albo krótkim akapitem. Angielski termin z kodu podaję raz, obok polskiego, i dalej trzymam polski, chyba że w zdaniu chodzi o nazwę w źródle.
 
-**Analiza ucieczki.** Przejście w pliku `src/escape.rs`, które liczy głębokość bajtów i odrzuca użycie, które przeżyłoby zwolnienie bufora regionu. Komunikat ma fazę `ownership`. W kodzie funkcja licząca głębokość nazywa się `place`.
+**Analiza ucieczki.** Przejście w pliku `src/escape.rs`, które sprawdza, w którym regionie leży pamięć napisu, i odrzuca użycie, które przeżyłoby zwolnienie bufora tego regionu. Komunikat ma fazę `ownership`. W kodzie funkcja licząca głębokość nazywa się `place`.
 
 **Analiza własności.** Przejście w katalogu `src/sema`, które buduje drzewo regionów i decyduje, czy nazwę wolno skopiować, współdzielić albo trzeba przenieść. Po angielsku semantic analysis. Nie przydziela buforów.
 
@@ -10,15 +10,15 @@ Każde hasło jest zdaniem albo krótkim akapitem. Angielski termin z kodu podaj
 
 **Drzewo składni.** Nietypowany wynik parsera, w kodzie AST, od angielskiego abstract syntax tree. Definicja jest w `src/ast.rs`.
 
-**Głębokość.** Liczba regionów między funkcją a miejscem, w którym leżą bajty. Zero to region funkcji. Analiza ucieczki porównuje głębokość bajtów z głębokością odbiorcy.
+**Głębokość.** Liczba regionów między funkcją a miejscem, w którym leży pamięć napisu. Zero to region funkcji. Analiza ucieczki porównuje tę głębokość z głębokością odbiorcy.
 
 **Kontrola przed generowaniem kodu.** Zejście po reprezentacji pośredniej w `src/codegen/gate.rs`, zanim powstanie moduł LLVM. Odrzuca konstrukcje, których emisja nie tłumaczy, komunikatem fazy `codegen`. Nie łapie każdego miejsca, w którym emisja kończy się awarią.
 
 **Kopiowanie.** Przekroczenie granicy regionu przez wartość typu prostego, która nie może być pusta. Źródło zostaje żywe. W wydruku drzewa znacznik to `Copy`.
 
-**Miejsce przeznaczenia.** Odbiorca bajtów wyniku: cel przypisania, powrót albo wynik `concat`. Steruje tym, w której arenie powstanie bufor wyniku. W kodzie bywa nazywane sink.
+**Miejsce przeznaczenia.** Odbiorca wyniku, czyli cel przypisania, powrót albo wynik `concat`. Steruje tym, w której arenie powstanie bufor wyniku. W kodzie bywa nazywane sink.
 
-**Promocja.** Zapis `promote nazwa` po prawej stronie przypisania do zmiennej z regionu zewnętrznego. Kopiuje bajty do areny tej zmiennej i unieważnia źródło.
+**Promocja.** Zapis `promote nazwa` po prawej stronie przypisania do zmiennej z regionu zewnętrznego. Kopiuje treść napisu do bufora tej zmiennej i unieważnia źródło.
 
 **Przeniesienie.** Zapis `move`, po którym źródłowa nazwa jest martwa. Bajty w starej arenie zostają niedostępne aż do wyczyszczenia bufora. W wydruku drzewa znacznik to `Moved`.
 
@@ -36,9 +36,9 @@ Każde hasło jest zdaniem albo krótkim akapitem. Angielski termin z kodu podaj
 
 **Wartość pusta.** Typ z dopiskiem `?`. Sprawdzanie typów ją rozumie. Generowanie kodu jej nie tłumaczy.
 
-**Współdzielenie.** Odczyt stałej, której nie wolno skopiować, z regionu zewnętrznego. Region wewnętrzny nie kopiuje bajtów i nie unieważnia nazwy. W wydruku drzewa znacznik to `Shared`.
+**Współdzielenie.** Odczyt stałej, której nie wolno skopiować, z regionu zewnętrznego. Region wewnętrzny nie kopiuje treści napisu i nie unieważnia nazwy. W wydruku drzewa znacznik to `Shared`.
 
-**Wyniesienie alokacji.** Rozpoznanie dwóch sąsiednich instrukcji i ustawienie pola `alloc_in_binding`, żeby bajty powstały od razu w arenie zmiennej docelowej. Plik `src/hoist.rs`.
+**Wyniesienie alokacji.** Rozpoznanie dwóch sąsiednich instrukcji i ustawienie pola `alloc_in_binding`, żeby napis powstał od razu w buforze zmiennej docelowej. Plik `src/hoist.rs`.
 
 **Zakres źródłowy.** Para przesunięć bajtowych w pliku. W kodzie `Span`. Część komunikatów go nie ma. Wiersz poleceń pomija wtedy numer linii.
 

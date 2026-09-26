@@ -31,9 +31,9 @@ fun main() {
 }
 ```
 
-Program został zbudowany i uruchomiony: na standardowym wyjściu jest `b` oraz nowy wiersz, a kod wyjścia wynosi zero. Zmienna `outer` powstała w regionie funkcji, więc przypisanie wewnątrz bloku zmienia tę zmienną, a nie wynosi nazwy, która żyje tylko w bloku. Bajty nowego napisu trafiają do areny zmiennej `outer`, a nie do areny wewnętrznego bloku, który za chwilę zniknie. Ten mechanizm nazywa się alokacją w miejscu przeznaczenia. Rozdział 9 rozpisuje go na reguły, a tutaj widać skutek, bo po zamknięciu nawiasu napis `"b"` nadal wolno wypisać.
+Program został zbudowany i uruchomiony: na standardowym wyjściu jest `b` oraz nowy wiersz, a kod wyjścia wynosi zero. Zmienna `outer` powstała w regionie funkcji, więc przypisanie wewnątrz bloku zmienia tę zmienną, a nie wynosi nazwy, która żyje tylko w bloku. Treść nowego napisu trafia do bufora zmiennej `outer`, a nie do bufora wewnętrznego bloku, który za chwilę zniknie. Ten mechanizm nazywa się alokacją w miejscu przeznaczenia. Rozdział 9 rozpisuje go na reguły, a tutaj widać skutek, bo po zamknięciu nawiasu napis `"b"` nadal wolno wypisać.
 
-Gdybyś wprowadził wewnątrz bloku nazwę `inner` i próbował użyć jej za zamykającym nawiasem, nazwa w ogóle nie jest widoczna. To jest zwykły zasięg leksykalny i nie trzeba do niego areny. Region nie przedłuża zasięgu nazwy. Nazwa umiera według bloków, a bajty umierają według areny, w której zostały położone. Te dwie rzeczy są złączone, ale nie są tym samym.
+Gdybyś wprowadził wewnątrz bloku nazwę `inner` i próbował użyć jej za zamykającym nawiasem, nazwa w ogóle nie jest widoczna. To jest zwykły zasięg leksykalny i nie trzeba do niego areny. Region nie przedłuża zasięgu nazwy. Nazwa umiera według bloków, a pamięć napisu jest zwalniana według areny, w której została położona. Te dwie rzeczy są złączone, ale nie są tym samym.
 
 ## Trzy sposoby przejścia granicy regionu
 
@@ -107,7 +107,7 @@ Dokument modelu pamięci wymienia rzeczy, których nie planuje. Nie będzie ogó
 
 Bufor areny ma pojemność 4096 bajtów. Stała nazywa się `ARENA_CAPACITY` i leży w `crates/bork_runtime/src/lib.rs`, a taką samą pojemność ma model opisany w `src/arena.rs`. Wejście do regionu, który naprawdę alokuje, pobiera bufor z puli, wyjście zwraca go do puli, a czyszczenie wskaźnika bez zwrotu bufora jest używane w pętli, żeby nie oddawać pamięci tylko po to, by za chwilę wziąć ją z powrotem. Przepełnienie bufora przerywa program komunikatem Rusta `arena overflow`, z podaną liczbą bajtów i pojemnością 4096. Nie jest to błąd, który program w Borku mógłby obsłużyć.
 
-Odłożone są rzeczy opisane w tym samym dokumencie i widoczne w kodzie analizy ucieczki. Analiza ucieczki, po angielsku escape analysis, sprawdza, czy bajty wartości nie będą użyte po zwolnieniu areny, w której powstały. Dziś nie ma osobnego bufora na wynik zwracany do funkcji wywołującej, więc nie zwrócisz świeżo sklejonego napisu. Przeniesienie alokacji do zewnętrznej zmiennej rozpoznaje tylko bardzo prosty układ dwóch sąsiednich instrukcji. Słowa `promote` nie używa się przy `return`. Generator kodu nie pomija kopiowania pamięci nawet wtedy, gdy bajty już leżą we właściwej arenie.
+Odłożone są rzeczy opisane w tym samym dokumencie i widoczne w kodzie analizy ucieczki. Analiza ucieczki, po angielsku escape analysis, sprawdza, czy pamięć wartości nie będzie użyta po zwolnieniu areny, w której powstała. Dziś nie ma osobnego bufora na wynik zwracany do funkcji wywołującej, więc nie zwrócisz świeżo sklejonego napisu. Przeniesienie alokacji do zewnętrznej zmiennej rozpoznaje tylko bardzo prosty układ dwóch sąsiednich instrukcji. Słowa `promote` nie używa się przy `return`. Generator kodu nie pomija kopiowania pamięci nawet wtedy, gdy napis już leży we właściwej arenie.
 
 > **NOTA.** Plik `src/arena.rs` opisuje bufor 4096 bajtów i pulę takich buforów. Analiza własności go nie wywołuje. Ta analiza buduje drzewo regionów. Prawdziwe bufory powstają w `bork_runtime`, gdy generator kodu wstawi wywołanie `bork_arena_push`. Czytając źródła, nie traktuj tych dwóch plików jako jednej struktury.
 
