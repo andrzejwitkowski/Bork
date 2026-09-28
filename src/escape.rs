@@ -455,6 +455,44 @@ mod tests {
     }
 
     #[test]
+    fn allows_return_nullable_none_and_elvis() {
+        assert_ok(
+            r#"
+fun guest(name: String?): String {
+    return name ?: "Guest"
+}
+fun empty(): String? {
+    return None
+}
+fun main() {
+    println(guest(None))
+    val s: String? = None
+    println(s ?: "x")
+}
+"#,
+        );
+    }
+
+    #[test]
+    fn allows_return_some_and_not_null_assert() {
+        assert_ok(
+            r#"
+fun wrapped(): String {
+    val s: String? = Some("ok")
+    return s!!
+}
+fun main() {
+    {
+        val inner: String? = Some("block")
+        println(inner!!)
+    }
+    println(wrapped())
+}
+"#,
+        );
+    }
+
+    #[test]
     fn allows_return_move_concat_and_promote() {
         assert_ok(
             r#"

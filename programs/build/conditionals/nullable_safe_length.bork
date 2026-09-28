@@ -1,0 +1,9 @@
+// exit: 0
+fun main(): i32 {
+    val name: String? = None
+    val length: i32 = name?.length ?: 0
+    if (length > 0) {
+        return 1
+    }
+    return 0
+}

@@ -1,0 +1,4 @@
+// exit: 0
+fun main() {
+    val s: String? = None
+}

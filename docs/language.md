@@ -358,9 +358,11 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 `bork build` lowers a checked program to a native executable only for a subset of the frontend. Linked objects are optimized with LLVM **`-O3`** by default. Runtime arenas use a **per-thread** slab pool (no global lock on push/pop).
 
-Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures.
+Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures, and nullable `T?` (`None`, `Some`, `?:`, `!!`, `?.length`, `==` / `!=` with `None`).
 
-Rejected by codegen (the frontend still accepts them): trailing closures, `None`, `Some`, `!!`, `?:`, and field access other than `.length` on `String` or `[T; N]`.
+`String?` `None` is a null pointer and length zero (no arena bump). Scalar `T?` is `{ i1 tag, T value }`. `!!` on null aborts.
+
+Rejected by codegen (the frontend still accepts them): trailing closures, and field access other than `.length` on `String`, `[T; N]`, or nullable strings/arrays via `?.length`.
 
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 

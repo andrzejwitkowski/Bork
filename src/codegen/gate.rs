@@ -22,9 +22,7 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
             HirStmt::Block(block) | HirStmt::MoveBlock { body: block, .. } => {
                 gate_block(block, diagnostics);
             }
-            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => {
-                gate_expr(value, diagnostics)
-            }
+            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => gate_expr(value, diagnostics),
             HirStmt::Assign { target, value } => {
                 if let Some(index) = target.index() {
                     gate_expr(index, diagnostics);
@@ -45,6 +43,13 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
 }
 
 fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
+    if !super::llvm::codegen_lowers_nullable(&expr.ty) {
+        reject(
+            diagnostics,
+            &format!("nullable type `{}` is not supported by codegen", expr.ty),
+            expr.span,
+        );
+    }
     match &expr.kind {
         HirExprKind::Int { .. }
         | HirExprKind::Float { .. }
@@ -84,11 +89,12 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     | BinOp::Ne
                     | BinOp::And
                     | BinOp::Or
+                    | BinOp::Elvis
                     | BinOp::RangeTo
             ) {
                 reject(
                     diagnostics,
-                    unsupported_binary_message(op),
+                    "this binary operator is not supported by codegen",
                     expr.span,
                 );
             }
@@ -123,32 +129,25 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 gate_block(else_block, diagnostics);
             }
         }
-        HirExprKind::None => reject(diagnostics, "`None` is not supported by codegen", expr.span),
-        HirExprKind::Some(inner) => {
-            reject(
-                diagnostics,
-                "`Some` is not supported by codegen",
-                expr.span.or(inner.span),
-            );
-            gate_expr(inner, diagnostics);
-        }
-        HirExprKind::Unary {
-            op: UnaryOp::NotNullAssert,
-            expr: inner,
-        } => {
-            reject(
-                diagnostics,
-                "`!!` is not supported by codegen",
-                expr.span.or(inner.span),
-            );
-            gate_expr(inner, diagnostics);
-        }
-        HirExprKind::Unary {
-            op: UnaryOp::Not | UnaryOp::Borrow,
+        HirExprKind::None => {}
+        HirExprKind::Some(inner)
+        | HirExprKind::Unary {
+            op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow,
             expr: inner,
         } => gate_expr(inner, diagnostics),
-        HirExprKind::Field { receiver, name, .. } => {
-            if name != "length" || !receiver.ty.uses_arena_storage() {
+        HirExprKind::Field {
+            receiver,
+            name,
+            safe,
+            ..
+        } => {
+            let inner = receiver.ty.with_nullable(false);
+            let length_ok = name == "length"
+                && (receiver.ty.uses_arena_storage()
+                    || (*safe
+                        && receiver.ty.is_nullable()
+                        && (inner.is_string() || inner.is_array())));
+            if !length_ok {
                 reject(
                     diagnostics,
                     "field access is not supported by codegen",
@@ -157,13 +156,6 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             }
             gate_expr(receiver, diagnostics);
         }
-    }
-}
-
-fn unsupported_binary_message(op: &BinOp) -> &'static str {
-    match op {
-        BinOp::Elvis => "`?:` is not supported by codegen",
-        _ => "this binary operator is not supported by codegen",
     }
 }
 
@@ -193,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn nullable_rejections_have_codegen_spans() {
+    fn nullable_sample_passes_codegen_gate() {
         let source = r#"
 fun main(name: String?): String {
     val empty: String? = None
@@ -207,16 +199,10 @@ fun main(name: String?): String {
 
         let diagnostics = super::gate(result.hir.as_ref().unwrap());
 
-        for construct in ["`None`", "`Some`", "`!!`", "`?:`"] {
-            assert!(
-                diagnostics.iter().any(|diagnostic| {
-                    diagnostic.phase == Phase::Codegen
-                        && diagnostic.message.contains(construct)
-                        && diagnostic.span.is_some()
-                }),
-                "missing spanned codegen diagnostic for {construct}: {diagnostics:?}"
-            );
-        }
+        assert!(
+            diagnostics.is_empty(),
+            "nullable constructs should pass codegen gate: {diagnostics:?}"
+        );
     }
 
     #[test]
@@ -233,6 +219,19 @@ fun main(name: String?): String {
         assert!(
             diagnostics.is_empty(),
             "`.length` on arrays should be allowed at the codegen gate: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn float_optional_passes_codegen_gate() {
+        let source = "fun main(): i32 {\n    val n: f32? = None\n    return 0\n}\n";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        assert!(
+            diagnostics.is_empty(),
+            "f32? is a scalar T? and must lower: {diagnostics:?}"
         );
     }
 }

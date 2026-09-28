@@ -1,0 +1,5 @@
+// stdout: Guest\n
+fun main() {
+    val s: String? = None
+    println(s ?: "Guest")
+}

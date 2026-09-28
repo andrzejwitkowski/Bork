@@ -5,7 +5,10 @@ mod array;
 mod context;
 mod emit_fn;
 mod expr;
+mod nullable;
 mod region_emit;
+
+pub(crate) use nullable::codegen_lowers_nullable;
 
 use std::path::Path;
 
@@ -111,15 +114,13 @@ fn schedule_error(err: ScheduleError) -> Diagnostic {
 }
 
 pub(super) fn region_walk_codegen_error(err: crate::region_walk::WalkError) -> Diagnostic {
-    schedule_error(ScheduleError {
-        message: err.as_str().into(),
-    })
+    resolve_walk_failure(err)
 }
 
 pub(super) fn resolve_walk_failure(walk: crate::region_walk::WalkError) -> Diagnostic {
-    walk.diagnostic()
-        .cloned()
-        .unwrap_or_else(|| region_walk_codegen_error(walk))
+    let fallback = format!("internal arena schedule mismatch: {}", walk.as_str());
+    walk.into_diagnostic()
+        .unwrap_or_else(|| codegen_error(fallback, None))
 }
 
 impl From<BuilderError> for Diagnostic {
@@ -146,6 +147,25 @@ mod tests {
         module.print_to_string().to_string()
     }
 
+    #[test]
+    fn float_optional_none_lowers() {
+        let _ = ir_of("fun main(): i32 {\n    val n: f32? = None\n    return 0\n}\n");
+    }
+
+    #[test]
+    fn walk_error_without_diagnostic_falls_back_to_schedule_mismatch() {
+        let err = crate::region_walk::WalkError::message("cursor underflow");
+        let diagnostic = resolve_walk_failure(err);
+        assert!(
+            diagnostic.message.contains("arena schedule"),
+            "{diagnostic:?}"
+        );
+        assert!(
+            diagnostic.message.contains("cursor underflow"),
+            "{diagnostic:?}"
+        );
+    }
+
     fn ret_blocks_contain_arena_pop(ir: &str) {
         for block in ir.split("\n\n") {
             if block.contains(" ret ") {
@@ -159,7 +179,7 @@ mod tests {
 
     #[test]
     fn codegen_arena_push_pop_counts_match_schedule() {
-        use crate::codegen::regions::{RegionEvent, schedule};
+        use crate::codegen::regions::{schedule, RegionEvent};
         use crate::region_walk::stamp_codegen_push;
 
         let sources = [
@@ -230,7 +250,10 @@ mod tests {
             .next()
             .expect("helper IR only");
         let helper_pops = helper_body.matches("call void @bork_arena_pop(").count();
-        assert_eq!(helper_pops, 2, "early return and final return each pop:\n{ir}");
+        assert_eq!(
+            helper_pops, 2,
+            "early return and final return each pop:\n{ir}"
+        );
         ret_blocks_contain_arena_pop(helper_body);
     }
 
@@ -304,6 +327,50 @@ mod tests {
                 .count(),
             2,
             "{ir}"
+        );
+    }
+
+    fn add_uses_if_phi_and_forty(source: &str) {
+        let ir = ir_of(source);
+        let add = ir
+            .lines()
+            .find(|line| line.contains(" add "))
+            .unwrap_or_else(|| panic!("expected an add:\n{ir}"));
+        assert!(add.contains("%if"), "add must use the if phi:\n{add}\n{ir}");
+        assert!(
+            add.contains("40"),
+            "add must use the sibling operand 40, not a branch literal:\n{add}\n{ir}"
+        );
+        assert!(
+            !ir.contains("ret i32 42"),
+            "must not fold else-literal 2 + 40 to ret i32 42:\n{ir}"
+        );
+    }
+
+    #[test]
+    fn value_if_as_left_operand_adds_phi_not_else_literal() {
+        add_uses_if_phi_and_forty("fun main(): i32 { return (if (true) { 1 } else { 2 }) + 40 }\n");
+    }
+
+    #[test]
+    fn value_if_as_right_operand_adds_phi_not_else_literal() {
+        add_uses_if_phi_and_forty("fun main(): i32 { return 40 + (if (true) { 1 } else { 2 }) }\n");
+    }
+
+    #[test]
+    fn elvis_as_right_operand_adds_phi_not_skipped_rhs() {
+        let ir = ir_of("fun main(): i32 {\n    val a: i32? = None\n    return 40 + (a ?: 2)\n}\n");
+        let add = ir
+            .lines()
+            .find(|line| line.contains(" add "))
+            .unwrap_or_else(|| panic!("expected an add:\n{ir}"));
+        assert!(
+            add.contains("40"),
+            "add must use the sibling operand 40, not the skipped elvis rhs:\n{add}\n{ir}"
+        );
+        assert!(
+            add.contains("elvis"),
+            "add must use the elvis phi:\n{add}\n{ir}"
         );
     }
 }

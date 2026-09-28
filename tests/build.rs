@@ -57,7 +57,8 @@ fn gate_rejection_exits_one_without_binary() {
     let dir = scratch_dir("gate_rejection_exits_one_without_binary");
     let (build, binary) = bork_build(
         &dir,
-        "fun main() {\n    val _: String? = None\n}\n",
+        "fun apply(block: (i32) -> i32): i32 { return block(1) }\n\
+         fun main(): i32 { return apply() { x -> x } }\n",
     );
     assert_eq!(build.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&build.stderr).contains("codegen"));
