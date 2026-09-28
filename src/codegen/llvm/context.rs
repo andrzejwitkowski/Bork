@@ -65,11 +65,11 @@ impl<'ctx> Codegen<'ctx> {
             NullableRepr::Buffer => Some(self.buffer_descriptor_type().into()),
             NullableRepr::TaggedScalar => {
                 let inner = ty.with_nullable(false);
-                let value_ty = self.int_type(&inner)?;
+                let value_ty = self.basic_type(&inner)?;
                 let tag = self.context.bool_type();
                 Some(
                     self.context
-                        .struct_type(&[tag.into(), value_ty.into()], false)
+                        .struct_type(&[tag.into(), value_ty], false)
                         .into(),
                 )
             }

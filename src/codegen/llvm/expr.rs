@@ -647,7 +647,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         })
     }
 
-    fn value_as_float(
+    pub(super) fn value_as_float(
         &mut self,
         value: BasicValueEnum<'ctx>,
         ty: &Ty,

@@ -1,0 +1,5 @@
+// exit: 0
+fun main(): i32 {
+    val n: f32? = None
+    return 0
+}

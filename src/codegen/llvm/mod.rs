@@ -8,6 +8,8 @@ mod expr;
 mod nullable;
 mod region_emit;
 
+pub(crate) use nullable::codegen_lowers_nullable;
+
 use std::path::Path;
 
 use inkwell::builder::BuilderError;
@@ -112,15 +114,13 @@ fn schedule_error(err: ScheduleError) -> Diagnostic {
 }
 
 pub(super) fn region_walk_codegen_error(err: crate::region_walk::WalkError) -> Diagnostic {
-    schedule_error(ScheduleError {
-        message: err.as_str().into(),
-    })
+    resolve_walk_failure(err)
 }
 
 pub(super) fn resolve_walk_failure(walk: crate::region_walk::WalkError) -> Diagnostic {
-    walk.diagnostic()
-        .cloned()
-        .unwrap_or_else(|| region_walk_codegen_error(walk))
+    let fallback = format!("internal arena schedule mismatch: {}", walk.as_str());
+    walk.into_diagnostic()
+        .unwrap_or_else(|| codegen_error(fallback, None))
 }
 
 impl From<BuilderError> for Diagnostic {
@@ -145,6 +145,25 @@ mod tests {
         )
         .expect("emit");
         module.print_to_string().to_string()
+    }
+
+    #[test]
+    fn float_optional_none_lowers() {
+        let _ = ir_of("fun main(): i32 {\n    val n: f32? = None\n    return 0\n}\n");
+    }
+
+    #[test]
+    fn walk_error_without_diagnostic_falls_back_to_schedule_mismatch() {
+        let err = crate::region_walk::WalkError::message("cursor underflow");
+        let diagnostic = resolve_walk_failure(err);
+        assert!(
+            diagnostic.message.contains("arena schedule"),
+            "{diagnostic:?}"
+        );
+        assert!(
+            diagnostic.message.contains("cursor underflow"),
+            "{diagnostic:?}"
+        );
     }
 
     fn ret_blocks_contain_arena_pop(ir: &str) {

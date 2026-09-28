@@ -22,9 +22,7 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
             HirStmt::Block(block) | HirStmt::MoveBlock { body: block, .. } => {
                 gate_block(block, diagnostics);
             }
-            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => {
-                gate_expr(value, diagnostics)
-            }
+            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => gate_expr(value, diagnostics),
             HirStmt::Assign { target, value } => {
                 if let Some(index) = target.index() {
                     gate_expr(index, diagnostics);
@@ -45,6 +43,13 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
 }
 
 fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
+    if !super::llvm::codegen_lowers_nullable(&expr.ty) {
+        reject(
+            diagnostics,
+            &format!("nullable type `{}` is not supported by codegen", expr.ty),
+            expr.span,
+        );
+    }
     match &expr.kind {
         HirExprKind::Int { .. }
         | HirExprKind::Float { .. }
@@ -139,7 +144,9 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             let inner = receiver.ty.with_nullable(false);
             let length_ok = name == "length"
                 && (receiver.ty.uses_arena_storage()
-                    || (*safe && receiver.ty.is_nullable() && (inner.is_string() || inner.is_array())));
+                    || (*safe
+                        && receiver.ty.is_nullable()
+                        && (inner.is_string() || inner.is_array())));
             if !length_ok {
                 reject(
                     diagnostics,
@@ -212,6 +219,19 @@ fun main(name: String?): String {
         assert!(
             diagnostics.is_empty(),
             "`.length` on arrays should be allowed at the codegen gate: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn float_optional_passes_codegen_gate() {
+        let source = "fun main(): i32 {\n    val n: f32? = None\n    return 0\n}\n";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        assert!(
+            diagnostics.is_empty(),
+            "f32? is a scalar T? and must lower: {diagnostics:?}"
         );
     }
 }

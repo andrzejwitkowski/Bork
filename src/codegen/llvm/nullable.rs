@@ -27,10 +27,14 @@ pub(super) fn nullable_repr(ty: &Ty) -> Option<NullableRepr> {
         return Some(NullableRepr::Buffer);
     }
     match inner.kind {
-        TyKind::Prim(Prim::F32 | Prim::F64 | Prim::Unit) => None,
+        TyKind::Prim(Prim::Unit) => None,
         TyKind::Prim(_) => Some(NullableRepr::TaggedScalar),
         _ => None,
     }
+}
+
+pub(crate) fn codegen_lowers_nullable(ty: &Ty) -> bool {
+    !ty.is_nullable() || nullable_repr(ty).is_some()
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -301,6 +305,16 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .builder
             .build_extract_value(rhs_val.into_struct_value(), 1, "r.v")?;
         let inner_ty = ty.with_nullable(false);
+        if matches!(inner_ty.kind, TyKind::Prim(Prim::F32 | Prim::F64)) {
+            let l = self.value_as_float(l_val, &inner_ty, span)?;
+            let r = self.value_as_float(r_val, &inner_ty, span)?;
+            return Ok(cx.builder.build_float_compare(
+                inkwell::FloatPredicate::OEQ,
+                l,
+                r,
+                "val.eq",
+            )?);
+        }
         let l_int = self.value_as_int(l_val, &inner_ty, span)?;
         let r_int = self.value_as_int(r_val, &inner_ty, span)?;
         Ok(cx
@@ -372,13 +386,15 @@ mod nullable_repr_tests {
     }
 
     #[test]
-    fn f32_optional_is_none() {
+    fn f32_optional_is_tagged() {
         let ty = Ty::new(TyKind::Prim(Prim::F32), true);
-        assert_eq!(nullable_repr(&ty), None);
+        assert_eq!(nullable_repr(&ty), Some(NullableRepr::TaggedScalar));
+        assert!(super::codegen_lowers_nullable(&ty));
     }
 
     #[test]
     fn non_nullable_is_none() {
         assert_eq!(nullable_repr(&Ty::i32()), None);
+        assert!(super::codegen_lowers_nullable(&Ty::i32()));
     }
 }
