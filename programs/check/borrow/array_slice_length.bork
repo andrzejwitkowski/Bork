@@ -1,0 +1,5 @@
+fun main(): i32 {
+    val a = [10, 20, 30]
+    val b = a[0..2]
+    return b.length
+}

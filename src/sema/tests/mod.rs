@@ -3,3 +3,4 @@ mod regional;
 mod expr_move;
 mod call;
 mod infer;
+mod reborrow;

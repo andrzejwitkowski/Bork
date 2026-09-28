@@ -1,0 +1,16 @@
+// exit: 9
+fun set_head(buf: &[i32; 2], v: i32) {
+    buf[0] = v
+}
+
+fun outer(buf: &[i32; 2], flag: bool) {
+    if (flag) {
+        set_head(&buf, 9)
+    }
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    outer(&a, true)
+    return a[0]
+}

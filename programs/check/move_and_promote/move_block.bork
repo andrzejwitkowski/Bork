@@ -1,0 +1,7 @@
+fun main(): i32 {
+    val s: String = "hi"
+    move (s) {
+        val len: i32 = s.length
+    }
+    return 0
+}

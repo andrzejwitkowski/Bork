@@ -1,0 +1,8 @@
+// exit: 10
+fun main(): i32 {
+    var total = 0
+    for (i in 0..5) {
+        total = total + i
+    }
+    return total
+}

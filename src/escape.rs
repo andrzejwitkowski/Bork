@@ -90,6 +90,14 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
+                if value.ty.is_ref() {
+                    reject(
+                        self.diagnostics,
+                        "returning a reference is not supported",
+                        value.span,
+                    );
+                    return;
+                }
                 if !value.ty.uses_arena_storage() {
                     return;
                 }

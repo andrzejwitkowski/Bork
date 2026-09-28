@@ -1,0 +1,8 @@
+fun main(): i32 {
+    val name: String? = None
+    if (name == None) {
+        return 1
+    } else {
+        return 0
+    }
+}

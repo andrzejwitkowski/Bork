@@ -29,6 +29,7 @@ fun main() {
 | `f32` `f64` `bool` `unit` | float, bool, unit (`true` / `false` literals) |
 | `String` | owned text, not Copy |
 | `[T; N]` | fixed-length array with **N** elements (`N` is a non-negative integer literal) |
+| `&T` | borrow of non-Copy `T` (`String`, `[U; N]`, …) for the current region — **parameters** and **`val` locals** only; not `&i32`; not on fields or return types |
 | `T?` | nullable form of `T` |
 | `(A, B) -> R` | function type |
 | `((A, B) -> R)?` | nullable function type |
@@ -37,7 +38,7 @@ Integer literals adopt the expected integer type. Non-null primitives are **Copy
 
 `String` and `[T; N]` have one field: `.length` (`i32`, always **N** for arrays of that type). Unknown fields are type errors.
 
-Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]`. A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
+Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]` on `[T; N]` and on **`&[T; N]`** (including reference parameters). A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. A `&[T; N]` parameter supports `p[i] = v` in the callee. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
 
 ## Bindings
 
@@ -95,6 +96,7 @@ Precedence, tightest last: calls and suffixes, `*` `/`, `+` `-`, comparisons, `.
 | `?:` | if the left is null, use the right |
 | `Some(x)` `None` | nullable constructors |
 | `move name` | consume a binding |
+| `&name` | borrow an outer `var` for this region (view, not a copy); required at call sites when the formal is `&T` |
 | `promote name` | relocate an owned value into the arena of an outer `var` you are assigning to |
 | `"..."` | string; escapes `\n` `\r` `\t` `\\` `\"` |
 
@@ -108,7 +110,10 @@ Each `{ ... }` region has an arena. Leaving the region frees that arena in one s
 |---|---|
 | Copy value (`i32`, `bool`, …) | use the name; it is copied |
 | Read a parent `val` of `String` | use the name; the child observes it in place (**Shared**) |
-| Read or pass a parent `var` of `String` | `move name` |
+| Read or pass a parent `var` of `String` | `move name`, or `&name` when the callee takes `&String` (read-only in callee) |
+| Borrow a parent `var` array in a child or loop | `&name` at use or call; formal `p: &[T; N]` requires `f(&a)` |
+| Pass a `&[T; N]` parameter into another call from `if` / `while` / `for` | `other(&param)` — re-borrow at the call site only |
+| Mutate parent array elements from a child | `a[i] = v` or `(&a)[i] = v`; inside `fun f(p: &[T; N])`, `p[i] = v` |
 | Pass a `val` `String` into a `var` parameter | `move name` |
 | Fresh expression into a `var` parameter (`f("hi")`, `f(concat(a, b))`) | no `move` |
 | Assign a `String` up to an outer `var` | `outer = move inner` or `outer = promote held` |
@@ -144,6 +149,38 @@ fun main() {
 ```
 
 For the full story of how the compiler picks an arena for each `String`, see the next chapter. One-line reminder: `outer = concat(left, right)` puts only the **result** in `outer`'s arena, not the argument strings.
+
+### References (`&T` and `&name`)
+
+Use-site `&name` borrows an outer **`var`** without moving it. The owner stays alive until its region ends.
+
+```bork
+fun peek(msg: &String) {
+    println(msg)
+}
+
+fun bump(buf: &[i32; 3]) {
+    buf[0] = buf[0] + 1
+}
+
+fun main() {
+    var s: String = "hi"
+    var a: [i32; 3] = [1, 2, 3]
+    {
+        val view = &s
+        peek(&s)
+        bump(&a)
+    }
+}
+```
+
+- **`&String`:** read and pass to callees; **no** assigning a new string through the borrow (no `&mut String` yet).
+- **`&[T; N]`:** read `buf[i]` and **assign** `buf[i] = v` in the callee (mutates the owner’s buffer).
+- **Nested control flow:** inside `if`, `while`, or `for`, you may call `helper(&param)` when `param` is a `&[T; N]` (or other `&T`) parameter and `helper` takes the matching reference type. You may **not** write `val view = &param` in that inner region (lifting the borrow into the child).
+- **`val view = &a`:** read through `view`; do not write `view[i] =` — use `(&a)[i]` or a `&[T; N]` parameter.
+- **`var view = &a`:** error.
+
+See [memory-model.md](memory-model.md) (**Borrow**) for `T` vs `&T` formals and the re-borrow table. A plain `[T; N]` parameter requires ownership (`move` at the call site); `&a` is only for parameters declared `&[T; N]` (or `&String`, etc.).
 
 ## Where string bytes are allocated
 
@@ -319,10 +356,12 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 ## Codegen today
 
-`bork build` lowers a checked program to a native executable only for a subset of the frontend.
+`bork build` lowers a checked program to a native executable only for a subset of the frontend. Linked objects are optimized with LLVM **`-O3`** by default. Runtime arenas use a **per-thread** slab pool (no global lock on push/pop).
 
-Supported: integer and float arithmetic and comparisons, `for` over `..`, `if`/`else`, `String` literals, `[T; N]` literals with index, literal-bounds slice, and `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, calls to user functions without trailing closures.
+Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures.
 
 Rejected by codegen (the frontend still accepts them): trailing closures, `None`, `Some`, `!!`, `?:`, and field access other than `.length` on `String` or `[T; N]`.
+
+For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 
 Division by zero, and signed division of the minimum value by `-1`, abort at runtime.

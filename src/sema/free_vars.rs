@@ -64,6 +64,7 @@ fn collect_stmt(
                     name,
                     name_span,
                     index,
+                    ..
                 } => {
                     if !bound.contains(name) {
                         free.entry(name.clone()).or_insert(*name_span);

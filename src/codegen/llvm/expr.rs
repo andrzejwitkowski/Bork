@@ -82,6 +82,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 }
             }
             HirExprKind::Unary { op, expr: inner } => match op {
+                crate::ast::UnaryOp::Borrow => self.emit_expr(inner),
                 crate::ast::UnaryOp::Not => {
                     let value = self.emit_bool(inner)?;
                     let one = self.cx.context.bool_type().const_int(1, false);
@@ -492,6 +493,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         if matches!(ty.kind, crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)) {
             return Err(not_yet_supported("float call argument after walk", span));
         }
+        if ty.uses_arena_storage() {
+            return if value.is_struct_value() {
+                Ok(value)
+            } else {
+                Err(not_yet_supported("non-descriptor buffer argument", span))
+            };
+        }
         self.value_as_int(value, ty, span).map(Into::into)
     }
 
@@ -752,6 +760,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 return self
                     .combine_binary_values(op, lhs, rhs, lhs_val, rhs_val, expr)
                     .map(Some);
+            }
+            HirExprKind::Unary {
+                op: crate::ast::UnaryOp::Borrow,
+                ..
+            } => {
+                return Ok(Some(self.pop_walk_operand(expr.span)?));
             }
             HirExprKind::Unary {
                 op: crate::ast::UnaryOp::Not,

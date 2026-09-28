@@ -413,3 +413,100 @@ fun main() {
         block.observations
     );
 }
+
+#[test]
+fn borrow_to_owned_param_does_not_record_borrow_on_type_error() {
+    let src = r#"
+fun own(buf: [i32; 2]) {
+    buf[0] = 1
+}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    own(&a)
+}
+"#;
+    let prog = parse(src).unwrap();
+    let (_, type_diags) = {
+        let (_, _, diags) = crate::typeck::check(&prog);
+        ((), diags)
+    };
+    assert!(!type_diags.is_empty(), "expected type error for own(&a)");
+    let (report, sema_errs) = analyze(&prog);
+    assert!(sema_errs.is_empty(), "{sema_errs:?}");
+    let main = &report.roots[0];
+    let ghost = main
+        .observations
+        .iter()
+        .chain(main.children.iter().flat_map(|c| c.observations.iter()))
+        .any(|o| o.name == "a" && matches!(o.ownership, Ownership::Borrow { .. }));
+    assert!(!ghost, "own(&a) must not record Borrow on `a`");
+}
+
+#[test]
+fn borrow_of_outer_var_is_recorded_and_bare_name_still_errors() {
+    let borrowed = r#"
+fun main() {
+    var s: String = "hi"
+    {
+        val b = &s
+    }
+}
+"#;
+    let (report, errs) = analyze(&parse(borrowed).unwrap());
+    assert!(errs.is_empty(), "{errs:?}");
+    let block = &report.roots[0].children[0];
+    assert!(
+        block.observations.iter().any(|b| {
+            b.name == "s" && matches!(b.ownership, Ownership::Borrow { .. })
+        }),
+        "{:?}",
+        block.observations
+    );
+
+    let bare = r#"
+fun main() {
+    var s: String = "hi"
+    {
+        val b = s
+    }
+}
+"#;
+    let (_, errs) = analyze(&parse(bare).unwrap());
+    assert!(errs.iter().any(|e| e.message.contains("move")), "{errs:?}");
+}
+
+#[test]
+fn var_from_view_binding_is_rejected() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    {
+        val b = &s
+        var c = b
+    }
+}
+"#;
+    let (_, errs) = analyze(&parse(src).unwrap());
+    assert!(
+        errs.iter().any(|e| e.message.contains("borrow") || e.message.contains("var")),
+        "{errs:?}"
+    );
+}
+
+#[test]
+fn move_of_borrow_binding_is_rejected() {
+    let src = r#"
+fun main() {
+    var s: String = "hi"
+    {
+        val b = &s
+        var c = move b
+    }
+}
+"#;
+    let (_, errs) = analyze(&parse(src).unwrap());
+    assert!(
+        errs.iter().any(|e| e.message.contains("borrow")),
+        "{errs:?}"
+    );
+}

@@ -1,4 +1,5 @@
 use crate::ast::{BindingKind, Closure, Expr};
+use crate::ast::UnaryOp;
 use crate::hir::{HirExpr, HirExprKind, Ty, TyKind, UseKind};
 use crate::span::Span;
 
@@ -93,7 +94,44 @@ pub(super) fn check_call(
             || (crate::builtins::is_concat(&name)
                 && argument.ty.is_string()
                 && !argument.ty.is_nullable());
-        if !argument.ty.is_unknown() && &argument.ty != expected && !matches_builtin_overload {
+        if expected.is_ref()
+            && !matches!(
+                &argument.kind,
+                HirExprKind::Unary {
+                    op: UnaryOp::Borrow,
+                    ..
+                }
+            )
+            && !argument.ty.is_unknown()
+        {
+            env.error(
+                format!(
+                    "argument {} to `{name}` expects borrow `&…`, got {argument_ty}",
+                    index + 1,
+                    argument_ty = argument.ty
+                ),
+                argument.span,
+            );
+        }
+        let borrow_to_owned = argument.ty.is_ref()
+            && !expected.is_ref()
+            && !argument.ty.is_unknown()
+            && !expected.is_unknown();
+        if borrow_to_owned {
+            env.error(
+                format!(
+                    "argument {} to `{name}` is borrow {argument_ty}; parameter expects owned {expected} (use `move` or take `&…` in the signature)",
+                    index + 1,
+                    argument_ty = argument.ty
+                ),
+                argument.span,
+            );
+        }
+        if !borrow_to_owned
+            && !argument.ty.is_unknown()
+            && !matches_builtin_overload
+            && !arg_matches_param(&argument.ty, expected)
+        {
             env.error(
                 format!(
                     "argument {} to `{name}` has type {}, expected {expected}",
@@ -189,7 +227,7 @@ fn check_trailing_closure(
 
     env.enter_scope();
     for (param, ty) in closure.params.iter().zip(param_tys) {
-        env.bind(param.name.clone(), BindingKind::Val, ty.clone());
+        env.bind(param.name.clone(), BindingKind::Val, ty.clone(), ty.is_ref());
     }
     let (_, body_ty) =
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
@@ -201,4 +239,14 @@ fn check_trailing_closure(
             None,
         );
     }
+}
+
+fn arg_matches_param(got: &Ty, expected: &Ty) -> bool {
+    if got == expected {
+        return true;
+    }
+    if let (Some(got_inner), Some(expected_inner)) = (got.ref_inner(), expected.ref_inner()) {
+        return got_inner == expected_inner;
+    }
+    false
 }

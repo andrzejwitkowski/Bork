@@ -1,0 +1,4 @@
+// stdout: hi\n
+fun main() {
+    println("hi")
+}

@@ -1,0 +1,11 @@
+// diag: cannot lift borrow
+fun outer(a: &[i32; 2]) {
+    if (true) {
+        val p = &a
+    }
+}
+
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    outer(&a)
+}
