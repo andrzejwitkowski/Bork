@@ -1,10 +1,12 @@
 # Dodatek C. Czego kompilator jeszcze nie potrafi
 
-Ten dodatek wymienia miejsca, w których kod jest węższy niż to, co rozumie sprawdzenie programu, dokumentacja mówi co innego niż kod, albo kompilator kończy się awarią zamiast komunikatem. Nic z tej listy nie jest propozycją naprawy. Książka nie zmienia kompilatora.
+Ten dodatek wymienia ograniczenia aktualnego kodu i rozbieżności między kodem a dokumentacją. Awarie przywołane niżej są wynikami historycznymi, chyba że opis wyraźnie mówi, że zostały ponownie sprawdzone. Nic z tej listy nie jest propozycją naprawy.
 
 ## Rzeczy świadomie niezaimplementowane
 
-Z pliku `src/escape.rs`, z `docs/language.md` i z `docs/memory-model.md` wynika następująca lista. Nie ma areny wyniku po stronie wywołującego, więc zwrot przeniesienia, zwrot wyniku `concat` i zwrot napisu z regionu wewnętrznego są odrzucane. Promocja na powrocie z funkcji też jest odrzucana. Wyniesienie alokacji działa tylko dla dwóch sąsiednich instrukcji. Nie ma usuwania zbędnego kopiowania pamięci, gdy napis już leży w buforze celu. Nie ma osobnej areny tymczasowej na czas zwykłego wywołania. Generowanie kodu nie tłumaczy funkcji dopisanej na końcu wywołania, słów `Some` i `None`, wykrzykników `!!`, operatora `?:` ani pól innych niż `length`. Funkcja `main` nie ma parametrów i nie zwraca typu innego niż `i32` i `unit`. Wywołanie pośrednie, w którym rzeczą wywoływaną nie jest nazwa, nie jest tłumaczone. Nie ma modułów, struktur, typów ogólnych, wyjątków, sprawdzania pożyczek ani odśmiecania.
+Aktualny kompilator ma ograniczone pożyczki `&T`: dla niekopiowanych typów, w parametrach i stałych widokach, z jawnym `&nazwa` przy wywołaniu. Nie ma pełnego borrow checkera, `&mut`, zwrotu referencji ani przechowywania referencji w polach. Działają reborrow przy bezpośrednim wywołaniu wewnątrz `if`/pętli oraz odczyt i zapis elementów przez `&[T; N]`.
+
+Pozostałe ograniczenia z `src/escape.rs`, `docs/language.md` i `docs/memory-model.md`: nie ma areny wyniku po stronie wywołującego, więc zwrot wyniku `concat` i napisu z regionu wewnętrznego jest odrzucany; `promote` nie działa przy `return`. Wyniesienie alokacji rozpoznaje tylko określone, sąsiednie instrukcje. Nullable `String?` i typy proste poza `unit` mają codegen dla `Some`, `None`, `!!`, `?:` oraz `==`/`!=`. Nullable tablice odrzuca sprawdzanie typów, a nullable `unit` i typy funkcji nie mają reprezentacji. Generowanie kodu nadal nie tłumaczy funkcji dopisanej na końcu wywołania ani wywołań pośrednich. Porównania floatów przechodzą sprawdzanie typów, ale obecnie panikują w codegenie; float jako argument funkcji jest odrzucany. `main` nie przyjmuje parametrów i nie zwraca typu innego niż `i32` lub `unit`. Nie ma modułów, struktur, typów ogólnych ani wyjątków.
 
 Plik `TODO.md` wymienia prace nad samym kompilatorem, a nie nad semantyką języka. Są to rozcięcie gościa generowania kodu, kursor regionów zamiast makra, test zgodności kontroli przed generowaniem kodu ze sprawdzeniem, więcej testów par wejście-wyjście oraz uporządkowanie planów w `docs/superpowers/plans/`.
 
@@ -18,9 +20,9 @@ Notatka projektowa z 23 września 2026 o reprezentacji pośredniej i LLVM mówi 
 
 Kompilator był złożony z opcją `codegen`, na LLVM 23.1.2 i rustc 1.98.1.
 
-Przekazanie napisu do funkcji użytkownika, czy literałem, czy przez `move`, czy przez stałą, przechodzi sprawdzenie i kontrolę przed generowaniem kodu, a potem kompilator kończy się awarią w `src/codegen/llvm/expr.rs`, w funkcji `value_as_int`, na wywołaniu `into_int_value`. Kod procesu kompilatora to 101.
+W historycznym przebiegu przekazanie napisu do funkcji użytkownika kończyło się awarią `into_int_value` (kod 101). Aktualny listing uruchomiłem ponownie z binarką `codegen`: build zakończył się kodem 0, program wypisał `hello` i zwrócił 0. Stary wiersz wyników pozostaje historyczny.
 
-Porównanie `f64`, na przykład warunek `x > 1.0` przy `x` typu `f64`, kończy się awarią w tym samym miejscu, bo wartość jest liczbą zmiennoprzecinkową LLVM. Dodawanie `f32` daje komunikat, a nie awarię. Treść mówi o wewnętrznej niezgodności harmonogramu i o tym, że dodawanie zmiennoprzecinkowe po przejściu `region_walk` nie jest jeszcze obsługiwane. Dwa operatory na liczbach zmiennoprzecinkowych kończą się na dwa różne sposoby.
+Arytmetyka floatów ma ścieżkę emisji. Porównanie `f64`, np. `x > 1.0`, przechodzi sprawdzanie typów, ale wybór ścieżki codegenu odbywa się według typu wyniku `bool`, więc porównanie trafia do emisji całkowitoliczbowej. Ponowne uruchomienie kończy się paniką `FloatValue`/`IntValue` (kod 101). Float jako argument funkcji jest osobno odrzucany przez codegen.
 
 Indeks poza zakresem i dzielenie przez zero kompilują się. Proces użytkownika kończy się sygnałem przerwania, w powłoce kodem 134, bez tekstu z Borka.
 
@@ -44,8 +46,8 @@ Specyfikacje w `docs/superpowers` opisują świat sprzed tablic, sprzed pętli `
 
 ## Co jest pokryte testami
 
-Żeby lista braków nie przesłoniła reszty: parser, sprawdzanie typów liczb i tablic, reguła kopiowania, współdzielenia i przeniesienia, wydruk drzewa regionów, pętle `for` i `while` z `break` i `continue`, wypisywanie liczb i napisów w `main`, `concat` i promocja w `main`, wycinki o granicach będących literałami oraz konsolidacja z biblioteką wykonawczą są pokryte testami w `tests/build.rs` albo pełnym sprawdzeniem. Zostały powtórzone przy pisaniu tej książki. Braki są na brzegach: wartości puste w generowaniu kodu, liczby zmiennoprzecinkowe, napis jako argument wywołania i powrót świeżego napisu.
+Aktualny korpus w `programs/` zawiera pozytywne i negatywne przypadki pożyczek, reborrow w pętlach oraz programy do sprawdzania i budowania; CI uruchamia go przez `tests/programs.rs`. W tej aktualizacji zbudowałem i uruchomiłem sześć przykładów nullable z `programs/build/conditionals/`, w tym `f32?`; krótki dodatkowy test objął `Some`, `?:`, `!!` oraz `==`/`!=` dla `f32?` i `f64?`. Ponownie sprawdziłem też przekazanie napisu do funkcji: budowanie i wykonanie przeszły. Porównanie floatów nadal panikuje, a float jako argument funkcji jest odrzucany.
 
 ## Kolejność zaufania
 
-Gdy komentarz, specyfikacja i kod się różnią, kolejność przyjęta w książce jest taka: najpierw test wykonawczy w `tests/build.rs`, potem `frontend::check` na przykładzie, potem kod fazy, potem `docs/language.md`, a na końcu `docs/superpowers`. Zdanie w `README` o braku sprawdzania pożyczek i braku odśmiecania zgadza się z modelem. Przykład `concat` na dwóch zmiennych napisowych się nie zgadza.
+Gdy komentarz, specyfikacja i kod się różnią, sprawdzaj najpierw test wykonawczy w `tests/build.rs` lub korpus `programs/`, potem `frontend::check`, kod fazy, `docs/language.md`, a na końcu `docs/superpowers`. O braku pełnego borrow checkera można mówić tylko z zastrzeżeniem, że ograniczone `&T` już istnieje. Wiersz z `concat(left, right)` nadal wymaga uzgodnienia z aktualną diagnostyką.

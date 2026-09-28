@@ -44,9 +44,9 @@ Warunek, który ma dać liczbę, zapisuj z dwiema gałęziami-blokami. Listing 6
 
 Pisz je, gdy ćwiczysz kompilator albo edytor. Nie wkładaj ich do programu, który ma być plikiem wykonywalnym.
 
-Należą tu funkcja dopisana na końcu wywołania, blok `move` stojący po wywołaniu, `Some`, `None`, `?:`, `!!` i `?.`. Należy tu także próba trzymania funkcji w stałej i wywołania jej pośrednio. Osobno należy tu napis jako parametr funkcji użytkownika. Sprawdzenie go przyjmuje, a budowanie przerywa kompilator. W `bork build` trzymaj się od tej kombinacji z daleka.
+Do konstrukcji przyjmowanych przez frontend, ale nadal nieemitowanych, należą funkcje dopisane na końcu wywołania, bloki `move` po wywołaniu i wywołania pośrednie. Nullable `String?` i typy proste poza `unit` mają codegen dla `Some`, `None`, `?:`, `!!`, `?.length` oraz `==`/`!=`. Float jako argument funkcji jest odrzucany, a porównania floatów pozostają błędem codegenu.
 
-**Listing 11.1.** Fragment próbki `PROCESS_USER_SAMPLE` z `src/lib.rs`. Cała próbka przechodzi sprawdzenie. Budowanie odrzuca `?:`, `Some` i `None`.
+**Listing 11.1.** Fragment próbki `PROCESS_USER_SAMPLE` z `src/lib.rs`, pokazujący nullable napis.
 
 ```bork
 fun processUser(name: String?, score: i32): i32 {
@@ -61,7 +61,7 @@ fun processUser(name: String?, score: i32): i32 {
 }
 ```
 
-Oryginalna próbka w `lib.rs` jest dłuższa. Ma dodatkową nazwę i zagnieżdżony blok. Też przechodzi sprawdzenie. Zostawiam ją w źródle kompilatora jako test, nie jako program do zbudowania.
+Oryginalna próbka w `lib.rs` jest dłuższa i ma dodatkową nazwę oraz zagnieżdżony blok. Działające przykłady nullable do budowania są w `programs/build/conditionals/`; sam fragment powyżej nie jest pełnym programem z `main`.
 
 ## Zapisy, które wyglądają znajomo i są błędami
 
@@ -80,5 +80,5 @@ Nie ma odpowiednika rustowego `clone`. Świadoma kopia napisu wymaga zbudowania 
 - Biblioteka języka to `print`, `println` i `concat`.
 - Modułów, struktur i `import` nie ma. Program jest jednym plikiem.
 - Program, który ma się zbudować, trzyma funkcje przy liczbach, napisy w `main`, stałe przy samym odczycie i zmienne przy akumulatorach.
-- Brak wartości i funkcja dopisana na końcu wywołania są prawdziwą częścią sprawdzanego języka i nie są częścią `bork build`.
+- Nullable `String?` i typy proste poza `unit` są obsługiwane przez codegen; funkcja dopisana na końcu wywołania nadal nie jest emitowana.
 - Operator `+` na napisach, średnik, minus jednoargumentowy i gołe użycie zmiennej napisowej są błędami kompilacji.

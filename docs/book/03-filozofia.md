@@ -2,9 +2,9 @@
 
 ## Ten rozdział obejmuje
 
-- jaki problem z pamięcią Bork chce rozwiązać bez garbage collectora i bez sprawdzania pożyczek
+- jaki problem z pamięcią Bork chce rozwiązać bez garbage collectora i bez ogólnego sprawdzania pożyczek
 - czym jest region i czym jest arena
-- trzy legalne sposoby użycia wartości spoza bieżącego bloku
+- kopiowanie, współdzielenie, przeniesienie i ograniczone pożyczanie wartości spoza bieżącego bloku
 - co już działa w kompilatorze, a co jest jeszcze świadomie odłożone
 
 ## Dwa rodzaje danych
@@ -35,15 +35,17 @@ Program został zbudowany i uruchomiony: na standardowym wyjściu jest `b` oraz 
 
 Gdybyś wprowadził wewnątrz bloku nazwę `inner` i próbował użyć jej za zamykającym nawiasem, nazwa w ogóle nie jest widoczna. To jest zwykły zasięg leksykalny i nie trzeba do niego areny. Region nie przedłuża zasięgu nazwy. Nazwa umiera według bloków, a pamięć napisu jest zwalniana według areny, w której została położona. Te dwie rzeczy są złączone, ale nie są tym samym.
 
-## Trzy sposoby przejścia granicy regionu
+## Sposoby przejścia granicy regionu
 
-Wartość z regionu otaczającego można w regionie wewnętrznym użyć na trzy sposoby. Kompilator wybiera sposób według typu i według tego, czy nazwa jest stała, czy zmienna.
+Wartość z regionu otaczającego można w regionie wewnętrznym skopiować, współdzielić, przenieść albo jawnie pożyczyć. Kompilator wybiera sposób według typu, rodzaju nazwy i tego, czy w tekście zapisano `&`.
 
 Kopiowanie dotyczy typów, które mieszczą się w wartości samej i nie są puste. Należą do nich `i32`, `bool` i pozostałe niepuste typy proste. Odczyt kopiuje bity. Nazwa w regionie zewnętrznym zostaje żywa.
 
-Współdzielenie dotyczy stałej, której typ nie jest kopiowany, na przykład napisu wprowadzonego przez `val`. Region wewnętrzny patrzy na te same bajty. Nazwa zewnętrzna zostaje żywa. Jest to bezpieczne bez sprawdzania pożyczek, bo region wewnętrzny kończy się wcześniej niż region zewnętrzny, a język nie ma typu referencji, którą dałoby się zapisać w polu na dłużej.
+Współdzielenie dotyczy stałej, której typ nie jest kopiowany, na przykład napisu wprowadzonego przez `val`. Region wewnętrzny patrzy na te same bajty. Nazwa zewnętrzna zostaje żywa. Oprócz tego Bork ma jawne, regionowe pożyczki `&T` dla niekopiowanych wartości. Nie są to ogólne referencje: nie można ich zwracać ani przechowywać w polach, a kompilator nie implementuje pełnego sprawdzania pożyczek z Rusta.
 
 Przeniesienie dotyczy zmiennej, której typ nie jest kopiowany, albo jawnego słowa `move`. Własność przechodzi na nowe użycie, a stara nazwa staje się martwa.
+
+Pożyczka jest czwartą, węższą możliwością. Zapis `&nazwa` tworzy widok bez kopiowania i bez przenoszenia właściciela. Typ `&T` jest używany w parametrach i stałych widokach; nie można go zwrócić ani przechowywać w polu. To nie jest ogólny borrow checker: regiony i ograniczenia typów dopuszczają tylko wybrane kształty użycia.
 
 **Listing 2.2.** Stały napis jest w bloku wewnętrznym tylko oglądany.
 
@@ -101,7 +103,7 @@ Ciało pętli czyści swoją arenę przy każdym obiegu. Pamięć zajmowana prze
 
 ## Czego ten model świadomie nie robi
 
-Dokument modelu pamięci wymienia rzeczy, których nie planuje. Nie będzie ogólnych referencji ani referencji zmiennych trzymanych w polach między regionami. Nie będzie niejawnego głębokiego kopiowania przy każdym odczycie spoza regionu. Nie będzie zapisywania wypożyczenia z regionu wewnętrznego do regionu zewnętrznego. Jedyna obserwacja krótsza niż właściciel to współdzielenie stałej z regionu otaczającego. Region wewnętrzny i tak jest w nim zagnieżdżony w tekście programu.
+Dokument modelu pamięci wymienia rzeczy, których nie planuje: ogólnych referencji, referencji przechowywanych w polach ani pełnego rustowego borrow checkera. Istnieją za to ograniczone pożyczki `&T` do parametrów i stałych widoków; ich reguły są opisane przy składni, typach i tablicach. Nie ma niejawnego głębokiego kopiowania przy każdym odczycie spoza regionu ani możliwości wyniesienia widoku z regionu wewnętrznego do zewnętrznego.
 
 ## Co już jest zrobione, a co jest odłożone
 
@@ -121,8 +123,8 @@ Literał `"hi"` może w ogóle nie leżeć w arenie, bo generator kodu kładzie 
 
 - Blok w nawiasach klamrowych jest regionem. Alokacja dopisuje bajty do bufora, a wyjście z bloku zwalnia bufor w całości.
 - Arena w tej książce oznacza bufor regionu. W źródłach kompilatora podobna nazwa oznacza także osobny model tego bufora, którego analiza własności nie używa.
-- Kopiowanie, współdzielenie i przeniesienie są trzema legalnymi sposobami użycia wartości spoza bieżącego regionu.
+- Kopiowanie, współdzielenie, przeniesienie i ograniczone pożyczanie są czterema sposobami użycia wartości spoza bieżącego regionu.
 - Przeniesienie unieważnia nazwę. Nie porządkuje bajtów w starym buforze.
 - Pętla nie przenosi nazwy utworzonej poza jej ciałem i czyści arenę ciała przy każdym obiegu.
 - Pojemność jednego bufora wynosi 4096 bajtów. Przepełnienie przerywa program.
-- Ogólnych referencji nie planuje się. Zwrot świeżo zbudowanego napisu z funkcji też jeszcze nie działa, bo brakuje bufora należącego do wywołującego.
+- Ogólnych referencji ani pełnego borrow checkera nie ma. Ograniczone `&T` działa dla parametrów i stałych widoków, ale referencji nie można zwracać ani przechowywać w polach. Zwrot świeżo zbudowanego napisu z funkcji też jeszcze nie działa, bo brakuje bufora należącego do wywołującego.

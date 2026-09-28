@@ -26,10 +26,11 @@ Typ zapisuje się po dwukropku, przy parametrze, przy wyniku funkcji albo przy d
 | `unit` | typ pusty |
 | `String` | napis |
 | `[T; N]` | tablica o długości `N` |
+| `&T` | pożyczony widok na niekopiowane `T`, używany w parametrze albo stałej `val` |
 | `T?` | wartość, która może być pusta |
 | `(A, B) -> R` | typ funkcji |
 
-**Listing 4.1.** Skróty typów są przyjmowane i dają się zbudować, dopóki wartości zmiennoprzecinkowych tylko przechowujesz.
+**Listing 4.1.** Skróty typów oraz wartości zmiennoprzecinkowe można zapisać.
 
 ```bork
 fun main(): i32 {
@@ -43,13 +44,13 @@ fun main(): i32 {
 }
 ```
 
-Program został zbudowany i kończy się kodem 1, bo zwracane jest `n`. Samo zapisanie liczb zmiennoprzecinkowych w lokalnych nazwach generator kodu obsługuje. Użycie ich w dodawaniu albo w porównaniu jest osobną, niedokończoną ścieżką. Ten listing ich nie używa, dlatego plik wykonywalny powstaje. Rozdział 17 opisuje, co dzieje się przy porównaniu.
+Sam zapis `f32` i `f64` oraz arytmetyka zmiennoprzecinkowa są obsługiwane. Przekazanie floatu jako argumentu funkcji jest jawnie odrzucane. Porównanie floatów pozostaje błędem codegenu: frontend je akceptuje, lecz dispatcher widzi wynik `bool`, wybiera ścieżkę całkowitoliczbową i `value_as_int` panikuje na `FloatValue`. Odtworzyłem to na `1.0 < 2.0`; szczegóły są w rozdziale 17.
 
 Każda inna nazwa typu, na przykład `Point` albo `Unit` zapisane wielką literą, daje błąd `unknown named type`. Słowo `unit` małymi literami jest typem pustym. Wielka litera `Unit` nie jest skrótem.
 
 ## Które wartości są kopiowane
 
-Wartość jest kopiowana tylko wtedy, gdy jest typem prostym i nie jest pusta. Poza kopiowaniem zostają napis, każda tablica, każdy typ funkcji oraz cokolwiek z pytajnikiem, także `i32?`. Ta sama odpowiedź obowiązuje przy sprawdzaniu typów i przy analizie własności. Typ, którego nie udało się ustalić, też nie jest traktowany jako kopiowany. Dlatego błąd typu potrafi pociągnąć dodatkowy błąd własności. Drugiego komunikatu nie należy ignorować tylko dlatego, że pierwszy już coś zgłosił.
+Wartość jest kopiowana tylko wtedy, gdy jest typem prostym i nie jest pusta. Poza kopiowaniem zostają napis, każda tablica, każdy typ funkcji, pożyczka `&T` oraz cokolwiek z pytajnikiem, także `i32?`. Ta sama odpowiedź obowiązuje przy sprawdzaniu typów i przy analizie własności. Typ, którego nie udało się ustalić, też nie jest traktowany jako kopiowany. Dlatego błąd typu potrafi pociągnąć dodatkowy błąd własności. Drugiego komunikatu nie należy ignorować tylko dlatego, że pierwszy już coś zgłosił.
 
 ## Literały
 
@@ -67,6 +68,8 @@ fun main(): i64 {
 Komunikat budowania brzmi `main returning i64 is not supported by codegen yet`. Sprawdzanie typów jest zadowolone. Ograniczenie dotyczy tylko tego, co wolno zwrócić z `main`, a nie samego typu `i64` w funkcji pomocniczej. Funkcja, która odejmuje dwie wartości `i64` i porównuje wynik, została zbudowana. Proces kończy się kodem 7. Przykład jest w zestawie programów do rozdziału 17.
 
 Literał `1.5` bez adnotacji staje się `f64`. Z adnotacją `Float` albo `f32` zostaje liczbą o pojedynczej precyzji. Nie ma przyrostka w rodzaju `1.5f32`.
+
+Pożyczony typ `&T` jest dozwolony tylko dla wartości niekopiowanej. Obecnie używa się go przy parametrze funkcji albo przy stałej `val`, na przykład `buf: &[i32; 2]`. Nie ma `&mut`, nullable-reference ani zwrotu referencji. `&[T; N]` pozwala funkcji czytać i zapisywać elementy bufora właściciela; `&String` pozwala czytać napis, ale nie przypisać nowego napisu przez widok. To ograniczone API, nie ogólny system referencji.
 
 Literał napisu używa cudzysłowu. Sekwencje `\n`, `\r`, `\t`, `\\` i `\"` są zamieniane na znak nowej linii, powrót karetki, tabulację, ukośnik i cudzysłów.
 
@@ -98,23 +101,23 @@ fun main(): i32 {
 
 Pierwszy komunikat mówi, że operandy mają typy `i64` i `i32`. Drugi, na tym samym miejscu, mówi, że zwracana wartość ma typ `i64`, a oczekiwano `i32`. Drugi komunikat jest skutkiem pierwszego. Przy niezgodnych operandach sprawdzanie typów zostawia typ lewej strony jako typ całego wyrażenia, a ten typ nie pasuje do wyniku funkcji.
 
-Porównania `>`, `<`, `>=` i `<=` wymagają tego samego niepustego typu liczbowego. Dwie wartości `bool` dają komunikat, że uporządkowane porównanie wymaga typu liczbowego. Operatory `==` i `!=` wymagają identycznego typu, ale typ może dopuszczać brak wartości. Zapis `val n: i32? = None` oraz porównanie `n == None` przechodzi sprawdzenie. Budowanie odrzuca `None`.
+Porównania `>`, `<`, `>=` i `<=` wymagają tego samego typu liczbowego. Dwie wartości `bool` dają komunikat, że uporządkowane porównanie wymaga typu liczbowego. Operatory `==` i `!=` wymagają identycznego typu, także dla nullable. Porównanie lowerowalnego nullable z `None` przechodzi sprawdzenie i budowanie; przykłady są w `programs/build/conditionals/`.
 
 Operatory `&&`, `||` i `!` działają na wartościach logicznych. Koniunkcja i alternatywa nie liczą prawej strony, gdy lewa już rozstrzyga wynik. Widać to w kodzie maszynowym i w teście `builds_logical_short_circuit`. Listing w rozdziale 6 uruchamia taki program.
 
 Dzielenie całkowite przez zero przerywa program. Program z `return 1 / 0` został zbudowany: budowanie kończy się sukcesem, a uruchomiony proces dostaje sygnał przerwania i w powłoce widać kod 134, bo na standardowym wyjściu błędów nie ma komunikatu Borka, tylko wywołanie funkcji `abort` z biblioteki języka C. W kodzie generatora jest także strażnik przed dzieleniem najmniejszej liczby typu ze znakiem przez minus jeden. Literału minus jeden nie da się napisać, więc tej drugiej ścieżki nie uruchamiano z poziomu programu w Borku, choć strażnik w funkcji `guard_int_div` w kodzie jest.
 
-> **NOTA.** Liczby zmiennoprzecinkowe wolno dodawać i porównywać na etapie sprawdzania typów, ale przy budowaniu dodawanie `f32` daje komunikat, że działanie zmiennoprzecinkowe nie jest jeszcze obsługiwane. Porównanie `f64`, uruchomione na tej ścieżce, nie daje komunikatu, bo proces kompilatora przerywa się awaryjnie: wartość w reprezentacji LLVM jest liczbą zmiennoprzecinkową, a fragment kodu oczekuje liczby całkowitej. Arytmetykę zmiennoprzecinkową traktuj jako sprawdzaną, a nie jako tłumaczoną na program.
+> **NOTA.** Arytmetyka `f32`/`f64` ma ścieżkę codegenu. Porównanie floatów nadal może zakończyć się paniką kompilatora: dispatcher rozpoznaje typ operandu po typie wyniku, a porównanie zwraca `bool`. Float jako argument funkcji jest osobno odrzucany diagnostyką `codegen`.
 
 ## Brak wartości
 
-Zapis `T?` oznacza, że wartość typu `T` może nie istnieć. Dotyczy to typów prostych, napisu i typu funkcji. Tablica z pytajnikiem daje się zapisać w składni i jest odrzucana komunikatem `nullable array types [T]? are not supported`.
+Zapis `T?` oznacza, że wartość typu `T` może nie istnieć. Część front-endowa dopuszcza nullable typy proste, napisy i typy funkcji. Zapis nullable tablicy parser przyjmuje, ale sprawdzanie typów odrzuca go komunikatem `nullable array types [T]? are not supported`. Generator kodu obsługuje `String?` i wartości nullable typów prostych poza `unit`, także `f32?` i `f64?`. Nullable `unit` i typy funkcji nie mają obsługiwanej reprezentacji.
 
 Wartość obecną buduje `Some(x)`, a brak wartości zapisuje `None`. Samo `None`, bez oczekiwanego typu, nie przechodzi. Komunikat brzmi `cannot infer type of None`.
 
 Operator `?:` wymaga, żeby lewa strona mogła być pusta. Prawa strona musi pasować do typu po zdjęciu pytajnika. Zapis `1 ?: 0` przy `n` typu `i32` daje `left operand of ?: must be nullable, got i32`. Operator `!!` wymaga wartości, która może być pusta, i daje typ bez pytajnika. Na zwykłym `i32` dostaniesz `operand of !! must be nullable, got i32`.
 
-**Listing 4.5.** Napis, który może nie istnieć, oraz długość odczytana tylko wtedy, gdy napis jest. Sprawdzenie przechodzi. Budowanie odrzuca każdy `?:`, `Some` i `None`.
+**Listing 4.5.** Operacje nullable na napisie. To fragment funkcji, nie samodzielny program z `main`.
 
 ```bork
 fun processUser(name: String?, score: i32): i32 {
@@ -131,9 +134,9 @@ fun processUser(name: String?, score: i32): i32 {
 
 Zapis `?.` czyta pole tylko wtedy, gdy wartość po lewej nie jest pusta. Na typie, który pusty być nie może, sprawdzanie typów każe użyć zwykłej kropki. Jedyne pole napisu i tablicy nazywa się `length` i ma typ `i32`. Dla tablicy ta długość jest liczbą wpisaną w typ, a nie osobnym licznikiem trzymanym obok danych. Próba odczytu pola `foo` z napisu daje `unknown field foo on type String`.
 
-> **OSTRZEŻENIE.** Budowanie listingu 4.5 wypisuje osobny błąd fazy `codegen` dla każdego `?:`, `Some` i `None`. Nie ma częściowej obsługi braku wartości w gotowym programie. Kontrola przed generowaniem kodu odcina te konstrukcje, zanim powstanie moduł LLVM.
+> **NOTA.** `Some`, `None`, `?:`, `!!`, `?.length` oraz `==`/`!=` mają codegen dla obsługiwanych typów. Wszystkie sześć przykładów testowych `programs/build/conditionals/nullable_*.bork` zbudowałem i uruchomiłem. Dodatkowy krótki test objął `Some`, `?:`, `!!` oraz równość i nierówność dla `f32?` i `f64?`. Nie oznacza to obsługi każdego `T?`: nullable `unit` i typy funkcji nadal nie mają reprezentacji, a nullable tablice odrzuca sprawdzanie typów.
 
-Typ funkcji też może dopuszczać brak wartości. Zapis `val f: ((i32) -> i32)? = None` przechodzi sprawdzenie. Wywołanie takiej nazwy bez `!!` nie jest tym, co generator kodu umie przetłumaczyć na instrukcje. Po `!!` kontrola przed generowaniem kodu i tak odrzuca asercję.
+Typ funkcji też może dopuszczać brak wartości w frontendzie. Codegen nie ma jednak reprezentacji wartości funkcji, więc nullable function value — również po `!!` — pozostaje nieobsługiwane.
 
 ## Typ funkcji i nawiasy
 
@@ -152,4 +155,6 @@ Gdy wyrażenie jest już błędne, sprawdzanie typów podstawia typ nieznany. Ko
 - Nie ma automatycznego rozszerzania liczb i nie ma operatora `+` dla napisów.
 - `None` potrzebuje oczekiwanego typu. Operatory `?:` i `!!` wymagają wartości, która może być pusta.
 - Jedyne pole napisu i tablicy nazywa się `length`.
-- Brak wartości i liczby zmiennoprzecinkowe są sprawdzane. Generator kodu albo je odrzuca komunikatem, albo przy porównaniu `f64` przerywa się awaryjnie.
+- `&T` jest ograniczonym typem pożyczki dla niekopiowanych wartości; nie można zwracać referencji ani przechowywać jej w `var`.
+- Arytmetyka floatów jest lowerowana, porównania floatów pozostają błędem codegenu, a floaty jako argumenty funkcji są odrzucane.
+- Nullable `String` i typy proste poza `unit` obsługują `Some`, `None`, `?:`, `!!`, `?.length` oraz `==`/`!=`; nullable tablice odrzuca sprawdzanie typów, a nullable `unit` i funkcje nie mają reprezentacji.

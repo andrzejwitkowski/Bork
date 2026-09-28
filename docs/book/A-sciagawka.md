@@ -1,6 +1,6 @@
 # Dodatek A. Zestawienie składni
 
-Ten dodatek zbiera składnię, którą przyjmuje czytanie programu w tej rewizji kompilatora. Gwiazdka przy wierszu znaczy, że sprawdzenie program przyjmuje, a `bork build` albo odrzuca go komunikatem, albo kończy się awarią kompilatora. Szczegóły są w dodatku C. Zdania wokół zestawienia mówią, jak czytać skrót. Sam skrót jest po to, żeby nie szukać reguły w całym rozdziale.
+Ten dodatek zbiera składnię, którą przyjmuje czytanie programu w tej rewizji kompilatora. Gwiazdka przy wierszu znaczy, że sprawdzenie program przyjmuje, ale `bork build` nadal może go odrzucić albo ujawnić błąd kompilatora. Szczegóły są w dodatku C. Zdania wokół zestawienia mówią, jak czytać skrót. Sam skrót jest po to, żeby nie szukać reguły w całym rozdziale.
 
 ## Program i parametry
 
@@ -15,9 +15,9 @@ Parametr zapisuje się jako `nazwa: Typ`, `val nazwa: Typ` albo `var nazwa: Typ`
 
 ## Typy
 
-Typy proste to `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `bool` i `unit`. Aliasy `Int`, `Long`, `Byte`, `Float` i `Double` znaczą odpowiednio `i32`, `i64`, `u8`, `f32` i `f64`. Napis to `String`. Tablica o znanej długości to `[T; N]`. Wartość, która może być pusta, to `T?`. Typ funkcji to `(A, B) -> R`. Może też sam być pusty, na przykład `((A) -> R)?`.
+Typy proste to `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64`, `bool` i `unit`. Aliasy `Int`, `Long`, `Byte`, `Float` i `Double` znaczą odpowiednio `i32`, `i64`, `u8`, `f32` i `f64`. Napis to `String`. Tablica o znanej długości to `[T; N]`. Ograniczony widok na niekopiowane `T` zapisuje się `&T`. Wartość, która może być pusta, to `T?`. Typ funkcji to `(A, B) -> R`. Może też sam być pusty, na przykład `((A) -> R)?`.
 
-Kopiowalne są tylko typy proste, które nie mogą być puste. Napis, tablica, typ funkcji i wartość pusta kopiowalne nie są.
+Kopiowalne są tylko typy proste, które nie mogą być puste. Napis, tablica, typ funkcji, pożyczka `&T` i wartość pusta kopiowalne nie są.
 
 ## Instrukcje
 
@@ -62,6 +62,7 @@ wyrażenie!!
 wyrażenie ?: wyrażenie
 Some(wyrażenie) None
 move nazwa
+&nazwa
 promote nazwa
 f(a, b)
 f(a) { x -> instrukcje }          *
@@ -74,7 +75,7 @@ Warunek `if (warunek) { } else { }` jest wyrażeniem. Obie gałęzie są blokami
 
 ## Własność nazw w skrócie
 
-Gdy typ jest kopiowalny, wystarcza goła nazwa. Gdy stała z regionu zewnętrznego nie jest kopiowalna, też wystarcza goła nazwa: to współdzielenie. Gdy zmienna z regionu zewnętrznego nie jest kopiowalna, trzeba napisać `move nazwa`. To samo dotyczy przekazania stałej niekopiowalnej do parametru zmiennego. Literał napisowy do parametru zmiennego nie wymaga `move`, ale generowanie kodu dla napisu jako argumentu funkcji użytkownika dziś kończy się awarią kompilatora. Zapis do zmiennej zewnętrznej ma postać `outer = wyrażenie`, `outer = move inner` albo `outer = promote held`. Zwrot napisu to `return nazwa` na głębokości funkcji albo `return` literału. Zwrot wyniku `concat` oraz zwrot przeniesienia z regionu wewnętrznego są odrzucane.
+Gdy typ jest kopiowalny, wystarcza goła nazwa. Gdy stała z regionu zewnętrznego nie jest kopiowana, goła nazwa oznacza współdzielenie. Zmienną niekopiowaną można przenieść przez `move nazwa` albo pożyczyć przez `&nazwa`, jeśli kontekst oczekuje `&T`. Pożyczka nie jest przeniesieniem własności. Zapis do zmiennej zewnętrznej ma postać `outer = wyrażenie`, `outer = move inner` albo `outer = promote held`. Zwrot napisu to `return nazwa` na głębokości funkcji albo `return` literału. Zwrot wyniku `concat` oraz zwrot przeniesienia z regionu wewnętrznego są odrzucane.
 
 ## Funkcje wbudowane i polecenia
 
@@ -89,6 +90,6 @@ cargo test --workspace
 cargo test --workspace --features codegen
 ```
 
-Kod zero oznacza sukces, kod jeden zły program, a kod dwa złe wywołanie albo brak narzędzia. Kod 101 oznacza awarię procesu `bork`, a kod 134 w powłoce przerwanie procesu użytkownika przez `abort`.
+Kod zero oznacza sukces, kod jeden błąd programu lub odmowę codegenu, a kod dwa złe wywołanie albo brak narzędzia. Kod 101 występuje w historycznych wynikach awarii kompilatora, a kod 134 w powłoce oznacza przerwanie procesu użytkownika przez `abort`.
 
 Fazy komunikatów to `parse`, `ownership`, `type` i `codegen`.

@@ -5,12 +5,12 @@
 - jak czytać linię błędu i co znaczą cztery fazy
 - czego język nie oferuje w miejsce wyjątków
 - które błędy przerywają kompilację, a które przerywają gotowy program
-- dlaczego czasem kompilator kończy się awarią zamiast komunikatem
+- jak odróżnić aktualne usterki codegenu od wyników historycznych
 - w jakiej kolejności warto naprawiać kilka błędów naraz
 
 ## Język nie ma instrukcji obsługi błędu
 
-Nie ma `throw`, `try`, `catch` ani typu `Result`. Pytajnik przy typie nie jest modelem błędu. Jest wartością, którą sprawdzenie rozumie, a generowanie kodu odrzuca. Program albo daje się skompilować, albo nie. W czasie działania są trzy awarie, które kod naprawdę wywołuje.
+Nie ma `throw`, `try`, `catch` ani typu `Result`. Pytajnik przy typie nie jest modelem błędu, tylko wartością nullable. Codegen obsługuje wybrane typy i operacje nullable; ograniczenia reprezentacji są w rozdziale 4 i dodatku C. W czasie działania sprawdzenia kończą program m.in. przy dzieleniu przez zero, indeksie poza tablicą oraz `!!` na `None`.
 
 Dzielenie przez zero woła `abort` z biblioteki języka C. Proces kończy się sygnałem przerwania. W powłoce widać kod 134, a na wyjściu błędów nie ma tekstu Borka. Ten sam mechanizm przerywa program, gdy indeks tablicy nie mieści się w długości zapisanej w typie. Trzecia awaria dotyczy alokacji większej niż 4096 bajtów w jednym buforze areny. Biblioteka wykonawcza, napisana w Ruście, przerywa się wtedy komunikatem `arena overflow`, z liczbą potrzebnych bajtów i pojemnością 4096. Program w Borku nie może tego złapać.
 
@@ -54,17 +54,17 @@ Drzewo regionów powstaje także przy błędzie własności. Wypis przy użyciu 
 
 ## Błędy generowania kodu
 
-Pojawiają się tylko przy `bork build`. Samo sprawdzenie ich nie produkuje. Zanim powstanie moduł LLVM, funkcja `gate` w `src/codegen/gate.rs` odrzuca konstrukcje, których generator nie umie przetłumaczyć. Należą do nich funkcja dopisana na końcu wywołania, `None`, `Some`, `!!`, operator `?:`, pole inne niż `length` na napisie albo tablicy oraz operator, który nie jest na liście obsługiwanych.
+Pojawiają się tylko przy `bork build`. Samo sprawdzenie ich nie produkuje. Bramka `gate` w `src/codegen/gate.rs` nadal odrzuca m.in. funkcje dopisane na końcu wywołania i niedozwolone pola. `None`, `Some`, `!!`, `?:`, `?.length` oraz nullable `==`/`!=` nie są już ogólnie odrzucane; dla typów bez reprezentacji generator zwraca błąd fazy `codegen`.
 
-Późniejsza emisja dokłada między innymi brak funkcji `main`, wynik `main` o typie innym niż `i32` i `unit`, wywołanie pośrednie oraz działanie na liczbach zmiennoprzecinkowych. Ostatni tekst potrafi przyjść z dopiskiem `internal arena schedule mismatch`. Ten dopisek powstaje, gdy błąd przejścia po drzewie regionów, czyli funkcji `region_walk`, jest opakowywany jako niezgodność harmonogramu. Treść po dwukropku mówi, czego naprawdę brakuje. Komunikat jest napisany tak, jakby kompilator zepsuł się wewnętrznie, choć czasem drzewa naprawdę do siebie nie pasują, a czasem jest to tylko opakowanie zwykłej informacji, że konstrukcja nie jest jeszcze obsługiwana.
+Późniejsza emisja odrzuca m.in. brak `main`, niedozwolony wynik `main` i wywołania pośrednie. Float jako argument funkcji dostaje odmowę `codegen`. Osobny błąd dotyczy porównań floatów: frontend je przyjmuje, ale generator kieruje je do `value_as_int` i panikuje na `FloatValue`. To błąd kompilatora, nie ograniczenie semantyki porównań.
 
-Błąd tej fazy ma kod wyjścia jeden i nie zostawia pliku wykonywalnego. Pilnują tego testy odrzucenia `None` oraz braku `main`.
+Błąd tej fazy ma kod wyjścia jeden i nie zostawia pliku wykonywalnego. Zestaw nullable buildów w `programs/build/conditionals/` sprawdza obsługiwane przypadki; `main` bez poprawnej sygnatury nadal jest odrzucany.
 
 ## Awaria kompilatora
 
-To nie jest komunikat dla programisty Borka, bo proces `bork` kończy się kodem 101 i śladem stosu Rusta. Dwa przypadki zostały uruchomione. Argument napisowy funkcji użytkownika oraz porównanie wartości `f64` wchodzą w `value_as_int`, gdzie wywołanie `into_int_value` zakłada, że wartość LLVM jest liczbą całkowitą. Dla napisu jest ona strukturą adresu i długości, a dla porównania `f64` liczbą zmiennoprzecinkową. Inkwell, czyli biblioteka Rusta, przez którą kompilator woła LLVM, w takiej sytuacji przerywa proces, zamiast zwrócić błąd.
+Wynik historyczny z napisem jako argumentem kończył się kodem 101, gdy `value_as_int` bezwarunkowo wywoływał `into_int_value` na strukturze LLVM. Obecny `coerce_value_to_ty` przekazuje deskryptory. Nie przenoś starej paniki na bieżące zachowanie.
 
-Przyczyna leży w `coerce_value_to_ty`. Dla `bool` wartość jest zwężana. Dla liczby zmiennoprzecinkowej część ścieżek zwraca komunikat, że argument nie jest obsługiwany. Dla reszty kod woła konwersję na liczbę całkowitą bez sprawdzenia, czym wartość naprawdę jest.
+Float jako argument funkcji jest jawnie nieobsługiwany. Porównanie floatów ma inną usterkę: `combine_binary_values` sprawdza typ wyniku, a ten jest `bool`, więc operand trafia do `value_as_int`; odtworzenie kończy się paniką `FloatValue`.
 
 > **OSTRZEŻENIE.** Awaria kompilatora na programie, który sprawdzenie uznało za poprawny, jest błędem generatora kodu. Nie czytaj jej jako zakazu języka. Sprawdzanie typów i analiza własności tego zapisu nie zabraniają. Dodatek C trzyma ten przypadek razem z innymi zaległościami.
 
@@ -74,7 +74,7 @@ Błąd narzędzia, a nie programu, kończy się kodem dwa. Należy tu złe polec
 
 Kompilator nie wybiera jednego błędu i nie milczy o reszcie. Dostajesz wszystkie, które dana faza zdążyła zebrać. Praktyczna kolejność naprawy jest taka. Najpierw faza `parse`, bo przy błędzie składni reszty nie ma. Potem faza `type`, zwłaszcza nieznane nazwy i niezgodne typy. Potem faza `ownership` dotycząca `move`. Faza `codegen` ma sens dopiero wtedy, gdy sprawdzenie jest czyste. Budowanie najpierw sprawdza program. Przy błędach sprawdzenia w ogóle nie wchodzi w LLVM. Wypisuje te błędy i kończy się kodem jeden.
 
-Budowanie programu z `None` daje fazę `codegen`, kod wyjścia jeden i nie zostawia pliku wynikowego. Program, który zwraca napis z regionu wewnętrznego, też kończy budowanie kodem jeden, z tekstem `inner region`, bez pliku wynikowego. Analiza ucieczki jest częścią sprawdzenia, więc budowanie nie udaje, że to problem LLVM.
+Budowanie nullable `String` i typów prostych poza `unit` przechodzi dla obsługiwanych operacji, także dla `f32?`. Nullable `unit` i typy funkcji nie mają reprezentacji; zwrot napisu z regionu wewnętrznego nadal jest odrzucany przez analizę ucieczki przed LLVM.
 
 ## Podsumowanie
 
@@ -82,5 +82,5 @@ Budowanie programu z `None` daje fazę `codegen`, kod wyjścia jeden i nie zosta
 - Linia błędu podaje fazę. Brak zakresu źródłowego usuwa numer linii.
 - Faza `ownership` pochodzi albo z analizy nazw, albo z analizy ucieczki. Druga milczy, gdy wcześniej są inne błędy.
 - Kontrola przed generowaniem kodu mówi wprost, że konstrukcja nie jest obsługiwana. Część późniejszej emisji mówi, że nie jest obsługiwana jeszcze.
-- Przekazanie napisu do funkcji użytkownika nie daje komunikatu. Przerywa proces kompilatora.
-- Kod jeden oznacza zły program. Kod dwa oznacza złe wywołanie albo brak narzędzia. Kod 101 oznacza awarię procesu kompilatora.
+- Deskryptory `String` są przekazywane do funkcji użytkownika. Float jako argument jest odrzucany, a porównanie floatów może wywołać panikę kompilatora.
+- Kod jeden oznacza błąd programu lub odmowę codegenu. Kod dwa oznacza złe wywołanie albo brak narzędzia. Kod 101 w tabeli starych przykładów jest wynikiem historycznej awarii i nie powinien być przypisywany bieżącemu codegenowi bez ponownego testu.

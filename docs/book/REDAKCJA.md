@@ -112,11 +112,11 @@ Po: „Kopiowalne są tylko typy proste, które nie mogą być puste.”
 
 ## Rozdział 5. Funkcje, parametry i wywołania
 
-Werdykt: do druku. Widać kształt funkcji, własność na granicy wywołania i to, że napis jako argument funkcji użytkownika wywraca kompilator.
+Werdykt: do druku. Widać kształt funkcji i własność na granicy wywołania. Przekazanie napisu do funkcji użytkownika buduje się i działa; ograniczenie floatów jest osobnym tematem codegenu.
 
 Przed: „String do user function: bramka milczy, ICE w expr.rs.”
 
-Po: „Wywołanie z napisem przechodzi sprawdzenie. Przy budowaniu kompilator kończy się awarią w `src/codegen/llvm/expr.rs`, w funkcji, która zakłada liczbę całkowitą.”
+Po: „Deskryptor napisu jest przekazywany do funkcji użytkownika. Ponowny build listingu z opcją `codegen` i jego uruchomienie przechodzą; float jako argument funkcji nadal dostaje osobną odmowę.”
 
 Przed: „Trailing closure jest w AST, codegen nie.”
 
@@ -354,4 +354,4 @@ Po: „Czego kompilator jeszcze nie potrafi. Krótki przykład trudno przepchną
 
 Przed: „Bramka milczy. Kod procesu 101.”
 
-Po: „Przekazanie napisu do funkcji użytkownika przechodzi sprawdzenie i kontrolę przed generowaniem kodu, a potem kompilator kończy się awarią. Kod procesu kompilatora to 101.”
+Po: „Historyczny wynik przekazania napisu do funkcji użytkownika kończył się paniką 101. Obecny listing przechodzi build i wykonanie; nie przypisuj starego wyniku bieżącemu codegenowi.”

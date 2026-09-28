@@ -73,7 +73,7 @@ Uruchom `bork build` i powstały proces.
 
 **C6.** Która funkcja w `src/sema/policy.rs` zwraca współdzielenie?
 
-**C7.** Co trzeba zmienić, żeby przekazanie napisu do funkcji użytkownika dało komunikat zamiast awarii kompilatora? Nie musisz pisać poprawki. Nazwij funkcję, która się wywraca, i powiedz, czemu kontrola przed generowaniem kodu tego nie łapie.
+**C7.** Frontend akceptuje `1.0 < 2.0`, ale generator kieruje operandy float do ścieżki całkowitoliczbowej i panikuje. Który typ wyniku widzi dispatcher i po jakich typach powinien rozpoznać rodzaj porównania?
 
 **C8.** Masz nowy operator dwuargumentowy, którego LLVM jeszcze nie tłumaczy. Wymień warstwy z rozdziału 21 w kolejności i zaznacz, która jest obowiązkowa, żeby nie było awarii kompilatora.
 
@@ -123,7 +123,7 @@ Uruchom `bork build` i powstały proces.
 
 **C6.** Współdzielenie zwraca `classify_use`, w gałęzi wiązania stałego, po sprawdzeniu, że typ nie jest kopiowalny i że region nie jest ten sam.
 
-**C7.** Wywraca się `value_as_int`, przez `into_int_value`, wołane z `coerce_value_to_ty` przy emisji wywołania po przejściu `region_walk`. Kontrola przed generowaniem kodu ogląda kształt reprezentacji pośredniej: czy jest `Some`, funkcja na końcu wywołania, niedozwolony operator. Nie pyta, czy argument jest strukturą LLVM. Wywołanie z argumentem napisowym wygląda jak zwykłe wywołanie, więc kontrola milczy.
+**C7.** Typ porównywanego operandu (`f32` albo `f64`) oraz typ wyniku (`bool`). `emit_binary` wybiera obecnie ścieżkę float na podstawie `expr.ty`, czyli typu wyniku; dla porównania widzi `bool` i schodzi do ścieżki całkowitoliczbowej. Poprawka powinna rozpoznawać typ operandów i dodać test codegenu dla `f32` oraz `f64`.
 
 **C8.** Warstwy z rozdziału 21 idą w tej kolejności. Najpierw jest gramatyka i drzewo składni, potem sprawdzanie typów, potem analiza własności, gdy operator przenosi nazwy albo je współdzieli, potem kontrola czasu życia napisu i wyniesienie alokacji, gdy operator obchodzi się z napisem albo tablicą, potem wspólne przejście reprezentacji pośredniej i raportu regionów, gdy operator otwiera region, a na końcu kontrola przed generowaniem kodu, emisja i test w `tests/build.rs`. Obowiązkowa, dopóki emisja nie ma gałęzi dla tego operatora, jest właśnie kontrola przed generowaniem kodu. Bez niej dopasowanie wpadnie albo w komunikat o braku wsparcia, albo w ścieżkę liczby i w złe rzutowanie wartości LLVM, czyli w awarię kompilatora zamiast w diagnostykę.
 

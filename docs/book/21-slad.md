@@ -9,7 +9,7 @@
 - dlaczego wyniesienie alokacji i analiza ucieczki w tym programie milczą
 - które funkcje wygenerowanego kodu i biblioteki wykonawczej naprawdę pracują
 
-Program jest krótki celowo. Ma funkcję, pętlę, wywołanie, stały napis i blok, który ten napis tylko czyta. Polecenie `bork build` tłumaczy go na plik wykonywalny. Nie ma w nim napisu przekazywanego do funkcji użytkownika, bo ta ścieżka kończy się awarią kompilatora i ślad urwałby się w emisji.
+Program jest krótki celowo. Ma funkcję, pętlę, wywołanie, stały napis i blok, który ten napis tylko czyta. Polecenie `bork build` tłumaczy go na plik wykonywalny. Nie ma tu nullable ani porównania floatów; osobne przykłady nullable są w `programs/build/conditionals/`.
 
 ## Program, który zwraca trzy i wypisuje sumę
 
@@ -106,7 +106,7 @@ Reprezentacja pośrednia zostaje w wyniku sprawdzenia.
 
 ## Kontrola, moduł i wygenerowane wywołania
 
-Kontrola przed generowaniem kodu nie znajduje funkcji dopisanej na końcu wywołania, słów `None` i `Some`, operatora `?:`, wykrzykników `!!` ani obcego pola. Przechodzi.
+Kontrola przed generowaniem kodu nie znajduje funkcji dopisanej na końcu wywołania ani obcego pola. Nullable konstrukcje `None`, `Some`, `?:` i `!!` przechodzą bramkę i są emitowane dla obsługiwanych typów; nie należą do tego śladu.
 
 Emisja modułu deklaruje `main` jako funkcję zwracającą `i32` bez parametrów oraz `bork.add` jako funkcję wewnętrzną. Potem emituje ciała.
 

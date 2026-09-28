@@ -54,6 +54,24 @@ Po zapisie pod indeksem 1 leży 9. Wycinek od zera do dwóch, bez dwójki, obejm
 
 Nazwa wprowadzona przez `val` nie przyjmuje zapisu elementu. Komunikat jest ten sam co przy zwykłym przypisaniu do stałej: nie można przypisać do niezmiennej nazwy `a`. Indeks złego typu daje `array index must be i32` albo, przy zapisie, informację, że indeks ma inny typ, a oczekiwano `i32`.
 
+## Pożyczony parametr tablicowy
+
+Funkcja, która ma pracować na buforze wywołującego, może przyjąć `&[T; N]`. Przy wywołaniu trzeba jawnie napisać `&nazwa`. Parametr może czytać elementy i przypisywać do nich; zmiana jest widoczna w tablicy właściciela. To specjalna, ograniczona reguła Borka — nie odpowiada rozróżnieniu Rustowego `&[T]` i `&mut [T]`.
+
+```bork
+fun bump(buf: &[i32; 2]) {
+    buf[0] = buf[0] + 1
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    bump(&a)
+    return a[0]
+}
+```
+
+Pożyczkę można ponowić bezpośrednio w argumencie funkcji, również wewnątrz `if`, `while` lub `for`, na przykład `bump(&buf)`. Nie można natomiast utworzyć w takim regionie potomnym nowej lokalnej pożyczki `val view = &buf`. Przykłady build/check dla tych ścieżek są w `programs/build/borrow/` i `programs/check/borrow/`.
+
 ## Wycinek o stałych granicach
 
 Zapis `a[początek..koniec]` wymaga, żeby obie granice były literałami typu `i32`. Typ wyniku to tablica o długości `koniec - początek`. Wycinek nie kopiuje bufora. Nowy opis tablicy wskazuje w środek starej, a długość bierze z typu.
@@ -106,3 +124,4 @@ Pole `length` w języku ma typ `i32`. Generator kodu wycina długość z pary i 
 - Wycinek o stałych granicach wskazuje w istniejący bufor i ma typ tablicy o długości równej różnicy granic.
 - Element napisowy czyta się bez kopiowania. Zapis takiego elementu wymaga `move`.
 - Całą tablicę wolno przenieść tylko do tablicy o tym samym typie elementu i tej samej długości.
+- Parametr `&[T; N]` daje funkcji widok na bufor wywołującego; indeksy można w nim czytać i zapisywać.

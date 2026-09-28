@@ -4,9 +4,9 @@
 
 # Bork in Action
 
-Książka techniczna o języku Bork i jego kompilatorze. Opisuje drzewo `main` w rewizji `cd8fee4`, czyli stan repozytorium w chwili sprawdzania przykładów. Kod kompilatora nie został zmieniony na potrzeby tej książki.
+Książka techniczna o języku Bork i jego kompilatorze. Opisy pożyczek i regionów uwzględniają `main` z rewizji `ee8d82e`; rozdziały o nullable i codegenie uwzględniają `feat/nullable-codegen` z rewizji `da21b65`. Gałęzie rozeszły się po wspólnym przodku `0c1f2fa`, więc książka jawnie wskazuje, z której migawki pochodzi dany opis; nie twierdzi, że oba zestawy zmian znalazły się w jednym commicie. Książka nie zmienia semantyki kompilatora. Wyniki w `przyklady/WYNIKI.md` oznaczają osobno historyczne uruchomienia i ponowną weryfikację nullable.
 
-Listing oznaczony jako uruchomiony został sprawdzony poleceniem `bork`, zbudowanym z opcją `codegen`, na LLVM 23.1.2 i rustc 1.98.1, albo samym sprawdzeniem `frontend::check`, gdy generowanie kodu tego programu nie obejmuje. Komunikaty błędów są cytowane tak, jak wypisuje je kompilator.
+Wyniki dawnych uruchomień podają wersje narzędzi w `przyklady/WYNIKI.md`. Opisy składni i typów odnoszą się do wskazanych wyżej migawek; nowe wyniki wykonania przypisuję tylko przypadkom ponownie sprawdzonym z codegenem. Komunikaty błędów są cytowane tak, jak wypisuje je kompilator.
 
 Książka ma trzy części. Pierwsza uczy języka. Druga tłumaczy, jak kompilator czyta program, sprawdza go i tłumaczy na kod maszynowy. Trzecia mówi, w jakiej kolejności czytać repozytorium i jak dopisać konstrukcję. Dodatki zbierają składnię, słownik i listę rzeczy, których ta wersja kompilatora jeszcze nie robi.
 
@@ -54,4 +54,4 @@ Książka ma trzy części. Pierwsza uczy języka. Druga tłumaczy, jak kompilat
 26. [Dodatek B. Słownik pojęć](B-slowniczek.md)
 27. [Dodatek C. Czego kompilator jeszcze nie potrafi](C-niedokonczone.md)
 
-Programy użyte w książce leżą w katalogu [`przyklady/`](przyklady/). Raport z redakcji językowej jest w [`REDAKCJA.md`](REDAKCJA.md). PDF tej książki to [`bork-in-action.pdf`](bork-in-action.pdf). Skład robi [`build-pdf.sh`](build-pdf.sh).
+Programy użyte w książce leżą w katalogu [`przyklady/`](przyklady/); zestaw testów repozytorium, w tym testy pożyczek, jest w [`../../programs/`](../../programs/). Raport z redakcji językowej jest w [`REDAKCJA.md`](REDAKCJA.md). PDF tej książki to [`bork-in-action.pdf`](bork-in-action.pdf); po aktualizacji Markdown trzeba go ponownie złożyć skryptem [`build-pdf.sh`](build-pdf.sh).

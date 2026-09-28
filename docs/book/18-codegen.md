@@ -7,29 +7,29 @@ Ten rozdział obejmuje
 - pytanie, co jeszcze musi się udać po czystym sprawdzeniu, zanim powstanie plik wykonywalny,
 - kontrolę, która odrzuca kształty nieobsłużone przez emisję, zanim ta emisja w ogóle ruszy,
 - sposób, w jaki napis jest reprezentowany w kodzie pośrednim, i z czym ten kod jest łączony,
-- awarię, która dziś zastępuje komunikat przy przekazaniu napisu do funkcji napisanej przez programistę,
+- ograniczenia i znane błędy codegenu, w tym porównania liczb zmiennoprzecinkowych,
 - program z rozdziału 12 doprowadzony aż do uruchomienia.
 
 ## Po co osobna kontrola tuż przed emisją
 
-Pytanie tej fazy brzmi, czy czystą reprezentację pośrednią da się przetłumaczyć na kod, który ten kompilator naprawdę umie wyemitować. Sprawdzanie typów odpowiada, czy program ma sens w języku. Nie odpowiada, czy dana konstrukcja ma już ścieżkę w generatorze. Wartość `None`, operator `?:`, funkcja dopisana na końcu wywołania albo zwrot `i64` z `main` są w języku opisane i przez sprawdzenie przechodzą. Emisja tych konstrukcji na razie nie tłumaczy. Bez kontroli przed generowaniem kodu taki plik wszedłby w dopasowanie, które albo skarży się za późno, albo bierze wartość za liczbę i rzutuje ją źle.
+Pytanie tej fazy brzmi, czy czystą reprezentację pośrednią da się przetłumaczyć na kod, który ten kompilator umie wyemitować. Sprawdzanie typów odpowiada, czy program ma sens w języku; nie gwarantuje obsługi każdego kształtu przez generator. Nullable `String?` i wartości typów prostych poza `unit` są obsługiwane dla `None`, `Some`, `?:`, `!!` oraz `==`/`!=`. Tablice nullable odrzuca sprawdzanie typów, a nullable `unit` i typy funkcji nie mają reprezentacji. Funkcja dopisana na końcu wywołania oraz niedozwolony wynik `main` nadal są odrzucane.
 
-Kontrola ogląda kształt drzewa, a nie treść napisu w pamięci. Szuka między innymi braku funkcji `main`, niedozwolonego wyniku `main`, wartości `None` i `Some`, operatora `?:`, dostępu do pola, wykrzykników `!!` oraz funkcji dopisanej na końcu wywołania. Gdy coś znajdzie, dostajesz komunikat fazy `codegen` i kod wyjścia 1, bez pliku wynikowego. Pozostałe odmowy tej kontroli, na przykład nieobsłużony operator dwuargumentowy, działają tak samo. Pełna lista kształtów jest w funkcji `gate` w pliku `src/codegen/gate.rs`.
+Kontrola ogląda kształt drzewa, a nie treść napisu w pamięci. Szuka między innymi braku funkcji `main`, niedozwolonego wyniku `main`, nieobsługiwanych operatorów, dostępu do pola i funkcji dopisanej na końcu wywołania. `None`, `Some`, `?:` i `!!` przechodzą bramkę, gdy ich typ nullable ma reprezentację. Gdy kontrola odrzuci program, dostajesz komunikat fazy `codegen` i kod wyjścia 1, bez pliku wynikowego. Pełna lista kształtów jest w funkcji `gate` w pliku `src/codegen/gate.rs`.
 
-**Listing 17.1.** Wartość `None`, którą sprawdzenie przyjmuje, a budowanie odrzuca
+**Listing 17.1.** Nullable napis: zbudowanie, asercja i wypisanie wartości
 
 ```bork
-fun main(): i32 {
-    val n: i32? = None
-    return 0
+fun main() {
+    val s: String? = Some("x")
+    println(s!!)
 }
 ```
 
 ```text
-/tmp/borkch/none.bork:2:19: error: codegen: `None` is not supported by codegen
+x
 ```
 
-Sam `bork` na tym pliku, bez słowa `build`, kończy się kodem 0, bo typy i własność są w porządku. Odmowa pojawia się dopiero przy budowaniu. To samo dotyczy pliku `24-main-i64.bork`, który jest w zestawie przykładów. Sprawdzenie przechodzi, a budowanie mówi `` `main` returning `i64` is not supported by codegen yet ``. Plik bez funkcji `main` w ogóle, `25-no-main.bork`, pada komunikatem `` `fun main` is required to build an executable ``. Ograniczenie wyniku dotyczy właśnie `main`, które w kodzie maszynowym jest funkcją `main` z C i ma zwracać `i32`. Funkcja pomocnicza może liczyć na `i64`. `main` zadeklarowane bez typu wyniku jest zamieniane na `i32` równe zero.
+Listing odpowiada fixture `nullable_assert.bork`: sprawdzenie i budowanie przechodzą, a program wypisuje `x`. Brak funkcji `main` i niedozwolony typ jej wyniku nadal są odmowami codegenu; `main` bez jawnego typu wyniku jest zamieniane na `i32` równe zero.
 
 <!-- figura: Rysunek 17.1. Od czystego programu do pliku wykonywalnego -->
 ```mermaid
@@ -45,7 +45,7 @@ flowchart TD
 Rysunek 17.1 stawia kontrolę przed zapisem pośrednim celowo. Zapis pośredni powstaje dopiero dla programu, który kontrola przepuściła, a plik obiektowy powstaje z tego zapisu przez maszynę docelową LLVM. Na końcu `clang` łączy plik obiektowy z biblioteką `libbork_runtime.a`. Bez tej biblioteki wygenerowany kod nie miałby bufora regionu, wypisywania ani sprawdzeń, które przerywają proces przy dzieleniu przez zero i przy indeksie poza tablicą.
 
 > **NOTA.**
-> Dodawanie i porównywanie liczb zmiennoprzecinkowych przechodzi sprawdzenie typów, a przy budowaniu pada inaczej niż `None`. Komunikat mówi o wewnętrznej niezgodności harmonogramu regionów i o tym, że operator zmiennoprzecinkowy nie jest jeszcze obsługiwany po przejściu regionów. To wciąż odmowa fazy `codegen`, tylko zgłoszona już w czasie emisji, nie w kontroli kształtów.
+> Arytmetyka `f32`/`f64` ma ścieżkę w `emit_float_binary`. Porównanie przechodzi sprawdzanie typów, ale dispatcher wybiera ścieżkę na podstawie typu wyniku, którym jest `bool`, i przekazuje float do `value_as_int`. Odtworzenie porównania `f64` kończy się paniką kompilatora (`FloatValue` zamiast `IntValue`). To usterka codegenu, nie reguła typów. Float jako argument funkcji jest osobno odrzucany przez `coerce_value_to_ty`.
 
 ## Jak napis wygląda w kodzie pośrednim
 
@@ -58,11 +58,11 @@ Weźmy znowu program z listingu 12.1, ten z pętlą i etykietą `sum`. Budowanie
 > **WSKAZÓWKA.**
 > Gdy `bork plik.bork` milczy, a `bork build` wypisuje fazę `codegen`, nie szukaj błędu typu. Szukaj konstrukcji, której emisja jeszcze nie tłumaczy, albo braku `main` w kształcie, którego generator oczekuje. Poprawka typu nic tu nie zmieni, dopóki kształt zostaje ten sam.
 
-## Gdzie kompilator sam się wywraca
+## Deskryptory napisów i wyniki historyczne
 
-Pytanie, które zostaje po kontrolach, brzmi, czy każda nieobsłużona wartość kończy się komunikatem, czy któraś wywraca sam kompilator. Przekazanie napisu do funkcji napisanej przez programistę jest właśnie takim wyjątkiem. Przechodzi ono sprawdzenie, przechodzi kontrolę kształtów i wywraca emisję. Kontrola widzi zwykłe wywołanie, bo nie pyta, czy argument jest strukturą LLVM. Emisja próbuje potraktować ten argument jak liczbę, a dostaje strukturę `{ ptr, i64 }`, i proces kompilatora kończy się awarią.
+Starszy wynik z dodatku `WYNIKI.md` pokazuje awarię przy przekazaniu napisu do funkcji użytkownika. Obecny `coerce_value_to_ty` przekazuje deskryptor `{ ptr, i64 }` bez rzutowania go na liczbę. Ponownie zbudowałem poniższy listing z `codegen`: sprawdzenie i budowanie zakończyły się kodem 0, program wypisał `hello` i zakończył się kodem 0. Wiersz z kodem 101 w tabeli pozostaje wynikiem historycznym.
 
-**Listing 17.2.** Napis przekazany do funkcji użytkownika
+**Listing 17.2.** Napis przekazany do funkcji użytkownika — przebieg historyczny
 
 ```bork
 fun f(var a: String) {
@@ -74,17 +74,20 @@ fun main() {
 }
 ```
 
-Budowanie tego pliku, `26-pass-string.bork`, nie daje linii `error: codegen`. Proces kompilatora kończy się kodem 101. Miejsce w źródłach to `src/codegen/llvm/expr.rs`, okolice wywołania, które oczekuje wartości całkowitej, a dostaje strukturę. W przebiegu, z którego pochodzi ten opis, komunikat panic wskazuje wiersz 901 tego pliku i mówi, że znaleziona wartość jest strukturą, a oczekiwano wariantu całkowitego. To jest błąd kompilatora, nie reguła języka, i `println` oraz `concat` tej ścieżki nie biorą, bo są obsłużone osobno, bez rzutowania argumentu na liczbę.
+Wynik zapisany dla `26-pass-string.bork` pochodzi ze starszej wersji kompilatora: wtedy proces kończył się kodem 101, bo emisja traktowała deskryptor jak liczbę. Bieżący listing został uruchomiony ponownie i przechodzi; odróżniaj jego rezultat od starego wiersza tabeli.
 
 > **OSTRZEŻENIE.**
-> Awaria z kodem 101 nie jest diagnostyką, którą edytor umie pokazać jako błąd w pliku. Dopóki emisja wywołania nie rozróżnia liczby od deskryptora napisu, taki program trzeba rozpoznać po śladzie, a nie po fazie `codegen`. Funkcje wbudowane są bezpieczną drogą wypisania napisu. Funkcja z parametrem typu `String` dziś nią nie jest.
+> Nie przenoś wyniku historycznej paniki na obecny kod. Jeśli podobna awaria wróci, szukaj w emisji wywołania i w konwersji argumentu; sama zgodność `frontend::check` nie dowodzi, że codegen działa.
 
-Na końcu zostaje mapa do kodu. Kontrola kształtów jest w `gate` w `src/codegen/gate.rs`. Złożenie modułu LLVM, łącznie z wymaganiem `main`, jest w `emit_module` w `src/codegen/llvm/mod.rs`. Reguła, że `main` zwraca `i32`, jest w `declare_function` w `src/codegen/llvm/emit_fn.rs`. Deskryptor `{ ptr, i64 }` jest budowany w `src/codegen/llvm/context.rs`. Rzutowanie, które przy napisie w argumencie funkcji użytkownika oczekuje liczby, jest w `src/codegen/llvm/expr.rs`.
+Parametr `&T` ma w emiterze reprezentację tej samej wartości deskryptorowej co jego typ wewnętrzny — nie tworzy dodatkowego wskaźnika do deskryptora. Przykłady `&[T; N]` z odczytem i zapisem elementów są częścią korpusu `programs/build/borrow/`. Nie ma osobnej instrukcji LLVM odpowiadającej operatorowi `&`; to adnotacja semantyczna i jawny kontrakt parametru.
+
+Na końcu zostaje mapa do kodu. Kontrola kształtów jest w `gate` w `src/codegen/gate.rs`. Złożenie modułu LLVM, łącznie z wymaganiem `main`, jest w `emit_module` w `src/codegen/llvm/mod.rs`. Nullable loweruje `src/codegen/llvm/nullable.rs`, a deskryptor `{ ptr, i64 }` powstaje w `src/codegen/llvm/context.rs`. Konwersja argumentów jest w `src/codegen/llvm/expr.rs`.
 
 ## Podsumowanie
 
 - Plik wykonywalny powstaje tylko z czystej reprezentacji pośredniej, i tylko wtedy, gdy kontrola przed emisją nie odrzuci kształtu, którego generator jeszcze nie tłumaczy.
-- Wartość `None`, zwrot `i64` z `main` i brak `main` przechodzą sprawdzenie, a padają przy budowaniu komunikatem fazy `codegen`, bez pliku wynikowego.
+- Nullable `String?` i wartości typów prostych poza `unit` są obsługiwane; nullable tablice odrzuca sprawdzanie typów, a nullable `unit` i typy funkcji nie mają reprezentacji.
 - Napis w kodzie pośrednim jest parą wskaźnika i długości, a `clang` łączy wynik z biblioteką wykonawczą, która daje bufor regionu, wypisywanie i sprawdzenia indeksu oraz dzielenia.
-- Dodawanie i porównywanie liczb zmiennoprzecinkowych jest odrzucane dopiero przy emisji, komunikatem o nieobsłużonym operatorze po przejściu regionów, mimo że typy były poprawne.
-- Przekazanie napisu do funkcji napisanej przez programistę nie daje komunikatu, tylko awarię procesu kompilatora z kodem 101, bo emisja bierze deskryptor za liczbę.
+- Arytmetyka zmiennoprzecinkowa ma ścieżkę emisji; porównanie floatów przechodzi sprawdzanie typów, ale obecnie panikuje w codegenie.
+- Float jako argument funkcji pozostaje nieobsługiwany. Deskryptory napisów przechodzą do funkcji użytkownika; ich dawna panika 101 jest historyczna.
+- Pożyczone parametry `&T` są obsługiwane, a `&[T; N]` może czytać i zapisywać elementy bufora.

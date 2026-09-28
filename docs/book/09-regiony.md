@@ -136,7 +136,9 @@ Test `move_loop_local_binding_is_ok` pilnuje, że takie przeniesienie przechodzi
 
 ## Stała i zmienna
 
-Odczyt stałej niekopiowanej w regionie wewnętrznym jest współdzieleniem i jest poprawny. Pokazuje to listing 2.2. Odczyt zmiennej niekopiowanej bez `move` jest błędem. Nie ma trzeciej możliwości w rodzaju chwilowego pożyczenia zmiennej. Albo przenosisz własność, albo trzymasz wartość w stałej.
+Odczyt stałej niekopiowanej w regionie wewnętrznym jest współdzieleniem i jest poprawny. Pokazuje to listing 2.2. Odczyt zmiennej niekopiowanej bez `move` nadal jest błędem, ale obecnie istnieje trzecia, jawna możliwość: ograniczona pożyczka przez `&nazwa`.
+
+Pożyczka nie przenosi własności ani nie kopiuje danych. Można ją przekazać do parametru `&T` albo związać ze stałą `val` w dozwolonym regionie. Wartość właściciela musi przeżyć cały widok, dlatego referencji nie wolno zwracać z funkcji ani wynosić z regionu potomnego. Przykład tablicowy jest w rozdziale 7; `&String` służy do odczytu, a `&[T; N]` pozwala także zapisywać elementy bufora.
 
 Ta sama zasada dotyczy wartości schowanej w `Some` i argumentów zagnieżdżonych w większym wyrażeniu. Zmienna napisowa użyta w środku konstruktora też chce `move`. Literał nie chce.
 
@@ -147,4 +149,5 @@ Ta sama zasada dotyczy wartości schowanej w `Some` i argumentów zagnieżdżony
 - `promote` kopiuje treść napisu do zmiennej z regionu zewnętrznego i też zużywa nazwę źródłową.
 - Lewa strona przypisania do zmiennej z zewnątrz nie jest odczytem tej zmiennej.
 - `move (a, b)`, `move ()` i `move` bez listy to trzy różne polecenia. Pusta lista nie jest tym samym co brak listy.
+- `&nazwa` tworzy ograniczony widok na niekopiowaną wartość; nie zastępuje `move` w każdym kontekście i nie jest ogólną referencją Rustową.
 - Zgadywanie listy nie rusza wartości kopiowanych i nie rusza nazw, których blok nie wspomina.

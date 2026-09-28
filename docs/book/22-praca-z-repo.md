@@ -28,7 +28,7 @@ Prefiks fazy mówi, którego katalogu nie czytać w pierwszej kolejności. Faza 
 
 Komunikat o wewnętrznej niezgodności harmonogramu regionów znaczy, że wspólne przejście `region_walk` nie dostało dziecka węzła albo dostało je w złym miejscu. Porównaj etykietę w analizie własności z miejscem w typie `RegionSite`. Najczęstsza przyczyna przy nowej konstrukcji jest taka, że analiza własności otwiera region, a kod emisji o nim nie wie, albo odwrotnie.
 
-Awaria w `into_int_value` znaczy, że wartość LLVM nie jest liczbą całkowitą. Patrz, jaki typ ma wyrażenie. Napis i liczba zmiennoprzecinkowa na ścieżce `emit_call_with_values` są znanymi ofiarami. Poprawka należy do `coerce_value_to_ty`: dopasowanie wariantu wartości, a dla struktury przekazanie deskryptora bez rzutowania na `i64`. Nie zakrywaj tego łapaniem paniki.
+Awaria w `into_int_value` znaczy, że wartość LLVM nie jest liczbą całkowitą. Historyczna panika na deskryptorze napisu została usunięta przez gałąź `uses_arena_storage()` w `coerce_value_to_ty`; ponowny build i wykonanie listingu z napisem przeszły. Float jako argument funkcji jest jawnie odrzucany. Porównanie floatów ma osobną usterkę: `combine_binary_values` wybiera ścieżkę float według typu wyniku, a porównanie zwraca `bool`, więc operand trafia do `value_as_int` i bieżące odtworzenie panikuje. Nie zakrywaj takich przypadków łapaniem paniki.
 
 Przerwanie procesu użytkownika bez komunikatu kompilatora to zwykle indeks albo dzielenie. Uruchom binarkę pod debuggerem i zobacz, czy stanęła w `abort`. Przepełnienie bufora regionu daje panikę Rusta z tekstem `arena overflow`, bo biblioteka wykonawcza jest pisana w Ruście i ta panika nie jest łapana przez program w Borku.
 
@@ -54,7 +54,7 @@ Nowa instrukcja musi być odwiedzona w analizie ucieczki i w wyniesieniu alokacj
 
 We wspólnym przejściu `region_walk` dochodzi miejsce regionu i punkt pętli `while`, więc oznaczenie pobrania bufora zaczyna widzieć alokacje w ciele. Bez tego wygenerowany kod i raport przestaną pasować do siebie w chwili, gdy ciało alokuje napis.
 
-Pętla `while` nie potrzebuje odmowy w kontroli przed generowaniem kodu, bo emisja ją umie. Nowa konstrukcja, której emisja nie umie, musi dostać odmowę w `src/codegen/gate.rs`, żeby użytkownik dostał komunikat zamiast awarii kompilatora. Lekcją jest napis jako argument funkcji użytkownika. Kontrola go nie zna, a emisja kończy się awarią.
+Pętla `while` nie potrzebuje odmowy w kontroli przed generowaniem kodu, bo emisja ją umie. Nowa konstrukcja, której emisja nie umie, powinna dostać odmowę w `src/codegen/gate.rs`, żeby użytkownik dostał komunikat zamiast awarii kompilatora; trailing closure jest takim przykładem. Przekazanie napisu do funkcji użytkownika nie jest już tym przypadkiem: deskryptor jest przekazywany bez rzutowania na liczbę.
 
 Emisja dokłada bloki podstawowe: nagłówek, ciało, zatrzask, czyszczenie bufora, jeśli region go pobrał, oraz `break` jako skok do bloku wyjścia. Potem test w `tests/build.rs` ma konkretny kod wyjścia. Dla `while` z `break` przy wartości 3 jest to 3.
 
@@ -74,7 +74,7 @@ Nie zaczynaj od LLVM. Dopisz test parsera albo sprawdzania typów, który na cze
 
 Nie zmieniaj `peel_blocks` tylko w jednym z dwóch miejsc.
 
-Nie naprawiaj awarii `into_int_value` przez odrzucenie wszystkich napisów w kontroli, jeśli w `main` napisy działają. To obcięłoby listingi, które są legalne. Wąskie miejsce to rzutowanie argumentu wywołania.
+Nie naprawiaj problemów z argumentami przez odrzucenie wszystkich napisów w kontroli, jeśli w `main` napisy działają. To obcięłoby legalne listingi. Najpierw ustal, czy wartość jest liczbą, floatem, czy deskryptorem, i dodaj test wykonawczy dla ścieżki codegenu.
 
 ## Podsumowanie
 

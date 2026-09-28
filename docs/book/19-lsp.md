@@ -58,7 +58,7 @@ flowchart TD
     budowanie -->|tak| codegen["Kontrola i emisja, ewentualnie faza codegen"]
 ```
 
-Rysunek 18.1 rozdziela milczenie od sukcesu budowania. Kod 0 przy samym `bork` znaczy, że program jest czysty, a nie że powstał plik wykonywalny. Kod 0 przy `bork build` znaczy, że plik powstał, o ile po drodze nie było awarii procesu, takiej jak w rozdziale 17 przy napisie przekazanym do funkcji użytkownika. Ta awaria nie ma linii `error`. Ma kod 101 i ślad, i edytor jej nie podkreśli, bo nie jest diagnostyką.
+Rysunek 18.1 rozdziela milczenie od sukcesu budowania. Kod 0 przy samym `bork` znaczy, że program jest czysty, a nie że powstał plik wykonywalny. Kod 0 przy `bork build` znaczy, że plik powstał. Panika przy przekazaniu napisu z rozdziału 17 pochodzi ze starszego przebiegu i nie jest potwierdzona dla aktualnego `main`; tabela `WYNIKI.md` oznacza ją jako historyczną.
 
 > **NOTA.**
 > Flaga `--dump-arenas` przy budowaniu działa tylko wtedy, gdy sprawdzenie już przeszło. Przy komunikacie z fazy `type` albo `ownership` budowanie kończy się przed emisją, ale samo polecenie `bork --dump-arenas plik.bork` drzewo jeszcze wypisze, bo wydruk nie wymaga czystego wyniku, tylko sparsowanego tekstu.

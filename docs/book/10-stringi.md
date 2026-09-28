@@ -98,7 +98,7 @@ fun main() {
 
 Kompilator nie zgaduje więcej układów niż te dwie sąsiednie instrukcje. Nie ma bufora wyniku, który należałby do funkcji wywołującej. Nie ma `promote` przy `return`. Nawet `concat` stojący w jednej gałęzi warunku nie może być zwrócony.
 
-Osobno, przy budowaniu, poprawne sprawdzenie nie wystarcza, żeby przekazać napis do funkcji użytkownika. Taki program przerywa kompilator. `concat` i `println` są wyjątkiem, bo mają własne fragmenty generowania kodu.
+Przekazanie napisu do funkcji użytkownika jest obsługiwane: deskryptor `{ ptr, i64 }` przechodzi do funkcji bez konwersji na liczbę. To nie znaczy, że obsługiwane są wszystkie typy argumentów; float jako argument funkcji nadal dostaje odmowę codegenu. Ponowne uruchomienie listingu z rozdziału 5 wypisało `hello` i zakończyło się kodem 0.
 
 ## Podsumowanie
 

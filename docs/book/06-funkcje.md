@@ -3,10 +3,11 @@
 ## Ten rozdział obejmuje
 
 - jak zadeklarować funkcję, parametr i typ wyniku
-- kiedy przy argumentie trzeba napisać `move`
+- kiedy przy argumencie trzeba napisać `move`
 - co robią trzy funkcje wbudowane
 - jak dopisać funkcję na końcu wywołania
-- dlaczego napis przekazany do własnej funkcji wywraca budowanie
+- jak zadeklarować parametr pożyczany przez `&T`
+- co generator kodu robi z argumentem napisowym
 
 ## Kształt funkcji
 
@@ -46,11 +47,31 @@ Samotne `return` bez wartości ma typ `unit`. W funkcji o wyniku `i32` dostanies
 
 Nie ma przeciążania. Nazwy funkcji są trzymane w mapie po samym identyfikatorze. Komentarz w `src/sema/env.rs` mówi wprost, że to jest uproszczenie obecnej wersji i że lokalne przesłonięcie wywoływanej funkcji nie jest obsłużone. Wywołanie funkcji zdefiniowanej niżej w pliku działa, bo sygnatury są zbierane z całego programu, zanim sprawdzane są ciała.
 
+## Parametr pożyczany przez `&T`
+
+Typ parametru może jawnie oznaczać pożyczkę. Wywołujący musi wtedy przekazać nazwę przez `&`, a nie oddać jej własność. Wewnątrz funkcji parametr jest stałym widokiem: `&String` pozwala czytać napis, a `&[T; N]` pozwala także zmieniać elementy tablicy właściciela.
+
+**Listing 5.3.** Funkcja zmienia element tablicy przez pożyczony parametr.
+
+```bork
+fun bump(buf: &[i32; 2]) {
+    buf[0] = buf[0] + 1
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    bump(&a)
+    return a[0]
+}
+```
+
+Nie ma `&mut`. To, że `buf` ma typ `val`, nie zabrania modyfikacji elementów przez parametr tablicowy; widok `&String` pozostaje tylko do odczytu. Pożyczonego parametru nie można zwrócić ani zapisać do zmiennej `var`. W zagnieżdżonym `if` lub pętli wolno wykonać bezpośrednie `helper(&buf)`, ale nie wolno przenieść widoku do nowej lokalnej pożyczki w regionie potomnym.
+
 ## Własność na granicy wywołania
 
 Dla wartości, która nie jest kopiowana, analiza własności stosuje prostą tabelę. Stałą nazwę wolno przekazać do parametru stałego. Przekazanie jej do parametru zmiennego wymaga `move`. Zmienną nazwę trzeba przenieść zarówno do parametru stałego, jak i do zmiennego. Literał, wywołanie `concat` i inne wyrażenie, które dopiero tworzy wartość, nie wymaga `move`.
 
-**Listing 5.3.** Literał napisu przekazany do parametru zmiennego. Sprawdzenie przechodzi. Budowanie przerywa kompilator.
+**Listing 5.4.** Literał napisu przekazany do parametru zmiennego.
 
 ```bork
 fun f(var a: String) {
@@ -62,11 +83,11 @@ fun main() {
 }
 ```
 
-Brak słowa `move` jest zgodny z regułą sprawdzania. Świeży literał nie jest nazwą, którą trzeba przenieść. Generator kodu tej reguły nie dotrzymuje. Proces `bork build` kończy się kodem 101. Ślad wskazuje `src/codegen/llvm/expr.rs`, funkcję `value_as_int`, i mówi, że znaleziono strukturę, a oczekiwano liczby całkowitej. Ta sama awaria występuje przy `f(move s)` oraz przy przekazaniu stałego napisu do parametru funkcji użytkownika. `println` i `concat` działają, bo mają własne fragmenty generatora, a nie ogólną ścieżkę argumentu. Dopóki ta dziura istnieje, funkcja, która ma przejść przez `bork build`, powinna przyjmować i zwracać liczby. Napisy zostawiaj w `main` i przekazuj je do `print`, `println` albo `concat`.
+Brak słowa `move` jest zgodny z regułą sprawdzania: świeży literał nie jest nazwą, którą trzeba przenieść. Historyczny przebieg z wcześniejszej wersji kompilatora kończył się paniką `into_int_value`. Bieżący listing zbudowałem i uruchomiłem ponownie: sprawdzenie i budowanie zakończyły się kodem 0, program wypisał `hello` i zakończył się kodem 0. Tabela w `WYNIKI.md` zachowuje stary wynik jako historyczny.
 
 Zwrócenie napisu, który już żyje na poziomie funkcji, sprawdzenie i budowanie akceptują.
 
-**Listing 5.4.** Zwrot lokalnego napisu i jego wypisanie. Program został uruchomiony. Na wyjściu jest `hi` oraz nowy wiersz.
+**Listing 5.5.** Zwrot lokalnego napisu i jego wypisanie. Program został uruchomiony. Na wyjściu jest `hi` oraz nowy wiersz.
 
 ```bork
 fun shout(): String {
@@ -79,7 +100,7 @@ fun main() {
 }
 ```
 
-Zapis `return "hi"` też działa i daje ten sam wydruk. Zapis `return name` dla parametru przechodzi sprawdzenie. Wywołanie `println(greet("Ada"))`, w którym `greet` przyjmuje napis, znowu przerywa kompilator na argumencie, nie na instrukcji `return`.
+Zapis `return "hi"` też działa i daje ten sam wydruk. Zapis `return name` dla parametru przechodzi sprawdzenie. Warto odróżnić te przypadki od świeżego wyniku `concat`, którego zwrot nadal blokuje analiza ucieczki.
 
 Zapis `return concat("a", "b")` jest odrzucany przy sprawdzaniu. Komunikat nie ma numeru linii:
 
@@ -95,7 +116,7 @@ Trzy nazwy nie są funkcjami, które wolno zdefiniować. Próba deklaracji jest 
 
 `print` wypisuje jeden argument i opróżnia bufor wyjścia. `println` robi to samo i dodaje nowy wiersz. Argumentem może być `i32`, `i64` albo napis, chociaż w wewnętrznej tabeli sygnatura nominalna mówi o jednym `i32`. To jest specjalny przypadek, nie ogólna zasada, że każdy parametr `i32` przyjmie napis. `concat` przyjmuje dwa napisy i zwraca jeden nowy. Bufor wyniku powstaje w arenie miejsca, do którego wynik jest zapisywany. Gdy takiego miejsca nie ma, powstaje w arenie bieżącego bloku.
 
-**Listing 5.5.** Kolejność wypisywania. Program został uruchomiony. Na wyjściu jest dokładnie cyfra 1, nowy wiersz, słowo `tail` i cyfra 7, bez końcowego nowego wiersza.
+**Listing 5.6.** Kolejność wypisywania. Program został uruchomiony. Na wyjściu jest dokładnie cyfra 1, nowy wiersz, słowo `tail` i cyfra 7, bez końcowego nowego wiersza.
 
 ```bork
 fun main() {
@@ -109,7 +130,7 @@ fun main() {
 
 Ostatni argument może być blokiem stojącym po nawiasie wywołania. Parametry tego bloku zapisuje się przed strzałką `->`.
 
-**Listing 5.6.** Ostatni parametr ma typ funkcji. Sprawdzenie przechodzi. Budowanie odrzuca konstrukcję.
+**Listing 5.7.** Ostatni parametr ma typ funkcji. Sprawdzenie przechodzi. Budowanie odrzuca konstrukcję.
 
 ```bork
 fun action(a: Int, b: Int, block: (Int, Int) -> Int): Int {
@@ -140,15 +161,16 @@ Wnioskowanie, które nazwy przenieść, nie patrzy na wyrażenia `move nazwa` i 
 
 ## Co z tego wynika dla programów, które mają się zbudować
 
-Ciało wywołanej funkcji ma własne regiony. Argumenty są liczone w regionie wywołującego. Wynik liczbowy wraca w rejestrze. Wynik napisowy nie dostaje dziś bufora należącego do wywołującego, dlatego analiza ucieczki zabrania zwrócić napis utworzony w regionie tej funkcji. Listing 5.4 działa, bo napis `"hi"` jest literałem albo wartością na poziomie funkcji, a `println` tylko czyta adres i długość.
+Ciało wywołanej funkcji ma własne regiony. Argumenty są liczone w regionie wywołującego. Wynik liczbowy wraca w rejestrze. Wynik napisowy nie dostaje dziś bufora należącego do wywołującego, dlatego analiza ucieczki zabrania zwrócić napis utworzony w regionie tej funkcji. Listing 5.5 działa, bo napis `"hi"` jest literałem albo wartością na poziomie funkcji, a `println` tylko czyta adres i długość.
 
-> **WSKAZÓWKA.** W programie, który ma przejść przez `bork build`, trzymaj funkcje przy liczbach, a napisy wypisuj z `main`. To nie jest zalecenie na zawsze, tylko obejście błędu w funkcji `coerce_value_to_ty`, która wartość inną niż `bool` próbuje potraktować jako liczbę całkowitą. Liczba zmiennoprzecinkowa na części ścieżek dostaje komunikat, że nie jest obsługiwana, a napis kończy się awarią kompilatora.
+> **WSKAZÓWKA.** Nie wszystkie ograniczenia wywołań są takie same. Aktualny kod ma ścieżkę przekazywania deskryptorów `String`, ale float jako argument funkcji jest nadal odrzucany w `coerce_value_to_ty`. Nie traktuj historycznej paniki na napisie jako aktualnej reguły języka.
 
 ## Podsumowanie
 
 - Wynik funkcji zapisuje się słowem `return`. Brak powrotu na którejś ścieżce jest błędem typu.
 - Parametr bez `val` i bez `var` jest stały. Parametr zmienny wymaga `move`, gdy przekazuje się istniejącą nazwę wartości niekopiowanej.
-- Świeży literał nie wymaga `move`, ale napis jako argument funkcji użytkownika wywraca budowanie.
+- Świeży literał nie wymaga `move`. Deskryptor napisu jest przekazywany do funkcji użytkownika; float jako argument funkcji jest odrzucany osobną diagnostyką codegenu.
+- Parametr `&T` jawnie pożycza niekopiowaną wartość; wywołanie wymaga `&nazwa`.
 - `print`, `println` i `concat` są wbudowane. Nie wolno ich zadeklarować ponownie.
 - Funkcja dopisana na końcu wywołania jest sprawdzana i nie jest tłumaczona na kod maszynowy.
 - Analiza własności nie zna typów parametrów takiej funkcji, więc drzewo regionów potrafi pokazać współdzielenie tam, gdzie typ jest kopiowany.

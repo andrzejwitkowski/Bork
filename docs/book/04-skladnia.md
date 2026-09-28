@@ -117,6 +117,24 @@ Program został zbudowany. Wynik wynosi 3, więc kod wyjścia też wynosi 3. Zam
 
 Poza nawiasami okrągłymi nowa linia jest znacząca. Nie ma reguły, która ciągnęłaby wyrażenie do następnego wiersza tylko dlatego, że wiersz skończył się operatorem.
 
+## Znak `&` w ograniczonym pożyczaniu
+
+Znak `&` występuje w dwóch miejscach. W typie zapisuje się nim pożyczony parametr, na przykład `buf: &[i32; 2]`. W wyrażeniu `&nazwa` tworzy widok na istniejącą, niekopiowaną nazwę; nie przenosi jej i nie kopiuje zawartości.
+
+```bork
+fun bump(buf: &[i32; 2]) {
+    buf[0] = buf[0] + 1
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    bump(&a)
+    return a[0]
+}
+```
+
+Parametr typu `&T` wymaga `&nazwa` przy wywołaniu. Pożyczka jest dozwolona w parametrach i stałych `val`, ale nie w `var`; nie można jej zwrócić z funkcji. `&` przyjmuje nazwę, nie dowolne wyrażenie. Dalsze reguły, w tym różnica między `&String` a `&[T; N]`, są w rozdziałach 4, 5, 7 i 8.
+
 ## Czego w składni nie ma
 
 Trzy zapisy, które wyglądają naturalnie, jeśli przychodzisz z innego języka, kończą się błędem fazy `parse` i kodem wyjścia jeden.
@@ -130,4 +148,4 @@ Słowo `struct` na początku pliku daje komunikat, że oczekiwano nowej linii al
 - Nazwa wprowadzona przez `val` nie przyjmuje późniejszego przypisania. Nazwa wprowadzona przez `var` przyjmuje. Nazwa w bloku może przesłonić nazwę zewnętrzną i w swoim inicjalizatorze może ją jeszcze odczytać.
 - Kilka par nawiasów, które tylko owijają jeden blok, składa się na jeden region.
 - Wewnątrz nawiasów okrągłych nowa linia jest odstępem. Poza nimi rozdziela instrukcje.
-- Nie ma struktur, modułów ani jednoargumentowego minusa.
+- Nie ma struktur, modułów ani jednoargumentowego minusa. `&` nie oznacza ogólnych referencji takich jak w Ruście; jest ograniczonym zapisem pożyczki opisanym wyżej.

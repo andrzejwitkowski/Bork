@@ -5,7 +5,7 @@ Liczbę całkowitą wolno przeczytać wiele razy, bo odczyt nic nie zabiera. Nap
 Ten rozdział obejmuje
 
 - pytanie, na które odpowiada analiza własności, i co psuje się w programie, gdy odpowiedzi brakuje,
-- cztery odpowiedzi, które kompilator może dać o odczycie nazwy, oraz kiedy która obowiązuje,
+- klasyfikacje odczytu nazwy oraz jawne pożyczanie przez `&nazwa`,
 - zakaz przenoszenia nazwy z zewnątrz pętli do jej wnętrza,
 - to, jak instrukcja `if` scala ślady przeniesienia z obu gałęzi,
 - miejsce w źródłach, do którego warto zajrzeć po przeczytaniu reguł, a nie zamiast nich.
@@ -16,10 +16,12 @@ Pytanie tej fazy brzmi, co wolno zrobić z nazwą w miejscu, w którym tekst jej
 
 Analiza nie przydziela pamięci i nie woła funkcji wykonawczych. Buduje raport regionów, czyli drzewo, którego korzeniami są funkcje, a dziećmi bloki, pętle i gałęzie warunku. Przy nazwie zapisuje, jak została użyta. Region w tym raporcie nie jest buforem o stałej pojemności. Bufor, jeśli w ogóle powstanie, jest decyzją późniejszą, opisaną w rozdziale 16. Tutaj region jest tylko zakresem, w którym nazwa została zadeklarowana albo odczytana, i etykietą, którą zobaczysz w wydruku, na przykład `fun main` albo `Block`.
 
-<!-- figura: Rysunek 14.1. Cztery odpowiedzi kompilatora o odczycie nazwy -->
+<!-- figura: Rysunek 14.1. Goły odczyt nazwy i jawna pożyczka -->
 ```mermaid
 flowchart TD
-    odczyt["Odczyt nazwy"] --> przeniesiona{"Nazwa już przeniesiona"}
+    odczyt["Użycie nazwy"] --> jawne{"Zapisano jawne &nazwa?"}
+    jawne -->|tak| pozyczka["Borrow: widok, właściciel zostaje żywy"]
+    jawne -->|nie| przeniesiona{"Nazwa już przeniesiona"}
     przeniesiona -->|tak| blad["Odmowa: użycie po przeniesieniu"]
     przeniesiona -->|nie| tenSam{"Ten sam region co deklaracja"}
     tenSam -->|tak| lokalna["Użycie lokalne"]
@@ -30,11 +32,11 @@ flowchart TD
     val -->|nie| move["Odmowa: trzeba przenieść przez move"]
 ```
 
-Rysunek 14.1 jest całą polityką odczytu, skróconą do pytań, które naprawdę zmieniają wynik. Kopiują się nienullowalne typy pierwotne, takie jak `i32`, `i64`, `f64` i `bool`. Napis, tablica i typ z pytajnikiem się nie kopiują. Typ, którego ta analiza nie dostała z kolejki typów deklaracji, też nie jest traktowany jak kopia, nawet jeśli sprawdzanie typów w swoim drzewie widzi liczbę. Ten rozjazd dotyczy parametrów funkcji dopisanej na końcu wywołania i wraca w rozdziale 15. W zwykłym `main`, przy deklaracjach z kolejki, oba opisy się zgadzają.
+Rysunek 14.1 rozdziela zwykły odczyt od jawnej pożyczki. Dla gołej nazwy obowiązuje dotychczasowa reguła: kopiowanie, współdzielenie albo przeniesienie. Zapis `&nazwa` jest osobną operacją, oznaczaną w raporcie jako `Borrow`: widok nie zabiera właścicielowi nazwy ani danych. Analiza typów dopuszcza ją tylko dla wartości niekopiowanych i w kontekstach opisanych w rozdziale 15. Kopiują się nienullowalne typy pierwotne, takie jak `i32`, `i64`, `f64` i `bool`; napis, tablica i typ z pytajnikiem się nie kopiują. Typ, którego ta analiza nie dostała z kolejki typów deklaracji, też nie jest traktowany jak kopia, nawet jeśli sprawdzanie typów w swoim drzewie widzi liczbę. Ten rozjazd dotyczy parametrów funkcji dopisanej na końcu wywołania i wraca w rozdziale 15.
 
-## Cztery odpowiedzi i jeden ślad w wydruku
+## Goły odczyt, pożyczka i ślad w wydruku
 
-Pytanie, które tu warto rozebrać na przykładzie, brzmi, jak te cztery odpowiedzi wyglądają w programie, a nie w diagramie. Weźmy najpierw odczyt, który jest legalny, bo niezmienny napis z `main` jest tylko czytany w bloku wewnętrznym. To jest plik `10-shared.bork` z zestawu przykładów. Sprawdzenie kończy się kodem 0, a wydruk pokazuje współdzielenie, nie przeniesienie.
+Pytanie, które tu warto rozebrać na przykładzie, brzmi, jak klasyfikacja zwykłego odczytu wygląda w programie, a nie w diagramie. Weźmy najpierw odczyt, który jest legalny, bo niezmienny napis z `main` jest tylko czytany w bloku wewnętrznym. To jest plik `10-shared.bork` z zestawu przykładów. Sprawdzenie kończy się kodem 0, a wydruk pokazuje współdzielenie, nie przeniesienie.
 
 **Listing 14.1.** Niezmienny napis czytany w bloku wewnętrznym
 
@@ -79,7 +81,23 @@ Arenas
 
 Komunikat mówi wprost, co zrobić. Trzeba napisać `val t = move s`, i wtedy własność przechodzi do `t`, a `s` jest od tej pory zużyte. Drugi odczyt `s` po takim przeniesieniu dostaje osobną odmowę, tę o użyciu po przeniesieniu, którą listing 12.2 już pokazał na dodawaniu. Wydruk przy błędzie i tak powstaje, bo tekst się sparsuje. Nie wolno go czytać jako zgody na budowanie. Kod wyjścia jest 1, a reprezentacji pośredniej w wyniku nie ma.
 
-Pozostałe odmowy odczytu działają według tego samego rysunku. Użycie nazwy, której nie zadeklarowano, jest błędem własności o nieznanej nazwie. Przeniesienie nazwy, która już została przeniesiona, mówi, skąd poszło pierwsze przeniesienie. Pełna lista komunikatów jest w `classify_use` i w funkcjach obok, w pliku `src/sema/policy.rs`, i nie wnosi nowych pytań ponad te z rysunku.
+Pozostałe odmowy odczytu działają według tego samego rysunku. Użycie nazwy, której nie zadeklarowano, jest błędem własności o nieznanej nazwie. Przeniesienie nazwy, która już została przeniesiona, mówi, skąd poszło pierwsze przeniesienie. Pełna lista komunikatów jest w `classify_use` i w funkcjach obok, w pliku `src/sema/policy.rs`.
+
+Jawna pożyczka jest używana przede wszystkim przy parametrze `&T`. Wtedy deklaracja funkcji mówi, że wywołujący zachowuje własność, a argument musi mieć postać `&nazwa`. Raport zapisuje krawędź `Borrow`; zwykły odczyt nazwy `var` bez `&` nadal wymaga `move` albo daje błąd.
+
+```bork
+fun bump(buf: &[i32; 2]) {
+    buf[0] = buf[0] + 1
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    bump(&a)
+    return a[0]
+}
+```
+
+Pożyczkę można ponowić bezpośrednio przy wywołaniu w `if`, `while` albo `for`, na przykład `inner(&buf)`. Nie można zapisać jej do nowej pożyczki w regionie potomnym (`val view = &buf`), bo widok nie może przeżyć regionu, w którym powstał. To jest wąska reguła regionowa, a nie pełny borrow checker Rusta.
 
 > **NOTA.**
 > Słowo region w tym rozdziale znaczy węzeł raportu, a nie bufor wykonawczy o pojemności 4096 bajtów. Ten drugi byt też bywa w kodzie nazywany areną i jest opisany przy bibliotece wykonawczej. Wydruk `--dump-arenas` pokazuje węzły raportu, czyli zakresy nazw, a nie zawartość bufora.
@@ -140,11 +158,11 @@ fun main() {
 
 Przeniesienie tylko w jednej gałęzi, przy nieszkodliwej drugiej, nie zostawia nazwy zużytej za warunkiem, i kolejne `move` po takim `if` przechodzi sprawdzenie. Instrukcja `if` bez `else` jest jeszcze ostrożniejsza w drugą stronę. Ślad przeniesienia z samej gałęzi nie jest przenoszony do kodu za warunkiem, więc nazwa po jednostronnym `if` zostaje w stanie sprzed tej instrukcji. To jest reguła scalania, a nie pozwolenie, żeby w gałęzi użyć nazwy już wcześniej przeniesionej. Jeśli nazwa była zużyta, zanim warunek się zaczął, po warunku też jest zużyta.
 
-Na końcu zostaje mapa do kodu, już po regułach, a nie zamiast nich. Wejście analizy to `analyze_with_decl_tys` w `src/sema/analyze.rs`, wołane z `check` po sprawdzeniu typów, bo potrzebuje kolejki typów deklaracji. Cztery odpowiedzi o odczycie liczy `classify_use` w `src/sema/policy.rs`. Scalanie śladu po `if` jest w `apply_moved_merge` w `src/sema/env.rs`. Zagnieżdżony blok, w którym jedyną instrukcją jest kolejny blok, jest spłaszczany przez `peel_blocks` w `src/sema/mod.rs`, żeby puste owinięcie klamrami nie tworzyło osobnego regionu. Wydruk, który widziałeś w listingach, składa `src/dump.rs`.
+Na końcu zostaje mapa do kodu, już po regułach, a nie zamiast nich. Wejście analizy to `analyze_with_decl_tys` w `src/sema/analyze.rs`, wołane z `check` po sprawdzeniu typów, bo potrzebuje kolejki typów deklaracji. Klasyfikację gołego odczytu liczy `classify_use` w `src/sema/policy.rs`; pożyczki odnotowuje `note_borrow` w `src/sema/walk.rs`. Scalanie śladu po `if` jest w `apply_moved_merge` w `src/sema/env.rs`. Zagnieżdżony blok, w którym jedyną instrukcją jest kolejny blok, jest spłaszczany przez `peel_blocks` w `src/sema/mod.rs`, żeby puste owinięcie klamrami nie tworzyło osobnego regionu. Wydruk, który widziałeś w listingach, składa `src/dump.rs`.
 
 ## Podsumowanie
 
-- Analiza własności odpowiada, czy odczyt nazwy jest lokalny, jest kopią, jest współdzieleniem, czy wymaga przeniesienia, bo bez tego generator nie wie, kto trzyma napis.
+- Analiza własności rozróżnia użycie lokalne, kopię, współdzielenie, przeniesienie i jawne `Borrow`; pożyczka nie odbiera właścicielowi nazwy.
 - Kopiują się nienullowalne typy pierwotne, a napis, tablica i typ z pytajnikiem wymagają albo współdzielenia niezmiennej nazwy, albo jawnego `move`.
 - Po przeniesieniu nazwy drugi odczyt jest odrzucany, a przeniesienie nazwy zadeklarowanej poza pętlą jest odrzucane od razu, bo kolejny obrót nie miałby już czego przenieść.
 - Po `if` z `else` nazwa jest zużyta za warunkiem tylko wtedy, gdy przeniosły ją obie gałęzie albo była zużyta już wcześniej, a samo `if` bez `else` nie wynosi śladu przeniesienia na zewnątrz.

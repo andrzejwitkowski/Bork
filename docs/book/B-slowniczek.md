@@ -6,6 +6,8 @@ Każde hasło jest zdaniem albo krótkim akapitem. Angielski termin z kodu podaj
 
 **Analiza własności.** Przejście w katalogu `src/sema`, które buduje drzewo regionów i decyduje, czy nazwę wolno skopiować, współdzielić albo trzeba przenieść. Po angielsku semantic analysis. Nie przydziela buforów.
 
+**Pożyczka (`Borrow`).** Jawny, regionowy widok zapisany jako `&nazwa` i opisany typem `&T`. Nie kopiuje wartości ani nie zabiera jej właścicielowi. Działa dla ograniczonego zestawu kontekstów; nie można zwracać pożyczek ani przechowywać ich w polach.
+
 **Arena.** Bufor jednego regionu, o pojemności 4096 bajtów, z przesuwającym się wskaźnikiem. W źródłach ta sama nazwa oznacza jeszcze węzeł drzewa regionów, `ArenaNode`. To nie jest ten sam obiekt. Rozdział 2 i rozdział 14 rozdzielają te znaczenia.
 
 **Drzewo składni.** Nietypowany wynik parsera, w kodzie AST, od angielskiego abstract syntax tree. Definicja jest w `src/ast.rs`.
@@ -34,7 +36,7 @@ Każde hasło jest zdaniem albo krótkim akapitem. Angielski termin z kodu podaj
 
 **Typ nieznany.** Typ w reprezentacji pośredniej, który nie ma odpowiednika w składni. Tłumi część dalszych komunikatów o typie. Nie jest kopiowalny. W kodzie `Unknown`.
 
-**Wartość pusta.** Typ z dopiskiem `?`. Sprawdzanie typów ją rozumie. Generowanie kodu jej nie tłumaczy.
+**Wartość nullable.** Typ z dopiskiem `?`. Codegen obsługuje napisy i typy proste poza `unit`; nullable tablice odrzuca sprawdzanie typów, a typy funkcji i `unit?` nie mają reprezentacji.
 
 **Współdzielenie.** Odczyt stałej, której nie wolno skopiować, z regionu zewnętrznego. Region wewnętrzny nie kopiuje treści napisu i nie unieważnia nazwy. W wydruku drzewa znacznik to `Shared`.
 

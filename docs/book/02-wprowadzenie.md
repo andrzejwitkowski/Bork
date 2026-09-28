@@ -128,7 +128,7 @@ fun main(): i32 {
 
 To jest prawdziwy fragment języka, a nie martwa reguła gramatyki. Sprawdzanie typów kontroluje liczbę parametrów funkcji dopisanej na końcu i typ jej wyniku. Analiza własności buduje dla niej osobny region. Generator kodu zatrzymuje się wcześniej i wypisuje `trailing closures are not supported by codegen`.
 
-> **OSTRZEŻENIE.** Nie każdy program odrzucony przy budowaniu dostaje taki komunikat. Przekazanie napisu do funkcji napisanej przez programistę przechodzi sprawdzenie, a potem proces kompilatora przerywa się awaryjnie, z kodem 101 i śladem stosu Rusta. Funkcje wbudowane `println` i `concat` tego nie robią. Rozdział 5 i rozdział 17 opisują tę różnicę na konkretnych plikach.
+> **OSTRZEŻENIE.** Nie każdy program odrzucony przy budowaniu dostaje taki komunikat. Przekazanie napisu do funkcji napisanej przez programistę buduje się i działa; osobnym błędem codegenu jest float jako argument funkcji, który jest jawnie odrzucany. Porównanie floatów przechodzi sprawdzenie, ale może wywołać panikę kompilatora. Rozdziały 5 i 17 opisują te przypadki.
 
 ## Drzewo regionów, zanim wyjaśnimy regiony
 

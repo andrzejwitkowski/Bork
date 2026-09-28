@@ -358,9 +358,9 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 `bork build` lowers a checked program to a native executable only for a subset of the frontend. Linked objects are optimized with LLVM **`-O3`** by default. Runtime arenas use a **per-thread** slab pool (no global lock on push/pop).
 
-Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures.
+Supported: integer arithmetic and comparisons, floating-point arithmetic, nullable `String?` and primitive values except `unit?` (including `Some`, `None`, `?:`, `!!`, equality, and safe `.length` on nullable strings), `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures. Float arguments to user functions are rejected by codegen. The type checker accepts floating-point comparisons, but codegen routes their operands through integer emission because the comparison result is `bool`, causing a compiler panic.
 
-Rejected by codegen (the frontend still accepts them): trailing closures, `None`, `Some`, `!!`, `?:`, and field access other than `.length` on `String` or `[T; N]`.
+Rejected: the type checker rejects nullable arrays; codegen rejects nullable `unit` and function values, and it rejects indirect calls, trailing closures, and unsupported field access. Nullable constructors and operators are not generally rejected: their lowerings work for supported nullable types.
 
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 

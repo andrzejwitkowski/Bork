@@ -103,6 +103,23 @@ fun main(): i32 {
 
 Pozostałe odmowy tej fazy są tego samego rodzaju. Warunek pętli albo `if` musi być `bool`, zwrot musi pasować do typu funkcji, a dwa operandy dodawania muszą być tym samym typem liczbowym. Lista operatorów nie wnosi tu nowego mechanizmu. Gdy typy operandów się rozmijają, komunikat podaje oba, tak jak przy dodawaniu liczby do napisu, i na tym kończy się ta gałąź. Pełne zestawienie miejsc, w których typ oczekiwany jest porównywany z typem zastanym, jest w `src/typeck/stmt.rs` i w katalogu `src/typeck/expr/`.
 
+## Typ pożyczki `&T`
+
+Typ `&T` oznacza widok na istniejącą wartość niekopiowaną. Typy proste, takie jak `i32`, są kopiowalne i nie można ich pożyczyć. Pożyczony parametr musi być `val`, a lokalny widok można związać tylko przez `val`; `var p: &T` jest odrzucany. Typy nullable-reference także nie są obsługiwane, a zwrot pożyczki blokuje analiza ucieczki.
+
+```bork
+fun bump(buf: &[i32; 2]) {
+    buf[0] = 1
+}
+
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    bump(&a)
+}
+```
+
+Typ parametru wymusza jawne `&` przy wywołaniu. Samo `bump(a)` nie jest skrótem dla pożyczki ani dla przeniesienia; checker wymaga argumentu pożyczającego. W przypadku `&[T; N]` funkcja może przypisywać do `buf[i]`, co zmienia bufor właściciela. To szczególna reguła Borka: nie ma `&mut`, ale modyfikacja elementów tablicy przez pożyczony parametr jest dozwolona.
+
 > **NOTA.**
 > Sprawdzanie typów nie pyta, czy nazwę wolno skopiować albo przenieść. Wyrażenie `move` i promocja zapisana w tekście stają się w reprezentacji pośredniej zwykłą nazwą z dopiskiem, jakiego użycia sprawdzanie się dopatrzyło. Odmowę, że nazwa została użyta po przeniesieniu, zgłasza analiza z rozdziału 14, nawet jeśli typ tego wyrażenia jest poza tym w porządku.
 
@@ -119,5 +136,6 @@ Na końcu zostaje mapa do kodu. Wejście fazy to `check` w `src/typeck/mod.rs`. 
 - Sprawdzanie typów wpisuje typ przy każdym wyrażeniu i odrzuca miejsce, w którym typ zastany nie pasuje do oczekiwanego, bo generator kodu nie powinien tego zgadywać sam.
 - Literał liczby przyjmuje typ liczbowy oczekiwany przez otoczenie, a w braku takiego otoczenia zostaje `i32`, więc `f(1)` przy parametrze `i64` przechodzi, a nazwa zadeklarowana jako gołe `1` już nie.
 - Pusta tablica bez adnotacji i drugi zapis do `val` są odrzucane także wtedy, gdy reszta otoczenia ma jasny typ, bo kompilator nie dopisuje długości tablicy ani nie zdejmuje niezmienności.
+- `&T` może opisywać parametr lub stały widok na niekopiowaną wartość; wymaga jawnego `&nazwa` przy wywołaniu.
 - Ta faza nie rozstrzyga własności, tylko zapisuje rodzaj użycia nazwy w reprezentacji pośredniej, a odmowy o przeniesieniu zostawia analizie z poprzedniego rozdziału.
 - Reprezentacja pośrednia trafia do wyniku przebiegu tylko przy pustej liście komunikatów, natomiast kolejka typów deklaracji jest budowana zawsze i zasila analizę własności.

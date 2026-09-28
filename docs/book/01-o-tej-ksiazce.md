@@ -32,9 +32,9 @@ Kod Borka jest w blokach oznaczonych `bork`, a kod Rusta, który jest częścią
 
 ## Czego książka nie obiecuje
 
-W tej wersji Bork nie ma modułów, polecenia `import`, pakietów ani przestrzeni nazw, nie ma też struktur, wyliczeń definiowanych przez programistę, cech ani typów ogólnych. Nie ma wyjątków ani jednoargumentowego minusa, więc nie zapiszesz literału ujemnego, a instrukcji nie rozdziela się średnikiem. Nie ma garbage collectora ani referencji w stylu `&` i `&mut` z Rusta, nie ma też interpretera, trybu `bork run` ani debuggera. Generator kodu nie tłumaczy funkcji dopisanej na końcu wywołania, wartości `Some` i `None`, operatora `?:` ani asercji `!!`.
+W tej wersji Bork nie ma modułów, polecenia `import`, pakietów ani przestrzeni nazw, nie ma też struktur, wyliczeń definiowanych przez programistę, cech ani typów ogólnych. Nie ma wyjątków ani jednoargumentowego minusa, więc nie zapiszesz literału ujemnego, a instrukcji nie rozdziela się średnikiem. Nie ma garbage collectora ani ogólnego systemu referencji w stylu Rusta: `&T` jest ograniczone do parametrów i stałych widoków, nie można zwracać takich referencji ani przechowywać ich w polach. Nie ma też interpretera, trybu `bork run` ani debuggera. Generator kodu nie tłumaczy funkcji dopisanej na końcu wywołania, wartości `Some` i `None`, operatora `?:` ani asercji `!!`.
 
-Napis przekazany do funkcji napisanej przez programistę jest akceptowany przy sprawdzaniu, ale przy budowaniu kompilator przerywa pracę awaryjnie. To błąd kompilatora, a nie reguła języka, i rozdział 17 pokazuje miejsce w kodzie.
+Starsze wyniki uruchomień w dodatku C pochodzą sprzed obsługi deskryptorów napisów w argumentach funkcji. Obecny kod ma ścieżkę przekazującą deskryptor, ale dopóki przykład nie zostanie ponownie zbudowany z opcją `codegen`, książka nie podaje nowego wyniku wykonania.
 
 ## O źródłach tej książki
 
