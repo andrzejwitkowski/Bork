@@ -67,9 +67,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     fn emit_skipped(&mut self, expr: &HirExpr) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         if self.walk_driver_active() {
             let ptr = self.codegen_driver_ptr();
+            let depth = self.walk.eval_stack.len();
             super::emit_fn::FnEmitter::codegen_driver_mut(ptr)
                 .walk_expr(self, expr)
                 .map_err(super::region_walk_codegen_error)?;
+            self.walk.eval_stack.truncate(depth);
             self.walk
                 .trailing
                 .take()
@@ -596,6 +598,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         ty: &Ty,
         span: Option<crate::span::Span>,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
+        if !value.is_int_value() {
+            return Err(not_yet_supported("integer operand", span));
+        }
         let int = value.into_int_value();
         let target = self
             .cx

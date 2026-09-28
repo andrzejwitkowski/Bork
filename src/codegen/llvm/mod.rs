@@ -356,4 +356,21 @@ mod tests {
     fn value_if_as_right_operand_adds_phi_not_else_literal() {
         add_uses_if_phi_and_forty("fun main(): i32 { return 40 + (if (true) { 1 } else { 2 }) }\n");
     }
+
+    #[test]
+    fn elvis_as_right_operand_adds_phi_not_skipped_rhs() {
+        let ir = ir_of("fun main(): i32 {\n    val a: i32? = None\n    return 40 + (a ?: 2)\n}\n");
+        let add = ir
+            .lines()
+            .find(|line| line.contains(" add "))
+            .unwrap_or_else(|| panic!("expected an add:\n{ir}"));
+        assert!(
+            add.contains("40"),
+            "add must use the sibling operand 40, not the skipped elvis rhs:\n{add}\n{ir}"
+        );
+        assert!(
+            add.contains("elvis"),
+            "add must use the elvis phi:\n{add}\n{ir}"
+        );
+    }
 }
