@@ -25,6 +25,10 @@ pub fn analyze_with_decl_tys(
             f.name.clone(),
             f.params.iter().map(|p| p.kind).collect(),
         );
+        az.fun_param_tys.insert(
+            f.name.clone(),
+            f.params.iter().map(|p| p.ty.clone()).collect(),
+        );
     }
     let roots = program
         .functions

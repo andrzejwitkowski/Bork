@@ -104,7 +104,7 @@ pub(super) fn check_index(
 ) -> HirExpr {
     let receiver_hir = check(receiver, None, return_ty, env);
     let index_hir = check(index, Some(&Ty::i32()), return_ty, env);
-    let elem_ty = if receiver_hir.ty.is_array() {
+    let elem_ty = if receiver_hir.ty.array_elem().is_some() {
         receiver_hir
             .ty
             .array_elem()

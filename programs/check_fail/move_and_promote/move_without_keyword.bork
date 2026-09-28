@@ -1,0 +1,7 @@
+// diag: move
+fun take(var s: String) {}
+
+fun main() {
+    var s: String = "x"
+    take(s)
+}

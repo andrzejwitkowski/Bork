@@ -1,0 +1,7 @@
+// stdout: hi\n
+fun main() {
+    var s = "hi"
+    move (s) {
+        println(s)
+    }
+}

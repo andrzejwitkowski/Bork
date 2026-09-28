@@ -2,6 +2,7 @@
 
 pub(super) mod array;
 mod binary;
+mod borrow;
 mod call;
 mod control;
 mod field;
@@ -64,6 +65,19 @@ pub(super) fn check(
             Ty::string(false),
         ),
         Expr::Ident { name, span } => check_ident(name, *span, UseKind::Local, env),
+        Expr::Unary {
+            op: UnaryOp::Borrow,
+            expr,
+            span,
+        } => match expr.as_ref() {
+            Expr::Ident { name, span: name_span } => {
+                borrow::check_borrow(name, *name_span, *span, expected, env)
+            }
+            _ => {
+                env.error("`&` borrows a name", Some(*span));
+                HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span)
+            }
+        },
         Expr::Move { name, span } => check_ident(name, *span, UseKind::Move, env),
         Expr::Promote { name, span } => check_ident(name, *span, UseKind::Promote, env),
         Expr::None { span } => {
@@ -187,7 +201,10 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
         );
     };
     let ty = binding.ty.clone();
-    let use_kind = if requested == UseKind::Move || requested == UseKind::Promote {
+    let use_kind = if requested == UseKind::Move
+        || requested == UseKind::Promote
+        || requested == UseKind::Borrow
+    {
         requested
     } else if ty.is_copy() {
         UseKind::Copy

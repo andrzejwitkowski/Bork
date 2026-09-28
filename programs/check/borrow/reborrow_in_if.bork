@@ -1,0 +1,14 @@
+fun inner(a: &[i32; 2]) {
+    a[0] = 9
+}
+
+fun outer(a: &[i32; 2], flag: bool) {
+    if (flag) {
+        inner(&a)
+    }
+}
+
+fun main() {
+    var x: [i32; 2] = [1, 2]
+    outer(&x, true)
+}

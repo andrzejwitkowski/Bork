@@ -1,11 +1,14 @@
 //! Region frame and move-capture resolution.
 
-use super::env::{bind, bind_with, BindingOrigin, restore_shadows, Analyzer, Shadow, Ty};
+use super::env::{bind_with, BindingOrigin, restore_shadows, Analyzer, Shadow, Ty};
 use super::free_vars::free_vars_in_block;
 use super::policy::{move_source, report_move_source_err};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{BindingKind, Block};
 use crate::span::{Span, SpannedName};
+
+/// LSP/dump label for `&T` parameters (borrow active for the callee body; owner is at the call site).
+pub(super) const REF_PARAM_BORROW_FROM: &str = "call site";
 
 pub(super) struct RegionParam {
     pub(super) name: String,
@@ -40,17 +43,28 @@ impl RegionFrame {
     pub(super) fn bind_param(&mut self, az: &mut Analyzer, param: &RegionParam) {
         let label = self.node.label.clone();
         let id = self.node.id;
-        self.shadows.push(bind(
+        let origin = match &param.ty {
+            Ty::Known(ty) if ty.is_reference() => BindingOrigin::View,
+            _ => BindingOrigin::Declared,
+        };
+        self.shadows.push(bind_with(
             az,
             &param.name,
             id,
             &label,
             param.ty.clone(),
             param.kind,
+            origin,
         ));
+        let ownership = match &param.ty {
+            Ty::Known(ty) if ty.is_reference() => Ownership::Borrow {
+                from: REF_PARAM_BORROW_FROM.into(),
+            },
+            _ => Ownership::Local,
+        };
         self.node.bindings.push(BindingInfo {
             name: param.name.clone(),
-            ownership: Ownership::Local,
+            ownership,
             ty: param.ty.as_option(),
             span: param.span,
         });

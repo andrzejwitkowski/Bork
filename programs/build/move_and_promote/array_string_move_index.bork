@@ -1,0 +1,7 @@
+// stdout: z\n
+fun main() {
+    var a: [String; 2] = ["a", "b"]
+    var s = "z"
+    a[0] = move s
+    println(a[0])
+}

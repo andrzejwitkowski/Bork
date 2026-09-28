@@ -46,6 +46,12 @@ fn index_assign_is_assign_and_bare_index_is_expr() {
 
 #[test]
 fn parses_val_var_function_params() {
+    let prog = parse("fun bump(buf: &[i32; 2]) { buf[0] = 1 }").expect("parse");
+    assert!(matches!(
+        prog.functions[0].params[0].ty,
+        Type::Ref { .. }
+    ));
+
     let prog = parse("fun f(val x: Int, var y: String): Int { return x }").expect("parse");
     assert_eq!(prog.functions[0].params[0].kind, BindingKind::Val);
     assert_eq!(prog.functions[0].params[1].kind, BindingKind::Var);

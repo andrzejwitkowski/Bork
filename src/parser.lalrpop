@@ -84,6 +84,10 @@ Param: Param = {
 };
 
 Type: Type = {
+    "&" <inner:Type> => Type::Ref {
+        inner: Box::new(inner),
+        nullable: false,
+    },
     "[" <elem:Type> ";" <len:ArrayTypeLen> "]" <q:"?"?> => Type::Array {
         elem: Box::new(elem),
         len,
@@ -121,11 +125,12 @@ ParenType: Type = {
                     ret,
                     nullable: true,
                 }),
-                Type::Named { .. } | Type::Primitive { .. } | Type::Array { .. } => {
-                    Err(ParseError::User {
-                        error: "only function types may be parenthesized for nullability",
-                    })
-                }
+                Type::Named { .. }
+                | Type::Primitive { .. }
+                | Type::Array { .. }
+                | Type::Ref { .. } => Err(ParseError::User {
+                    error: "only function types may be parenthesized for nullability",
+                }),
             }
         }
     },
@@ -193,9 +198,28 @@ Stmt: Stmt = {
                         name,
                         name_span: span,
                         index: *index,
+                        borrowed: false,
                     },
                     value,
                 }),
+                Expr::Unary {
+                    op: UnaryOp::Borrow,
+                    expr,
+                    ..
+                } => match *expr {
+                    Expr::Ident { name, span } => Ok(Stmt::Assign {
+                        target: AssignTarget::Index {
+                            name,
+                            name_span: span,
+                            index: *index,
+                            borrowed: true,
+                        },
+                        value,
+                    }),
+                    _ => Err(ParseError::User {
+                        error: "assignment target must be a name or name[index]",
+                    }),
+                },
                 _ => Err(ParseError::User {
                     error: "assignment target must be a name or name[index]",
                 }),
@@ -253,6 +277,11 @@ ExprMul = BinTier<MulOp, ExprUnary>;
 ExprUnary: Expr = {
     <start:@L> "!" <inner:ExprUnary> <end:@R> => Expr::Unary {
         op: UnaryOp::Not,
+        expr: Box::new(inner),
+        span: Span::new(start, end),
+    },
+    <start:@L> "&" <inner:ExprUnary> <end:@R> => Expr::Unary {
+        op: UnaryOp::Borrow,
         expr: Box::new(inner),
         span: Span::new(start, end),
     },

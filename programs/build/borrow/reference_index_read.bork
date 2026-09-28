@@ -1,0 +1,9 @@
+// exit: 5
+fun first(buf: &[i32; 3]): i32 {
+    return buf[0]
+}
+
+fun main(): i32 {
+    var a: [i32; 3] = [5, 6, 7]
+    return first(&a)
+}

@@ -181,7 +181,59 @@ action(1, 2) move { x, y ->
 | Empty | `move () { … }` | `f(…) move () { params -> … }` |
 | Inferred | `move { … }` | `f(…) move { params -> … }` |
 
-Ordinary (non-`move`) nested `{ … }` and non-`move` closures do **not** transfer ownership. A child reading a parent **`var`** of a non-Copy type is an error unless you `move` it. A child reading a parent **`val`** non-Copy is **Shared**.
+Ordinary (non-`move`) nested `{ … }` and non-`move` closures do **not** transfer ownership. A child reading a parent **`var`** of a non-Copy type is an error unless you `move` it or borrow it with `&`. A child reading a parent **`val`** non-Copy is **Shared** (no `&` required).
+
+### Borrow (`&`)
+
+Two related ideas:
+
+1. **Use-site** `&name` — borrows a `var` from an outer region for the current region. The owner stays live. Payload is not copied. The borrow ends when the region ends.
+2. **Type** `&T` — marks a **parameter** or **`val` local** as that borrow (see table below). You still *create* the borrow only with `&name` at the expression or call site. `&T` is not allowed on fields, `var` locals, or return types.
+
+**Status:** use-site `&name`, `&T` parameters, index/slice through `&[T; N]`, and call-site re-borrow from nested `if` / `while` / `for` are implemented. Returning `&T`, fields, and `&mut` are still out of scope (see [plan](superpowers/plans/2026-09-25-reference-type-and-borrow-hardening.md)).
+
+#### Views and locals
+
+- `val b = &a` binds a view in the current region. `b` dies with that region. `val b = a` without `&` is still an error for an outer `var`.
+- `var b = &a` and `var v: &T = …` are errors: a borrow is not `var` ownership.
+- `var c = b` and `move b` are errors when `b` is a view. `val d = b` reborrows the same view until the region ends.
+
+#### Arrays in child regions
+
+| Action in child / loop | Outer `var a: [T; N]` |
+|------------------------|------------------------|
+| Read element | `val b = &a` and `b[i]`, or `val r = a[lo..hi]` and `r[i]`; bare `a[i]` in the child **errors** |
+| Write element | `a[i] = v` or `(&a)[i] = v` (mutation of outer `var`, not a move into the child) |
+| View `val b = &a` | read `b[i]` OK; `b[i] = v` rejected (`b` is `val`) — use `(&a)[i] =` or a `&[T; N]` parameter |
+
+`&` binds looser than indexing: `&a[i]` is not a borrow of `a`.
+
+#### Function parameters: `T` vs `&T`
+
+| Formal | Call site | Callee may |
+|--------|-----------|------------|
+| `p: [T; N]` or `var p: String` | `move` outer `var` (or fresh value) | Own the binding for the call; mutate if `var` |
+| `p: &[T; N]` | `&outerArray` only | Read `p[i]` and **index-assign** `p[i] = …` (mutates owner’s buffer) |
+| `p: &String` | `&outerString` only | **Read only** — observe bytes in place; no reseat/replace of the string binding (no `&mut String` in v1) |
+| `val p: String` (no `&`) | bare name from parent `val` | **Shared** read |
+
+Reference parameters show **Borrow ← …** in arena dumps and LSP when the callee uses the owner across a nested control-flow region (`if`, `while`, `for`, or a plain child block).
+
+#### Re-borrow inside control flow
+
+A `&T` **parameter** (or other **view** binding) lives in the function’s root arena. Rules:
+
+| Action in a nested region (`if` / `while` / `for` / `{ }`) | Allowed? |
+|------------------------------------------------------------|----------|
+| Call `f(&param)` when `f` takes `&T` | **Yes** — pass-through re-borrow for the call only |
+| Recursive `qsort(&param, …)` inside `if` | **Yes** (same rule) |
+| `val local = &param` (new view in the child arena) | **No** — cannot lift the borrow into the child |
+| `return param` / `return &param` | **No** — borrow cannot outlive the function body |
+| Assign into an outer `var` / field with a view | **No** |
+
+Bare `f(param)` without `&` when the formal is `&T` is still an error (`cannot move borrow …`).
+
+A `var` formal `[T; N]` requires `move` at the call site. Passing `&outer` is a type error unless the parameter is written `&[T; N]`.
 
 ### Loops
 
@@ -265,6 +317,7 @@ Labels:
 - **Local** — declared in this arena
 - **Copy** — read from a parent arena via Copy (primitives)
 - **Shared ← …** — parent `val` observed in place
+- **Borrow ← …** — `&T` view used from a nested region (typically `&param` at a call site)
 - **Moved ← …** — ownership transferred from a parent (parent binding dead)
 
 ### Editor
@@ -277,11 +330,15 @@ In Cursor/VS Code with the Bork extension:
 
 ## Native codegen and region schedule
 
-With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Ownership and arena layout are validated in `sema`; `src/codegen/regions.rs` walks HIR in lockstep with the arena report.
+With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Released slabs are kept on a **per-thread** pool (`thread_local`); there is no global mutex on `bork_arena_push` / `pop`. Ownership and arena layout are validated in `sema`; `src/codegen/regions.rs` walks HIR in lockstep with the arena report.
+
+**Function exit and early `return`:** each `return` emits `bork_arena_pop` for every arena that is still open on that path. Fall-through at the end of the body and other exits emit their own pops on their paths. The compiler keeps the open-handle list across `return` unwinds so a later exit on another path is not skipped (without this, function-root arenas leaked ~4 KiB per call when a body had both an early `return` and another exit).
+
+**Object file:** `bork build` runs the LLVM `default<O3>` pipeline (plus `mergefunc`, `function-attrs`, `globaldce`) before writing the object. Set `BORK_DUMP_IR=/path/to/file.ll` to write unoptimized module text before that pass (useful for counting `bork_arena_push` / `pop` per block).
 
 **Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After typeck, `region_walk::stamp_codegen_push` sets `ArenaNode.codegen_push` from typed HIR: codegen calls `bork_arena_push` only when that flag is true (function roots always push; trailing closures never push). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
 
-The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, no general `&` / borrow-checker** model.
+The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, region-scoped borrow** model (not a full Rust-style borrow checker; see **Borrow** above and **Not planned**).
 
 ## Assign-up, sink allocation, and escape
 
@@ -335,8 +392,8 @@ Examples:
 - Surface types carry the length **N**; runtime shape is still a descriptor `{ ptr, len }` with `len == N` for values of that type. Elements live in a contiguous buffer in the array value’s home arena (the arena active when the array was created, or the assign sink for `outer = …`).
 - **Whole-array** `move` / `promote` / assignment requires the same `[T; N]` on both sides.
 - **Slice** `a[lo..hi]` with compile-time literal bounds has type `[T; hi - lo]`. Codegen uses that **N** as the descriptor length and points into the same buffer (no copy). It does not emit a runtime bounds abort: typeck already rejected a slice that does not fit in the receiver. Escape rules treat the slice like the receiver array: it must not outlive the arena that owns the buffer.
-- **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts.
-- **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
+- **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts. Indexing applies to `[T; N]` and to **`&[T; N]`** (the element type is `T` in both cases).
+- **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). Inside a callee, `p[i] = v` for `p: &[T; N]` mutates the owner’s buffer. `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
 
 ### Escape analysis (`escape::place`)
 
@@ -345,7 +402,9 @@ Examples:
 
 ## Not planned (and not on the roadmap here)
 
-- General **`&` / `&mut`** and field-stored references across regions (Rust-like borrow checking).
+- **Field-stored** `&T` and **`&mut T` as a type** (exclusive/reseat borrows).
+- **`return` of `&T`** or storing a borrow in a struct field.
+- **`&mut String`** and mutating string contents through a shared `&String` (v1: `&String` is read-only).
 - Implicit deep copy on every cross-region read (use **Shared** for parent `val`, **move** / **promote** for ownership).
 - Storing borrows from a **child** arena into a **parent** field (parent must own bytes in its arena or observe parent `val` via **Shared**).
 

@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::io::{self, Write};
 use std::slice;
-use std::sync::{Mutex, OnceLock};
+use std::cell::RefCell;
 
 const ARENA_CAPACITY: usize = 4096;
 
@@ -62,9 +62,8 @@ impl ArenaPool {
     }
 }
 
-fn pool() -> &'static Mutex<ArenaPool> {
-    static POOL: OnceLock<Mutex<ArenaPool>> = OnceLock::new();
-    POOL.get_or_init(|| Mutex::new(ArenaPool::default()))
+thread_local! {
+    static POOL: RefCell<ArenaPool> = RefCell::new(ArenaPool::default());
 }
 
 unsafe fn arena_mut<'a>(arena: *mut c_void) -> &'a mut Arena {
@@ -76,7 +75,7 @@ unsafe fn arena_mut<'a>(arena: *mut c_void) -> &'a mut Arena {
 
 #[no_mangle]
 pub extern "C" fn bork_arena_push() -> *mut c_void {
-    let arena = pool().lock().unwrap().acquire();
+    let arena = POOL.with(|pool| pool.borrow_mut().acquire());
     Box::into_raw(arena).cast()
 }
 
@@ -92,7 +91,7 @@ pub unsafe extern "C" fn bork_arena_pop(arena: *mut c_void) {
     // SAFETY: The handle came from `bork_arena_push`, and ownership is
     // transferred back exactly once by this call.
     let arena = unsafe { Box::from_raw(arena.cast::<Arena>()) };
-    pool().lock().unwrap().release(arena);
+    POOL.with(|pool| pool.borrow_mut().release(arena));
 }
 
 #[no_mangle]

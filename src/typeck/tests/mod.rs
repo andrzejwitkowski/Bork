@@ -4,6 +4,7 @@ use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
 
 mod closures;
 mod nullable;
+mod reference;
 
 /// Typed HIR for a source that must check cleanly.
 fn hir_of(source: &str) -> HirProgram {
