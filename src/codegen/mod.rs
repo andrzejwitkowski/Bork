@@ -1,4 +1,3 @@
-mod gate;
 mod link;
 pub mod llvm;
 pub mod regions;
@@ -11,7 +10,7 @@ use tempfile::Builder;
 use crate::diag::Diagnostic;
 use crate::frontend::CheckResult;
 
-pub use gate::gate;
+pub use crate::codegen_gate::gate;
 pub use regions::{schedule, RegionEmitter, RegionEvent, RegionSink, RegionSite, ScheduleError};
 
 #[derive(Debug)]

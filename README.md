@@ -119,7 +119,7 @@ Runnable `.bork` examples grouped by frontend vs codegen live in [`programs/`](p
 
 ## Editor / LSP
 
-Parse diagnostics are available through a stdio language server:
+Frontend and codegen diagnostics are available through a stdio language server:
 
 ```bash
 cargo build --bin bork-lsp
@@ -128,8 +128,8 @@ cargo build --bin bork-lsp
 # (requires the default `lsp` Cargo feature)
 ```
 
-On document open/change the server runs `frontend::check` (parse, ownership, typecheck) and
-publishes errors as squiggles. Hover shows arena + ownership for bindings. Use
+On document open/change the server runs `frontend::check`, then the same codegen gate as
+`bork build` when the program is clean. Hover shows type, arena, and ownership for bindings. Use
 **Bork: Dump Arenas** for the ASCII arena tree (same as `bork --dump-arenas`).
 
 See [docs/memory-model.md](docs/memory-model.md) for Copy/Move and region semantics.

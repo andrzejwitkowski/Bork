@@ -1,5 +1,6 @@
 //! Map Bork parse and semantic errors to LSP diagnostics; hover + arena dump helpers.
 
+use crate::codegen_gate::gate;
 use crate::dump::dump_arenas;
 use crate::frontend;
 use crate::sema::{ArenaNode, ArenaReport, BindingInfo};
@@ -167,13 +168,19 @@ impl Analysis {
 
 pub fn analyze_source(source: &str) -> Analysis {
     let result = frontend::check(source);
+    let mut diagnostics: Vec<LspDiagnostic> = result
+        .diagnostics
+        .iter()
+        .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
+        .collect();
+    if let Some(hir) = &result.hir {
+        for diagnostic in gate(hir) {
+            diagnostics.push(frontend_diagnostic_to_lsp(source, &diagnostic));
+        }
+    }
     Analysis {
         report: result.report,
-        diagnostics: result
-            .diagnostics
-            .iter()
-            .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
-            .collect(),
+        diagnostics,
     }
 }
 
@@ -238,7 +245,14 @@ pub fn hover_for_analysis(
     for root in &report.roots {
         if let Some((arena, info)) = find_span_hit(root, &name, offset) {
             let own = info.ownership.hover_label();
-            return Some(format!("`{name}` in arena `{arena}`\nOwnership: {own}"));
+            let ty = info
+                .ty
+                .as_ref()
+                .map(|ty| ty.to_string())
+                .unwrap_or_else(|| "<unknown>".into());
+            return Some(format!(
+                "`{name}` in arena `{arena}`\nType: `{ty}`\nOwnership: {own}"
+            ));
         }
     }
     None
@@ -298,7 +312,7 @@ mod tests {
 
     #[test]
     fn valid_sample_has_no_diagnostics() {
-        assert!(diagnostics_for_source(crate::MVP_SAMPLE).is_empty());
+        assert!(diagnostics_for_source(crate::PROCESS_USER_SAMPLE).is_empty());
     }
 
     #[test]
@@ -384,6 +398,18 @@ fun main(): i32 {
         let pos = byte_offset_to_position(source, x_off);
         let hover = hover_for_analysis(report, source, pos).expect("hover");
         assert!(hover.contains("Ownership"), "{hover}");
+        assert!(hover.contains("Type: `i32`"), "{hover}");
+    }
+
+    #[test]
+    fn mvp_sample_reports_codegen_trailing_closure() {
+        let diagnostics = analyze_source(crate::MVP_SAMPLE).diagnostics;
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("codegen:") && d.message.contains("trailing")),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]

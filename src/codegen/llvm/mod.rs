@@ -8,8 +8,6 @@ mod expr;
 mod nullable;
 mod region_emit;
 
-pub(crate) use nullable::codegen_lowers_nullable;
-
 use std::path::Path;
 
 use inkwell::builder::BuilderError;
