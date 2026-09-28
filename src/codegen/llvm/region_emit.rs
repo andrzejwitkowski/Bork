@@ -1,12 +1,15 @@
 //! LLVM emission driven by `region_walk` (same visitor as schedule / stamp).
 
 use std::collections::HashMap;
+use std::iter;
 
-use inkwell::values::BasicValueEnum;
+use inkwell::basic_block::BasicBlock;
+use inkwell::types::BasicType;
+use inkwell::values::{BasicValue, BasicValueEnum};
 
 use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, Ty};
+use crate::hir::{HirBlock, HirExpr, HirFunction, HirStmt, Ty};
 use crate::region_walk::{
     region_enter, region_exit, ArenaCursor, RegionVisitor, WalkDriver, WalkError,
 };
@@ -14,13 +17,29 @@ use crate::sema::ArenaNode;
 
 use super::emit_fn::FnEmitter;
 use super::schedule_error;
+use super::{not_yet_supported, region_walk_codegen_error};
 
 fn map_emit_err(result: Result<(), Diagnostic>) -> Result<(), WalkError> {
     result.map_err(WalkError::from_diagnostic)
 }
 
+pub(super) enum IfKind<'a> {
+    Unit,
+    Value(&'a Ty),
+}
+
+impl IfKind<'_> {
+    pub(super) fn from_ty(ty: &Ty) -> IfKind<'_> {
+        if *ty == Ty::unit() {
+            IfKind::Unit
+        } else {
+            IfKind::Value(ty)
+        }
+    }
+}
+
 impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
-    pub(super) fn emit_region_with_driver(
+    fn emit_region_with_driver(
         &mut self,
         site: RegionSite,
         block: &HirBlock,
@@ -37,13 +56,84 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         Ok(value)
     }
 
+    pub(super) fn emit_if_with_driver(
+        &mut self,
+        cond: &HirExpr,
+        then_block: &HirBlock,
+        else_block: Option<&HirBlock>,
+        kind: IfKind<'_>,
+    ) -> Result<(), Diagnostic> {
+        let (value_ty, llvm_ty) = match kind {
+            IfKind::Unit => (None, None),
+            IfKind::Value(ty) => {
+                let llvm = self.cx.basic_type(ty);
+                (llvm.is_some().then_some(ty), llvm)
+            }
+        };
+        let cond = self.emit_bool(cond)?;
+
+        let context = self.cx.context;
+        let then_bb = context.append_basic_block(self.llvm_fn, "then");
+        let else_bb = else_block.map(|_| context.append_basic_block(self.llvm_fn, "else"));
+        let merge_bb = context.append_basic_block(self.llvm_fn, "endif");
+        self.cx
+            .builder
+            .build_conditional_branch(cond, then_bb, else_bb.unwrap_or(merge_bb))?;
+
+        let branches = iter::once((RegionSite::IfThen, then_block, then_bb)).chain(
+            else_block
+                .zip(else_bb)
+                .map(|(block, bb)| (RegionSite::IfElse, block, bb)),
+        );
+        let mut incoming: Vec<(BasicValueEnum<'ctx>, BasicBlock<'ctx>)> = Vec::new();
+        for (site, block, bb) in branches {
+            self.cx.builder.position_at_end(bb);
+            let value = self
+                .emit_region_with_driver(site, block, value_ty)
+                .map_err(region_walk_codegen_error)?;
+            if self.cx.current_block_terminated() {
+                continue;
+            }
+            let end = self
+                .cx
+                .builder
+                .get_insert_block()
+                .expect("builder is positioned");
+            self.cx.builder.build_unconditional_branch(merge_bb)?;
+            if value_ty.is_some() {
+                let value = value.ok_or_else(|| {
+                    not_yet_supported("an `if` branch without a trailing value", None)
+                })?;
+                incoming.push((value, end));
+            }
+        }
+        self.cx.builder.position_at_end(merge_bb);
+
+        if let Some(result_ty) = llvm_ty {
+            if !incoming.is_empty() {
+                let phi = self
+                    .cx
+                    .builder
+                    .build_phi(result_ty.as_basic_type_enum(), "if")?;
+                let incoming: Vec<(&dyn BasicValue<'ctx>, BasicBlock<'ctx>)> = incoming
+                    .iter()
+                    .map(|(value, block)| (value as &dyn BasicValue<'ctx>, *block))
+                    .collect();
+                phi.add_incoming(&incoming);
+                self.walk.trailing = Some(phi.as_basic_value());
+            } else {
+                self.walk.trailing = Some(result_ty.const_zero());
+            }
+        }
+        Ok(())
+    }
+
     fn walk_step(
         &mut self,
         step: impl FnOnce(&mut Self) -> Result<(), Diagnostic>,
     ) -> Result<(), WalkError> {
         step(self).map_err(WalkError::from_diagnostic)
     }
-
 }
 
 impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
@@ -106,12 +196,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
     fn exit_region(&mut self, _site: RegionSite) -> Result<(), WalkError> {
         self.scopes.pop();
         if self.cx.current_block_terminated() {
-            self.walk_step(|emitter| {
-                emitter
-                    .regions
-                    .exit_after_return()
-                    .map_err(schedule_error)
-            })?;
+            self.walk_step(|emitter| emitter.regions.exit_after_return().map_err(schedule_error))?;
         } else {
             self.walk_step(|emitter| emitter.pop_region())?;
         }
@@ -127,9 +212,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         driver: &mut WalkDriver<'_, C>,
         stmt: &HirStmt,
     ) -> Result<(), WalkError> {
-        self.pin_walk_driver(driver, |emitter| {
-            emitter.walk_step(|e| e.emit_stmt(stmt))
-        })
+        self.pin_walk_driver(driver, |emitter| emitter.walk_step(|e| e.emit_stmt(stmt)))
     }
 
     fn after_expr<C: ArenaCursor>(
@@ -137,9 +220,6 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         driver: &mut WalkDriver<'_, C>,
         expr: &HirExpr,
     ) -> Result<(), WalkError> {
-        if matches!(expr.kind, HirExprKind::If { .. }) {
-            return Ok(());
-        }
         self.pin_walk_driver(driver, |emitter| {
             emitter.walk_step(|e| {
                 if let Some(value) = e.emit_after_walk(expr)? {
@@ -200,9 +280,15 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         result_ty: &Ty,
     ) -> Result<(), WalkError> {
         self.pin_walk_driver(driver, |emitter| {
-            let result =
-                emitter.emit_if_with_driver(cond, then_block, else_block, Some(result_ty));
-            map_emit_err(result)
+            emitter.walk_step(|e| {
+                let depth = e.walk.eval_stack.len();
+                e.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(result_ty))?;
+                e.walk.eval_stack.truncate(depth);
+                if let Some(value) = e.walk.trailing {
+                    e.walk.eval_stack.push(value);
+                }
+                Ok(())
+            })
         })
     }
 }

@@ -1,4 +1,0 @@
-// diag: codegen
-fun main() {
-    val _: String? = None
-}

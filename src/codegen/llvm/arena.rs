@@ -1,8 +1,8 @@
 use inkwell::builder::BuilderError;
 use inkwell::values::PointerValue;
 
-use crate::codegen::regions::RegionSink;
 use super::context::Codegen;
+use crate::codegen::regions::RegionSink;
 
 /// Lowers region events to `bork_arena_*` runtime calls at the builder's position.
 ///

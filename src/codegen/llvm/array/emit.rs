@@ -8,51 +8,6 @@ use super::super::emit_fn::FnEmitter;
 use super::super::{codegen_error, not_yet_supported};
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(in crate::codegen::llvm) fn emit_array_lit(
-        &mut self,
-        elements: &[HirExpr],
-        array_ty: &Ty,
-    ) -> Result<StructValue<'ctx>, Diagnostic> {
-        let elem_ty = array_ty
-            .array_elem()
-            .ok_or_else(|| not_yet_supported("array literal type", None))?;
-        let count = elements.len();
-        let (_, stride, align) = self.elem_storage(elem_ty)?;
-        let cx = self.cx;
-        let builder = &cx.builder;
-        let len = cx.context.i64_type().const_int(count as u64, false);
-        let byte_len = builder.build_int_mul(
-            len,
-            cx.context.i64_type().const_int(stride as u64, false),
-            "arr.bytes",
-        )?;
-        let arena = self.sink_arena();
-        let base = self.arena_alloc(arena, byte_len, align)?;
-        for (index, element) in elements.iter().enumerate() {
-            let slot = self.elem_ptr(base, index, stride)?;
-            let value = self.emit_value(element, elem_ty)?;
-            builder.build_store(slot, value)?;
-        }
-        Ok(self.descriptor(base, len))
-    }
-
-    pub(in crate::codegen::llvm) fn emit_index_load(
-        &mut self,
-        receiver: &HirExpr,
-        index: &HirExpr,
-        elem_ty: &Ty,
-    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let desc = self
-            .emit_value(receiver, &receiver.ty)?
-            .into_struct_value();
-        let idx = self.emit_int(index, &Ty::i32())?;
-        let (base, len) = self.descriptor_parts(desc)?;
-        self.guard_index(idx, len, receiver.span)?;
-        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let ptr = self.elem_ptr_at(base, idx, stride)?;
-        builder_load(self, llvm_elem, ptr)
-    }
-
     pub(in crate::codegen::llvm) fn emit_index_store(
         &mut self,
         array_ptr: PointerValue<'ctx>,
@@ -82,64 +37,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(())
     }
 
-    pub(in crate::codegen::llvm) fn emit_slice(
-        &mut self,
-        receiver: &HirExpr,
-        lo: &HirExpr,
-        result_ty: &Ty,
-    ) -> Result<StructValue<'ctx>, Diagnostic> {
-        let desc = self
-            .emit_value(receiver, &receiver.ty)?
-            .into_struct_value();
-        let (base, _) = self.descriptor_parts(desc)?;
-        let lo_i = self.emit_int(lo, &Ty::i32())?;
-        let elem_ty = result_ty
-            .array_elem()
-            .ok_or_else(|| not_yet_supported("slice result type", receiver.span))?;
-        let (_, stride, _) = self.elem_storage(elem_ty)?;
-        let lo64 = self.cx.builder.build_int_s_extend(
-            lo_i,
-            self.cx.context.i64_type(),
-            "lo",
-        )?;
-        let offset = self.cx.builder.build_int_mul(
-            lo64,
-            self.cx.context.i64_type().const_int(stride as u64, false),
-            "off",
-        )?;
-        let new_base = unsafe {
-            self.cx
-                .builder
-                .build_gep(self.cx.context.i8_type(), base, &[offset], "slice.base")?
-        };
-        let new_len = result_ty.array_len().ok_or_else(|| {
-            not_yet_supported("slice length is not part of the type", receiver.span)
-        })?;
-        Ok(self.descriptor(
-            new_base,
-            self.cx.context.i64_type().const_int(new_len as u64, false),
-        ))
-    }
-
-    pub(in crate::codegen::llvm) fn emit_buffer_length(
-        &mut self,
-        receiver: &HirExpr,
-    ) -> Result<IntValue<'ctx>, Diagnostic> {
-        let desc = self
-            .emit_value(receiver, &receiver.ty)?
-            .into_struct_value();
-        let len = self
-            .cx
-            .builder
-            .build_extract_value(desc, 1, "len")?
-            .into_int_value();
-        Ok(self.cx.builder.build_int_truncate(
-            len,
-            self.cx.context.i32_type(),
-            "len.i32",
-        )?)
-    }
-
     pub(in crate::codegen::llvm) fn emit_buffer_length_value(
         &mut self,
         desc: StructValue<'ctx>,
@@ -149,11 +46,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .builder
             .build_extract_value(desc, 1, "len")?
             .into_int_value();
-        Ok(self.cx.builder.build_int_truncate(
-            len,
-            self.cx.context.i32_type(),
-            "len.i32",
-        )?)
+        Ok(self
+            .cx
+            .builder
+            .build_int_truncate(len, self.cx.context.i32_type(), "len.i32")?)
     }
 
     pub(in crate::codegen::llvm) fn emit_index_load_values(
@@ -164,14 +60,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let desc = receiver.into_struct_value();
-        let idx = self
-            .cx
-            .builder
-            .build_int_truncate(
-                index.into_int_value(),
-                self.cx.context.i32_type(),
-                "idx",
-            )?;
+        let idx = self.cx.builder.build_int_truncate(
+            index.into_int_value(),
+            self.cx.context.i32_type(),
+            "idx",
+        )?;
         let (base, len) = self.descriptor_parts(desc)?;
         self.guard_index(idx, len, span)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
@@ -188,19 +81,19 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let desc = receiver.into_struct_value();
         let (base, _) = self.descriptor_parts(desc)?;
-        let lo_i = self
-            .cx
-            .builder
-            .build_int_truncate(lo.into_int_value(), self.cx.context.i32_type(), "lo")?;
+        let lo_i = self.cx.builder.build_int_truncate(
+            lo.into_int_value(),
+            self.cx.context.i32_type(),
+            "lo",
+        )?;
         let elem_ty = result_ty
             .array_elem()
             .ok_or_else(|| not_yet_supported("slice result type", span))?;
         let (_, stride, _) = self.elem_storage(elem_ty)?;
-        let lo64 = self.cx.builder.build_int_s_extend(
-            lo_i,
-            self.cx.context.i64_type(),
-            "lo",
-        )?;
+        let lo64 = self
+            .cx
+            .builder
+            .build_int_s_extend(lo_i, self.cx.context.i64_type(), "lo")?;
         let offset = self.cx.builder.build_int_mul(
             lo64,
             self.cx.context.i64_type().const_int(stride as u64, false),
@@ -264,24 +157,31 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         if elem_ty.is_string() {
             let zero = self.cx.context.i64_type().const_int(0, false);
             let one = self.cx.context.i64_type().const_int(1, false);
-            let entry = self
+            let entry = self.cx.builder.get_insert_block().expect("positioned");
+            let header = self
                 .cx
-                .builder
-                .get_insert_block()
-                .expect("positioned");
-            let header = self.cx.context.append_basic_block(self.llvm_fn, "arr.copy.hdr");
-            let body = self.cx.context.append_basic_block(self.llvm_fn, "arr.copy.body");
-            let done = self.cx.context.append_basic_block(self.llvm_fn, "arr.copy.done");
+                .context
+                .append_basic_block(self.llvm_fn, "arr.copy.hdr");
+            let body = self
+                .cx
+                .context
+                .append_basic_block(self.llvm_fn, "arr.copy.body");
+            let done = self
+                .cx
+                .context
+                .append_basic_block(self.llvm_fn, "arr.copy.done");
             self.cx.builder.build_unconditional_branch(header)?;
             self.cx.builder.position_at_end(header);
             let i_phi = self.cx.builder.build_phi(self.cx.context.i64_type(), "i")?;
             i_phi.add_incoming(&[(&zero as &dyn inkwell::values::BasicValue<'_>, entry)]);
             let i = i_phi.as_basic_value().into_int_value();
-            let done_cond = self
-                .cx
+            let done_cond =
+                self.cx
+                    .builder
+                    .build_int_compare(IntPredicate::UGE, i, count, "done")?;
+            self.cx
                 .builder
-                .build_int_compare(IntPredicate::UGE, i, count, "done")?;
-            self.cx.builder.build_conditional_branch(done_cond, done, body)?;
+                .build_conditional_branch(done_cond, done, body)?;
             self.cx.builder.position_at_end(body);
             let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), stride)?;
             let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), stride)?;
@@ -341,10 +241,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 &[
                     arena.into(),
                     size.into(),
-                    cx.context
-                        .i64_type()
-                        .const_int(align as u64, false)
-                        .into(),
+                    cx.context.i64_type().const_int(align as u64, false).into(),
                 ],
                 "arr.alloc",
             )?
@@ -372,11 +269,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         index: usize,
         stride: usize,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let idx = self
-            .cx
-            .context
-            .i32_type()
-            .const_int(index as u64, false);
+        let idx = self.cx.context.i32_type().const_int(index as u64, false);
         self.elem_ptr_at(base, idx, stride)
     }
 
@@ -390,19 +283,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx
                 .builder
                 .build_int_s_extend(index, self.cx.context.i64_type(), "idx")?,
-            self.cx
-                .context
-                .i64_type()
-                .const_int(stride as u64, false),
+            self.cx.context.i64_type().const_int(stride as u64, false),
             "slot.off",
         )?;
         let bytes = unsafe {
-            self.cx.builder.build_gep(
-                self.cx.context.i8_type(),
-                base,
-                &[offset],
-                "slot.bytes",
-            )?
+            self.cx
+                .builder
+                .build_gep(self.cx.context.i8_type(), base, &[offset], "slot.bytes")?
         };
         Ok(bytes)
     }
@@ -447,11 +334,19 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         cond: inkwell::values::IntValue<'ctx>,
         _span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {
-        let ok = self.cx.context.append_basic_block(self.llvm_fn, "bounds.ok");
-        let bad = self.cx.context.append_basic_block(self.llvm_fn, "bounds.bad");
+        let ok = self
+            .cx
+            .context
+            .append_basic_block(self.llvm_fn, "bounds.ok");
+        let bad = self
+            .cx
+            .context
+            .append_basic_block(self.llvm_fn, "bounds.bad");
         self.cx.builder.build_conditional_branch(cond, bad, ok)?;
         self.cx.builder.position_at_end(bad);
-        self.cx.builder.build_call(self.cx.abort_function(), &[], "abort")?;
+        self.cx
+            .builder
+            .build_call(self.cx.abort_function(), &[], "abort")?;
         self.cx.builder.build_unreachable()?;
         self.cx.builder.position_at_end(ok);
         Ok(())
@@ -471,7 +366,10 @@ fn array_elem_layout(elem_ty: &Ty) -> Result<(usize, usize), Diagnostic> {
             Prim::I64 | Prim::U64 | Prim::F64 => Ok((8, 8)),
             Prim::Unit => Err(not_yet_supported("array element `unit`", None)),
         },
-        _ => Err(not_yet_supported(&format!("array element `{elem_ty}`"), None)),
+        _ => Err(not_yet_supported(
+            &format!("array element `{elem_ty}`"),
+            None,
+        )),
     }
 }
 

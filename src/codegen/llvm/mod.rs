@@ -5,6 +5,7 @@ mod array;
 mod context;
 mod emit_fn;
 mod expr;
+mod nullable;
 mod region_emit;
 
 use std::path::Path;
@@ -159,7 +160,7 @@ mod tests {
 
     #[test]
     fn codegen_arena_push_pop_counts_match_schedule() {
-        use crate::codegen::regions::{RegionEvent, schedule};
+        use crate::codegen::regions::{schedule, RegionEvent};
         use crate::region_walk::stamp_codegen_push;
 
         let sources = [
@@ -230,7 +231,10 @@ mod tests {
             .next()
             .expect("helper IR only");
         let helper_pops = helper_body.matches("call void @bork_arena_pop(").count();
-        assert_eq!(helper_pops, 2, "early return and final return each pop:\n{ir}");
+        assert_eq!(
+            helper_pops, 2,
+            "early return and final return each pop:\n{ir}"
+        );
         ret_blocks_contain_arena_pop(helper_body);
     }
 
@@ -305,5 +309,32 @@ mod tests {
             2,
             "{ir}"
         );
+    }
+
+    fn add_uses_if_phi_and_forty(source: &str) {
+        let ir = ir_of(source);
+        let add = ir
+            .lines()
+            .find(|line| line.contains(" add "))
+            .unwrap_or_else(|| panic!("expected an add:\n{ir}"));
+        assert!(add.contains("%if"), "add must use the if phi:\n{add}\n{ir}");
+        assert!(
+            add.contains("40"),
+            "add must use the sibling operand 40, not a branch literal:\n{add}\n{ir}"
+        );
+        assert!(
+            !ir.contains("ret i32 42"),
+            "must not fold else-literal 2 + 40 to ret i32 42:\n{ir}"
+        );
+    }
+
+    #[test]
+    fn value_if_as_left_operand_adds_phi_not_else_literal() {
+        add_uses_if_phi_and_forty("fun main(): i32 { return (if (true) { 1 } else { 2 }) + 40 }\n");
+    }
+
+    #[test]
+    fn value_if_as_right_operand_adds_phi_not_else_literal() {
+        add_uses_if_phi_and_forty("fun main(): i32 { return 40 + (if (true) { 1 } else { 2 }) }\n");
     }
 }

@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
+use inkwell::basic_block::BasicBlock;
 use inkwell::module::Linkage;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType};
-use inkwell::basic_block::BasicBlock;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
 use crate::codegen::regions::{RegionEmitter, RegionSite};
-use crate::region_walk::{RegionWalkRef, WalkDriver};
 use crate::diag::Diagnostic;
 use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, Ty};
+use crate::region_walk::{RegionWalkRef, WalkDriver};
 
 use super::arena::ArenaCalls;
 use super::context::Codegen;
@@ -174,7 +174,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.walk.driver_ptr()
     }
 
-    pub(super) fn codegen_driver_mut<'a>(ptr: *mut ()) -> &'a mut WalkDriver<'a, RegionWalkRef<'a>> {
+    pub(super) fn codegen_driver_mut<'a>(
+        ptr: *mut (),
+    ) -> &'a mut WalkDriver<'a, RegionWalkRef<'a>> {
         CodegenWalkState::driver_mut(ptr)
     }
 
@@ -228,9 +230,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.ensure_open_block();
         match stmt {
             HirStmt::Return { value } => self.emit_return(value.as_ref()),
-            HirStmt::Block(_) | HirStmt::MoveBlock { .. } | HirStmt::For { .. } | HirStmt::While { .. } => {
-                Err(not_yet_supported("region statement outside region walk", None))
-            }
+            HirStmt::Block(_)
+            | HirStmt::MoveBlock { .. }
+            | HirStmt::For { .. }
+            | HirStmt::While { .. } => Err(not_yet_supported(
+                "region statement outside region walk",
+                None,
+            )),
             HirStmt::VarDecl {
                 name,
                 ty,
@@ -248,10 +254,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     })?;
                     self.alloc_sink = Some(slot.home_arena);
                 }
-                let value = self.value_from_walk(
-                    value,
-                    || not_yet_supported("initializer produced no value", value.span),
-                )?;
+                let value = self.value_from_walk(value, || {
+                    not_yet_supported("initializer produced no value", value.span)
+                })?;
                 self.alloc_sink = prev;
                 self.declare_local(name, ty, value)
             }
@@ -263,10 +268,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 let (ptr, home, array_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
                 let prev = self.alloc_sink;
                 self.alloc_sink = Some(home);
-                let stored = self.value_from_walk(
-                    value,
-                    || not_yet_supported("assignment value missing", value.span),
-                )?;
+                let stored = self.value_from_walk(value, || {
+                    not_yet_supported("assignment value missing", value.span)
+                })?;
                 self.alloc_sink = prev;
                 match target {
                     HirAssignTarget::Name { .. } => {
@@ -304,7 +308,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .loop_stack
             .last()
             .ok_or_else(|| not_yet_supported("`continue` outside of a loop", None))?;
-        self.cx.builder.build_unconditional_branch(labels.continue_target)?;
+        self.cx
+            .builder
+            .build_unconditional_branch(labels.continue_target)?;
         Ok(())
     }
 
@@ -369,9 +375,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         builder.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
         let (peeled, _) = crate::hir::peel_blocks(body);
-        driver.walk_block(self, peeled, None).map_err(|err| {
-            region_walk_codegen_error(err)
-        })?;
+        driver
+            .walk_block(self, peeled, None)
+            .map_err(|err| region_walk_codegen_error(err))?;
         self.scopes.pop();
         if !cx.current_block_terminated() {
             builder.build_unconditional_branch(latch_bb)?;
@@ -434,9 +440,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         builder.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
         let (peeled, _) = crate::hir::peel_blocks(body);
-        driver.walk_block(self, peeled, None).map_err(|err| {
-            region_walk_codegen_error(err)
-        })?;
+        driver
+            .walk_block(self, peeled, None)
+            .map_err(|err| region_walk_codegen_error(err))?;
         self.scopes.pop();
         if !cx.current_block_terminated() {
             builder.build_unconditional_branch(latch_bb)?;
@@ -457,10 +463,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
         let return_ty = &self.function.return_ty;
         let value = match value {
-            Some(value) if *return_ty != Ty::unit() => Some(self.value_from_walk(
-                value,
-                || not_yet_supported("return value missing", value.span),
-            )?),
+            Some(value) if *return_ty != Ty::unit() => Some(self.value_from_walk(value, || {
+                not_yet_supported("return value missing", value.span)
+            })?),
             Some(value) => {
                 Self::codegen_driver_mut(self.codegen_driver_ptr())
                     .walk_expr(self, value)
@@ -554,5 +559,4 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn check_arena(&mut self) -> Result<(), Diagnostic> {
         Ok(self.regions.sink_mut().take_error()?)
     }
-
 }

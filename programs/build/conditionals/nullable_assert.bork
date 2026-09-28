@@ -1,0 +1,5 @@
+// stdout: x\n
+fun main() {
+    val s: String? = Some("x")
+    println(s!!)
+}

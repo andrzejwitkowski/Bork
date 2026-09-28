@@ -395,6 +395,12 @@ Examples:
 - **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts. Indexing applies to `[T; N]` and to **`&[T; N]`** (the element type is `T` in both cases).
 - **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). Inside a callee, `p[i] = v` for `p: &[T; N]` mutates the owner’s buffer. `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
 
+### Nullable (`T?`)
+
+- **`None`** does not bump the arena: for `String?` it is a null pointer and zero length; for scalar nullables codegen uses a “not present” tag with a zeroed payload.
+- **`Some(x)`** for a non-null `String` (or other arena-backed inner type) follows the same allocation rules as a non-null value of `x`.
+- **`?:`**, **`!!`**, and **`?.length`** do not introduce extra ownership beyond their operands; escape analysis walks through `Some` and `!!` like any other unary wrapper.
+
 ### Escape analysis (`escape::place`)
 
 - After typecheck, `frontend::check` runs `escape::place` (same rules as codegen `alloc_sink` for strings). Diagnostics use phase **Ownership** (LSP sees them without `codegen`).

@@ -1,13 +1,15 @@
 use inkwell::builder::Builder;
 use inkwell::context::Context;
+use inkwell::module::Linkage;
 use inkwell::module::Module;
 use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetMachine};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, StructType};
-use inkwell::module::Linkage;
 use inkwell::values::FunctionValue;
 use inkwell::{AddressSpace, OptimizationLevel};
 
 use crate::hir::{Prim, Ty, TyKind};
+
+use super::nullable::{nullable_repr, NullableRepr};
 
 pub struct Codegen<'ctx> {
     pub context: &'ctx Context,
@@ -38,22 +40,40 @@ impl<'ctx> Codegen<'ctx> {
         if let Some(inner) = ty.ref_inner() {
             return self.basic_type(inner);
         }
-        if ty.is_string() && !ty.nullable {
+        if ty.is_nullable() {
+            return self.nullable_storage_type(ty);
+        }
+        if ty.is_string() {
             return Some(self.buffer_descriptor_type().into());
         }
         if ty.is_array() {
             return Some(self.buffer_descriptor_type().into());
         }
         if let TyKind::Prim(prim) = ty.kind {
-            if !ty.nullable {
-                return match prim {
-                    Prim::F32 => Some(self.context.f32_type().into()),
-                    Prim::F64 => Some(self.context.f64_type().into()),
-                    _ => self.int_type(ty).map(Into::into),
-                };
+            return match prim {
+                Prim::F32 => Some(self.context.f32_type().into()),
+                Prim::F64 => Some(self.context.f64_type().into()),
+                _ => self.int_type(ty).map(Into::into),
+            };
+        }
+        None
+    }
+
+    /// In-memory shape for `T?` (not `&T`).
+    pub fn nullable_storage_type(&self, ty: &Ty) -> Option<BasicTypeEnum<'ctx>> {
+        match nullable_repr(ty)? {
+            NullableRepr::Buffer => Some(self.buffer_descriptor_type().into()),
+            NullableRepr::TaggedScalar => {
+                let inner = ty.with_nullable(false);
+                let value_ty = self.int_type(&inner)?;
+                let tag = self.context.bool_type();
+                Some(
+                    self.context
+                        .struct_type(&[tag.into(), value_ty.into()], false)
+                        .into(),
+                )
             }
         }
-        self.int_type(ty).map(Into::into)
     }
 
     /// Arena-backed buffer descriptor `{ ptr, i64 }` (`String`, `[T]`).

@@ -299,7 +299,7 @@ pub trait RegionVisitor {
         false
     }
 
-    /// When true, `&&` / `||` skip walking the RHS (LLVM short-circuit emission).
+    /// When true, `&&` / `||` / `?:` skip walking the RHS (LLVM short-circuit emission).
     fn short_circuit_logical_operands(&self) -> bool {
         false
     }
@@ -584,7 +584,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
         }
         HirExprKind::Binary { op, lhs, rhs, .. } => {
             walk_expr(driver, visitor, lhs)?;
-            let skip_rhs = matches!(op, BinOp::And | BinOp::Or)
+            let skip_rhs = matches!(op, BinOp::And | BinOp::Or | BinOp::Elvis)
                 && visitor.short_circuit_logical_operands();
             if !skip_rhs {
                 walk_expr(driver, visitor, rhs)?;
