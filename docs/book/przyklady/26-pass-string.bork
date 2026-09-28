@@ -1,0 +1,7 @@
+fun f(var a: String) {
+    println(a)
+}
+
+fun main() {
+    f("hello")
+}

@@ -1,0 +1,8 @@
+fun shout(): String {
+    var s = "hi"
+    return s
+}
+
+fun main() {
+    println(shout())
+}

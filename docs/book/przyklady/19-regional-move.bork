@@ -1,0 +1,12 @@
+fun main() {
+    var a: String = "A"
+    var b: String = "B"
+    move (a) {
+        val x = a
+        println(x)
+    }
+    move {
+        val y = b
+        println(y)
+    }
+}
