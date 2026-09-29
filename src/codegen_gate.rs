@@ -1,7 +1,34 @@
+//! Codegen subset checks shared by `bork build` and the LSP (no LLVM dependency).
+
 use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, TyKind};
 use crate::span::Span;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NullableRepr {
+    Buffer,
+    TaggedScalar,
+}
+
+pub(crate) fn nullable_repr(ty: &Ty) -> Option<NullableRepr> {
+    if !ty.is_nullable() {
+        return None;
+    }
+    let inner = ty.with_nullable(false);
+    if inner.is_string() || inner.is_array() {
+        return Some(NullableRepr::Buffer);
+    }
+    match inner.kind {
+        TyKind::Prim(Prim::Unit) => None,
+        TyKind::Prim(_) => Some(NullableRepr::TaggedScalar),
+        _ => None,
+    }
+}
+
+pub fn codegen_lowers_nullable(ty: &Ty) -> bool {
+    !ty.is_nullable() || nullable_repr(ty).is_some()
+}
 
 pub fn gate(hir: &HirProgram) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -43,7 +70,7 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
 }
 
 fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    if !super::llvm::codegen_lowers_nullable(&expr.ty) {
+    if !codegen_lowers_nullable(&expr.ty) {
         reject(
             diagnostics,
             &format!("nullable type `{}` is not supported by codegen", expr.ty),
@@ -159,7 +186,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
-pub(super) fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
+fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
     diagnostics.push(Diagnostic {
         phase: Phase::Codegen,
         severity: Severity::Error,

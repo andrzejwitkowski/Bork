@@ -2,6 +2,7 @@ mod region_walk;
 pub mod arena;
 pub mod ast;
 mod builtins;
+mod codegen_gate;
 #[cfg(feature = "codegen")]
 pub mod codegen;
 pub mod diag;

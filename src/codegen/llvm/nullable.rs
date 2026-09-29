@@ -5,37 +5,13 @@ use inkwell::values::{BasicValueEnum, IntValue};
 use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
+use crate::codegen_gate::{nullable_repr, NullableRepr};
 use crate::diag::Diagnostic;
 use crate::hir::{HirExpr, HirExprKind, Prim, Ty, TyKind};
 
 use super::context::Codegen;
 use super::emit_fn::FnEmitter;
 use super::not_yet_supported;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum NullableRepr {
-    Buffer,
-    TaggedScalar,
-}
-
-pub(super) fn nullable_repr(ty: &Ty) -> Option<NullableRepr> {
-    if !ty.is_nullable() {
-        return None;
-    }
-    let inner = ty.with_nullable(false);
-    if inner.is_string() || inner.is_array() {
-        return Some(NullableRepr::Buffer);
-    }
-    match inner.kind {
-        TyKind::Prim(Prim::Unit) => None,
-        TyKind::Prim(_) => Some(NullableRepr::TaggedScalar),
-        _ => None,
-    }
-}
-
-pub(crate) fn codegen_lowers_nullable(ty: &Ty) -> bool {
-    !ty.is_nullable() || nullable_repr(ty).is_some()
-}
 
 impl<'ctx> Codegen<'ctx> {
     pub fn const_null_value(&self, ty: &Ty) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
@@ -369,7 +345,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
 #[cfg(test)]
 mod nullable_repr_tests {
-    use super::{nullable_repr, NullableRepr};
+    use crate::codegen_gate::{codegen_lowers_nullable, nullable_repr, NullableRepr};
     use crate::hir::{Prim, Ty, TyKind};
 
     #[test]
@@ -389,12 +365,12 @@ mod nullable_repr_tests {
     fn f32_optional_is_tagged() {
         let ty = Ty::new(TyKind::Prim(Prim::F32), true);
         assert_eq!(nullable_repr(&ty), Some(NullableRepr::TaggedScalar));
-        assert!(super::codegen_lowers_nullable(&ty));
+        assert!(codegen_lowers_nullable(&ty));
     }
 
     #[test]
     fn non_nullable_is_none() {
         assert_eq!(nullable_repr(&Ty::i32()), None);
-        assert!(super::codegen_lowers_nullable(&Ty::i32()));
+        assert!(codegen_lowers_nullable(&Ty::i32()));
     }
 }

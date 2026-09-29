@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub functions: Vec<Function>,
@@ -105,6 +107,40 @@ impl Type {
             Type::Ref { inner, .. } => Some(inner),
             _ => None,
         }
+    }
+
+    fn is_nullable(&self) -> bool {
+        match self {
+            Type::Primitive { nullable, .. }
+            | Type::Named { nullable, .. }
+            | Type::Array { nullable, .. }
+            | Type::Func { nullable, .. }
+            | Type::Ref { nullable, .. } => *nullable,
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Primitive { name, .. } | Type::Named { name, .. } => f.write_str(name)?,
+            Type::Array { elem, len, .. } => write!(f, "[{elem}; {len}]")?,
+            Type::Func { params, ret, .. } => {
+                f.write_str("(")?;
+                for (index, param) in params.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{param}")?;
+                }
+                write!(f, ")->{ret}")?;
+            }
+            Type::Ref { inner, .. } => write!(f, "&{inner}")?,
+        }
+        if self.is_nullable() {
+            f.write_str("?")?;
+        }
+        Ok(())
     }
 }
 

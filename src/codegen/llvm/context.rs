@@ -9,7 +9,7 @@ use inkwell::{AddressSpace, OptimizationLevel};
 
 use crate::hir::{Prim, Ty, TyKind};
 
-use super::nullable::{nullable_repr, NullableRepr};
+use crate::codegen_gate::{nullable_repr, NullableRepr};
 
 pub struct Codegen<'ctx> {
     pub context: &'ctx Context,
