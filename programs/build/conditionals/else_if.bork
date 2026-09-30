@@ -1,0 +1,14 @@
+// exit: 42
+fun pick(n: i32): i32 {
+    if (n == 1) {
+        return 40
+    } else if (n == 2) {
+        return 41
+    } else {
+        return 42
+    }
+}
+
+fun main(): i32 {
+    return pick(3)
+}
