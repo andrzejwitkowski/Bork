@@ -138,6 +138,32 @@ fn parses_else_on_following_line() {
 }
 
 #[test]
+fn parses_else_if_desugars_to_nested_if() {
+    let prog = parse("fun main() { if (a) { 1 } else if (b) { 2 } else { 3 } }")
+        .expect("else if should parse");
+    let Stmt::Expr(Expr::If {
+        else_block: Some(else_block),
+        ..
+    }) = &prog.functions[0].body.stmts[0]
+    else {
+        panic!("expected outer if");
+    };
+    assert!(matches!(
+        else_block.stmts.as_slice(),
+        [Stmt::Expr(Expr::If {
+            else_block: Some(_),
+            ..
+        })]
+    ));
+}
+
+#[test]
+fn parses_else_if_on_following_line() {
+    parse("fun main() { if (a) { 1 }\n else if (b) { 2 } }")
+        .expect("else if may follow the if block on the next line");
+}
+
+#[test]
 fn standalone_comment_between_statements_is_part_of_the_separator() {
     let prog = parse("fun main() {\n val x = 1\n // explanation\n val y = 2\n}")
         .expect("a standalone comment should not create an extra separator");

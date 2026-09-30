@@ -397,6 +397,10 @@ Atom: Expr = {
         span: id.span,
     },
     "(" <e:Expr> ")" => e,
+    <e:IfExpr> => e,
+};
+
+IfExpr: Expr = {
     "if" "(" <cond:Expr> ")" <then_block:Block> <else_block:ElseClause?> => Expr::If {
         cond: Box::new(cond),
         then_block,
@@ -406,6 +410,10 @@ Atom: Expr = {
 
 ElseClause: Block = {
     "else" <b:Block> => b,
+    // ponytail: desugar else-if to nested else { if }; no ElseIf AST
+    "else" <e:IfExpr> => Block {
+        stmts: vec![Stmt::Expr(e)],
+    },
 };
 
 SpannedIdent: SpannedName = {
