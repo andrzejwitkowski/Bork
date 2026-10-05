@@ -1,0 +1,10 @@
+// exit: 3
+struct Point(val x: i32, val y: i32)
+
+fun take(p: Point): i32 {
+    return p.x + p.y
+}
+
+fun main(): i32 {
+    return take(new Point(1, 2))
+}

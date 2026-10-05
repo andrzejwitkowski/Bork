@@ -51,6 +51,18 @@ fn reject_bad_struct_names(program: &Program, diagnostics: &mut Vec<Diagnostic>)
                 None,
             );
         }
+        if decl.name == "String"
+            || !matches!(
+                crate::ast::Type::from_ident(&decl.name, false),
+                crate::ast::Type::Named { .. }
+            )
+        {
+            push_err(
+                diagnostics,
+                format!("struct `{}` conflicts with a builtin type name", decl.name),
+                None,
+            );
+        }
     }
 }
 

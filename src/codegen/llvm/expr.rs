@@ -438,6 +438,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Err(not_yet_supported("non-descriptor buffer argument", span))
             };
         }
+        if ty.struct_name().is_some()
+            || matches!(
+                crate::codegen_gate::nullable_repr(ty),
+                Some(crate::codegen_gate::NullableRepr::TaggedScalar)
+            )
+        {
+            return Ok(value);
+        }
         self.value_as_int(value, ty, span).map(Into::into)
     }
 

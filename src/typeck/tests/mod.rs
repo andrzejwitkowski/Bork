@@ -623,6 +623,22 @@ fun main() {}
 }
 
 #[test]
+fn struct_name_conflicts_with_builtin_type() {
+    for src in [
+        "struct String(val x: i32)\nfun main() {}",
+        "struct i32(val x: i32)\nfun main() {}",
+        "struct Int(val x: i32)\nfun main() {}",
+    ] {
+        assert!(
+            diags_of(src)
+                .iter()
+                .any(|d| d.message.contains("builtin type")),
+            "{src}"
+        );
+    }
+}
+
+#[test]
 fn struct_cycle_is_type_error() {
     let src = r#"
 struct A(val b: B)
