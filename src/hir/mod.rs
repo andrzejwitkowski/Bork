@@ -22,7 +22,35 @@ pub enum UseKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirProgram {
+    pub structs: Vec<HirStructDef>,
     pub functions: Vec<HirFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirStructDef {
+    pub name: String,
+    pub fields: Vec<HirStructField>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirStructField {
+    pub kind: ast::BindingKind,
+    pub name: String,
+    pub ty: Ty,
+}
+
+impl HirStructDef {
+    pub fn field(&self, name: &str) -> Option<&HirStructField> {
+        self.fields.iter().find(|f| f.name == name)
+    }
+
+    pub fn field_index(&self, name: &str) -> Option<usize> {
+        self.fields.iter().position(|f| f.name == name)
+    }
+
+    pub fn field_ty(&self, name: &str) -> Option<&Ty> {
+        self.field(name).map(|f| &f.ty)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -95,19 +123,25 @@ pub enum HirAssignTarget {
         name: String,
         index: HirExpr,
     },
+    Field {
+        name: String,
+        field: String,
+    },
 }
 
 impl HirAssignTarget {
     pub fn name(&self) -> &str {
         match self {
-            HirAssignTarget::Name { name } | HirAssignTarget::Index { name, .. } => name,
+            HirAssignTarget::Name { name }
+            | HirAssignTarget::Index { name, .. }
+            | HirAssignTarget::Field { name, .. } => name,
         }
     }
 
     pub fn index(&self) -> Option<&HirExpr> {
         match self {
             HirAssignTarget::Index { index, .. } => Some(index),
-            HirAssignTarget::Name { .. } => None,
+            HirAssignTarget::Name { .. } | HirAssignTarget::Field { .. } => None,
         }
     }
 }
@@ -186,6 +220,10 @@ pub enum HirExprKind {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
         has_trailing_closure: bool,
+    },
+    StructNew {
+        name: String,
+        args: Vec<HirExpr>,
     },
     If {
         cond: Box<HirExpr>,

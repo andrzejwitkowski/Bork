@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Linkage;
@@ -7,7 +10,7 @@ use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, StructType};
 use inkwell::values::FunctionValue;
 use inkwell::{AddressSpace, OptimizationLevel};
 
-use crate::hir::{Prim, Ty, TyKind};
+use crate::hir::{HirStructDef, Prim, Ty, TyKind};
 
 use crate::codegen_gate::{nullable_repr, NullableRepr};
 
@@ -15,6 +18,8 @@ pub struct Codegen<'ctx> {
     pub context: &'ctx Context,
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
+    structs: HashMap<String, HirStructDef>,
+    llvm_structs: RefCell<HashMap<String, StructType<'ctx>>>,
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -27,12 +32,38 @@ impl<'ctx> Codegen<'ctx> {
             .add_function("abort", fn_type, Some(Linkage::External))
     }
 
-    pub fn new(context: &'ctx Context, name: &str) -> Self {
+    pub fn new(context: &'ctx Context, name: &str, structs: &[HirStructDef]) -> Self {
         Self {
             context,
             module: context.create_module(name),
             builder: context.create_builder(),
+            structs: structs
+                .iter()
+                .map(|def| (def.name.clone(), def.clone()))
+                .collect(),
+            llvm_structs: RefCell::new(HashMap::new()),
         }
+    }
+
+    pub fn struct_def(&self, name: &str) -> Option<&HirStructDef> {
+        self.structs.get(name)
+    }
+
+    pub fn llvm_struct(&self, name: &str) -> Option<StructType<'ctx>> {
+        if let Some(ty) = self.llvm_structs.borrow().get(name).copied() {
+            return Some(ty);
+        }
+        let def = self.structs.get(name)?;
+        let field_tys = def
+            .fields
+            .iter()
+            .map(|f| self.basic_type(&f.ty))
+            .collect::<Option<Vec<_>>>()?;
+        let llvm_ty = self.context.struct_type(&field_tys, false);
+        self.llvm_structs
+            .borrow_mut()
+            .insert(name.to_string(), llvm_ty);
+        Some(llvm_ty)
     }
 
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
@@ -48,6 +79,9 @@ impl<'ctx> Codegen<'ctx> {
         }
         if ty.is_array() {
             return Some(self.buffer_descriptor_type().into());
+        }
+        if let TyKind::Struct(name) = &ty.kind {
+            return Some(self.llvm_struct(name)?.into());
         }
         if let TyKind::Prim(prim) = ty.kind {
             return match prim {

@@ -1,6 +1,6 @@
 use crate::ast::{
-    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Closure, Expr, Function,
-    Param, Program, Stmt, Type, UnaryOp,
+    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Closure, Expr, Function, Item,
+    Param, Program, Stmt, StructDecl, StructField, Type, UnaryOp,
 };
 use crate::span::{Span, SpannedName};
 use lalrpop_util::ParseError;
@@ -24,6 +24,8 @@ match {
     "None" => "None",
     "move" => "move",
     "promote" => "promote",
+    "struct" => "struct",
+    "new" => "new",
 } else {
     _
 }
@@ -46,20 +48,36 @@ Comma<T>: Vec<T> = {
 };
 
 pub Program: Program = {
-    => Program { functions: vec![] },
-    "NL" => Program { functions: vec![] },
-    <functions:FunctionList> => Program { functions },
-    "NL" <functions:FunctionList> => Program { functions },
+    => Program { structs: vec![], functions: vec![] },
+    "NL" => Program { structs: vec![], functions: vec![] },
+    <items:ItemList> => Program::from_items(items),
+    "NL" <items:ItemList> => Program::from_items(items),
 };
 
-FunctionList: Vec<Function> = {
-    <function:Function> => vec![function],
-    <function:Function> "NL" <rest:FunctionList> => {
-        let mut functions = vec![function];
-        functions.extend(rest);
-        functions
+ItemList: Vec<Item> = {
+    <item:Item> => vec![item],
+    <item:Item> "NL" <rest:ItemList> => {
+        let mut items = vec![item];
+        items.extend(rest);
+        items
     },
-    <function:Function> "NL" => vec![function],
+    <item:Item> "NL" => vec![item],
+};
+
+Item: Item = {
+    <s:StructDecl> => Item::Struct(s),
+    <f:Function> => Item::Fun(f),
+};
+
+StructDecl: StructDecl = {
+    "struct" <name:Ident> "(" <fields:Comma<StructField>?> ")" => StructDecl {
+        name,
+        fields: fields.unwrap_or_default(),
+    },
+};
+
+StructField: StructField = {
+    <kind:Binding> <name:SpannedIdent> ":" <ty:Type> => StructField { kind, name, ty },
 };
 
 Function: Function = {
@@ -217,15 +235,34 @@ Stmt: Stmt = {
                         value,
                     }),
                     _ => Err(ParseError::User {
-                        error: "assignment target must be a name or name[index]",
+                        error: "assignment target must be a name, name[index], or name.field",
                     }),
                 },
                 _ => Err(ParseError::User {
-                    error: "assignment target must be a name or name[index]",
+                    error: "assignment target must be a name, name[index], or name.field",
+                }),
+            },
+            Expr::Field {
+                receiver,
+                name: field,
+                safe: false,
+                span: field_span,
+            } => match *receiver {
+                Expr::Ident { name, span } => Ok(Stmt::Assign {
+                    target: AssignTarget::Field {
+                        name,
+                        name_span: span,
+                        field,
+                        field_span,
+                    },
+                    value,
+                }),
+                _ => Err(ParseError::User {
+                    error: "assignment target must be a name, name[index], or name.field",
                 }),
             },
             _ => Err(ParseError::User {
-                error: "assignment target must be a name or name[index]",
+                error: "assignment target must be a name, name[index], or name.field",
             }),
         }
     },
@@ -391,6 +428,11 @@ Atom: Expr = {
     "promote" <id:SpannedIdent> => Expr::Promote {
         name: id.name,
         span: id.span,
+    },
+    <start:@L> "new" <name:Ident> "(" <args:Comma<Expr>?> ")" <end:@R> => Expr::StructNew {
+        name,
+        args: args.unwrap_or_default(),
+        span: Span::new(start, end),
     },
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,

@@ -265,7 +265,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 let slot = self.lookup(name).ok_or_else(|| {
                     not_yet_supported(&format!("assignment to `{name}`"), value.span)
                 })?;
-                let (ptr, home, array_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
+                let (ptr, home, slot_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
                 let prev = self.alloc_sink;
                 self.alloc_sink = Some(home);
                 let stored = self.value_from_walk(value, || {
@@ -278,7 +278,33 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         Ok(())
                     }
                     HirAssignTarget::Index { index, .. } => {
-                        self.emit_index_store(ptr, &array_ty, index, stored, value.span)
+                        self.emit_index_store(ptr, &slot_ty, index, stored, value.span)
+                    }
+                    HirAssignTarget::Field { field, .. } => {
+                        let struct_name = slot_ty.struct_name().ok_or_else(|| {
+                            not_yet_supported("field assign on non-struct", value.span)
+                        })?;
+                        let idx = self
+                            .cx
+                            .struct_def(struct_name)
+                            .and_then(|def| def.field_index(field))
+                            .ok_or_else(|| {
+                                not_yet_supported(&format!("field `{field}`"), value.span)
+                            })?;
+                        let llvm_ty = self.cx.basic_type(&slot_ty).ok_or_else(|| {
+                            not_yet_supported(&format!("type `{slot_ty}`"), value.span)
+                        })?;
+                        let current = self
+                            .cx
+                            .builder
+                            .build_load(llvm_ty, ptr, "field.load")?
+                            .into_struct_value();
+                        let updated = self
+                            .cx
+                            .builder
+                            .build_insert_value(current, stored, idx as u32, "field.set")?;
+                        self.cx.builder.build_store(ptr, updated)?;
+                        Ok(())
                     }
                 }
             }

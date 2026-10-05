@@ -21,7 +21,7 @@ pub(crate) fn nullable_repr(ty: &Ty) -> Option<NullableRepr> {
     }
     match inner.kind {
         TyKind::Prim(Prim::Unit) => None,
-        TyKind::Prim(_) => Some(NullableRepr::TaggedScalar),
+        TyKind::Prim(_) | TyKind::Struct(_) => Some(NullableRepr::TaggedScalar),
         _ => None,
     }
 }
@@ -174,7 +174,9 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     || (*safe
                         && receiver.ty.is_nullable()
                         && (inner.is_string() || inner.is_array())));
-            if !length_ok {
+            let struct_ok = matches!(inner.kind, crate::hir::TyKind::Struct(_))
+                && (!receiver.ty.is_nullable() || *safe);
+            if !length_ok && !struct_ok {
                 reject(
                     diagnostics,
                     "field access is not supported by codegen",
@@ -182,6 +184,11 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 );
             }
             gate_expr(receiver, diagnostics);
+        }
+        HirExprKind::StructNew { args, .. } => {
+            for arg in args {
+                gate_expr(arg, diagnostics);
+            }
         }
     }
 }
@@ -259,6 +266,24 @@ fun main(name: String?): String {
         assert!(
             diagnostics.is_empty(),
             "f32? is a scalar T? and must lower: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn nullable_struct_safe_field_passes_codegen_gate() {
+        let source = r#"
+struct Point(val x: i32)
+fun main(): i32 {
+    val p: Point? = Some(new Point(1))
+    return p?.x ?: 0
+}
+"#;
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        assert!(
+            diagnostics.is_empty(),
+            "Point? `?.x` must pass codegen gate: {diagnostics:?}"
         );
     }
 }

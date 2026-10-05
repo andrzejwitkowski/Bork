@@ -98,6 +98,7 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
         }
         HirExprKind::Field { receiver, .. } => expr_may_allocate_sink(receiver),
         HirExprKind::Some(inner) => expr_may_allocate_sink(inner),
+        HirExprKind::StructNew { args, .. } => args.iter().any(expr_may_allocate_sink),
         HirExprKind::None => false,
     }
 }
@@ -609,6 +610,12 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
                 }
                 let child_ref = driver.cursor.last_child();
                 visitor.skip_closure(child_ref)?;
+            }
+            visitor.after_expr(driver, expr)
+        }
+        HirExprKind::StructNew { args, .. } => {
+            for arg in args {
+                walk_expr(driver, visitor, arg)?;
             }
             visitor.after_expr(driver, expr)
         }

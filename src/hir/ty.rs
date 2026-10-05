@@ -83,6 +83,7 @@ impl fmt::Display for Prim {
 pub enum TyKind {
     Prim(Prim),
     Named(String),
+    Struct(String),
     Array {
         elem: Box<Ty>,
         len: u32,
@@ -130,6 +131,10 @@ impl Ty {
 
     pub fn string(nullable: bool) -> Self {
         Self::new(TyKind::Named("String".into()), nullable)
+    }
+
+    pub fn struct_ty(name: impl Into<String>) -> Self {
+        Self::new(TyKind::Struct(name.into()), false)
     }
 
     pub fn array(elem: Ty, len: u32) -> Self {
@@ -198,7 +203,27 @@ impl Ty {
     }
 
     pub fn is_copy(&self) -> bool {
-        !self.nullable && matches!(self.kind, TyKind::Prim(_))
+        !self.nullable && matches!(self.kind, TyKind::Prim(_) | TyKind::Struct(_))
+    }
+
+    pub fn is_struct(&self) -> bool {
+        !self.nullable && matches!(self.kind, TyKind::Struct(_))
+    }
+
+    /// True for Copy prim/struct fields, including their `?` forms.
+    pub fn is_struct_field_allowed(&self) -> bool {
+        match &self.kind {
+            TyKind::Prim(crate::hir::Prim::Unit) if self.nullable => false,
+            TyKind::Prim(_) | TyKind::Struct(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn struct_name(&self) -> Option<&str> {
+        match &self.kind {
+            TyKind::Struct(name) => Some(name.as_str()),
+            _ => None,
+        }
     }
 
     pub fn is_string(&self) -> bool {
@@ -270,7 +295,7 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TyKind::Prim(prim) => f.write_str(prim.as_str())?,
-            TyKind::Named(name) => f.write_str(name)?,
+            TyKind::Named(name) | TyKind::Struct(name) => f.write_str(name)?,
             TyKind::Array { elem, len } => write!(f, "[{elem}; {len}]")?,
             TyKind::Func { params, ret } => {
                 f.write_str("(")?;

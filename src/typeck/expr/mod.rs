@@ -18,7 +18,7 @@ use array::{check_array_lit, check_index, check_slice};
 use binary::{check_binary, check_elvis};
 use call::check_call;
 use control::check_if;
-use field::check_field;
+use field::{check_field, check_struct_new};
 
 /// Check always yields an expression: a failed check is reported once and
 /// poisoned with `TyKind::Unknown`, which suppresses follow-on mismatches.
@@ -168,6 +168,9 @@ pub(super) fn check(
             safe,
             span,
         } => check_field(receiver, name, *safe, *span, return_ty, env),
+        Expr::StructNew { name, args, span } => {
+            check_struct_new(name, args, *span, return_ty, env)
+        }
         Expr::Call {
             callee,
             args,

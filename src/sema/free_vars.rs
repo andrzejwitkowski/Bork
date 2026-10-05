@@ -71,6 +71,13 @@ fn collect_stmt(
                     }
                     collect_expr(index, free, bound);
                 }
+                AssignTarget::Field {
+                    name, name_span, ..
+                } => {
+                    if !bound.contains(name) {
+                        free.entry(name.clone()).or_insert(*name_span);
+                    }
+                }
             }
             collect_expr(value, free, bound);
         }
@@ -114,6 +121,11 @@ fn collect_expr(
         }
         Expr::Unary { expr, .. } => collect_expr(expr, free, bound),
         Expr::Field { receiver, .. } => collect_expr(receiver, free, bound),
+        Expr::StructNew { args, .. } => {
+            for a in args {
+                collect_expr(a, free, bound);
+            }
+        }
         Expr::Call {
             callee,
             args,

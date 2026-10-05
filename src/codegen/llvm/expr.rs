@@ -253,6 +253,18 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 safe,
                 ..
             } => {
+                if receiver.ty.struct_name().is_some() {
+                    return self
+                        .emit_struct_field(
+                            &receiver.ty,
+                            ops[0],
+                            name,
+                            *safe,
+                            &expr.ty,
+                            expr.span,
+                        )
+                        .map(Some);
+                }
                 if name != "length" {
                     return Err(not_yet_supported("field access", expr.span));
                 }
@@ -266,6 +278,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         .into(),
                 ))
             }
+            HirExprKind::StructNew { name, .. } => self
+                .emit_struct_new(name, ops, expr.span)
+                .map(Some),
             HirExprKind::If { .. } => unreachable!("If is ChildPlan::If"),
         }
     }
@@ -554,6 +569,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if matches!(op, BinOp::Eq | BinOp::Ne) && lhs.ty.is_struct() {
+            return self.emit_struct_eq(op, &lhs.ty, lhs_val, rhs_val, expr.span);
+        }
         if matches!(
             expr.ty.kind,
             crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)
@@ -814,6 +832,7 @@ fn child_plan(expr: &HirExpr) -> ChildPlan<'_> {
         } => ChildPlan::Two(receiver, index),
         HirExprKind::Slice { receiver, lo, hi } => ChildPlan::Three(receiver, lo, hi),
         HirExprKind::Call { args, .. } => ChildPlan::Many(args),
+        HirExprKind::StructNew { args, .. } => ChildPlan::Many(args),
         HirExprKind::ArrayLit { elements } => ChildPlan::Many(elements),
     }
 }

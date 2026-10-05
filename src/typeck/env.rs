@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::BindingKind;
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::Ty;
+use crate::hir::{HirStructDef, Ty};
 use crate::span::Span;
 
 #[derive(Clone)]
@@ -22,6 +22,7 @@ pub(crate) struct FunSig {
 pub(super) struct Env<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
+    pub(super) structs: &'a HashMap<String, HirStructDef>,
     pub(super) diagnostics: Vec<Diagnostic>,
     /// Types of `var`/`val` bindings in the order typeck checks them.
     pub(super) decl_tys: Vec<Ty>,
@@ -29,10 +30,14 @@ pub(super) struct Env<'a> {
 }
 
 impl<'a> Env<'a> {
-    pub(super) fn new(fun_sigs: &'a HashMap<String, FunSig>) -> Self {
+    pub(super) fn new(
+        fun_sigs: &'a HashMap<String, FunSig>,
+        structs: &'a HashMap<String, HirStructDef>,
+    ) -> Self {
         Self {
             scopes: vec![HashMap::new()],
             fun_sigs,
+            structs,
             diagnostics: Vec::new(),
             decl_tys: Vec::new(),
             loop_depth: 0,
@@ -49,11 +54,14 @@ impl<'a> Env<'a> {
         self.scopes
             .last_mut()
             .expect("type environment always has a scope")
-            .insert(name, Binding {
-                kind,
-                ty,
-                explicit_ref,
-            });
+            .insert(
+                name,
+                Binding {
+                    kind,
+                    ty,
+                    explicit_ref,
+                },
+            );
     }
 
     pub(super) fn binding(&self, name: &str) -> Option<&Binding> {
@@ -62,6 +70,10 @@ impl<'a> Env<'a> {
 
     pub(super) fn fun_sig(&self, name: &str) -> Option<&FunSig> {
         self.fun_sigs.get(name)
+    }
+
+    pub(super) fn struct_def(&self, name: &str) -> Option<&HirStructDef> {
+        self.structs.get(name)
     }
 
     pub(super) fn enter_scope(&mut self) {

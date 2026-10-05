@@ -7,6 +7,7 @@ mod emit_fn;
 mod expr;
 mod nullable;
 mod region_emit;
+mod struct_emit;
 
 use std::path::Path;
 
@@ -38,7 +39,7 @@ pub fn emit_module<'ctx>(
         ));
     }
 
-    let cx = Codegen::new(context, "bork");
+    let cx = Codegen::new(context, "bork", &hir.structs);
     let callees = hir
         .functions
         .iter()
@@ -103,7 +104,7 @@ fn codegen_error(message: String, span: Option<Span>) -> Diagnostic {
     }
 }
 
-fn not_yet_supported(what: &str, span: Option<Span>) -> Diagnostic {
+pub(super) fn not_yet_supported(what: &str, span: Option<Span>) -> Diagnostic {
     codegen_error(format!("{what} is not supported by codegen yet"), span)
 }
 

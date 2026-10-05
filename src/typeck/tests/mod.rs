@@ -597,3 +597,150 @@ fun main(): i32 {
 "#;
     assert!(diags_of(src).iter().any(|d| d.message.contains("`break` outside")));
 }
+
+#[test]
+fn struct_new_field_and_eq_typecheck() {
+    let hir = hir_of(
+        r#"
+struct Point(val x: i32, val y: i32)
+fun main(): i32 {
+    val p = new Point(1, 2)
+    if (p == new Point(1, 2)) { return p.x } else { return 0 }
+}
+"#,
+    );
+    assert_eq!(hir.structs.len(), 1);
+    assert_eq!(hir.structs[0].name, "Point");
+}
+
+#[test]
+fn struct_string_field_is_type_error() {
+    let src = r#"
+struct Bad(val s: String)
+fun main() {}
+"#;
+    assert!(diags_of(src).iter().any(|d| d.message.contains("String")));
+}
+
+#[test]
+fn struct_cycle_is_type_error() {
+    let src = r#"
+struct A(val b: B)
+struct B(val a: A)
+fun main() {}
+"#;
+    assert!(diags_of(src).iter().any(|d| d.message.contains("cyclic")));
+}
+
+#[test]
+fn struct_field_assign_on_val_field_is_type_error() {
+    let src = r#"
+struct Point(val x: i32)
+fun main(): i32 {
+    var p = new Point(1)
+    p.x = 2
+    return p.x
+}
+"#;
+    assert!(diags_of(src)
+        .iter()
+        .any(|d| d.message.contains("immutable field")));
+}
+
+#[test]
+fn struct_var_field_assign_through_val_binding_ok() {
+    let hir = hir_of(
+        r#"
+struct Point(var x: i32)
+fun main(): i32 {
+    val p = new Point(1)
+    p.x = 2
+    return p.x
+}
+"#,
+    );
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::Assign {
+            target: crate::hir::HirAssignTarget::Field { field, .. },
+            ..
+        } if field == "x"
+    ));
+}
+
+#[test]
+fn struct_safe_field_on_nullable_ok() {
+    let hir = hir_of(
+        r#"
+struct Point(val x: i32)
+fun main(): i32 {
+    val p: Point? = Some(new Point(7))
+    val n: i32? = p?.x
+    return n ?: 0
+}
+"#,
+    );
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::VarDecl {
+            value: HirExpr {
+                kind: HirExprKind::Field { safe: true, .. },
+                ty,
+                ..
+            },
+            ..
+        } if ty.is_nullable()
+    ));
+}
+
+#[test]
+fn struct_field_on_nullable_requires_safe() {
+    let src = r#"
+struct Point(val x: i32)
+fun main(): i32 {
+    val p: Point? = None
+    return p.x
+}
+"#;
+    assert!(diags_of(src)
+        .iter()
+        .any(|d| d.message.contains("`?.`")));
+}
+
+#[test]
+fn struct_nullable_field_allowed() {
+    let hir = hir_of(
+        r#"
+struct Box(val n: i32?)
+fun main(): i32 {
+    val b = new Box(None)
+    return b.n ?: 0
+}
+"#,
+    );
+    assert_eq!(hir.structs[0].fields[0].ty, Ty::i32().with_nullable(true));
+}
+
+#[test]
+fn struct_var_nullable_field_assign_ok() {
+    let hir = hir_of(
+        r#"
+struct Box(var n: i32?)
+fun main(): i32 {
+    val b = new Box(None)
+    b.n = Some(9)
+    return b.n ?: 0
+}
+"#,
+    );
+    assert_eq!(hir.structs[0].fields[0].kind, crate::ast::BindingKind::Var);
+    assert_eq!(hir.structs[0].fields[0].ty, Ty::i32().with_nullable(true));
+    assert!(matches!(
+        &hir.functions[0].body.stmts[1],
+        HirStmt::Assign {
+            target: crate::hir::HirAssignTarget::Field { field, .. },
+            ..
+        } if field == "n"
+    ));
+}
+
