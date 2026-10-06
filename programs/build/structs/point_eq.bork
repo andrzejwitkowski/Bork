@@ -1,0 +1,14 @@
+// exit: 11
+struct Point(val x: i32, val y: i32)
+struct Rect(val origin: Point, var w: i32, val h: i32)
+
+fun main(): i32 {
+    val p = new Point(1, 2)
+    val r = new Rect(p, 10, 20)
+    r.w = 11
+    if (p == new Point(1, 2)) {
+        return r.w
+    } else {
+        return 0
+    }
+}

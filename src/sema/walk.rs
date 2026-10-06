@@ -145,6 +145,9 @@ fn walk_stmt(
                     index,
                     borrowed,
                 } => (name, name_span, Some(index), *borrowed),
+                AssignTarget::Field {
+                    name, name_span, ..
+                } => (name, name_span, None, false),
             };
             let dest = az.env.get(name).cloned();
             let assign_up = dest.as_ref().is_some_and(|b| {
@@ -255,6 +258,11 @@ fn walk(
             }
         }
         Expr::Field { receiver: inner, .. } => walk(az, inner, node, None, record_borrow),
+        Expr::StructNew { args, .. } => {
+            for arg in args {
+                walk(az, arg, node, None, record_borrow);
+            }
+        }
         Expr::ArrayLit { elements, .. } => {
             for element in elements {
                 walk(az, element, node, transfer, record_borrow);
@@ -618,7 +626,7 @@ fn hir_to_ast(ty: &crate::hir::Ty) -> Option<Type> {
     }
     let kind = match &ty.kind {
         crate::hir::TyKind::Prim(prim) => Type::from_ident(prim.as_str(), ty.nullable),
-        crate::hir::TyKind::Named(name) => Type::Named {
+        crate::hir::TyKind::Named(name) | crate::hir::TyKind::Struct(name) => Type::Named {
             name: name.clone(),
             nullable: ty.nullable,
         },

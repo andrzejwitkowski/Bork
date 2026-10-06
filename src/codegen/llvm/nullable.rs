@@ -7,7 +7,7 @@ use inkwell::IntPredicate;
 use crate::ast::BinOp;
 use crate::codegen_gate::{nullable_repr, NullableRepr};
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, HirExprKind, Prim, Ty, TyKind};
+use crate::hir::{HirExpr, HirExprKind, Ty};
 
 use super::context::Codegen;
 use super::emit_fn::FnEmitter;
@@ -23,7 +23,7 @@ impl<'ctx> Codegen<'ctx> {
 }
 
 impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
-    fn emit_nullable_is_null(
+    pub(super) fn emit_nullable_is_null(
         &mut self,
         ty: &Ty,
         value: BasicValueEnum<'ctx>,
@@ -89,7 +89,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         }
     }
 
-    fn emit_nullable_unwrap(
+    pub(super) fn emit_nullable_unwrap(
         &mut self,
         nullable_ty: &Ty,
         value: BasicValueEnum<'ctx>,
@@ -236,7 +236,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         }
     }
 
-    fn emit_buffer_desc_eq(
+    pub(super) fn emit_buffer_desc_eq(
         &self,
         lhs_val: BasicValueEnum<'ctx>,
         rhs_val: BasicValueEnum<'ctx>,
@@ -273,29 +273,15 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         rhs_val: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
-        let cx = self.cx;
-        let l_val = cx
+        let l_val = self
+            .cx
             .builder
             .build_extract_value(lhs_val.into_struct_value(), 1, "l.v")?;
-        let r_val = cx
+        let r_val = self
+            .cx
             .builder
             .build_extract_value(rhs_val.into_struct_value(), 1, "r.v")?;
-        let inner_ty = ty.with_nullable(false);
-        if matches!(inner_ty.kind, TyKind::Prim(Prim::F32 | Prim::F64)) {
-            let l = self.value_as_float(l_val, &inner_ty, span)?;
-            let r = self.value_as_float(r_val, &inner_ty, span)?;
-            return Ok(cx.builder.build_float_compare(
-                inkwell::FloatPredicate::OEQ,
-                l,
-                r,
-                "val.eq",
-            )?);
-        }
-        let l_int = self.value_as_int(l_val, &inner_ty, span)?;
-        let r_int = self.value_as_int(r_val, &inner_ty, span)?;
-        Ok(cx
-            .builder
-            .build_int_compare(IntPredicate::EQ, l_int, r_int, "val.eq")?)
+        self.emit_value_eq(&ty.with_nullable(false), l_val, r_val, span)
     }
 
     pub(super) fn emit_safe_nullable_length(
@@ -341,6 +327,61 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         phi.add_incoming(&[(&none_val, null_bb), (&some_val, some_end)]);
         Ok(phi.as_basic_value())
     }
+
+    pub(super) fn emit_safe_nullable_struct_field(
+        &mut self,
+        receiver_ty: &Ty,
+        receiver_val: BasicValueEnum<'ctx>,
+        field_index: u32,
+        field_ty: &Ty,
+        result_ty: &Ty,
+        span: Option<crate::span::Span>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let is_null = self.emit_nullable_is_null(receiver_ty, receiver_val)?;
+        let null_bb = self
+            .cx
+            .context
+            .append_basic_block(self.llvm_fn, "safe.field.null");
+        let some_bb = self
+            .cx
+            .context
+            .append_basic_block(self.llvm_fn, "safe.field.some");
+        let merge_bb = self
+            .cx
+            .context
+            .append_basic_block(self.llvm_fn, "safe.field.end");
+        self.cx
+            .builder
+            .build_conditional_branch(is_null, null_bb, some_bb)?;
+        self.cx.builder.position_at_end(null_bb);
+        let none_val = self.cx.const_null_value(result_ty)?;
+        self.cx.builder.build_unconditional_branch(merge_bb)?;
+        self.cx.builder.position_at_end(some_bb);
+        let unwrapped = self.emit_nullable_unwrap(receiver_ty, receiver_val)?;
+        let extracted = self.cx.builder.build_extract_value(
+            unwrapped.into_struct_value(),
+            field_index,
+            "safe.field",
+        )?;
+        let some_val = if result_ty.is_nullable() && !field_ty.is_nullable() {
+            self.emit_nullable_some(result_ty, extracted)?
+        } else {
+            extracted
+        };
+        let some_end = self.cx.builder.get_insert_block().expect("some block");
+        self.cx.builder.build_unconditional_branch(merge_bb)?;
+        self.cx.builder.position_at_end(merge_bb);
+        let llvm_ty = self
+            .cx
+            .basic_type(result_ty)
+            .ok_or_else(|| not_yet_supported(&format!("type `{result_ty}`"), span))?;
+        let phi = self
+            .cx
+            .builder
+            .build_phi(llvm_ty.as_basic_type_enum(), "safe.field")?;
+        phi.add_incoming(&[(&none_val, null_bb), (&some_val, some_end)]);
+        Ok(phi.as_basic_value())
+    }
 }
 
 #[cfg(test)]
@@ -372,5 +413,12 @@ mod nullable_repr_tests {
     fn non_nullable_is_none() {
         assert_eq!(nullable_repr(&Ty::i32()), None);
         assert!(codegen_lowers_nullable(&Ty::i32()));
+    }
+
+    #[test]
+    fn struct_optional_is_tagged() {
+        let ty = Ty::struct_ty("Point").with_nullable(true);
+        assert_eq!(nullable_repr(&ty), Some(NullableRepr::TaggedScalar));
+        assert!(codegen_lowers_nullable(&ty));
     }
 }

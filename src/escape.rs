@@ -321,6 +321,9 @@ impl<'h> Escape<'h, '_> {
             | HirExprKind::Field {
                 receiver: inner, ..
             } => self.place(inner, None),
+            HirExprKind::StructNew { args, .. } => {
+                args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max)
+            }
         }
     }
 

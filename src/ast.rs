@@ -2,7 +2,42 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
+    pub structs: Vec<StructDecl>,
     pub functions: Vec<Function>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDecl {
+    pub name: String,
+    pub fields: Vec<StructField>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructField {
+    pub kind: BindingKind,
+    pub name: crate::span::SpannedName,
+    pub ty: Type,
+}
+
+/// Top-level item folded into [`Program`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum Item {
+    Struct(StructDecl),
+    Fun(Function),
+}
+
+impl Program {
+    pub fn from_items(items: Vec<Item>) -> Self {
+        let mut structs = Vec::new();
+        let mut functions = Vec::new();
+        for item in items {
+            match item {
+                Item::Struct(s) => structs.push(s),
+                Item::Fun(f) => functions.push(f),
+            }
+        }
+        Self { structs, functions }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,13 +106,17 @@ impl Type {
     }
 
     pub fn is_copy(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Type::Primitive {
+                nullable: false, ..
+            } => true,
+            // ponytail: sema maps HIR Struct→Named; only String is non-Copy among Named
+            Type::Named {
+                name,
                 nullable: false,
-                ..
-            }
-        )
+            } if name != "String" => true,
+            _ => false,
+        }
     }
 
     pub fn with_nullable(self, nullable: bool) -> Self {
@@ -205,6 +244,12 @@ pub enum AssignTarget {
         index: Expr,
         borrowed: bool,
     },
+    Field {
+        name: String,
+        name_span: crate::span::Span,
+        field: String,
+        field_span: crate::span::Span,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -268,6 +313,11 @@ pub enum Expr {
         callee: Box<Expr>,
         args: Vec<Expr>,
         trailing: Option<Closure>,
+    },
+    StructNew {
+        name: String,
+        args: Vec<Expr>,
+        span: crate::span::Span,
     },
     If {
         cond: Box<Expr>,

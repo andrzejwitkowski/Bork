@@ -36,7 +36,7 @@
       "patterns": [
         {
           "name": "keyword.control.bork",
-          "match": "\\b(fun|for|in|return|if|else|move)\\b"
+          "match": "\\b(fun|for|in|return|if|else|move|struct|new)\\b"
         },
         {
           "name": "keyword.other.bork",

@@ -1,0 +1,8 @@
+// exit: 7
+struct Inner(val n: i32)
+struct Outer(val inner: Inner)
+
+fun main(): i32 {
+    val o = new Outer(new Inner(7))
+    return o.inner.n
+}

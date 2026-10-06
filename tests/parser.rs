@@ -164,6 +164,38 @@ fn parses_else_if_on_following_line() {
 }
 
 #[test]
+fn parses_struct_decl_and_new() {
+    let prog = parse("struct Point(val x: i32, val y: i32)\nfun main(): i32 { return new Point(1, 2).x }")
+        .expect("struct + new should parse");
+    assert_eq!(prog.structs.len(), 1);
+    assert_eq!(prog.structs[0].name, "Point");
+    assert_eq!(prog.structs[0].fields.len(), 2);
+    assert_eq!(prog.structs[0].fields[0].kind, BindingKind::Val);
+    assert!(matches!(
+        &prog.functions[0].body.stmts[0],
+        Stmt::Return(Some(Expr::Field {
+            receiver,
+            name,
+            ..
+        })) if name == "x" && matches!(receiver.as_ref(), Expr::StructNew { name, args, .. } if name == "Point" && args.len() == 2)
+    ));
+}
+
+#[test]
+fn parses_struct_field_assign() {
+    let prog = parse("struct Point(var x: i32)\nfun main() { val p = new Point(1)\n p.x = 2 }")
+        .expect("field assign should parse");
+    assert_eq!(prog.structs[0].fields[0].kind, BindingKind::Var);
+    assert!(matches!(
+        &prog.functions[0].body.stmts[1],
+        Stmt::Assign {
+            target: AssignTarget::Field { field, .. },
+            ..
+        } if field == "x"
+    ));
+}
+
+#[test]
 fn standalone_comment_between_statements_is_part_of_the_separator() {
     let prog = parse("fun main() {\n val x = 1\n // explanation\n val y = 2\n}")
         .expect("a standalone comment should not create an extra separator");
