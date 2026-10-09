@@ -107,11 +107,12 @@ fn parses_if_val_and_exhaustive_when() {
 
     assert!(matches!(
         &prog.functions[0].body.stmts[0],
-        Stmt::Expr(Expr::IfVal { bindings, .. }) if bindings[0].name.name == "value"
+        Stmt::Expr(Expr::IfVal { bindings, .. }) if bindings.head.name.name == "value"
     ));
+    // `when` desugars to the same `if val` shape.
     assert!(matches!(
         &prog.functions[0].body.stmts[1],
-        Stmt::Expr(Expr::When { some_name, .. }) if some_name.name == "value"
+        Stmt::Expr(Expr::IfVal { bindings, else_block: Some(_), .. }) if bindings.head.name.name == "value"
     ));
 }
 
@@ -754,8 +755,8 @@ fn chained_header_spans_refer_to_original_multiline_source() {
     };
     assert!(else_block.is_some());
     for (binding, name, value) in [
-        (&bindings[0], "first", "source"),
-        (&bindings[1], "second", "first.next"),
+        (&*bindings.head, "first", "source"),
+        (&bindings.tail[0], "second", "first.next"),
     ] {
         assert_eq!(
             &source[binding.name.span.start..binding.name.span.end],

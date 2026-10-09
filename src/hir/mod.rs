@@ -13,8 +13,20 @@ use crate::span::Span;
 pub struct HirConditionalBinding {
     pub name: crate::span::SpannedName,
     pub value: HirExpr,
-    pub value_span: Span,
     pub binding_ty: Ty,
+}
+
+/// Non-empty presence header. See [`ast::ConditionalBindings`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirConditionalBindings {
+    pub head: Box<HirConditionalBinding>,
+    pub tail: Vec<HirConditionalBinding>,
+}
+
+impl HirConditionalBindings {
+    pub fn iter(&self) -> impl Iterator<Item = &HirConditionalBinding> {
+        std::iter::once(self.head.as_ref()).chain(&self.tail)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,7 +231,7 @@ pub enum HirExprKind {
         safe: bool,
     },
     PresenceMatch {
-        bindings: Vec<HirConditionalBinding>,
+        bindings: HirConditionalBindings,
         some_block: HirBlock,
         none_block: Option<HirBlock>,
     },

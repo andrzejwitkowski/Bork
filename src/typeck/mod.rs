@@ -15,9 +15,9 @@ pub(crate) use env::FunSig;
 use lower::lower_type;
 
 /// Types used by sema, keyed by declaration names and field assignment spans.
-pub type DeclTypes = HashMap<Span, Ty>;
+pub type SpanTypes = HashMap<Span, Ty>;
 
-pub fn check(program: &Program) -> (HirProgram, DeclTypes, Vec<Diagnostic>) {
+pub fn check(program: &Program) -> (HirProgram, SpanTypes, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     reject_builtin_redefines(program, &mut diagnostics);
 
@@ -25,7 +25,7 @@ pub fn check(program: &Program) -> (HirProgram, DeclTypes, Vec<Diagnostic>) {
     validate_owned_layouts(&classes, &mut diagnostics);
     let fun_sigs = collect_fun_sigs(program, &classes, &mut diagnostics);
 
-    let mut decl_tys = DeclTypes::new();
+    let mut span_tys = SpanTypes::new();
     let functions = program
         .functions
         .iter()
@@ -36,7 +36,7 @@ pub fn check(program: &Program) -> (HirProgram, DeclTypes, Vec<Diagnostic>) {
                 &fun_sigs,
                 &classes,
                 &mut diagnostics,
-                &mut decl_tys,
+                &mut span_tys,
             )
         })
         .collect();
@@ -62,7 +62,7 @@ pub fn check(program: &Program) -> (HirProgram, DeclTypes, Vec<Diagnostic>) {
             classes: hir_classes,
             functions,
         },
-        decl_tys,
+        span_tys,
         diagnostics,
     )
 }
@@ -192,7 +192,7 @@ fn check_function(
     fun_sigs: &HashMap<String, FunSig>,
     classes: &ClassTable,
     diagnostics: &mut Vec<Diagnostic>,
-    decl_tys: &mut DeclTypes,
+    span_tys: &mut SpanTypes,
 ) -> HirFunction {
     let mut env = Env::new(fun_sigs, classes);
     let signature = env
@@ -210,7 +210,7 @@ fn check_function(
         );
     }
     diagnostics.append(&mut env.diagnostics);
-    decl_tys.extend(env.decl_tys);
+    span_tys.extend(env.span_tys);
     HirFunction {
         name: function.name.clone(),
         params,

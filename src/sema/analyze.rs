@@ -8,17 +8,17 @@ use crate::ast::{Function, Program};
 
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
-    let (_, decl_tys, _) = crate::typeck::check(program);
-    analyze_with_decl_tys(program, decl_tys)
+    let (_, span_tys, _) = crate::typeck::check(program);
+    analyze_with_span_tys(program, span_tys)
 }
 
-/// Same as [`analyze`], but reuses `decl_tys` from an earlier `typeck::check` (avoids duplicate work).
-pub fn analyze_with_decl_tys(
+/// Same as [`analyze`], but reuses `span_tys` from an earlier `typeck::check` (avoids duplicate work).
+pub fn analyze_with_span_tys(
     program: &Program,
-    decl_tys: crate::typeck::DeclTypes,
+    span_tys: crate::typeck::SpanTypes,
 ) -> (ArenaReport, Vec<SemaError>) {
     let mut az = Analyzer::new();
-    az.decl_tys = decl_tys;
+    az.span_tys = span_tys;
     az.classes = program
         .classes
         .iter()

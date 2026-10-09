@@ -1,6 +1,7 @@
 use crate::ast::{
     unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ClassField, Closure,
-    ConditionalBinding, Expr, Function, Item, Param, Program, Stmt, Type, UnaryOp,
+    ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type,
+    UnaryOp,
 };
 use crate::span::{Span, SpannedName};
 use lalrpop_util::ParseError;
@@ -469,7 +470,7 @@ IfExpr: Expr = {
 
 IfValExpr: Expr = {
     "if" "val" <binding:SingleConditionalBinding> <then_block:Block> <else_block:ElseClause?> => Expr::IfVal {
-        bindings: vec![binding], then_block, else_block,
+        bindings: ConditionalBindings { head: Box::new(binding), tail: Vec::new() }, then_block, else_block,
     },
     "if" "val" "(" <bindings:ConditionalBindings> ")" <then_block:Block> <else_block:ElseClause?> => Expr::IfVal {
         bindings, then_block, else_block,
@@ -488,27 +489,30 @@ ConditionalBinding: ConditionalBinding = {
     },
 };
 
-ConditionalBindings: Vec<ConditionalBinding> = {
+ConditionalBindings: ConditionalBindings = {
     <bindings:ConditionalBindingList> <_trailing:","?> => bindings,
 };
 
-ConditionalBindingList: Vec<ConditionalBinding> = {
-    <binding:ConditionalBinding> => vec![binding],
+ConditionalBindingList: ConditionalBindings = {
+    <head:ConditionalBinding> => ConditionalBindings { head: Box::new(head), tail: Vec::new() },
     <mut bindings:ConditionalBindingList> "," <binding:ConditionalBinding> => {
-        bindings.push(binding);
+        bindings.tail.push(binding);
         bindings
     },
 };
 
+// `when x { Some(v) => a, None => b }` is `if val v = x { a } else { b }`.
 WhenExpr: Expr = {
-    "when" <value:PresenceOperand> "{" <_leading:"NL"?>
+    "when" <start:@L> <value:PresenceOperand> <end:@R> "{" <_leading:"NL"?>
         "Some" "(" <some_name:SpannedIdent> ")" "=>" <some_block:Block> "NL"
         "None" "=>" <none_block:Block> <_trailing:"NL"?>
-    "}" => Expr::When {
-        value: Box::new(value),
-        some_name,
-        some_block,
-        none_block,
+    "}" => Expr::IfVal {
+        bindings: ConditionalBindings {
+            head: Box::new(ConditionalBinding { name: some_name, value, value_span: Span::new(start, end) }),
+            tail: Vec::new(),
+        },
+        then_block: some_block,
+        else_block: Some(none_block),
     },
 };
 

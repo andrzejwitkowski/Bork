@@ -11,10 +11,17 @@ use super::not_yet_supported;
 
 pub(super) struct PresenceSplit<'ctx> {
     label: String,
-    pub(super) none_bb: BasicBlock<'ctx>,
+    none_bb: BasicBlock<'ctx>,
     merge_bb: BasicBlock<'ctx>,
     incoming: Vec<(BasicValueEnum<'ctx>, BasicBlock<'ctx>)>,
     result_ty: Option<BasicTypeEnum<'ctx>>,
+}
+
+impl<'ctx> PresenceSplit<'ctx> {
+    /// Branch target for an absent guard; the `None` arm is emitted into it later.
+    pub(super) fn absent_target(&self) -> BasicBlock<'ctx> {
+        self.none_bb
+    }
 }
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {

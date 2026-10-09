@@ -203,11 +203,11 @@ fun main() {
     val s: String = "hi"
     if (true) {
         move (s) {
-            return 1
+            val n = 1
         }
     } else {
         move (s) {
-            return 2
+            val n = 2
         }
     }
     val t = s
@@ -705,4 +705,35 @@ fn managed_ref_field_stores_keep_owners_with_complex_receivers() {
         let checked = crate::frontend::check(&source);
         assert!(checked.is_ok(), "{source}\n{:?}", checked.diagnostics);
     }
+}
+
+#[test]
+fn if_move_on_one_path_stays_maybe_moved() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun use(flag: bool) {\n var owner = Node()\n if (flag) { take(move owner) }\n owner.next\n}");
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("after move")),
+        "{:?}",
+        checked.diagnostics
+    );
+}
+
+#[test]
+fn if_branch_that_returns_does_not_move_after_if() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun run(flag: bool): i32 {\n var owner = Node()\n if (flag) {\n take(move owner)\n return 0\n }\n owner.next\n return 1\n}");
+    assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+}
+
+#[test]
+fn if_val_else_sees_only_header_moves() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun use(r: Ref<Node>) {\n var owner = Node()\n if val a = r { take(move owner) } else { move { owner.next } }\n}");
+    assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+}
+
+#[test]
+fn if_val_branches_that_both_return_do_not_move_after() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun run(r: Ref<Node>): i32 {\n var owner = Node()\n if val a = r {\n take(move owner)\n return 0\n } else {\n return 1\n }\n return 2\n}");
+    assert!(checked.is_ok(), "{:?}", checked.diagnostics);
 }

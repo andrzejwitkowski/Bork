@@ -275,31 +275,11 @@ impl RegionVisitor for Planner {
         Ok(())
     }
 
-    fn presence_match<C: ArenaCursor>(
+    fn bind_presence_guard(
         &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        bindings: &[crate::hir::HirConditionalBinding],
-        some_block: &HirBlock,
-        none_block: Option<&HirBlock>,
-        _result_ty: &Ty,
+        binding: &crate::hir::HirConditionalBinding,
     ) -> Result<(), WalkError> {
-        let (first, rest) = bindings
-            .split_first()
-            .expect("nonempty conditional bindings");
-        driver.walk_expr(self, &first.value)?;
-        let origins = self.origins(&first.value);
-        region_walk::region_enter(driver, self, RegionSite::PresenceSome, some_block)?;
-        self.bind(&first.name.name, origins);
-        for binding in rest {
-            driver.walk_expr(self, &binding.value)?;
-            self.bind(&binding.name.name, self.origins(&binding.value));
-        }
-        let (body, _) = crate::hir::peel_blocks(some_block);
-        driver.walk_block(self, body, None)?;
-        region_walk::region_exit(driver, self, RegionSite::PresenceSome)?;
-        if let Some(block) = none_block {
-            driver.walk_region(self, RegionSite::PresenceNone, block)?;
-        }
+        self.bind(&binding.name.name, self.origins(&binding.value));
         Ok(())
     }
 

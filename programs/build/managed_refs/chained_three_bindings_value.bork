@@ -1,0 +1,15 @@
+// exit: 3
+class Node {
+    id: i32
+    next: Ref<Node>
+}
+fun main(): i32 {
+    val c: Ref<Node> = Node(3, None)
+    val b: Ref<Node> = Node(2, c)
+    val a: Ref<Node> = Node(1, b)
+    var found = 0
+    if val (x = a, y = x.next, z = y.next) {
+        found = z.id
+    }
+    return found
+}

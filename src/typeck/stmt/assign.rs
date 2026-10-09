@@ -116,7 +116,7 @@ fn check_receiver_field(
         let value = expr::check(value, None, return_ty, env);
         return HirStmt::Expr(value);
     };
-    env.decl_tys.insert(field_span, field_ty.clone());
+    env.span_tys.insert(field_span, field_ty.clone());
     let value = expr::check(value, Some(&field_ty), return_ty, env);
     reject_type_mismatch(
         env,

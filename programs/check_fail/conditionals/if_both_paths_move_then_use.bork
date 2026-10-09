@@ -1,0 +1,11 @@
+// diag: after move
+fun main() {
+    val flag = true
+    var s: String = "hi"
+    if (flag) {
+        move (s) { println("a") }
+    } else {
+        move (s) { println("b") }
+    }
+    println(s)
+}

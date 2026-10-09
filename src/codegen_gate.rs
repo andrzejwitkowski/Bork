@@ -87,21 +87,21 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         | HirExprKind::Float { .. }
         | HirExprKind::Bool { .. }
         | HirExprKind::Str { .. } => {}
-        HirExprKind::Ident { use_kind, .. } => {
-            if matches!(use_kind, UseKind::Move | UseKind::Promote)
-                && expr.ty.record_name().is_some()
-            {
+        HirExprKind::Ident {
+            use_kind: UseKind::Move | UseKind::Promote,
+            ..
+        } => {
+            if expr.ty.record_name().is_some() {
                 reject(
                     diagnostics,
                     "moving class objects is not supported by codegen yet",
                     expr.span,
                 );
             }
-            if matches!(use_kind, UseKind::Move | UseKind::Promote)
-                && expr
-                    .ty
-                    .array_elem()
-                    .is_some_and(|elem| elem.is_managed_ref())
+            if expr
+                .ty
+                .array_elem()
+                .is_some_and(|elem| elem.is_managed_ref())
             {
                 reject(
                     diagnostics,
@@ -110,6 +110,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 );
             }
         }
+        HirExprKind::Ident { .. } => {}
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
                 gate_expr(element, diagnostics);
@@ -204,7 +205,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             none_block,
             ..
         } => {
-            for binding in bindings {
+            for binding in bindings.iter() {
                 gate_expr(&binding.value, diagnostics);
             }
             gate_block(some_block, diagnostics);

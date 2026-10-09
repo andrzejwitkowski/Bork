@@ -9,7 +9,10 @@ use std::collections::HashMap;
 
 use crate::builtins::{self, Builtin};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{peel_to_body, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, UseKind};
+use crate::hir::{
+    peel_to_body, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
+    HirFunction, HirStmt, UseKind,
+};
 use crate::span::Span;
 
 pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>) {
@@ -55,31 +58,35 @@ struct Escape<'h, 'd> {
 
 impl<'h> Escape<'h, '_> {
     fn region(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
-        self.region_with_bindings(body, yields, sink, &[])
+        self.open_scope();
+        self.region_body(body, yields, sink)
     }
 
-    fn region_with_bindings(
+    /// `if val` / `when` region: binds the guard names first. Later sources are evaluated
+    /// inside the region, as in codegen.
+    fn presence_region(
         &mut self,
         body: &'h HirBlock,
-        yields: bool,
         sink: Option<usize>,
-        bindings: &'h [crate::hir::HirConditionalBinding],
+        bindings: &'h HirConditionalBindings,
     ) -> usize {
-        let body = peel_to_body(body);
+        self.open_scope();
+        self.bind_guard(&bindings.head);
+        for binding in &bindings.tail {
+            self.place(&binding.value, None);
+            self.bind_guard(binding);
+        }
+        self.region_body(body, true, sink)
+    }
+
+    fn open_scope(&mut self) {
         self.depth += 1;
         self.scopes.push(HashMap::new());
-        for (index, binding) in bindings.iter().enumerate() {
-            if index != 0 {
-                self.place(&binding.value, None);
-            }
-            self.scopes.last_mut().unwrap().insert(
-                &binding.name.name,
-                Local {
-                    decl_depth: self.depth,
-                    value_depth: self.depth,
-                },
-            );
-        }
+    }
+
+    /// Walks a region body whose scope is already open, then closes it.
+    fn region_body(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
+        let body = peel_to_body(body);
         let mut value = 0;
         if let Some((last, prefix)) = body.stmts.split_last() {
             for stmt in prefix {
@@ -367,13 +374,7 @@ impl<'h> Escape<'h, '_> {
                 none_block,
                 ..
             } => {
-                self.place(
-                    &bindings
-                        .first()
-                        .expect("nonempty conditional bindings")
-                        .value,
-                    None,
-                );
+                self.place(&bindings.head.value, None);
                 if expr.ty.is_ref() {
                     reject(
                         self.diagnostics,
@@ -383,8 +384,7 @@ impl<'h> Escape<'h, '_> {
                 }
                 // Both presence arms materialize owned results before releasing observations.
                 let result_depth = sink.unwrap_or(self.depth);
-                let some_depth =
-                    self.region_with_bindings(some_block, true, Some(result_depth), bindings);
+                let some_depth = self.presence_region(some_block, Some(result_depth), bindings);
                 let none_depth = none_block
                     .as_ref()
                     .map_or(0, |block| self.region(block, true, Some(result_depth)));
@@ -395,6 +395,16 @@ impl<'h> Escape<'h, '_> {
                 }
             }
         }
+    }
+
+    fn bind_guard(&mut self, binding: &'h HirConditionalBinding) {
+        self.scopes.last_mut().unwrap().insert(
+            &binding.name.name,
+            Local {
+                decl_depth: self.depth,
+                value_depth: self.depth,
+            },
+        );
     }
 
     fn array_value_depth(&mut self, receiver: &'h HirExpr) -> usize {

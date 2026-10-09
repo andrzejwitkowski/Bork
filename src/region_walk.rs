@@ -5,8 +5,15 @@
 //! `hir::peel_blocks` with the same rule — keep those peel implementations aligned.
 
 use crate::ast::BinOp;
-use crate::hir::{peel_blocks, HirBlock, HirExpr, HirExprKind, HirFunction, HirProgram, HirStmt, Ty};
+use crate::hir::{
+    peel_blocks, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
+    HirFunction, HirProgram, HirStmt, Ty,
+};
 use crate::sema::ArenaNode;
+
+mod stamp;
+#[cfg(test)]
+use stamp::StampVisitor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegionSite {
@@ -420,10 +427,16 @@ pub trait RegionVisitor {
         Ok(())
     }
 
+    /// Binds one `if val` / `when` name. Called after its source was walked and the
+    /// `Some` region is open; head first, then each tail binding in order.
+    fn bind_presence_guard(&mut self, binding: &HirConditionalBinding) -> Result<(), WalkError>;
+
+    /// Canonical `if val` / `when` sequence: the head source runs in the enclosing region,
+    /// each tail source runs inside the `Some` region, then the body.
     fn presence_match<C: ArenaCursor>(
         &mut self,
         driver: &mut WalkDriver<'_, C>,
-        bindings: &[crate::hir::HirConditionalBinding],
+        bindings: &HirConditionalBindings,
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
         _result_ty: &Ty,
@@ -431,13 +444,12 @@ pub trait RegionVisitor {
     where
         Self: Sized,
     {
-        let (first, rest) = bindings
-            .split_first()
-            .expect("nonempty conditional bindings");
-        driver.walk_expr(self, &first.value)?;
+        driver.walk_expr(self, &bindings.head.value)?;
         region_enter(driver, self, RegionSite::PresenceSome, some_block)?;
-        for binding in rest {
+        self.bind_presence_guard(&bindings.head)?;
+        for binding in &bindings.tail {
             driver.walk_expr(self, &binding.value)?;
+            self.bind_presence_guard(binding)?;
         }
         let (body, _) = crate::hir::peel_blocks(some_block);
         driver.walk_block(self, body, None)?;
@@ -776,44 +788,7 @@ pub fn walk_function_readonly<V: RegionVisitor>(
     walk_one_function(function, &mut cursor, visitor)
 }
 
-struct StampVisitor;
-
-impl RegionVisitor for StampVisitor {
-    fn touch_codegen_push(&self) -> bool {
-        true
-    }
-
-    fn on_function_root_mut(&mut self, root: &mut ArenaNode) -> Result<(), WalkError> {
-        root.codegen_push = true;
-        Ok(())
-    }
-
-    fn enter_region(
-        &mut self,
-        _site: RegionSite,
-        _child: &ArenaNode,
-        _body: &HirBlock,
-    ) -> Result<(), WalkError> {
-        Ok(())
-    }
-
-    fn loop_latch(&mut self, _site: RegionSite) -> Result<(), WalkError> {
-        Ok(())
-    }
-
-    fn exit_region(&mut self, _site: RegionSite) -> Result<(), WalkError> {
-        Ok(())
-    }
-
-    fn skip_closure(&mut self, _child: &ArenaNode) -> Result<(), WalkError> {
-        Ok(())
-    }
-}
-
-pub fn stamp_codegen_push(program: &HirProgram, report: &mut crate::sema::ArenaReport) {
-    let mut visitor = StampVisitor;
-    walk_program(program, &mut report.roots, &mut visitor).expect("stamp walk");
-}
+pub use stamp::stamp_codegen_push;
 
 #[cfg(test)]
 mod tests {

@@ -194,24 +194,9 @@ pub(super) fn check(
             then_block,
             else_block,
         } => check_presence(
-            bindings
-                .iter()
-                .map(|b| (&b.value, &b.name, Some(b.value_span))),
+            bindings,
             then_block,
             else_block.as_ref(),
-            expected,
-            return_ty,
-            env,
-        ),
-        Expr::When {
-            value,
-            some_name,
-            some_block,
-            none_block,
-        } => check_presence(
-            std::iter::once((value.as_ref(), some_name, None)),
-            some_block,
-            Some(none_block),
             expected,
             return_ty,
             env,

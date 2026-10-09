@@ -1,8 +1,8 @@
 //! AST walk and region open for ownership checking.
 
 use super::env::{
-    apply_moved_merge, bind_with, moved_names, restore_moved_flags, Analyzer, BindingOrigin,
-    Shadow, Ty,
+    bind_with, join_branch_moves, moved_names, restore_moved_flags, Analyzer, BindingOrigin,
+    BranchEnd, Shadow, Ty,
 };
 use super::peel_blocks;
 use super::policy::{
@@ -11,8 +11,9 @@ use super::policy::{
 };
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::{AssignTarget, BindingKind, Block, Expr, Stmt, Type, UnaryOp};
+use crate::ast::{AssignTarget, BindingKind, Block, ConditionalBinding, Expr, Stmt, Type, UnaryOp};
 use crate::span::{Span, SpannedName};
+use std::collections::HashSet;
 
 pub(super) fn open_ordinary(
     az: &mut Analyzer,
@@ -118,8 +119,9 @@ fn walk_stmt(
             value,
         } => {
             let inferred = az
-                .decl_tys
-                .remove(name_span)
+                .span_tys
+                .get(name_span)
+                .cloned()
                 .map(ty_from_hir)
                 .unwrap_or(Ty::Unknown);
             let sink = TransferSink::Binding {
@@ -178,7 +180,7 @@ fn walk_stmt(
                     ..
                 } => (name, span, None, false),
                 AssignTarget::Field { receiver, span, .. } => {
-                    let target_ty = az.decl_tys.remove(span).map(ty_from_hir);
+                    let target_ty = az.span_tys.get(span).cloned().map(ty_from_hir);
                     walk(az, receiver, node, None, true);
                     walk_typed(
                         az,
@@ -206,8 +208,9 @@ fn walk_stmt(
                     }
                 }
                 (AssignTarget::Field { span, .. }, _) => az
-                    .decl_tys
-                    .remove(span)
+                    .span_tys
+                    .get(span)
+                    .cloned()
                     .map(ty_from_hir)
                     .and_then(|ty| ty.as_option()),
                 _ => None,
@@ -448,103 +451,139 @@ fn walk(
             let before_moved = moved_names(&az.env);
             node.children
                 .push(open_ordinary(az, "IfThen", then_block, &[], tail_transfer));
-            let then_moved = moved_names(&az.env);
+            let then_end = branch_end(az, then_block, &[]);
             restore_moved_flags(&mut az.env, &before_moved);
-            let else_moved = if let Some(else_b) = else_block {
-                node.children
-                    .push(open_ordinary(az, "IfElse", else_b, &[], tail_transfer));
-                Some(moved_names(&az.env))
-            } else {
-                None
-            };
-            restore_moved_flags(&mut az.env, &before_moved);
-            if az.conservative_moves {
-                for (name, binding) in &mut az.env {
-                    binding.moved |= then_moved.contains(name)
-                        || else_moved
-                            .as_ref()
-                            .is_some_and(|moved| moved.contains(name));
-                }
-            } else {
-                apply_moved_merge(&mut az.env, &before_moved, &then_moved, else_moved.as_ref());
-            }
+            let else_end = else_arm_end(
+                az,
+                node,
+                else_block.as_ref(),
+                "IfElse",
+                tail_transfer,
+                before_moved,
+            );
+            join_branch_moves(&mut az.env, &[then_end, else_end]);
         }
         Expr::IfVal {
             bindings,
             then_block,
             else_block,
         } => {
-            let first = bindings.first().expect("nonempty conditional bindings");
-            let previous_conservative = az.conservative_moves;
-            az.conservative_moves |= bindings.len() > 1;
-            walk(az, &first.value, node, None, record_borrow);
+            walk(az, &bindings.head.value, node, None, record_borrow);
             let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
             let (body, compacted) = peel_blocks(then_block);
             let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
-            for (index, binding) in bindings.iter().enumerate() {
-                if index != 0 {
-                    walk(az, &binding.value, &mut frame.node, None, record_borrow);
-                }
-                let ty = az
-                    .decl_tys
-                    .remove(&binding.name.span)
-                    .map(ty_from_hir)
-                    .unwrap_or(Ty::Unknown);
-                frame.bind_param(
-                    az,
-                    &RegionParam {
-                        name: binding.name.name.clone(),
-                        ty,
-                        kind: BindingKind::Val,
-                        span: Some(binding.name.span),
-                        borrow_from: "presence guard",
-                    },
-                );
+            bind_presence_guard(az, &mut frame, &bindings.head);
+            for binding in &bindings.tail {
+                walk(az, &binding.value, &mut frame.node, None, record_borrow);
+                bind_presence_guard(az, &mut frame, binding);
             }
-            az.conservative_moves = previous_conservative;
+            // The else path sees the header's moves but not the body's.
+            let header_moved = outer_moved_names(az, &frame.shadows);
             walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
+            let then_end = branch_end(az, then_block, &frame.shadows);
             node.children.push(frame.finish(az));
-            if let Some(block) = else_block {
-                node.children
-                    .push(open_ordinary(az, "IfValNone", block, &[], tail_transfer));
-            }
-        }
-        Expr::When {
-            value,
-            some_name,
-            some_block,
-            none_block,
-        } => {
-            walk(az, value, node, None, record_borrow);
-            let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
-            let params = [RegionParam {
-                name: some_name.name.clone(),
-                ty: az
-                    .decl_tys
-                    .remove(&some_name.span)
-                    .map(ty_from_hir)
-                    .unwrap_or(Ty::Unknown),
-                kind: BindingKind::Val,
-                span: Some(some_name.span),
-                borrow_from: "presence guard",
-            }];
-            node.children.push(open_ordinary(
+            restore_moved_flags(&mut az.env, &header_moved);
+            let else_end = else_arm_end(
                 az,
-                "WhenSome",
-                some_block,
-                &params,
+                node,
+                else_block.as_ref(),
+                "IfValNone",
                 tail_transfer,
-            ));
-            node.children.push(open_ordinary(
-                az,
-                "WhenNone",
-                none_block,
-                &[],
-                tail_transfer,
-            ));
+                header_moved,
+            );
+            join_branch_moves(&mut az.env, &[then_end, else_end]);
         }
         Expr::Float(_) | Expr::Int(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
+}
+
+/// True when control never falls out of `block` (ends in `return`/`break`/`continue`, or in a
+/// nested block or `if` / `if val` whose every path does).
+fn block_diverges(block: &Block) -> bool {
+    match block.stmts.last() {
+        Some(Stmt::Return(_) | Stmt::Break { .. } | Stmt::Continue { .. }) => true,
+        Some(Stmt::Block(body) | Stmt::MoveBlock { body, .. }) => block_diverges(body),
+        Some(Stmt::Expr(expr)) => expr_diverges(expr),
+        _ => false,
+    }
+}
+
+fn expr_diverges(expr: &Expr) -> bool {
+    match expr {
+        Expr::If {
+            then_block,
+            else_block: Some(else_block),
+            ..
+        }
+        | Expr::IfVal {
+            then_block,
+            else_block: Some(else_block),
+            ..
+        } => block_diverges(then_block) && block_diverges(else_block),
+        _ => false,
+    }
+}
+
+/// Names moved in the current env, with shadowed names read from the outer binding.
+fn outer_moved_names(az: &Analyzer, shadows: &[Shadow]) -> HashSet<String> {
+    let mut moved = moved_names(&az.env);
+    for Shadow(name, prev) in shadows {
+        if prev.as_ref().is_some_and(|prev| prev.moved) {
+            moved.insert(name.clone());
+        } else {
+            moved.remove(name);
+        }
+    }
+    moved
+}
+
+fn branch_end(az: &Analyzer, block: &Block, shadows: &[Shadow]) -> BranchEnd {
+    BranchEnd {
+        falls_through: !block_diverges(block),
+        moved: outer_moved_names(az, shadows),
+    }
+}
+
+/// Walks the optional `else` arm. Without one, control falls through with `moved_without_else`.
+fn else_arm_end(
+    az: &mut Analyzer,
+    node: &mut ArenaNode,
+    else_block: Option<&Block>,
+    label: &str,
+    tail_transfer: Option<&TransferSink>,
+    moved_without_else: HashSet<String>,
+) -> BranchEnd {
+    match else_block {
+        Some(block) => {
+            node.children
+                .push(open_ordinary(az, label, block, &[], tail_transfer));
+            branch_end(az, block, &[])
+        }
+        None => BranchEnd {
+            falls_through: true,
+            moved: moved_without_else,
+        },
+    }
+}
+
+/// Binds one `if val` / `when` name inside its `Some` region frame.
+fn bind_presence_guard(az: &mut Analyzer, frame: &mut RegionFrame, binding: &ConditionalBinding) {
+    let ty = az
+        .span_tys
+        .get(&binding.name.span)
+        .cloned()
+        .map(ty_from_hir)
+        .unwrap_or(Ty::Unknown);
+    frame.bind_param(
+        az,
+        &RegionParam {
+            name: binding.name.name.clone(),
+            ty,
+            kind: BindingKind::Val,
+            span: Some(binding.name.span),
+            borrow_from: "presence guard",
+        },
+    );
 }
 
 fn apply_expr_promote(

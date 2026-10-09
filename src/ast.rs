@@ -324,15 +324,9 @@ pub enum Expr {
         else_block: Option<Block>,
     },
     IfVal {
-        bindings: Vec<ConditionalBinding>,
+        bindings: ConditionalBindings,
         then_block: Block,
         else_block: Option<Block>,
-    },
-    When {
-        value: Box<Expr>,
-        some_name: crate::span::SpannedName,
-        some_block: Block,
-        none_block: Block,
     },
 }
 
@@ -350,6 +344,20 @@ pub struct ConditionalBinding {
     pub name: crate::span::SpannedName,
     pub value: Expr,
     pub value_span: crate::span::Span,
+}
+
+/// Non-empty `if val` / `when` header: `head` is the guard evaluated in the enclosing
+/// arena; each `tail` source is evaluated inside the `Some` region.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalBindings {
+    pub head: Box<ConditionalBinding>,
+    pub tail: Vec<ConditionalBinding>,
+}
+
+impl ConditionalBindings {
+    pub fn iter(&self) -> impl Iterator<Item = &ConditionalBinding> {
+        std::iter::once(self.head.as_ref()).chain(&self.tail)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
