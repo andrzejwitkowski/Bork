@@ -525,9 +525,11 @@ fn expr_diverges(expr: &Expr) -> bool {
 }
 
 /// Names moved in the current env, with shadowed names read from the outer binding.
+/// A name can be shadowed more than once in a frame; the earliest shadow holds the outer
+/// binding, so walk newest to oldest and let the oldest decide.
 fn outer_moved_names(az: &Analyzer, shadows: &[Shadow]) -> HashSet<String> {
     let mut moved = moved_names(&az.env);
-    for Shadow(name, prev) in shadows {
+    for Shadow(name, prev) in shadows.iter().rev() {
         if prev.as_ref().is_some_and(|prev| prev.moved) {
             moved.insert(name.clone());
         } else {

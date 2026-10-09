@@ -737,3 +737,16 @@ fn if_val_branches_that_both_return_do_not_move_after() {
     let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun run(r: Ref<Node>): i32 {\n var owner = Node()\n if val a = r {\n take(move owner)\n return 0\n } else {\n return 1\n }\n return 2\n}");
     assert!(checked.is_ok(), "{:?}", checked.diagnostics);
 }
+
+#[test]
+fn if_val_body_redeclaring_header_shadow_keeps_outer_move() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun run(r: Ref<Node>) {\n var owner = Node()\n if val (a = r, b = take(move owner), owner = r) {\n val owner = r\n } else {\n return\n }\n owner.next\n}");
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("after move")),
+        "{:?}",
+        checked.diagnostics
+    );
+}

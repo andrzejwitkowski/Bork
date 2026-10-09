@@ -157,15 +157,17 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         // The head source is evaluated in the enclosing arena, as with single-binding syntax.
         let (observation, object, control, is_absent) =
             self.emit_guard_source(driver, &bindings.head.value)?;
-        if result_ty.is_managed_ref() || result_ty.record_name().is_some() {
-            self.alloc_sink = Some(result_sink);
-        }
         let mut split = self.open_presence("ref", is_absent, value_ty)?;
         let outer_depth = self.regions.sink_mut().handle_count();
         region_enter(driver, self, RegionSite::PresenceSome, some_block)
             .map_err(region_walk_codegen_error)?;
         self.bind_observation(&bindings.head, observation, object, control)?;
+        // Tail sources are evaluated inside the presence region (as in sema), so their
+        // allocations use that region's arena; only the arm's values go to the result sink.
         self.emit_chained_guards(driver, &bindings.tail, outer_depth, split.absent_target())?;
+        if result_ty.is_managed_ref() || result_ty.record_name().is_some() {
+            self.alloc_sink = Some(result_sink);
+        }
         let branch_value = self.emit_presence_arm(
             driver,
             RegionSite::PresenceSome,
