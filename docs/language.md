@@ -58,7 +58,7 @@ fun main() {
 ```
 
 - `class` is the only record declaration: fields in declaration order, no methods and no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
-- Fields use `name: Type` without `val` or `var` modifiers and are mutable. `val` keeps the binding fixed; fields of that class instance can still be assigned.
+- Fields use `name: Type` without `val` or `var` modifiers and are mutable. Fields cannot store borrow views (`&T`); their lifetimes are not tracked inside objects. `val` keeps the binding fixed; fields of that class instance can still be assigned.
 - Class values are not Copy and do not have structural `==` or `!=`.
 - `Ref<T>` is a managed handle to a **non-nullable class** declared with `class`. `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
 - `Ref<T>` copies without `move`. After `move`, the source reads as moved.

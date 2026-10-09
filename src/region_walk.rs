@@ -109,8 +109,12 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
         HirExprKind::Index { receiver, .. } | HirExprKind::Slice { receiver, .. } => {
             expr_may_allocate_sink(receiver)
         }
-        HirExprKind::Field { receiver, .. } => expr_may_allocate_sink(receiver),
-        HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => expr_may_allocate_sink(inner),
+        HirExprKind::Field { receiver, .. } => {
+            expr_may_allocate_sink(receiver)
+        }
+        HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => {
+            expr_may_allocate_sink(inner)
+        }
         HirExprKind::ObjectConstruct { .. } => true,
         HirExprKind::ObjectField { receiver, .. } => expr_may_allocate_sink(receiver),
         HirExprKind::PresenceMatch {
@@ -515,13 +519,8 @@ fn default_on_stmt<C: ArenaCursor, V: RegionVisitor>(
             driver.walk_expr(visitor, value)?;
             Ok(())
         }
-        HirStmt::Return { value: None } | HirStmt::Break { .. } | HirStmt::Continue { .. } => {
-            Ok(())
-        }
-        HirStmt::Block(_)
-        | HirStmt::MoveBlock { .. }
-        | HirStmt::For { .. }
-        | HirStmt::While { .. } => {
+        HirStmt::Return { value: None } | HirStmt::Break { .. } | HirStmt::Continue { .. } => Ok(()),
+        HirStmt::Block(_) | HirStmt::MoveBlock { .. } | HirStmt::For { .. } | HirStmt::While { .. } => {
             unreachable!("region statements are dispatched in walk_stmt")
         }
     }
@@ -851,7 +850,7 @@ mod tests {
     #[cfg(feature = "codegen")]
     mod codegen {
         use super::*;
-        use crate::codegen::regions::{schedule, RegionEvent};
+        use crate::codegen::regions::{RegionEvent, schedule};
         use crate::sema::ArenaReport;
 
         fn node_by_id(report: &ArenaReport, id: usize) -> Option<&ArenaNode> {

@@ -74,10 +74,9 @@ pub(super) fn check(
             expr,
             span,
         } => match expr.as_ref() {
-            Expr::Ident {
-                name,
-                span: name_span,
-            } => borrow::check_borrow(name, *name_span, *span, expected, env),
+            Expr::Ident { name, span: name_span } => {
+                borrow::check_borrow(name, *name_span, *span, expected, env)
+            }
             _ => {
                 env.error("`&` borrows a name", Some(*span));
                 HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span)

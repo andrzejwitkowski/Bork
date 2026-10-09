@@ -5,7 +5,7 @@ use std::iter;
 
 use inkwell::basic_block::BasicBlock;
 use inkwell::types::BasicType;
-use inkwell::values::{BasicValue, BasicValueEnum};
+use inkwell::values::{BasicValue, BasicValueEnum, IntValue, PointerValue, StructValue};
 
 use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
@@ -151,6 +151,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let (first, rest) = bindings
             .split_first()
             .expect("nonempty conditional bindings");
+        let stack_depth = self.walk.eval_stack.len();
         let value_ty = (*result_ty != Ty::unit()).then_some(result_ty);
         let result_sink = self.sink_arena();
         let previous = self.alloc_sink;
@@ -222,6 +223,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         };
         self.alloc_sink = previous;
         let result = self.end_absent_arm(split, absent_value)?;
+        self.walk.eval_stack.truncate(stack_depth);
         if let Some(result) = result {
             self.walk.eval_stack.push(result);
             self.walk.trailing = Some(result);
@@ -235,10 +237,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         value: &HirExpr,
     ) -> Result<
         (
-            inkwell::values::StructValue<'ctx>,
-            inkwell::values::PointerValue<'ctx>,
-            inkwell::values::PointerValue<'ctx>,
-            inkwell::values::IntValue<'ctx>,
+            StructValue<'ctx>,
+            PointerValue<'ctx>,
+            PointerValue<'ctx>,
+            IntValue<'ctx>,
         ),
         Diagnostic,
     > {
@@ -266,9 +268,9 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
     fn bind_observation(
         &mut self,
         binding: &crate::hir::HirConditionalBinding,
-        observation: inkwell::values::StructValue<'ctx>,
-        object: inkwell::values::PointerValue<'ctx>,
-        control: inkwell::values::PointerValue<'ctx>,
+        observation: StructValue<'ctx>,
+        object: PointerValue<'ctx>,
+        control: PointerValue<'ctx>,
     ) -> Result<(), Diagnostic> {
         let observation_slot = self.entry_alloca(self.cx.ref_observation_type(), "ref.guard")?;
         self.cx.builder.build_store(observation_slot, observation)?;

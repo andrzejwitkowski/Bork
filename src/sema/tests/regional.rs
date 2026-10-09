@@ -684,3 +684,16 @@ fn chained_presence_free_vars_only_capture_external_names() {
         ["r"]
     );
 }
+
+#[test]
+fn chained_presence_keeps_moves_when_header_shadows_consumed_owner() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun use(r: Ref<Node>) {\n var owner = Node()\n if val (a = r, b = take(move owner), owner = r) { owner.next }\n owner.next\n}");
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("use of `owner` after move")),
+        "{:?}",
+        checked.diagnostics
+    );
+}

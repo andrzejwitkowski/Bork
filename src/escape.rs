@@ -382,13 +382,14 @@ impl<'h> Escape<'h, '_> {
                     );
                 }
                 // Both presence arms materialize owned results before releasing observations.
-                let sink = Some(sink.unwrap_or(self.depth));
-                let some_depth = self.region_with_bindings(some_block, true, sink, bindings);
+                let result_depth = sink.unwrap_or(self.depth);
+                let some_depth =
+                    self.region_with_bindings(some_block, true, Some(result_depth), bindings);
                 let none_depth = none_block
                     .as_ref()
-                    .map_or(0, |block| self.region(block, true, sink));
+                    .map_or(0, |block| self.region(block, true, Some(result_depth)));
                 if expr.ty.uses_arena_storage() {
-                    sink.expect("presence results have a sink")
+                    result_depth
                 } else {
                     some_depth.max(none_depth)
                 }

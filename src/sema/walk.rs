@@ -205,7 +205,9 @@ fn walk_stmt(
                         Type::Named { name, .. } => az
                             .classes
                             .get(&name)
-                            .and_then(|class| class.fields.iter().find(|f| f.name.name == *field))
+                            .and_then(|class| {
+                                class.fields.iter().find(|f| f.name.name == *field)
+                            })
                             .map(|field| field.ty.clone()),
                         _ => None,
                     }
@@ -481,21 +483,9 @@ fn walk(
             let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
             let (body, compacted) = peel_blocks(then_block);
             let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
-            let outer_env = az.env.clone();
-            let mut failure_moved = moved_names(&az.env);
             for (index, binding) in bindings.iter().enumerate() {
                 if index != 0 {
                     walk(az, &binding.value, &mut frame.node, None, record_borrow);
-                }
-                // Include hidden outer owners when a header binding shadows their name.
-                for (name, outer) in &outer_env {
-                    if az
-                        .env
-                        .get(name)
-                        .is_some_and(|b| b.arena_id == outer.arena_id && b.moved)
-                    {
-                        failure_moved.insert(name.clone());
-                    }
                 }
                 let ty = az
                     .decl_tys
@@ -516,16 +506,9 @@ fn walk(
             az.conservative_moves = previous_conservative;
             walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
             node.children.push(frame.finish(az));
-            let success_moved = moved_names(&az.env);
-            for (name, binding) in &mut az.env {
-                binding.moved |= failure_moved.contains(name);
-            }
             if let Some(block) = else_block {
                 node.children
                     .push(open_ordinary(az, "IfValNone", block, &[], tail_transfer));
-            }
-            for (name, binding) in &mut az.env {
-                binding.moved |= success_moved.contains(name);
             }
         }
         Expr::When {

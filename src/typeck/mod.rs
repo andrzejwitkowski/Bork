@@ -130,6 +130,13 @@ fn build_classes(
                         Some(field.name.span),
                     ));
                 }
+                // shortcut: borrow fields are rejected, allow them once aggregate lifetimes are tracked.
+                if field.ty.is_reference() {
+                    diagnostics.push(type_error(
+                        "borrowed references cannot be stored in class fields",
+                        Some(field.name.span),
+                    ));
+                }
                 ClassFieldInfo {
                     name: field.name.name.clone(),
                     ty: lower_type(&field.ty, &classes, diagnostics),

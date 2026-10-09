@@ -489,19 +489,13 @@ ConditionalBinding: ConditionalBinding = {
 };
 
 ConditionalBindings: Vec<ConditionalBinding> = {
-    <first:ConditionalBinding> <rest:ConditionalBindingTail> => {
-        let mut bindings = vec![first];
-        bindings.extend(rest);
-        bindings
-    },
+    <bindings:ConditionalBindingList> <_trailing:","?> => bindings,
 };
 
-ConditionalBindingTail: Vec<ConditionalBinding> = {
-    => vec![],
-    "," => vec![],
-    "," <first:ConditionalBinding> <rest:ConditionalBindingTail> => {
-        let mut bindings = vec![first];
-        bindings.extend(rest);
+ConditionalBindingList: Vec<ConditionalBinding> = {
+    <binding:ConditionalBinding> => vec![binding],
+    <mut bindings:ConditionalBindingList> "," <binding:ConditionalBinding> => {
+        bindings.push(binding);
         bindings
     },
 };

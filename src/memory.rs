@@ -192,9 +192,9 @@ impl Planner {
     }
 
     fn is_program(&self, site: Span) -> bool {
-        self.allocation_indices.get(&site).is_some_and(|index| {
-            self.allocations[*index].lifetime_domain == LifetimeDomain::Program
-        })
+        self.allocation_indices
+            .get(&site)
+            .is_some_and(|index| self.allocations[*index].lifetime_domain == LifetimeDomain::Program)
     }
 
     fn propagate_program_lifetimes(&mut self) {

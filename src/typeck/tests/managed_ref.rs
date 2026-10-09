@@ -255,3 +255,15 @@ fn when_invalid_source_diagnostic_keeps_operand_span() {
     let span = diagnostic.span.unwrap();
     assert_eq!(&source[span.start..span.end], "x");
 }
+
+#[test]
+fn class_fields_cannot_keep_guard_borrows_after_cleanup() {
+    let source = include_str!("../../../programs/check_fail/managed_refs/guard_borrow_field.bork");
+    let diagnostics = diags_of(source);
+    assert!(
+        diagnostics.iter().any(|d| d
+            .message
+            .contains("borrowed references cannot be stored in class fields")),
+        "{diagnostics:?}"
+    );
+}

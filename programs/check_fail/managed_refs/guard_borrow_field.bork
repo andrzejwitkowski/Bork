@@ -1,0 +1,20 @@
+// diag: borrowed references cannot be stored in class fields
+class Node { value: i32 }
+class Owner { saved: Ref<Node> }
+class View { node: &Node }
+fun replace(owner: &Owner): Ref<Node> {
+    owner.saved = None
+    return Node(2)
+}
+fun main(): i32 {
+    val fallback = Node(1)
+    val owner = Owner()
+    {
+        val old = Node(40)
+        owner.saved = old
+    }
+    val box = if val (a = owner.saved, b = replace(&owner)) { View(a) } else { View(&fallback) }
+    val overwrite: Ref<Node> = Node(9)
+    val overwrite2: Ref<Node> = Node(17)
+    return box.node.value
+}

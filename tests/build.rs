@@ -889,3 +889,27 @@ fun main(): i32 {
 "#);
     assert_eq!(run.status.code(), Some(42), "{:?}", run);
 }
+
+#[test]
+fn builds_presence_values_preserve_surrounding_operands() {
+    for (form, guard) in [
+        ("single", "if val a = r { 20 } else { 30 }"),
+        ("chain", "if val (a = r, b = r) { 20 } else { 30 }"),
+        ("when", "when r {\n Some(a) => { 20 }\n None => { 30 }\n}"),
+    ] {
+        for (present, initializer, want) in [(true, "Node()", 30), (false, "None", 40)] {
+            for (context, expression, expected) in [
+                ("add", format!("10 + {guard}"), want),
+                ("call", format!("add(10, {guard})"), want),
+                ("array", format!("[10, {guard}][0]"), 10),
+            ] {
+                let source = format!("class Node {{}}\nfun add(a: i32, b: i32): i32 {{ return a + b }}\nfun main(): i32 {{\n val r: Ref<Node> = {initializer}\n return {expression}\n}}");
+                let run = build_and_run(
+                    &format!("presence_operands_{form}_{present}_{context}"),
+                    &source,
+                );
+                assert_eq!(run.status.code(), Some(expected), "{source}\n{run:?}");
+            }
+        }
+    }
+}

@@ -2,10 +2,10 @@
 
 mod arena;
 mod array;
-mod binop;
 mod call_abi;
 mod context;
 mod emit_fn;
+mod binop;
 mod expr;
 mod managed_ref;
 mod nullable;
