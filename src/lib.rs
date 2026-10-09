@@ -12,6 +12,7 @@ pub mod frontend;
 pub mod hoist;
 pub mod hir;
 mod layout;
+pub mod memory;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 pub mod sema;

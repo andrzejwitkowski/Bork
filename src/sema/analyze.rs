@@ -15,10 +15,15 @@ pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
 /// Same as [`analyze`], but reuses `decl_tys` from an earlier `typeck::check` (avoids duplicate work).
 pub fn analyze_with_decl_tys(
     program: &Program,
-    decl_tys: Vec<crate::hir::Ty>,
+    decl_tys: crate::typeck::DeclTypes,
 ) -> (ArenaReport, Vec<SemaError>) {
     let mut az = Analyzer::new();
-    az.decl_tys = decl_tys.into();
+    az.decl_tys = decl_tys;
+    az.classes = program
+        .classes
+        .iter()
+        .map(|class| (class.name.clone(), class.clone()))
+        .collect();
     // MVP: keyed by bare function name (no local shadowing of callees yet).
     for f in &program.functions {
         az.fun_sigs.insert(
@@ -47,7 +52,8 @@ fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
             ty: Ty::Known(p.ty.clone()),
             kind: p.kind,
             span: Some(p.name.span),
+            borrow_from: super::region::REF_PARAM_BORROW_FROM,
         })
         .collect();
-    open_ordinary(az, &format!("fun {}", func.name), &func.body, &params)
+    open_ordinary(az, &format!("fun {}", func.name), &func.body, &params, None)
 }

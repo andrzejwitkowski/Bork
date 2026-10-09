@@ -29,11 +29,10 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: &Ty, env: &m
             ..
         } => check_index_assign(name, *name_span, index, value, return_ty, env),
         AssignTarget::Field {
+            receiver,
             name,
-            name_span,
-            field,
-            field_span,
-        } => check_field_assign(name, *name_span, field, *field_span, value, return_ty, env),
+            span,
+        } => check_receiver_field(receiver, name, *span, value, return_ty, env),
     }
 }
 
@@ -80,60 +79,56 @@ fn check_index_assign(
     }
 }
 
-fn check_field_assign(
-    name: &str,
-    name_span: Span,
+fn check_receiver_field(
+    receiver: &Expr,
     field: &str,
     field_span: Span,
     value: &Expr,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let bound = env.binding(name).cloned();
-    if bound.is_none() {
-        env.error(format!("unknown binding `{name}`"), Some(name_span));
+    let receiver = expr::check(receiver, None, return_ty, env);
+    if matches!(receiver.ty.kind, crate::hir::TyKind::ManagedRef(_)) {
+        env.error(
+            "managed Ref must be unwrapped before assigning one of its fields",
+            Some(field_span),
+        );
+        let value = expr::check(value, None, return_ty, env);
+        return HirStmt::Expr(value);
     }
-    let struct_field = bound.as_ref().and_then(|b| {
-        b.ty.struct_name()
-            .and_then(|struct_name| env.struct_def(struct_name))
-            .and_then(|def| def.field(field))
-            .cloned()
+    let resolved = receiver.ty.record_name().and_then(|class_name| {
+        env.class(class_name).and_then(|class| {
+            class
+                .fields
+                .iter()
+                .enumerate()
+                .find(|(_, info)| info.name == field)
+                .map(|(field_index, info)| (field_index, info.ty.clone()))
+        })
     });
-    if bound
-        .as_ref()
-        .is_some_and(|b| !b.ty.is_unknown() && !b.ty.is_struct())
-    {
-        env.error(
-            format!("cannot field-assign `{name}`: expected a struct"),
-            Some(name_span),
-        );
-    } else if bound.is_some() && struct_field.is_none() {
-        env.error(
-            format!("unknown field `{field}` on `{name}`"),
-            Some(field_span),
-        );
-    } else if struct_field
-        .as_ref()
-        .is_some_and(|f| f.kind == BindingKind::Val)
-    {
-        env.error(
-            format!("cannot assign to immutable field `{field}`"),
-            Some(field_span),
-        );
-    }
-    let field_ty = struct_field.as_ref().map(|f| f.ty.clone());
-    let value = expr::check(value, field_ty.as_ref(), return_ty, env);
+    let Some((field_index, field_ty)) = resolved else {
+        if !receiver.ty.is_unknown() {
+            env.error(
+                format!("unknown writable field `{field}` on type {}", receiver.ty),
+                Some(field_span),
+            );
+        }
+        let value = expr::check(value, None, return_ty, env);
+        return HirStmt::Expr(value);
+    };
+    let value = expr::check(value, Some(&field_ty), return_ty, env);
     reject_type_mismatch(
         env,
-        &format!("assignment to `{name}.{field}`"),
+        &format!("assignment to field `{field}`"),
         &value.ty,
-        field_ty.as_ref(),
+        Some(&field_ty),
         Some(field_span),
     );
     HirStmt::Assign {
         target: HirAssignTarget::Field {
-            name: name.to_string(),
+            receiver,
             field: field.to_string(),
+            field_index,
         },
         value,
     }

@@ -29,6 +29,10 @@ impl Ty {
     pub(super) fn is_copy(&self) -> bool {
         matches!(self, Ty::Known(t) if t.is_copy())
     }
+
+    pub(super) fn is_managed_ref(&self) -> bool {
+        matches!(self, Ty::Known(Type::ManagedRef { .. }))
+    }
 }
 
 #[derive(Clone)]
@@ -75,8 +79,9 @@ pub(super) struct Analyzer {
     pub(super) env: HashMap<String, EnvBinding>,
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
     pub(super) fun_param_tys: HashMap<String, Vec<crate::ast::Type>>,
-    /// `var`/`val` types from typeck, consumed in source order.
-    pub(super) decl_tys: std::collections::VecDeque<crate::hir::Ty>,
+    pub(super) classes: HashMap<String, crate::ast::Class>,
+    /// `var`/`val` types from typeck, keyed by declaration name span.
+    pub(super) decl_tys: HashMap<Span, crate::hir::Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
 }
@@ -89,7 +94,8 @@ impl Analyzer {
             env: HashMap::new(),
             fun_sigs: HashMap::new(),
             fun_param_tys: HashMap::new(),
-            decl_tys: std::collections::VecDeque::new(),
+            classes: HashMap::new(),
+            decl_tys: HashMap::new(),
             loop_move_ban: Vec::new(),
         }
     }

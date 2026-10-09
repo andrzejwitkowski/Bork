@@ -1,0 +1,3 @@
+// exit: 5
+class Label { text: String }
+fun main(): i32 { return Label("hello").text.length }

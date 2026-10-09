@@ -7,7 +7,7 @@ use inkwell::IntPredicate;
 use crate::ast::BinOp;
 use crate::codegen_gate::{nullable_repr, NullableRepr};
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, HirExprKind, Ty};
+use crate::hir::{HirExpr, HirExprKind, Prim, Ty, TyKind};
 
 use super::context::Codegen;
 use super::emit_fn::FnEmitter;
@@ -15,6 +15,9 @@ use super::not_yet_supported;
 
 impl<'ctx> Codegen<'ctx> {
     pub fn const_null_value(&self, ty: &Ty) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if ty.is_managed_ref() {
+            return Ok(self.ref_handle_type().const_zero().into());
+        }
         let llvm_ty = self
             .nullable_storage_type(ty)
             .ok_or_else(|| not_yet_supported(&format!("nullable type `{ty}`"), None))?;
@@ -130,6 +133,9 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         lhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if lhs.ty.is_managed_ref() {
+            return self.emit_ref_elvis(lhs_val, rhs, expr);
+        }
         let nullable_ty = &lhs.ty;
         let result_ty = &expr.ty;
         let is_null = self.emit_nullable_is_null(nullable_ty, lhs_val)?;
@@ -281,7 +287,23 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .cx
             .builder
             .build_extract_value(rhs_val.into_struct_value(), 1, "r.v")?;
-        self.emit_value_eq(&ty.with_nullable(false), l_val, r_val, span)
+        let inner = ty.with_nullable(false);
+        if matches!(inner.kind, TyKind::Prim(Prim::F32 | Prim::F64)) {
+            let l = self.value_as_float(l_val, &inner, span)?;
+            let r = self.value_as_float(r_val, &inner, span)?;
+            return Ok(self.cx.builder.build_float_compare(
+                inkwell::FloatPredicate::OEQ,
+                l,
+                r,
+                "feq",
+            )?);
+        }
+        let l = self.value_as_int(l_val, &inner, span)?;
+        let r = self.value_as_int(r_val, &inner, span)?;
+        Ok(self
+            .cx
+            .builder
+            .build_int_compare(IntPredicate::EQ, l, r, "ieq")?)
     }
 
     pub(super) fn emit_safe_nullable_length(
@@ -327,61 +349,6 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         phi.add_incoming(&[(&none_val, null_bb), (&some_val, some_end)]);
         Ok(phi.as_basic_value())
     }
-
-    pub(super) fn emit_safe_nullable_struct_field(
-        &mut self,
-        receiver_ty: &Ty,
-        receiver_val: BasicValueEnum<'ctx>,
-        field_index: u32,
-        field_ty: &Ty,
-        result_ty: &Ty,
-        span: Option<crate::span::Span>,
-    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let is_null = self.emit_nullable_is_null(receiver_ty, receiver_val)?;
-        let null_bb = self
-            .cx
-            .context
-            .append_basic_block(self.llvm_fn, "safe.field.null");
-        let some_bb = self
-            .cx
-            .context
-            .append_basic_block(self.llvm_fn, "safe.field.some");
-        let merge_bb = self
-            .cx
-            .context
-            .append_basic_block(self.llvm_fn, "safe.field.end");
-        self.cx
-            .builder
-            .build_conditional_branch(is_null, null_bb, some_bb)?;
-        self.cx.builder.position_at_end(null_bb);
-        let none_val = self.cx.const_null_value(result_ty)?;
-        self.cx.builder.build_unconditional_branch(merge_bb)?;
-        self.cx.builder.position_at_end(some_bb);
-        let unwrapped = self.emit_nullable_unwrap(receiver_ty, receiver_val)?;
-        let extracted = self.cx.builder.build_extract_value(
-            unwrapped.into_struct_value(),
-            field_index,
-            "safe.field",
-        )?;
-        let some_val = if result_ty.is_nullable() && !field_ty.is_nullable() {
-            self.emit_nullable_some(result_ty, extracted)?
-        } else {
-            extracted
-        };
-        let some_end = self.cx.builder.get_insert_block().expect("some block");
-        self.cx.builder.build_unconditional_branch(merge_bb)?;
-        self.cx.builder.position_at_end(merge_bb);
-        let llvm_ty = self
-            .cx
-            .basic_type(result_ty)
-            .ok_or_else(|| not_yet_supported(&format!("type `{result_ty}`"), span))?;
-        let phi = self
-            .cx
-            .builder
-            .build_phi(llvm_ty.as_basic_type_enum(), "safe.field")?;
-        phi.add_incoming(&[(&none_val, null_bb), (&some_val, some_end)]);
-        Ok(phi.as_basic_value())
-    }
 }
 
 #[cfg(test)]
@@ -416,9 +383,9 @@ mod nullable_repr_tests {
     }
 
     #[test]
-    fn struct_optional_is_tagged() {
-        let ty = Ty::struct_ty("Point").with_nullable(true);
-        assert_eq!(nullable_repr(&ty), Some(NullableRepr::TaggedScalar));
-        assert!(codegen_lowers_nullable(&ty));
+    fn nullable_class_has_no_representation() {
+        let ty = Ty::new(TyKind::Named("Point".into()), true);
+        assert_eq!(nullable_repr(&ty), None);
+        assert!(!codegen_lowers_nullable(&ty));
     }
 }

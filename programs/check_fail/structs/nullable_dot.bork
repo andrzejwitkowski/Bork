@@ -1,6 +1,0 @@
-struct Point(val x: i32)
-
-fun main(): i32 {
-    val p: Point? = None
-    return p.x
-}

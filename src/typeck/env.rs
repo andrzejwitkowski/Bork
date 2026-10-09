@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::BindingKind;
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirStructDef, Ty};
+use crate::hir::Ty;
 use crate::span::Span;
 
 #[derive(Clone)]
@@ -19,27 +19,42 @@ pub(crate) struct FunSig {
     pub(crate) return_ty: Ty,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct ClassFieldInfo {
+    pub(super) name: String,
+    pub(super) ty: Ty,
+    pub(super) span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct ClassInfo {
+    pub(super) name: String,
+    pub(super) fields: Vec<ClassFieldInfo>,
+}
+
+pub(super) type ClassTable = HashMap<String, ClassInfo>;
+
 pub(super) struct Env<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
-    pub(super) structs: &'a HashMap<String, HirStructDef>,
+    pub(super) classes: &'a ClassTable,
     pub(super) diagnostics: Vec<Diagnostic>,
-    /// Types of `var`/`val` bindings in the order typeck checks them.
-    pub(super) decl_tys: Vec<Ty>,
+    /// Types of declarations keyed by their source name span.
+    pub(super) decl_tys: HashMap<Span, Ty>,
     pub(super) loop_depth: usize,
 }
 
 impl<'a> Env<'a> {
     pub(super) fn new(
         fun_sigs: &'a HashMap<String, FunSig>,
-        structs: &'a HashMap<String, HirStructDef>,
+        classes: &'a ClassTable,
     ) -> Self {
         Self {
             scopes: vec![HashMap::new()],
             fun_sigs,
-            structs,
+            classes,
             diagnostics: Vec::new(),
-            decl_tys: Vec::new(),
+            decl_tys: HashMap::new(),
             loop_depth: 0,
         }
     }
@@ -72,8 +87,8 @@ impl<'a> Env<'a> {
         self.fun_sigs.get(name)
     }
 
-    pub(super) fn struct_def(&self, name: &str) -> Option<&HirStructDef> {
-        self.structs.get(name)
+    pub(super) fn class(&self, name: &str) -> Option<&ClassInfo> {
+        self.classes.get(name)
     }
 
     pub(super) fn enter_scope(&mut self) {

@@ -19,9 +19,18 @@ pub(super) fn open_ordinary(
     label: &str,
     body: &Block,
     params: &[RegionParam],
+    tail_transfer: Option<&TransferSink>,
 ) -> ArenaNode {
     let (body, compacted) = peel_blocks(body);
-    open_frame(az, label.to_string(), body, compacted, params, &[])
+    open_frame(
+        az,
+        label.to_string(),
+        body,
+        compacted,
+        params,
+        &[],
+        tail_transfer,
+    )
 }
 
 pub(super) fn open_move(
@@ -41,6 +50,7 @@ pub(super) fn open_move(
         compacted,
         params,
         &captures,
+        None,
     )
 }
 
@@ -51,6 +61,7 @@ fn open_frame(
     compacted: usize,
     params: &[RegionParam],
     captures: &[SpannedName],
+    tail_transfer: Option<&TransferSink>,
 ) -> ArenaNode {
     let id = az.alloc_id();
     let mut frame = RegionFrame::new(id, label, compacted);
@@ -60,7 +71,7 @@ fn open_frame(
     for cap in captures {
         frame.bind_capture(az, cap);
     }
-    walk_block(az, body, &mut frame.node, &mut frame.shadows);
+    walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
     frame.finish(az)
 }
 
@@ -69,9 +80,18 @@ fn walk_block(
     block: &Block,
     node: &mut ArenaNode,
     shadows: &mut Vec<Shadow>,
+    tail_transfer: Option<&TransferSink>,
 ) {
-    for stmt in &block.stmts {
+    let Some((last, prefix)) = block.stmts.split_last() else {
+        return;
+    };
+    for stmt in prefix {
         walk_stmt(az, stmt, node, shadows);
+    }
+    if let (Stmt::Expr(expr), Some(transfer)) = (last, tail_transfer) {
+        walk(az, expr, node, Some(transfer), true);
+    } else {
+        walk_stmt(az, last, node, shadows);
     }
 }
 
@@ -84,7 +104,7 @@ fn walk_stmt(
     match stmt {
         Stmt::Block(body) => {
             node.children
-                .push(open_ordinary(az, "Block", body, &[]));
+                .push(open_ordinary(az, "Block", body, &[], None));
         }
         Stmt::MoveBlock { captures, body } => {
             node.children
@@ -97,17 +117,24 @@ fn walk_stmt(
             ty: _,
             value,
         } => {
+            let inferred = az
+                .decl_tys
+                .remove(name_span)
+                .map(ty_from_hir)
+                .unwrap_or(Ty::Unknown);
             let sink = TransferSink::Binding {
                 dest: *kind,
                 arena_id: node.id,
                 arena_label: node.label.clone(),
             };
-            walk(az, value, node, Some(&sink), true);
-            let inferred = az
-                .decl_tys
-                .pop_front()
-                .map(ty_from_hir)
-                .unwrap_or(Ty::Unknown);
+            walk_typed(
+                az,
+                value,
+                node,
+                Some(&sink),
+                true,
+                inferred.as_option().as_ref(),
+            );
             let view = is_view_init(az, value);
             if view && *kind == BindingKind::Var {
                 az.error(
@@ -146,10 +173,47 @@ fn walk_stmt(
                     borrowed,
                 } => (name, name_span, Some(index), *borrowed),
                 AssignTarget::Field {
-                    name, name_span, ..
-                } => (name, name_span, None, false),
+                    receiver: crate::ast::Expr::Ident { name, span },
+                    ..
+                } => (name, span, None, false),
+                AssignTarget::Field { receiver, .. } => {
+                    walk(az, receiver, node, None, true);
+                    walk(az, value, node, None, true);
+                    return;
+                }
             };
             let dest = az.env.get(name).cloned();
+            let dest_ty = dest.as_ref().and_then(|binding| binding.ty.as_option());
+            let target_ty = match (target, dest_ty) {
+                (AssignTarget::Name { .. }, ty) => ty,
+                (AssignTarget::Index { .. }, Some(ty)) => {
+                    let ty = match ty {
+                        Type::Ref { inner, .. } => *inner,
+                        ty => ty,
+                    };
+                    match ty {
+                        Type::Array { elem, .. } => Some(*elem),
+                        _ => None,
+                    }
+                }
+                (AssignTarget::Field { name: field, .. }, Some(ty)) => {
+                    let ty = match ty {
+                        Type::Ref { inner, .. } => *inner,
+                        ty => ty,
+                    };
+                    match ty {
+                        Type::Named { name, .. } => az
+                            .classes
+                            .get(&name)
+                            .and_then(|class| {
+                                class.fields.iter().find(|f| f.name.name == *field)
+                            })
+                            .map(|field| field.ty.clone()),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
             let assign_up = dest.as_ref().is_some_and(|b| {
                 !b.moved
                     && matches!(b.kind, BindingKind::Var)
@@ -173,7 +237,7 @@ fn walk_stmt(
                 arena_id,
                 arena_label,
             };
-            walk(az, value, node, Some(&sink), true);
+            walk_typed(az, value, node, Some(&sink), true, target_ty.as_ref());
         }
         Stmt::For { name, iter, body } => {
             walk(az, iter, node, None, true);
@@ -184,12 +248,14 @@ fn walk_stmt(
                 ty: Ty::Known(Type::from_ident("Int", false)),
                 kind: BindingKind::Val,
                 span: Some(name.span),
+                borrow_from: super::region::REF_PARAM_BORROW_FROM,
             }];
             node.children.push(open_ordinary(
                 az,
                 &format!("ForLoop ({})", name.name),
                 body,
                 &params,
+                None,
             ));
             az.loop_move_ban.pop();
         }
@@ -197,13 +263,32 @@ fn walk_stmt(
             walk(az, cond, node, None, true);
             az.loop_move_ban
                 .push(az.env.keys().cloned().collect());
-            node.children.push(open_ordinary(az, "WhileLoop", body, &[]));
+            node.children.push(open_ordinary(az, "WhileLoop", body, &[], None));
             az.loop_move_ban.pop();
         }
         Stmt::Break { .. } | Stmt::Continue { .. } => {}
         Stmt::Return(Some(e)) => walk(az, e, node, None, true),
         Stmt::Return(None) => {}
         Stmt::Expr(e) => walk(az, e, node, None, true),
+    }
+}
+
+fn walk_typed(
+    az: &mut Analyzer,
+    expr: &Expr,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+    record_borrow: bool,
+    expected: Option<&Type>,
+) {
+    if let (Expr::ArrayLit { elements, .. }, Some(Type::Array { elem, .. })) = (expr, expected) {
+        for element in elements {
+            walk_typed(az, element, node, transfer, record_borrow, Some(elem));
+        }
+    } else if matches!(expected, Some(Type::ManagedRef { .. })) {
+        walk(az, expr, node, Some(&TransferSink::ManagedRef), record_borrow);
+    } else {
+        walk(az, expr, node, transfer, record_borrow);
     }
 }
 
@@ -218,6 +303,18 @@ fn walk(
         Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
         Expr::Promote { name, span } => apply_expr_promote(az, name, Some(*span), node, transfer),
         Expr::Ident { name, span } => {
+            if matches!(transfer, Some(TransferSink::ManagedRef)) {
+                if az
+                    .env
+                    .get(name)
+                    .is_some_and(|binding| binding.ty.is_managed_ref())
+                {
+                    note_use(az, name, Some(*span), node);
+                } else {
+                    note_borrow(az, name, Some(*span), node, transfer);
+                }
+                return;
+            }
             if let Some(sink) = transfer {
                 let Some(binding) = az.env.get(name) else {
                     note_use(az, name, Some(*span), node);
@@ -258,11 +355,6 @@ fn walk(
             }
         }
         Expr::Field { receiver: inner, .. } => walk(az, inner, node, None, record_borrow),
-        Expr::StructNew { args, .. } => {
-            for arg in args {
-                walk(az, arg, node, None, record_borrow);
-            }
-        }
         Expr::ArrayLit { elements, .. } => {
             for element in elements {
                 walk(az, element, node, transfer, record_borrow);
@@ -288,10 +380,19 @@ fn walk(
         } => {
             walk(az, callee, node, None, record_borrow);
             let (formals, param_tys) = match callee.as_ref() {
-                Expr::Ident { name, .. } => (
-                    az.fun_sigs.get(name).cloned(),
-                    az.fun_param_tys.get(name).cloned(),
-                ),
+                Expr::Ident { name, .. } => {
+                    if let Some(class) = az.classes.get(name) {
+                        (
+                            None,
+                            Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
+                        )
+                    } else {
+                        (
+                            az.fun_sigs.get(name).cloned(),
+                            az.fun_param_tys.get(name).cloned(),
+                        )
+                    }
+                }
                 _ => (None, None),
             };
             for (i, a) in args.iter().enumerate() {
@@ -303,7 +404,15 @@ fn walk(
                     .as_ref()
                     .and_then(|f| f.get(i).copied())
                     .map(|formal| TransferSink::CallArg { formal });
-                walk(az, a, node, arg_transfer.as_ref(), arg_record_borrow);
+                let expected = param_tys.as_ref().and_then(|params| params.get(i));
+                walk_typed(
+                    az,
+                    a,
+                    node,
+                    arg_transfer.as_ref(),
+                    arg_record_borrow,
+                    expected,
+                );
             }
             if let Some(c) = trailing {
                 let params: Vec<RegionParam> = c
@@ -314,6 +423,7 @@ fn walk(
                         ty: Ty::Unknown,
                         kind: BindingKind::Val,
                         span: Some(p.span),
+                        borrow_from: super::region::REF_PARAM_BORROW_FROM,
                     })
                     .collect();
                 if c.is_move {
@@ -326,7 +436,7 @@ fn walk(
                     ));
                 } else {
                     node.children
-                        .push(open_ordinary(az, "Closure", &c.body, &params));
+                        .push(open_ordinary(az, "Closure", &c.body, &params, None));
                 }
             }
         }
@@ -336,14 +446,15 @@ fn walk(
             else_block,
         } => {
             walk(az, cond, node, None, record_borrow);
+            let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
             let before_moved = moved_names(&az.env);
             node.children
-                .push(open_ordinary(az, "IfThen", then_block, &[]));
+                .push(open_ordinary(az, "IfThen", then_block, &[], tail_transfer));
             let then_moved = moved_names(&az.env);
             restore_moved_flags(&mut az.env, &before_moved);
             let else_moved = if let Some(else_b) = else_block {
                 node.children
-                    .push(open_ordinary(az, "IfElse", else_b, &[]));
+                    .push(open_ordinary(az, "IfElse", else_b, &[], tail_transfer));
                 Some(moved_names(&az.env))
             } else {
                 None
@@ -355,6 +466,71 @@ fn walk(
                 &then_moved,
                 else_moved.as_ref(),
             );
+        }
+        Expr::IfVal {
+            name,
+            value,
+            then_block,
+            else_block,
+        } => {
+            walk(az, value, node, None, record_borrow);
+            let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+            let params = [RegionParam {
+                name: name.name.clone(),
+                ty: az
+                    .decl_tys
+                    .remove(&name.span)
+                    .map(ty_from_hir)
+                    .unwrap_or(Ty::Unknown),
+                kind: BindingKind::Val,
+                span: Some(name.span),
+                borrow_from: "presence guard",
+            }];
+            node.children.push(open_ordinary(
+                az,
+                "IfValSome",
+                then_block,
+                &params,
+                tail_transfer,
+            ));
+            if let Some(block) = else_block {
+                node.children
+                    .push(open_ordinary(az, "IfValNone", block, &[], tail_transfer));
+            }
+        }
+        Expr::When {
+            value,
+            some_name,
+            some_block,
+            none_block,
+        } => {
+            walk(az, value, node, None, record_borrow);
+            let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+            let params = [RegionParam {
+                name: some_name.name.clone(),
+                ty: az
+                    .decl_tys
+                    .remove(&some_name.span)
+                    .map(ty_from_hir)
+                    .unwrap_or(Ty::Unknown),
+                kind: BindingKind::Val,
+                span: Some(some_name.span),
+                borrow_from: "presence guard",
+            }];
+            node.children.push(open_ordinary(
+                az,
+                "WhenSome",
+                some_block,
+                &params,
+                tail_transfer,
+            ));
+            node.children.push(open_ordinary(
+                az,
+                "WhenNone",
+                none_block,
+                &[],
+                tail_transfer,
+            ));
         }
         Expr::Float(_) | Expr::Int(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
@@ -626,7 +802,7 @@ fn hir_to_ast(ty: &crate::hir::Ty) -> Option<Type> {
     }
     let kind = match &ty.kind {
         crate::hir::TyKind::Prim(prim) => Type::from_ident(prim.as_str(), ty.nullable),
-        crate::hir::TyKind::Named(name) | crate::hir::TyKind::Struct(name) => Type::Named {
+        crate::hir::TyKind::Named(name) => Type::Named {
             name: name.clone(),
             nullable: ty.nullable,
         },
@@ -638,6 +814,9 @@ fn hir_to_ast(ty: &crate::hir::Ty) -> Option<Type> {
         crate::hir::TyKind::Ref(inner) => Type::Ref {
             inner: Box::new(hir_to_ast(inner)?),
             nullable: false,
+        },
+        crate::hir::TyKind::ManagedRef(inner) => Type::ManagedRef {
+            inner: Box::new(hir_to_ast(inner)?),
         },
         crate::hir::TyKind::Func { .. } | crate::hir::TyKind::Range(_) | crate::hir::TyKind::Unknown => {
             return None;

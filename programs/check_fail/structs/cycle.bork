@@ -1,4 +1,0 @@
-// diag: cyclic
-struct A(val b: B)
-struct B(val a: A)
-fun main() {}

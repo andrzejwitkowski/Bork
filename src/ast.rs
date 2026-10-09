@@ -2,19 +2,18 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub structs: Vec<StructDecl>,
+    pub classes: Vec<Class>,
     pub functions: Vec<Function>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructDecl {
+pub struct Class {
     pub name: String,
-    pub fields: Vec<StructField>,
+    pub fields: Vec<ClassField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StructField {
-    pub kind: BindingKind,
+pub struct ClassField {
     pub name: crate::span::SpannedName,
     pub ty: Type,
 }
@@ -22,21 +21,24 @@ pub struct StructField {
 /// Top-level item folded into [`Program`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    Struct(StructDecl),
+    Class(Class),
     Fun(Function),
 }
 
 impl Program {
     pub fn from_items(items: Vec<Item>) -> Self {
-        let mut structs = Vec::new();
+        let mut classes = Vec::new();
         let mut functions = Vec::new();
         for item in items {
             match item {
-                Item::Struct(s) => structs.push(s),
-                Item::Fun(f) => functions.push(f),
+                Item::Class(class) => classes.push(class),
+                Item::Fun(function) => functions.push(function),
             }
         }
-        Self { structs, functions }
+        Self {
+            classes,
+            functions,
+        }
     }
 }
 
@@ -73,6 +75,9 @@ pub enum Type {
         inner: Box<Type>,
         nullable: bool,
     },
+    ManagedRef {
+        inner: Box<Type>,
+    },
 }
 
 impl Type {
@@ -106,17 +111,7 @@ impl Type {
     }
 
     pub fn is_copy(&self) -> bool {
-        match self {
-            Type::Primitive {
-                nullable: false, ..
-            } => true,
-            // ponytail: sema maps HIR Struct→Named; only String is non-Copy among Named
-            Type::Named {
-                name,
-                nullable: false,
-            } if name != "String" => true,
-            _ => false,
-        }
+        matches!(self, Type::Primitive { nullable: false, .. })
     }
 
     pub fn with_nullable(self, nullable: bool) -> Self {
@@ -134,6 +129,7 @@ impl Type {
                 nullable,
             },
             Type::Ref { inner, .. } => Type::Ref { inner, nullable },
+            Type::ManagedRef { inner } => Type::ManagedRef { inner },
         }
     }
 
@@ -148,6 +144,13 @@ impl Type {
         }
     }
 
+    pub fn managed_ref_inner(&self) -> Option<&Type> {
+        match self {
+            Type::ManagedRef { inner } => Some(inner),
+            _ => None,
+        }
+    }
+
     fn is_nullable(&self) -> bool {
         match self {
             Type::Primitive { nullable, .. }
@@ -155,6 +158,7 @@ impl Type {
             | Type::Array { nullable, .. }
             | Type::Func { nullable, .. }
             | Type::Ref { nullable, .. } => *nullable,
+            Type::ManagedRef { .. } => false,
         }
     }
 }
@@ -175,6 +179,7 @@ impl fmt::Display for Type {
                 write!(f, ")->{ret}")?;
             }
             Type::Ref { inner, .. } => write!(f, "&{inner}")?,
+            Type::ManagedRef { inner } => write!(f, "Ref<{inner}>")?,
         }
         if self.is_nullable() {
             f.write_str("?")?;
@@ -245,10 +250,9 @@ pub enum AssignTarget {
         borrowed: bool,
     },
     Field {
+        receiver: Expr,
         name: String,
-        name_span: crate::span::Span,
-        field: String,
-        field_span: crate::span::Span,
+        span: crate::span::Span,
     },
 }
 
@@ -314,15 +318,22 @@ pub enum Expr {
         args: Vec<Expr>,
         trailing: Option<Closure>,
     },
-    StructNew {
-        name: String,
-        args: Vec<Expr>,
-        span: crate::span::Span,
-    },
     If {
         cond: Box<Expr>,
         then_block: Block,
         else_block: Option<Block>,
+    },
+    IfVal {
+        name: crate::span::SpannedName,
+        value: Box<Expr>,
+        then_block: Block,
+        else_block: Option<Block>,
+    },
+    When {
+        value: Box<Expr>,
+        some_name: crate::span::SpannedName,
+        some_block: Block,
+        none_block: Block,
     },
 }
 

@@ -66,7 +66,11 @@ impl<'h> Escape<'h, '_> {
             match last {
                 HirStmt::Expr(expr) if yields => {
                     value = self.place(expr, sink);
-                    if sink.is_none() && value == self.depth && expr.ty.uses_arena_storage() {
+                    if sink.is_none()
+                        && value == self.depth
+                        && expr.ty.uses_arena_storage()
+                        && expr.ty.record_name().is_none()
+                    {
                         reject(
                             self.diagnostics,
                             "a `String` moved inside an `if` branch cannot be its value: \
@@ -130,7 +134,13 @@ impl<'h> Escape<'h, '_> {
                     .insert(name, local);
             }
             HirStmt::Assign { target, value } => {
-                let name = target.name();
+                if let Some(receiver) = target.receiver() {
+                    self.place(receiver, None);
+                }
+                let Some(name) = target.binding_name() else {
+                    self.place(value, None);
+                    return;
+                };
                 if let Some(index) = target.index() {
                     self.place(index, None);
                 }
@@ -317,12 +327,30 @@ impl<'h> Escape<'h, '_> {
                 then_depth.max(else_depth)
             }
             HirExprKind::Some(inner)
+            | HirExprKind::RefCreate(inner)
             | HirExprKind::Unary { expr: inner, .. }
             | HirExprKind::Field {
                 receiver: inner, ..
             } => self.place(inner, None),
-            HirExprKind::StructNew { args, .. } => {
-                args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max)
+            HirExprKind::ObjectConstruct { fields, .. } => {
+                for field in fields {
+                    self.place(field, sink);
+                }
+                sink.unwrap_or(self.depth)
+            }
+            HirExprKind::ObjectField { receiver, .. } => self.place(receiver, None),
+            HirExprKind::PresenceMatch {
+                value,
+                some_block,
+                none_block,
+                ..
+            } => {
+                self.place(value, None);
+                let some_depth = self.region(some_block, true, sink);
+                let none_depth = none_block
+                    .as_ref()
+                    .map_or(0, |block| self.region(block, true, sink));
+                some_depth.max(none_depth)
             }
         }
     }

@@ -1,0 +1,17 @@
+// exit: 11
+class Point {
+    x: i32
+    y: i32
+}
+class Rect {
+    origin: Point
+    w: i32
+    h: i32
+}
+
+fun main(): i32 {
+    val p = Point(1, 2)
+    val r = Rect(p, 10, 20)
+    r.w = 11
+    return r.w
+}

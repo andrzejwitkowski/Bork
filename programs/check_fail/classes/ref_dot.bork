@@ -1,0 +1,7 @@
+// diag: requires `if val`, `when`, or `?.`
+class Point { x: i32 }
+
+fun main(): i32 {
+    val p: Ref<Point> = None
+    return p.x
+}

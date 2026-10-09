@@ -1,3 +1,0 @@
-// diag: String
-struct Bad(val s: String)
-fun main() {}

@@ -6,6 +6,7 @@ mod borrow;
 mod call;
 mod control;
 mod field;
+mod object;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
@@ -17,8 +18,8 @@ use array::{check_array_lit, check_index, check_slice};
 
 use binary::{check_binary, check_elvis};
 use call::check_call;
-use control::check_if;
-use field::{check_field, check_struct_new};
+use control::{check_if, check_presence};
+use field::check_field;
 
 /// Check always yields an expression: a failed check is reported once and
 /// poisoned with `TyKind::Unknown`, which suppresses follow-on mismatches.
@@ -28,6 +29,9 @@ pub(super) fn check(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
+    if let Some(expected) = expected.filter(|ty| ty.is_managed_ref()) {
+        return check_managed_ref(expr, expected, return_ty, env);
+    }
     match expr {
         Expr::Int(value) => {
             let ty = expected
@@ -81,7 +85,7 @@ pub(super) fn check(
         Expr::Move { name, span } => check_ident(name, *span, UseKind::Move, env),
         Expr::Promote { name, span } => check_ident(name, *span, UseKind::Promote, env),
         Expr::None { span } => {
-            let Some(ty) = expected.filter(|ty| ty.is_nullable()) else {
+            let Some(ty) = expected.filter(|ty| ty.is_presence_capable()) else {
                 env.error("cannot infer type of `None`", Some(*span));
                 return HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span);
             };
@@ -168,9 +172,6 @@ pub(super) fn check(
             safe,
             span,
         } => check_field(receiver, name, *safe, *span, return_ty, env),
-        Expr::StructNew { name, args, span } => {
-            check_struct_new(name, args, *span, return_ty, env)
-        }
         Expr::Call {
             callee,
             args,
@@ -184,6 +185,34 @@ pub(super) fn check(
             cond,
             then_block,
             else_block.as_ref(),
+            expected,
+            return_ty,
+            env,
+        ),
+        Expr::IfVal {
+            value,
+            name,
+            then_block,
+            else_block,
+        } => check_presence(
+            value,
+            name,
+            then_block,
+            else_block.as_ref(),
+            expected,
+            return_ty,
+            env,
+        ),
+        Expr::When {
+            value,
+            some_name,
+            some_block,
+            none_block,
+        } => check_presence(
+            value,
+            some_name,
+            some_block,
+            Some(none_block),
             expected,
             return_ty,
             env,
@@ -204,11 +233,15 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
         );
     };
     let ty = binding.ty.clone();
-    let use_kind = if requested == UseKind::Move
+    let use_kind = if requested == UseKind::Move && ty.is_managed_ref() {
+        UseKind::RefMove
+    } else if requested == UseKind::Move
         || requested == UseKind::Promote
         || requested == UseKind::Borrow
     {
         requested
+    } else if ty.is_managed_ref() {
+        UseKind::RefCopy
     } else if ty.is_copy() {
         UseKind::Copy
     } else if binding.kind == BindingKind::Val {
@@ -224,4 +257,35 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
         ty,
         span,
     )
+}
+
+fn check_managed_ref(
+    expr: &Expr,
+    expected: &Ty,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    if let Expr::None { span } = expr {
+        return HirExpr::spanned(HirExprKind::None, expected.clone(), *span);
+    }
+
+    let source = match expr {
+        Expr::Some { expr, .. } => check(expr, expected.managed_ref_inner(), return_ty, env),
+        other => check(other, None, return_ty, env),
+    };
+    if source.ty == *expected {
+        return source;
+    }
+    if expected
+        .managed_ref_inner()
+        .is_some_and(|inner| *inner == source.ty)
+    {
+        let span = source.span;
+        return HirExpr {
+            ty: expected.clone(),
+            span,
+            kind: HirExprKind::RefCreate(Box::new(source)),
+        };
+    }
+    source
 }

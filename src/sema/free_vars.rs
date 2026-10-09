@@ -71,12 +71,8 @@ fn collect_stmt(
                     }
                     collect_expr(index, free, bound);
                 }
-                AssignTarget::Field {
-                    name, name_span, ..
-                } => {
-                    if !bound.contains(name) {
-                        free.entry(name.clone()).or_insert(*name_span);
-                    }
+                AssignTarget::Field { receiver, .. } => {
+                    collect_expr(receiver, free, bound);
                 }
             }
             collect_expr(value, free, bound);
@@ -121,11 +117,6 @@ fn collect_expr(
         }
         Expr::Unary { expr, .. } => collect_expr(expr, free, bound),
         Expr::Field { receiver, .. } => collect_expr(receiver, free, bound),
-        Expr::StructNew { args, .. } => {
-            for a in args {
-                collect_expr(a, free, bound);
-            }
-        }
         Expr::Call {
             callee,
             args,
@@ -161,6 +152,32 @@ fn collect_expr(
             if let Some(e) = else_block {
                 collect_block(e, free, &mut bound.clone());
             }
+        }
+        Expr::IfVal {
+            name,
+            value,
+            then_block,
+            else_block,
+        } => {
+            collect_expr(value, free, bound);
+            let mut present = bound.clone();
+            present.insert(name.name.clone());
+            collect_block(then_block, free, &mut present);
+            if let Some(block) = else_block {
+                collect_block(block, free, &mut bound.clone());
+            }
+        }
+        Expr::When {
+            value,
+            some_name,
+            some_block,
+            none_block,
+        } => {
+            collect_expr(value, free, bound);
+            let mut present = bound.clone();
+            present.insert(some_name.name.clone());
+            collect_block(some_block, free, &mut present);
+            collect_block(none_block, free, &mut bound.clone());
         }
         Expr::Str(_) | Expr::None { .. } => {}
         Expr::ArrayLit { elements, .. } => {

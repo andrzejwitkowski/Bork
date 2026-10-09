@@ -32,7 +32,7 @@ pub(super) fn classify_use(
     if is_copy {
         return UseOutcome::Observe(Ownership::Copy);
     }
-    if matches!(binding.kind, BindingKind::Val) {
+    if matches!(binding.kind, BindingKind::Val) || binding.ty.is_managed_ref() {
         return UseOutcome::Observe(Ownership::Shared {
             from: binding.arena_label.clone(),
         });
@@ -44,6 +44,7 @@ pub(super) fn classify_use(
 
 #[derive(Clone)]
 pub(super) enum TransferSink {
+    ManagedRef,
     Binding {
         dest: BindingKind,
         arena_id: usize,
@@ -57,7 +58,11 @@ pub(super) fn bare_ident_move_message(
     name: &str,
     sink: &TransferSink,
 ) -> Option<String> {
-    if binding.ty.is_copy() || binding.moved {
+    if binding.ty.is_copy()
+        || binding.ty.is_managed_ref()
+        || binding.moved
+        || matches!(sink, TransferSink::ManagedRef)
+    {
         return None;
     }
     if matches!(binding.origin, BindingOrigin::View) {
@@ -84,6 +89,7 @@ pub(super) fn bare_ident_move_message(
     let counterpart_var = match sink {
         TransferSink::Binding { dest, .. } => matches!(dest, BindingKind::Var),
         TransferSink::CallArg { formal } => matches!(formal, BindingKind::Var),
+        TransferSink::ManagedRef => false,
     };
     let src_var = matches!(binding.kind, BindingKind::Var);
     if !(src_var || counterpart_var) {

@@ -2,6 +2,7 @@
 
 use crate::diag::{self, Diagnostic};
 use crate::hir::HirProgram;
+use crate::memory::MemoryPlan;
 use crate::parse;
 use crate::sema::ArenaReport;
 use crate::typeck;
@@ -13,6 +14,8 @@ pub struct CheckResult {
     pub report: Option<ArenaReport>,
     /// Typed HIR, present exactly when `diagnostics` is empty.
     pub hir: Option<HirProgram>,
+    /// Allocation/lifetime decisions for addressable record objects.
+    pub memory_plan: Option<MemoryPlan>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -30,6 +33,7 @@ pub fn check(source: &str) -> CheckResult {
             return CheckResult {
                 report: None,
                 hir: None,
+                memory_plan: None,
                 diagnostics: vec![diag::from_parse(source, &err)],
             }
         }
@@ -41,15 +45,20 @@ pub fn check(source: &str) -> CheckResult {
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 
-    if diagnostics.is_empty() {
-        crate::region_walk::stamp_codegen_push(&hir, &mut report);
-    }
-
     let mut hir = diagnostics.is_empty().then_some(hir);
+    let mut memory_plan = None;
     if let Some(mut program) = hir {
         crate::hoist::annotate(&mut program);
         for function in &program.functions {
             crate::escape::check_function(function, &mut diagnostics);
+        }
+        if diagnostics.is_empty() {
+            let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &report);
+            diagnostics.append(&mut plan_diagnostics);
+            if diagnostics.is_empty() {
+                crate::region_walk::stamp_codegen_push(&program, &mut report);
+                memory_plan = Some(plan);
+            }
         }
         hir = diagnostics.is_empty().then_some(program);
     }
@@ -57,6 +66,7 @@ pub fn check(source: &str) -> CheckResult {
     CheckResult {
         report: Some(report),
         hir,
+        memory_plan,
         diagnostics,
     }
 }

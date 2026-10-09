@@ -1,6 +1,6 @@
 # Bork
 
-Bork is a small language with curly-brace regions, no garbage collector, and arena memory. A program is a list of functions. Statements are separated by newlines, not semicolons. `//` comments run to the end of the line.
+Bork is a small language with curly-brace regions, no garbage collector, and arena memory. A program is a list of functions and classes. Statements are separated by newlines, not semicolons. `//` comments run to the end of the line.
 
 This page is the surface language as the frontend accepts it today. The chapter **Where string bytes are allocated** explains sink allocation, hoist, `promote`, and escape checking. Lower-level arena layout and codegen schedules are in [memory-model.md](memory-model.md). The last section lists what native codegen still rejects.
 
@@ -28,13 +28,47 @@ fun main() {
 | `Int` `Long` `Byte` `Float` `Double` | aliases of `i32` `i64` `u8` `f32` `f64` |
 | `f32` `f64` `bool` `unit` | float, bool, unit (`true` / `false` literals) |
 | `String` | owned text, not Copy |
+| `Point` | instance of a declared `class Point`, not Copy |
+| `Ref<Point>` | presence-capable managed handle to a non-nullable class |
 | `[T; N]` | fixed-length array with **N** elements (`N` is a non-negative integer literal) |
 | `&T` | borrow of non-Copy `T` (`String`, `[U; N]`, …) for the current region — **parameters** and **`val` locals** only; not `&i32`; not on fields or return types |
 | `T?` | nullable form of `T` |
 | `(A, B) -> R` | function type |
 | `((A, B) -> R)?` | nullable function type |
 
-Integer literals adopt the expected integer type. Non-null primitives are **Copy**. `T?`, `String`, and `[T; N]` are not.
+Integer literals adopt the expected integer type. Non-null primitives are **Copy**. Classes, `T?`, `String`, and `[T; N]` are not. `Ref<T>` handles can be copied without making their class targets Copy.
+
+## Classes and `Ref<T>`
+
+```bork
+class Node {
+    name: String
+    next: Ref<Node>
+}
+
+fun main() {
+    val a = Node("A")
+    val b = Node("B", a)
+    a.next = b
+    if val live = b.next {
+        println(live.name)
+    }
+    val label = b.next?.name ?: "root"
+}
+```
+
+- `class` is the only record declaration: fields in declaration order, no methods and no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
+- Fields use `name: Type` without `val` or `var` modifiers and are mutable. `val` keeps the binding fixed; fields of that class instance can still be assigned.
+- Class values are not Copy and do not have structural `==` or `!=`.
+- `Ref<T>` is a managed handle to a **non-nullable class** declared with `class`. `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
+- `Ref<T>` copies without `move`. After `move`, the source reads as moved.
+- Field access on a `Ref` goes through `if val`, `when`, or `?.`. The bound name inside `if val` / `when Some` is `&T` for that guard only.
+- `?.` on a class field requires `Ref<T>`; an ordinary class value or `T?` cannot use it.
+- `when` is exhaustive `Some(name)` / `None`. `?.` yields `T?` for an ordinary field and a flat `Ref<U>` for a `Ref` field. `?:` on a `Ref` keeps the handle; it does not unwrap to `&T`.
+- `[Ref<T>; N]` stores handles. Element assignment and reads use ref glue, not a byte copy of the array. When a String or array is written into a class field, the record owns a copy of its descriptor payload; Ref elements are cloned and registered for drop in that owner arena.
+
+For the complete strong/weak classification rules, arena-ID algorithm, and
+cleanup diagrams, see [references.md](references.md).
 
 `String` and `[T; N]` have one field: `.length` (`i32`, always **N** for arrays of that type). Unknown fields are type errors.
 
@@ -358,11 +392,11 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 `bork build` lowers a checked program to a native executable only for a subset of the frontend. Linked objects are optimized with LLVM **`-O3`** by default. Runtime arenas use a **per-thread** slab pool (no global lock on push/pop).
 
-Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures, and nullable `T?` (`None`, `Some`, `?:`, `!!`, `?.length`, `==` / `!=` with `None`).
+Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures, nullable `T?` (`None`, `Some`, `?:`, `!!`, `?.length`, `==` / `!=` with `None`), records, `Ref<T>`, `if val`, `when`, `?.` on record fields, and `?:` on `Ref`.
 
 `String?` `None` is a null pointer and length zero (no arena bump). Scalar `T?` is `{ i1 tag, T value }`. `!!` on null aborts.
 
-Rejected by codegen (the frontend still accepts them): trailing closures, and field access other than `.length` on `String`, `[T; N]`, or nullable strings/arrays via `?.length`.
+Rejected by codegen (the frontend still accepts them): trailing closures. Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
 
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 

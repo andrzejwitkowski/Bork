@@ -4,6 +4,7 @@ use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
 
 mod closures;
 mod nullable;
+mod managed_ref;
 mod reference;
 
 /// Typed HIR for a source that must check cleanly.
@@ -599,35 +600,56 @@ fun main(): i32 {
 }
 
 #[test]
-fn struct_new_field_and_eq_typecheck() {
+fn class_construction_and_field_typecheck() {
     let hir = hir_of(
         r#"
-struct Point(val x: i32, val y: i32)
+class Point {
+    x: i32
+    y: i32
+}
 fun main(): i32 {
-    val p = new Point(1, 2)
-    if (p == new Point(1, 2)) { return p.x } else { return 0 }
+    val p = Point(1, 2)
+    return p.x
 }
 "#,
     );
-    assert_eq!(hir.structs.len(), 1);
-    assert_eq!(hir.structs[0].name, "Point");
+    assert_eq!(hir.classes.len(), 1);
+    assert_eq!(hir.classes[0].name, "Point");
+    assert!(matches!(
+        &hir.functions[0].body.stmts[0],
+        HirStmt::VarDecl {
+            ty,
+            value: HirExpr { kind: HirExprKind::ObjectConstruct { .. }, .. },
+            ..
+        } if !ty.is_copy()
+    ));
 }
 
 #[test]
-fn struct_string_field_is_type_error() {
-    let src = r#"
-struct Bad(val s: String)
-fun main() {}
-"#;
-    assert!(diags_of(src).iter().any(|d| d.message.contains("String")));
+fn class_string_field_typechecks() {
+    let hir = hir_of(
+        r#"
+class Label { text: String }
+fun main(): i32 { return Label("hello").text.length }
+"#,
+    );
+    assert_eq!(hir.classes[0].fields[0].ty, Ty::string(false));
 }
 
 #[test]
-fn struct_name_conflicts_with_builtin_type() {
+fn class_name_conflicts_with_function() {
+    let src = "class Point { x: i32 }\nfun Point() {}\nfun main() {}";
+    assert!(diags_of(src)
+        .iter()
+        .any(|d| d.message.contains("conflicts with") && d.message.contains("function")));
+}
+
+#[test]
+fn class_name_conflicts_with_builtin_type() {
     for src in [
-        "struct String(val x: i32)\nfun main() {}",
-        "struct i32(val x: i32)\nfun main() {}",
-        "struct Int(val x: i32)\nfun main() {}",
+        "class String { x: i32 }\nfun main() {}",
+        "class i32 { x: i32 }\nfun main() {}",
+        "class Int { x: i32 }\nfun main() {}",
     ] {
         assert!(
             diags_of(src)
@@ -639,37 +661,54 @@ fn struct_name_conflicts_with_builtin_type() {
 }
 
 #[test]
-fn struct_cycle_is_type_error() {
-    let src = r#"
-struct A(val b: B)
-struct B(val a: A)
-fun main() {}
-"#;
-    assert!(diags_of(src).iter().any(|d| d.message.contains("cyclic")));
+fn class_forward_reference_typechecks() {
+    let hir = hir_of(
+        r#"
+class Outer { inner: Inner }
+class Inner { n: i32 }
+fun main(): i32 {
+    val outer = Outer(Inner(7))
+    return outer.inner.n
+}
+"#,
+    );
+    assert_eq!(hir.classes.len(), 2);
+    assert_eq!(hir.classes[0].fields[0].ty.to_string(), "Inner");
 }
 
 #[test]
-fn struct_field_assign_on_val_field_is_type_error() {
+fn class_owned_layout_cycle_is_type_error() {
     let src = r#"
-struct Point(val x: i32)
-fun main(): i32 {
-    var p = new Point(1)
-    p.x = 2
-    return p.x
+class A { b: B }
+class B { a: A }
+fun main() {}
+"#;
+    assert!(diags_of(src)
+        .iter()
+        .any(|d| d.message.contains("recursive by-value layout")));
+}
+
+#[test]
+fn class_parent_var_requires_move() {
+    let src = r#"
+class Point { x: i32 }
+fun main() {
+    var p = Point(1)
+    { val x = p.x }
 }
 "#;
     assert!(diags_of(src)
         .iter()
-        .any(|d| d.message.contains("immutable field")));
+        .any(|d| d.message.contains("`p` is not Copy")));
 }
 
 #[test]
-fn struct_var_field_assign_through_val_binding_ok() {
+fn class_field_assign_through_val_binding_ok() {
     let hir = hir_of(
         r#"
-struct Point(var x: i32)
+class Point { x: i32 }
 fun main(): i32 {
-    val p = new Point(1)
+    val p = Point(1)
     p.x = 2
     return p.x
 }
@@ -685,72 +724,32 @@ fun main(): i32 {
 }
 
 #[test]
-fn struct_safe_field_on_nullable_ok() {
+fn class_nullable_field_allowed() {
     let hir = hir_of(
         r#"
-struct Point(val x: i32)
+class Box { n: i32? }
 fun main(): i32 {
-    val p: Point? = Some(new Point(7))
-    val n: i32? = p?.x
-    return n ?: 0
-}
-"#,
-    );
-    assert!(matches!(
-        &hir.functions[0].body.stmts[1],
-        HirStmt::VarDecl {
-            value: HirExpr {
-                kind: HirExprKind::Field { safe: true, .. },
-                ty,
-                ..
-            },
-            ..
-        } if ty.is_nullable()
-    ));
-}
-
-#[test]
-fn struct_field_on_nullable_requires_safe() {
-    let src = r#"
-struct Point(val x: i32)
-fun main(): i32 {
-    val p: Point? = None
-    return p.x
-}
-"#;
-    assert!(diags_of(src)
-        .iter()
-        .any(|d| d.message.contains("`?.`")));
-}
-
-#[test]
-fn struct_nullable_field_allowed() {
-    let hir = hir_of(
-        r#"
-struct Box(val n: i32?)
-fun main(): i32 {
-    val b = new Box(None)
+    val b = Box(None)
     return b.n ?: 0
 }
 "#,
     );
-    assert_eq!(hir.structs[0].fields[0].ty, Ty::i32().with_nullable(true));
+    assert_eq!(hir.classes[0].fields[0].ty, Ty::i32().with_nullable(true));
 }
 
 #[test]
-fn struct_var_nullable_field_assign_ok() {
+fn class_nullable_field_assign_ok() {
     let hir = hir_of(
         r#"
-struct Box(var n: i32?)
+class Box { n: i32? }
 fun main(): i32 {
-    val b = new Box(None)
+    val b = Box(None)
     b.n = Some(9)
     return b.n ?: 0
 }
 "#,
     );
-    assert_eq!(hir.structs[0].fields[0].kind, crate::ast::BindingKind::Var);
-    assert_eq!(hir.structs[0].fields[0].ty, Ty::i32().with_nullable(true));
+    assert_eq!(hir.classes[0].fields[0].ty, Ty::i32().with_nullable(true));
     assert!(matches!(
         &hir.functions[0].body.stmts[1],
         HirStmt::Assign {

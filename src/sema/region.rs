@@ -15,6 +15,7 @@ pub(super) struct RegionParam {
     pub(super) ty: Ty,
     pub(super) kind: BindingKind,
     pub(super) span: Option<Span>,
+    pub(super) borrow_from: &'static str,
 }
 
 pub(super) struct RegionFrame {
@@ -58,7 +59,7 @@ impl RegionFrame {
         ));
         let ownership = match &param.ty {
             Ty::Known(ty) if ty.is_reference() => Ownership::Borrow {
-                from: REF_PARAM_BORROW_FROM.into(),
+                from: param.borrow_from.into(),
             },
             _ => Ownership::Local,
         };
