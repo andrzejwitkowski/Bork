@@ -55,9 +55,31 @@ struct Escape<'h, 'd> {
 
 impl<'h> Escape<'h, '_> {
     fn region(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
+        self.region_with_bindings(body, yields, sink, &[])
+    }
+
+    fn region_with_bindings(
+        &mut self,
+        body: &'h HirBlock,
+        yields: bool,
+        sink: Option<usize>,
+        bindings: &'h [crate::hir::HirConditionalBinding],
+    ) -> usize {
         let body = peel_to_body(body);
         self.depth += 1;
         self.scopes.push(HashMap::new());
+        for (index, binding) in bindings.iter().enumerate() {
+            if index != 0 {
+                self.place(&binding.value, None);
+            }
+            self.scopes.last_mut().unwrap().insert(
+                &binding.name.name,
+                Local {
+                    decl_depth: self.depth,
+                    value_depth: self.depth,
+                },
+            );
+        }
         let mut value = 0;
         if let Some((last, prefix)) = body.stmts.split_last() {
             for stmt in prefix {
@@ -340,17 +362,36 @@ impl<'h> Escape<'h, '_> {
             }
             HirExprKind::ObjectField { receiver, .. } => self.place(receiver, None),
             HirExprKind::PresenceMatch {
-                value,
+                bindings,
                 some_block,
                 none_block,
                 ..
             } => {
-                self.place(value, None);
-                let some_depth = self.region(some_block, true, sink);
+                self.place(
+                    &bindings
+                        .first()
+                        .expect("nonempty conditional bindings")
+                        .value,
+                    None,
+                );
+                if expr.ty.is_ref() {
+                    reject(
+                        self.diagnostics,
+                        "a presence guard reference cannot escape its scope",
+                        expr.span,
+                    );
+                }
+                // Both presence arms materialize owned results before releasing observations.
+                let sink = Some(sink.unwrap_or(self.depth));
+                let some_depth = self.region_with_bindings(some_block, true, sink, bindings);
                 let none_depth = none_block
                     .as_ref()
                     .map_or(0, |block| self.region(block, true, sink));
-                some_depth.max(none_depth)
+                if expr.ty.uses_arena_storage() {
+                    sink.expect("presence results have a sink")
+                } else {
+                    some_depth.max(none_depth)
+                }
             }
         }
     }

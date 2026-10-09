@@ -74,9 +74,10 @@ pub(super) fn check(
             expr,
             span,
         } => match expr.as_ref() {
-            Expr::Ident { name, span: name_span } => {
-                borrow::check_borrow(name, *name_span, *span, expected, env)
-            }
+            Expr::Ident {
+                name,
+                span: name_span,
+            } => borrow::check_borrow(name, *name_span, *span, expected, env),
             _ => {
                 env.error("`&` borrows a name", Some(*span));
                 HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span)
@@ -190,13 +191,13 @@ pub(super) fn check(
             env,
         ),
         Expr::IfVal {
-            value,
-            name,
+            bindings,
             then_block,
             else_block,
         } => check_presence(
-            value,
-            name,
+            bindings
+                .iter()
+                .map(|b| (&b.value, &b.name, Some(b.value_span))),
             then_block,
             else_block.as_ref(),
             expected,
@@ -209,8 +210,7 @@ pub(super) fn check(
             some_block,
             none_block,
         } => check_presence(
-            value,
-            some_name,
+            std::iter::once((value.as_ref(), some_name, None)),
             some_block,
             Some(none_block),
             expected,

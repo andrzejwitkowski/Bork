@@ -1,0 +1,38 @@
+// exit: 42
+// Cache owns strong edges to root/hot; child.parent is weak because it points
+// back to the older node arena. All observations share one guard scope.
+class Node {
+    id: i32
+    value: i32
+    parent: Ref<Node>
+    child: Ref<Node>
+}
+
+class CacheManager {
+    root: Ref<Node>
+    hot: Ref<Node>
+}
+
+fun main(): i32 {
+    var answer = 0
+    {
+        val cache = CacheManager(None, None)
+        val root = Node(1, 10, None, None)
+        val child = Node(2, 20, root, None)
+        root.child = child
+        cache.root = root
+        cache.hot = child
+        val cache_ref: Ref<CacheManager> = cache
+
+        if val (
+            manager = cache_ref,
+            root_live = manager.root,
+            child_live = root_live.child,
+            parent = child_live.parent,
+            hot = manager.hot,
+        ) {
+            answer = root_live.id + child_live.value + parent.id + hot.value
+        }
+    }
+    return answer
+}

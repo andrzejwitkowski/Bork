@@ -11,7 +11,7 @@ use super::not_yet_supported;
 
 pub(super) struct PresenceSplit<'ctx> {
     label: String,
-    none_bb: BasicBlock<'ctx>,
+    pub(super) none_bb: BasicBlock<'ctx>,
     merge_bb: BasicBlock<'ctx>,
     incoming: Vec<(BasicValueEnum<'ctx>, BasicBlock<'ctx>)>,
     result_ty: Option<BasicTypeEnum<'ctx>>,

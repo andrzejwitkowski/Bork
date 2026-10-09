@@ -324,8 +324,7 @@ pub enum Expr {
         else_block: Option<Block>,
     },
     IfVal {
-        name: crate::span::SpannedName,
-        value: Box<Expr>,
+        bindings: Vec<ConditionalBinding>,
         then_block: Block,
         else_block: Option<Block>,
     },
@@ -344,6 +343,13 @@ pub struct Closure {
     pub is_move: bool,
     /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
     pub captures: Option<Vec<crate::span::SpannedName>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalBinding {
+    pub name: crate::span::SpannedName,
+    pub value: Expr,
+    pub value_span: crate::span::Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]

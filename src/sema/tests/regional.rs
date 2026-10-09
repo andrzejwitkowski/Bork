@@ -586,3 +586,101 @@ fun main() {
         "{errs:?}"
     );
 }
+
+#[test]
+fn chained_presence_has_one_success_region_and_all_borrows() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun use(r: Ref<Node>) { if val (a = r, b = a.next, c = b.next) { c.next } }");
+    assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+    let report = checked.report.unwrap();
+    let some = &report.roots[0].children[0];
+    assert_eq!(some.label, "IfValSome");
+    assert_eq!(
+        some.bindings
+            .iter()
+            .map(|b| b.name.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b", "c"]
+    );
+    assert!(some
+        .bindings
+        .iter()
+        .all(|b| matches!(b.ownership, Ownership::Borrow { .. })));
+    assert!(some.children.is_empty());
+    assert!(some.codegen_push);
+}
+
+#[test]
+fn chained_presence_rejects_conditional_owner_consumption() {
+    for after in ["else { owner.next }", "\n owner.next"] {
+        let source = format!("class Node {{ next: Ref<Node> }}\nfun take(var n: Node): Ref<Node> {{ return n.next }}\nfun use(r: Ref<Node>) {{\n var owner = Node()\n if val (a = r, b = take(move owner)) {{}} {after}\n}}");
+        let checked = crate::frontend::check(&source);
+        assert!(
+            checked
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("after move")),
+            "{:?}",
+            checked.diagnostics
+        );
+    }
+}
+
+#[test]
+fn chained_presence_borrow_cannot_move_or_escape() {
+    let moved = crate::frontend::check("class Node { next: Ref<Node> }\nfun use(r: Ref<Node>) { if val (a = r, b = a.next) { val owned = move b } }");
+    assert!(
+        moved
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("move") && d.phase == crate::diag::Phase::Ownership),
+        "{:?}",
+        moved.diagnostics
+    );
+    let returned = crate::frontend::check("class Node { next: Ref<Node> }\nfun use(r: Ref<Node>): &Node {\n if val (a = r, b = a.next) { return b }\n val fallback = Node()\n return &fallback\n}");
+    assert!(
+        returned
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("returning a reference")),
+        "{:?}",
+        returned.diagnostics
+    );
+    let escaped = crate::frontend::check("class Node { next: Ref<Node> }\nfun use(r: Ref<Node>) {\n val outer = Node()\n val view = if val (a = r, b = a.next) { b } else { &outer }\n}");
+    assert!(
+        escaped
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("presence guard reference cannot escape")),
+        "{:?}",
+        escaped.diagnostics
+    );
+}
+
+#[test]
+fn chained_presence_rejects_moves_on_a_nested_rhs_path() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun take(var n: Node): Ref<Node> { return n.next }\nfun use(r: Ref<Node>, flag: bool) {\n var owner = Node()\n if val (a = r, b = if (flag) { take(move owner) } else { r }) {}\n owner.next\n}");
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("after move")),
+        "{:?}",
+        checked.diagnostics
+    );
+}
+
+#[test]
+fn chained_presence_free_vars_only_capture_external_names() {
+    let checked = crate::frontend::check("class Node { next: Ref<Node> }\nfun use(r: Ref<Node>) { move { if val (a = r, b = a.next) { b.next } } }");
+    assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+    let report = checked.report.unwrap();
+    let moved = &report.roots[0].children[0];
+    assert_eq!(
+        moved
+            .bindings
+            .iter()
+            .map(|b| b.name.as_str())
+            .collect::<Vec<_>>(),
+        ["r"]
+    );
+}

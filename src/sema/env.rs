@@ -82,6 +82,8 @@ pub(super) struct Analyzer {
     pub(super) classes: HashMap<String, crate::ast::Class>,
     /// `var`/`val` types from typeck, keyed by declaration name span.
     pub(super) decl_tys: HashMap<Span, crate::hir::Ty>,
+    /// Merge all possibly consumed owners while checking a chained header.
+    pub(super) conservative_moves: bool,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
 }
@@ -96,6 +98,7 @@ impl Analyzer {
             fun_param_tys: HashMap::new(),
             classes: HashMap::new(),
             decl_tys: HashMap::new(),
+            conservative_moves: false,
             loop_move_ban: Vec::new(),
         }
     }

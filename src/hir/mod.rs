@@ -9,6 +9,14 @@ pub use ty::{Prim, Ty, TyKind};
 use crate::ast;
 use crate::span::Span;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirConditionalBinding {
+    pub name: crate::span::SpannedName,
+    pub value: HirExpr,
+    pub value_span: Span,
+    pub binding_ty: Ty,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseKind {
     Local,
@@ -211,9 +219,7 @@ pub enum HirExprKind {
         safe: bool,
     },
     PresenceMatch {
-        value: Box<HirExpr>,
-        binding: String,
-        binding_ty: Ty,
+        bindings: Vec<HirConditionalBinding>,
         some_block: HirBlock,
         none_block: Option<HirBlock>,
     },

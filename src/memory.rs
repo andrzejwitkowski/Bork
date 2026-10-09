@@ -192,9 +192,9 @@ impl Planner {
     }
 
     fn is_program(&self, site: Span) -> bool {
-        self.allocation_indices
-            .get(&site)
-            .is_some_and(|index| self.allocations[*index].lifetime_domain == LifetimeDomain::Program)
+        self.allocation_indices.get(&site).is_some_and(|index| {
+            self.allocations[*index].lifetime_domain == LifetimeDomain::Program
+        })
     }
 
     fn propagate_program_lifetimes(&mut self) {
@@ -278,17 +278,22 @@ impl RegionVisitor for Planner {
     fn presence_match<C: ArenaCursor>(
         &mut self,
         driver: &mut WalkDriver<'_, C>,
-        value: &HirExpr,
-        binding: &str,
-        _binding_ty: &Ty,
+        bindings: &[crate::hir::HirConditionalBinding],
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
         _result_ty: &Ty,
     ) -> Result<(), WalkError> {
-        driver.walk_expr(self, value)?;
-        let origins = self.origins(value);
+        let (first, rest) = bindings
+            .split_first()
+            .expect("nonempty conditional bindings");
+        driver.walk_expr(self, &first.value)?;
+        let origins = self.origins(&first.value);
         region_walk::region_enter(driver, self, RegionSite::PresenceSome, some_block)?;
-        self.bind(binding, origins);
+        self.bind(&first.name.name, origins);
+        for binding in rest {
+            driver.walk_expr(self, &binding.value)?;
+            self.bind(&binding.name.name, self.origins(&binding.value));
+        }
         let (body, _) = crate::hir::peel_blocks(some_block);
         driver.walk_block(self, body, None)?;
         region_walk::region_exit(driver, self, RegionSite::PresenceSome)?;
@@ -490,6 +495,16 @@ mod tests {
         );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         plan
+    }
+
+    #[test]
+    fn chained_header_propagates_origins_through_dependent_fields() {
+        let plan = plan_of("class Node { next: Ref<Node> }\nfun main() {\n val parent = Node()\n val child = Node()\n parent.next = child\n val r: Ref<Node> = parent\n if val (a = r, b = a.next) { b.next = r }\n}");
+        assert_eq!(plan.allocations.len(), 2);
+        assert!(plan
+            .allocations
+            .iter()
+            .all(|a| a.class == ArenaClass::Dynamic));
     }
 
     #[test]

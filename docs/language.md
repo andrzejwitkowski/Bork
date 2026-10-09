@@ -118,6 +118,31 @@ val label: String = name ?: "Guest"
 val text: String = maybe!!
 ```
 
+`if val` observes managed references from left to right. The original single binding
+form remains valid; parentheses allow a nonempty comma-separated list, with an
+optional trailing comma and multiline layout:
+
+```bork
+if val (
+    manager = cache_ref,
+    root = manager.root,
+) {
+    println(root.id)
+} else {
+    println(0)
+}
+```
+
+Each RHS must have type `Ref<T>`; its binding has type `&T`. Later RHS expressions
+can use earlier bindings. Each RHS runs once, and failure skips the remaining
+RHS expressions and body, then runs `else` once if present. Effects already
+performed are retained. Pins acquired by a successful prefix are released before
+`else`. All bindings and the body share one success scope. A binding may shadow an
+outer name (its RHS still sees the outer name); duplicate header names are errors.
+`else` and code after the guard see the outer scope. Guard borrows cannot escape.
+This does not unwrap nullable `T?` values. A value-producing guard requires `else`
+and follows the existing branch type rules.
+
 Precedence, tightest last: calls and suffixes, `*` `/`, `+` `-`, comparisons, `..`, `?:`.
 
 | Form | Meaning |

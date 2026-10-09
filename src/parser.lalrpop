@@ -1,6 +1,6 @@
 use crate::ast::{
     unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ClassField, Closure,
-    Expr, Function, Item, Param, Program, Stmt, Type, UnaryOp,
+    ConditionalBinding, Expr, Function, Item, Param, Program, Stmt, Type, UnaryOp,
 };
 use crate::span::{Span, SpannedName};
 use lalrpop_util::ParseError;
@@ -468,11 +468,41 @@ IfExpr: Expr = {
 };
 
 IfValExpr: Expr = {
-    "if" "val" <name:SpannedIdent> "=" <value:PresenceOperand> <then_block:Block> <else_block:ElseClause?> => Expr::IfVal {
-        name,
-        value: Box::new(value),
-        then_block,
-        else_block,
+    "if" "val" <binding:SingleConditionalBinding> <then_block:Block> <else_block:ElseClause?> => Expr::IfVal {
+        bindings: vec![binding], then_block, else_block,
+    },
+    "if" "val" "(" <bindings:ConditionalBindings> ")" <then_block:Block> <else_block:ElseClause?> => Expr::IfVal {
+        bindings, then_block, else_block,
+    },
+};
+
+SingleConditionalBinding: ConditionalBinding = {
+    <name:SpannedIdent> "=" <start:@L> <value:PresenceOperand> <end:@R> => ConditionalBinding {
+        name, value, value_span: Span::new(start, end),
+    },
+};
+
+ConditionalBinding: ConditionalBinding = {
+    <name:SpannedIdent> "=" <start:@L> <value:Expr> <end:@R> => ConditionalBinding {
+        name, value, value_span: Span::new(start, end),
+    },
+};
+
+ConditionalBindings: Vec<ConditionalBinding> = {
+    <first:ConditionalBinding> <rest:ConditionalBindingTail> => {
+        let mut bindings = vec![first];
+        bindings.extend(rest);
+        bindings
+    },
+};
+
+ConditionalBindingTail: Vec<ConditionalBinding> = {
+    => vec![],
+    "," => vec![],
+    "," <first:ConditionalBinding> <rest:ConditionalBindingTail> => {
+        let mut bindings = vec![first];
+        bindings.extend(rest);
+        bindings
     },
 };
 

@@ -1,0 +1,7 @@
+// diag: returning a reference
+class Node { next: Ref<Node> }
+fun use(r: Ref<Node>): &Node {
+    if val (a = r, b = a.next) { return b }
+    val fallback = Node()
+    return &fallback
+}

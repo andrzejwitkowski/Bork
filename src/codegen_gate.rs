@@ -190,12 +190,14 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             gate_expr(receiver, diagnostics);
         }
         HirExprKind::PresenceMatch {
-            value,
+            bindings,
             some_block,
             none_block,
             ..
         } => {
-            gate_expr(value, diagnostics);
+            for binding in bindings {
+                gate_expr(&binding.value, diagnostics);
+            }
             gate_block(some_block, diagnostics);
             if let Some(block) = none_block {
                 gate_block(block, diagnostics);

@@ -864,3 +864,30 @@ Powiązane opisy:
 - [model pamięci i areny](memory-model.md),
 - [składnia języka i `Ref<T>`](language.md),
 - [przykład CacheManagera](../programs/build/managed_refs/cache_manager_graph.bork).
+
+## Łańcuch `if val`
+
+Zamiast zagnieżdżać guardy można zapisać niepustą listę bindingów:
+
+```bork
+if val (manager = cache_ref, root = manager.root, child = root.child,) {
+    println(child.id)
+} else {
+    println(0)
+}
+```
+
+RHS są obliczane od lewej do prawej, dokładnie raz, tylko do pierwszego
+niepowodzenia. Każdy binding wymaga `Ref<T>` i udostępnia `&T` kolejnym RHS
+oraz body. Lista może być wieloliniowa i kończyć się przecinkiem. Bindingi
+mają jeden scope sukcesu; powtórzona nazwa w nagłówku jest błędem. Shadowing
+nazwy zewnętrznej jest dozwolony, a RHS deklaracji widzi jej poprzednie znaczenie.
+`else` i kod za konstrukcją widzą środowisko zewnętrzne.
+
+Wszystkie obserwacje korzystają z jednej areny guarda. Niepowodzenie późniejszego
+bindingu zwalnia dotychczasowe piny przed `else`, bez cofania efektów RHS.
+Pożyczki nie mogą opuścić guarda; wyniki owned są materializowane przed cleanup.
+Nie zmienia to reprezentacji strong/weak ani reguł nullable `T?`.
+
+[Chained CacheManager](../programs/build/managed_refs/chained_cache_manager_graph.bork)
+i dotychczasowy przykład zagnieżdżony zwracają 42.

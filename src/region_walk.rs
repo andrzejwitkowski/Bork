@@ -109,21 +109,16 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
         HirExprKind::Index { receiver, .. } | HirExprKind::Slice { receiver, .. } => {
             expr_may_allocate_sink(receiver)
         }
-        HirExprKind::Field { receiver, .. } => {
-            expr_may_allocate_sink(receiver)
-        }
-        HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => {
-            expr_may_allocate_sink(inner)
-        }
+        HirExprKind::Field { receiver, .. } => expr_may_allocate_sink(receiver),
+        HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => expr_may_allocate_sink(inner),
         HirExprKind::ObjectConstruct { .. } => true,
         HirExprKind::ObjectField { receiver, .. } => expr_may_allocate_sink(receiver),
         HirExprKind::PresenceMatch {
-            value,
+            bindings,
             some_block,
             none_block,
-            ..
         } => {
-            expr_may_allocate_sink(value)
+            bindings.iter().any(|b| expr_may_allocate_sink(&b.value))
                 || block_may_allocate_sink(some_block)
                 || none_block.as_ref().is_some_and(block_may_allocate_sink)
         }
@@ -424,9 +419,7 @@ pub trait RegionVisitor {
     fn presence_match<C: ArenaCursor>(
         &mut self,
         driver: &mut WalkDriver<'_, C>,
-        value: &HirExpr,
-        _binding: &str,
-        _binding_ty: &Ty,
+        bindings: &[crate::hir::HirConditionalBinding],
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
         _result_ty: &Ty,
@@ -434,8 +427,17 @@ pub trait RegionVisitor {
     where
         Self: Sized,
     {
-        driver.walk_expr(self, value)?;
-        driver.walk_region(self, RegionSite::PresenceSome, some_block)?;
+        let (first, rest) = bindings
+            .split_first()
+            .expect("nonempty conditional bindings");
+        driver.walk_expr(self, &first.value)?;
+        region_enter(driver, self, RegionSite::PresenceSome, some_block)?;
+        for binding in rest {
+            driver.walk_expr(self, &binding.value)?;
+        }
+        let (body, _) = crate::hir::peel_blocks(some_block);
+        driver.walk_block(self, body, None)?;
+        region_exit(driver, self, RegionSite::PresenceSome)?;
         if let Some(block) = none_block {
             driver.walk_region(self, RegionSite::PresenceNone, block)?;
         }
@@ -513,8 +515,13 @@ fn default_on_stmt<C: ArenaCursor, V: RegionVisitor>(
             driver.walk_expr(visitor, value)?;
             Ok(())
         }
-        HirStmt::Return { value: None } | HirStmt::Break { .. } | HirStmt::Continue { .. } => Ok(()),
-        HirStmt::Block(_) | HirStmt::MoveBlock { .. } | HirStmt::For { .. } | HirStmt::While { .. } => {
+        HirStmt::Return { value: None } | HirStmt::Break { .. } | HirStmt::Continue { .. } => {
+            Ok(())
+        }
+        HirStmt::Block(_)
+        | HirStmt::MoveBlock { .. }
+        | HirStmt::For { .. }
+        | HirStmt::While { .. } => {
             unreachable!("region statements are dispatched in walk_stmt")
         }
     }
@@ -632,21 +639,11 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             visitor.after_expr(driver, expr)
         }
         HirExprKind::PresenceMatch {
-            value,
-            binding,
-            binding_ty,
+            bindings,
             some_block,
             none_block,
         } => {
-            visitor.presence_match(
-                driver,
-                value,
-                binding,
-                binding_ty,
-                some_block,
-                none_block.as_ref(),
-                &expr.ty,
-            )?;
+            visitor.presence_match(driver, bindings, some_block, none_block.as_ref(), &expr.ty)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Binary { op, lhs, rhs, .. } => {
@@ -854,7 +851,7 @@ mod tests {
     #[cfg(feature = "codegen")]
     mod codegen {
         use super::*;
-        use crate::codegen::regions::{RegionEvent, schedule};
+        use crate::codegen::regions::{schedule, RegionEvent};
         use crate::sema::ArenaReport;
 
         fn node_by_id(report: &ArenaReport, id: usize) -> Option<&ArenaNode> {

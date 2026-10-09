@@ -143,61 +143,43 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
     fn emit_presence_with_driver<C: ArenaCursor>(
         &mut self,
         driver: &mut WalkDriver<'_, C>,
-        value: &HirExpr,
-        binding: &str,
-        binding_ty: &Ty,
+        bindings: &[crate::hir::HirConditionalBinding],
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
         result_ty: &Ty,
     ) -> Result<(), Diagnostic> {
-        let stack_depth = self.walk.eval_stack.len();
-        driver
-            .walk_expr(self, value)
-            .map_err(region_walk_codegen_error)?;
-        let reference = self
-            .walk
-            .trailing
-            .take()
-            .ok_or_else(|| not_yet_supported("managed Ref match value", value.span))?;
-        self.walk.eval_stack.truncate(stack_depth);
-
-        let (observation, object, is_absent) = self.observe_ref(reference)?;
-        self.drop_ref_value(reference)?;
-        let control = self
-            .cx
-            .builder
-            .build_extract_value(reference.into_struct_value(), 0, "ref.control")?
-            .into_pointer_value();
+        let (first, rest) = bindings
+            .split_first()
+            .expect("nonempty conditional bindings");
         let value_ty = (*result_ty != Ty::unit()).then_some(result_ty);
         let result_sink = self.sink_arena();
         let previous = self.alloc_sink;
+        // Evaluate the first RHS in the enclosing arena, as with single-binding syntax.
+        let (observation, object, control, is_absent) =
+            self.emit_guard_source(driver, &first.value)?;
         if result_ty.is_managed_ref() || result_ty.record_name().is_some() {
             self.alloc_sink = Some(result_sink);
         }
         let mut split = self.open_presence("ref", is_absent, value_ty)?;
+        let outer_depth = self.regions.sink_mut().handle_count();
         region_enter(driver, self, RegionSite::PresenceSome, some_block)
             .map_err(region_walk_codegen_error)?;
-        let observation_slot = self.entry_alloca(self.cx.ref_observation_type(), "ref.guard")?;
-        self.cx.builder.build_store(observation_slot, observation)?;
-        let guard_owner = self.current_arena();
-        self.cx.builder.build_call(
-            self.cx.arena_register_observation_drop_fn(),
-            &[guard_owner.into(), observation_slot.into()],
-            "",
-        )?;
-        let object_handle = self.cx.object_handle_type().const_named_struct(&[]);
-        let object_handle = self.cx.builder.build_insert_value(
-            object_handle,
-            control,
-            0,
-            "borrow.arena",
-        )?;
-        let object_handle = self
-            .cx
-            .builder
-            .build_insert_value(object_handle, object, 1, "borrow.ptr")?
-            .into_struct_value();
-        self.declare_local(binding, binding_ty, object_handle.into())?;
+        self.bind_observation(first, observation, object, control)?;
+        let cleanup = (!rest.is_empty()).then(|| {
+            self.cx
+                .context
+                .append_basic_block(self.llvm_fn, "ref.failure.cleanup")
+        });
+        for binding in rest {
+            let (observation, object, control, is_absent) =
+                self.emit_guard_source(driver, &binding.value)?;
+            let next = self.cx.context.append_basic_block(self.llvm_fn, "ref.next");
+            self.cx
+                .builder
+                .build_conditional_branch(is_absent, cleanup.unwrap(), next)?;
+            self.cx.builder.position_at_end(next);
+            self.bind_observation(binding, observation, object, control)?;
+        }
         let (body, _) = crate::hir::peel_blocks(some_block);
         self.walk.trailing = None;
         driver
@@ -208,6 +190,13 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             if let Some(value) = branch_value {
                 branch_value = Some(self.materialize_owned_value(value, result_ty, result_sink)?);
             }
+        }
+        if let Some(cleanup) = cleanup {
+            let success_end = self.cx.builder.get_insert_block().expect("success body");
+            self.cx.builder.position_at_end(cleanup);
+            self.regions.sink_mut().unwind_to_depth(outer_depth)?;
+            self.cx.builder.build_unconditional_branch(split.none_bb)?;
+            self.cx.builder.position_at_end(success_end);
         }
         region_exit(driver, self, RegionSite::PresenceSome).map_err(region_walk_codegen_error)?;
         self.end_present_arm(&mut split, branch_value)?;
@@ -237,6 +226,73 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             self.walk.eval_stack.push(result);
             self.walk.trailing = Some(result);
         }
+        Ok(())
+    }
+
+    fn emit_guard_source<C: ArenaCursor>(
+        &mut self,
+        driver: &mut WalkDriver<'_, C>,
+        value: &HirExpr,
+    ) -> Result<
+        (
+            inkwell::values::StructValue<'ctx>,
+            inkwell::values::PointerValue<'ctx>,
+            inkwell::values::PointerValue<'ctx>,
+            inkwell::values::IntValue<'ctx>,
+        ),
+        Diagnostic,
+    > {
+        let stack_depth = self.walk.eval_stack.len();
+        self.walk.trailing = None;
+        driver
+            .walk_expr(self, value)
+            .map_err(region_walk_codegen_error)?;
+        let reference = self
+            .walk
+            .trailing
+            .take()
+            .ok_or_else(|| not_yet_supported("managed Ref match value", value.span))?;
+        self.walk.eval_stack.truncate(stack_depth);
+        let (observation, object, is_absent) = self.observe_ref(reference)?;
+        self.drop_ref_value(reference)?;
+        let control = self
+            .cx
+            .builder
+            .build_extract_value(reference.into_struct_value(), 0, "ref.control")?
+            .into_pointer_value();
+        Ok((observation, object, control, is_absent))
+    }
+
+    fn bind_observation(
+        &mut self,
+        binding: &crate::hir::HirConditionalBinding,
+        observation: inkwell::values::StructValue<'ctx>,
+        object: inkwell::values::PointerValue<'ctx>,
+        control: inkwell::values::PointerValue<'ctx>,
+    ) -> Result<(), Diagnostic> {
+        let observation_slot = self.entry_alloca(self.cx.ref_observation_type(), "ref.guard")?;
+        self.cx.builder.build_store(observation_slot, observation)?;
+        let guard_owner = self.current_arena();
+        self.cx.builder.build_call(
+            self.cx.arena_register_observation_drop_fn(),
+            &[guard_owner.into(), observation_slot.into()],
+            "",
+        )?;
+        let object_handle = self.cx.object_handle_type().const_named_struct(&[]);
+        let object_handle =
+            self.cx
+                .builder
+                .build_insert_value(object_handle, control, 0, "borrow.arena")?;
+        let object_handle = self
+            .cx
+            .builder
+            .build_insert_value(object_handle, object, 1, "borrow.ptr")?
+            .into_struct_value();
+        self.declare_local(
+            &binding.name.name,
+            &binding.binding_ty,
+            object_handle.into(),
+        )?;
         Ok(())
     }
 }
@@ -362,6 +418,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         expr: &HirExpr,
         ty: &Ty,
     ) -> Result<(), WalkError> {
+        self.ensure_open_block();
         driver.walk_expr(self, expr)?;
         if self.walk.trailing.is_some() {
             return Ok(());
@@ -420,22 +477,14 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
     fn presence_match<C: ArenaCursor>(
         &mut self,
         driver: &mut WalkDriver<'_, C>,
-        value: &HirExpr,
-        binding: &str,
-        binding_ty: &Ty,
+        bindings: &[crate::hir::HirConditionalBinding],
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
         result_ty: &Ty,
     ) -> Result<(), WalkError> {
-        map_emit_err(self.emit_presence_with_driver(
-            driver,
-            value,
-            binding,
-            binding_ty,
-            some_block,
-            none_block,
-            result_ty,
-        ))
+        map_emit_err(
+            self.emit_presence_with_driver(driver, bindings, some_block, none_block, result_ty),
+        )
     }
 }
 
