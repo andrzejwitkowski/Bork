@@ -83,13 +83,13 @@ impl fmt::Display for Prim {
 pub enum TyKind {
     Prim(Prim),
     Named(String),
-    Struct(String),
     Array {
         elem: Box<Ty>,
         len: u32,
     },
     Func { params: Vec<Ty>, ret: Box<Ty> },
     Ref(Box<Ty>),
+    ManagedRef(Box<Ty>),
     Range(Box<Ty>),
     Unknown,
 }
@@ -131,10 +131,6 @@ impl Ty {
 
     pub fn string(nullable: bool) -> Self {
         Self::new(TyKind::Named("String".into()), nullable)
-    }
-
-    pub fn struct_ty(name: impl Into<String>) -> Self {
-        Self::new(TyKind::Struct(name.into()), false)
     }
 
     pub fn array(elem: Ty, len: u32) -> Self {
@@ -184,6 +180,10 @@ impl Ty {
                 TyKind::Ref(Box::new(Self::from_ast(inner))),
                 *nullable,
             ),
+            ast::Type::ManagedRef { inner } => Self::new(
+                TyKind::ManagedRef(Box::new(Self::from_ast(inner))),
+                false,
+            ),
         }
     }
 
@@ -198,36 +198,40 @@ impl Ty {
         matches!(self.kind, TyKind::Ref(_))
     }
 
+    pub fn managed_ref_inner(&self) -> Option<&Ty> {
+        match &self.kind {
+            TyKind::ManagedRef(inner) => Some(inner),
+            _ => None,
+        }
+    }
+
+    pub fn is_managed_ref(&self) -> bool {
+        matches!(self.kind, TyKind::ManagedRef(_))
+    }
+
+    pub fn is_presence_capable(&self) -> bool {
+        self.nullable || self.is_managed_ref()
+    }
+
     pub fn deref_ty(&self) -> &Ty {
         self.ref_inner().unwrap_or(self)
     }
 
     pub fn is_copy(&self) -> bool {
-        !self.nullable && matches!(self.kind, TyKind::Prim(_) | TyKind::Struct(_))
-    }
-
-    pub fn is_struct(&self) -> bool {
-        !self.nullable && matches!(self.kind, TyKind::Struct(_))
-    }
-
-    /// True for Copy prim/struct fields, including their `?` forms.
-    pub fn is_struct_field_allowed(&self) -> bool {
-        match &self.kind {
-            TyKind::Prim(crate::hir::Prim::Unit) if self.nullable => false,
-            TyKind::Prim(_) | TyKind::Struct(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn struct_name(&self) -> Option<&str> {
-        match &self.kind {
-            TyKind::Struct(name) => Some(name.as_str()),
-            _ => None,
-        }
+        !self.nullable && matches!(self.kind, TyKind::Prim(_))
     }
 
     pub fn is_string(&self) -> bool {
         matches!(&self.kind, TyKind::Named(name) if name == "String")
+    }
+
+    /// Class name of an object or a borrow of one. `String` is not a class.
+    pub fn record_name(&self) -> Option<&str> {
+        match &self.kind {
+            TyKind::Named(name) if name != "String" => Some(name),
+            TyKind::Ref(inner) => inner.record_name(),
+            _ => None,
+        }
     }
 
     pub fn is_array(&self) -> bool {
@@ -252,13 +256,14 @@ impl Ty {
     /// Values whose payload bytes live in an arena (`String`, `[T]`).
     pub fn uses_arena_storage(&self) -> bool {
         match &self.kind {
-            TyKind::Ref(inner) => inner.is_string() || inner.is_array(),
-            _ => self.is_string() || self.is_array(),
+            TyKind::Ref(inner) => inner.uses_arena_storage(),
+            TyKind::Named(_) | TyKind::Array { .. } => true,
+            _ => false,
         }
     }
 
     pub fn is_array_elem_supported(&self) -> bool {
-        self.is_copy() || (self.is_string() && !self.nullable)
+        self.is_copy() || self.is_managed_ref() || (self.is_string() && !self.nullable)
     }
 
     pub fn is_nullable(&self) -> bool {
@@ -280,7 +285,10 @@ impl Ty {
     /// `Range` and `Unknown` have no surface nullable form, so `with_nullable`
     /// on them yields a type that cannot be written in source.
     pub fn supports_nullable(&self) -> bool {
-        !matches!(self.kind, TyKind::Range(_) | TyKind::Ref(_) | TyKind::Unknown)
+        !matches!(
+            self.kind,
+            TyKind::Range(_) | TyKind::Ref(_) | TyKind::ManagedRef(_) | TyKind::Unknown
+        )
     }
 
     pub fn with_nullable(&self, nullable: bool) -> Self {
@@ -295,7 +303,7 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TyKind::Prim(prim) => f.write_str(prim.as_str())?,
-            TyKind::Named(name) | TyKind::Struct(name) => f.write_str(name)?,
+            TyKind::Named(name) => f.write_str(name)?,
             TyKind::Array { elem, len } => write!(f, "[{elem}; {len}]")?,
             TyKind::Func { params, ret } => {
                 f.write_str("(")?;
@@ -308,6 +316,7 @@ impl fmt::Display for Ty {
                 write!(f, ")->{ret}")?;
             }
             TyKind::Ref(inner) => write!(f, "&{inner}")?,
+            TyKind::ManagedRef(inner) => write!(f, "Ref<{inner}>")?,
             TyKind::Range(elem) => write!(f, "Range<{elem}>")?,
             TyKind::Unknown => f.write_str("<unknown>")?,
         }
@@ -388,5 +397,17 @@ mod tests {
         assert_eq!(Ty::range(Ty::i32()).to_string(), "Range<i32>");
         assert_eq!(Ty::unknown().to_string(), "<unknown>");
         assert_eq!(Ty::array(Ty::i32(), 3).to_string(), "[i32; 3]");
+    }
+
+    #[test]
+    fn managed_ref_is_presence_capable_and_non_copy() {
+        let target = Ty::string(false);
+        let managed = Ty::new(super::TyKind::ManagedRef(Box::new(target.clone())), false);
+
+        assert_eq!(managed.managed_ref_inner(), Some(&target));
+        assert!(managed.is_presence_capable());
+        assert!(!managed.is_copy());
+        assert_eq!(managed.to_string(), "Ref<String>");
+        assert_ne!(managed, Ty::new(super::TyKind::Ref(Box::new(target)), false));
     }
 }

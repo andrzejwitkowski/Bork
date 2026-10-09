@@ -13,6 +13,7 @@ use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirFunction, H
 use crate::region_walk::{RegionWalkRef, WalkDriver};
 
 use super::arena::ArenaCalls;
+use super::call_abi::CallAbi;
 use super::context::Codegen;
 use super::{not_yet_supported, region_walk_codegen_error, schedule_error};
 
@@ -26,15 +27,14 @@ pub fn declare_function<'ctx>(
     cx: &Codegen<'ctx>,
     function: &HirFunction,
 ) -> Result<FunctionValue<'ctx>, Diagnostic> {
-    let params = function
-        .params
-        .iter()
-        .map(|param| {
+    let mut params = CallAbi::of(function).hidden_types(cx);
+    for param in &function.params {
+        params.push(
             cx.basic_type(&param.ty)
                 .map(BasicMetadataTypeEnum::from)
-                .ok_or_else(|| not_yet_supported(&format!("parameter type `{}`", param.ty), None))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+                .ok_or_else(|| not_yet_supported(&format!("parameter type `{}`", param.ty), None))?,
+        );
+    }
 
     if function.name == "main" {
         if !params.is_empty() {
@@ -88,8 +88,28 @@ pub fn emit_function<'report, 'a, 'ctx>(
         function_arena: None,
         loop_stack: Vec::new(),
         walk: CodegenWalkState::new(),
+        object_constructions: Vec::new(),
+        result_sink: None,
     };
-    super::region_emit::emit_function_body(&mut emitter, roots, function)?;
+    let abi = CallAbi::of(function);
+    if abi.hidden_len() > 0 {
+        let parent = llvm_fn
+            .get_nth_param(0)
+            .expect("callee has a lexical parent parameter")
+            .into_pointer_value();
+        emitter.regions.sink_mut().set_caller_parent(parent);
+        if abi.has_result_sink() {
+            emitter.result_sink = Some(
+                llvm_fn
+                    .get_nth_param(1)
+                    .expect("owning return has a result sink parameter")
+                    .into_pointer_value(),
+            );
+        }
+    }
+    let emitted = super::region_emit::emit_function_body(&mut emitter, roots, function);
+    emitter.regions.sink_mut().clear_caller_parent();
+    emitted?;
     if !cx.current_block_terminated() {
         emitter.build_fallthrough()?;
     }
@@ -109,17 +129,21 @@ pub(super) struct FnEmitter<'s, 'report, 'a, 'ctx> {
     pub(super) function: &'s HirFunction,
     pub llvm_fn: FunctionValue<'ctx>,
     pub(super) scopes: Vec<HashMap<String, Slot<'ctx>>>,
-    alloc_sink: Option<PointerValue<'ctx>>,
+    pub(super) alloc_sink: Option<PointerValue<'ctx>>,
     /// Function-body arena handle; stable for the whole emit even when sibling branches return.
     pub(super) function_arena: Option<PointerValue<'ctx>>,
     loop_stack: Vec<LoopLabels<'ctx>>,
     pub(super) walk: CodegenWalkState<'ctx>,
+    pub(super) object_constructions:
+        Vec<(Option<PointerValue<'ctx>>, PointerValue<'ctx>)>,
+    pub(super) result_sink: Option<PointerValue<'ctx>>,
 }
 
 #[derive(Clone, Copy)]
 struct LoopLabels<'ctx> {
     exit: BasicBlock<'ctx>,
     continue_target: BasicBlock<'ctx>,
+    arena_depth: usize,
 }
 
 /// Driver pin and trailing-value slot while `region_walk` drives a function body.
@@ -260,54 +284,17 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 self.alloc_sink = prev;
                 self.declare_local(name, ty, value)
             }
-            HirStmt::Assign { target, value } => {
-                let name = target.name();
-                let slot = self.lookup(name).ok_or_else(|| {
-                    not_yet_supported(&format!("assignment to `{name}`"), value.span)
-                })?;
-                let (ptr, home, slot_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
-                let prev = self.alloc_sink;
-                self.alloc_sink = Some(home);
-                let stored = self.value_from_walk(value, || {
-                    not_yet_supported("assignment value missing", value.span)
-                })?;
-                self.alloc_sink = prev;
-                match target {
-                    HirAssignTarget::Name { .. } => {
-                        self.cx.builder.build_store(ptr, stored)?;
-                        Ok(())
-                    }
-                    HirAssignTarget::Index { index, .. } => {
-                        self.emit_index_store(ptr, &slot_ty, index, stored, value.span)
-                    }
-                    HirAssignTarget::Field { field, .. } => {
-                        let struct_name = slot_ty.struct_name().ok_or_else(|| {
-                            not_yet_supported("field assign on non-struct", value.span)
-                        })?;
-                        let idx = self
-                            .cx
-                            .struct_def(struct_name)
-                            .and_then(|def| def.field_index(field))
-                            .ok_or_else(|| {
-                                not_yet_supported(&format!("field `{field}`"), value.span)
-                            })?;
-                        let llvm_ty = self.cx.basic_type(&slot_ty).ok_or_else(|| {
-                            not_yet_supported(&format!("type `{slot_ty}`"), value.span)
-                        })?;
-                        let current = self
-                            .cx
-                            .builder
-                            .build_load(llvm_ty, ptr, "field.load")?
-                            .into_struct_value();
-                        let updated = self
-                            .cx
-                            .builder
-                            .build_insert_value(current, stored, idx as u32, "field.set")?;
-                        self.cx.builder.build_store(ptr, updated)?;
-                        Ok(())
-                    }
+            HirStmt::Assign { target, value } => match target {
+                HirAssignTarget::Field {
+                    receiver,
+                    field_index,
+                    ..
+                } => self.emit_field_assign(receiver, *field_index, value),
+                HirAssignTarget::Name { name } => self.emit_name_assign(name, value),
+                HirAssignTarget::Index { name, index } => {
+                    self.emit_binding_index_assign(name, index, value)
                 }
-            }
+            },
             HirStmt::Expr(expr) => {
                 Self::codegen_driver_mut(self.codegen_driver_ptr())
                     .walk_expr(self, expr)
@@ -320,11 +307,77 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
+    fn emit_field_assign(
+        &mut self,
+        receiver: &HirExpr,
+        field_index: usize,
+        value: &HirExpr,
+    ) -> Result<(), Diagnostic> {
+        let receiver_value = self.value_from_walk(receiver, || {
+            not_yet_supported("field receiver", receiver.span)
+        })?;
+        let class_name = receiver.ty.record_name().ok_or_else(|| {
+            not_yet_supported(
+                &format!("field assignment on `{}`", receiver.ty),
+                receiver.span,
+            )
+        })?;
+        self.emit_object_field_store(receiver_value, class_name, field_index, value)
+    }
+
+    fn emit_name_assign(&mut self, name: &str, value: &HirExpr) -> Result<(), Diagnostic> {
+        let (ptr, home, slot_ty, stored) = self.evaluate_assigned_value(name, value)?;
+        if slot_ty.is_managed_ref() {
+            self.store_ref(ptr, home, stored)?;
+        } else {
+            self.cx.builder.build_store(ptr, stored)?;
+        }
+        Ok(())
+    }
+
+    fn emit_binding_index_assign(
+        &mut self,
+        name: &str,
+        index: &HirExpr,
+        value: &HirExpr,
+    ) -> Result<(), Diagnostic> {
+        let (ptr, _, slot_ty, stored) = self.evaluate_assigned_value(name, value)?;
+        self.emit_index_store(ptr, &slot_ty, index, stored, value.span)
+    }
+
+    /// Evaluate `value` in the home arena of local `name`.
+    fn evaluate_assigned_value(
+        &mut self,
+        name: &str,
+        value: &HirExpr,
+    ) -> Result<
+        (
+            PointerValue<'ctx>,
+            PointerValue<'ctx>,
+            Ty,
+            BasicValueEnum<'ctx>,
+        ),
+        Diagnostic,
+    > {
+        let slot = self.lookup(name).ok_or_else(|| {
+            not_yet_supported(&format!("assignment to `{name}`"), value.span)
+        })?;
+        let (ptr, home, slot_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
+        let prev = self.alloc_sink;
+        self.alloc_sink = Some(home);
+        let stored = self.value_from_walk(value, || {
+            not_yet_supported("assignment value missing", value.span)
+        });
+        self.alloc_sink = prev;
+        Ok((ptr, home, slot_ty, stored?))
+    }
+
     fn emit_break(&mut self) -> Result<(), Diagnostic> {
         let labels = *self
             .loop_stack
             .last()
             .ok_or_else(|| not_yet_supported("`break` outside of a loop", None))?;
+        self.regions.sink_mut().unwind_to_depth(labels.arena_depth)?;
         self.cx.builder.build_unconditional_branch(labels.exit)?;
         Ok(())
     }
@@ -334,6 +387,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .loop_stack
             .last()
             .ok_or_else(|| not_yet_supported("`continue` outside of a loop", None))?;
+        self.regions.sink_mut().unwind_to_depth(labels.arena_depth)?;
         self.cx
             .builder
             .build_unconditional_branch(labels.continue_target)?;
@@ -375,9 +429,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
         let ptr = self.codegen_driver_ptr();
         let driver = Self::codegen_driver_mut(ptr);
+        let arenas_before = self.regions.sink_mut().handle_count();
         crate::region_walk::region_enter(driver, self, RegionSite::For, body)
             .map_err(region_walk_codegen_error)?;
         self.check_arena()?;
+        let owns_loop_arena = self.regions.sink_mut().handle_count() > arenas_before;
+        let preheader = self
+            .cx
+            .builder
+            .get_insert_block()
+            .expect("loop preheader");
 
         let cx = self.cx;
         let (context, builder) = (cx.context, &cx.builder);
@@ -391,9 +452,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.loop_stack.push(LoopLabels {
             exit: exit_bb,
             continue_target: latch_bb,
+            arena_depth: self.regions.sink_mut().handle_count(),
         });
 
         builder.position_at_end(header_bb);
+        if owns_loop_arena {
+            self.regions
+                .sink_mut()
+                .begin_loop_generation(preheader)?;
+        }
         let current = builder.build_load(i32_type, index, name)?.into_int_value();
         let in_range = builder.build_int_compare(IntPredicate::SLT, current, end, "for.cond")?;
         builder.build_conditional_branch(in_range, body_bb, exit_bb)?;
@@ -410,12 +477,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
 
         builder.position_at_end(latch_bb);
-        self.regions.latch().map_err(schedule_error)?;
-        self.check_arena()?;
-        let current = builder.build_load(i32_type, index, name)?.into_int_value();
-        let next = builder.build_int_add(current, i32_type.const_int(1, false), "for.next")?;
-        builder.build_store(index, next)?;
-        builder.build_unconditional_branch(header_bb)?;
+        if cx.insertion_is_dead() {
+            builder.build_unreachable()?;
+        } else {
+            self.regions.latch().map_err(schedule_error)?;
+            self.check_arena()?;
+            let current = builder.build_load(i32_type, index, name)?.into_int_value();
+            let next = builder.build_int_add(current, i32_type.const_int(1, false), "for.next")?;
+            builder.build_store(index, next)?;
+            builder.build_unconditional_branch(header_bb)?;
+        }
 
         builder.position_at_end(exit_bb);
         self.loop_stack.pop();
@@ -442,9 +513,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     ) -> Result<(), Diagnostic> {
         let ptr = self.codegen_driver_ptr();
         let driver = Self::codegen_driver_mut(ptr);
+        let arenas_before = self.regions.sink_mut().handle_count();
         crate::region_walk::region_enter(driver, self, RegionSite::While, body)
             .map_err(region_walk_codegen_error)?;
         self.check_arena()?;
+        let owns_loop_arena = self.regions.sink_mut().handle_count() > arenas_before;
+        let preheader = self
+            .cx
+            .builder
+            .get_insert_block()
+            .expect("loop preheader");
 
         let cx = self.cx;
         let (context, builder) = (cx.context, &cx.builder);
@@ -457,9 +535,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.loop_stack.push(LoopLabels {
             exit: exit_bb,
             continue_target: latch_bb,
+            arena_depth: self.regions.sink_mut().handle_count(),
         });
 
         builder.position_at_end(header_bb);
+        if owns_loop_arena {
+            self.regions
+                .sink_mut()
+                .begin_loop_generation(preheader)?;
+        }
         let keep_going = self.emit_bool(cond)?;
         builder.build_conditional_branch(keep_going, body_bb, exit_bb)?;
 
@@ -475,9 +559,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
 
         builder.position_at_end(latch_bb);
-        self.regions.latch().map_err(schedule_error)?;
-        self.check_arena()?;
-        builder.build_unconditional_branch(header_bb)?;
+        if cx.insertion_is_dead() {
+            builder.build_unreachable()?;
+        } else {
+            self.regions.latch().map_err(schedule_error)?;
+            self.check_arena()?;
+            builder.build_unconditional_branch(header_bb)?;
+        }
 
         builder.position_at_end(exit_bb);
         self.loop_stack.pop();
@@ -499,6 +587,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 self.walk.trailing.take();
                 None
             }
+            None => None,
+        };
+        let value = match value {
+            Some(value) => Some(self.materialize_return(value)?),
             None => None,
         };
         self.regions.sink_mut().unwind()?;
@@ -542,7 +634,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .ok_or_else(|| not_yet_supported(&format!("local of type `{ty}`"), None))?;
         let ptr = self.entry_alloca(llvm_ty, name)?;
         self.cx.builder.build_store(ptr, value)?;
-        let home_arena = if ty.uses_arena_storage() {
+        let home_arena = if ty.is_managed_ref() {
+            self.current_arena()
+        } else if matches!(&ty.kind, crate::hir::TyKind::Named(name) if name != "String") {
+            self.cx
+                .builder
+                .build_extract_value(value.into_struct_value(), 0, "object.arena")?
+                .into_pointer_value()
+        } else if ty.uses_arena_storage() {
             self.sink_arena()
         } else {
             self.function_arena
@@ -556,11 +655,25 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 home_arena,
             },
         );
+        if ty.is_managed_ref() {
+            self.register_ref_drop(home_arena, ptr)?;
+        }
         Ok(())
     }
 
+    fn materialize_return(
+        &mut self,
+        value: BasicValueEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let Some(sink) = self.result_sink else {
+            return Ok(value);
+        };
+        let ty = self.function.return_ty.clone();
+        self.materialize_owned_value(value, &ty, sink)
+    }
+
     /// Allocas go at the top of the entry block so each slot is allocated once per call.
-    fn entry_alloca(
+    pub(super) fn entry_alloca(
         &self,
         ty: impl BasicType<'ctx>,
         name: &str,

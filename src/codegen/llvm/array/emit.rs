@@ -33,7 +33,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.guard_index(idx, len, span)?;
         let (_, stride, _) = self.elem_storage(elem_ty)?;
         let elem_ptr = self.elem_ptr_at(base, idx, stride)?;
-        self.cx.builder.build_store(elem_ptr, value)?;
+        if elem_ty.is_managed_ref() {
+            let arena = self.sink_arena();
+            self.store_ref(elem_ptr, arena, value)?;
+        } else {
+            self.cx.builder.build_store(elem_ptr, value)?;
+        }
         Ok(())
     }
 
@@ -69,7 +74,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.guard_index(idx, len, span)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
         let ptr = self.elem_ptr_at(base, idx, stride)?;
-        builder_load(self, llvm_elem, ptr)
+        let loaded = builder_load(self, llvm_elem, ptr)?;
+        if elem_ty.is_managed_ref() {
+            self.clone_ref(loaded)
+        } else {
+            Ok(loaded)
+        }
     }
 
     pub(in crate::codegen::llvm) fn emit_slice_values(
@@ -133,7 +143,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let base = self.arena_alloc(arena, byte_len, align)?;
         for (index, value) in values.iter().enumerate() {
             let slot = self.elem_ptr(base, index, stride)?;
-            builder.build_store(slot, *value)?;
+            if elem_ty.is_managed_ref() {
+                self.store_fresh_ref(slot, arena, *value)?;
+            } else {
+                builder.build_store(slot, *value)?;
+            }
         }
         Ok(self.descriptor(base, len))
     }
@@ -154,7 +168,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let dst_base = self.arena_alloc(arena, byte_len, align)?;
-        if elem_ty.is_string() {
+        if elem_ty.is_string() || elem_ty.is_managed_ref() {
             let zero = self.cx.context.i64_type().const_int(0, false);
             let one = self.cx.context.i64_type().const_int(1, false);
             let entry = self.cx.builder.get_insert_block().expect("positioned");
@@ -185,9 +199,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.builder.position_at_end(body);
             let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), stride)?;
             let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), stride)?;
-            let loaded = builder_load(self, llvm_elem, src_slot)?.into_struct_value();
-            let moved = self.copy_into_arena(loaded)?;
-            self.cx.builder.build_store(dst_slot, moved)?;
+            let loaded = builder_load(self, llvm_elem, src_slot)?;
+            if elem_ty.is_string() {
+                let copied = self.copy_into_arena(loaded.into_struct_value())?;
+                self.cx.builder.build_store(dst_slot, copied)?;
+            } else {
+                let cloned = self.clone_ref(loaded)?;
+                self.store_fresh_ref(dst_slot, arena, cloned)?;
+            }
             let next = self.cx.builder.build_int_add(i, one, "i.next")?;
             self.cx.builder.build_unconditional_branch(header)?;
             i_phi.add_incoming(&[(&next as &dyn inkwell::values::BasicValue<'_>, body)]);
@@ -259,7 +278,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .cx
             .basic_type(elem_ty)
             .ok_or_else(|| not_yet_supported(&format!("array element `{elem_ty}`"), None))?;
-        let (size, align) = array_elem_layout(elem_ty)?;
+        let (size, align) = array_elem_layout(self.cx, elem_ty)?;
         Ok((llvm, size, align))
     }
 
@@ -353,9 +372,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 }
 
-fn array_elem_layout(elem_ty: &Ty) -> Result<(usize, usize), Diagnostic> {
+fn array_elem_layout(
+    cx: &super::super::context::Codegen<'_>,
+    elem_ty: &Ty,
+) -> Result<(usize, usize), Diagnostic> {
     if elem_ty.is_string() {
         return Ok((16, 8));
+    }
+    if elem_ty.is_managed_ref() {
+        return Ok(cx.ref_handle_layout());
     }
     use crate::hir::{Prim, TyKind};
     match &elem_ty.kind {

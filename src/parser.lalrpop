@@ -1,6 +1,6 @@
 use crate::ast::{
-    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Closure, Expr, Function, Item,
-    Param, Program, Stmt, StructDecl, StructField, Type, UnaryOp,
+    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ClassField, Closure,
+    Expr, Function, Item, Param, Program, Stmt, Type, UnaryOp,
 };
 use crate::span::{Span, SpannedName};
 use lalrpop_util::ParseError;
@@ -14,6 +14,8 @@ match {
     r"(([ \t\r\f]*(//[^\n\r]*)?\n)+[ \t]*)?else" => "else",
     r"([ \t\r\f]*(//[^\n\r]*)?\n)+" => "NL",
     "if" => "if",
+    "class" => "class",
+    "when" => "when",
     "fun" => "fun",
     "val" => "val",
     "var" => "var",
@@ -24,8 +26,6 @@ match {
     "None" => "None",
     "move" => "move",
     "promote" => "promote",
-    "struct" => "struct",
-    "new" => "new",
 } else {
     _
 }
@@ -48,8 +48,8 @@ Comma<T>: Vec<T> = {
 };
 
 pub Program: Program = {
-    => Program { structs: vec![], functions: vec![] },
-    "NL" => Program { structs: vec![], functions: vec![] },
+    => Program::from_items(vec![]),
+    "NL" => Program::from_items(vec![]),
     <items:ItemList> => Program::from_items(items),
     "NL" <items:ItemList> => Program::from_items(items),
 };
@@ -65,19 +65,41 @@ ItemList: Vec<Item> = {
 };
 
 Item: Item = {
-    <s:StructDecl> => Item::Struct(s),
+    <class:ClassDecl> => Item::Class(class),
     <f:Function> => Item::Fun(f),
 };
 
-StructDecl: StructDecl = {
-    "struct" <name:Ident> "(" <fields:Comma<StructField>?> ")" => StructDecl {
-        name,
-        fields: fields.unwrap_or_default(),
+ClassDecl: Class = {
+    "class" <name:Ident> "{" <fields:ClassBody> "}" => Class { name, fields },
+};
+
+ClassBody: Vec<ClassField> = {
+    => vec![],
+    "NL" => vec![],
+    <first:ClassFieldDecl> <rest:ClassFieldRest> => {
+        let mut fields = vec![first];
+        fields.extend(rest);
+        fields
+    },
+    "NL" <first:ClassFieldDecl> <rest:ClassFieldRest> => {
+        let mut fields = vec![first];
+        fields.extend(rest);
+        fields
     },
 };
 
-StructField: StructField = {
-    <kind:Binding> <name:SpannedIdent> ":" <ty:Type> => StructField { kind, name, ty },
+ClassFieldRest: Vec<ClassField> = {
+    => vec![],
+    "NL" => vec![],
+    "NL" <field:ClassFieldDecl> <rest:ClassFieldRest> => {
+        let mut fields = vec![field];
+        fields.extend(rest);
+        fields
+    },
+};
+
+ClassFieldDecl: ClassField = {
+    <name:SpannedIdent> ":" <ty:Type> => ClassField { name, ty },
 };
 
 Function: Function = {
@@ -102,6 +124,9 @@ Param: Param = {
 };
 
 Type: Type = {
+    "Ref" "<" <inner:Type> ">" => Type::ManagedRef {
+        inner: Box::new(inner),
+    },
     "&" <inner:Type> => Type::Ref {
         inner: Box::new(inner),
         nullable: false,
@@ -146,7 +171,8 @@ ParenType: Type = {
                 Type::Named { .. }
                 | Type::Primitive { .. }
                 | Type::Array { .. }
-                | Type::Ref { .. } => Err(ParseError::User {
+                | Type::Ref { .. }
+                | Type::ManagedRef { .. } => Err(ParseError::User {
                     error: "only function types may be parenthesized for nullability",
                 }),
             }
@@ -244,25 +270,19 @@ Stmt: Stmt = {
             },
             Expr::Field {
                 receiver,
-                name: field,
+                name,
                 safe: false,
-                span: field_span,
-            } => match *receiver {
-                Expr::Ident { name, span } => Ok(Stmt::Assign {
-                    target: AssignTarget::Field {
-                        name,
-                        name_span: span,
-                        field,
-                        field_span,
-                    },
-                    value,
-                }),
-                _ => Err(ParseError::User {
-                    error: "assignment target must be a name, name[index], or name.field",
-                }),
-            },
+                span,
+            } => Ok(Stmt::Assign {
+                target: AssignTarget::Field {
+                    receiver: *receiver,
+                    name,
+                    span,
+                },
+                value,
+            }),
             _ => Err(ParseError::User {
-                error: "assignment target must be a name, name[index], or name.field",
+                error: "assignment target must be a name, field, or name[index]",
             }),
         }
     },
@@ -429,17 +449,14 @@ Atom: Expr = {
         name: id.name,
         span: id.span,
     },
-    <start:@L> "new" <name:Ident> "(" <args:Comma<Expr>?> ")" <end:@R> => Expr::StructNew {
-        name,
-        args: args.unwrap_or_default(),
-        span: Span::new(start, end),
-    },
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,
         span: id.span,
     },
     "(" <e:Expr> ")" => e,
     <e:IfExpr> => e,
+    <e:IfValExpr> => e,
+    <e:WhenExpr> => e,
 };
 
 IfExpr: Expr = {
@@ -448,6 +465,41 @@ IfExpr: Expr = {
         then_block,
         else_block,
     },
+};
+
+IfValExpr: Expr = {
+    "if" "val" <name:SpannedIdent> "=" <value:PresenceOperand> <then_block:Block> <else_block:ElseClause?> => Expr::IfVal {
+        name,
+        value: Box::new(value),
+        then_block,
+        else_block,
+    },
+};
+
+WhenExpr: Expr = {
+    "when" <value:PresenceOperand> "{" <_leading:"NL"?>
+        "Some" "(" <some_name:SpannedIdent> ")" "=>" <some_block:Block> "NL"
+        "None" "=>" <none_block:Block> <_trailing:"NL"?>
+    "}" => Expr::When {
+        value: Box::new(value),
+        some_name,
+        some_block,
+        none_block,
+    },
+};
+
+PresenceOperand: Expr = {
+    <id:SpannedIdent> => Expr::Ident {
+        name: id.name,
+        span: id.span,
+    },
+    <start:@L> <receiver:PresenceOperand> <safe:FieldOp> <name:Ident> <end:@R> => Expr::Field {
+        receiver: Box::new(receiver),
+        name,
+        safe,
+        span: Span::new(start, end),
+    },
+    "(" <expr:Expr> ")" => expr,
 };
 
 ElseClause: Block = {
@@ -487,4 +539,3 @@ FloatLit: f64 = {
 StrLit: String = {
     r#""([^"\\]|\\.)*""# => unescape_string_literal(<>),
 };
-

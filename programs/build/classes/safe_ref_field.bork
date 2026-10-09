@@ -1,9 +1,12 @@
 // exit: 7
-struct Point(val x: i32, val y: i32)
+class Point {
+    x: i32
+    y: i32
+}
 
 fun main(): i32 {
-    val p: Point? = Some(new Point(7, 1))
-    val n: Point? = None
+    val p: Ref<Point> = Point(7, 1)
+    val n: Ref<Point> = None
     val a: i32? = p?.x
     val b: i32? = n?.x
     return (a ?: 0) + (b ?: 0)

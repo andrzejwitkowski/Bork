@@ -38,7 +38,11 @@ pub fn build(checked: &CheckResult, output: &Path) -> Result<(), BuildError> {
     }
 
     let context = Context::create();
-    let module = llvm::emit_module(&context, hir, report)
+    let memory_plan = checked
+        .memory_plan
+        .as_ref()
+        .expect("clean check produces memory plan");
+    let module = llvm::emit_module(&context, hir, report, memory_plan.clone())
         .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))?;
 
     let object = Builder::new()

@@ -40,6 +40,8 @@ Released 4 KiB slabs go on a free list (`ArenaPool`). Nested live regions keep d
 | **Shared** | Parent **`val`** of a non-Copy type. Child observes the value in place (stack nesting: parent outlives child). Parent binding stays live. |
 | **Move** | Parent **`var`** of a non-Copy type (required), or explicit `move` / future escape into a longer-lived arena. Ownership transfers; parent binding is **Moved** (unusable). |
 
+`class` is the only record declaration: `class Point { x: i32 }` is constructed with `Point(1)`. Class values are not Copy and have no structural equality. Fields are mutable even through a `val` binding; `val` fixes the binding, not the instance's fields. `Ref<T>` handles can be copied without copying their class targets.
+
 ```text
 Parent A (val s)                   Child A'
 ┌──────────────────┐               ┌────────────┐
@@ -406,10 +408,25 @@ Examples:
 - After typecheck, `frontend::check` runs `escape::place` (same rules as codegen `alloc_sink` for strings). Diagnostics use phase **Ownership** (LSP sees them without `codegen`).
 - Rejects, among others: assigning a string built in an inner region to an outer `var` without sink/hoist/promote, `if` branches that yield a moved string as the `if` value, returning a `String` from an inner region, and `return move` / `return concat(…)` until return-arena codegen exists.
 
+## Managed `Ref<T>` and dynamic arenas
+
+The full reference guide, including all `RefKind` cases and Mermaid diagrams,
+is [references.md](references.md).
+
+Lexical arenas still bulk-free on scope exit. A `Ref<T>` that must outlive that scope is planned **before** the object is allocated:
+
+- The target arena is dynamic. Its control block is stable; the payload slab can return to the pool.
+- Arena ids are monotonic. A persistent strong edge points from an older arena to a newer one. A back-edge is weak, unless the target is the same arena (`Arena`) or an ancestor (`Borrow`).
+- A dynamic arena under a lexical parent is allowed only when every owner stays inside that parent. Otherwise the arena is a sibling under the process root. The child payload ends before the parent slab is recycled.
+- `Ref` values are tagged handles, not raw pointers. `None` and an expired weak observe as absent. `if val`, `when`, and `?.` pin the target for the guard and copy owned `String` / array results out before the pin drops.
+- Safe navigation of a class field requires `Ref<T>`; ordinary or nullable class handles cannot use `?.` for field access. Nullable strings and arrays retain their separate nullable `.length` rules.
+- A callee's lexical arena is a child of the caller's current arena. An owned `String`, array, or `Ref` return is rebased into the caller-supplied sink, so it survives the callee `pop`.
+- Record-owned String and array fields are materialized into the record's arena. Ref-array copies clone each handle and register one drop per destination slot. Drop of `Ref` slots, including record fields and `[Ref<T>; N]` elements, runs before the owner arena recycles its payload. There is no cycle collector.
+
 ## Not planned (and not on the roadmap here)
 
 - **Field-stored** `&T` and **`&mut T` as a type** (exclusive/reseat borrows).
-- **`return` of `&T`** or storing a borrow in a struct field.
+- **`return` of `&T`** or storing a borrow in a class field.
 - **`&mut String`** and mutating string contents through a shared `&String` (v1: `&String` is read-only).
 - Implicit deep copy on every cross-region read (use **Shared** for parent `val`, **move** / **promote** for ownership).
 - Storing borrows from a **child** arena into a **parent** field (parent must own bytes in its arena or observe parent `val` via **Shared**).

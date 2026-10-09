@@ -128,6 +128,28 @@ pub(super) fn check_elvis(
         .filter(|ty| ty.supports_nullable())
         .map(|ty| ty.with_nullable(true));
     let lhs = check(lhs, expected_lhs.as_ref(), return_ty, env);
+    if lhs.ty.is_managed_ref() {
+        let result_ty = lhs.ty.clone();
+        let rhs = check(rhs, Some(&result_ty), return_ty, env);
+        if !result_ty.is_unknown() && !rhs.ty.is_unknown() && rhs.ty != result_ty {
+            env.error(
+                format!(
+                    "right operand of `?:` has type {}, expected {result_ty}",
+                    rhs.ty
+                ),
+                Some(expr_span),
+            );
+        }
+        return HirExpr::spanned(
+            HirExprKind::Binary {
+                op: op.clone(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            },
+            result_ty,
+            expr_span,
+        );
+    }
 
     let result_ty = if lhs.ty.supports_nullable() {
         if !lhs.ty.is_nullable() {

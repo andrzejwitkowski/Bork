@@ -6,6 +6,7 @@ use crate::span::Span;
 use super::super::env::Env;
 use super::check;
 use super::control::check_value_block_in_current_scope;
+use super::object::check_construct;
 
 /// Formal parameter types of a callee, or `None` when the callee is not callable.
 fn callee_signature(callee: &Expr, env: &mut Env<'_>) -> Option<(String, Span, Vec<Ty>, Ty)> {
@@ -44,6 +45,11 @@ pub(super) fn check_call(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
+    if let Expr::Ident { name, span } = callee {
+        if let Some(class) = env.class(name).cloned() {
+            return check_construct(class, *span, args, trailing, return_ty, env);
+        }
+    }
     let Some((name, span, params, call_return_ty)) = callee_signature(callee, env) else {
         let checked_callee = match callee {
             Expr::Ident { name, span } => HirExpr::spanned(

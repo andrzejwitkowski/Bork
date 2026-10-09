@@ -7,6 +7,11 @@ fn empty_input_parses() {
 }
 
 #[test]
+fn rejects_struct_declarations() {
+    assert!(parse("struct Point(val x: i32)\nfun main() {}").is_err());
+}
+
+#[test]
 fn parses_mvp_sample() {
     let prog = parse(MVP_SAMPLE).expect("sample should parse");
     assert_eq!(prog.functions.len(), 2);
@@ -55,6 +60,59 @@ fn parses_val_var_function_params() {
     let prog = parse("fun f(val x: Int, var y: String): Int { return x }").expect("parse");
     assert_eq!(prog.functions[0].params[0].kind, BindingKind::Val);
     assert_eq!(prog.functions[0].params[1].kind, BindingKind::Var);
+}
+
+#[test]
+fn parses_class_with_managed_ref_fields_and_field_assignment() {
+    let prog = parse(
+        r#"class Node {
+    name: String
+    next: Ref<Node>
+}
+
+fun link(a: Node, b: Node) {
+    a.next = Some(b)
+}"#,
+    )
+    .expect("class and managed reference syntax should parse");
+
+    assert_eq!(prog.classes.len(), 1);
+    assert_eq!(prog.classes[0].name, "Node");
+    assert!(matches!(
+        &prog.classes[0].fields[1].ty,
+        Type::ManagedRef { inner }
+            if matches!(inner.as_ref(), Type::Named { name, nullable: false } if name == "Node")
+    ));
+    assert!(matches!(
+        &prog.functions[0].body.stmts[0],
+        Stmt::Assign {
+            target: AssignTarget::Field { name, .. },
+            value: Expr::Some { .. },
+        } if name == "next"
+    ));
+}
+
+#[test]
+fn parses_if_val_and_exhaustive_when() {
+    let prog = parse(
+        r#"fun use(ref: Ref<String>) {
+    if val value = ref { value } else { None }
+    when ref {
+        Some(value) => { value }
+        None => { None }
+    }
+}"#,
+    )
+    .expect("presence syntax should parse");
+
+    assert!(matches!(
+        &prog.functions[0].body.stmts[0],
+        Stmt::Expr(Expr::IfVal { name, .. }) if name.name == "value"
+    ));
+    assert!(matches!(
+        &prog.functions[0].body.stmts[1],
+        Stmt::Expr(Expr::When { some_name, .. }) if some_name.name == "value"
+    ));
 }
 
 #[test]
@@ -164,34 +222,33 @@ fn parses_else_if_on_following_line() {
 }
 
 #[test]
-fn parses_struct_decl_and_new() {
-    let prog = parse("struct Point(val x: i32, val y: i32)\nfun main(): i32 { return new Point(1, 2).x }")
-        .expect("struct + new should parse");
-    assert_eq!(prog.structs.len(), 1);
-    assert_eq!(prog.structs[0].name, "Point");
-    assert_eq!(prog.structs[0].fields.len(), 2);
-    assert_eq!(prog.structs[0].fields[0].kind, BindingKind::Val);
+fn parses_class_decl_and_constructor() {
+    let prog = parse("class Point {\n x: i32\n y: i32\n}\nfun main(): i32 { return Point(1, 2).x }")
+        .expect("class and constructor should parse");
+    assert_eq!(prog.classes.len(), 1);
+    assert_eq!(prog.classes[0].name, "Point");
+    assert_eq!(prog.classes[0].fields.len(), 2);
     assert!(matches!(
         &prog.functions[0].body.stmts[0],
         Stmt::Return(Some(Expr::Field {
             receiver,
             name,
             ..
-        })) if name == "x" && matches!(receiver.as_ref(), Expr::StructNew { name, args, .. } if name == "Point" && args.len() == 2)
+        })) if name == "x" && matches!(receiver.as_ref(), Expr::Call { callee, args, .. } if matches!(callee.as_ref(), Expr::Ident { name, .. } if name == "Point") && args.len() == 2)
     ));
 }
 
 #[test]
-fn parses_struct_field_assign() {
-    let prog = parse("struct Point(var x: i32)\nfun main() { val p = new Point(1)\n p.x = 2 }")
+fn parses_class_field_assign() {
+    let prog = parse("class Point { x: i32 }\nfun main() { val p = Point(1)\n p.x = 2 }")
         .expect("field assign should parse");
-    assert_eq!(prog.structs[0].fields[0].kind, BindingKind::Var);
+    assert_eq!(prog.classes[0].fields[0].name.name, "x");
     assert!(matches!(
         &prog.functions[0].body.stmts[1],
         Stmt::Assign {
-            target: AssignTarget::Field { field, .. },
+            target: AssignTarget::Field { name, .. },
             ..
-        } if field == "x"
+        } if name == "x"
     ));
 }
 

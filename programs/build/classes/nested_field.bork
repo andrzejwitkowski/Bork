@@ -1,0 +1,8 @@
+// exit: 7
+class Outer { inner: Inner }
+class Inner { n: i32 }
+
+fun main(): i32 {
+    val o = Outer(Inner(7))
+    return o.inner.n
+}

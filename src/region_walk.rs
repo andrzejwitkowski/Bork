@@ -16,6 +16,8 @@ pub enum RegionSite {
     While,
     IfThen,
     IfElse,
+    PresenceSome,
+    PresenceNone,
     Closure,
 }
 
@@ -28,6 +30,8 @@ impl RegionSite {
             RegionSite::While => label == "WhileLoop",
             RegionSite::IfThen => label == "IfThen",
             RegionSite::IfElse => label == "IfElse",
+            RegionSite::PresenceSome => label == "IfValSome" || label == "WhenSome",
+            RegionSite::PresenceNone => label == "IfValNone" || label == "WhenNone",
             RegionSite::Closure => label.starts_with("Closure"),
         }
     }
@@ -52,8 +56,17 @@ fn stmt_may_allocate_sink(stmt: &HirStmt) -> bool {
             value,
             alloc_in_binding,
             ..
-        } => alloc_in_binding.is_none() && ty.uses_arena_storage() && expr_may_allocate_sink(value),
-        HirStmt::Assign { value, .. } => expr_may_allocate_sink(value),
+        } => {
+            ty.is_managed_ref()
+                || (alloc_in_binding.is_none()
+                    && ty.uses_arena_storage()
+                    && expr_may_allocate_sink(value))
+        }
+        HirStmt::Assign { target, value } => {
+            target.receiver().is_some_and(expr_may_allocate_sink)
+                || target.index().is_some_and(expr_may_allocate_sink)
+                || expr_may_allocate_sink(value)
+        }
         HirStmt::Return { value } => value.as_ref().is_some_and(expr_may_allocate_sink),
         HirStmt::Expr(value) => expr_may_allocate_sink(value),
         HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => block_may_allocate_sink(body),
@@ -96,9 +109,24 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
         HirExprKind::Index { receiver, .. } | HirExprKind::Slice { receiver, .. } => {
             expr_may_allocate_sink(receiver)
         }
-        HirExprKind::Field { receiver, .. } => expr_may_allocate_sink(receiver),
-        HirExprKind::Some(inner) => expr_may_allocate_sink(inner),
-        HirExprKind::StructNew { args, .. } => args.iter().any(expr_may_allocate_sink),
+        HirExprKind::Field { receiver, .. } => {
+            expr_may_allocate_sink(receiver)
+        }
+        HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => {
+            expr_may_allocate_sink(inner)
+        }
+        HirExprKind::ObjectConstruct { .. } => true,
+        HirExprKind::ObjectField { receiver, .. } => expr_may_allocate_sink(receiver),
+        HirExprKind::PresenceMatch {
+            value,
+            some_block,
+            none_block,
+            ..
+        } => {
+            expr_may_allocate_sink(value)
+                || block_may_allocate_sink(some_block)
+                || none_block.as_ref().is_some_and(block_may_allocate_sink)
+        }
         HirExprKind::None => false,
     }
 }
@@ -126,10 +154,6 @@ impl WalkError {
 
     pub fn as_str(&self) -> &str {
         &self.message
-    }
-
-    pub fn diagnostic(&self) -> Option<&crate::diag::Diagnostic> {
-        self.diagnostic.as_ref()
     }
 
     pub fn into_diagnostic(self) -> Option<crate::diag::Diagnostic> {
@@ -273,26 +297,6 @@ impl<'c, C: ArenaCursor> WalkDriver<'c, C> {
     ) -> Result<(), WalkError> {
         walk_region(self, visitor, site, body)
     }
-
-    pub(crate) fn take_child(&mut self, site: RegionSite) -> Result<(), WalkError> {
-        self.cursor.take_child(site)
-    }
-
-    pub(crate) fn last_child(&self) -> &ArenaNode {
-        self.cursor.last_child()
-    }
-
-    pub(crate) fn descend(&mut self) {
-        self.cursor.descend();
-    }
-
-    pub(crate) fn assert_children_done(&self) -> Result<(), WalkError> {
-        self.cursor.assert_children_done()
-    }
-
-    pub(crate) fn ascend(&mut self) {
-        self.cursor.ascend();
-    }
 }
 
 pub trait RegionVisitor {
@@ -335,6 +339,16 @@ pub trait RegionVisitor {
     fn loop_latch(&mut self, site: RegionSite) -> Result<(), WalkError>;
     fn exit_region(&mut self, site: RegionSite) -> Result<(), WalkError>;
     fn skip_closure(&mut self, child: &ArenaNode) -> Result<(), WalkError>;
+
+    /// Hook before any child expression is visited. Codegen uses this to establish
+    /// a record construction sink before owned field initializers are evaluated.
+    fn before_expr<C: ArenaCursor>(
+        &mut self,
+        _driver: &mut WalkDriver<'_, C>,
+        _expr: &HirExpr,
+    ) -> Result<(), WalkError> {
+        Ok(())
+    }
 
     /// LLVM/codegen: emit `expr` after subexpressions were walked for region sync.
     fn after_expr<C: ArenaCursor>(
@@ -407,6 +421,27 @@ pub trait RegionVisitor {
         Ok(())
     }
 
+    fn presence_match<C: ArenaCursor>(
+        &mut self,
+        driver: &mut WalkDriver<'_, C>,
+        value: &HirExpr,
+        _binding: &str,
+        _binding_ty: &Ty,
+        some_block: &HirBlock,
+        none_block: Option<&HirBlock>,
+        _result_ty: &Ty,
+    ) -> Result<(), WalkError>
+    where
+        Self: Sized,
+    {
+        driver.walk_expr(self, value)?;
+        driver.walk_region(self, RegionSite::PresenceSome, some_block)?;
+        if let Some(block) = none_block {
+            driver.walk_region(self, RegionSite::PresenceNone, block)?;
+        }
+        Ok(())
+    }
+
     /// Non-region statements (assign, var, return, break, …).
     fn on_stmt<C: ArenaCursor>(
         &mut self,
@@ -469,6 +504,9 @@ fn default_on_stmt<C: ArenaCursor, V: RegionVisitor>(
             Ok(())
         }
         HirStmt::Assign { target, value } => {
+            if let Some(receiver) = target.receiver() {
+                driver.walk_expr(visitor, receiver)?;
+            }
             if let Some(index) = target.index() {
                 driver.walk_expr(visitor, index)?;
             }
@@ -506,7 +544,8 @@ pub(crate) fn region_enter<C: ArenaCursor, V: RegionVisitor>(
     let (peeled, _) = peel_blocks(body);
     if visitor.touch_codegen_push() {
         let child = driver.cursor.last_child_mut();
-        child.codegen_push = codegen_push_for_region(&child.label, peeled);
+        child.codegen_push = site == RegionSite::PresenceSome
+            || codegen_push_for_region(&child.label, peeled);
     }
     let child_ref = driver.cursor.last_child();
     visitor.enter_region(site, child_ref, body)?;
@@ -546,18 +585,16 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
     visitor: &mut V,
     expr: &HirExpr,
 ) -> Result<(), WalkError> {
+    visitor.before_expr(driver, expr)?;
     match &expr.kind {
         HirExprKind::If {
             cond,
             then_block,
             else_block,
-        } => visitor.if_expr(
-            driver,
-            cond,
-            then_block,
-            else_block.as_ref(),
-            &expr.ty,
-        ),
+        } => {
+            visitor.if_expr(driver, cond, then_block, else_block.as_ref(), &expr.ty)?;
+            visitor.after_expr(driver, expr)
+        }
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
                 walk_expr(driver, visitor, element)?;
@@ -576,11 +613,40 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Some(inner)
+        | HirExprKind::RefCreate(inner)
         | HirExprKind::Unary { expr: inner, .. }
         | HirExprKind::Field {
             receiver: inner, ..
         } => {
             walk_expr(driver, visitor, inner)?;
+            visitor.after_expr(driver, expr)
+        }
+        HirExprKind::ObjectConstruct { fields, .. } => {
+            for field in fields {
+                walk_expr(driver, visitor, field)?;
+            }
+            visitor.after_expr(driver, expr)
+        }
+        HirExprKind::ObjectField { receiver, .. } => {
+            walk_expr(driver, visitor, receiver)?;
+            visitor.after_expr(driver, expr)
+        }
+        HirExprKind::PresenceMatch {
+            value,
+            binding,
+            binding_ty,
+            some_block,
+            none_block,
+        } => {
+            visitor.presence_match(
+                driver,
+                value,
+                binding,
+                binding_ty,
+                some_block,
+                none_block.as_ref(),
+                &expr.ty,
+            )?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Binary { op, lhs, rhs, .. } => {
@@ -610,12 +676,6 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
                 }
                 let child_ref = driver.cursor.last_child();
                 visitor.skip_closure(child_ref)?;
-            }
-            visitor.after_expr(driver, expr)
-        }
-        HirExprKind::StructNew { args, .. } => {
-            for arg in args {
-                walk_expr(driver, visitor, arg)?;
             }
             visitor.after_expr(driver, expr)
         }

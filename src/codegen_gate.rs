@@ -2,7 +2,9 @@
 
 use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, TyKind};
+use crate::hir::{
+    HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, TyKind, UseKind,
+};
 use crate::span::Span;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -21,7 +23,7 @@ pub(crate) fn nullable_repr(ty: &Ty) -> Option<NullableRepr> {
     }
     match inner.kind {
         TyKind::Prim(Prim::Unit) => None,
-        TyKind::Prim(_) | TyKind::Struct(_) => Some(NullableRepr::TaggedScalar),
+        TyKind::Prim(_) => Some(NullableRepr::TaggedScalar),
         _ => None,
     }
 }
@@ -51,6 +53,9 @@ fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
             }
             HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => gate_expr(value, diagnostics),
             HirStmt::Assign { target, value } => {
+                if let Some(receiver) = target.receiver() {
+                    gate_expr(receiver, diagnostics);
+                }
                 if let Some(index) = target.index() {
                     gate_expr(index, diagnostics);
                 }
@@ -81,8 +86,21 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         HirExprKind::Int { .. }
         | HirExprKind::Float { .. }
         | HirExprKind::Bool { .. }
-        | HirExprKind::Str { .. }
-        | HirExprKind::Ident { .. } => {}
+        | HirExprKind::Str { .. } => {}
+        HirExprKind::Ident { use_kind, .. } => {
+            if matches!(use_kind, UseKind::Move | UseKind::Promote)
+                && expr
+                    .ty
+                    .array_elem()
+                    .is_some_and(|elem| elem.is_managed_ref())
+            {
+                reject(
+                    diagnostics,
+                    "moving an array of managed Ref is not supported by codegen yet",
+                    expr.span,
+                );
+            }
+        }
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
                 gate_expr(element, diagnostics);
@@ -158,10 +176,31 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         }
         HirExprKind::None => {}
         HirExprKind::Some(inner)
+        | HirExprKind::RefCreate(inner)
         | HirExprKind::Unary {
             op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow,
             expr: inner,
         } => gate_expr(inner, diagnostics),
+        HirExprKind::ObjectConstruct { fields, .. } => {
+            for field in fields {
+                gate_expr(field, diagnostics);
+            }
+        }
+        HirExprKind::ObjectField { receiver, .. } => {
+            gate_expr(receiver, diagnostics);
+        }
+        HirExprKind::PresenceMatch {
+            value,
+            some_block,
+            none_block,
+            ..
+        } => {
+            gate_expr(value, diagnostics);
+            gate_block(some_block, diagnostics);
+            if let Some(block) = none_block {
+                gate_block(block, diagnostics);
+            }
+        }
         HirExprKind::Field {
             receiver,
             name,
@@ -174,9 +213,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     || (*safe
                         && receiver.ty.is_nullable()
                         && (inner.is_string() || inner.is_array())));
-            let struct_ok = matches!(inner.kind, crate::hir::TyKind::Struct(_))
-                && (!receiver.ty.is_nullable() || *safe);
-            if !length_ok && !struct_ok {
+            if !length_ok {
                 reject(
                     diagnostics,
                     "field access is not supported by codegen",
@@ -184,11 +221,6 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 );
             }
             gate_expr(receiver, diagnostics);
-        }
-        HirExprKind::StructNew { args, .. } => {
-            for arg in args {
-                gate_expr(arg, diagnostics);
-            }
         }
     }
 }
@@ -257,6 +289,48 @@ fun main(name: String?): String {
     }
 
     #[test]
+    fn record_and_presence_pass_codegen_gate() {
+        let source = r#"
+class Box { value: i32 }
+fun main(): i32 {
+    val item = Box(7)
+    val reference: Ref<Box> = item
+    if val live = reference { return live.value }
+    return item.value
+}
+"#;
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        assert!(
+            diagnostics.is_empty(),
+            "records and if-val should lower: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn moving_an_array_of_ref_is_rejected_by_the_codegen_gate() {
+        let source = r#"
+class Box { value: i32 }
+fun main() {
+    val item = Box(1)
+    val first: Ref<Box> = item
+    val refs = [first, None]
+    val _taken = move refs
+}
+"#;
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("array of managed Ref")),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
     fn float_optional_passes_codegen_gate() {
         let source = "fun main(): i32 {\n    val n: f32? = None\n    return 0\n}\n";
         let result = crate::frontend::check(source);
@@ -270,11 +344,12 @@ fun main(name: String?): String {
     }
 
     #[test]
-    fn nullable_struct_safe_field_passes_codegen_gate() {
+    fn managed_ref_safe_field_passes_codegen_gate() {
         let source = r#"
-struct Point(val x: i32)
+class Point { x: i32 }
 fun main(): i32 {
-    val p: Point? = Some(new Point(1))
+    val point = Point(1)
+    val p: Ref<Point> = point
     return p?.x ?: 0
 }
 "#;
@@ -283,7 +358,7 @@ fun main(): i32 {
         let diagnostics = super::gate(result.hir.as_ref().unwrap());
         assert!(
             diagnostics.is_empty(),
-            "Point? `?.x` must pass codegen gate: {diagnostics:?}"
+            "Ref<Point> `?.x` must pass codegen gate: {diagnostics:?}"
         );
     }
 }

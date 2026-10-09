@@ -1,0 +1,4 @@
+// diag: recursive by-value layout
+class A { b: B }
+class B { a: A }
+fun main() {}

@@ -16,7 +16,7 @@ Runnable `.bork` sources grouped by language feature. They complement `tests/*.r
 | Topic | Covers |
 |-------|--------|
 | [`conditionals/`](build/conditionals/) | `if` / `else`, expression `if`, `&&` `\|\|` short-circuit |
-| [`structs/`](build/structs/) | `struct`, `new`, field access/assign, structural `==` |
+| [`classes/`](build/classes/) | `class`, constructor calls, nested fields, mutable fields, `Ref` navigation |
 | [`loops/`](build/loops/) | `for (i in lo..hi)`, `while`, `break`, accumulation |
 | [`recursions/`](build/recursions/) | Direct recursion, calls inside `if` |
 | [`borrow/`](build/borrow/) | `&T` parameters, index/slice, re-borrow in `if`/`while`/`for` |

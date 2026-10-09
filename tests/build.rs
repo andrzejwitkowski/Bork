@@ -135,6 +135,357 @@ fn builds_unit_main_exits_zero() {
 }
 
 #[test]
+fn builds_nullable_ref_navigation_and_return() {
+    let run = build_and_run(
+        "builds_nullable_ref_navigation_and_return",
+        "class Holder {\n text: String?\n count: i32?\n }\n\
+         fun missing(): String? { return None }\n\
+         fun main(): i32 {\n\
+             val reference: Ref<Holder> = Holder(None, None)\n\
+             if (missing() == None && reference?.text == None && reference?.count == None) { return 7 }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn builds_nullable_array_navigation_length() {
+    let run = build_and_run(
+        "builds_nullable_array_navigation_length",
+        r#"
+class Holder { values: [i32; 2] }
+fun main(): i32 {
+    val present: Ref<Holder> = Holder([11, 22])
+    val missing: Ref<Holder> = None
+    if (missing?.values?.length == None) { return present?.values?.length ?: 0 }
+    return 0
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(2));
+}
+
+#[test]
+fn builds_ref_equality() {
+    let run = build_and_run(
+        "builds_ref_equality",
+        "class Box { value: i32 }\n\
+         fun main(): i32 {\n\
+             val first: Ref<Box> = Box(1)\n\
+             val same = first\n\
+             val other: Ref<Box> = Box(1)\n\
+             if (first == same && first != other && first != None) { return 7 }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn builds_presence_result_buffers() {
+    let run = build_and_run(
+        "builds_presence_result_buffers",
+        r#"
+class Holder { values: [i32; 2] }
+fun make(): Ref<Holder> { return Holder([11, 22]) }
+fun main() {
+    val reference = make()
+    val fallback = [0, 0]
+    val values = when reference {
+        Some(holder) => {
+            val other = make()
+            when other {
+                Some(inner) => { inner.values }
+                None => { fallback }
+            }
+        }
+        None => { fallback }
+    }
+    {
+        val overwrite = [99, 99]
+        println(overwrite[0])
+    }
+    println(values[1])
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(stdout_of(&run), "99\n22\n");
+}
+
+#[test]
+fn builds_ref_returned_from_if() {
+    let run = build_and_run(
+        "builds_ref_returned_from_if",
+        "class Box { value: i32 }\n\
+         fun make(flag: bool): Ref<Box> {\n\
+             return if (flag) { Box(7) } else { Box(9) }\n\
+         }\n\
+         fun main(): i32 {\n\
+             val local: Ref<Box> = if (true) { Box(5) } else { Box(6) }\n\
+             val reference = make(true)\n\
+             if val first = local {\n\
+                 if val live = reference { return first.value + live.value }\n\
+             }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(12), "{}", String::from_utf8_lossy(&run.stderr));
+}
+
+#[test]
+fn builds_ref_returned_after_conditional_assignment() {
+    let run = build_and_run(
+        "builds_ref_returned_after_conditional_assignment",
+        r#"
+class Box { value: i32 }
+fun make(flag: bool): Ref<Box> {
+    var reference: Ref<Box> = Box(7)
+    if (flag) { reference = Box(9) }
+    return reference
+}
+fun main(): i32 {
+    val reference = make(false)
+    if val live = reference { return live.value }
+    return 0
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(7), "{}", String::from_utf8_lossy(&run.stderr));
+}
+
+#[test]
+fn builds_managed_ref_copies_to_var_and_child_scope() {
+    let run = build_and_run(
+        "builds_managed_ref_copies_to_var_and_child_scope",
+        r#"
+class Box { value: i32 }
+fun main(): i32 {
+    val reference: Ref<Box> = Box(7)
+    var copy: Ref<Box> = reference
+    if (true) {
+        val child = copy
+        if val live = child { return live.value }
+    }
+    return 0
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn builds_record_length_field() {
+    let run = build_and_run(
+        "builds_record_length_field",
+        "class Count { length: i32 }\nfun main(): i32 { return Count(7).length }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn builds_ref_assigned_out_of_loop() {
+    let run = build_and_run(
+        "builds_ref_assigned_out_of_loop",
+        "class Box { value: i32 }\n\
+         class Holder { target: Ref<Box> }\n\
+         fun make(value: i32): Ref<Box> { return Box(value) }\n\
+         fun main(): i32 {\n\
+             var saved: Ref<Holder> = None\n\
+             for (i in 0..3) {\n\
+                 val reference = make(i)\n\
+                 saved = Holder(reference)\n\
+             }\n\
+             if val holder = saved {\n\
+                 if val live = holder.target { return 1 }\n\
+             }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(0), "{}", String::from_utf8_lossy(&run.stderr));
+}
+
+#[test]
+fn builds_confined_ref_cleanup() {
+    let run = build_and_run(
+        "builds_confined_ref_cleanup",
+        "class Box { value: i32 }\n\
+         fun main(): i32 {\n\
+             val item = Box(7)\n\
+             val reference: Ref<Box> = item\n\
+             if val live = reference { return live.value }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn builds_scoped_ref_cleanup_across_loop_reset() {
+    let run = build_and_run(
+        "builds_scoped_ref_cleanup_across_loop_reset",
+        "class Box { value: i32 }\n\
+         fun main(): i32 {\n\
+             var total = 0\n\
+             for (i in 0..2) {\n\
+                 val item = Box(7)\n\
+                 val reference: Ref<Box> = item\n\
+                 if val live = reference { total = total + live.value }\n\
+             }\n\
+             return total\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(14));
+}
+
+#[test]
+fn builds_returned_ref_to_record_argument() {
+    let run = build_and_run(
+        "builds_returned_ref_to_record_argument",
+        "class Node { value: i32 }\n\
+         fun keep(node: Node): Ref<Node> { return node }\n\
+         fun main(): i32 {\n\
+             val node = Node(7)\n\
+             val reference = keep(node)\n\
+             if val live = reference { return live.value }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn builds_record_owned_field_payloads() {
+    let run = build_and_run(
+        "builds_record_owned_field_payloads",
+        "class Holder { text: String\n\
+         values: [i32; 2] }\n\
+         fun make(): Ref<Holder> {\n\
+             val text = concat(\"a\", \"b\")\n\
+             val values = [11, 22]\n\
+             val holder = Holder(text, values)\n\
+             return holder\n\
+         }\n\
+         fun main() {\n\
+             val reference = make()\n\
+             if val holder = reference {\n\
+                 println(holder.text)\n\
+                 println(holder.values[1])\n\
+             }\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "ab\n22\n");
+}
+
+#[test]
+fn builds_record_owned_field_assignment_payloads() {
+    let run = build_and_run(
+        "builds_record_owned_field_assignment_payloads",
+        "class Holder { text: String\n\
+         values: [i32; 2] }\n\
+         fun main() {\n\
+             val holder = Holder(\"init\", [0, 0])\n\
+             {\n\
+                 holder.text = concat(\"x\", \"y\")\n\
+                 holder.values = [11, 22]\n\
+             }\n\
+             println(holder.text)\n\
+             println(holder.values[1])\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "xy\n22\n");
+}
+
+#[test]
+fn builds_record_ref_array_owned_payload() {
+    let run = build_and_run(
+        "builds_record_ref_array_owned_payload",
+        "class Node { value: i32 }\n\
+         class Holder { refs: [Ref<Node>; 2] }\n\
+         fun make(): Ref<Holder> {\n\
+             val node = Node(7)\n\
+             val reference: Ref<Node> = node\n\
+             val refs = [reference, None]\n\
+             val holder = Holder(refs)\n\
+             return holder\n\
+         }\n\
+         fun main(): i32 {\n\
+             val reference = make()\n\
+             if val holder = reference {\n\
+                 val candidate = holder.refs[0]\n\
+                 if val node = candidate { return node.value }\n\
+             }\n\
+             return 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
+fn build_rejects_invalid_managed_ref_targets() {
+    for (name, source) in [
+        ("rejects_ref_string", "fun main() { val x: Ref<String> = None }\n"),
+        (
+            "rejects_ref_array",
+            "fun main() { val x: Ref<[i32; 2]> = None }\n",
+        ),
+        (
+            "rejects_ref_nullable_class",
+            "class Box { value: i32 }\nfun main() { val x: Ref<Box?> = None }\n",
+        ),
+    ] {
+        let dir = scratch_dir(name);
+        let (build, binary) = bork_build(&dir, source);
+        let stderr = String::from_utf8_lossy(&build.stderr);
+        assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
+        assert!(
+            stderr.contains("managed Ref target must be a non-nullable class"),
+            "stderr: {stderr}"
+        );
+        assert!(!binary.exists());
+    }
+}
+
+#[test]
+fn build_rejects_invalid_safe_class_field() {
+    for (name, source) in [
+        (
+            "rejects_safe_owned_class",
+            "class Box { value: i32 }\nfun main() {\n val box = Box(1)\n box?.value\n}\n",
+        ),
+        (
+            "rejects_safe_nullable_class",
+            "class Box { value: i32 }\nfun main() {\n val box: Box? = None\n box?.value\n}\n",
+        ),
+    ] {
+        let dir = scratch_dir(name);
+        let (build, binary) = bork_build(&dir, source);
+        let stderr = String::from_utf8_lossy(&build.stderr);
+        assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
+        assert!(stderr.contains("?. on a class field requires Ref<T>"), "stderr: {stderr}");
+        assert!(!binary.exists());
+    }
+}
+
+#[test]
+fn builds_safe_ref_navigation_cleanup() {
+    let run = build_and_run(
+        "builds_safe_ref_navigation_cleanup",
+        "class Box { value: i32 }\n\
+         fun main(): i32 {\n\
+             val item = Box(7)\n\
+             val reference: Ref<Box> = item\n\
+             val value = reference?.value\n\
+             return value ?: 0\n\
+         }\n",
+    );
+    assert_eq!(run.status.code(), Some(7));
+}
+
+#[test]
 fn builds_for_loop_sum() {
     let run = build_and_run(
         "builds_for_loop_sum",

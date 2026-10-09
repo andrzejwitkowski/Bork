@@ -1,5 +1,6 @@
-use crate::ast::{Block, Expr, Stmt};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirStmt, Ty};
+use crate::ast::{BindingKind, Block, Expr, Stmt};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirStmt, Ty, TyKind};
+use crate::span::SpannedName;
 
 use super::super::env::Env;
 use super::super::stmt;
@@ -52,6 +53,77 @@ pub(super) fn check_if(
             else_block: else_block.map(|(block, _)| block),
         },
         result_ty,
+    )
+}
+
+pub(super) fn check_presence(
+    value: &Expr,
+    binding: &SpannedName,
+    some_block: &Block,
+    none_block: Option<&Block>,
+    expected: Option<&Ty>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    let value = check(value, None, return_ty, env);
+    let binding_ty = match value.ty.managed_ref_inner() {
+        Some(target) => Ty::new(TyKind::Ref(Box::new(target.clone())), false),
+        None => {
+            if !value.ty.is_unknown() {
+                env.error(
+                    format!("presence matching requires Ref<T>, got {}", value.ty),
+                    value.span.or(Some(binding.span)),
+                );
+            }
+            Ty::unknown()
+        }
+    };
+    env.decl_tys.insert(binding.span, binding_ty.clone());
+
+    env.enter_scope();
+    env.bind(
+        binding.name.clone(),
+        BindingKind::Val,
+        binding_ty.clone(),
+        true,
+    );
+    let (some_block, some_ty) =
+        check_value_block_in_current_scope(some_block, expected, return_ty, env);
+    env.exit_scope();
+    let none_block = none_block.map(|block| check_value_block(block, expected, return_ty, env));
+
+    let result_ty = match (&none_block, expected) {
+        (Some((_, none_ty)), _) if *none_ty == some_ty => some_ty,
+        (Some((_, none_ty)), Some(_)) => {
+            if !none_ty.is_unknown() && !some_ty.is_unknown() {
+                env.error(
+                    format!("None branch has type {none_ty}, expected {some_ty}"),
+                    Some(binding.span),
+                );
+            }
+            some_ty
+        }
+        (Some(_), None) => Ty::unit(),
+        (None, Some(_)) => {
+            env.error(
+                "value-producing `if val` requires an else branch",
+                Some(binding.span),
+            );
+            some_ty
+        }
+        (None, None) => Ty::unit(),
+    };
+
+    HirExpr::spanned(
+        HirExprKind::PresenceMatch {
+            value: Box::new(value),
+            binding: binding.name.clone(),
+            binding_ty,
+            some_block,
+            none_block: none_block.map(|(block, _)| block),
+        },
+        result_ty,
+        binding.span,
     )
 }
 

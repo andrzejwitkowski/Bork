@@ -1,0 +1,37 @@
+// exit: 42
+// A Ref<T> returned from make_shared lives in dynamic program.
+class Box { value: i32 }
+
+fun make_shared(): Ref<Box> {
+    // The returned Ref promotes Box out of this call's lexical arena.
+    return Box(40)
+}
+
+fun main(): i32 {
+    val shared = make_shared()
+    var total = 0
+
+    {
+        val local = Box(1)
+        if val live = shared {
+            // `live` is declared by `if val` and has the guard-local type `&Box`.
+            // It is a short observation; `shared` remains available.
+            total = total + live.value + local.value
+        }
+    }
+    // The first lexical block is gone, but the program dynamic target lives.
+
+    {
+        val local = Box(1)
+        if val live = shared {
+            // A second lexical block reads the same program-lived target.
+            total = total + local.value + (live.value - 40)
+        }
+    }
+
+    if val live = shared {
+        // This read happens after both blocks have ended.
+        return total + (live.value - 40)
+    }
+    return total
+}

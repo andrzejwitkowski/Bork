@@ -17,6 +17,8 @@ fn main() {
 fn build_runtime() {
     let source = PathBuf::from("crates/bork_runtime/src/lib.rs");
     println!("cargo:rerun-if-changed={}", source.display());
+    println!("cargo:rerun-if-changed=crates/bork_runtime/src/arena.rs");
+    println!("cargo:rerun-if-changed=crates/bork_runtime/src/refs.rs");
     let output = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("libbork_runtime.a");
     let rustc = env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
     let status = Command::new(rustc)

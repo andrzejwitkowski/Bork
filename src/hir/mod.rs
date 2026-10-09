@@ -18,39 +18,26 @@ pub enum UseKind {
     Promote,
     /// `&name` observes an outer binding in place. The owner stays live.
     Borrow,
+    RefCopy,
+    RefMove,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirProgram {
-    pub structs: Vec<HirStructDef>,
+    pub classes: Vec<HirClass>,
     pub functions: Vec<HirFunction>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct HirStructDef {
+pub struct HirClass {
     pub name: String,
-    pub fields: Vec<HirStructField>,
+    pub fields: Vec<HirClassField>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct HirStructField {
-    pub kind: ast::BindingKind,
+pub struct HirClassField {
     pub name: String,
     pub ty: Ty,
-}
-
-impl HirStructDef {
-    pub fn field(&self, name: &str) -> Option<&HirStructField> {
-        self.fields.iter().find(|f| f.name == name)
-    }
-
-    pub fn field_index(&self, name: &str) -> Option<usize> {
-        self.fields.iter().position(|f| f.name == name)
-    }
-
-    pub fn field_ty(&self, name: &str) -> Option<&Ty> {
-        self.field(name).map(|f| &f.ty)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -123,18 +110,20 @@ pub enum HirAssignTarget {
         name: String,
         index: HirExpr,
     },
+    /// `receiver.field =` updates a class object.
     Field {
-        name: String,
+        receiver: HirExpr,
         field: String,
+        field_index: usize,
     },
 }
 
 impl HirAssignTarget {
-    pub fn name(&self) -> &str {
+    /// Local updated by this assignment. A class field store does not update its binding.
+    pub fn binding_name(&self) -> Option<&str> {
         match self {
-            HirAssignTarget::Name { name }
-            | HirAssignTarget::Index { name, .. }
-            | HirAssignTarget::Field { name, .. } => name,
+            HirAssignTarget::Name { name } | HirAssignTarget::Index { name, .. } => Some(name),
+            HirAssignTarget::Field { .. } => None,
         }
     }
 
@@ -142,6 +131,13 @@ impl HirAssignTarget {
         match self {
             HirAssignTarget::Index { index, .. } => Some(index),
             HirAssignTarget::Name { .. } | HirAssignTarget::Field { .. } => None,
+        }
+    }
+
+    pub fn receiver(&self) -> Option<&HirExpr> {
+        match self {
+            HirAssignTarget::Field { receiver, .. } => Some(receiver),
+            HirAssignTarget::Name { .. } | HirAssignTarget::Index { .. } => None,
         }
     }
 }
@@ -202,6 +198,25 @@ pub enum HirExprKind {
     },
     None,
     Some(Box<HirExpr>),
+    RefCreate(Box<HirExpr>),
+    ObjectConstruct {
+        class_name: String,
+        fields: Vec<HirExpr>,
+    },
+    ObjectField {
+        receiver: Box<HirExpr>,
+        class_name: String,
+        field_index: usize,
+        name: String,
+        safe: bool,
+    },
+    PresenceMatch {
+        value: Box<HirExpr>,
+        binding: String,
+        binding_ty: Ty,
+        some_block: HirBlock,
+        none_block: Option<HirBlock>,
+    },
     Binary {
         op: ast::BinOp,
         lhs: Box<HirExpr>,
@@ -220,10 +235,6 @@ pub enum HirExprKind {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
         has_trailing_closure: bool,
-    },
-    StructNew {
-        name: String,
-        args: Vec<HirExpr>,
     },
     If {
         cond: Box<HirExpr>,

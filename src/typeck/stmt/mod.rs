@@ -106,7 +106,9 @@ fn check_var_decl(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let declared_ty = ty.map(|ty| super::lower_type(ty, env.structs, &mut env.diagnostics));
+    let declared_ty = ty.map(|ty| {
+        super::lower_type(ty, env.classes, &mut env.diagnostics)
+    });
     let value = expr::check(value, declared_ty.as_ref(), return_ty, env);
     // Bind whatever type we can settle on, even after a bad initializer,
     // so later uses of `name` are not reported as unknown bindings.
@@ -127,7 +129,7 @@ fn check_var_decl(
         );
     }
     let explicit_ref = ty.is_some() && declared_ty.is_ref();
-    env.decl_tys.push(declared_ty.clone());
+    env.decl_tys.insert(name_span, declared_ty.clone());
     env.bind(name.to_string(), kind, declared_ty.clone(), explicit_ref);
     HirStmt::VarDecl {
         kind,

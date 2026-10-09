@@ -1,8 +1,8 @@
 // exit: 9
-struct Box(var n: i32?)
+class Box { n: i32? }
 
 fun main(): i32 {
-    val b = new Box(None)
+    val b = Box(None)
     b.n = Some(9)
     return b.n ?: 0
 }

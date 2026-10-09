@@ -3,6 +3,82 @@ use crate::dump::dump_arenas;
 use crate::parse;
 
 #[test]
+fn move_consumes_class_owner() {
+    let result = crate::frontend::check(
+        "class Node { value: i32 }\nfun main() {\n val node = Node(1)\n val taken = move node\n node.value\n}",
+    );
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.phase == crate::diag::Phase::Ownership
+            && diagnostic.message.contains("use of `node` after move")
+    }), "{:?}", result.diagnostics);
+}
+
+#[test]
+fn creating_managed_refs_keeps_class_owner_live() {
+    let result = crate::frontend::check(
+        r#"
+class Node {
+    value: i32
+    next: Ref<Node>
+}
+fun take(var reference: Ref<Node>) {}
+fun main() {
+    var node = Node(1)
+    var reference: Ref<Node> = node
+    reference = node
+    var refs: [Ref<Node>; 2] = [node, None]
+    refs[0] = node
+    val holder = Node(2, node)
+    holder.next = node
+    take(node)
+    node.value
+}
+"#,
+    );
+    assert!(result.is_ok(), "{:?}", result.diagnostics);
+}
+
+#[test]
+fn copying_managed_ref_to_child_is_shared() {
+    let result = crate::frontend::check(
+        "class Node { value: i32 }\nfun main() {\n var reference: Ref<Node> = Node(1)\n { var copy: Ref<Node> = reference }\n}",
+    );
+    assert!(result.is_ok(), "{:?}", result.diagnostics);
+    let report = result.report.unwrap();
+    assert!(report.roots[0].children[0].observations.iter().any(|observation| {
+        observation.name == "reference" && matches!(observation.ownership, Ownership::Shared { .. })
+    }));
+}
+
+#[test]
+fn class_ref_fields_can_be_assigned_through_presence_bindings() {
+    for body in [
+        "if val live = root { live.next = target }",
+        "when root {\n Some(live) => { live.next = target }\n None => {}\n}",
+    ] {
+        let result = crate::frontend::check(&format!(
+            "class Node {{ next: Ref<Node> }}\nfun main() {{\n val target = Node()\n val root: Ref<Node> = Node()\n {body}\n target.next\n}}",
+        ));
+        assert!(result.is_ok(), "{body}: {:?}", result.diagnostics);
+        let report = result.report.unwrap();
+        let live = &report.roots[0].children[0].bindings[0];
+        assert!(
+            matches!(&live.ownership, Ownership::Borrow { from } if from == "presence guard"),
+            "{:?}",
+            live,
+        );
+    }
+}
+
+#[test]
+fn creating_ref_from_if_result_keeps_owners_live() {
+    let result = crate::frontend::check(
+        "class Node { value: i32 }\nfun main() {\n var a = Node(1)\n var b = Node(2)\n val reference: Ref<Node> = if (true) { a } else { b }\n a.value\n b.value\n}",
+    );
+    assert!(result.is_ok(), "{:?}", result.diagnostics);
+}
+
+#[test]
 fn bare_var_decl_transfer_emits_one_diagnostic() {
     let src = r#"
 fun main() {

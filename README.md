@@ -25,6 +25,19 @@ Instead of fighting complex, single-variable borrow checkers like Rust's lifetim
 
 ## 🚀 Language Syntax Preview
 
+Bork's only record declaration is `class`, with constructor calls and mutable fields:
+
+```bork
+class Point { x: i32 }
+fun main(): i32 {
+    val point = Point(1)
+    point.x = 2
+    return point.x
+}
+```
+
+Class values are not Copy and have no structural equality. `val` fixes the binding while fields stay mutable. See [the language guide](docs/language.md) for classes and managed `Ref<T>` handles.
+
 ```kotlin
 // A function taking types and a closure (lambda) as its last parameter
 fun action(a: Int, b: Int, block: (Int, Int) -> Int): Int {
