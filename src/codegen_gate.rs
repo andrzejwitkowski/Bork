@@ -89,6 +89,15 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         | HirExprKind::Str { .. } => {}
         HirExprKind::Ident { use_kind, .. } => {
             if matches!(use_kind, UseKind::Move | UseKind::Promote)
+                && expr.ty.record_name().is_some()
+            {
+                reject(
+                    diagnostics,
+                    "moving class objects is not supported by codegen yet",
+                    expr.span,
+                );
+            }
+            if matches!(use_kind, UseKind::Move | UseKind::Promote)
                 && expr
                     .ty
                     .array_elem()

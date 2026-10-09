@@ -135,7 +135,8 @@ fn walk_stmt(
                 true,
                 inferred.as_option().as_ref(),
             );
-            let view = is_view_init(az, value);
+            let view =
+                is_view_init(az, value) || matches!(&inferred, Ty::Known(ty) if ty.is_reference());
             if view && *kind == BindingKind::Var {
                 az.error(
                     format!("cannot bind `var` `{name}` to a borrow; use `val`"),

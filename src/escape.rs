@@ -597,4 +597,39 @@ fun main() {
 "#,
         );
     }
+
+    #[test]
+    fn rejects_class_handles_that_outlive_guarded_objects() {
+        for guard in ["if val (a = r, b = r)", "if val a = r"] {
+            for body in [
+                format!("val out = {guard} {{ a.child }} else {{ &fallback }}"),
+                format!("val out = Wrap({guard} {{ a.child }} else {{ fallback }})"),
+                format!("val out = {guard} {{ Wrap(a.child) }} else {{ Wrap(fallback) }}"),
+                format!("val out = Wrap(fallback)\n {guard} {{ out.child = a.child }}"),
+                format!("{guard} {{ a.child = a.child }}"),
+                format!("{guard} {{ consume(a.child) }}"),
+                format!("{guard} {{ val child = a.child\n val owned = move child }}"),
+                format!("val out = Wrap(fallback)\n return {guard} {{ out.child = a.child\n 1 }} else {{ 0 }}"),
+            ] {
+                let source = format!("class Leaf {{ value: i32 }}\nclass Node {{ child: Leaf }}\nclass Wrap {{ child: Leaf }}\nfun consume(node: Leaf) {{}}\nfun use(r: Ref<Node>, fallback: Leaf): i32 {{\n {body}\n return 0\n}}");
+                let checked = crate::frontend::check(&source);
+                assert!(
+                    checked.diagnostics.iter().any(|d| {
+                        d.message.contains("presence guard reference")
+                            || d.message.contains("has type &Leaf")
+                            || d.message.contains("it is a borrow")
+                            || d.message.contains("is borrow &Leaf")
+                    }),
+                    "{source}\n{:?}",
+                    checked.diagnostics
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn allows_class_fields_within_guard_and_fresh_owned_results() {
+        let checked = crate::frontend::check("class Leaf { value: i32 }\nclass Node { child: Leaf }\nfun use(r: Ref<Node>) {\n val out = if val (a = r, b = r) {\n val child: &Leaf = a.child\n println(child.value)\n Leaf(child.value)\n } else { Leaf(0) }\n println(out.value)\n}");
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+    }
 }

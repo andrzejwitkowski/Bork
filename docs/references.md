@@ -891,3 +891,11 @@ Nie zmienia to reprezentacji strong/weak ani reguł nullable `T?`.
 
 [Chained CacheManager](../programs/build/managed_refs/chained_cache_manager_graph.bork)
 i dotychczasowy przykład zagnieżdżony zwracają 42.
+
+Pole typu klasy odczytane przez borrow `&Parent` daje kolejny borrow `&Child`,
+nie owned `Child`. Taki widok pozostaje w scope guarda: nie można go wynieść,
+umieścić w owned obiekcie ani przekazać jako własności do funkcji. Można odczytać
+jego pola i zbudować świeżą klasę albo utrwalić relację jako `Ref<T>`.
+`move` i `promote` zwykłych klas nie są jeszcze obsługiwane przez codegen;
+kompilator zgłasza diagnostykę. Wyniki String, array i managed `Ref` zachowują
+obecne reguły materializacji.

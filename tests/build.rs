@@ -65,6 +65,20 @@ fn gate_rejection_exits_one_without_binary() {
     assert!(!binary.exists());
 }
 
+#[test]
+fn moving_a_class_reports_a_diagnostic_without_panicking() {
+    let dir = scratch_dir("move_class_diagnostic");
+    let (build, binary) = bork_build(
+        &dir,
+        "class Node { value: i32 }\nfun main(): i32 {\n var source = Node(42)\n val moved = move source\n return moved.value\n}",
+    );
+    assert_eq!(build.status.code(), Some(1), "{build:?}");
+    assert!(
+        String::from_utf8_lossy(&build.stderr).contains("moving class objects is not supported")
+    );
+    assert!(!binary.exists());
+}
+
 fn build_and_run(name: &str, source: &str) -> std::process::Output {
     let dir = scratch_dir(name);
     let (build, binary) = bork_build(&dir, source);
@@ -912,4 +926,24 @@ fn builds_presence_values_preserve_surrounding_operands() {
             }
         }
     }
+}
+
+#[test]
+fn builds_fresh_class_result_from_guarded_fields() {
+    let run = build_and_run(
+        "presence_fresh_class",
+        r#"
+class Leaf { value: i32 }
+class Node { child: Leaf }
+fun main(): i32 {
+    val r: Ref<Node> = Node(Leaf(42))
+    val out = if val (a = r, b = r) {
+        val child: &Leaf = a.child
+        Leaf(child.value)
+    } else { Leaf(0) }
+    return out.value
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{run:?}");
 }

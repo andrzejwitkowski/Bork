@@ -1,0 +1,21 @@
+// diag: initializer for `box` has type &Leaf, expected Leaf
+class Leaf { value: i32 }
+class Node { child: Leaf }
+class Owner { saved: Ref<Node> }
+fun replace(owner: &Owner): Ref<Node> {
+    owner.saved = None
+    return Node(Leaf(2))
+}
+fun main(): i32 {
+    val fallback = Leaf(1)
+    val owner = Owner()
+    {
+        val old = Node(Leaf(40))
+        owner.saved = old
+    }
+    val box: Leaf = if val (a = owner.saved, b = replace(&owner)) { a.child } else { fallback }
+    val overwrite: Ref<Node> = Node(Leaf(9))
+    val overwrite2: Ref<Node> = Node(Leaf(17))
+    val overwrite3: Ref<Node> = Node(Leaf(23))
+    return box.value
+}
