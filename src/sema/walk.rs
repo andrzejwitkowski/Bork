@@ -177,9 +177,17 @@ fn walk_stmt(
                     receiver: crate::ast::Expr::Ident { name, span },
                     ..
                 } => (name, span, None, false),
-                AssignTarget::Field { receiver, .. } => {
+                AssignTarget::Field { receiver, span, .. } => {
+                    let target_ty = az.decl_tys.remove(span).map(ty_from_hir);
                     walk(az, receiver, node, None, true);
-                    walk(az, value, node, None, true);
+                    walk_typed(
+                        az,
+                        value,
+                        node,
+                        None,
+                        true,
+                        target_ty.and_then(|ty| ty.as_option()).as_ref(),
+                    );
                     return;
                 }
             };
@@ -197,22 +205,11 @@ fn walk_stmt(
                         _ => None,
                     }
                 }
-                (AssignTarget::Field { name: field, .. }, Some(ty)) => {
-                    let ty = match ty {
-                        Type::Ref { inner, .. } => *inner,
-                        ty => ty,
-                    };
-                    match ty {
-                        Type::Named { name, .. } => az
-                            .classes
-                            .get(&name)
-                            .and_then(|class| {
-                                class.fields.iter().find(|f| f.name.name == *field)
-                            })
-                            .map(|field| field.ty.clone()),
-                        _ => None,
-                    }
-                }
+                (AssignTarget::Field { span, .. }, _) => az
+                    .decl_tys
+                    .remove(span)
+                    .map(ty_from_hir)
+                    .and_then(|ty| ty.as_option()),
                 _ => None,
             };
             let assign_up = dest.as_ref().is_some_and(|b| {

@@ -39,7 +39,7 @@ pub(super) struct Env<'a> {
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
     pub(super) classes: &'a ClassTable,
     pub(super) diagnostics: Vec<Diagnostic>,
-    /// Types of declarations keyed by their source name span.
+    /// Declaration and field assignment types keyed by source span.
     pub(super) decl_tys: HashMap<Span, Ty>,
     pub(super) loop_depth: usize,
 }

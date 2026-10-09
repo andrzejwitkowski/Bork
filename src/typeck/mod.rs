@@ -14,6 +14,7 @@ use env::{ClassFieldInfo, ClassInfo, ClassTable, Env};
 pub(crate) use env::FunSig;
 use lower::lower_type;
 
+/// Types used by sema, keyed by declaration names and field assignment spans.
 pub type DeclTypes = HashMap<Span, Ty>;
 
 pub fn check(program: &Program) -> (HirProgram, DeclTypes, Vec<Diagnostic>) {

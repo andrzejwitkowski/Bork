@@ -80,7 +80,7 @@ pub(super) struct Analyzer {
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
     pub(super) fun_param_tys: HashMap<String, Vec<crate::ast::Type>>,
     pub(super) classes: HashMap<String, crate::ast::Class>,
-    /// `var`/`val` types from typeck, keyed by declaration name span.
+    /// Declaration and field assignment types from typeck, keyed by source span.
     pub(super) decl_tys: HashMap<Span, crate::hir::Ty>,
     /// Merge all possibly consumed owners while checking a chained header.
     pub(super) conservative_moves: bool,

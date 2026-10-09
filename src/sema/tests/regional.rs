@@ -697,3 +697,12 @@ fn chained_presence_keeps_moves_when_header_shadows_consumed_owner() {
         checked.diagnostics
     );
 }
+
+#[test]
+fn managed_ref_field_stores_keep_owners_with_complex_receivers() {
+    for receiver in ["a", "a.child", "make().child"] {
+        let source = format!("class Node {{ value: i32 }}\nclass Child {{ next: Ref<Node> }}\nclass Parent {{ child: Child\n next: Ref<Node> }}\nfun make(): Parent {{ return Parent(Child()) }}\nfun use(r: Ref<Parent>) {{\n var owner = Node(42)\n if val (a = r, b = r) {{ {receiver}.next = owner }}\n owner.value\n}}");
+        let checked = crate::frontend::check(&source);
+        assert!(checked.is_ok(), "{source}\n{:?}", checked.diagnostics);
+    }
+}

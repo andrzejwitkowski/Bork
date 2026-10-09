@@ -947,3 +947,26 @@ fun main(): i32 {
     );
     assert_eq!(run.status.code(), Some(42), "{run:?}");
 }
+
+#[test]
+fn builds_nested_managed_ref_field_store_without_moving_owner() {
+    let run = build_and_run(
+        "nested_ref_field_store",
+        r#"
+class Node { value: i32 }
+class Child { next: Ref<Node> }
+class Parent { child: Child }
+fun main(): i32 {
+    var node = Node(42)
+    val parent: Ref<Parent> = Parent(Child())
+    if val (a = parent, b = parent) {
+        a.child.next = node
+        if val live = a.child.next { println(live.value) }
+    }
+    return node.value
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{run:?}");
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "42\n");
+}
