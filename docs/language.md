@@ -2,7 +2,7 @@
 
 Bork is a small language with curly-brace regions, no garbage collector, and arena memory. A program is a list of functions and classes. Statements are separated by newlines, not semicolons. `//` comments run to the end of the line.
 
-This page is the surface language as the frontend accepts it today. The chapter **Where string bytes are allocated** explains sink allocation, hoist, `promote`, and escape checking. Lower-level arena layout and codegen schedules are in [memory-model.md](memory-model.md). The last section lists what native codegen still rejects.
+This page is the surface language as the frontend accepts it today. The chapter **Where string bytes are allocated** explains sink allocation, hoist, `promote`, and escape checking. Lower-level arena layout and codegen schedules are in [memory-model.md](memory-model.md). The last section lists what native codegen still rejects. For a step-by-step trip of one class-and-function program through every compiler phase (in Polish), see [walkthrough-classes-functions.md](walkthrough-classes-functions.md).
 
 ## Program
 
