@@ -9,7 +9,10 @@ use std::collections::HashMap;
 
 use crate::builtins::{self, Builtin};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{peel_to_body, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, UseKind};
+use crate::hir::{
+    peel_to_body, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
+    HirFunction, HirStmt, UseKind,
+};
 use crate::span::Span;
 
 pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>) {
@@ -55,9 +58,35 @@ struct Escape<'h, 'd> {
 
 impl<'h> Escape<'h, '_> {
     fn region(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
-        let body = peel_to_body(body);
+        self.open_scope();
+        self.region_body(body, yields, sink)
+    }
+
+    /// `if val` / `when` region: binds the guard names first. Later sources are evaluated
+    /// inside the region, as in codegen.
+    fn presence_region(
+        &mut self,
+        body: &'h HirBlock,
+        sink: Option<usize>,
+        bindings: &'h HirConditionalBindings,
+    ) -> usize {
+        self.open_scope();
+        self.bind_guard(&bindings.head);
+        for binding in &bindings.tail {
+            self.place(&binding.value, None);
+            self.bind_guard(binding);
+        }
+        self.region_body(body, true, sink)
+    }
+
+    fn open_scope(&mut self) {
         self.depth += 1;
         self.scopes.push(HashMap::new());
+    }
+
+    /// Walks a region body whose scope is already open, then closes it.
+    fn region_body(&mut self, body: &'h HirBlock, yields: bool, sink: Option<usize>) -> usize {
+        let body = peel_to_body(body);
         let mut value = 0;
         if let Some((last, prefix)) = body.stmts.split_last() {
             for stmt in prefix {
@@ -340,19 +369,42 @@ impl<'h> Escape<'h, '_> {
             }
             HirExprKind::ObjectField { receiver, .. } => self.place(receiver, None),
             HirExprKind::PresenceMatch {
-                value,
+                bindings,
                 some_block,
                 none_block,
                 ..
             } => {
-                self.place(value, None);
-                let some_depth = self.region(some_block, true, sink);
+                self.place(&bindings.head.value, None);
+                if expr.ty.is_ref() {
+                    reject(
+                        self.diagnostics,
+                        "a presence guard reference cannot escape its scope",
+                        expr.span,
+                    );
+                }
+                // Both presence arms materialize owned results before releasing observations.
+                let result_depth = sink.unwrap_or(self.depth);
+                let some_depth = self.presence_region(some_block, Some(result_depth), bindings);
                 let none_depth = none_block
                     .as_ref()
-                    .map_or(0, |block| self.region(block, true, sink));
-                some_depth.max(none_depth)
+                    .map_or(0, |block| self.region(block, true, Some(result_depth)));
+                if expr.ty.uses_arena_storage() {
+                    result_depth
+                } else {
+                    some_depth.max(none_depth)
+                }
             }
         }
+    }
+
+    fn bind_guard(&mut self, binding: &'h HirConditionalBinding) {
+        self.scopes.last_mut().unwrap().insert(
+            &binding.name.name,
+            Local {
+                decl_depth: self.depth,
+                value_depth: self.depth,
+            },
+        );
     }
 
     fn array_value_depth(&mut self, receiver: &'h HirExpr) -> usize {
@@ -554,5 +606,40 @@ fun main() {
 }
 "#,
         );
+    }
+
+    #[test]
+    fn rejects_class_handles_that_outlive_guarded_objects() {
+        for guard in ["if val (a = r, b = r)", "if val a = r"] {
+            for body in [
+                format!("val out = {guard} {{ a.child }} else {{ &fallback }}"),
+                format!("val out = Wrap({guard} {{ a.child }} else {{ fallback }})"),
+                format!("val out = {guard} {{ Wrap(a.child) }} else {{ Wrap(fallback) }}"),
+                format!("val out = Wrap(fallback)\n {guard} {{ out.child = a.child }}"),
+                format!("{guard} {{ a.child = a.child }}"),
+                format!("{guard} {{ consume(a.child) }}"),
+                format!("{guard} {{ val child = a.child\n val owned = move child }}"),
+                format!("val out = Wrap(fallback)\n return {guard} {{ out.child = a.child\n 1 }} else {{ 0 }}"),
+            ] {
+                let source = format!("class Leaf {{ value: i32 }}\nclass Node {{ child: Leaf }}\nclass Wrap {{ child: Leaf }}\nfun consume(node: Leaf) {{}}\nfun use(r: Ref<Node>, fallback: Leaf): i32 {{\n {body}\n return 0\n}}");
+                let checked = crate::frontend::check(&source);
+                assert!(
+                    checked.diagnostics.iter().any(|d| {
+                        d.message.contains("presence guard reference")
+                            || d.message.contains("has type &Leaf")
+                            || d.message.contains("it is a borrow")
+                            || d.message.contains("is borrow &Leaf")
+                    }),
+                    "{source}\n{:?}",
+                    checked.diagnostics
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn allows_class_fields_within_guard_and_fresh_owned_results() {
+        let checked = crate::frontend::check("class Leaf { value: i32 }\nclass Node { child: Leaf }\nfun use(r: Ref<Node>) {\n val out = if val (a = r, b = r) {\n val child: &Leaf = a.child\n println(child.value)\n Leaf(child.value)\n } else { Leaf(0) }\n println(out.value)\n}");
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
     }
 }

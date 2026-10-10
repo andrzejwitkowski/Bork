@@ -1,0 +1,19 @@
+// stdout: none\nafter\n
+class Node {
+    name: String
+    next: Ref<Node>
+}
+fun run(r: Ref<Node>) {
+    var s: String = "owned"
+    if val a = r {
+        println(a.name)
+    } else {
+        move (s) { println("none") }
+    }
+    println("after")
+}
+
+fun main() {
+    val r: Ref<Node> = None
+    run(r)
+}

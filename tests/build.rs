@@ -65,6 +65,20 @@ fn gate_rejection_exits_one_without_binary() {
     assert!(!binary.exists());
 }
 
+#[test]
+fn moving_a_class_reports_a_diagnostic_without_panicking() {
+    let dir = scratch_dir("move_class_diagnostic");
+    let (build, binary) = bork_build(
+        &dir,
+        "class Node { value: i32 }\nfun main(): i32 {\n var source = Node(42)\n val moved = move source\n return moved.value\n}",
+    );
+    assert_eq!(build.status.code(), Some(1), "{build:?}");
+    assert!(
+        String::from_utf8_lossy(&build.stderr).contains("moving class objects is not supported")
+    );
+    assert!(!binary.exists());
+}
+
 fn build_and_run(name: &str, source: &str) -> std::process::Output {
     let dir = scratch_dir(name);
     let (build, binary) = bork_build(&dir, source);
@@ -698,4 +712,261 @@ fn builds_while_with_break() {
         }\n",
     );
     assert_eq!(run.status.code(), Some(3));
+}
+
+#[test]
+fn builds_chained_presence_short_circuit_and_single_evaluation() {
+    for fail in 0..=3 {
+        let source = format!(
+            r#"
+class Node {{ value: i32 }}
+fun source(step: i32, fail: i32): Ref<Node> {{
+    println(step)
+    if (step == fail) {{ return None }}
+    return Node(step)
+}}
+fun main() {{
+    if val (a = source(1, {fail}), b = source(2, {fail}), c = source(3, {fail})) {{
+        println(a.value + b.value + c.value)
+    }} else {{ println(9) }}
+}}
+"#
+        );
+        let run = build_and_run(&format!("chained_short_circuit_{fail}"), &source);
+        assert!(run.status.success(), "{:?}", run);
+        let expected = match fail {
+            0 => "1\n2\n3\n6\n",
+            1 => "1\n9\n",
+            2 => "1\n2\n9\n",
+            _ => "1\n2\n3\n9\n",
+        };
+        assert_eq!(String::from_utf8_lossy(&run.stdout), expected);
+    }
+}
+
+#[test]
+fn builds_chained_presence_loops_and_owned_results() {
+    let run = build_and_run(
+        "chained_loops_owned",
+        r#"
+class Node {
+    name: String
+    next: Ref<Node>
+}
+fun main(): i32 {
+    val r: Ref<Node> = Node("live")
+    if val start = r { start.next = r }
+    var n = 0
+    while (n < 20) {
+        n = n + 1
+        if val (a = r, b = a.next) {
+            if (n < 19) { continue }
+            break
+        }
+    }
+    val text: String = if val (a = r, b = a.next) { b.name } else { "missing" }
+    println(text)
+    val missing: Ref<Node> = None
+    val refs: Ref<Node> = if val (a = r, b = a.next) { b.next } else { missing }
+    if val (a = refs, b = a.next) { return n + 23 }
+    return 0
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{:?}", run);
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "live\n");
+}
+
+#[test]
+fn builds_chained_presence_nested_rhs_and_early_returns() {
+    for early in [false, true] {
+        let source = format!(
+            r#"
+class Node {{ value: i32 }}
+fun main(): i32 {{
+    val r: Ref<Node> = Node(42)
+    if val (a = r, b = if ({early}) {{ return 7
+ r }} else {{ r }}) {{ return b.value }} else {{ return 0 }}
+    return 0
+}}
+"#
+        );
+        let run = build_and_run(&format!("chained_rhs_return_{early}"), &source);
+        assert_eq!(run.status.code(), Some(if early { 7 } else { 42 }));
+    }
+}
+
+#[test]
+fn builds_chained_presence_releases_partial_pins_before_else() {
+    let run = build_and_run(
+        "chained_partial_cleanup",
+        r#"
+class Node { parent: Ref<Node> }
+class Holder { saved: Ref<Node> }
+fun clear(holder: &Holder): Ref<Node> {
+    holder.saved = None
+    val missing: Ref<Node> = None
+    return missing
+}
+fun main(): i32 {
+    val holder = Holder()
+    var child_ref: Ref<Node> = None
+    {
+        val target = Node()
+        holder.saved = target
+        child_ref = Node(target)
+    }
+    // The target's initial root lease ended with the inner scope; holder owns it.
+    if val (a = holder.saved, b = clear(&holder)) { return 1 } else {
+        if val (child = child_ref, parent = child.parent) { return 2 }
+    }
+    return 42
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{:?}", run);
+}
+
+#[test]
+fn builds_chained_presence_pin_survives_source_replacement() {
+    let run = build_and_run(
+        "chained_pin_replacement",
+        r#"
+class Node { value: i32 }
+class Holder { saved: Ref<Node> }
+fun make(n: i32): Ref<Node> { return Node(n) }
+fun replace(holder: &Holder): Ref<Node> {
+    holder.saved = make(2)
+    return holder.saved
+}
+fun main(): i32 {
+    val holder = Holder()
+    {
+        val old = Node(40)
+        holder.saved = old
+    }
+    if val (a = holder.saved, b = replace(&holder)) { return a.value + b.value }
+    return 0
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{:?}", run);
+}
+
+#[test]
+fn builds_chained_presence_unwinds_loop_exits_from_each_rhs() {
+    for stage in 0..3 {
+        for action in ["break", "continue"] {
+            let mut values = ["r".to_string(), "r".to_string(), "r".to_string()];
+            values[stage] = format!("if (n == 1) {{ {action}\n r }} else {{ r }}");
+            let source = format!(
+                r#"
+class Node {{ value: i32 }}
+fun main(): i32 {{
+    val r: Ref<Node> = Node(40)
+    var n = 0
+    while (n < 2) {{
+        n = n + 1
+        if val (a = {}, b = {}, c = {}) {{ println(c.value) }}
+    }}
+    return n
+}}
+"#,
+                values[0], values[1], values[2]
+            );
+            let run = build_and_run(&format!("chained_rhs_{stage}_{action}"), &source);
+            assert_eq!(
+                run.status.code(),
+                Some(if action == "break" { 1 } else { 2 })
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&run.stdout),
+                if action == "break" { "" } else { "40\n" }
+            );
+        }
+    }
+}
+
+#[test]
+fn builds_chained_presence_array_result_survives_guard_cleanup() {
+    let run = build_and_run("chained_array_result", r#"
+class Node {
+    values: [i32; 2]
+    next: Ref<Node>
+}
+fun main(): i32 {
+    val r: Ref<Node> = Node([20, 22])
+    if val a = r { a.next = r }
+    val values: [i32; 2] = if val (a = r, b = a.next) { b.values } else { [0, 0] }
+    return values[0] + values[1]
+}
+"#);
+    assert_eq!(run.status.code(), Some(42), "{:?}", run);
+}
+
+#[test]
+fn builds_presence_values_preserve_surrounding_operands() {
+    for (form, guard) in [
+        ("single", "if val a = r { 20 } else { 30 }"),
+        ("chain", "if val (a = r, b = r) { 20 } else { 30 }"),
+        ("when", "when r {\n Some(a) => { 20 }\n None => { 30 }\n}"),
+    ] {
+        for (present, initializer, want) in [(true, "Node()", 30), (false, "None", 40)] {
+            for (context, expression, expected) in [
+                ("add", format!("10 + {guard}"), want),
+                ("call", format!("add(10, {guard})"), want),
+                ("array", format!("[10, {guard}][0]"), 10),
+            ] {
+                let source = format!("class Node {{}}\nfun add(a: i32, b: i32): i32 {{ return a + b }}\nfun main(): i32 {{\n val r: Ref<Node> = {initializer}\n return {expression}\n}}");
+                let run = build_and_run(
+                    &format!("presence_operands_{form}_{present}_{context}"),
+                    &source,
+                );
+                assert_eq!(run.status.code(), Some(expected), "{source}\n{run:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn builds_fresh_class_result_from_guarded_fields() {
+    let run = build_and_run(
+        "presence_fresh_class",
+        r#"
+class Leaf { value: i32 }
+class Node { child: Leaf }
+fun main(): i32 {
+    val r: Ref<Node> = Node(Leaf(42))
+    val out = if val (a = r, b = r) {
+        val child: &Leaf = a.child
+        Leaf(child.value)
+    } else { Leaf(0) }
+    return out.value
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{run:?}");
+}
+
+#[test]
+fn builds_nested_managed_ref_field_store_without_moving_owner() {
+    let run = build_and_run(
+        "nested_ref_field_store",
+        r#"
+class Node { value: i32 }
+class Child { next: Ref<Node> }
+class Parent { child: Child }
+fun main(): i32 {
+    var node = Node(42)
+    val parent: Ref<Parent> = Parent(Child())
+    if val (a = parent, b = parent) {
+        a.child.next = node
+        if val live = a.child.next { println(live.value) }
+    }
+    return node.value
+}
+"#,
+    );
+    assert_eq!(run.status.code(), Some(42), "{run:?}");
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "42\n");
 }

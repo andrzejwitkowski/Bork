@@ -413,6 +413,45 @@ fun main(): i32 {
     }
 
     #[test]
+    fn hover_resolves_each_chained_binding_and_shadowed_outer_name() {
+        let source = "class Node { next: Ref<Node> }\nfun use(a: Ref<Node>) {\n if val (a = a, b = a.next, c = b.next) { c.next } else { a }\n a\n}";
+        let analysis = analyze_source(source);
+        assert!(
+            analysis.diagnostics.is_empty(),
+            "{:?}",
+            analysis.diagnostics
+        );
+        let report = analysis.report().unwrap();
+        for (text, offset, ty, arena) in [
+            ("a = a", 0, "&Node", "IfValSome"),
+            ("b = a", 0, "&Node", "IfValSome"),
+            ("b = a", 4, "&Node", "IfValSome"),
+            ("c = b", 0, "&Node", "IfValSome"),
+            ("c = b", 4, "&Node", "IfValSome"),
+            ("{ c.next", 2, "&Node", "IfValSome"),
+            ("else { a", 7, "Ref<Node>", "IfValNone"),
+            ("a = a", 4, "Ref<Node>", "fun use"),
+        ] {
+            let position = byte_offset_to_position(source, source.find(text).unwrap() + offset);
+            let hover = hover_for_analysis(report, source, position).expect(text);
+            assert!(hover.contains(&format!("Type: `{ty}`")), "{text}: {hover}");
+            assert!(hover.contains(arena), "{text}: {hover}");
+        }
+    }
+
+    #[test]
+    fn chained_header_gate_checks_later_rhs() {
+        let source = "class Node { next: Ref<Node> }\nfun apply(f: () -> Ref<Node>): Ref<Node> { return f() }\nfun use(r: Ref<Node>) { if val (a = r, b = apply() { -> r }) {} }";
+        let diagnostics = analyze_source(source).diagnostics;
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("codegen:") && d.message.contains("trailing")),
+            "{diagnostics:?}"
+        );
+    }
+
+    #[test]
     fn hover_resolves_for_loop_binder() {
         let source = "fun main() {\n    for (i in 0..3) {\n        val x = i\n    }\n}\n";
         let i_off = source.find("(i ").unwrap() + 1;

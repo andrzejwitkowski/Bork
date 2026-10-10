@@ -1,0 +1,3 @@
+// diag: presence matching requires Ref<T>
+class Node { next: Ref<Node> }
+fun use(r: Ref<Node>) { if val (a = r, b = 1) {} }

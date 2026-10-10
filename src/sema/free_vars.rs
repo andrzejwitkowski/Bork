@@ -154,30 +154,19 @@ fn collect_expr(
             }
         }
         Expr::IfVal {
-            name,
-            value,
+            bindings,
             then_block,
             else_block,
         } => {
-            collect_expr(value, free, bound);
             let mut present = bound.clone();
-            present.insert(name.name.clone());
+            for binding in bindings.iter() {
+                collect_expr(&binding.value, free, &mut present);
+                present.insert(binding.name.name.clone());
+            }
             collect_block(then_block, free, &mut present);
             if let Some(block) = else_block {
                 collect_block(block, free, &mut bound.clone());
             }
-        }
-        Expr::When {
-            value,
-            some_name,
-            some_block,
-            none_block,
-        } => {
-            collect_expr(value, free, bound);
-            let mut present = bound.clone();
-            present.insert(some_name.name.clone());
-            collect_block(some_block, free, &mut present);
-            collect_block(none_block, free, &mut bound.clone());
         }
         Expr::Str(_) | Expr::None { .. } => {}
         Expr::ArrayLit { elements, .. } => {

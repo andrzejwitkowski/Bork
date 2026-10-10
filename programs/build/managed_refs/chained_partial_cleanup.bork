@@ -1,0 +1,22 @@
+// exit: 42
+class Node { parent: Ref<Node> }
+class Holder { saved: Ref<Node> }
+fun clear(holder: &Holder): Ref<Node> {
+    holder.saved = None
+    val missing: Ref<Node> = None
+    return missing
+}
+fun main(): i32 {
+    val holder = Holder()
+    var child_ref: Ref<Node> = None
+    {
+        val target = Node()
+        holder.saved = target
+        child_ref = Node(target)
+    }
+    // The target's initial root lease ended with the inner scope; holder owns it.
+    if val (a = holder.saved, b = clear(&holder)) { return 1 } else {
+        if val (child = child_ref, parent = child.parent) { return 2 }
+    }
+    return 42
+}

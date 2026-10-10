@@ -1,0 +1,3 @@
+// diag: duplicate conditional binding 'a'
+class Node { next: Ref<Node> }
+fun use(r: Ref<Node>) { if val (a = r, a = r) {} }

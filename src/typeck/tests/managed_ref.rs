@@ -172,3 +172,98 @@ fn safe_class_field_requires_managed_ref() {
     );
     assert_eq!(valid.classes.len(), 1);
 }
+
+#[test]
+fn chained_presence_resolves_bindings_sequentially() {
+    let hir = hir_of("class Node { next: Ref<Node> }\nfun use(r: Ref<Node>) {\n if val (a = r, b = a.next) { b.next } else { r }\n}");
+    assert!(!hir.functions.is_empty());
+}
+
+#[test]
+fn chained_presence_reports_duplicate_and_forward_names() {
+    for (header, expected) in [
+        ("a = r, a = r", "duplicate conditional binding 'a'"),
+        ("a = b.next, b = r", "unknown binding `b`"),
+        ("a = r, b = 1", "presence matching requires Ref<T>, got i32"),
+    ] {
+        let source = format!(
+            "class Node {{ next: Ref<Node> }}\nfun use(r: Ref<Node>) {{ if val ({header}) {{}} }}"
+        );
+        let diagnostics = diags_of(&source);
+        assert!(
+            diagnostics.iter().any(|d| d.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn chained_presence_shadowing_and_scope() {
+    hir_of("class Node { next: Ref<Node> }\nfun use(a: Ref<Node>) {\n if val (a = a, b = a.next) { b.next } else { a }\n a\n}");
+    for body in [
+        "if val (a = r, b = a.next) {} else { b.next }",
+        "if val (a = r, b = a.next) {}\n b.next",
+        "if val (a = r, b = a.next) { b = a }",
+    ] {
+        let diagnostics = diags_of(&format!(
+            "class Node {{ next: Ref<Node> }}\nfun use(r: Ref<Node>) {{ {body} }}"
+        ));
+        assert!(!diagnostics.is_empty(), "{body}");
+    }
+}
+
+#[test]
+fn chained_presence_rejects_nonmanaged_sources_at_rhs_span() {
+    for rhs in ["1", "Node()", "maybe", "a"] {
+        let source = format!("class Node {{ next: Ref<Node> }}\nfun use(r: Ref<Node>, maybe: Node?) {{ if val (a = r, b = {rhs}) {{}} }}");
+        let diagnostics = diags_of(&source);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|d| d.message.contains("presence matching requires Ref<T>"))
+            .expect("invalid source");
+        let span = diagnostic.span.unwrap();
+        assert_eq!(&source[span.start..span.end], rhs);
+    }
+}
+
+#[test]
+fn chained_presence_expression_requires_else_and_matching_types() {
+    for (expression, message) in [
+        ("if val (a = r, b = a.next) { 1 }", "requires an else"),
+        (
+            "if val (a = r, b = a.next) { 1 } else { true }",
+            "expected i32",
+        ),
+    ] {
+        let source = format!("class Node {{ next: Ref<Node> }}\nfun use(r: Ref<Node>) {{ val n: i32 = {expression} }}");
+        let diagnostics = diags_of(&source);
+        assert!(
+            diagnostics.iter().any(|d| d.message.contains(message)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn when_invalid_source_diagnostic_keeps_operand_span() {
+    let source = "fun use(x: i32) { when x {\n Some(live) => {}\n None => {}\n} }";
+    let diagnostics = diags_of(source);
+    let diagnostic = diagnostics
+        .iter()
+        .find(|d| d.message.contains("presence matching requires Ref<T>"))
+        .unwrap();
+    let span = diagnostic.span.unwrap();
+    assert_eq!(&source[span.start..span.end], "x");
+}
+
+#[test]
+fn class_fields_cannot_keep_guard_borrows_after_cleanup() {
+    let source = include_str!("../../../programs/check_fail/managed_refs/guard_borrow_field.bork");
+    let diagnostics = diags_of(source);
+    assert!(
+        diagnostics.iter().any(|d| d
+            .message
+            .contains("borrowed references cannot be stored in class fields")),
+        "{diagnostics:?}"
+    );
+}

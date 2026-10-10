@@ -58,18 +58,19 @@ pub(super) fn restore_moved_flags(env: &mut HashMap<String, EnvBinding>, moved: 
     }
 }
 
-pub(super) fn apply_moved_merge(
-    env: &mut HashMap<String, EnvBinding>,
-    before_moved: &HashSet<String>,
-    then_moved: &HashSet<String>,
-    else_moved: Option<&HashSet<String>>,
-) {
+/// Moved names at the end of one branch of an `if` / `if val`.
+pub(super) struct BranchEnd {
+    pub(super) falls_through: bool,
+    pub(super) moved: HashSet<String>,
+}
+
+/// Maybe-moved join: a name stays moved if any branch that falls through moved it. If no
+/// branch falls through, the code after the `if` is unreachable and nothing is moved.
+pub(super) fn join_branch_moves(env: &mut HashMap<String, EnvBinding>, ends: &[BranchEnd]) {
     for (name, binding) in env.iter_mut() {
-        let then = then_moved.contains(name);
-        binding.moved = match else_moved {
-            Some(else_set) => before_moved.contains(name) || (then && else_set.contains(name)),
-            None => before_moved.contains(name),
-        };
+        binding.moved = ends
+            .iter()
+            .any(|end| end.falls_through && end.moved.contains(name));
     }
 }
 
@@ -80,8 +81,8 @@ pub(super) struct Analyzer {
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
     pub(super) fun_param_tys: HashMap<String, Vec<crate::ast::Type>>,
     pub(super) classes: HashMap<String, crate::ast::Class>,
-    /// `var`/`val` types from typeck, keyed by declaration name span.
-    pub(super) decl_tys: HashMap<Span, crate::hir::Ty>,
+    /// Declaration and field assignment types from typeck, keyed by source span.
+    pub(super) span_tys: HashMap<Span, crate::hir::Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
 }
@@ -95,7 +96,7 @@ impl Analyzer {
             fun_sigs: HashMap::new(),
             fun_param_tys: HashMap::new(),
             classes: HashMap::new(),
-            decl_tys: HashMap::new(),
+            span_tys: HashMap::new(),
             loop_move_ban: Vec::new(),
         }
     }

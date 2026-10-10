@@ -1,0 +1,21 @@
+// exit: 0
+// stdout: live\n
+class Node {
+    name: String
+    next: Ref<Node>
+}
+fun run(r: Ref<Node>): i32 {
+    var s: String = "owned"
+    if val a = r {
+        move (s) { println(a.name) }
+        return 0
+    } else {
+        return 1
+    }
+    return 2
+}
+
+fun main(): i32 {
+    val r: Ref<Node> = Node("live")
+    return run(r)
+}

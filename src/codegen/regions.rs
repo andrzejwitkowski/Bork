@@ -338,6 +338,13 @@ struct ScheduleVisitor<'e, 'report, S> {
 }
 
 impl<'e, 'report, S: RegionSink> region_walk::RegionVisitor for ScheduleVisitor<'e, 'report, S> {
+    fn bind_presence_guard(
+        &mut self,
+        _binding: &crate::hir::HirConditionalBinding,
+    ) -> Result<(), region_walk::WalkError> {
+        Ok(())
+    }
+
     fn begin_function_body(
         &mut self,
         _name: &str,

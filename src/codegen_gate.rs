@@ -87,12 +87,21 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         | HirExprKind::Float { .. }
         | HirExprKind::Bool { .. }
         | HirExprKind::Str { .. } => {}
-        HirExprKind::Ident { use_kind, .. } => {
-            if matches!(use_kind, UseKind::Move | UseKind::Promote)
-                && expr
-                    .ty
-                    .array_elem()
-                    .is_some_and(|elem| elem.is_managed_ref())
+        HirExprKind::Ident {
+            use_kind: UseKind::Move | UseKind::Promote,
+            ..
+        } => {
+            if expr.ty.record_name().is_some() {
+                reject(
+                    diagnostics,
+                    "moving class objects is not supported by codegen yet",
+                    expr.span,
+                );
+            }
+            if expr
+                .ty
+                .array_elem()
+                .is_some_and(|elem| elem.is_managed_ref())
             {
                 reject(
                     diagnostics,
@@ -101,6 +110,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 );
             }
         }
+        HirExprKind::Ident { .. } => {}
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
                 gate_expr(element, diagnostics);
@@ -190,12 +200,14 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             gate_expr(receiver, diagnostics);
         }
         HirExprKind::PresenceMatch {
-            value,
+            bindings,
             some_block,
             none_block,
             ..
         } => {
-            gate_expr(value, diagnostics);
+            for binding in bindings.iter() {
+                gate_expr(&binding.value, diagnostics);
+            }
             gate_block(some_block, diagnostics);
             if let Some(block) = none_block {
                 gate_block(block, diagnostics);
