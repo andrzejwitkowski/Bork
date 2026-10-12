@@ -1,0 +1,17 @@
+// exit: 5
+class Point {
+    x: i32
+
+    fun get(): i32 {
+        return x
+    }
+}
+
+fun read(p: &Point): i32 {
+    return p.get()
+}
+
+fun main(): i32 {
+    val p = Point(5)
+    return read(&p)
+}

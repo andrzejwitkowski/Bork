@@ -1,0 +1,23 @@
+// exit: 30
+class Point {
+    x: i32
+    y: i32
+
+    fun sum(): i32 {
+        return x + y
+    }
+    fun twice(): i32 {
+        return sum() + this.sum()
+    }
+    fun fact(k: i32): i32 {
+        if (k <= 1) {
+            return 1
+        }
+        return k * fact(k - 1)
+    }
+}
+
+fun main(): i32 {
+    val p = Point(1, 2)
+    return p.twice() + p.fact(3) + 18
+}

@@ -1,0 +1,17 @@
+// exit: 10
+class Point {
+    x: i32
+
+    fun get(): i32 {
+        return x
+    }
+    fun add(k: i32): i32 {
+        return x + k
+    }
+}
+
+fun main(): i32 {
+    val p = Point(3)
+    val q = Point(4)
+    return p.add(q.get()) + p.get()
+}

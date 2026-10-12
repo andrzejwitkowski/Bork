@@ -1,0 +1,21 @@
+// exit: 4
+class Node {
+    v: i32
+    next: Ref<Node>
+
+    fun value(): i32 {
+        return v
+    }
+    fun next_value(): i32 {
+        if val n = this.next {
+            return n.value()
+        }
+        return 0
+    }
+}
+
+fun main(): i32 {
+    val a = Node(1)
+    val b = Node(3, a)
+    return b.next_value() + b.value()
+}
