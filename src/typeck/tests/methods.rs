@@ -160,3 +160,23 @@ fn param_shadows_field() {
     let hir = hir_of("class P {\n    x: i32\n    fun f(x: i32): i32 {\n        return x\n    }\n}\nfun main() {}");
     assert!(matches!(&call_in_return(&hir, "P.f").kind, HirExprKind::Ident { name, .. } if name == "x"));
 }
+
+#[test]
+fn bare_field_in_name_only_positions_gets_targeted_error() {
+    let class = "class Inner {\n    n: i32\n}\nfun look(i: &Inner): i32 {\n    return 1\n}\nclass P {\n    s: String\n    inner: Inner\n    items: [i32; 2]\n    fun apply(k: i32, f: (i32) -> i32): i32 {\n        return f(k)\n    }\n    fun f(): i32 {\n        ";
+    let tail = "\n        return 0\n    }\n}\nfun main() {}";
+    let cases = [
+        ("val a = move s", "cannot move field `s`"),
+        ("val a = promote s", "cannot promote field `s`"),
+        ("val a = look(&inner)", "cannot borrow field `inner`"),
+        ("items[0] = 5", "cannot index-assign field `items`"),
+        ("move(s) {\n            val y = 1\n        }", "cannot capture field `s`"),
+        ("val b = apply(1) move(s) { v -> v }", "cannot capture field `s`"),
+    ];
+    for (body, expected) in cases {
+        let diags = diags_of(&format!("{class}{body}{tail}"));
+        assert!(diags.iter().any(|d| d.message.contains(expected)), "{expected}: {diags:?}");
+        assert!(!diags.iter().any(|d| d.message.contains("unknown binding")), "{body}: {diags:?}");
+        assert_eq!(diags.len(), 1, "{body}: {diags:?}");
+    }
+}

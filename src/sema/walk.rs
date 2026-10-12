@@ -192,7 +192,9 @@ fn walk_stmt(
                 AssignTarget::Field {
                     receiver: crate::ast::Expr::Ident { name, span },
                     ..
-                } => (name, span, None, false),
+                } if !matches!(az.members.get(span), Some(MemberRef::Field { .. })) => {
+                    (name, span, None, false)
+                }
                 AssignTarget::Field { receiver, span, .. } => {
                     let target_ty = az.span_tys.get(span).cloned().map(ty_from_hir);
                     walk(az, receiver, node, None, true);
@@ -628,6 +630,9 @@ fn apply_expr_promote(
     node: &mut ArenaNode,
     transfer: Option<&TransferSink>,
 ) {
+    if is_bare_field(az, span) {
+        return; // typeck reports `promote` of a field
+    }
     let Some(TransferSink::Binding {
         arena_id: sink_id,
         arena_label: sink_label,
@@ -710,6 +715,9 @@ fn apply_expr_move(
     span: Option<Span>,
     node: &mut ArenaNode,
 ) {
+    if is_bare_field(az, span) {
+        return; // typeck reports `move` of a field
+    }
     let Some(peek) = az.env.get(name).cloned() else {
         report_move_source_err(az, name, MoveSourceErr::Unknown, span);
         return;
@@ -792,6 +800,10 @@ fn method_call(az: &Analyzer, callee: &Expr) -> Option<(Expr, String)> {
         MemberRef::Method { class, name, .. } => Some((receiver, format!("{class}.{name}"))),
         MemberRef::Field { .. } => None,
     }
+}
+
+fn is_bare_field(az: &Analyzer, span: Option<Span>) -> bool {
+    span.is_some_and(|span| matches!(az.members.get(&span), Some(MemberRef::Field { .. })))
 }
 
 /// A method receiver is borrowed for the call, like an `&T` argument; a field chain borrows its root.

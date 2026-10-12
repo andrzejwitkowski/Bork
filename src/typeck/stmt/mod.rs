@@ -87,6 +87,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
         }
         Stmt::MoveBlock { captures, body } => HirStmt::MoveBlock {
             captures: captures.as_ref().map(|names| {
+                env.reject_field_captures(names);
                 names
                     .iter()
                     .map(|capture| capture.name.clone())

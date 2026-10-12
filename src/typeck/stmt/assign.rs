@@ -163,7 +163,13 @@ fn assign_binding(
 ) -> Option<Ty> {
     let binding = env.binding(name).cloned();
     if binding.is_none() {
-        env.error(format!("unknown binding `{name}`"), Some(span));
+        let field = index_assign
+            && env
+                .reject_bare_field(name, span, &format!("cannot index-assign field `{name}` through `this`"))
+                .is_some();
+        if !field {
+            env.error(format!("unknown binding `{name}`"), Some(span));
+        }
     }
     if let Some(b) = binding.as_ref() {
         if b.kind == BindingKind::Val {

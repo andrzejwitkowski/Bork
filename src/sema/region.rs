@@ -118,9 +118,25 @@ pub(super) fn resolve_move_captures(
     explicit_captures: Option<&[SpannedName]>,
     param_names: &[String],
 ) -> Vec<SpannedName> {
+    let is_field = |n: &SpannedName| {
+        matches!(az.members.get(&n.span), Some(crate::typeck::MemberRef::Field { .. }))
+    };
     match explicit_captures {
-        Some(caps) => caps.to_vec(),
+        // A field in the list is reported by typeck.
+        Some(caps) => caps.iter().filter(|n| !is_field(n)).cloned().collect(),
+        // A bare field reads through `this`, so it captures `this`.
         None => free_vars_in_block(body)
+            .into_iter()
+            .map(|n| match is_field(&n) {
+                true => SpannedName { name: "this".to_string(), span: n.span },
+                false => n,
+            })
+            .fold(Vec::<SpannedName>::new(), |mut acc, n| {
+                if !acc.iter().any(|seen| seen.name == n.name) {
+                    acc.push(n);
+                }
+                acc
+            })
             .into_iter()
             .filter(|n| !param_names.contains(&n.name))
             .filter(|n| {

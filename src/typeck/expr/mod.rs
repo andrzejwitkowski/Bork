@@ -223,6 +223,22 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
             env.error("cannot move `this`; it is a borrow", Some(span));
         }
     }
+    let field_message = match requested {
+        UseKind::Move => Some(format!("cannot move field `{name}`; fields are reached through the `this` borrow")),
+        UseKind::Promote => Some(format!("cannot promote field `{name}`; fields are reached through the `this` borrow")),
+        UseKind::Borrow => Some(format!("cannot borrow field `{name}`: `&` borrows a name; bind the field to a `val` first")),
+        _ => None,
+    };
+    if let Some(ty) = field_message.and_then(|message| env.reject_bare_field(name, span, &message)) {
+        return HirExpr::spanned(
+            HirExprKind::Ident {
+                name: name.to_string(),
+                use_kind: requested,
+            },
+            ty,
+            span,
+        );
+    }
     let Some(binding) = env.binding(name) else {
         env.error(format!("unknown binding `{name}`"), Some(span));
         return HirExpr::spanned(

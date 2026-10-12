@@ -270,6 +270,9 @@ fn check_trailing_closure(
         );
     }
 
+    if let Some(captures) = &closure.captures {
+        env.reject_field_captures(captures);
+    }
     env.enter_scope();
     for (param, ty) in closure.params.iter().zip(param_tys) {
         env.bind(param.name.clone(), BindingKind::Val, ty.clone(), ty.is_ref());

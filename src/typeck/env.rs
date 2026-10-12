@@ -103,6 +103,34 @@ impl<'a> Env<'a> {
         Some((class.name.clone(), index, class.fields[index].ty.clone()))
     }
 
+    /// Bare field in a position that needs a binding (`move x`, `&x`, `x[i] = v`, capture list):
+    /// records the member and reports `message`. Returns the field type, or None if `name` is no field.
+    pub(super) fn reject_bare_field(&mut self, name: &str, span: Span, message: &str) -> Option<Ty> {
+        let (class, index, ty) = self.implicit_field(name)?;
+        self.members.insert(
+            span,
+            super::MemberRef::Field {
+                class,
+                name: name.to_string(),
+                index,
+                ty: ty.clone(),
+            },
+        );
+        self.error(message, Some(span));
+        Some(ty)
+    }
+
+    /// Explicit `move(..)` capture lists name bindings; a bare field there is an error.
+    pub(super) fn reject_field_captures(&mut self, captures: &[crate::span::SpannedName]) {
+        for capture in captures {
+            let message = format!(
+                "cannot capture field `{}`; fields are reached through the `this` borrow",
+                capture.name
+            );
+            self.reject_bare_field(&capture.name, capture.span, &message);
+        }
+    }
+
     /// Class of the enclosing method when a bare call `name(..)` is one of its methods.
     pub(super) fn implicit_method(&self, name: &str) -> Option<String> {
         if self.binding(name).is_some() {

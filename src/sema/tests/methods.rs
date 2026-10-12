@@ -68,3 +68,40 @@ fn bare_field_assign_requires_move_like_this_field() {
     let ok = errors(&format!("{class}name = move s{tail}"));
     assert!(ok.is_empty(), "{ok:?}");
 }
+
+#[test]
+fn bare_nested_field_assign_matches_this_spelling() {
+    let class = "class Inner {\n    name: String\n}\nclass P {\n    inner: Inner\n    fun a(s: String) {\n        ";
+    let tail = "\n    }\n}\nfun main() {}";
+    let msgs = |src: String| errors(&src).into_iter().map(|e| e.message).collect::<Vec<_>>();
+    let bare = msgs(format!("{class}inner.name = s{tail}"));
+    let via_this = msgs(format!("{class}this.inner.name = s{tail}"));
+    assert_eq!(bare, via_this);
+}
+
+#[test]
+fn bare_field_in_name_only_positions_has_no_sema_duplicate() {
+    let class = "class P {\n    x: String\n    fun f(): i32 {\n        ";
+    let tail = "\n        return 0\n    }\n}\nfun main() {}";
+    for body in ["val a = move x", "val a = promote x", "move(x) {\n            val y = 1\n        }"] {
+        let errs = errors(&format!("{class}{body}{tail}"));
+        assert!(
+            !errs.iter().any(|e| e.message.contains("unknown name")),
+            "{body}: {errs:?}"
+        );
+    }
+}
+
+#[test]
+fn inferred_move_capture_of_bare_field_captures_this() {
+    let src = |x: &str| {
+        format!(
+            "class Inner {{\n    n: i32\n}}\nclass P {{\n    x: Inner\n    fun apply(k: i32, f: (i32) -> i32): i32 {{\n        return f(k)\n    }}\n    fun g(): i32 {{\n        val a = apply(1) move {{ v -> v + {x}.n }}\n        return a + {x}.n\n    }}\n}}\nfun main() {{}}"
+        )
+    };
+    let msgs = |src: String| errors(&src).into_iter().map(|e| e.message).collect::<Vec<_>>();
+    let bare = msgs(src("x"));
+    let via_this = msgs(src("this.x"));
+    assert!(via_this.iter().any(|m| m.contains("this")), "{via_this:?}");
+    assert_eq!(bare, via_this);
+}

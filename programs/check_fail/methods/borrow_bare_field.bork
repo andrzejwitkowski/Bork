@@ -1,0 +1,14 @@
+// diag: cannot borrow field `inner`
+class Inner {
+    n: i32
+}
+fun look(i: &Inner): i32 {
+    return i.n
+}
+class P {
+    inner: Inner
+    fun c(): i32 {
+        return look(&inner)
+    }
+}
+fun main() {}
