@@ -768,3 +768,40 @@ fn chained_header_spans_refer_to_original_multiline_source() {
         );
     }
 }
+
+#[test]
+fn parses_class_with_interleaved_fields_and_methods() {
+    let src = "class Point {\n    x: i32\n    fun sum(): i32 {\n        return x + this.y\n    }\n    y: i32\n}\nfun main() {}";
+    let prog = parse(src).expect("class with methods parses");
+    let class = &prog.classes[0];
+    assert_eq!(class.fields.len(), 2);
+    assert_eq!(class.fields[1].name.name, "y");
+    assert_eq!(class.methods.len(), 1);
+    assert_eq!(class.methods[0].name, "sum");
+    let span = class.methods[0].name_span;
+    assert_eq!(&src[span.start..span.end], "sum");
+    assert_eq!(prog.functions.len(), 1, "methods are not top-level functions");
+}
+
+#[test]
+fn this_parses_as_identifier_expression() {
+    let src = "class P {\n    x: i32\n    fun get(): i32 {\n        return this.x\n    }\n}";
+    let prog = parse(src).expect("parses");
+    let Stmt::Return(Some(Expr::Field { receiver, .. })) = &prog.classes[0].methods[0].body.stmts[0] else {
+        panic!("expected return this.x");
+    };
+    assert!(matches!(receiver.as_ref(), Expr::Ident { name, .. } if name == "this"));
+}
+
+#[test]
+fn move_this_parses() {
+    let src = "class P {\n    fun f() {\n        val q = move this\n    }\n}";
+    assert!(parse(src).is_ok());
+}
+
+#[test]
+fn this_cannot_be_declared() {
+    assert!(parse("fun main() {\n    val this = 1\n}").is_err());
+    assert!(parse("fun f(this: i32) {}").is_err());
+    assert!(parse("class P { this: i32 }").is_err());
+}

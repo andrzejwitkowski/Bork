@@ -10,6 +10,32 @@ pub struct Program {
 pub struct Class {
     pub name: String,
     pub fields: Vec<ClassField>,
+    pub methods: Vec<Function>,
+}
+
+/// One entry of a class body, in source order.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClassMember {
+    Field(ClassField),
+    Method(Function),
+}
+
+impl Class {
+    pub fn from_members(name: String, members: Vec<ClassMember>) -> Self {
+        let mut fields = Vec::new();
+        let mut methods = Vec::new();
+        for member in members {
+            match member {
+                ClassMember::Field(field) => fields.push(field),
+                ClassMember::Method(method) => methods.push(method),
+            }
+        }
+        Self {
+            name,
+            fields,
+            methods,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,6 +71,7 @@ impl Program {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     pub name: String,
+    pub name_span: crate::span::Span,
     pub params: Vec<Param>,
     pub return_type: Type,
     pub body: Block,
