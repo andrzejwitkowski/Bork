@@ -2,10 +2,11 @@
 
 mod arena;
 mod array;
+mod binop;
 mod call_abi;
 mod context;
+mod debug;
 mod emit_fn;
-mod binop;
 mod expr;
 mod managed_ref;
 mod nullable;
@@ -28,7 +29,7 @@ use crate::sema::ArenaReport;
 use crate::span::Span;
 
 use arena::ArenaCalls;
-use context::{native_target_machine, Codegen};
+use context::Codegen;
 use emit_fn::Callees;
 
 pub fn emit_module<'ctx>(
@@ -37,6 +38,27 @@ pub fn emit_module<'ctx>(
     report: &ArenaReport,
     memory_plan: MemoryPlan,
 ) -> Result<Module<'ctx>, Diagnostic> {
+    emit_module_impl(context, hir, report, memory_plan, None)
+}
+
+pub fn emit_module_with_debug<'ctx>(
+    context: &'ctx Context,
+    hir: &HirProgram,
+    report: &ArenaReport,
+    memory_plan: MemoryPlan,
+    source: &str,
+    path: &Path,
+) -> Result<Module<'ctx>, Diagnostic> {
+    emit_module_impl(context, hir, report, memory_plan, Some((source, path)))
+}
+
+fn emit_module_impl<'ctx>(
+    context: &'ctx Context,
+    hir: &HirProgram,
+    report: &ArenaReport,
+    memory_plan: MemoryPlan,
+    source: Option<(&str, &Path)>,
+) -> Result<Module<'ctx>, Diagnostic> {
     if !hir.functions.iter().any(|function| function.name == "main") {
         return Err(codegen_error(
             "`fun main` is required to build an executable".into(),
@@ -44,8 +66,11 @@ pub fn emit_module<'ctx>(
         ));
     }
 
-    let cx = Codegen::new(context, "bork", &hir.classes, memory_plan)
+    let mut cx = Codegen::new(context, "bork", &hir.classes, memory_plan)
         .map_err(|message| codegen_error(message, None))?;
+    if let Some((source, path)) = source {
+        cx.debug = Some(debug::DebugInfo::new(&cx, source, path));
+    }
     let callees = hir
         .functions
         .iter()
@@ -59,6 +84,9 @@ pub fn emit_module<'ctx>(
         emit_fn::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
     }
     regions.finish().map_err(schedule_error)?;
+    if let Some(debug) = &cx.debug {
+        debug.builder.finalize();
+    }
     cx.module
         .verify()
         .map_err(|err| codegen_error(format!("LLVM rejected the module: {err}"), None))?;
@@ -67,7 +95,15 @@ pub fn emit_module<'ctx>(
 
 /// Failures here are toolchain problems, not user errors.
 pub fn write_object(module: &Module<'_>, path: &Path) -> Result<(), String> {
-    let machine = native_target_machine()?;
+    write_object_with_debug(module, path, false)
+}
+
+pub fn write_object_with_debug(
+    module: &Module<'_>,
+    path: &Path,
+    debug: bool,
+) -> Result<(), String> {
+    let machine = context::native_target_machine_with_debug(debug)?;
     module.set_triple(&machine.get_triple());
     module.set_data_layout(&machine.get_target_data().get_data_layout());
 
@@ -87,11 +123,15 @@ pub fn write_object(module: &Module<'_>, path: &Path) -> Result<(), String> {
     options.set_verify_each(false);
     module
         .run_passes(
-            "default<O3>,mergefunc,function-attrs,globaldce",
+            if debug {
+                "default<O0>"
+            } else {
+                "default<O3>,mergefunc,function-attrs,globaldce"
+            },
             &machine,
             options,
         )
-        .map_err(|err| format!("LLVM O3 pass pipeline failed: {err}"))?;
+        .map_err(|err| format!("LLVM pass pipeline failed: {err}"))?;
     module
         .verify()
         .map_err(|err| format!("LLVM rejected the optimized module: {err}"))?;
@@ -151,6 +191,208 @@ mod tests {
         )
         .expect("emit");
         module.print_to_string().to_string()
+    }
+
+    #[test]
+    fn debug_local_shadowing_parameter_is_not_an_argument() {
+        let source = "fun bump(x: i32): i32 {\n val x = x + 1\n return x\n}\nfun main(): i32 { return bump(1) }\n";
+        let checked = check(source);
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let context = Context::create();
+        let module = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("fixture.bork"),
+        )
+        .unwrap();
+        module.verify().unwrap();
+        let ir = module.print_to_string().to_string();
+        let declarations: Vec<_> = ir
+            .lines()
+            .filter(|line| line.contains("!DILocalVariable(name: \"x\""))
+            .collect();
+        assert_eq!(declarations.len(), 2, "{ir}");
+        assert_eq!(
+            declarations
+                .iter()
+                .filter(|line| line.contains("arg: 1,"))
+                .count(),
+            1,
+            "the shadowing local must not be another formal parameter: {declarations:?}"
+        );
+        assert_eq!(
+            declarations
+                .iter()
+                .filter(|line| !line.contains("arg:"))
+                .count(),
+            1,
+            "{declarations:?}"
+        );
+    }
+
+    #[test]
+    fn debug_metadata_and_persistent_ref_labels() {
+        let source = "class Node { next: Ref<Node> }\nfun helper(n: i32) {\n val r: Ref<Node> = Node(None)\n { val inner: Ref<Node> = r }\n}\nfun main() { helper(1) }\n";
+        let checked = check(source);
+        let context = Context::create();
+        let ir = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("fixture.bork"),
+        )
+        .unwrap()
+        .print_to_string()
+        .to_string();
+        assert!(ir.contains("!DICompileUnit"), "missing DWARF: {ir}");
+        assert!(
+            ir.contains("!DILexicalBlock"),
+            "missing lexical scopes: {ir}"
+        );
+        assert!(ir.contains("bork::Ref<Node>"), "missing Ref type: {ir}");
+        assert!(
+            ir.contains("bork::Payload<Node>"),
+            "missing payload type: {ir}"
+        );
+        assert!(
+            ir.contains("bork_debug_register_slot"),
+            "missing slots: {ir}"
+        );
+        assert!(
+            ir.contains("bork_debug_scope_exit"),
+            "missing cleanup: {ir}"
+        );
+    }
+
+    #[test]
+    fn debug_bare_return_has_its_source_line() {
+        let source = "fun main() {\n val n = 1\n return\n}\n";
+        let checked = check(source);
+        let context = Context::create();
+        let module = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("return.bork"),
+        )
+        .unwrap();
+        let ir = module.print_to_string().to_string();
+        let return_line = ir.lines().find(|l| l.contains("ret i32")).unwrap();
+        let metadata = return_line.split("!dbg !").nth(1).unwrap();
+        assert!(
+            ir.contains(&format!("!{metadata} = !DILocation(line: 3,")),
+            "wrong return line: {ir}"
+        );
+    }
+
+    #[test]
+    fn debug_nullable_buffers_keep_descriptor_fields() {
+        let source = "class Holder { values: [i32; 2] }\nfun inspect(reference: Ref<Holder>) {\n val a = reference?.values\n val text: String? = None\n}\nfun main() {}\n";
+        let checked = check(source);
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let context = Context::create();
+        let ir = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("buffers.bork"),
+        )
+        .unwrap()
+        .print_to_string()
+        .to_string();
+        assert_eq!(
+            ir.matches("name: \"data\"").count(),
+            2,
+            "nullable buffers need data pointers: {ir}"
+        );
+        assert!(
+            !ir.contains("name: \"present\""),
+            "buffers encode absence in the pointer: {ir}"
+        );
+    }
+
+    #[test]
+    fn debug_scopes_cleanup_return_break_and_continue_before_arena_destruction() {
+        let source = "class Node { next: Ref<Node> }\nfun helper(n: i32): i32 {\n for (i in 0..3) {\n val r: Ref<Node> = Node(None)\n {\n val inner: Ref<Node> = r\n if (n == 0) { continue }\n if (n == 1) { break }\n if (n == 2) { return i }\n }\n }\n return n\n}\nfun main(): i32 { return helper(3) }\n";
+        let checked = check(source);
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let context = Context::create();
+        let ir = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("exits.bork"),
+        )
+        .unwrap()
+        .print_to_string()
+        .to_string();
+        assert!(
+            block(&ir, "for.body").contains("call i64 @bork_debug_scope_enter()"),
+            "iteration scope must be entered dynamically: {ir}"
+        );
+        let branches: Vec<_> = ir
+            .split("\n\n")
+            .filter(|b| {
+                b.starts_with("then") && (b.contains("br label %for.") || b.contains("ret i32"))
+            })
+            .collect();
+        assert_eq!(branches.len(), 3, "{ir}");
+        for branch in branches {
+            assert!(
+                branch.matches("call void @bork_debug_scope_exit(").count() >= 3,
+                "all nested local scopes must close: {branch}"
+            );
+            if let Some(pop) = branch.find("call void @bork_arena_pop(") {
+                assert!(
+                    branch.find("call void @bork_debug_scope_exit(").unwrap() < pop,
+                    "local entries must disappear before arena destruction: {branch}"
+                );
+            }
+        }
+        for return_block in ir.split("\n\n").filter(|b| b.contains("ret i32")) {
+            assert!(
+                return_block.contains("call void @bork_debug_scope_exit("),
+                "{return_block}"
+            );
+        }
+    }
+
+    #[test]
+    fn debug_ref_arrays_use_binding_and_field_names() {
+        let source = "class Node { next: Ref<Node> }\nclass Holder { refs: [Ref<Node>; 2] }\nfun main() {\n val r: Ref<Node> = Node(None)\n val refs = [r, None]\n val holder = Holder(refs)\n}\n";
+        let checked = check(source);
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let context = Context::create();
+        let ir = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("arrays.bork"),
+        )
+        .unwrap()
+        .print_to_string()
+        .to_string();
+        assert!(
+            ir.contains("c\"refs\\00\""),
+            "array slots need the local name: {ir}"
+        );
+        assert!(
+            ir.contains("c\"Holder.refs\\00\""),
+            "array slots need the field name: {ir}"
+        );
     }
 
     fn assert_presence_drops_temporary_after_observe(ir: &str) {
@@ -331,11 +573,7 @@ mod tests {
             1,
             "{ir}"
         );
-        assert_eq!(
-            ir.matches("call ptr @bork_arena_reset(").count(),
-            1,
-            "{ir}"
-        );
+        assert_eq!(ir.matches("call ptr @bork_arena_reset(").count(), 1, "{ir}");
         assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
         assert!(!block(&ir, "for.header").contains("@bork_arena"), "{ir}");
         assert!(!block(&ir, "for.body").contains("@bork_arena"), "{ir}");
@@ -521,10 +759,7 @@ mod tests {
             "fun id(n: i32): i32 { return n }\n\
              fun main(): i32 { return id(7) }\n",
         );
-        assert!(
-            ir.contains("define internal i32 @bork.id(ptr"),
-            "{ir}"
-        );
+        assert!(ir.contains("define internal i32 @bork.id(ptr"), "{ir}");
         assert!(ir.contains("call ptr @bork_arena_push_child("), "{ir}");
         assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 1, "{ir}");
     }
@@ -587,7 +822,10 @@ mod tests {
             block(&ir, "ref.elvis.none").contains("call void @bork_ref_drop_value_ptr("),
             "{ir}"
         );
-        assert!(!ir.contains("extractvalue { ptr, ptr, i8 } %ref.elvis, 1"), "{ir}");
+        assert!(
+            !ir.contains("extractvalue { ptr, ptr, i8 } %ref.elvis, 1"),
+            "{ir}"
+        );
     }
 
     #[test]
@@ -706,7 +944,10 @@ mod tests {
              }\n",
         );
         assert!(ir.contains("call void @bork_ref_store_take_ptr("), "{ir}");
-        assert!(ir.contains("call void @bork_ref_clone_same_owner_out("), "{ir}");
+        assert!(
+            ir.contains("call void @bork_ref_clone_same_owner_out("),
+            "{ir}"
+        );
         assert!(!ir.contains("@llvm.memcpy"), "{ir}");
     }
 
@@ -722,8 +963,16 @@ mod tests {
                  val holder = Holder(refs)\n\
              }\n",
         );
-        assert!(ir.matches("call void @bork_ref_clone_same_owner_out(").count() >= 2, "{ir}");
-        assert!(ir.matches("call void @bork_ref_store_take_ptr(").count() >= 2, "{ir}");
+        assert!(
+            ir.matches("call void @bork_ref_clone_same_owner_out(")
+                .count()
+                >= 2,
+            "{ir}"
+        );
+        assert!(
+            ir.matches("call void @bork_ref_store_take_ptr(").count() >= 2,
+            "{ir}"
+        );
     }
 
     #[test]

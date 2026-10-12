@@ -26,7 +26,7 @@ pub(super) fn check_block(
         env.exit_scope();
     }
 
-    HirBlock { stmts }
+    HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone() }
 }
 
 pub(super) fn block_always_returns(block: &HirBlock) -> bool {

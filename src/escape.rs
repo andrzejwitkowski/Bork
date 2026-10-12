@@ -493,6 +493,7 @@ mod tests {
             2,
             HirStmt::Block(HirBlock {
                 stmts: vec![decl, HirStmt::Assign { target, value }],
+                ..HirBlock::default()
             }),
         );
 

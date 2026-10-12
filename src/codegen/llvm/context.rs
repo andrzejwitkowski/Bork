@@ -22,7 +22,9 @@ pub struct Codegen<'ctx> {
     pub builder: Builder<'ctx>,
     record_types: HashMap<String, StructType<'ctx>>,
     record_fields: HashMap<String, Vec<Ty>>,
-    target_data: TargetData,
+    pub(super) target_data: TargetData,
+    pub(super) debug: Option<super::debug::DebugInfo<'ctx>>,
+    pub(super) classes: Vec<HirClass>,
     pub memory_plan: MemoryPlan,
 }
 
@@ -69,6 +71,8 @@ impl<'ctx> Codegen<'ctx> {
             record_fields,
             target_data: machine.get_target_data(),
             memory_plan,
+            debug: None,
+            classes: classes.to_vec(),
         };
         codegen.module.set_triple(&machine.get_triple());
         codegen
@@ -142,8 +146,10 @@ impl<'ctx> Codegen<'ctx> {
     /// Runtime `RefHandle`: `{ target_control, object, RefKind:u8 }`.
     pub fn ref_handle_type(&self) -> StructType<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
-        self.context
-            .struct_type(&[ptr.into(), ptr.into(), self.context.i8_type().into()], false)
+        self.context.struct_type(
+            &[ptr.into(), ptr.into(), self.context.i8_type().into()],
+            false,
+        )
     }
 
     pub fn ref_handle_layout(&self) -> (usize, usize) {
@@ -262,8 +268,7 @@ impl<'ctx> Codegen<'ctx> {
 
     pub fn ref_create_out_fn(&self) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
-        let params: [BasicMetadataTypeEnum; 4] =
-            [ptr.into(), ptr.into(), ptr.into(), ptr.into()];
+        let params: [BasicMetadataTypeEnum; 4] = [ptr.into(), ptr.into(), ptr.into(), ptr.into()];
         self.runtime_fn("bork_ref_create_out", || {
             self.context.void_type().fn_type(&params, false)
         })
@@ -271,11 +276,7 @@ impl<'ctx> Codegen<'ctx> {
 
     pub fn ref_store_take_fn(&self) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
-        let params: [BasicMetadataTypeEnum; 3] = [
-            ptr.into(),
-            ptr.into(),
-            ptr.into(),
-        ];
+        let params: [BasicMetadataTypeEnum; 3] = [ptr.into(), ptr.into(), ptr.into()];
         self.runtime_fn("bork_ref_store_take_ptr", || {
             self.context.void_type().fn_type(&params, false)
         })
@@ -380,7 +381,7 @@ impl<'ctx> Codegen<'ctx> {
         self.runtime_fn(name, || self.context.void_type().fn_type(&params, false))
     }
 
-    fn runtime_fn(
+    pub(super) fn runtime_fn(
         &self,
         name: &str,
         signature: impl FnOnce() -> inkwell::types::FunctionType<'ctx>,
@@ -400,6 +401,10 @@ pub fn is_unsigned(ty: &Ty) -> bool {
 }
 
 pub fn native_target_machine() -> Result<TargetMachine, String> {
+    native_target_machine_with_debug(false)
+}
+
+pub fn native_target_machine_with_debug(debug: bool) -> Result<TargetMachine, String> {
     Target::initialize_native(&InitializationConfig::default())?;
     let triple = TargetMachine::get_default_triple();
     let target = Target::from_triple(&triple).map_err(|err| err.to_string())?;
@@ -410,7 +415,11 @@ pub fn native_target_machine() -> Result<TargetMachine, String> {
             &triple,
             &cpu.to_string_lossy(),
             &features.to_string_lossy(),
-            OptimizationLevel::Default,
+            if debug {
+                OptimizationLevel::None
+            } else {
+                OptimizationLevel::Default
+            },
             RelocMode::PIC,
             CodeModel::Default,
         )

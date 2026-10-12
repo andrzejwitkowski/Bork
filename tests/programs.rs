@@ -115,12 +115,7 @@ fn programs_corpus_check_and_check_fail() {
                 let source = fs::read_to_string(&path).unwrap();
                 let expect = parse_directives(&source);
                 let (code, stderr) = run_check(&path);
-                assert_ne!(
-                    code,
-                    0,
-                    "{}: expected check failure",
-                    path.display()
-                );
+                assert_ne!(code, 0, "{}: expected check failure", path.display());
                 for needle in &expect.diag {
                     assert!(
                         stderr.contains(needle),
@@ -138,9 +133,18 @@ fn programs_corpus_check_and_check_fail() {
 mod codegen {
     use super::*;
 
-    fn build_and_run(path: &Path, out_bin: &Path) -> (i32, String, String) {
-        let build = Command::new(bork_exe())
-            .args(["build", "-o"])
+    fn build_command(debug: bool) -> Command {
+        let mut command = Command::new(bork_exe());
+        command.arg("build");
+        if debug {
+            command.arg("-g");
+        }
+        command.arg("-o");
+        command
+    }
+
+    fn build_and_run(path: &Path, out_bin: &Path, debug: bool) -> (i32, String, String) {
+        let build = build_command(debug)
             .arg(out_bin)
             .arg(path)
             .output()
@@ -158,7 +162,20 @@ mod codegen {
 
     #[test]
     fn programs_corpus_build_and_build_fail() {
-        let scratch = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("bork-programs");
+        run_build_corpus(false);
+    }
+
+    #[test]
+    fn programs_corpus_debug_build_and_build_fail() {
+        run_build_corpus(true);
+    }
+
+    fn run_build_corpus(debug: bool) {
+        let scratch = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(if debug {
+            "bork-programs-debug"
+        } else {
+            "bork-programs"
+        });
         let _ = fs::remove_dir_all(&scratch);
         fs::create_dir_all(&scratch).unwrap();
 
@@ -172,7 +189,7 @@ mod codegen {
                     let source = fs::read_to_string(&path).unwrap();
                     let expect = parse_directives(&source);
                     let bin = scratch.join(path.file_stem().unwrap());
-                    let (run_code, build_stderr, stdout) = build_and_run(&path, &bin);
+                    let (run_code, build_stderr, stdout) = build_and_run(&path, &bin, debug);
                     assert!(
                         bin.exists(),
                         "{}: build failed:\n{build_stderr}",
@@ -186,20 +203,14 @@ mod codegen {
                         path.display()
                     );
                     if let Some(want_out) = &expect.stdout {
-                        assert_eq!(
-                            stdout,
-                            *want_out,
-                            "{}: stdout mismatch",
-                            path.display()
-                        );
+                        assert_eq!(stdout, *want_out, "{}: stdout mismatch", path.display());
                     }
                 }
                 Suite::BuildFail => {
                     let source = fs::read_to_string(&path).unwrap();
                     let expect = parse_directives(&source);
                     let bin = scratch.join(path.file_stem().unwrap());
-                    let build = Command::new(bork_exe())
-                        .args(["build", "-o"])
+                    let build = build_command(debug)
                         .arg(&bin)
                         .arg(&path)
                         .output()

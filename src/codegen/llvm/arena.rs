@@ -112,11 +112,11 @@ impl RegionSink for ArenaCalls<'_, '_> {
     fn push(&mut self, _arena: usize) {
         let parent = self.current().or(self.caller_parent);
         let call = match parent {
-            Some(parent) => self.cx.builder.build_call(
-                self.cx.arena_push_child_fn(),
-                &[parent.into()],
-                "arena",
-            ),
+            Some(parent) => {
+                self.cx
+                    .builder
+                    .build_call(self.cx.arena_push_child_fn(), &[parent.into()], "arena")
+            }
             None => self
                 .cx
                 .builder
@@ -130,6 +130,8 @@ impl RegionSink for ArenaCalls<'_, '_> {
                     .expect("bork_arena_push returns a pointer")
                     .into_pointer_value();
                 self.handles.push(handle);
+                let result = self.cx.debug_label_arena(handle);
+                self.record(result);
             }
             Err(err) => self.record(Err(err)),
         }
@@ -141,16 +143,18 @@ impl RegionSink for ArenaCalls<'_, '_> {
         };
         let handle = self.handles[index];
         if !self.cx.insertion_is_dead() {
-            let call = self
-                .cx
-                .builder
-                .build_call(self.cx.arena_reset_fn(), &[handle.into()], "arena.reset");
-            let result = call.map(|call| {
+            let call = self.cx.builder.build_call(
+                self.cx.arena_reset_fn(),
+                &[handle.into()],
+                "arena.reset",
+            );
+            let result = call.and_then(|call| {
                 let next = call
                     .try_as_basic_value()
                     .basic()
                     .expect("bork_arena_reset returns a pointer")
                     .into_pointer_value();
+                self.cx.debug_label_arena(next)?;
                 if let Some(generation) = self
                     .loop_gens
                     .iter()
@@ -166,6 +170,7 @@ impl RegionSink for ArenaCalls<'_, '_> {
                 } else {
                     self.handles[index] = next;
                 }
+                Ok(())
             });
             self.record(result)
         }

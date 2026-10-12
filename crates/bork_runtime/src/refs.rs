@@ -66,6 +66,8 @@ pub unsafe extern "C" fn bork_ref_create(
     target: *mut c_void,
     object: *mut c_void,
 ) -> RefHandle {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     create_ref(source, target, object)
 }
 
@@ -76,6 +78,8 @@ pub unsafe extern "C" fn bork_ref_create_out(
     target: *mut c_void,
     object: *mut c_void,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!output.is_null(), "Ref output must not be null");
     // SAFETY: The ABI caller provides writable storage for one RefHandle.
     unsafe { ptr::write(output, create_ref(source, target, object)) };
@@ -91,6 +95,8 @@ fn drop_ref_value(reference: RefHandle) {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_drop(reference: *mut RefHandle) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!reference.is_null(), "Ref drop place must not be null");
     // SAFETY: Caller gives exclusive access to one initialized Ref slot.
     let old = std::mem::replace(unsafe { &mut *reference }, RefHandle::none());
@@ -109,6 +115,8 @@ fn clone_same_owner(reference: RefHandle) -> RefHandle {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_clone_same_owner(reference: RefHandle) -> RefHandle {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     clone_same_owner(reference)
 }
 
@@ -117,6 +125,8 @@ pub unsafe extern "C" fn bork_ref_clone_same_owner_out(
     output: *mut RefHandle,
     reference: *const RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!output.is_null(), "Ref output must not be null");
     assert!(!reference.is_null(), "Ref input must not be null");
     // SAFETY: The ABI caller provides readable input and writable output slots.
@@ -129,6 +139,8 @@ fn move_ref(reference: &mut RefHandle) -> RefHandle {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_move(reference: *mut RefHandle) -> RefHandle {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!reference.is_null(), "Ref move place must not be null");
     // SAFETY: Caller gives exclusive access and treats the source as moved/None afterwards.
     move_ref(unsafe { &mut *reference })
@@ -136,6 +148,8 @@ pub unsafe extern "C" fn bork_ref_move(reference: *mut RefHandle) -> RefHandle {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_move_out(output: *mut RefHandle, reference: *mut RefHandle) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!output.is_null(), "Ref output must not be null");
     // SAFETY: The ABI caller provides writable output and source slots.
     unsafe { ptr::write(output, bork_ref_move(reference)) };
@@ -165,6 +179,8 @@ pub unsafe extern "C" fn bork_ref_rehome(
     new_source: *mut c_void,
     reference: RefHandle,
 ) -> RefHandle {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     rehome(new_source, reference)
 }
 
@@ -174,6 +190,8 @@ pub unsafe extern "C" fn bork_ref_rehome_out(
     new_source: *mut c_void,
     reference: *const RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!output.is_null(), "Ref output must not be null");
     assert!(!reference.is_null(), "Ref input must not be null");
     // SAFETY: The ABI caller provides readable input and writable output slots.
@@ -193,6 +211,8 @@ pub unsafe extern "C" fn bork_ref_store(
     destination_owner: *mut c_void,
     incoming: RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!destination.is_null(), "Ref destination must not be null");
     // SAFETY: Caller gives exclusive access to one initialized Ref slot.
     store(unsafe { &mut *destination }, destination_owner, incoming);
@@ -204,6 +224,8 @@ pub unsafe extern "C" fn bork_ref_store_take(
     destination_owner: *mut c_void,
     incoming: RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!destination.is_null(), "Ref destination must not be null");
     // SAFETY: Caller gives exclusive access to one initialized Ref slot.
     store(unsafe { &mut *destination }, destination_owner, incoming);
@@ -216,6 +238,8 @@ pub unsafe extern "C" fn bork_ref_store_take_ptr(
     destination_owner: *mut c_void,
     incoming: *const RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!incoming.is_null(), "Ref input must not be null");
     // SAFETY: The ABI caller provides a readable RefHandle input slot.
     unsafe { bork_ref_store_take(destination, destination_owner, *incoming) };
@@ -223,11 +247,15 @@ pub unsafe extern "C" fn bork_ref_store_take_ptr(
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_drop_value(reference: RefHandle) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     drop_ref_value(reference);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_drop_value_ptr(reference: *const RefHandle) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!reference.is_null(), "Ref input must not be null");
     // SAFETY: The ABI caller provides a readable RefHandle input slot.
     unsafe { drop_ref_value(*reference) };
@@ -269,6 +297,8 @@ fn observe(reference: RefHandle) -> RefObservation {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_observe(reference: RefHandle) -> RefObservation {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     observe(reference)
 }
 
@@ -277,6 +307,8 @@ pub unsafe extern "C" fn bork_ref_observe_out(
     output: *mut RefObservation,
     reference: *const RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!output.is_null(), "Observation output must not be null");
     assert!(!reference.is_null(), "Ref input must not be null");
     // SAFETY: The ABI caller provides readable input and writable output slots.
@@ -291,11 +323,15 @@ fn release_observation(observation: RefObservation) {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_release_observation(observation: RefObservation) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     release_observation(observation);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_release_observation_ptr(observation: *const RefObservation) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!observation.is_null(), "Observation input must not be null");
     // SAFETY: The ABI caller provides a readable observation slot.
     unsafe { release_observation(*observation) };
@@ -308,11 +344,15 @@ fn ref_is_none(reference: RefHandle) -> bool {
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_is_none(reference: RefHandle) -> bool {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     ref_is_none(reference)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_is_none_ptr(reference: *const RefHandle) -> bool {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(!reference.is_null(), "Ref input must not be null");
     // SAFETY: The ABI caller provides a readable RefHandle input slot.
     unsafe { ref_is_none(*reference) }
@@ -320,6 +360,8 @@ pub unsafe extern "C" fn bork_ref_is_none_ptr(reference: *const RefHandle) -> bo
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_equal(lhs: RefHandle, rhs: RefHandle) -> bool {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     let lhs_none = ref_is_none(lhs);
     let rhs_none = ref_is_none(rhs);
     if lhs_none || rhs_none {
@@ -330,6 +372,8 @@ pub unsafe extern "C" fn bork_ref_equal(lhs: RefHandle, rhs: RefHandle) -> bool 
 
 #[no_mangle]
 pub unsafe extern "C" fn bork_ref_equal_ptr(lhs: *const RefHandle, rhs: *const RefHandle) -> bool {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     assert!(
         !lhs.is_null() && !rhs.is_null(),
         "Ref inputs must not be null"
@@ -354,7 +398,11 @@ pub unsafe extern "C" fn bork_arena_register_ref_drop(
     owner: *mut c_void,
     reference: *mut RefHandle,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     register_drop_internal(owner, reference.cast(), drop_ref_slot_runtime);
+    #[cfg(feature = "debug-runtime")]
+    super::arena::debug::register_generic(owner, reference);
 }
 
 #[no_mangle]
@@ -362,5 +410,7 @@ pub unsafe extern "C" fn bork_arena_register_observation_drop(
     owner: *mut c_void,
     observation: *mut RefObservation,
 ) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = super::arena::debug::Mutation::begin();
     register_drop_internal(owner, observation.cast(), drop_observation_runtime);
 }

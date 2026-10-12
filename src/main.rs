@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use std::process;
 
 fn usage(status: i32) -> ! {
-    let msg = "Usage: bork [--dump-arenas] <file.bork>\n       bork build [-o <path>] <file.bork>";
+    let msg =
+        "Usage: bork [--dump-arenas] <file.bork>\n       bork build [-g] [-o <path>] <file.bork>";
     if status == 0 {
         println!("{msg}");
     } else {
@@ -63,12 +64,14 @@ fn main() {
 }
 
 fn build_command(args: Vec<String>) -> ! {
+    let mut debug = false;
     let mut output: Option<PathBuf> = None;
     let mut file: Option<String> = None;
 
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "-g" => debug = true,
             "-o" => match args.next() {
                 Some(path) => output = Some(PathBuf::from(path)),
                 None => {
@@ -99,16 +102,24 @@ fn build_command(args: Vec<String>) -> ! {
         eprintln!("error: output path would overwrite input file");
         process::exit(2);
     }
-    run_build(&path, &output)
+    run_build(&path, &output, debug)
 }
 
 #[cfg(feature = "codegen")]
-fn run_build(path: &str, output: &std::path::Path) -> ! {
-    use bork::codegen::{build, BuildError};
+fn run_build(path: &str, output: &std::path::Path, debug: bool) -> ! {
+    use bork::codegen::{build_with_options, BuildError, BuildOptions, SourceContext};
 
     let source = read_source(path);
     let result = frontend::check(&source);
-    match build(&result, output) {
+    match build_with_options(
+        &result,
+        output,
+        BuildOptions { debug },
+        Some(SourceContext {
+            path: std::path::Path::new(path),
+            text: &source,
+        }),
+    ) {
         Ok(()) => process::exit(0),
         Err(BuildError::Diagnostics(diagnostics)) => {
             print_diagnostics(path, &source, &diagnostics);
@@ -122,7 +133,7 @@ fn run_build(path: &str, output: &std::path::Path) -> ! {
 }
 
 #[cfg(not(feature = "codegen"))]
-fn run_build(_path: &str, _output: &std::path::Path) -> ! {
+fn run_build(_path: &str, _output: &std::path::Path, _debug: bool) -> ! {
     eprintln!("error: `bork build` requires bork to be compiled with the `codegen` feature");
     process::exit(2);
 }

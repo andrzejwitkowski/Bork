@@ -61,10 +61,7 @@ impl Program {
                 Item::Fun(function) => functions.push(function),
             }
         }
-        Self {
-            classes,
-            functions,
-        }
+        Self { classes, functions }
     }
 }
 
@@ -86,8 +83,14 @@ pub struct Param {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Primitive { name: String, nullable: bool },
-    Named { name: String, nullable: bool },
+    Primitive {
+        name: String,
+        nullable: bool,
+    },
+    Named {
+        name: String,
+        nullable: bool,
+    },
     Array {
         elem: Box<Type>,
         len: u32,
@@ -138,7 +141,13 @@ impl Type {
     }
 
     pub fn is_copy(&self) -> bool {
-        matches!(self, Type::Primitive { nullable: false, .. })
+        matches!(
+            self,
+            Type::Primitive {
+                nullable: false,
+                ..
+            }
+        )
     }
 
     pub fn with_nullable(self, nullable: bool) -> Self {
@@ -215,9 +224,26 @@ impl fmt::Display for Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
+    pub span: Option<crate::span::Span>,
+    /// One source span per statement, in the same order as `stmts`.
+    pub statement_spans: Vec<crate::span::Span>,
+}
+
+impl Block {
+    pub fn from_spanned(
+        span: crate::span::Span,
+        statements: Vec<(Stmt, crate::span::Span)>,
+    ) -> Self {
+        let (stmts, statement_spans) = statements.into_iter().unzip();
+        Self {
+            stmts,
+            span: Some(span),
+            statement_spans,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

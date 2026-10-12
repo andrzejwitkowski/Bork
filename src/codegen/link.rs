@@ -7,14 +7,27 @@ const RUNTIME_NATIVE_LIBS: &[&str] = &["-lgcc_s", "-lutil", "-lrt", "-lpthread",
 
 /// Links `object` into an executable with `clang`, against `bork_runtime` and libc.
 pub fn link_executable(object: &Path, output: &Path) -> Result<(), String> {
-    let runtime = runtime_library();
+    link_executable_with_debug(object, output, false)
+}
+
+pub fn link_executable_with_debug(object: &Path, output: &Path, debug: bool) -> Result<(), String> {
+    let runtime = runtime_library(debug);
+    let override_variable = if debug {
+        "BORK_RUNTIME_DEBUG_LIB"
+    } else {
+        "BORK_RUNTIME_LIB"
+    };
     if !Path::new(&runtime).is_file() {
         return Err(format!(
-            "bork runtime library not found at {} (set BORK_RUNTIME_LIB)",
+            "bork runtime library not found at {} (set {override_variable})",
             Path::new(&runtime).display()
         ));
     }
-    let result = Command::new("clang")
+    let mut command = Command::new("clang");
+    if debug {
+        command.arg("-Wl,--require-defined=bork_debug_abi_v1");
+    }
+    let result = command
         .arg("-o")
         .arg(output)
         .arg(object)
@@ -34,6 +47,11 @@ pub fn link_executable(object: &Path, output: &Path) -> Result<(), String> {
 }
 
 /// `BORK_RUNTIME_LIB` at run time overrides the archive `build.rs` compiled.
-fn runtime_library() -> OsString {
-    std::env::var_os("BORK_RUNTIME_LIB").unwrap_or_else(|| env!("BORK_RUNTIME_LIB").into())
+fn runtime_library(debug: bool) -> OsString {
+    if debug {
+        std::env::var_os("BORK_RUNTIME_DEBUG_LIB")
+            .unwrap_or_else(|| env!("BORK_RUNTIME_DEBUG_LIB").into())
+    } else {
+        std::env::var_os("BORK_RUNTIME_LIB").unwrap_or_else(|| env!("BORK_RUNTIME_LIB").into())
+    }
 }
