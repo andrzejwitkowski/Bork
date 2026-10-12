@@ -298,7 +298,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 })?;
                 self.alloc_sink = prev;
                 self.statement_span = statement_span;
-                self.declare_local(name, ty, value)
+                self.declare_local(name, ty, value, None)
             }
             HirStmt::Assign { target, value } => match target {
                 HirAssignTarget::Field {
@@ -447,7 +447,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let index_ty = Ty::i32();
         let start = self.emit_int(lhs, &index_ty)?;
         let end = self.emit_int(rhs, &index_ty)?;
-        self.declare_local(name, &index_ty, start.into())?;
+        self.declare_local(name, &index_ty, start.into(), None)?;
         let index = self.lookup(name).expect("loop index was just declared").ptr;
 
         let ptr = self.codegen_driver_ptr();
@@ -648,8 +648,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         name: &str,
         ty: &Ty,
         value: BasicValueEnum<'ctx>,
+        argument: Option<u32>,
     ) -> Result<(), Diagnostic> {
-        if !(self.scopes.len() == 1 && self.function.params.iter().any(|p| p.name == name)) {
+        if argument.is_none() {
             self.debug_location(self.statement_span);
         }
         let llvm_ty = self
@@ -682,8 +683,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         if ty.is_managed_ref() {
             self.register_ref_drop(home_arena, ptr)?;
         }
-        self.debug_local(name, ty, ptr, home_arena)?;
-        if !(self.scopes.len() == 1 && self.function.params.iter().any(|p| p.name == name)) {
+        self.debug_local(name, ty, ptr, home_arena, argument)?;
+        if argument.is_none() {
             self.debug_label_ref_array(value, ty, name)?;
         }
         Ok(())

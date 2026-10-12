@@ -326,6 +326,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             &binding.name.name,
             &binding.binding_ty,
             object_handle.into(),
+            None,
         )?;
         Ok(())
     }
@@ -364,13 +365,14 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
             emitter.check_arena()?;
             emitter.function_arena = emitter.regions.sink_mut().current();
             let hidden = super::call_abi::CallAbi::of(emitter.function).hidden_len();
-            for (param, value) in emitter
+            for (index, (param, value)) in emitter
                 .function
                 .params
                 .iter()
                 .zip(emitter.llvm_fn.get_param_iter().skip(hidden))
+                .enumerate()
             {
-                emitter.declare_local(&param.name, &param.ty, value)?;
+                emitter.declare_local(&param.name, &param.ty, value, Some(index as u32 + 1))?;
             }
             emitter.debug_location(Some(emitter.function.name_span));
             Ok(())

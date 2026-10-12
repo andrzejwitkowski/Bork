@@ -194,6 +194,46 @@ mod tests {
     }
 
     #[test]
+    fn debug_local_shadowing_parameter_is_not_an_argument() {
+        let source = "fun bump(x: i32): i32 {\n val x = x + 1\n return x\n}\nfun main(): i32 { return bump(1) }\n";
+        let checked = check(source);
+        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let context = Context::create();
+        let module = emit_module_with_debug(
+            &context,
+            checked.hir.as_ref().unwrap(),
+            checked.report.as_ref().unwrap(),
+            checked.memory_plan.unwrap(),
+            source,
+            Path::new("fixture.bork"),
+        )
+        .unwrap();
+        module.verify().unwrap();
+        let ir = module.print_to_string().to_string();
+        let declarations: Vec<_> = ir
+            .lines()
+            .filter(|line| line.contains("!DILocalVariable(name: \"x\""))
+            .collect();
+        assert_eq!(declarations.len(), 2, "{ir}");
+        assert_eq!(
+            declarations
+                .iter()
+                .filter(|line| line.contains("arg: 1,"))
+                .count(),
+            1,
+            "the shadowing local must not be another formal parameter: {declarations:?}"
+        );
+        assert_eq!(
+            declarations
+                .iter()
+                .filter(|line| !line.contains("arg:"))
+                .count(),
+            1,
+            "{declarations:?}"
+        );
+    }
+
+    #[test]
     fn debug_metadata_and_persistent_ref_labels() {
         let source = "class Node { next: Ref<Node> }\nfun helper(n: i32) {\n val r: Ref<Node> = Node(None)\n { val inner: Ref<Node> = r }\n}\nfun main() { helper(1) }\n";
         let checked = check(source);

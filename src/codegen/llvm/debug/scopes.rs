@@ -90,22 +90,18 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         ty: &Ty,
         ptr: PointerValue<'ctx>,
         home: PointerValue<'ctx>,
+        argument: Option<u32>,
     ) -> Result<(), Diagnostic> {
         let Some(debug) = &self.cx.debug else {
             return Ok(());
         };
         let (scope, token) = *self.debug_scopes.last().unwrap();
         let (line, col) = debug.line_column(debug.position.get());
-        let param = if self.scopes.len() == 1 {
-            self.function.params.iter().position(|p| p.name == name)
-        } else {
-            None
-        };
-        let variable = match param {
+        let variable = match argument {
             Some(i) => debug.builder.create_parameter_variable(
                 scope,
                 name,
-                i as u32 + 1,
+                i,
                 debug.file,
                 line,
                 debug.ty(self.cx, ty),
