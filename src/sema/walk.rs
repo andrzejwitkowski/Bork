@@ -168,22 +168,20 @@ fn walk_stmt(
             });
         }
         Stmt::Assign { target, value } => {
-            if let AssignTarget::Name { name_span, .. } = target {
-                if matches!(az.members.get(name_span), Some(MemberRef::Field { .. })) {
-                    let target_ty = az.span_tys.get(name_span).cloned().map(ty_from_hir);
-                    note_use(az, "this", Some(*name_span), node);
-                    walk_typed(
-                        az,
-                        value,
-                        node,
-                        None,
-                        true,
-                        target_ty.and_then(|ty| ty.as_option()).as_ref(),
-                    );
-                    return;
+            // Bare field inside a method: same path as `this.field = value`.
+            let this = "this".to_string();
+            let bare_field = match target {
+                AssignTarget::Name { name_span, .. }
+                    if matches!(az.members.get(name_span), Some(MemberRef::Field { .. })) =>
+                {
+                    Some(name_span)
                 }
-            }
+                _ => None,
+            };
             let (name, name_span, index, borrowed) = match target {
+                AssignTarget::Name { name_span, .. } if bare_field.is_some() => {
+                    (&this, name_span, None, false)
+                }
                 AssignTarget::Name { name, name_span } => (name, name_span, None, false),
                 AssignTarget::Index {
                     name,
@@ -212,6 +210,12 @@ fn walk_stmt(
             let dest = az.env.get(name).cloned();
             let dest_ty = dest.as_ref().and_then(|binding| binding.ty.as_option());
             let target_ty = match (target, dest_ty) {
+                (AssignTarget::Name { name_span, .. }, _) if bare_field.is_some() => az
+                    .span_tys
+                    .get(name_span)
+                    .cloned()
+                    .map(ty_from_hir)
+                    .and_then(|ty| ty.as_option()),
                 (AssignTarget::Name { .. }, ty) => ty,
                 (AssignTarget::Index { .. }, Some(ty)) => {
                     let ty = match ty {

@@ -154,3 +154,9 @@ fn bare_field_outside_method_is_unknown() {
     let diags = diags_of("class P {\n    x: i32\n}\nfun main(): i32 {\n    return x\n}");
     assert!(diags.iter().any(|d| d.message.contains("unknown binding `x`")), "{diags:?}");
 }
+
+#[test]
+fn param_shadows_field() {
+    let hir = hir_of("class P {\n    x: i32\n    fun f(x: i32): i32 {\n        return x\n    }\n}\nfun main() {}");
+    assert!(matches!(&call_in_return(&hir, "P.f").kind, HirExprKind::Ident { name, .. } if name == "x"));
+}

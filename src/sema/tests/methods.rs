@@ -56,3 +56,15 @@ fn bare_field_use_observes_this() {
     let method = report.roots.iter().find(|r| r.label == "fun P.f").unwrap();
     assert!(method.observations.iter().any(|o| o.name == "this"), "{:?}", method.observations);
 }
+
+#[test]
+fn bare_field_assign_requires_move_like_this_field() {
+    let class = "class P {\n    name: String\n    fun f(s: String) {\n        ";
+    let tail = "\n    }\n}\nfun main() {}";
+    let bare = errors(&format!("{class}name = s{tail}"));
+    let via_this = errors(&format!("{class}this.name = s{tail}"));
+    assert!(via_this.iter().any(|e| e.message.contains("move")), "{via_this:?}");
+    assert!(bare.iter().any(|e| e.message.contains("move")), "{bare:?}");
+    let ok = errors(&format!("{class}name = move s{tail}"));
+    assert!(ok.is_empty(), "{ok:?}");
+}
