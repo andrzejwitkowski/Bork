@@ -77,6 +77,8 @@ cargo run --bin bork -- path/to/file.bork
 cargo run --bin bork -- --dump-arenas path/to/file.bork
 ```
 
+`bork build -g file.bork` enables source debugging and runtime Ref/arena inspection in GDB and LLDB; see [docs/debugging.md](docs/debugging.md).
+
 `--dump-arenas` prints the compile-time arena / ownership tree (see [docs/memory-model.md](docs/memory-model.md)).
 
 A from-source build with `--features codegen` needs LLVM 23, `clang`, and the shared libraries that `llvm-23-dev` installs with itself: `libz3`, `libedit`, `libxml2`, `libzstd`, and `libffi`. Ubuntu's default archive may not have LLVM 23 yet; use [apt.llvm.org](https://apt.llvm.org/):

@@ -257,6 +257,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         }
         let present = self.cx.builder.get_insert_block().expect("present path");
         self.cx.builder.position_at_end(cleanup);
+        self.debug_unwind(self.debug_scopes.len().saturating_sub(1))?;
         self.regions.sink_mut().unwind_to_depth(outer_depth)?;
         self.cx.builder.build_unconditional_branch(absent)?;
         self.cx.builder.position_at_end(present);
@@ -331,6 +332,16 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 }
 
 impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
+    fn before_stmt(
+        &mut self,
+        _stmt: &HirStmt,
+        span: Option<crate::span::Span>,
+    ) -> Result<(), WalkError> {
+        self.statement_span = span;
+        self.debug_location(span);
+        Ok(())
+    }
+
     fn bind_presence_guard(&mut self, _binding: &HirConditionalBinding) -> Result<(), WalkError> {
         unreachable!("codegen overrides presence_match and binds guards itself")
     }
@@ -361,12 +372,16 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
             {
                 emitter.declare_local(&param.name, &param.ty, value)?;
             }
+            emitter.debug_location(Some(emitter.function.name_span));
             Ok(())
         })
     }
 
     fn end_function_body(&mut self) -> Result<(), WalkError> {
-        self.walk_step(|emitter| emitter.pop_region())?;
+        self.walk_step(|emitter| {
+            emitter.debug_exit_scope()?;
+            emitter.pop_region()
+        })?;
         self.regions.next_function += 1;
         Ok(())
     }
@@ -378,12 +393,14 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         body: &HirBlock,
     ) -> Result<(), WalkError> {
         self.walk_step(|emitter| {
+            emitter.debug_location(body.span);
             emitter
                 .regions
                 .open_known(child, body, Some(site))
                 .map_err(schedule_error)?;
             emitter.check_arena()?;
             emitter.scopes.push(HashMap::new());
+            emitter.debug_enter_scope(None)?;
             Ok(())
         })
     }
@@ -393,6 +410,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
     }
 
     fn exit_region(&mut self, _site: RegionSite) -> Result<(), WalkError> {
+        self.walk_step(|emitter| emitter.debug_exit_scope())?;
         self.scopes.pop();
         if self.cx.current_block_terminated() {
             self.walk_step(|emitter| emitter.regions.exit_after_return().map_err(schedule_error))?;
@@ -411,6 +429,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         driver: &mut WalkDriver<'_, C>,
         expr: &HirExpr,
     ) -> Result<(), WalkError> {
+        self.debug_location(expr.span);
         if matches!(expr.kind, crate::hir::HirExprKind::ObjectConstruct { .. }) {
             self.pin_walk_driver(driver, |emitter| {
                 emitter.walk_step(|e| e.begin_object_construct(expr))
@@ -424,6 +443,15 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         driver: &mut WalkDriver<'_, C>,
         stmt: &HirStmt,
     ) -> Result<(), WalkError> {
+        let span = match stmt {
+            HirStmt::VarDecl { value, .. }
+            | HirStmt::Assign { value, .. }
+            | HirStmt::Return { value: Some(value) }
+            | HirStmt::Expr(value) => value.span,
+            HirStmt::Break { span } | HirStmt::Continue { span } => Some(*span),
+            _ => None,
+        };
+        self.debug_location(self.statement_span.or(span));
         self.pin_walk_driver(driver, |emitter| emitter.walk_step(|e| e.emit_stmt(stmt)))
     }
 
@@ -432,6 +460,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         driver: &mut WalkDriver<'_, C>,
         expr: &HirExpr,
     ) -> Result<(), WalkError> {
+        self.debug_location(expr.span);
         if matches!(
             expr.kind,
             crate::hir::HirExprKind::PresenceMatch { .. } | crate::hir::HirExprKind::If { .. }

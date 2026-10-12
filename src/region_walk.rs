@@ -366,6 +366,10 @@ pub trait RegionVisitor {
         Ok(())
     }
 
+    fn before_stmt(&mut self, _stmt: &HirStmt, _span: Option<crate::span::Span>) -> Result<(), WalkError> {
+        Ok(())
+    }
+
     /// Walk a block's statements (and optional trailing value expression).
     fn walk_block<C: ArenaCursor>(
         &mut self,
@@ -490,7 +494,8 @@ fn default_walk_block<C: ArenaCursor, V: RegionVisitor>(
     value_ty: Option<&Ty>,
 ) -> Result<(), WalkError> {
     if value_ty.is_none() {
-        for stmt in &block.stmts {
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            visitor.before_stmt(stmt, block.statement_spans.get(index).copied())?;
             walk_stmt(driver, visitor, stmt)?;
         }
         return Ok(());
@@ -498,9 +503,11 @@ fn default_walk_block<C: ArenaCursor, V: RegionVisitor>(
     let Some((last, prefix)) = block.stmts.split_last() else {
         return Ok(());
     };
-    for stmt in prefix {
+    for (index, stmt) in prefix.iter().enumerate() {
+        visitor.before_stmt(stmt, block.statement_spans.get(index).copied())?;
         walk_stmt(driver, visitor, stmt)?;
     }
+    visitor.before_stmt(last, block.statement_spans.get(prefix.len()).copied())?;
     if let HirStmt::Expr(expr) = last {
         visitor.on_trailing_value(driver, expr, value_ty.unwrap())?;
     } else {

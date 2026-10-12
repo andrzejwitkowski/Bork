@@ -1,3 +1,6 @@
+#[cfg(feature = "debug-runtime")]
+pub(crate) mod debug;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -138,6 +141,13 @@ struct RuntimeState {
     controls: HashMap<ArenaId, ArenaControl>,
 }
 
+#[cfg(feature = "debug-runtime")]
+impl Drop for RuntimeState {
+    fn drop(&mut self) {
+        debug::invalidate();
+    }
+}
+
 impl RuntimeState {
     fn new() -> Self {
         let root_id = ArenaId::new(1);
@@ -192,6 +202,8 @@ fn with_control<R>(token: *mut c_void, f: impl FnOnce(&ArenaControl) -> R) -> R 
 }
 
 fn with_control_mut<R>(token: *mut c_void, f: impl FnOnce(&mut ArenaControl) -> R) -> R {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
     let id = id_from_token(token);
     RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
@@ -243,6 +255,8 @@ pub(crate) fn retain_weak_target_internal(arena: *mut c_void) {
 }
 
 fn free_control(id: ArenaId) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
     let parent = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
         let control = runtime
@@ -264,6 +278,8 @@ fn free_control(id: ArenaId) {
 }
 
 fn release_weak_id(id: ArenaId) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
     let should_free = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
         let control = runtime
@@ -286,6 +302,8 @@ pub(crate) fn release_weak_internal(arena: *mut c_void) {
 }
 
 fn new_control(parent: ArenaId, mode: ArenaMode, strong_count: usize) -> *mut c_void {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
     RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
         let depth = {
@@ -339,6 +357,10 @@ fn new_control(parent: ArenaId, mode: ArenaMode, strong_count: usize) -> *mut c_
 }
 
 fn destroy_control(id: ArenaId) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
+    #[cfg(feature = "debug-runtime")]
+    debug::remove_owner(id.as_usize());
     let mut drops = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
         let control = runtime
@@ -423,6 +445,8 @@ pub unsafe extern "C" fn bork_arena_register_strong_root(owner: *mut c_void, tar
 
 #[no_mangle]
 pub extern "C" fn bork_arena_root() -> *mut c_void {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
     root_token()
 }
 
@@ -532,6 +556,8 @@ pub unsafe extern "C" fn bork_arena_retain_strong(arena: *mut c_void) {
 }
 
 pub(crate) fn release_strong_internal(arena: *mut c_void) {
+    #[cfg(feature = "debug-runtime")]
+    let _mutation = debug::Mutation::begin();
     let id = id_from_token(arena);
     let destroy = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
@@ -672,5 +698,58 @@ mod tests {
     fn weak_reference_target_must_be_dynamic() {
         let lexical = bork_arena_push();
         retain_weak_target_internal(lexical);
+    }
+}
+
+#[cfg(all(test, feature = "debug-runtime"))]
+mod debug_tests {
+    use super::*;
+    #[test]
+    fn mirrors_lifetime_reset_and_payload() {
+        let owner = bork_arena_push();
+        let before = debug::test_arenas();
+        let record = before.iter().find(|a| a.id == owner.addr()).unwrap();
+        assert_eq!(record.state, 0);
+        assert_eq!(record.used, 0);
+        unsafe {
+            bork_arena_alloc(owner, 9, 1);
+        }
+        assert_eq!(
+            debug::test_arenas()
+                .iter()
+                .find(|a| a.id == owner.addr())
+                .unwrap()
+                .used,
+            9
+        );
+        let new = unsafe { bork_arena_reset(owner) };
+        assert_ne!(new, owner);
+        let records = debug::test_arenas();
+        assert!(!records.iter().any(|a| a.id == owner.addr()));
+        assert_eq!(
+            records.iter().find(|a| a.id == new.addr()).unwrap().payload,
+            record.payload
+        );
+        unsafe {
+            bork_arena_pop(new);
+        }
+    }
+    #[test]
+    fn retains_dead_weak_metadata() {
+        let arena = unsafe { bork_arena_create_dynamic(std::ptr::null_mut(), 0) };
+        unsafe {
+            bork_arena_retain_weak(arena);
+            bork_arena_release_strong(arena);
+        }
+        let records = debug::test_arenas();
+        let a = records.iter().find(|a| a.id == arena.addr()).unwrap();
+        assert_eq!(
+            (a.state, a.strong_count, a.weak_count, a.payload),
+            (2, 0, 1, 0)
+        );
+        unsafe {
+            bork_arena_release_weak(arena);
+        }
+        assert!(!debug::test_arenas().iter().any(|a| a.id == arena.addr()));
     }
 }

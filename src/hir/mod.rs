@@ -63,6 +63,7 @@ pub struct HirClassField {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirFunction {
     pub name: String,
+    pub name_span: Span,
     pub params: Vec<HirParam>,
     pub return_ty: Ty,
     pub body: HirBlock,
@@ -75,9 +76,12 @@ pub struct HirParam {
     pub ty: Ty,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct HirBlock {
     pub stmts: Vec<HirStmt>,
+    pub span: Option<Span>,
+    /// One source span per statement; lowering preserves statement order and count.
+    pub statement_spans: Vec<Span>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

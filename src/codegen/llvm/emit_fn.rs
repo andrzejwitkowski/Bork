@@ -32,7 +32,9 @@ pub fn declare_function<'ctx>(
         params.push(
             cx.basic_type(&param.ty)
                 .map(BasicMetadataTypeEnum::from)
-                .ok_or_else(|| not_yet_supported(&format!("parameter type `{}`", param.ty), None))?,
+                .ok_or_else(|| {
+                    not_yet_supported(&format!("parameter type `{}`", param.ty), None)
+                })?,
         );
     }
 
@@ -84,6 +86,8 @@ pub fn emit_function<'report, 'a, 'ctx>(
         function,
         llvm_fn,
         scopes: vec![HashMap::new()],
+        debug_scopes: Vec::new(),
+        statement_span: None,
         alloc_sink: None,
         function_arena: None,
         loop_stack: Vec::new(),
@@ -91,6 +95,11 @@ pub fn emit_function<'report, 'a, 'ctx>(
         object_constructions: Vec::new(),
         result_sink: None,
     };
+    cx.builder.unset_current_debug_location();
+    if let Some(debug) = &cx.debug {
+        let scope = debug.function(cx, function, llvm_fn);
+        emitter.debug_enter_scope(Some(scope))?;
+    }
     let abi = CallAbi::of(function);
     if abi.hidden_len() > 0 {
         let parent = llvm_fn
@@ -129,13 +138,17 @@ pub(super) struct FnEmitter<'s, 'report, 'a, 'ctx> {
     pub(super) function: &'s HirFunction,
     pub llvm_fn: FunctionValue<'ctx>,
     pub(super) scopes: Vec<HashMap<String, Slot<'ctx>>>,
+    pub(super) statement_span: Option<crate::span::Span>,
+    pub(super) debug_scopes: Vec<(
+        inkwell::debug_info::DIScope<'ctx>,
+        inkwell::values::IntValue<'ctx>,
+    )>,
     pub(super) alloc_sink: Option<PointerValue<'ctx>>,
     /// Function-body arena handle; stable for the whole emit even when sibling branches return.
     pub(super) function_arena: Option<PointerValue<'ctx>>,
     loop_stack: Vec<LoopLabels<'ctx>>,
     pub(super) walk: CodegenWalkState<'ctx>,
-    pub(super) object_constructions:
-        Vec<(Option<PointerValue<'ctx>>, PointerValue<'ctx>)>,
+    pub(super) object_constructions: Vec<(Option<PointerValue<'ctx>>, PointerValue<'ctx>)>,
     pub(super) result_sink: Option<PointerValue<'ctx>>,
 }
 
@@ -144,6 +157,7 @@ struct LoopLabels<'ctx> {
     exit: BasicBlock<'ctx>,
     continue_target: BasicBlock<'ctx>,
     arena_depth: usize,
+    debug_depth: usize,
 }
 
 /// Driver pin and trailing-value slot while `region_walk` drives a function body.
@@ -252,6 +266,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     pub(super) fn emit_stmt(&mut self, stmt: &HirStmt) -> Result<(), Diagnostic> {
         self.ensure_open_block();
+        let statement_span = self.statement_span;
         match stmt {
             HirStmt::Return { value } => self.emit_return(value.as_ref()),
             HirStmt::Block(_)
@@ -282,6 +297,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     not_yet_supported("initializer produced no value", value.span)
                 })?;
                 self.alloc_sink = prev;
+                self.statement_span = statement_span;
                 self.declare_local(name, ty, value)
             }
             HirStmt::Assign { target, value } => match target {
@@ -331,6 +347,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.store_ref(ptr, home, stored)?;
         } else {
             self.cx.builder.build_store(ptr, stored)?;
+            self.debug_label_ref_array(stored, &slot_ty, name)?;
         }
         Ok(())
     }
@@ -359,9 +376,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         ),
         Diagnostic,
     > {
-        let slot = self.lookup(name).ok_or_else(|| {
-            not_yet_supported(&format!("assignment to `{name}`"), value.span)
-        })?;
+        let slot = self
+            .lookup(name)
+            .ok_or_else(|| not_yet_supported(&format!("assignment to `{name}`"), value.span))?;
         let (ptr, home, slot_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
         let prev = self.alloc_sink;
         self.alloc_sink = Some(home);
@@ -377,7 +394,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .loop_stack
             .last()
             .ok_or_else(|| not_yet_supported("`break` outside of a loop", None))?;
-        self.regions.sink_mut().unwind_to_depth(labels.arena_depth)?;
+        self.debug_unwind(labels.debug_depth)?;
+        self.regions
+            .sink_mut()
+            .unwind_to_depth(labels.arena_depth)?;
         self.cx.builder.build_unconditional_branch(labels.exit)?;
         Ok(())
     }
@@ -387,7 +407,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .loop_stack
             .last()
             .ok_or_else(|| not_yet_supported("`continue` outside of a loop", None))?;
-        self.regions.sink_mut().unwind_to_depth(labels.arena_depth)?;
+        self.debug_unwind(labels.debug_depth)?;
+        self.regions
+            .sink_mut()
+            .unwind_to_depth(labels.arena_depth)?;
         self.cx
             .builder
             .build_unconditional_branch(labels.continue_target)?;
@@ -434,11 +457,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .map_err(region_walk_codegen_error)?;
         self.check_arena()?;
         let owns_loop_arena = self.regions.sink_mut().handle_count() > arenas_before;
-        let preheader = self
-            .cx
-            .builder
-            .get_insert_block()
-            .expect("loop preheader");
+        let preheader = self.cx.builder.get_insert_block().expect("loop preheader");
 
         let cx = self.cx;
         let (context, builder) = (cx.context, &cx.builder);
@@ -453,13 +472,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             exit: exit_bb,
             continue_target: latch_bb,
             arena_depth: self.regions.sink_mut().handle_count(),
+            debug_depth: self.debug_scopes.len(),
         });
 
         builder.position_at_end(header_bb);
         if owns_loop_arena {
-            self.regions
-                .sink_mut()
-                .begin_loop_generation(preheader)?;
+            self.regions.sink_mut().begin_loop_generation(preheader)?;
         }
         let current = builder.build_load(i32_type, index, name)?.into_int_value();
         let in_range = builder.build_int_compare(IntPredicate::SLT, current, end, "for.cond")?;
@@ -467,10 +485,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
         builder.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
+        self.debug_enter_scope(None)?;
         let (peeled, _) = crate::hir::peel_blocks(body);
         driver
             .walk_block(self, peeled, None)
             .map_err(|err| region_walk_codegen_error(err))?;
+        self.debug_exit_scope()?;
         self.scopes.pop();
         if !cx.current_block_terminated() {
             builder.build_unconditional_branch(latch_bb)?;
@@ -518,11 +538,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .map_err(region_walk_codegen_error)?;
         self.check_arena()?;
         let owns_loop_arena = self.regions.sink_mut().handle_count() > arenas_before;
-        let preheader = self
-            .cx
-            .builder
-            .get_insert_block()
-            .expect("loop preheader");
+        let preheader = self.cx.builder.get_insert_block().expect("loop preheader");
 
         let cx = self.cx;
         let (context, builder) = (cx.context, &cx.builder);
@@ -536,23 +552,24 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             exit: exit_bb,
             continue_target: latch_bb,
             arena_depth: self.regions.sink_mut().handle_count(),
+            debug_depth: self.debug_scopes.len(),
         });
 
         builder.position_at_end(header_bb);
         if owns_loop_arena {
-            self.regions
-                .sink_mut()
-                .begin_loop_generation(preheader)?;
+            self.regions.sink_mut().begin_loop_generation(preheader)?;
         }
         let keep_going = self.emit_bool(cond)?;
         builder.build_conditional_branch(keep_going, body_bb, exit_bb)?;
 
         builder.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
+        self.debug_enter_scope(None)?;
         let (peeled, _) = crate::hir::peel_blocks(body);
         driver
             .walk_block(self, peeled, None)
             .map_err(|err| region_walk_codegen_error(err))?;
+        self.debug_exit_scope()?;
         self.scopes.pop();
         if !cx.current_block_terminated() {
             builder.build_unconditional_branch(latch_bb)?;
@@ -575,6 +592,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
+        let statement_span = self.statement_span;
         let return_ty = &self.function.return_ty;
         let value = match value {
             Some(value) if *return_ty != Ty::unit() => Some(self.value_from_walk(value, || {
@@ -593,6 +611,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             Some(value) => Some(self.materialize_return(value)?),
             None => None,
         };
+        self.statement_span = statement_span;
+        self.debug_location(statement_span);
+        self.debug_unwind(0)?;
         self.regions.sink_mut().unwind()?;
         match value {
             Some(value) => self.cx.builder.build_return(Some(&value)).map(drop)?,
@@ -628,6 +649,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         ty: &Ty,
         value: BasicValueEnum<'ctx>,
     ) -> Result<(), Diagnostic> {
+        if !(self.scopes.len() == 1 && self.function.params.iter().any(|p| p.name == name)) {
+            self.debug_location(self.statement_span);
+        }
         let llvm_ty = self
             .cx
             .basic_type(ty)
@@ -657,6 +681,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         );
         if ty.is_managed_ref() {
             self.register_ref_drop(home_arena, ptr)?;
+        }
+        self.debug_local(name, ty, ptr, home_arena)?;
+        if !(self.scopes.len() == 1 && self.function.params.iter().any(|p| p.name == name)) {
+            self.debug_label_ref_array(value, ty, name)?;
         }
         Ok(())
     }

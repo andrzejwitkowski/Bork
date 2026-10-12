@@ -22,7 +22,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let equal = self
             .cx
             .builder
-            .build_call(self.cx.ref_equal_fn(), &[left.into(), right.into()], "ref.eq")?
+            .build_call(
+                self.cx.ref_equal_fn(),
+                &[left.into(), right.into()],
+                "ref.eq",
+            )?
             .try_as_basic_value()
             .basic()
             .expect("Ref equality returns bool")
@@ -68,7 +72,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.copy_array_into_arena(value.into_struct_value(), field_ty)
                 .map(Into::into)
         } else {
-            self.copy_into_arena(value.into_struct_value()).map(Into::into)
+            self.copy_into_arena(value.into_struct_value())
+                .map(Into::into)
         };
         self.alloc_sink = previous;
         result
@@ -78,11 +83,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let span = expr
             .span
             .ok_or_else(|| not_yet_supported("record allocation without a source span", None))?;
-        let allocation = self
-            .cx
-            .memory_plan
-            .allocation_at(span)
-            .ok_or_else(|| not_yet_supported("record allocation without a memory plan", Some(span)))?;
+        let allocation = self.cx.memory_plan.allocation_at(span).ok_or_else(|| {
+            not_yet_supported("record allocation without a memory plan", Some(span))
+        })?;
         let previous = self.alloc_sink;
         let crate::hir::HirExprKind::ObjectConstruct { class_name, .. } = &expr.kind else {
             return Err(not_yet_supported("record allocation", Some(span)));
@@ -135,6 +138,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         } else {
             self.sink_arena()
         };
+        self.cx.debug_label_arena(arena)?;
         self.object_constructions.push((previous, arena));
         self.alloc_sink = Some(arena);
         Ok(())
@@ -174,10 +178,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .into_pointer_value();
 
             for (index, (field, value)) in fields.iter().zip(values).enumerate() {
-                let slot = self
-                    .cx
-                    .builder
-                    .build_struct_gep(record, object, index as u32, "field")?;
+                let slot =
+                    self.cx
+                        .builder
+                        .build_struct_gep(record, object, index as u32, "field")?;
                 if field.ty.is_managed_ref() {
                     self.cx
                         .builder
@@ -188,9 +192,39 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         &[arena.into(), slot.into()],
                         "",
                     )?;
+                    let field_name = self
+                        .cx
+                        .classes
+                        .iter()
+                        .find(|c| c.name == class_name)
+                        .unwrap()
+                        .fields[index]
+                        .name
+                        .clone();
+                    self.cx.debug_label_slot(
+                        arena,
+                        slot,
+                        &format!("{class_name}.{field_name}"),
+                        &field.ty,
+                        self.cx.context.i64_type().const_zero(),
+                        self.cx.context.i64_type().const_all_ones(),
+                    )?;
                 } else {
                     let value = self.materialize_owned_value(*value, &field.ty, arena)?;
                     self.cx.builder.build_store(slot, value)?;
+                    let field_name = &self
+                        .cx
+                        .classes
+                        .iter()
+                        .find(|c| c.name == class_name)
+                        .unwrap()
+                        .fields[index]
+                        .name;
+                    self.debug_label_ref_array(
+                        value,
+                        &field.ty,
+                        &format!("{class_name}.{field_name}"),
+                    )?;
                 }
             }
 
@@ -224,7 +258,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             &[output.into(), source.into(), target.into(), ptr.into()],
             "",
         )?;
-        Ok(self.cx.builder.build_load(self.cx.ref_handle_type(), output, "ref")?)
+        Ok(self
+            .cx
+            .builder
+            .build_load(self.cx.ref_handle_type(), output, "ref")?)
     }
 
     pub(super) fn emit_object_field(
@@ -253,12 +290,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .cx
             .record_type(class_name)
             .ok_or_else(|| not_yet_supported(&format!("record `{class_name}`"), value.span))?;
-        let slot = self.cx.builder.build_struct_gep(
-            record,
-            object,
-            field_index as u32,
-            "field.place",
-        )?;
+        let slot =
+            self.cx
+                .builder
+                .build_struct_gep(record, object, field_index as u32, "field.place")?;
         let previous = self.alloc_sink;
         self.alloc_sink = Some(owner);
         let stored = self.value_from_walk(value, || {
@@ -271,6 +306,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         } else {
             let stored = self.materialize_owned_value(stored, &value.ty, owner)?;
             self.cx.builder.build_store(slot, stored)?;
+            let field_name = &self
+                .cx
+                .classes
+                .iter()
+                .find(|c| c.name == class_name)
+                .unwrap()
+                .fields[field_index]
+                .name;
+            self.debug_label_ref_array(stored, &value.ty, &format!("{class_name}.{field_name}"))?;
         }
         Ok(())
     }
@@ -321,7 +365,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.cx
             .builder
             .build_call(self.cx.ref_move_out_fn(), &[output.into(), slot.into()], "")?;
-        Ok(self.cx.builder.build_load(self.cx.ref_handle_type(), output, "ref.move")?)
+        Ok(self
+            .cx
+            .builder
+            .build_load(self.cx.ref_handle_type(), output, "ref.move")?)
     }
 
     pub(super) fn clone_ref(
@@ -336,7 +383,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             &[output.into(), input.into()],
             "",
         )?;
-        Ok(self.cx.builder.build_load(self.cx.ref_handle_type(), output, "ref.copy")?)
+        Ok(self
+            .cx
+            .builder
+            .build_load(self.cx.ref_handle_type(), output, "ref.copy")?)
     }
 
     pub(super) fn store_ref(
@@ -406,7 +456,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             &[output.into(), owner.into(), input.into()],
             "",
         )?;
-        let rehomed = self.cx.builder.build_load(self.cx.ref_handle_type(), output, "ref.rehome")?;
+        let rehomed =
+            self.cx
+                .builder
+                .build_load(self.cx.ref_handle_type(), output, "ref.rehome")?;
         self.drop_ref_value(reference)?;
         Ok(rehomed)
     }

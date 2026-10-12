@@ -325,6 +325,7 @@ fn check_function(
     members.extend(env.members);
     HirFunction {
         name,
+        name_span: function.name_span,
         params,
         return_ty,
         body,

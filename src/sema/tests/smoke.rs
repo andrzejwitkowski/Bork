@@ -8,8 +8,11 @@ fn collapses_nested_bare_braces() {
         stmts: vec![Stmt::Block(Block {
             stmts: vec![Stmt::Block(Block {
                 stmts: vec![Stmt::Return(None)],
+                ..Block::default()
             })],
+            ..Block::default()
         })],
+        ..Block::default()
     };
     let (b, n) = peel_blocks(&nested);
     assert_eq!(n, 2);

@@ -194,32 +194,36 @@ ParenTypeSuffix: Option<Type> = {
 };
 
 Block: Block = {
-    "{" <stmts:BlockBody> "}" => Block { stmts },
+    <start:@L> "{" <stmts:BlockBody> "}" <end:@R> => Block::from_spanned(Span::new(start, end), stmts),
 };
 
-BlockBody: Vec<Stmt> = {
+BlockBody: Vec<(Stmt, Span)> = {
     => vec![],
     "NL" => vec![],
-    <first:Stmt> <rest:StmtRest> => {
+    <first:SpannedStmt> <rest:StmtRest> => {
         let mut stmts = vec![first];
         stmts.extend(rest);
         stmts
     },
-    "NL" <first:Stmt> <rest:StmtRest> => {
+    "NL" <first:SpannedStmt> <rest:StmtRest> => {
         let mut stmts = vec![first];
         stmts.extend(rest);
         stmts
     },
 };
 
-StmtRest: Vec<Stmt> = {
+StmtRest: Vec<(Stmt, Span)> = {
     => vec![],
     "NL" => vec![],
-    "NL" <stmt:Stmt> <rest:StmtRest> => {
+    "NL" <stmt:SpannedStmt> <rest:StmtRest> => {
         let mut stmts = vec![stmt];
         stmts.extend(rest);
         stmts
     },
+};
+
+SpannedStmt: (Stmt, Span) = {
+    <start:@L> <stmt:Stmt> <end:@R> => (stmt, Span::new(start, end)),
 };
 
 Stmt: Stmt = {
@@ -416,20 +420,20 @@ TrailingClosure: Closure = {
         is_move: true,
         captures: captures.map(|c| c.unwrap_or_default()),
     },
-    "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" => Closure {
+    <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
         params: params.unwrap_or_default(),
-        body: Block { stmts },
+        body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: false,
         captures: None,
     },
 };
 
 MoveClosureBody: (Vec<SpannedName>, Block) = {
-    "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" => (
+    <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => (
         params.unwrap_or_default(),
-        Block { stmts },
+        Block::from_spanned(Span::new(start, end), stmts),
     ),
-    "{" <stmts:BlockBody> "}" => (vec![], Block { stmts }),
+    <start:@L> "{" <stmts:BlockBody> "}" <end:@R> => (vec![], Block::from_spanned(Span::new(start, end), stmts)),
 };
 
 Atom: Expr = {
@@ -552,9 +556,7 @@ PresenceOperand: Expr = {
 ElseClause: Block = {
     "else" <b:Block> => b,
     // ponytail: desugar else-if to nested else { if }; no ElseIf AST
-    "else" <e:IfExpr> => Block {
-        stmts: vec![Stmt::Expr(e)],
-    },
+    <start:@L> "else" <e:IfExpr> <end:@R> => Block::from_spanned(Span::new(start, end), vec![(Stmt::Expr(e), Span::new(start, end))]),
 };
 
 SpannedIdent: SpannedName = {
