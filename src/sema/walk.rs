@@ -168,6 +168,21 @@ fn walk_stmt(
             });
         }
         Stmt::Assign { target, value } => {
+            if let AssignTarget::Name { name_span, .. } = target {
+                if matches!(az.members.get(name_span), Some(MemberRef::Field { .. })) {
+                    let target_ty = az.span_tys.get(name_span).cloned().map(ty_from_hir);
+                    note_use(az, "this", Some(*name_span), node);
+                    walk_typed(
+                        az,
+                        value,
+                        node,
+                        None,
+                        true,
+                        target_ty.and_then(|ty| ty.as_option()).as_ref(),
+                    );
+                    return;
+                }
+            }
             let (name, name_span, index, borrowed) = match target {
                 AssignTarget::Name { name, name_span } => (name, name_span, None, false),
                 AssignTarget::Index {
@@ -305,6 +320,11 @@ fn walk(
         Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
         Expr::Promote { name, span } => apply_expr_promote(az, name, Some(*span), node, transfer),
         Expr::Ident { name, span } => {
+            if matches!(az.members.get(span), Some(MemberRef::Field { .. })) {
+                // Bare field inside a method: a read through the `this` borrow.
+                note_use(az, "this", Some(*span), node);
+                return;
+            }
             if matches!(transfer, Some(TransferSink::ManagedRef)) {
                 if az
                     .env

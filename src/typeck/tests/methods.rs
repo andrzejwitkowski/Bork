@@ -122,3 +122,35 @@ fn method_call_receiver_errors() {
         assert!(diags.iter().any(|d| d.message.contains(expected)), "{expected}: {diags:?}");
     }
 }
+
+#[test]
+fn bare_field_reads_and_writes_go_through_this() {
+    let hir = hir_of(
+        "class P {\n    x: i32\n    fun bump(): i32 {\n        x = x + 1\n        return x\n    }\n}\nfun main() {}",
+    );
+    let method = hir.functions.iter().find(|f| f.name == "P.bump").unwrap();
+    let HirStmt::Assign { target, .. } = &method.body.stmts[0] else { panic!("assign") };
+    assert!(matches!(target, crate::hir::HirAssignTarget::Field { field_index: 0, .. }));
+    let HirExprKind::ObjectField { receiver, .. } = &call_in_return(&hir, "P.bump").kind else {
+        panic!("bare x reads the field");
+    };
+    assert!(matches!(&receiver.kind, HirExprKind::Ident { name, .. } if name == "this"));
+}
+
+#[test]
+fn bare_field_then_local_shadow() {
+    let hir = hir_of(
+        "class P {\n    x: i32\n    fun f(): i32 {\n        val a = x\n        val x = 5\n        return a + x\n    }\n}\nfun main() {}",
+    );
+    let method = hir.functions.iter().find(|f| f.name == "P.f").unwrap();
+    let HirStmt::VarDecl { value, .. } = &method.body.stmts[0] else { panic!("val a") };
+    assert!(matches!(&value.kind, HirExprKind::ObjectField { .. }), "before the local: field");
+    let HirExprKind::Binary { rhs, .. } = &call_in_return(&hir, "P.f").kind else { panic!("+") };
+    assert!(matches!(&rhs.kind, HirExprKind::Ident { name, .. } if name == "x"), "after the local: local");
+}
+
+#[test]
+fn bare_field_outside_method_is_unknown() {
+    let diags = diags_of("class P {\n    x: i32\n}\nfun main(): i32 {\n    return x\n}");
+    assert!(diags.iter().any(|d| d.message.contains("unknown binding `x`")), "{diags:?}");
+}

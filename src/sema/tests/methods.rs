@@ -46,3 +46,13 @@ fn this_is_a_borrow_param_of_the_method_region() {
     let method = report.roots.iter().find(|r| r.label == "fun P.get").expect("method root");
     assert!(method.bindings.iter().any(|b| b.name == "this"));
 }
+
+#[test]
+fn bare_field_use_observes_this() {
+    let (report, errs) = analyze(&parse(
+        "class P {\n    name: String\n    fun f(): i32 {\n        name = \"b\"\n        return name.length\n    }\n}\nfun main() {}",
+    ).unwrap());
+    assert!(errs.is_empty(), "{errs:?}");
+    let method = report.roots.iter().find(|r| r.label == "fun P.f").unwrap();
+    assert!(method.observations.iter().any(|o| o.name == "this"), "{:?}", method.observations);
+}

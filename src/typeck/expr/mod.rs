@@ -69,7 +69,8 @@ pub(super) fn check(
             },
             Ty::string(false),
         ),
-        Expr::Ident { name, span } => check_ident(name, *span, UseKind::Local, env),
+        Expr::Ident { name, span } => method::implicit_field(name, *span, return_ty, env)
+            .unwrap_or_else(|| check_ident(name, *span, UseKind::Local, env)),
         Expr::Unary {
             op: UnaryOp::Borrow,
             expr,

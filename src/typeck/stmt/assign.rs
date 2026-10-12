@@ -12,6 +12,22 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: &Ty, env: &m
                 env.error("cannot assign to `this`", Some(*name_span));
                 return HirStmt::Expr(expr::check(value, None, return_ty, env));
             }
+            if let Some((class, index, ty)) = env.implicit_field(name) {
+                env.members.insert(
+                    *name_span,
+                    crate::typeck::MemberRef::Field {
+                        class,
+                        name: name.clone(),
+                        index,
+                        ty,
+                    },
+                );
+                let this = Expr::Ident {
+                    name: "this".to_string(),
+                    span: *name_span,
+                };
+                return check_receiver_field(&this, name, *name_span, value, return_ty, env);
+            }
             let bound = assign_binding(env, name, *name_span, false);
             let value = expr::check(value, bound.as_ref(), return_ty, env);
             reject_type_mismatch(

@@ -118,3 +118,22 @@ fn poisoned(args: &[Expr], span: Span, return_ty: &Ty, env: &mut Env<'_>) -> Hir
     }
     HirExpr::spanned(HirExprKind::None, Ty::unknown(), span)
 }
+
+/// Bare `name` inside a method that names a field of the enclosing class: `this.name`.
+pub(super) fn implicit_field(name: &str, span: Span, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirExpr> {
+    let (class, index, ty) = env.implicit_field(name)?;
+    env.members.insert(
+        span,
+        MemberRef::Field {
+            class,
+            name: name.to_string(),
+            index,
+            ty,
+        },
+    );
+    let this = Expr::Ident {
+        name: "this".to_string(),
+        span,
+    };
+    Some(super::field::check_field(&this, name, false, span, return_ty, env))
+}
