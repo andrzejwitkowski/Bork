@@ -1,0 +1,8 @@
+// diag: cannot move `this`; it is a borrow
+class P {
+    x: i32
+    fun f() {
+        val q = move this
+    }
+}
+fun main() {}

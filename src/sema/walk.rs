@@ -13,6 +13,7 @@ use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
 use crate::ast::{AssignTarget, BindingKind, Block, ConditionalBinding, Expr, Stmt, Type, UnaryOp};
 use crate::span::{Span, SpannedName};
+use crate::typeck::MemberRef;
 use std::collections::HashSet;
 
 pub(super) fn open_ordinary(
@@ -167,7 +168,14 @@ fn walk_stmt(
             });
         }
         Stmt::Assign { target, value } => {
+            // Bare field inside a method: same path as `this.field = value`.
+            let this = "this".to_string();
+            let bare_field =
+                matches!(target, AssignTarget::Name { name_span, .. } if az.is_bare_field(name_span));
             let (name, name_span, index, borrowed) = match target {
+                AssignTarget::Name { name_span, .. } if bare_field => {
+                    (&this, name_span, None, false)
+                }
                 AssignTarget::Name { name, name_span } => (name, name_span, None, false),
                 AssignTarget::Index {
                     name,
@@ -178,7 +186,9 @@ fn walk_stmt(
                 AssignTarget::Field {
                     receiver: crate::ast::Expr::Ident { name, span },
                     ..
-                } => (name, span, None, false),
+                } if !az.is_bare_field(span) => {
+                    (name, span, None, false)
+                }
                 AssignTarget::Field { receiver, span, .. } => {
                     let target_ty = az.span_tys.get(span).cloned().map(ty_from_hir);
                     walk(az, receiver, node, None, true);
@@ -196,6 +206,12 @@ fn walk_stmt(
             let dest = az.env.get(name).cloned();
             let dest_ty = dest.as_ref().and_then(|binding| binding.ty.as_option());
             let target_ty = match (target, dest_ty) {
+                (AssignTarget::Name { name_span, .. }, _) if bare_field => az
+                    .span_tys
+                    .get(name_span)
+                    .cloned()
+                    .map(ty_from_hir)
+                    .and_then(|ty| ty.as_option()),
                 (AssignTarget::Name { .. }, ty) => ty,
                 (AssignTarget::Index { .. }, Some(ty)) => {
                     let ty = match ty {
@@ -304,6 +320,11 @@ fn walk(
         Expr::Move { name, span } => apply_expr_move(az, name, Some(*span), node),
         Expr::Promote { name, span } => apply_expr_promote(az, name, Some(*span), node, transfer),
         Expr::Ident { name, span } => {
+            if az.is_bare_field(span) {
+                // Bare field inside a method: a read through the `this` borrow.
+                note_use(az, "this", Some(*span), node);
+                return;
+            }
             if matches!(transfer, Some(TransferSink::ManagedRef)) {
                 if az
                     .env
@@ -379,22 +400,30 @@ fn walk(
             args,
             trailing,
         } => {
-            walk(az, callee, node, None, record_borrow);
-            let (formals, param_tys) = match callee.as_ref() {
-                Expr::Ident { name, .. } => {
-                    if let Some(class) = az.classes.get(name) {
-                        (
-                            None,
-                            Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
-                        )
-                    } else {
-                        (
-                            az.fun_sigs.get(name).cloned(),
-                            az.fun_param_tys.get(name).cloned(),
-                        )
+            let (formals, param_tys) = if let Some((receiver, qualified)) = method_call(az, callee) {
+                walk_receiver(az, &receiver, node);
+                (
+                    az.fun_sigs.get(&qualified).map(|f| f[1..].to_vec()),
+                    az.fun_param_tys.get(&qualified).map(|p| p[1..].to_vec()),
+                )
+            } else {
+                walk(az, callee, node, None, record_borrow);
+                match callee.as_ref() {
+                    Expr::Ident { name, .. } => {
+                        if let Some(class) = az.classes.get(name) {
+                            (
+                                None,
+                                Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
+                            )
+                        } else {
+                            (
+                                az.fun_sigs.get(name).cloned(),
+                                az.fun_param_tys.get(name).cloned(),
+                            )
+                        }
                     }
+                    _ => (None, None),
                 }
-                _ => (None, None),
             };
             for (i, a) in args.iter().enumerate() {
                 let arg_record_borrow = param_tys
@@ -595,6 +624,9 @@ fn apply_expr_promote(
     node: &mut ArenaNode,
     transfer: Option<&TransferSink>,
 ) {
+    if span.is_some_and(|span| az.is_bare_field(&span)) {
+        return; // typeck reports `promote` of a field
+    }
     let Some(TransferSink::Binding {
         arena_id: sink_id,
         arena_label: sink_label,
@@ -677,6 +709,9 @@ fn apply_expr_move(
     span: Option<Span>,
     node: &mut ArenaNode,
 ) {
+    if span.is_some_and(|span| az.is_bare_field(&span)) {
+        return; // typeck reports `move` of a field
+    }
     let Some(peek) = az.env.get(name).cloned() else {
         report_move_source_err(az, name, MoveSourceErr::Unknown, span);
         return;
@@ -740,6 +775,42 @@ fn is_view_init(az: &Analyzer, value: &Expr) -> bool {
             .is_some_and(|binding| binding.origin == BindingOrigin::View),
         _ => false,
     }
+}
+
+/// Receiver expression and `C.m` name when typeck resolved `callee` to a method.
+fn method_call(az: &Analyzer, callee: &Expr) -> Option<(Expr, String)> {
+    let (receiver, span) = match callee {
+        Expr::Field { receiver, span, .. } => ((**receiver).clone(), *span),
+        Expr::Ident { span, .. } => (
+            Expr::Ident {
+                name: "this".to_string(),
+                span: *span,
+            },
+            *span,
+        ),
+        _ => return None,
+    };
+    match az.members.get(&span)? {
+        MemberRef::Method { class, name, .. } => Some((receiver, format!("{class}.{name}"))),
+        MemberRef::Field { .. } => None,
+    }
+}
+
+/// A method receiver is borrowed for the call, like an `&T` argument; a field chain borrows its root.
+fn walk_receiver(az: &mut Analyzer, receiver: &Expr, node: &mut ArenaNode) {
+    let mut root = receiver;
+    while let Expr::Field { receiver, .. } = root {
+        root = receiver;
+    }
+    let Expr::Ident { name, span } = root else {
+        walk(az, root, node, None, true);
+        return;
+    };
+    let name = if az.is_bare_field(span) { "this" } else { name };
+    let sink = TransferSink::CallArg {
+        formal: BindingKind::Val,
+    };
+    note_borrow(az, name, Some(*span), node, Some(&sink));
 }
 
 fn note_borrow(

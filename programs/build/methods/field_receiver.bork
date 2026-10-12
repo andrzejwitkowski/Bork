@@ -1,0 +1,20 @@
+// exit: 14
+class Inner {
+    n: i32
+
+    fun get(): i32 {
+        return n
+    }
+}
+class Outer {
+    inner: Inner
+
+    fun deep(): i32 {
+        return this.inner.get() + inner.get()
+    }
+}
+
+fun main(): i32 {
+    val o = Outer(Inner(7))
+    return o.deep() + o.inner.get() - 7
+}

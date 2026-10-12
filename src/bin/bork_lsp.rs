@@ -1,4 +1,4 @@
-use bork::lsp::{analyze_source, dump_from_analysis, hover_for_analysis, Analysis};
+use bork::lsp::{analyze_source, dump_from_analysis, hover, Analysis};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tower_lsp::jsonrpc::{Error, Result};
@@ -103,10 +103,7 @@ impl LanguageServer for Backend {
         let Some(doc) = docs.get(uri) else {
             return Ok(None);
         };
-        let value = doc
-            .analysis
-            .report()
-            .and_then(|report| hover_for_analysis(report, &doc.text, pos));
+        let value = hover(&doc.analysis, &doc.text, pos);
         Ok(value.map(|value| Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,

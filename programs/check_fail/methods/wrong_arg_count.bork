@@ -1,0 +1,8 @@
+// diag: function `P.f` expects 1 arguments, got 0
+class P {
+    fun f(a: i32) {}
+}
+fun main() {
+    val p = P()
+    p.f()
+}

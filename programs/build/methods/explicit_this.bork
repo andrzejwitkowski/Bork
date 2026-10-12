@@ -1,0 +1,14 @@
+// exit: 9
+class Point {
+    x: i32
+
+    fun set(x: i32) {
+        this.x = x
+    }
+}
+
+fun main(): i32 {
+    val p = Point(1)
+    p.set(9)
+    return p.x
+}

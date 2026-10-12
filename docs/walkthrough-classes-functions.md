@@ -41,8 +41,10 @@ Program używa:
 - odczytu pól przez `.` (`p.x`, `p.name.length`),
 - wywołania funkcji z borrowem `&p`.
 
-Klasy w tym branchu mają tylko pola. Metod klasowych nie ma, więc operacje na
-klasie są funkcjami top-level, tak jak `sum`.
+Ten przykład używa funkcji top-level `sum`. Klasy mogą też mieć metody z `this`;
+opisuje je [language.md](language.md#methods-and-this). Typeck zamienia metodę
+`Point.sum` na zwykłą funkcję z parametrem `this: &Point`, więc dalsza część
+pipeline'u wygląda tak samo jak dla `sum` poniżej.
 
 ## Mapa pipeline'u
 

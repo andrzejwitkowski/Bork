@@ -17,6 +17,8 @@ pub struct CheckResult {
     /// Allocation/lifetime decisions for addressable record objects.
     pub memory_plan: Option<MemoryPlan>,
     pub diagnostics: Vec<Diagnostic>,
+    /// Member names resolved by typeck (bare fields, method calls, method declarations).
+    pub members: crate::typeck::MemberResolutions,
 }
 
 impl CheckResult {
@@ -35,13 +37,14 @@ pub fn check(source: &str) -> CheckResult {
                 hir: None,
                 memory_plan: None,
                 diagnostics: vec![diag::from_parse(source, &err)],
+                members: Default::default(),
             }
         }
     };
 
-    let (hir, span_tys, mut type_diagnostics) = typeck::check(&program);
+    let (hir, span_tys, members, mut type_diagnostics) = typeck::check_with_members(&program);
     let (mut report, ownership_errors) =
-        crate::sema::analyze_with_span_tys(&program, span_tys);
+        crate::sema::analyze_with_members(&program, span_tys, members.clone());
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 
@@ -68,6 +71,7 @@ pub fn check(source: &str) -> CheckResult {
         hir,
         memory_plan,
         diagnostics,
+        members,
     }
 }
 

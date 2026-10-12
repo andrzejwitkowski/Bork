@@ -8,6 +8,17 @@ use super::super::expr;
 pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
     match target {
         AssignTarget::Name { name, name_span } => {
+            if name == "this" {
+                env.error("cannot assign to `this`", Some(*name_span));
+                return HirStmt::Expr(expr::check(value, None, return_ty, env));
+            }
+            if env.resolve_bare_field(name, *name_span).is_some() {
+                let this = Expr::Ident {
+                    name: "this".to_string(),
+                    span: *name_span,
+                };
+                return check_receiver_field(&this, name, *name_span, value, return_ty, env);
+            }
             let bound = assign_binding(env, name, *name_span, false);
             let value = expr::check(value, bound.as_ref(), return_ty, env);
             reject_type_mismatch(
@@ -143,7 +154,13 @@ fn assign_binding(
 ) -> Option<Ty> {
     let binding = env.binding(name).cloned();
     if binding.is_none() {
-        env.error(format!("unknown binding `{name}`"), Some(span));
+        let field = index_assign
+            && env
+                .reject_bare_field(name, span, &format!("cannot index-assign field `{name}` through `this`"))
+                .is_some();
+        if !field {
+            env.error(format!("unknown binding `{name}`"), Some(span));
+        }
     }
     if let Some(b) = binding.as_ref() {
         if b.kind == BindingKind::Val {

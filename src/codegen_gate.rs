@@ -263,6 +263,14 @@ mod tests {
     }
 
     #[test]
+    fn methods_pass_codegen_gate() {
+        let source = "class P {\n    x: i32\n    fun get(): i32 {\n        return x\n    }\n}\nfun main(): i32 {\n    val p = P(1)\n    return p.get()\n}";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        assert!(super::gate(result.hir.as_ref().unwrap()).is_empty());
+    }
+
+    #[test]
     fn nullable_sample_passes_codegen_gate() {
         let source = r#"
 fun main(name: String?): String {

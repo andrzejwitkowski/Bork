@@ -1,5 +1,5 @@
 use crate::ast::{
-    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ClassField, Closure,
+    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ClassField, ClassMember, Closure,
     ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type,
     UnaryOp,
 };
@@ -16,6 +16,7 @@ match {
     r"([ \t\r\f]*(//[^\n\r]*)?\n)+" => "NL",
     "if" => "if",
     "class" => "class",
+    "this" => "this",
     "when" => "when",
     "fun" => "fun",
     "val" => "val",
@@ -71,32 +72,37 @@ Item: Item = {
 };
 
 ClassDecl: Class = {
-    "class" <name:Ident> "{" <fields:ClassBody> "}" => Class { name, fields },
+    "class" <name:Ident> "{" <members:ClassBody> "}" => Class::from_members(name, members),
 };
 
-ClassBody: Vec<ClassField> = {
+ClassBody: Vec<ClassMember> = {
     => vec![],
     "NL" => vec![],
-    <first:ClassFieldDecl> <rest:ClassFieldRest> => {
-        let mut fields = vec![first];
-        fields.extend(rest);
-        fields
+    <first:ClassMember> <rest:ClassMemberRest> => {
+        let mut members = vec![first];
+        members.extend(rest);
+        members
     },
-    "NL" <first:ClassFieldDecl> <rest:ClassFieldRest> => {
-        let mut fields = vec![first];
-        fields.extend(rest);
-        fields
+    "NL" <first:ClassMember> <rest:ClassMemberRest> => {
+        let mut members = vec![first];
+        members.extend(rest);
+        members
     },
 };
 
-ClassFieldRest: Vec<ClassField> = {
+ClassMemberRest: Vec<ClassMember> = {
     => vec![],
     "NL" => vec![],
-    "NL" <field:ClassFieldDecl> <rest:ClassFieldRest> => {
-        let mut fields = vec![field];
-        fields.extend(rest);
-        fields
+    "NL" <member:ClassMember> <rest:ClassMemberRest> => {
+        let mut members = vec![member];
+        members.extend(rest);
+        members
     },
+};
+
+ClassMember: ClassMember = {
+    <field:ClassFieldDecl> => ClassMember::Field(field),
+    <method:Function> => ClassMember::Method(method),
 };
 
 ClassFieldDecl: ClassField = {
@@ -104,9 +110,10 @@ ClassFieldDecl: ClassField = {
 };
 
 Function: Function = {
-    "fun" <name:Ident> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <body:Block> => {
+    "fun" <name:SpannedIdent> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <body:Block> => {
         Function {
-            name,
+            name: name.name,
+            name_span: name.span,
             params: params.unwrap_or_default(),
             return_type: ret,
             body,
@@ -450,6 +457,14 @@ Atom: Expr = {
         name: id.name,
         span: id.span,
     },
+    "move" <start:@L> "this" <end:@R> => Expr::Move {
+        name: "this".to_string(),
+        span: Span::new(start, end),
+    },
+    <start:@L> "this" <end:@R> => Expr::Ident {
+        name: "this".to_string(),
+        span: Span::new(start, end),
+    },
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,
         span: id.span,
@@ -520,6 +535,10 @@ PresenceOperand: Expr = {
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,
         span: id.span,
+    },
+    <start:@L> "this" <end:@R> => Expr::Ident {
+        name: "this".to_string(),
+        span: Span::new(start, end),
     },
     <start:@L> <receiver:PresenceOperand> <safe:FieldOp> <name:Ident> <end:@R> => Expr::Field {
         receiver: Box::new(receiver),

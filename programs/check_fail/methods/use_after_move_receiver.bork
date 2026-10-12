@@ -1,0 +1,12 @@
+// diag: use of `p` after move
+class P {
+    x: i32
+    fun get(): i32 {
+        return this.x
+    }
+}
+fun main(): i32 {
+    val p = P(1)
+    val q = move p
+    return p.get()
+}

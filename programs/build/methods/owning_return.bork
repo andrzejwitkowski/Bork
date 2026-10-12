@@ -1,0 +1,20 @@
+// exit: 8
+// stdout: hello\n
+class Point {
+    name: String
+    x: i32
+
+    fun label(): String {
+        return name
+    }
+    fun moved(dx: i32): Point {
+        return Point("p", x + dx)
+    }
+}
+
+fun main(): i32 {
+    val p = Point("hel", 3)
+    println(concat(p.label(), "lo"))
+    val q = p.moved(5)
+    return q.x
+}

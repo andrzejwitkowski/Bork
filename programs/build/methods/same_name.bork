@@ -1,0 +1,23 @@
+// exit: 12
+fun size(): i32 {
+    return 10
+}
+class A {
+    fun size(): i32 {
+        return 1
+    }
+    fun total(): i32 {
+        return size()
+    }
+}
+class B {
+    fun size(): i32 {
+        return 1
+    }
+}
+
+fun main(): i32 {
+    val a = A()
+    val b = B()
+    return a.total() + b.size() + size()
+}

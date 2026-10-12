@@ -5,6 +5,7 @@ use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
 mod closures;
 mod nullable;
 mod managed_ref;
+mod methods;
 mod reference;
 
 /// Typed HIR for a source that must check cleanly.

@@ -57,7 +57,7 @@ fun main() {
 }
 ```
 
-- `class` is the only record declaration: fields in declaration order, no methods and no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
+- `class` is the only record declaration: fields in declaration order, methods, no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
 - Fields use `name: Type` without `val` or `var` modifiers and are mutable. Fields cannot store borrow views (`&T`); their lifetimes are not tracked inside objects. `val` keeps the binding fixed; fields of that class instance can still be assigned.
 - Class values are not Copy and do not have structural `==` or `!=`.
 - `Ref<T>` is a managed handle to a **non-nullable class** declared with `class`. `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
@@ -66,6 +66,35 @@ fun main() {
 - `?.` on a class field requires `Ref<T>`; an ordinary class value or `T?` cannot use it.
 - `when` is exhaustive `Some(name)` / `None`. `?.` yields `T?` for an ordinary field and a flat `Ref<U>` for a `Ref` field. `?:` on a `Ref` keeps the handle; it does not unwrap to `&T`.
 - `[Ref<T>; N]` stores handles. Element assignment and reads use ref glue, not a byte copy of the array. When a String or array is written into a class field, the record owns a copy of its descriptor payload; Ref elements are cloned and registered for drop in that owner arena.
+
+### Methods and `this`
+
+```bork
+class Point {
+    x: i32
+    y: i32
+
+    fun sum(): i32 {
+        return x + y          // this.x + this.y
+    }
+    fun shift(x: i32) {
+        this.x = this.x + x   // parameter shadows the field
+    }
+}
+
+fun main(): i32 {
+    val p = Point(3, 4)
+    p.shift(1)
+    return p.sum()
+}
+```
+
+- A class body mixes fields and `fun` methods in any order. The constructor still takes fields only.
+- `this` is a borrow `&Self` of the receiver. Fields are read and assigned through it; `move this`, `this = …`, and returning `this` as an owned value are errors. `this` outside a method is an error.
+- A bare name resolves to a local or parameter first, then a field or method of the class, then a top-level function or class. Write `this.x` to reach a shadowed field.
+- `recv.m(args)` borrows the receiver implicitly (no `&`). The receiver is a named value, a `&T`, or a field chain such as `this.inner.m()`. `Ref<T>` receivers need `if val` / `when`; nullable receivers and temporaries (`Point(1, 2).sum()`) are errors.
+- No overloading. Methods in different classes may share a name; inside a class, a method shadows a top-level function of the same name.
+- Not supported: static/companion methods, visibility, inheritance, interfaces, extension functions, method references, `?.m()`.
 
 For the complete strong/weak classification rules, arena-ID algorithm, and
 cleanup diagrams, see [references.md](references.md).
