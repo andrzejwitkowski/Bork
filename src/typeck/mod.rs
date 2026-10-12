@@ -17,29 +17,57 @@ use lower::lower_type;
 /// Types used by sema, keyed by declaration names and field assignment spans.
 pub type SpanTypes = HashMap<Span, Ty>;
 
+/// What a bare member name or a method-call callee resolved to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MemberRef {
+    /// Bare `name` inside a method, read or assigned through `this`.
+    Field { class: String, name: String, index: usize, ty: Ty },
+    /// `recv.m(..)` / bare `m(..)` call, or a method declaration name.
+    Method { class: String, name: String, signature: String },
+}
+
+/// Member resolutions keyed by the span of a bare name, a `recv.m` callee, or a method name.
+pub type MemberResolutions = HashMap<Span, MemberRef>;
+
 pub fn check(program: &Program) -> (HirProgram, SpanTypes, Vec<Diagnostic>) {
+    let (hir, span_tys, _, diagnostics) = check_with_members(program);
+    (hir, span_tys, diagnostics)
+}
+
+pub fn check_with_members(
+    program: &Program,
+) -> (HirProgram, SpanTypes, MemberResolutions, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     reject_builtin_redefines(program, &mut diagnostics);
 
-    let classes = build_classes(program, &mut diagnostics);
+    let mut classes = build_classes(program, &mut diagnostics);
     validate_owned_layouts(&classes, &mut diagnostics);
-    let fun_sigs = collect_fun_sigs(program, &classes, &mut diagnostics);
-
+    let mut fun_sigs = collect_fun_sigs(program, &classes, &mut diagnostics);
+    let mut members = MemberResolutions::new();
+    collect_method_sigs(program, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut span_tys = SpanTypes::new();
-    let functions = program
+    let mut functions: Vec<HirFunction> = program
         .functions
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| {
-            check_function(
-                function,
+            check_function(function, None, &fun_sigs, &classes, &mut diagnostics, &mut span_tys, &mut members)
+        })
+        .collect();
+    // Same order as sema roots: top-level functions, then methods class by class.
+    for class in &program.classes {
+        for method in &class.methods {
+            functions.push(check_function(
+                method,
+                Some(&class.name),
                 &fun_sigs,
                 &classes,
                 &mut diagnostics,
                 &mut span_tys,
-            )
-        })
-        .collect();
+                &mut members,
+            ));
+        }
+    }
 
     let hir_classes = program
         .classes
@@ -63,6 +91,7 @@ pub fn check(program: &Program) -> (HirProgram, SpanTypes, Vec<Diagnostic>) {
             functions,
         },
         span_tys,
+        members,
         diagnostics,
     )
 }
@@ -109,6 +138,7 @@ fn build_classes(
             ClassInfo {
                 name: class.name.clone(),
                 fields: Vec::new(),
+                methods: HashMap::new(),
             },
         );
     }
@@ -187,20 +217,101 @@ fn collect_fun_sigs(
     fun_sigs
 }
 
+/// Registers each method as `C.m` with a leading `this: &C` parameter.
+fn collect_method_sigs(
+    program: &Program,
+    classes: &mut ClassTable,
+    fun_sigs: &mut HashMap<String, FunSig>,
+    members: &mut MemberResolutions,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for class in &program.classes {
+        for method in &class.methods {
+            if class.fields.iter().any(|field| field.name.name == method.name) {
+                diagnostics.push(type_error(
+                    format!("class `{}` already has a field named `{}`", class.name, method.name),
+                    Some(method.name_span),
+                ));
+            }
+            let qualified = format!("{}.{}", class.name, method.name);
+            if fun_sigs.contains_key(&qualified) {
+                diagnostics.push(type_error(
+                    format!("duplicate method `{}` in class `{}`", method.name, class.name),
+                    Some(method.name_span),
+                ));
+                continue;
+            }
+            let params: Vec<Ty> = method
+                .params
+                .iter()
+                .map(|param| lower_type(&param.ty, classes, diagnostics))
+                .collect();
+            let return_ty = lower_type(&method.return_type, classes, diagnostics);
+            let shown_params: Vec<String> = method
+                .params
+                .iter()
+                .zip(&params)
+                .map(|(param, ty)| format!("{}: {ty}", param.name.name))
+                .collect();
+            let signature = format!("fun {qualified}({}): {return_ty}", shown_params.join(", "));
+            let this_ty = Ty::new(
+                TyKind::Ref(Box::new(Ty::new(TyKind::Named(class.name.clone()), false))),
+                false,
+            );
+            fun_sigs.insert(
+                qualified,
+                FunSig {
+                    params: std::iter::once(this_ty).chain(params).collect(),
+                    return_ty,
+                },
+            );
+            if let Some(info) = classes.get_mut(&class.name) {
+                info.methods.insert(method.name.clone(), signature.clone());
+            }
+            members.insert(
+                method.name_span,
+                MemberRef::Method {
+                    class: class.name.clone(),
+                    name: method.name.clone(),
+                    signature,
+                },
+            );
+        }
+    }
+}
+
 fn check_function(
     function: &Function,
+    owner: Option<&str>,
     fun_sigs: &HashMap<String, FunSig>,
     classes: &ClassTable,
     diagnostics: &mut Vec<Diagnostic>,
     span_tys: &mut SpanTypes,
+    members: &mut MemberResolutions,
 ) -> HirFunction {
     let mut env = Env::new(fun_sigs, classes);
+    env.self_class = owner.map(str::to_string);
+    let name = match owner {
+        Some(class) => format!("{class}.{}", function.name),
+        None => function.name.clone(),
+    };
     let signature = env
         .fun_sigs
-        .get(&function.name)
+        .get(&name)
         .cloned()
         .expect("signature was collected for every function");
-    let params = bind_params(function, signature.params, &mut env);
+    let mut param_tys = signature.params;
+    let mut params = Vec::new();
+    if owner.is_some() {
+        let this_ty = param_tys.remove(0);
+        env.bind("this".to_string(), crate::ast::BindingKind::Val, this_ty.clone(), true);
+        params.push(HirParam {
+            kind: crate::ast::BindingKind::Val,
+            name: "this".to_string(),
+            ty: this_ty,
+        });
+    }
+    params.extend(bind_params(function, param_tys, &mut env));
     let return_ty = signature.return_ty;
     let body = stmt::check_block(&function.body, &return_ty, &mut env, false);
     if return_ty != Ty::unit() && !stmt::block_always_returns(&body) {
@@ -211,8 +322,9 @@ fn check_function(
     }
     diagnostics.append(&mut env.diagnostics);
     span_tys.extend(env.span_tys);
+    members.extend(env.members);
     HirFunction {
-        name: function.name.clone(),
+        name,
         params,
         return_ty,
         body,

@@ -8,6 +8,10 @@ use super::super::expr;
 pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
     match target {
         AssignTarget::Name { name, name_span } => {
+            if name == "this" {
+                env.error("cannot assign to `this`", Some(*name_span));
+                return HirStmt::Expr(expr::check(value, None, return_ty, env));
+            }
             let bound = assign_binding(env, name, *name_span, false);
             let value = expr::check(value, bound.as_ref(), return_ty, env);
             reject_type_mismatch(

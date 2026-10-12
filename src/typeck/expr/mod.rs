@@ -205,6 +205,22 @@ pub(super) fn check(
 }
 
 pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) -> HirExpr {
+    if name == "this" {
+        if env.self_class.is_none() {
+            env.error("`this` is only available inside a class method", Some(span));
+            return HirExpr::spanned(
+                HirExprKind::Ident {
+                    name: name.to_string(),
+                    use_kind: requested,
+                },
+                Ty::unknown(),
+                span,
+            );
+        }
+        if matches!(requested, UseKind::Move | UseKind::Promote) {
+            env.error("cannot move `this`; it is a borrow", Some(span));
+        }
+    }
     let Some(binding) = env.binding(name) else {
         env.error(format!("unknown binding `{name}`"), Some(span));
         return HirExpr::spanned(

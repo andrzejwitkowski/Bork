@@ -1,0 +1,8 @@
+// diag: class `P` already has a field named `x`
+class P {
+    x: i32
+    fun x(): i32 {
+        return 1
+    }
+}
+fun main() {}

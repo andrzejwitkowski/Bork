@@ -1,0 +1,8 @@
+// diag: cannot assign to `this`
+class P {
+    x: i32
+    fun f(other: &P) {
+        this = other
+    }
+}
+fun main() {}

@@ -5,6 +5,8 @@ use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::Ty;
 use crate::span::Span;
 
+use super::MemberResolutions;
+
 #[derive(Clone)]
 pub(super) struct Binding {
     pub(super) kind: BindingKind,
@@ -30,6 +32,8 @@ pub(super) struct ClassFieldInfo {
 pub(super) struct ClassInfo {
     pub(super) name: String,
     pub(super) fields: Vec<ClassFieldInfo>,
+    /// Method name -> display signature (`fun C.m(a: i32): i32`). Signatures are in `fun_sigs` as `C.m`.
+    pub(super) methods: HashMap<String, String>,
 }
 
 pub(super) type ClassTable = HashMap<String, ClassInfo>;
@@ -42,6 +46,10 @@ pub(super) struct Env<'a> {
     /// Declaration and field assignment types keyed by source span.
     pub(super) span_tys: HashMap<Span, Ty>,
     pub(super) loop_depth: usize,
+    /// Class whose method body is being checked; `None` in top-level functions.
+    pub(super) self_class: Option<String>,
+    /// Member names resolved by typeck, for sema and LSP.
+    pub(super) members: MemberResolutions,
 }
 
 impl<'a> Env<'a> {
@@ -56,6 +64,8 @@ impl<'a> Env<'a> {
             diagnostics: Vec::new(),
             span_tys: HashMap::new(),
             loop_depth: 0,
+            self_class: None,
+            members: MemberResolutions::new(),
         }
     }
 
@@ -81,6 +91,27 @@ impl<'a> Env<'a> {
 
     pub(super) fn binding(&self, name: &str) -> Option<&Binding> {
         self.scopes.iter().rev().find_map(|scope| scope.get(name))
+    }
+
+    /// Field of the enclosing class that a bare `name` refers to. Locals and params shadow fields.
+    pub(super) fn implicit_field(&self, name: &str) -> Option<(String, usize, Ty)> {
+        if self.binding(name).is_some() {
+            return None;
+        }
+        let class = self.classes.get(self.self_class.as_deref()?)?;
+        let index = class.fields.iter().position(|field| field.name == name)?;
+        Some((class.name.clone(), index, class.fields[index].ty.clone()))
+    }
+
+    /// Class of the enclosing method when a bare call `name(..)` is one of its methods.
+    pub(super) fn implicit_method(&self, name: &str) -> Option<String> {
+        if self.binding(name).is_some() {
+            return None;
+        }
+        let class = self.self_class.as_ref()?;
+        self.fun_sigs
+            .contains_key(&format!("{class}.{name}"))
+            .then(|| class.clone())
     }
 
     pub(super) fn fun_sig(&self, name: &str) -> Option<&FunSig> {

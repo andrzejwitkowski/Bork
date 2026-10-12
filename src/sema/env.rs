@@ -85,6 +85,8 @@ pub(super) struct Analyzer {
     pub(super) span_tys: HashMap<Span, crate::hir::Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
+    /// Member resolutions from typeck (bare fields, method calls).
+    pub(super) members: crate::typeck::MemberResolutions,
 }
 
 impl Analyzer {
@@ -98,6 +100,7 @@ impl Analyzer {
             classes: HashMap::new(),
             span_tys: HashMap::new(),
             loop_move_ban: Vec::new(),
+            members: Default::default(),
         }
     }
 

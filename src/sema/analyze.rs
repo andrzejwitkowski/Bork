@@ -4,12 +4,12 @@ use super::env::{Analyzer, Ty};
 use super::region::RegionParam;
 use super::report::{ArenaNode, ArenaReport, SemaError};
 use super::walk::open_ordinary;
-use crate::ast::{Function, Program};
+use crate::ast::{BindingKind, Function, Program, Type};
 
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
-    let (_, span_tys, _) = crate::typeck::check(program);
-    analyze_with_span_tys(program, span_tys)
+    let (_, span_tys, members, _) = crate::typeck::check_with_members(program);
+    analyze_with_members(program, span_tys, members)
 }
 
 /// Same as [`analyze`], but reuses `span_tys` from an earlier `typeck::check` (avoids duplicate work).
@@ -17,8 +17,18 @@ pub fn analyze_with_span_tys(
     program: &Program,
     span_tys: crate::typeck::SpanTypes,
 ) -> (ArenaReport, Vec<SemaError>) {
+    analyze_with_members(program, span_tys, Default::default())
+}
+
+/// Same as [`analyze_with_span_tys`], plus typeck's member resolutions for methods.
+pub fn analyze_with_members(
+    program: &Program,
+    span_tys: crate::typeck::SpanTypes,
+    members: crate::typeck::MemberResolutions,
+) -> (ArenaReport, Vec<SemaError>) {
     let mut az = Analyzer::new();
     az.span_tys = span_tys;
+    az.members = members;
     az.classes = program
         .classes
         .iter()
@@ -35,25 +45,68 @@ pub fn analyze_with_span_tys(
             f.params.iter().map(|p| p.ty.clone()).collect(),
         );
     }
-    let roots = program
+    for class in &program.classes {
+        for method in &class.methods {
+            let qualified = format!("{}.{}", class.name, method.name);
+            az.fun_sigs.insert(
+                qualified.clone(),
+                std::iter::once(BindingKind::Val)
+                    .chain(method.params.iter().map(|p| p.kind))
+                    .collect(),
+            );
+            az.fun_param_tys.insert(
+                qualified,
+                std::iter::once(this_type(&class.name))
+                    .chain(method.params.iter().map(|p| p.ty.clone()))
+                    .collect(),
+            );
+        }
+    }
+    // Same order as typeck's HIR functions: top-level, then methods class by class.
+    let mut roots: Vec<ArenaNode> = program
         .functions
         .iter()
-        .map(|f| analyze_function(&mut az, f))
+        .map(|f| analyze_function(&mut az, f, None))
         .collect();
+    for class in &program.classes {
+        for method in &class.methods {
+            roots.push(analyze_function(&mut az, method, Some(&class.name)));
+        }
+    }
     (ArenaReport { roots }, az.errors)
 }
 
-fn analyze_function(az: &mut Analyzer, func: &Function) -> ArenaNode {
-    let params: Vec<RegionParam> = func
-        .params
-        .iter()
-        .map(|p| RegionParam {
+fn this_type(class: &str) -> Type {
+    Type::Ref {
+        inner: Box::new(Type::Named {
+            name: class.to_string(),
+            nullable: false,
+        }),
+        nullable: false,
+    }
+}
+
+fn analyze_function(az: &mut Analyzer, func: &Function, owner: Option<&str>) -> ArenaNode {
+    let this = owner.map(|class| RegionParam {
+        name: "this".to_string(),
+        ty: Ty::Known(this_type(class)),
+        kind: BindingKind::Val,
+        span: None,
+        borrow_from: super::region::REF_PARAM_BORROW_FROM,
+    });
+    let params: Vec<RegionParam> = this
+        .into_iter()
+        .chain(func.params.iter().map(|p| RegionParam {
             name: p.name.name.clone(),
             ty: Ty::Known(p.ty.clone()),
             kind: p.kind,
             span: Some(p.name.span),
             borrow_from: super::region::REF_PARAM_BORROW_FROM,
-        })
+        }))
         .collect();
-    open_ordinary(az, &format!("fun {}", func.name), &func.body, &params, None)
+    let label = match owner {
+        Some(class) => format!("fun {class}.{}", func.name),
+        None => format!("fun {}", func.name),
+    };
+    open_ordinary(az, &label, &func.body, &params, None)
 }

@@ -1,0 +1,4 @@
+// diag: `this` is only available inside a class method
+fun main(): i32 {
+    return this.x
+}

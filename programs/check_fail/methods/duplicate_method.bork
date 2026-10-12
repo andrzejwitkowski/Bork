@@ -1,0 +1,6 @@
+// diag: duplicate method `f` in class `P`
+class P {
+    fun f() {}
+    fun f() {}
+}
+fun main() {}
