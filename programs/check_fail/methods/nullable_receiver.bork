@@ -1,0 +1,8 @@
+// diag: method call on a nullable receiver
+class P {
+    fun f() {}
+}
+fun g(p: P?) {
+    p.f()
+}
+fun main() {}

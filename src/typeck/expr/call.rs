@@ -45,6 +45,28 @@ pub(super) fn check_call(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
+    if let Expr::Field {
+        receiver,
+        name,
+        safe,
+        span,
+    } = callee
+    {
+        return super::method::check_method_call(
+            receiver, name, *safe, *span, args, trailing, return_ty, env,
+        );
+    }
+    if let Expr::Ident { name, span } = callee {
+        if env.implicit_method(name).is_some() {
+            let this = Expr::Ident {
+                name: "this".to_string(),
+                span: *span,
+            };
+            return super::method::check_method_call(
+                &this, name, false, *span, args, trailing, return_ty, env,
+            );
+        }
+    }
     if let Expr::Ident { name, span } = callee {
         if let Some(class) = env.class(name).cloned() {
             return check_construct(class, *span, args, trailing, return_ty, env);
@@ -75,8 +97,24 @@ pub(super) fn check_call(
         );
     };
 
+    finish_call(name, span, params, call_return_ty, None, args, trailing, return_ty, env)
+}
+
+/// Checks explicit `args` against `params` (after the receiver, if any) and builds the call.
+pub(super) fn finish_call(
+    name: String,
+    span: Span,
+    params: Vec<Ty>,
+    call_return_ty: Ty,
+    receiver: Option<HirExpr>,
+    args: &[Expr],
+    trailing: Option<&Closure>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    let explicit = if receiver.is_some() { &params[1..] } else { &params[..] };
     let (regular_params, trailing_signature) =
-        split_trailing_param(&name, span, &params, trailing, env);
+        split_trailing_param(&name, span, explicit, trailing, env);
 
     let checked_args: Vec<_> = args
         .iter()
@@ -158,6 +196,7 @@ pub(super) fn check_call(
     } else {
         params
     };
+    let checked_args: Vec<HirExpr> = receiver.into_iter().chain(checked_args).collect();
     let callee_ty = Ty::new(
         TyKind::Func {
             params: callee_params,

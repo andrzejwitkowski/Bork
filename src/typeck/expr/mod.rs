@@ -6,6 +6,7 @@ mod borrow;
 mod call;
 mod control;
 mod field;
+mod method;
 mod object;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};

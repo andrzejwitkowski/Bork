@@ -52,3 +52,73 @@ fn duplicate_method_is_error() {
     let diags = diags_of("class P {\n    fun f() {}\n    fun f() {}\n}\nfun main() {}");
     assert!(diags.iter().any(|d| d.message.contains("duplicate method `f` in class `P`")), "{diags:?}");
 }
+
+use crate::ast::UnaryOp;
+use crate::hir::HirExpr;
+
+fn call_in_return(hir: &crate::hir::HirProgram, function: &str) -> HirExpr {
+    let f = hir.functions.iter().find(|f| f.name == function).expect("function");
+    let HirStmt::Return { value: Some(value) } = f.body.stmts.last().unwrap() else {
+        panic!("expected return");
+    };
+    value.clone()
+}
+
+#[test]
+fn receiver_call_lowers_to_qualified_call_with_borrowed_receiver() {
+    let hir = hir_of(
+        "class P {\n    x: i32\n    fun add(k: i32): i32 {\n        return this.x + k\n    }\n}\nfun main(): i32 {\n    val p = P(1)\n    return p.add(2)\n}",
+    );
+    let call = call_in_return(&hir, "main");
+    let HirExprKind::Call { callee, args, .. } = &call.kind else { panic!("call") };
+    assert!(matches!(&callee.kind, HirExprKind::Ident { name, .. } if name == "P.add"));
+    assert_eq!(args.len(), 2);
+    assert!(matches!(&args[0].kind, HirExprKind::Unary { op: UnaryOp::Borrow, .. }));
+    assert!(args[0].ty.is_ref());
+}
+
+#[test]
+fn bare_and_this_calls_resolve_to_method() {
+    let hir = hir_of(
+        "class P {\n    x: i32\n    fun one(): i32 {\n        return 1\n    }\n    fun two(): i32 {\n        return one() + this.one()\n    }\n}\nfun main() {}",
+    );
+    let HirExprKind::Binary { lhs, rhs, .. } = &call_in_return(&hir, "P.two").kind else { panic!("+") };
+    for side in [lhs, rhs] {
+        let HirExprKind::Call { callee, args, .. } = &side.kind else { panic!("call") };
+        assert!(matches!(&callee.kind, HirExprKind::Ident { name, .. } if name == "P.one"));
+        assert_eq!(args.len(), 1, "only the receiver");
+    }
+}
+
+#[test]
+fn method_wins_over_top_level_function_inside_class() {
+    let hir = hir_of(
+        "fun one(): i32 {\n    return 9\n}\nclass P {\n    fun one(): i32 {\n        return 1\n    }\n    fun two(): i32 {\n        return one()\n    }\n}\nfun main(): i32 {\n    return one()\n}",
+    );
+    let HirExprKind::Call { callee, .. } = &call_in_return(&hir, "P.two").kind else { panic!() };
+    assert!(matches!(&callee.kind, HirExprKind::Ident { name, .. } if name == "P.one"));
+    let HirExprKind::Call { callee, .. } = &call_in_return(&hir, "main").kind else { panic!() };
+    assert!(matches!(&callee.kind, HirExprKind::Ident { name, .. } if name == "one"));
+}
+
+#[test]
+fn borrowed_and_field_chain_receivers_are_accepted() {
+    hir_of(
+        "class In {\n    n: i32\n    fun get(): i32 {\n        return this.n\n    }\n}\nclass Out {\n    inner: In\n    fun deep(): i32 {\n        return this.inner.get()\n    }\n}\nfun via(o: &Out): i32 {\n    return o.inner.get() + o.deep()\n}\nfun main(): i32 {\n    val o = Out(In(1))\n    return via(&o) + o.inner.get()\n}",
+    );
+}
+
+#[test]
+fn method_call_receiver_errors() {
+    let cases = [
+        ("class P {\n    fun f() {}\n}\nfun main() {\n    val r: Ref<P> = None\n    r.f()\n}", "method call on managed Ref requires `if val` or `when`"),
+        ("class P {\n    fun f() {}\n}\nfun g(p: P?) {\n    p.f()\n}\nfun main() {}", "method call on a nullable receiver"),
+        ("class P {\n    fun f() {}\n}\nfun main() {\n    P().f()\n}", "method receiver must be a named value; bind it to a `val` first"),
+        ("class P {\n    fun f() {}\n}\nfun main() {\n    val p = P()\n    p.g()\n}", "class `P` has no method `g`"),
+        ("class P {\n    fun f(a: i32) {}\n}\nfun main() {\n    val p = P()\n    p.f()\n}", "function `P.f` expects 1 arguments, got 0"),
+    ];
+    for (src, expected) in cases {
+        let diags = diags_of(src);
+        assert!(diags.iter().any(|d| d.message.contains(expected)), "{expected}: {diags:?}");
+    }
+}

@@ -1,0 +1,8 @@
+// diag: method call on managed Ref requires `if val` or `when`
+class P {
+    fun f() {}
+}
+fun main() {
+    val r: Ref<P> = None
+    r.f()
+}

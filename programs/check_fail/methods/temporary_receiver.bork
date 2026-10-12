@@ -1,0 +1,10 @@
+// diag: method receiver must be a named value
+class P {
+    x: i32
+    fun f(): i32 {
+        return this.x
+    }
+}
+fun main(): i32 {
+    return P(1).f()
+}
