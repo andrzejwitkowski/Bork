@@ -104,6 +104,11 @@ impl Analyzer {
         }
     }
 
+    /// Typeck resolved the name at `span` to a field of the enclosing class (read through `this`).
+    pub(super) fn is_bare_field(&self, span: &Span) -> bool {
+        matches!(self.members.get(span), Some(crate::typeck::MemberRef::Field { .. }))
+    }
+
     pub(super) fn alloc_id(&mut self) -> usize {
         let id = self.next_id;
         self.next_id += 1;

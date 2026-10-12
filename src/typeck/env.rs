@@ -103,9 +103,9 @@ impl<'a> Env<'a> {
         Some((class.name.clone(), index, class.fields[index].ty.clone()))
     }
 
-    /// Bare field in a position that needs a binding (`move x`, `&x`, `x[i] = v`, capture list):
-    /// records the member and reports `message`. Returns the field type, or None if `name` is no field.
-    pub(super) fn reject_bare_field(&mut self, name: &str, span: Span, message: &str) -> Option<Ty> {
+    /// Records a bare `name` at `span` as a field read through `this`. Returns its type, or None
+    /// if `name` is not a field of the enclosing class.
+    pub(super) fn resolve_bare_field(&mut self, name: &str, span: Span) -> Option<Ty> {
         let (class, index, ty) = self.implicit_field(name)?;
         self.members.insert(
             span,
@@ -116,6 +116,13 @@ impl<'a> Env<'a> {
                 ty: ty.clone(),
             },
         );
+        Some(ty)
+    }
+
+    /// Bare field in a position that needs a binding (`move x`, `&x`, `x[i] = v`, capture list):
+    /// records the member and reports `message`. Returns the field type, or None if `name` is no field.
+    pub(super) fn reject_bare_field(&mut self, name: &str, span: Span, message: &str) -> Option<Ty> {
+        let ty = self.resolve_bare_field(name, span)?;
         self.error(message, Some(span));
         Some(ty)
     }
