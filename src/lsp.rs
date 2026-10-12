@@ -154,6 +154,7 @@ fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic
 pub struct Analysis {
     report: Option<ArenaReport>,
     diagnostics: Vec<LspDiagnostic>,
+    members: crate::typeck::MemberResolutions,
 }
 
 impl Analysis {
@@ -181,6 +182,7 @@ pub fn analyze_source(source: &str) -> Analysis {
     Analysis {
         report: result.report,
         diagnostics,
+        members: result.members,
     }
 }
 
@@ -262,9 +264,84 @@ pub fn hover_for_source(source: &str, position: Position) -> Option<String> {
     hover_for_analysis(analyze_source(source).report()?, source, position)
 }
 
+/// Hover for a binding (via the arena report) or, failing that, a class member.
+pub fn hover(analysis: &Analysis, source: &str, position: Position) -> Option<String> {
+    analysis
+        .report()
+        .and_then(|report| hover_for_analysis(report, source, position))
+        .or_else(|| member_hover(&analysis.members, source, position))
+}
+
+fn member_hover(
+    members: &crate::typeck::MemberResolutions,
+    source: &str,
+    position: Position,
+) -> Option<String> {
+    use crate::typeck::MemberRef;
+    let map = SourceMap::new(source);
+    let word = map.word_at(position)?;
+    let offset = map.position_to_offset(position)?;
+    members
+        .iter()
+        .filter(|(span, member)| {
+            span_contains(**span, offset)
+                && match member {
+                    MemberRef::Field { name, .. } | MemberRef::Method { name, .. } => *name == word,
+                }
+        })
+        .min_by_key(|(span, _)| span.end - span.start)
+        .map(|(_, member)| match member {
+            MemberRef::Field { class, name, ty, .. } => {
+                format!("field `{name}` of `{class}` (via `this`)\nType: `{ty}`")
+            }
+            MemberRef::Method { signature, .. } => format!("`{signature}`"),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const METHOD_SRC: &str = "class Point {\n    x: i32\n    fun sum(k: i32): i32 {\n        return this.x + x + k\n    }\n}\nfun main(): i32 {\n    val p = Point(1)\n    return p.sum(2)\n}\n";
+
+    fn hover_at(source: &str, needle: &str, nth: usize) -> String {
+        let offset = source.match_indices(needle).nth(nth).expect("needle").0;
+        let analysis = analyze_source(source);
+        hover(&analysis, source, byte_offset_to_position(source, offset)).expect("hover")
+    }
+
+    #[test]
+    fn hover_on_this_shows_borrow_of_class() {
+        let h = hover_at(METHOD_SRC, "this", 0);
+        assert!(h.contains("fun Point.sum"), "{h}");
+        assert!(h.contains("&Point"), "{h}");
+    }
+
+    #[test]
+    fn hover_on_bare_field_shows_field_via_this() {
+        let h = hover_at(METHOD_SRC, "x + k", 0);
+        assert!(h.contains("field `x` of `Point`"), "{h}");
+        assert!(h.contains("i32"), "{h}");
+    }
+
+    #[test]
+    fn hover_on_method_call_and_declaration_shows_signature() {
+        for nth in [0, 1] {
+            let h = hover_at(METHOD_SRC, "sum", nth);
+            assert!(h.contains("fun Point.sum(k: i32): i32"), "{h}");
+        }
+    }
+
+    #[test]
+    fn move_this_diagnostic_has_range() {
+        let source = "class P {\n    x: i32\n    fun f() {\n        val q = move this\n    }\n}\nfun main() {}\n";
+        let diagnostics = diagnostics_for_source(source);
+        let d = diagnostics
+            .iter()
+            .find(|d| d.message.contains("cannot move `this`"))
+            .expect("diagnostic");
+        assert_eq!(d.range.start.line, 3);
+    }
 
     #[test]
     fn ascii_offset_maps_to_line_and_character() {
