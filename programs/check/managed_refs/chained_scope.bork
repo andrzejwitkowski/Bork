@@ -1,0 +1,5 @@
+class Node { next: Ref<Node> }
+fun use(a: Ref<Node>) {
+    if val (a = a, b = a.next,) { b.next } else { a }
+    a
+}

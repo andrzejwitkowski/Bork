@@ -1,6 +1,10 @@
-use crate::ast::{BindingKind, Block, Expr, Stmt};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirStmt, Ty, TyKind};
-use crate::span::SpannedName;
+use std::collections::HashSet;
+
+use crate::ast::{BindingKind, Block, ConditionalBinding, ConditionalBindings, Expr, Stmt};
+use crate::hir::{
+    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind, HirStmt, Ty,
+    TyKind,
+};
 
 use super::super::env::Env;
 use super::super::stmt;
@@ -57,36 +61,22 @@ pub(super) fn check_if(
 }
 
 pub(super) fn check_presence(
-    value: &Expr,
-    binding: &SpannedName,
+    bindings: &ConditionalBindings,
     some_block: &Block,
     none_block: Option<&Block>,
     expected: Option<&Ty>,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
-    let value = check(value, None, return_ty, env);
-    let binding_ty = match value.ty.managed_ref_inner() {
-        Some(target) => Ty::new(TyKind::Ref(Box::new(target.clone())), false),
-        None => {
-            if !value.ty.is_unknown() {
-                env.error(
-                    format!("presence matching requires Ref<T>, got {}", value.ty),
-                    value.span.or(Some(binding.span)),
-                );
-            }
-            Ty::unknown()
-        }
-    };
-    env.decl_tys.insert(binding.span, binding_ty.clone());
-
     env.enter_scope();
-    env.bind(
-        binding.name.clone(),
-        BindingKind::Val,
-        binding_ty.clone(),
-        true,
-    );
+    let mut names = HashSet::new();
+    let head = check_conditional_binding(&bindings.head, &mut names, return_ty, env);
+    let tail = bindings
+        .tail
+        .iter()
+        .map(|binding| check_conditional_binding(binding, &mut names, return_ty, env))
+        .collect();
+    let binding_span = head.name.span;
     let (some_block, some_ty) =
         check_value_block_in_current_scope(some_block, expected, return_ty, env);
     env.exit_scope();
@@ -98,7 +88,7 @@ pub(super) fn check_presence(
             if !none_ty.is_unknown() && !some_ty.is_unknown() {
                 env.error(
                     format!("None branch has type {none_ty}, expected {some_ty}"),
-                    Some(binding.span),
+                    Some(binding_span),
                 );
             }
             some_ty
@@ -107,7 +97,7 @@ pub(super) fn check_presence(
         (None, Some(_)) => {
             env.error(
                 "value-producing `if val` requires an else branch",
-                Some(binding.span),
+                Some(binding_span),
             );
             some_ty
         }
@@ -116,15 +106,55 @@ pub(super) fn check_presence(
 
     HirExpr::spanned(
         HirExprKind::PresenceMatch {
-            value: Box::new(value),
-            binding: binding.name.clone(),
-            binding_ty,
+            bindings: HirConditionalBindings {
+                head: Box::new(head),
+                tail,
+            },
             some_block,
             none_block: none_block.map(|(block, _)| block),
         },
         result_ty,
-        binding.span,
+        binding_span,
     )
+}
+
+fn check_conditional_binding(
+    binding: &ConditionalBinding,
+    names: &mut HashSet<String>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirConditionalBinding {
+    if !names.insert(binding.name.name.clone()) {
+        env.error(
+            format!("duplicate conditional binding '{}'", binding.name.name),
+            Some(binding.name.span),
+        );
+    }
+    let value = check(&binding.value, None, return_ty, env);
+    let binding_ty = match value.ty.managed_ref_inner() {
+        Some(target) => Ty::new(TyKind::Ref(Box::new(target.clone())), false),
+        None => {
+            if !value.ty.is_unknown() {
+                env.error(
+                    format!("presence matching requires Ref<T>, got {}", value.ty),
+                    Some(binding.value_span),
+                );
+            }
+            Ty::unknown()
+        }
+    };
+    env.span_tys.insert(binding.name.span, binding_ty.clone());
+    env.bind(
+        binding.name.name.clone(),
+        BindingKind::Val,
+        binding_ty.clone(),
+        true,
+    );
+    HirConditionalBinding {
+        name: binding.name.clone(),
+        value,
+        binding_ty,
+    }
 }
 
 fn check_value_block(

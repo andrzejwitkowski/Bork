@@ -437,6 +437,30 @@ mod tests {
     }
 
     #[test]
+    fn chained_presence_observes_each_source_and_cleans_partial_failure() {
+        let ir = ir_of("class Node { next: Ref<Node> }\nfun main() {\n val r: Ref<Node> = Node()\n if val (a = r, b = a.next, c = b.next) { c.next } else { r }\n}");
+        assert_eq!(
+            ir.matches("call void @bork_ref_observe_out(").count(),
+            3,
+            "{ir}"
+        );
+        assert_eq!(
+            ir.matches("call void @bork_arena_register_observation_drop(")
+                .count(),
+            3,
+            "{ir}"
+        );
+        let cleanup = ir
+            .split("ref.failure.cleanup:")
+            .nth(1)
+            .expect("partial failure cleanup");
+        let cleanup = cleanup.split("\n\n").next().unwrap();
+        assert!(cleanup.contains("call void @bork_arena_pop("), "{cleanup}");
+        assert!(cleanup.contains("br label %ref.none"), "{cleanup}");
+        assert_presence_drops_temporary_after_observe(&ir);
+    }
+
+    #[test]
     fn if_val_observes_once_and_loads_the_live_field() {
         let ir = ir_of(
             "class Box { value: i32 }\n\

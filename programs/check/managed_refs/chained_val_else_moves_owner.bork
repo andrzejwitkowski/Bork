@@ -1,0 +1,14 @@
+class Node {
+    next: Ref<Node>
+}
+fun take(var n: Node): Ref<Node> {
+    return n.next
+}
+fun run(r: Ref<Node>) {
+    var owner = Node()
+    if val a = r {
+        take(move owner)
+    } else {
+        move { owner.next }
+    }
+}

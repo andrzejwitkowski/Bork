@@ -1,0 +1,14 @@
+// exit: 2
+fun run(flag: bool): i32 {
+    var s: String = "hi"
+    if (flag) {
+        move (s) { return 1 }
+    } else {
+        move (s) { return 2 }
+    }
+    return 3
+}
+
+fun main(): i32 {
+    return run(false)
+}

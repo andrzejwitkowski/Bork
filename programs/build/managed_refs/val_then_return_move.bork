@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: kept\n
+class Node {
+    name: String
+    next: Ref<Node>
+}
+fun run(r: Ref<Node>): i32 {
+    var s: String = "kept"
+    if val a = r {
+        move (s) {
+            println(a.name)
+            return 9
+        }
+    }
+    println(s)
+    return 0
+}
+
+fun main(): i32 {
+    val dead: Ref<Node> = None
+    return run(dead)
+}

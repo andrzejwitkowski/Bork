@@ -9,6 +9,26 @@ pub use ty::{Prim, Ty, TyKind};
 use crate::ast;
 use crate::span::Span;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirConditionalBinding {
+    pub name: crate::span::SpannedName,
+    pub value: HirExpr,
+    pub binding_ty: Ty,
+}
+
+/// Non-empty presence header. See [`ast::ConditionalBindings`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirConditionalBindings {
+    pub head: Box<HirConditionalBinding>,
+    pub tail: Vec<HirConditionalBinding>,
+}
+
+impl HirConditionalBindings {
+    pub fn iter(&self) -> impl Iterator<Item = &HirConditionalBinding> {
+        std::iter::once(self.head.as_ref()).chain(&self.tail)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UseKind {
     Local,
@@ -211,9 +231,7 @@ pub enum HirExprKind {
         safe: bool,
     },
     PresenceMatch {
-        value: Box<HirExpr>,
-        binding: String,
-        binding_ty: Ty,
+        bindings: HirConditionalBindings,
         some_block: HirBlock,
         none_block: Option<HirBlock>,
     },

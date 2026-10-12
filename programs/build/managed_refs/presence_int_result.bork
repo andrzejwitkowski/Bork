@@ -1,0 +1,16 @@
+// exit: 20
+class Node {
+    id: i32
+    next: Ref<Node>
+}
+fun pick(r: Ref<Node>): i32 {
+    val code: i32 = if val (a = r, b = a.next) { b.id } else { 0 }
+    return code
+}
+
+fun main(): i32 {
+    val tail: Ref<Node> = Node(2, None)
+    val head: Ref<Node> = Node(1, tail)
+    val alone: Ref<Node> = Node(7, None)
+    return pick(head) * 10 + pick(alone)
+}

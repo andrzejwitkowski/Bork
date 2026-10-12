@@ -1,0 +1,13 @@
+// exit: 7
+fun run(flag: bool): i32 {
+    val s: String = "hi"
+    if (flag) {
+        move (s) { return 7 }
+    }
+    println(s)
+    return 1
+}
+
+fun main(): i32 {
+    return run(true)
+}

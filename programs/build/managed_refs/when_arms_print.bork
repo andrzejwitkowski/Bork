@@ -1,0 +1,18 @@
+// stdout: live\nnone\n
+class Node {
+    name: String
+    next: Ref<Node>
+}
+fun label(r: Ref<Node>) {
+    when r {
+        Some(n) => { println(n.name) }
+        None => { println("none") }
+    }
+}
+
+fun main() {
+    val live: Ref<Node> = Node("live")
+    val dead: Ref<Node> = None
+    label(live)
+    label(dead)
+}

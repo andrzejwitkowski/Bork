@@ -275,26 +275,11 @@ impl RegionVisitor for Planner {
         Ok(())
     }
 
-    fn presence_match<C: ArenaCursor>(
+    fn bind_presence_guard(
         &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        value: &HirExpr,
-        binding: &str,
-        _binding_ty: &Ty,
-        some_block: &HirBlock,
-        none_block: Option<&HirBlock>,
-        _result_ty: &Ty,
+        binding: &crate::hir::HirConditionalBinding,
     ) -> Result<(), WalkError> {
-        driver.walk_expr(self, value)?;
-        let origins = self.origins(value);
-        region_walk::region_enter(driver, self, RegionSite::PresenceSome, some_block)?;
-        self.bind(binding, origins);
-        let (body, _) = crate::hir::peel_blocks(some_block);
-        driver.walk_block(self, body, None)?;
-        region_walk::region_exit(driver, self, RegionSite::PresenceSome)?;
-        if let Some(block) = none_block {
-            driver.walk_region(self, RegionSite::PresenceNone, block)?;
-        }
+        self.bind(&binding.name.name, self.origins(&binding.value));
         Ok(())
     }
 
@@ -490,6 +475,16 @@ mod tests {
         );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         plan
+    }
+
+    #[test]
+    fn chained_header_propagates_origins_through_dependent_fields() {
+        let plan = plan_of("class Node { next: Ref<Node> }\nfun main() {\n val parent = Node()\n val child = Node()\n parent.next = child\n val r: Ref<Node> = parent\n if val (a = r, b = a.next) { b.next = r }\n}");
+        assert_eq!(plan.allocations.len(), 2);
+        assert!(plan
+            .allocations
+            .iter()
+            .all(|a| a.class == ArenaClass::Dynamic));
     }
 
     #[test]

@@ -246,17 +246,23 @@ funkcji ani zapisywane w miejscu o programowym lifetime.
 
 ## 6. `if val live = reference`
 
-`PresenceMatch` ma specjalną obsługę w `Planner`:
+`PresenceMatch` ma kanoniczną sekwencję w `region_walk` (`presence_match`). `Planner` nadpisuje
+tylko hook `bind_presence_guard`, który wiąże nazwę do originów jej źródła:
 
 ~~~rust
-driver.walk_expr(self, value)?;
-let origins = self.origins(value);
-
+driver.walk_expr(self, &bindings.head.value)?;
 region_walk::region_enter(...);
-self.bind(binding, origins);
+self.bind_presence_guard(&bindings.head)?;
+for binding in &bindings.tail {
+    driver.walk_expr(self, &binding.value)?;
+    self.bind_presence_guard(binding)?;
+}
 driver.walk_block(...);
 region_walk::region_exit(...);
 ~~~
+
+Codegen nadpisuje całe `presence_match`, bo po każdym źródle `tail` potrzebuje gałęzi do bloku
+cleanup, zanim nazwa zostanie związana.
 
 Kolejność jest taka:
 
@@ -313,7 +319,8 @@ odpowiedni `ArenaPlan` i wybiera:
 | `enter_region` | zakłada scope dla bloku/gałęzi/pętli |
 | `exit_region` | zamyka scope regionu |
 | `on_stmt` | śledzi deklaracje, przypisania i `return` |
-| `presence_match` | wiąże nazwę obecnego `Ref` z originami w gałęzi `Some` |
+| `presence_match` | kanoniczna sekwencja `if val` / `when`; woła `bind_presence_guard` |
+| `bind_presence_guard` | wiąże nazwę obecnego `Ref` z originami w gałęzi `Some` |
 | `after_expr` | wylicza originy wyrażenia po poznaniu jego dzieci |
 | `skip_closure` | pomija ciało closure w tym przejściu |
 | `loop_latch` | w tym plannerze nie wykonuje dodatkowej pracy |

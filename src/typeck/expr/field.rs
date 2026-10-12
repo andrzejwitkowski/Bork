@@ -95,7 +95,9 @@ pub(super) fn check_field(
         );
     };
 
-    let result_ty = if through_managed_ref && safe && !field.ty.is_managed_ref() {
+    let result_ty = if receiver.ty.is_ref() && field.ty.record_name().is_some() {
+        Ty::new(crate::hir::TyKind::Ref(Box::new(field.ty.clone())), false)
+    } else if through_managed_ref && safe && !field.ty.is_managed_ref() {
         if field.ty.supports_nullable() {
             field.ty.with_nullable(true)
         } else {

@@ -440,3 +440,18 @@ Lexical arenas still bulk-free on scope exit. A `Ref<T>` that must outlive that 
 | `promote` on `return` | Would need a return transfer sink in sema + codegen. |
 | Hoist beyond linear siblings | Use-def / definite escape for more patterns; else `promote`. |
 | `memcpy` elision | When hoist or sink already placed bytes in the target arena. |
+
+### Chained presence guards
+
+`if val (a = reference, b = a.next, ...)` uses one `IfValSome` region for
+all successful observations and the body. The first RHS is evaluated in the
+surrounding region; subsequent RHS expressions are evaluated in the success
+region. Each stage uses the existing runtime observe operation, pins the target
+before dropping its temporary Ref handle, and registers cleanup only on success.
+Failure of a later stage pops the shared region before entering `else`; failure
+of the first stage has no success region to pop. Normal completion and early
+`return`, `break`, or `continue` release every active observation through the
+existing unwind path. Owned results are materialized into the outer sink before
+cleanup. Target arenas remain separate; a longer header adds observation slots,
+not success arenas or object copies. Conditional moves of outer owners are
+checked conservatively across executed prefixes.

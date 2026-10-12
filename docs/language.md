@@ -2,7 +2,7 @@
 
 Bork is a small language with curly-brace regions, no garbage collector, and arena memory. A program is a list of functions and classes. Statements are separated by newlines, not semicolons. `//` comments run to the end of the line.
 
-This page is the surface language as the frontend accepts it today. The chapter **Where string bytes are allocated** explains sink allocation, hoist, `promote`, and escape checking. Lower-level arena layout and codegen schedules are in [memory-model.md](memory-model.md). The last section lists what native codegen still rejects.
+This page is the surface language as the frontend accepts it today. The chapter **Where string bytes are allocated** explains sink allocation, hoist, `promote`, and escape checking. Lower-level arena layout and codegen schedules are in [memory-model.md](memory-model.md). The last section lists what native codegen still rejects. For a step-by-step trip of one class-and-function program through every compiler phase (in Polish), see [walkthrough-classes-functions.md](walkthrough-classes-functions.md).
 
 ## Program
 
@@ -58,7 +58,7 @@ fun main() {
 ```
 
 - `class` is the only record declaration: fields in declaration order, no methods and no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
-- Fields use `name: Type` without `val` or `var` modifiers and are mutable. `val` keeps the binding fixed; fields of that class instance can still be assigned.
+- Fields use `name: Type` without `val` or `var` modifiers and are mutable. Fields cannot store borrow views (`&T`); their lifetimes are not tracked inside objects. `val` keeps the binding fixed; fields of that class instance can still be assigned.
 - Class values are not Copy and do not have structural `==` or `!=`.
 - `Ref<T>` is a managed handle to a **non-nullable class** declared with `class`. `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
 - `Ref<T>` copies without `move`. After `move`, the source reads as moved.
@@ -117,6 +117,31 @@ val t = if (n > 0) { n } else { 0 }
 val label: String = name ?: "Guest"
 val text: String = maybe!!
 ```
+
+`if val` observes managed references from left to right. The original single binding
+form remains valid; parentheses allow a nonempty comma-separated list, with an
+optional trailing comma and multiline layout:
+
+```bork
+if val (
+    manager = cache_ref,
+    root = manager.root,
+) {
+    println(root.id)
+} else {
+    println(0)
+}
+```
+
+Each RHS must have type `Ref<T>`; its binding has type `&T`. Later RHS expressions
+can use earlier bindings. Each RHS runs once, and failure skips the remaining
+RHS expressions and body, then runs `else` once if present. Effects already
+performed are retained. Pins acquired by a successful prefix are released before
+`else`. All bindings and the body share one success scope. A binding may shadow an
+outer name (its RHS still sees the outer name); duplicate header names are errors.
+`else` and code after the guard see the outer scope. Guard borrows cannot escape.
+This does not unwrap nullable `T?` values. A value-producing guard requires `else`
+and follows the existing branch type rules.
 
 Precedence, tightest last: calls and suffixes, `*` `/`, `+` `-`, comparisons, `..`, `?:`.
 

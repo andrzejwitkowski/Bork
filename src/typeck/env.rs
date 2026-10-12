@@ -39,8 +39,8 @@ pub(super) struct Env<'a> {
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
     pub(super) classes: &'a ClassTable,
     pub(super) diagnostics: Vec<Diagnostic>,
-    /// Types of declarations keyed by their source name span.
-    pub(super) decl_tys: HashMap<Span, Ty>,
+    /// Declaration and field assignment types keyed by source span.
+    pub(super) span_tys: HashMap<Span, Ty>,
     pub(super) loop_depth: usize,
 }
 
@@ -54,7 +54,7 @@ impl<'a> Env<'a> {
             fun_sigs,
             classes,
             diagnostics: Vec::new(),
-            decl_tys: HashMap::new(),
+            span_tys: HashMap::new(),
             loop_depth: 0,
         }
     }

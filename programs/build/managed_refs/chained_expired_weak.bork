@@ -1,0 +1,21 @@
+// exit: 0
+// child survives through saved; child.parent is a weak back-edge to parent.
+class Node {
+    id: i32
+    parent: Ref<Node>
+}
+
+fun main(): i32 {
+    var saved: Ref<Node> = None
+
+    {
+        val parent = Node(1, None)
+        val child = Node(2, parent)
+        saved = child
+    }
+
+    if val (live_child = saved, live_parent = live_child.parent) {
+        return live_parent.id
+    }
+    return 0
+}
