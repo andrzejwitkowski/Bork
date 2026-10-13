@@ -786,6 +786,36 @@ mod tests {
     }
 
     #[test]
+    fn string_from_utf8_validates_before_allocating_only_on_copy_path() {
+        let ir = ir_of(
+            "fun decode(bytes: &[u8; 3]) {\n\
+                 val result = stringFromUtf8(&bytes, 0, 3)\n\
+             }\n\
+             fun main() {}\n",
+        );
+        let bounds = ir.find("utf8.bad").expect("range checks");
+        let validation = ir
+            .find("call i8 @bork_utf8_valid")
+            .expect("UTF-8 validation");
+        let allocation = ir
+            .find("call ptr @bork_arena_alloc(")
+            .expect("copy allocation");
+        assert!(bounds < validation && validation < allocation, "{ir}");
+        assert_eq!(
+            ir.matches("call ptr @bork_arena_alloc(").count(),
+            1,
+            "invalid UTF-8 must not allocate:\n{ir}"
+        );
+        let copy = block(&ir, "utf8.copy");
+        assert!(copy.contains("call ptr @bork_arena_alloc("), "{copy}");
+        assert!(copy.contains("llvm.memcpy"), "{copy}");
+        assert!(
+            !block(&ir, "utf8.done").contains("@bork_arena_alloc"),
+            "{ir}"
+        );
+    }
+
+    #[test]
     fn safe_navigation_observes_and_releases_before_the_value_is_used() {
         let ir = ir_of(
             "class Box { value: i32 }\n\

@@ -32,6 +32,10 @@ pub(crate) fn is_string_alloc(name: &str) -> bool {
     matches!(resolve(name), Some(Builtin::Concat | Builtin::StringFromUtf8))
 }
 
+pub(crate) fn is_borrowed_arg(name: &str, index: usize) -> bool {
+    index == 0 && resolve(name) == Some(Builtin::StringFromUtf8)
+}
+
 pub(crate) fn is_intrinsic(name: &str) -> bool {
     resolve(name).is_some()
 }

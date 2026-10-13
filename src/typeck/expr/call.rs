@@ -74,7 +74,7 @@ pub(super) fn check_call(
     }
     if let Expr::Ident { name, span } = callee {
         if crate::builtins::resolve(name) == Some(crate::builtins::Builtin::StringFromUtf8) {
-            return check_string_from_utf8(name, args, *span, return_ty, env);
+            return check_string_from_utf8(name, args, *span, trailing, return_ty, env);
         }
     }
     let Some((name, span, params, call_return_ty)) = callee_signature(callee, env) else {
@@ -310,9 +310,16 @@ fn check_string_from_utf8(
     name: &str,
     args: &[Expr],
     span: Span,
+    trailing: Option<&Closure>,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
+    if trailing.is_some() {
+        env.error(
+            format!("`{name}` does not accept trailing closures"),
+            Some(span),
+        );
+    }
     let checked: Vec<HirExpr> = args
         .iter()
         .enumerate()
@@ -356,7 +363,7 @@ fn check_string_from_utf8(
                 span,
             )),
             args: checked,
-            has_trailing_closure: false,
+            has_trailing_closure: trailing.is_some(),
         },
         Ty::string(true),
     )

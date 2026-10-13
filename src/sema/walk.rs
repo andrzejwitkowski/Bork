@@ -432,14 +432,22 @@ fn walk(
                 }
             };
             for (i, a) in args.iter().enumerate() {
-                let arg_record_borrow = param_tys
+                let builtin_borrow = matches!(callee.as_ref(), Expr::Ident { name, .. }
+                    if crate::builtins::is_borrowed_arg(name, i));
+                let arg_record_borrow = builtin_borrow
+                    || param_tys
                     .as_ref()
                     .and_then(|params| params.get(i))
                     .is_some_and(|ty| ty.is_reference());
                 let arg_transfer = formals
                     .as_ref()
                     .and_then(|f| f.get(i).copied())
-                    .map(|formal| TransferSink::CallArg { formal });
+                    .map(|formal| TransferSink::CallArg { formal })
+                    .or_else(|| {
+                        builtin_borrow.then_some(TransferSink::CallArg {
+                            formal: BindingKind::Val,
+                        })
+                    });
                 let expected = param_tys.as_ref().and_then(|params| params.get(i));
                 walk_typed(
                     az,

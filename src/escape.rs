@@ -230,16 +230,23 @@ impl<'h> Escape<'h, '_> {
             );
             return;
         }
-        if let HirExprKind::If {
-            then_block,
-            else_block,
-            ..
-        } = &expr.kind
-        {
-            self.check_return_string_in_block(then_block);
-            if let Some(else_block) = else_block {
-                self.check_return_string_in_block(else_block);
+        match &expr.kind {
+            HirExprKind::If {
+                then_block,
+                else_block,
+                ..
             }
+            | HirExprKind::PresenceMatch {
+                some_block: then_block,
+                none_block: else_block,
+                ..
+            } => {
+                self.check_return_string_in_block(then_block);
+                if let Some(else_block) = else_block {
+                    self.check_return_string_in_block(else_block);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -251,7 +258,7 @@ impl<'h> Escape<'h, '_> {
     }
 
     /// A value whose bytes are allocated by an allocating builtin, possibly wrapped in
-    /// `Some`, `!!`, `?:` or an `if` whose branch ends in one.
+    /// `Some`, `!!`, `?:`, `if`, or `when` whose branch ends in one.
     fn is_fresh_string(expr: &HirExpr) -> bool {
         match &expr.kind {
             HirExprKind::Call { callee, .. } => matches!(
@@ -266,6 +273,14 @@ impl<'h> Escape<'h, '_> {
             HirExprKind::If { then_block, else_block, .. } => {
                 Self::block_ends_fresh(then_block)
                     || else_block.as_ref().is_some_and(Self::block_ends_fresh)
+            }
+            HirExprKind::PresenceMatch {
+                some_block,
+                none_block,
+                ..
+            } => {
+                Self::block_ends_fresh(some_block)
+                    || none_block.as_ref().is_some_and(Self::block_ends_fresh)
             }
             _ => false,
         }
@@ -550,6 +565,23 @@ mod tests {
             }),
             "{:?}",
             result.diagnostics
+        );
+    }
+
+    #[test]
+    fn rejects_return_when_branch_yielding_string_from_utf8() {
+        assert_rejects(
+            "class Box { value: i32 }\n\
+             fun make(): String {\n\
+                 val bytes: [u8; 1] = [65]\n\
+                 val reference: Ref<Box> = Box(1)\n\
+                 return when reference {\n\
+                     Some(value) => { stringFromUtf8(&bytes, 0, 1) ?: \"x\" }\n\
+                     None => { \"x\" }\n\
+                 }\n\
+             }\n\
+             fun main() {}\n",
+            "stringFromUtf8",
         );
     }
 
