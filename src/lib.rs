@@ -1,6 +1,7 @@
 mod region_walk;
 pub mod arena;
 pub mod ast;
+pub mod constants;
 mod builtins;
 mod codegen_gate;
 #[cfg(feature = "codegen")]

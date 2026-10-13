@@ -1,0 +1,19 @@
+// exit: 12
+const STEP: i32 = 5
+
+class Counter {
+    n: i32
+
+    fun bump(): i32 {
+        return n + STEP
+    }
+}
+
+fun shadow(STEP: i32): i32 {
+    return STEP
+}
+
+fun main(): i32 {
+    val c = Counter(2)
+    return c.bump() + shadow(0) + STEP - 0
+}

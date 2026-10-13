@@ -1,5 +1,5 @@
 use crate::ast::{
-    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ClassField, ClassMember, Closure,
+    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, ClassField, ClassMember, Closure,
     ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type,
     UnaryOp,
 };
@@ -16,6 +16,7 @@ match {
     r"([ \t\r\f]*(//[^\n\r]*)?\n)+" => "NL",
     "if" => "if",
     "class" => "class",
+    "const" => "const",
     "this" => "this",
     "when" => "when",
     "fun" => "fun",
@@ -67,8 +68,18 @@ ItemList: Vec<Item> = {
 };
 
 Item: Item = {
+    <constant:ConstDecl> => Item::Const(constant),
     <class:ClassDecl> => Item::Class(class),
     <f:Function> => Item::Fun(f),
+};
+
+ConstDecl: ConstDecl = {
+    "const" <name:SpannedIdent> ":" <ty:Type> "=" <start:@L> <value:Expr> <end:@R> => ConstDecl {
+        name,
+        ty,
+        value,
+        value_span: Span::new(start, end),
+    },
 };
 
 ClassDecl: Class = {

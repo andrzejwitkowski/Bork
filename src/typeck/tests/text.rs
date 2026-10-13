@@ -1,0 +1,83 @@
+use super::{diags_of, hir_of};
+
+#[test]
+fn string_byte_index_is_u8_for_owned_and_borrowed() {
+    hir_of("fun f(s: &String): u8 { return s[0] }\nfun main(): u8 {\n val t = \"ab\"\n val b: u8 = t[1]\n return f(&t) + b }");
+}
+
+#[test]
+fn string_index_requires_i32_and_rejects_writes() {
+    let d = diags_of("fun main() {\n val t = \"ab\"\n val b = t[1 > 0]\n}");
+    assert!(
+        d.iter().any(|d| d.message.contains("must be `i32`")),
+        "{d:?}"
+    );
+    let d = diags_of("fun main() {\n var t = \"ab\"\n t[0] = 1\n}");
+    assert!(
+        d.iter()
+            .any(|d| d.message.contains("index-assign") || d.message.contains("expected an array")),
+        "{d:?}"
+    );
+}
+
+#[test]
+fn string_content_equality_accepts_owned_and_borrowed_pairs() {
+    hir_of(
+        "fun f(a: &String, b: &String): bool { return a == b }\n\
+         fun main(): bool {\n val x = \"a\"\n val y = concat(\"a\", \"\")\n\
+         return (x == y) && (&x == y) && (x != &y) && f(&x, &y) }",
+    );
+}
+
+#[test]
+fn string_equality_keeps_nullable_semantics() {
+    hir_of("fun main(): bool {\n val s: String? = None\n return s == None }");
+    let d =
+        diags_of("fun main(): bool {\n val s: String? = None\n val t = \"a\"\n return s == t }");
+    assert!(
+        d.iter().any(|d| d.message.contains("equality operands")),
+        "{d:?}"
+    );
+}
+
+#[test]
+fn string_ordering_is_still_rejected() {
+    diags_of("fun main(): bool { return \"a\" < \"b\" }");
+}
+
+#[test]
+fn string_from_utf8_accepts_any_byte_array_length() {
+    hir_of("fun main(): i32 {\n var z: [u8; 0] = []\n var b: [u8; 3] = [1, 2, 3]\n val s = stringFromUtf8(&z, 0, 0)\n val t = stringFromUtf8(&b, 0, 3)\n return 0 }");
+}
+
+#[test]
+fn string_from_utf8_checks_buffer_and_arguments() {
+    let d =
+        diags_of("fun main() {\n var b: [i32; 2] = [1, 2]\n val s = stringFromUtf8(&b, 0, 1)\n}");
+    assert!(
+        d.iter().any(|d| d.message.contains("borrowed byte array")),
+        "{d:?}"
+    );
+    let d = diags_of("fun main() {\n val t = \"ab\"\n val s = stringFromUtf8(&t, 0, 1)\n}");
+    assert!(
+        d.iter().any(|d| d.message.contains("borrowed byte array")),
+        "{d:?}"
+    );
+    let d = diags_of("fun main() {\n var b: [u8; 2] = [1, 2]\n val s = stringFromUtf8(b, 0, 1)\n}");
+    assert!(
+        d.iter().any(|d| d.message.contains("borrowed byte array")),
+        "{d:?}"
+    );
+    let d = diags_of("fun main() {\n var b: [u8; 2] = [1, 2]\n val s = stringFromUtf8(&b, 0)\n}");
+    assert!(
+        d.iter().any(|d| d.message.contains("expects 3 arguments")),
+        "{d:?}"
+    );
+    let d = diags_of(
+        "fun main() {\n var b: [u8; 2] = [1, 2]\n val s = stringFromUtf8(&b, 0, 1 > 0)\n}",
+    );
+    assert!(
+        d.iter().any(|d| d.message.contains("must be `i32`")),
+        "{d:?}"
+    );
+}

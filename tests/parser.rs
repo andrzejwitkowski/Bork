@@ -805,3 +805,19 @@ fn this_cannot_be_declared() {
     assert!(parse("fun f(this: i32) {}").is_err());
     assert!(parse("class P { this: i32 }").is_err());
 }
+
+#[test]
+fn parses_global_constants_among_items() {
+    let program = parse("const PORT: i32 = 8080\nfun main() {}\nconst NAME: String = \"a\"\n").unwrap();
+    assert_eq!(program.constants.len(), 2);
+    assert_eq!(program.constants[0].name.name, "PORT");
+    assert_eq!(program.constants[0].value, Expr::Int(8080));
+    assert_eq!(program.constants[1].value, Expr::Str("a".into()));
+    assert_eq!(program.functions.len(), 1);
+}
+
+#[test]
+fn const_requires_type_and_is_a_keyword() {
+    assert!(parse("const PORT = 1\n").is_err());
+    assert!(parse("fun main() { val const: i32 = 1 }").is_err());
+}

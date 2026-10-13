@@ -72,6 +72,11 @@ pub(super) fn check_call(
             return check_construct(class, *span, args, trailing, return_ty, env);
         }
     }
+    if let Expr::Ident { name, span } = callee {
+        if crate::builtins::resolve(name) == Some(crate::builtins::Builtin::StringFromUtf8) {
+            return check_string_from_utf8(name, args, *span, return_ty, env);
+        }
+    }
     let Some((name, span, params, call_return_ty)) = callee_signature(callee, env) else {
         let checked_callee = match callee {
             Expr::Ident { name, span } => HirExpr::spanned(
@@ -297,4 +302,59 @@ fn arg_matches_param(got: &Ty, expected: &Ty) -> bool {
         return got_inner == expected_inner;
     }
     false
+}
+
+/// `stringFromUtf8(&bytes, start, count): String?`: the buffer is any `&[u8; N]`, so the
+/// signature cannot be a fixed `FunSig`.
+fn check_string_from_utf8(
+    name: &str,
+    args: &[Expr],
+    span: Span,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    let checked: Vec<HirExpr> = args
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| check(arg, (index > 0).then(Ty::i32).as_ref(), return_ty, env))
+        .collect();
+    if checked.len() != 3 {
+        env.error(
+            format!("`{name}` expects 3 arguments, got {}", checked.len()),
+            Some(span),
+        );
+        return HirExpr::spanned(HirExprKind::None, Ty::unknown(), span);
+    }
+    let buffer_ok = matches!(&checked[0].kind, HirExprKind::Unary { op: UnaryOp::Borrow, .. })
+        && checked[0].ty.is_ref()
+        && checked[0].ty.array_elem() == Some(&Ty::prim(crate::hir::Prim::U8));
+    if !buffer_ok && !checked[0].ty.is_unknown() {
+        env.error(
+            format!("`{name}` expects a borrowed byte array `&bytes`, got {}", checked[0].ty),
+            checked[0].span.or(Some(span)),
+        );
+    }
+    for argument in &checked[1..] {
+        if !argument.ty.is_unknown() && argument.ty != Ty::i32() {
+            env.error(
+                format!("`{name}` offsets and counts must be `i32`, got {}", argument.ty),
+                argument.span.or(Some(span)),
+            );
+        }
+    }
+    HirExpr::new(
+        HirExprKind::Call {
+            callee: Box::new(HirExpr::spanned(
+                HirExprKind::Ident {
+                    name: name.to_string(),
+                    use_kind: UseKind::Local,
+                },
+                Ty::unknown(),
+                span,
+            )),
+            args: checked,
+            has_trailing_closure: false,
+        },
+        Ty::string(true),
+    )
 }

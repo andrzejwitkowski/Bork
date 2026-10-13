@@ -225,6 +225,17 @@ impl Ty {
         matches!(&self.kind, TyKind::Named(name) if name == "String")
     }
 
+    /// Non-nullable `String` or a borrow of one: the types whose bytes can be read and compared.
+    pub fn is_text(&self) -> bool {
+        if self.nullable {
+            return false;
+        }
+        match &self.kind {
+            TyKind::Ref(inner) => inner.is_text(),
+            _ => self.is_string(),
+        }
+    }
+
     /// Class name of an object or a borrow of one. `String` is not a class.
     pub fn record_name(&self) -> Option<&str> {
         match &self.kind {

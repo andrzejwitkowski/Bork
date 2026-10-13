@@ -3,10 +3,12 @@ use crate::frontend::check;
 use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
 
 mod closures;
+mod constants;
 mod nullable;
 mod managed_ref;
 mod methods;
 mod reference;
+mod text;
 
 /// Typed HIR for a source that must check cleanly.
 fn hir_of(source: &str) -> HirProgram {

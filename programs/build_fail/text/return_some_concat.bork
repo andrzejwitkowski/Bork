@@ -1,0 +1,7 @@
+// diag: concat
+fun make(): String? {
+    return Some(concat("a", "b"))
+}
+
+fun main() {
+}

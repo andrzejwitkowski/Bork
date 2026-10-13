@@ -12,6 +12,7 @@ mod managed_ref;
 mod nullable;
 mod presence;
 mod region_emit;
+mod text;
 
 use std::path::Path;
 

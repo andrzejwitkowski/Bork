@@ -1,0 +1,9 @@
+// diag: inner region
+fun make(): String? {
+    var b: [u8; 1] = [65]
+    val s = stringFromUtf8(&b, 0, 1)
+    return s
+}
+
+fun main() {
+}

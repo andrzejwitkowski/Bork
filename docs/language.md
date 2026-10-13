@@ -27,7 +27,7 @@ fun main() {
 | `i8` `i16` `i32` `i64` `u8` `u16` `u32` `u64` | integers |
 | `Int` `Long` `Byte` `Float` `Double` | aliases of `i32` `i64` `u8` `f32` `f64` |
 | `f32` `f64` `bool` `unit` | float, bool, unit (`true` / `false` literals) |
-| `String` | owned text, not Copy |
+| `String` | owned text, not Copy; `s[i]` reads one byte as `u8`, `==` / `!=` compare contents |
 | `Point` | instance of a declared `class Point`, not Copy |
 | `Ref<Point>` | presence-capable managed handle to a non-nullable class |
 | `[T; N]` | fixed-length array with **N** elements (`N` is a non-negative integer literal) |
@@ -102,6 +102,20 @@ cleanup diagrams, see [references.md](references.md).
 `String` and `[T; N]` have one field: `.length` (`i32`, always **N** for arrays of that type). Unknown fields are type errors.
 
 Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]` on `[T; N]` and on **`&[T; N]`** (including reference parameters). A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. A `&[T; N]` parameter supports `p[i] = v` in the callee. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
+
+## Constants
+
+`const NAME: Type = literal` at file level, with a mandatory type. Types: integers, `f32`, `f64`, `bool`, `String`. The initializer is a single literal of that type; it is range-checked (`const B: u8 = 255` is fine, `256` is an error). Constants are visible in every function and method, including ones declared earlier; there is no runtime initialization order.
+
+```bork
+const PORT: i32 = 8080
+const RESPONSE: String = "HTTP/1.1 200 OK\r\n\r\nOK"
+```
+
+- Parameters, locals and bare fields shadow a constant (the same precedence as elsewhere).
+- Duplicate names and clashes with a function, class or builtin are errors.
+- Assigning to a constant, or `move`/`promote` of one, is an error. Reads do not consume it, and `&RESPONSE` works where `&String` is expected.
+- A `String` constant's bytes live for the whole process and are never copied into an arena until a copy is made explicitly.
 
 ## Bindings
 
@@ -439,6 +453,9 @@ Intrinsics are not user functions. Redefining them is a type error.
 | `print` | one `i32`, `i64`, or `String` | write it |
 | `println` | same | write it and a newline |
 | `concat` | `(String, String) -> String` | one new string; buffer in the arena of whatever assignment target is active, else the current block |
+| `stringFromUtf8` | `(&[u8; N], i32, i32) -> String?` | copy `count` bytes from `start`; `None` when the range is not valid UTF-8; a bad range (negative, or past the array end) aborts like an out-of-bounds index |
+
+`stringFromUtf8` takes an array of any length; its signature is checked by the compiler, not a generic parameter. An empty valid range gives an empty present `String`, distinct from `None`. Like `concat`, the result cannot be returned from the function that creates it.
 
 `print` / `println` accept those types even though the builtin table lists `i32` as the nominal parameter.
 

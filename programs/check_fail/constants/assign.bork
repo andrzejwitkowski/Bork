@@ -1,0 +1,5 @@
+// diag: cannot assign to constant
+const N: i32 = 1
+fun main() {
+    N = 2
+}

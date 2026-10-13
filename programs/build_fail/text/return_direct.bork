@@ -1,0 +1,8 @@
+// diag: stringFromUtf8
+fun make(): String? {
+    var b: [u8; 1] = [65]
+    return stringFromUtf8(&b, 0, 1)
+}
+
+fun main() {
+}

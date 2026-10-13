@@ -1,0 +1,23 @@
+// exit: 14
+// stdout: HTTP OK\n
+const PORT: i32 = 8080
+const LIMIT: u8 = 200
+const RESPONSE: String = "HTTP OK"
+
+fun status(): String {
+    return RESPONSE
+}
+
+fun len(s: &String): i32 {
+    return s.length
+}
+
+fun main(): i32 {
+    val a = status()
+    val b = RESPONSE
+    println(RESPONSE)
+    if (PORT > 8000) {
+        return a.length + b.length + len(&RESPONSE) - 7
+    }
+    return 0
+}

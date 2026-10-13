@@ -153,6 +153,10 @@ fn assign_binding(
     index_assign: bool,
 ) -> Option<Ty> {
     let binding = env.binding(name).cloned();
+    if binding.is_none() && env.constants.contains_key(name) && env.implicit_field(name).is_none() {
+        env.error(format!("cannot assign to constant `{name}`"), Some(span));
+        return None;
+    }
     if binding.is_none() {
         let field = index_assign
             && env

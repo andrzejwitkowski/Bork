@@ -1,0 +1,17 @@
+// exit: 3
+fun main(): i32 {
+    val cur: String = concat("a", "b")
+    val want = "ab"
+    var hits = 0
+    if (cur == want) {
+        hits = hits + 1
+    }
+    if (cur == want) {
+        hits = hits + 1
+    }
+    if (cur != "x") {
+        hits = hits + 1
+    }
+    val again = move cur
+    return hits + again.length - 2
+}

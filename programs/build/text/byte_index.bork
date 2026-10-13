@@ -1,0 +1,26 @@
+// exit: 6
+fun first(s: &String): u8 {
+    return s[0]
+}
+
+fun main(): i32 {
+    val a = "ą"
+    var n = 0
+    if (a[0] == 196) {
+        n = n + 1
+    }
+    if (a[1] == 133) {
+        n = n + 1
+    }
+    if (a.length == 2) {
+        n = n + 1
+    }
+    if (first(&a) == 196) {
+        n = n + 1
+    }
+    val nul = "a\nb"
+    if (nul[1] == 10) {
+        n = n + 2
+    }
+    return n
+}

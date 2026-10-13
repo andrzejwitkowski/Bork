@@ -33,7 +33,9 @@ pub(super) fn check_binary(
         (lhs, rhs)
     } else {
         let lhs = check(lhs, outer_numeric, return_ty, env);
-        let peer = (!lhs.ty.is_unknown() && *op != BinOp::RangeTo).then_some(lhs.ty.clone());
+        // Text needs no literal hint, and `s == &t` must not demand `rhs: String`.
+        let hintless = *op == BinOp::RangeTo || (matches!(op, BinOp::Eq | BinOp::Ne) && lhs.ty.is_text());
+        let peer = (!lhs.ty.is_unknown() && !hintless).then_some(lhs.ty.clone());
         let rhs_expected = outer_numeric.or(peer.as_ref());
         let rhs = check(rhs, rhs_expected, return_ty, env);
         (lhs, rhs)
@@ -73,7 +75,7 @@ pub(super) fn check_binary(
             Ty::bool()
         }
         BinOp::Eq | BinOp::Ne => {
-            if !poisoned && lhs_ty != rhs_ty {
+            if !poisoned && lhs_ty != rhs_ty && !(lhs_ty.is_text() && rhs_ty.is_text()) {
                 env.error(
                     format!("equality operands must have the same type, got {lhs_ty} and {rhs_ty}"),
                     span,

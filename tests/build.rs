@@ -2,7 +2,13 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
+
+/// `abort()` raises SIGABRT; a crash from a wild read would show another signal.
+fn libc_sigabrt() -> i32 {
+    6
+}
 
 fn scratch_dir(name: &str) -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
@@ -969,4 +975,37 @@ fun main(): i32 {
     );
     assert_eq!(run.status.code(), Some(42), "{run:?}");
     assert_eq!(String::from_utf8_lossy(&run.stdout), "42\n");
+}
+
+#[test]
+fn string_index_out_of_bounds_aborts() {
+    let dir = scratch_dir("string_index_out_of_bounds_aborts");
+    let (build, binary) = bork_build(
+        &dir,
+        "fun main(): i32 {\n    val s = \"ab\"\n    val i = 2\n    val b: u8 = s[i]\n    return 0\n}\n",
+    );
+    assert_eq!(build.status.code(), Some(0), "{}", String::from_utf8_lossy(&build.stderr));
+    let run = Command::new(&binary).output().unwrap();
+    assert_eq!(run.status.signal(), Some(libc_sigabrt()), "out-of-range index must abort, got {:?}", run.status);
+}
+
+#[test]
+fn string_from_utf8_bad_ranges_abort() {
+    let cases = [
+        ("negative_start", "0 - 1", "2"),
+        ("negative_count", "0", "0 - 1"),
+        ("start_past_end", "4", "0"),
+        ("count_past_end", "1", "3"),
+        ("count_overflow", "1", "2147483647"),
+    ];
+    for (label, start, count) in cases {
+        let dir = scratch_dir(&format!("string_from_utf8_bad_ranges_aborts_{label}"));
+        let source = format!(
+            "fun main(): i32 {{\n    var b: [u8; 3] = [71, 69, 84]\n    val s = stringFromUtf8(&b, {start}, {count})\n    return 0\n}}\n"
+        );
+        let (build, binary) = bork_build(&dir, &source);
+        assert_eq!(build.status.code(), Some(0), "{label}: {}", String::from_utf8_lossy(&build.stderr));
+        let run = Command::new(&binary).output().unwrap();
+        assert_eq!(run.status.signal(), Some(libc_sigabrt()), "{label}: bad range must abort, got {:?}", run.status);
+    }
 }

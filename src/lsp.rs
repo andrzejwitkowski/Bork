@@ -286,7 +286,9 @@ fn member_hover(
         .filter(|(span, member)| {
             span_contains(**span, offset)
                 && match member {
-                    MemberRef::Field { name, .. } | MemberRef::Method { name, .. } => *name == word,
+                    MemberRef::Field { name, .. }
+                    | MemberRef::Method { name, .. }
+                    | MemberRef::Constant { name, .. } => *name == word,
                 }
         })
         .min_by_key(|(span, _)| span.end - span.start)
@@ -295,6 +297,9 @@ fn member_hover(
                 format!("field `{name}` of `{class}` (via `this`)\nType: `{ty}`")
             }
             MemberRef::Method { signature, .. } => format!("`{signature}`"),
+            MemberRef::Constant { name, ty, value } => {
+                format!("const `{name}`\nType: `{ty}`\nValue: `{value}`")
+            }
         })
 }
 
@@ -303,6 +308,22 @@ mod tests {
     use super::*;
 
     const METHOD_SRC: &str = "class Point {\n    x: i32\n    fun sum(k: i32): i32 {\n        return this.x + x + k\n    }\n}\nfun main(): i32 {\n    val p = Point(1)\n    return p.sum(2)\n}\n";
+
+    const CONST_SRC: &str = "const PORT: i32 = 8080\nfun a(): i32 { return PORT }\nfun b(PORT: i32): i32 { return PORT }\n";
+
+    #[test]
+    fn hover_on_constant_declaration_and_use_shows_type_and_value() {
+        for nth in [0, 1] {
+            let h = hover_at(CONST_SRC, "PORT", nth);
+            assert!(h.contains("const `PORT`") && h.contains("i32") && h.contains("8080"), "{h}");
+        }
+    }
+
+    #[test]
+    fn hover_on_shadowed_constant_is_not_the_constant() {
+        let h = hover_at(CONST_SRC, "PORT", 3);
+        assert!(!h.contains("const `PORT`"), "{h}");
+    }
 
     fn hover_at(source: &str, needle: &str, nth: usize) -> String {
         let offset = source.match_indices(needle).nth(nth).expect("needle").0;
