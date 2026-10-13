@@ -71,19 +71,17 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         // `len - start` may wrap when `start > len`, but that case is already `bad`.
         let rest = builder.build_int_sub(len, start, "utf8.rest")?;
         let zero = i64_ty.const_zero();
-        let bad = [
-            builder.build_int_compare(IntPredicate::SLT, start, zero, "utf8.neg.start")?,
-            builder.build_int_compare(IntPredicate::SLT, count, zero, "utf8.neg.count")?,
-            builder.build_int_compare(IntPredicate::SGT, start, len, "utf8.start.oob")?,
-            builder.build_int_compare(IntPredicate::SGT, count, rest, "utf8.count.oob")?,
-        ]
-        .into_iter()
-        .reduce(|acc, next| {
-            builder
-                .build_or(acc, next, "utf8.bad")
-                .expect("or of compares")
-        })
-        .expect("four checks");
+        let neg_start =
+            builder.build_int_compare(IntPredicate::SLT, start, zero, "utf8.neg.start")?;
+        let neg_count =
+            builder.build_int_compare(IntPredicate::SLT, count, zero, "utf8.neg.count")?;
+        let start_oob =
+            builder.build_int_compare(IntPredicate::SGT, start, len, "utf8.start.oob")?;
+        let count_oob =
+            builder.build_int_compare(IntPredicate::SGT, count, rest, "utf8.count.oob")?;
+        let bad_start = builder.build_or(neg_start, start_oob, "utf8.bad.start")?;
+        let bad_count = builder.build_or(neg_count, count_oob, "utf8.bad.count")?;
+        let bad = builder.build_or(bad_start, bad_count, "utf8.bad")?;
         self.branch_abort_if(bad, expr.span)?;
 
         let src = unsafe { builder.build_gep(i8_ty, base, &[start], "utf8.src")? };

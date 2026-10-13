@@ -96,13 +96,11 @@ fn literal(ty: &Type, value: &Expr, span: Span) -> Result<(Ty, HirExprKind), Dia
         }
     };
     let mismatch = || error(format!("constant initializer is not a {ty} literal"), span);
-    let value = match (
-        value,
-        match ty.kind {
-            TyKind::Prim(prim) => Some(prim),
-            _ => None,
-        },
-    ) {
+    let prim = match ty.kind {
+        TyKind::Prim(prim) => Some(prim),
+        _ => None,
+    };
+    let value = match (value, prim) {
         (Expr::Int(v), Some(prim)) if prim.is_integer() => {
             if !fits(*v, prim) {
                 return Err(error(

@@ -316,7 +316,10 @@ fn check_string_from_utf8(
     let checked: Vec<HirExpr> = args
         .iter()
         .enumerate()
-        .map(|(index, arg)| check(arg, (index > 0).then(Ty::i32).as_ref(), return_ty, env))
+        .map(|(index, arg)| {
+            let expected = if index == 0 { None } else { Some(&Ty::i32()) };
+            check(arg, expected, return_ty, env)
+        })
         .collect();
     if checked.len() != 3 {
         env.error(
