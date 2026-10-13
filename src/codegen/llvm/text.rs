@@ -85,8 +85,13 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         self.branch_abort_if(bad, expr.span)?;
 
         let src = unsafe { builder.build_gep(i8_ty, base, &[start], "utf8.src")? };
+        let count_usize = builder.build_int_cast(count, cx.size_type(), "utf8.count.usize")?;
         let valid = builder
-            .build_call(cx.utf8_valid_fn(), &[src.into(), count.into()], "utf8.ok")?
+            .build_call(
+                cx.utf8_valid_fn(),
+                &[src.into(), count_usize.into()],
+                "utf8.ok",
+            )?
             .try_as_basic_value()
             .basic()
             .expect("bork_utf8_valid returns a byte")

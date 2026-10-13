@@ -115,7 +115,7 @@ const RESPONSE: String = "HTTP/1.1 200 OK\r\n\r\nOK"
 - Parameters, locals and bare fields shadow a constant (the same precedence as elsewhere).
 - Duplicate names and clashes with a function, class or builtin are errors.
 - Assigning to a constant, or `move`/`promote` of one, is an error. Reads do not consume it, and `&RESPONSE` works where `&String` is expected.
-- A `String` constant's bytes live for the whole process and are never copied into an arena until a copy is made explicitly.
+- A `String` constant's bytes live for the whole process. They are copied into an arena only when a copy is made explicitly.
 
 ## Bindings
 
