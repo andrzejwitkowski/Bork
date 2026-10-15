@@ -40,7 +40,7 @@
         },
         {
           "name": "keyword.other.bork",
-          "match": "\\b(val|var)\\b"
+          "match": "\\b(val|var|const)\\b"
         }
       ]
     },

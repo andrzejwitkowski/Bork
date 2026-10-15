@@ -368,6 +368,31 @@ impl<'ctx> Codegen<'ctx> {
         self.runtime_fn(name, || self.context.void_type().fn_type(&params, false))
     }
 
+    /// Integer type of the runtime's `usize` on the target.
+    pub fn size_type(&self) -> inkwell::types::IntType<'ctx> {
+        self.context.ptr_sized_int_type(&self.target_data, None)
+    }
+
+    /// `i8 bork_string_equal(ptr, usize, ptr, usize)`.
+    pub fn string_equal_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let len = self.size_type();
+        let params: [BasicMetadataTypeEnum; 4] =
+            [ptr.into(), len.into(), ptr.into(), len.into()];
+        self.runtime_fn("bork_string_equal", || {
+            self.context.i8_type().fn_type(&params, false)
+        })
+    }
+
+    /// `i8 bork_utf8_valid(ptr, usize)`.
+    pub fn utf8_valid_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let params: [BasicMetadataTypeEnum; 2] = [ptr.into(), self.size_type().into()];
+        self.runtime_fn("bork_utf8_valid", || {
+            self.context.i8_type().fn_type(&params, false)
+        })
+    }
+
     /// `void name(ptr arena)`.
     fn arena_handle_fn(&self, name: &str) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());

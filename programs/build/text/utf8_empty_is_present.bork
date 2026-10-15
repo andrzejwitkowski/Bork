@@ -1,0 +1,10 @@
+// exit: 5
+fun main(): i32 {
+    var bytes: [u8; 3] = [71, 69, 84]
+    val empty = stringFromUtf8(&bytes, 3, 0)
+    if (empty == None) {
+        return 1
+    }
+    val text = empty ?: "absent"
+    return text.length + 5
+}

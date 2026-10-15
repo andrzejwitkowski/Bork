@@ -96,7 +96,7 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
             let HirExprKind::Ident { name, .. } = &callee.kind else {
                 return args.iter().any(expr_may_allocate_sink);
             };
-            crate::builtins::is_concat(name) || args.iter().any(expr_may_allocate_sink)
+            crate::builtins::is_string_alloc(name) || args.iter().any(expr_may_allocate_sink)
         }
         HirExprKind::Binary { op, rhs, .. } if *op == crate::ast::BinOp::Elvis => {
             expr_may_allocate_sink(rhs)

@@ -1,0 +1,16 @@
+// exit: 2
+fun main(): i32 {
+    var out: String? = None
+    if (true) {
+        var bytes: [u8; 2] = [79, 75]
+        out = stringFromUtf8(&bytes, 0, 2)
+    }
+    if (out == None) {
+        return 1
+    }
+    val text = move out ?: "absent"
+    if (text == "OK") {
+        return 2
+    }
+    return 3
+}

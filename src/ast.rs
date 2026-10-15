@@ -2,6 +2,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
+    pub constants: Vec<ConstDecl>,
     pub classes: Vec<Class>,
     pub functions: Vec<Function>,
 }
@@ -44,24 +45,40 @@ pub struct ClassField {
     pub ty: Type,
 }
 
+/// `const NAME: Type = literal` at file level. `value` is validated by `constants::collect`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstDecl {
+    pub name: crate::span::SpannedName,
+    pub ty: Type,
+    pub value: Expr,
+    pub value_span: crate::span::Span,
+}
+
 /// Top-level item folded into [`Program`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
+    Const(ConstDecl),
     Class(Class),
     Fun(Function),
 }
 
 impl Program {
     pub fn from_items(items: Vec<Item>) -> Self {
+        let mut constants = Vec::new();
         let mut classes = Vec::new();
         let mut functions = Vec::new();
         for item in items {
             match item {
+                Item::Const(constant) => constants.push(constant),
                 Item::Class(class) => classes.push(class),
                 Item::Fun(function) => functions.push(function),
             }
         }
-        Self { classes, functions }
+        Self {
+            constants,
+            classes,
+            functions,
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::BindingKind;
+use crate::constants::ConstantTable;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::Ty;
 use crate::span::Span;
@@ -42,6 +43,7 @@ pub(super) struct Env<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     pub(super) fun_sigs: &'a HashMap<String, FunSig>,
     pub(super) classes: &'a ClassTable,
+    pub(super) constants: &'a ConstantTable,
     pub(super) diagnostics: Vec<Diagnostic>,
     /// Declaration and field assignment types keyed by source span.
     pub(super) span_tys: HashMap<Span, Ty>,
@@ -56,11 +58,13 @@ impl<'a> Env<'a> {
     pub(super) fn new(
         fun_sigs: &'a HashMap<String, FunSig>,
         classes: &'a ClassTable,
+        constants: &'a ConstantTable,
     ) -> Self {
         Self {
             scopes: vec![HashMap::new()],
             fun_sigs,
             classes,
+            constants,
             diagnostics: Vec::new(),
             span_tys: HashMap::new(),
             loop_depth: 0,

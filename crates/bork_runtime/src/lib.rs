@@ -2,6 +2,7 @@
 
 mod arena;
 mod refs;
+mod text;
 
 use std::io::{self, Write};
 use std::slice;

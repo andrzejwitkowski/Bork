@@ -1,0 +1,9 @@
+// exit: 2
+fun main(): i32 {
+    var bytes: [u8; 2] = [195, 40]
+    val s = stringFromUtf8(&bytes, 0, 2)
+    if (s == None) {
+        return 2
+    }
+    return 1
+}

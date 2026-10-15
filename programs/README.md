@@ -23,6 +23,8 @@ Runnable `.bork` sources grouped by language feature. They complement `tests/*.r
 | [`borrow/`](build/borrow/) | `&T` parameters, index/slice, re-borrow in `if`/`while`/`for` |
 | [`move_and_promote/`](build/move_and_promote/) | `move`, `move (…) { }`, `promote`, `concat`, assign-up |
 | [`basics/`](build/basics/) | Smoke: `return`, `println`, arrays, `i64` blocks |
+| [`constants/`](build/constants/) | File-level `const`, shadowing in functions and methods |
+| [`text/`](build/text/) | `String` bytes and content equality, `stringFromUtf8` (copy, `None`, sinks), a small HTTP-style example |
 
 The same topic names exist under `check/` and `check_fail/` where it makes sense.
 

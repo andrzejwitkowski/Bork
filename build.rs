@@ -20,6 +20,7 @@ fn build_runtime(debug: bool) {
     println!("cargo:rerun-if-changed={}", source.display());
     println!("cargo:rerun-if-changed=crates/bork_runtime/src/arena.rs");
     println!("cargo:rerun-if-changed=crates/bork_runtime/src/refs.rs");
+    println!("cargo:rerun-if-changed=crates/bork_runtime/src/text.rs");
     println!("cargo:rerun-if-changed=crates/bork_runtime/src/arena/debug");
     let filename = if debug {
         "libbork_runtime_debug.a"

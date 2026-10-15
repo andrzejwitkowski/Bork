@@ -55,6 +55,21 @@ fun main() {
 }
 
 #[test]
+fn string_from_utf8_borrows_outer_mutable_buffer_in_nested_block() {
+    let result = crate::frontend::check(
+        r#"
+fun main() {
+    var bytes: [u8; 1] = [65]
+    {
+        val text = stringFromUtf8(&bytes, 0, 1)
+    }
+}
+"#,
+    );
+    assert!(result.is_ok(), "{:?}", result.diagnostics);
+}
+
+#[test]
 fn reference_param_reborrow_in_for_loop() {
     let src = r#"
 fun inner(a: &[i32; 2]) {

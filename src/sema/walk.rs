@@ -11,7 +11,7 @@ use super::policy::{
 };
 use super::region::{resolve_move_captures, RegionFrame, RegionParam};
 use super::report::{ArenaNode, BindingInfo, Ownership};
-use crate::ast::{AssignTarget, BindingKind, Block, ConditionalBinding, Expr, Stmt, Type, UnaryOp};
+use crate::ast::{AssignTarget, BinOp, BindingKind, Block, ConditionalBinding, Expr, Stmt, Type, UnaryOp};
 use crate::span::{Span, SpannedName};
 use crate::typeck::MemberRef;
 use std::collections::HashSet;
@@ -391,7 +391,13 @@ fn walk(
             walk(az, lo, node, None, record_borrow);
             walk(az, hi, node, None, record_borrow);
         }
-        Expr::Binary { lhs, rhs, .. } => {
+        Expr::Binary { op, lhs, rhs, .. } => {
+            // Comparisons observe their operands; they never transfer them.
+            let transfer = if matches!(op, BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le) {
+                None
+            } else {
+                transfer
+            };
             walk(az, lhs, node, transfer, record_borrow);
             walk(az, rhs, node, transfer, record_borrow);
         }
@@ -426,14 +432,22 @@ fn walk(
                 }
             };
             for (i, a) in args.iter().enumerate() {
-                let arg_record_borrow = param_tys
+                let builtin_borrow = matches!(callee.as_ref(), Expr::Ident { name, .. }
+                    if crate::builtins::is_borrowed_arg(name, i));
+                let arg_record_borrow = builtin_borrow
+                    || param_tys
                     .as_ref()
                     .and_then(|params| params.get(i))
                     .is_some_and(|ty| ty.is_reference());
                 let arg_transfer = formals
                     .as_ref()
                     .and_then(|f| f.get(i).copied())
-                    .map(|formal| TransferSink::CallArg { formal });
+                    .map(|formal| TransferSink::CallArg { formal })
+                    .or_else(|| {
+                        builtin_borrow.then_some(TransferSink::CallArg {
+                            formal: BindingKind::Val,
+                        })
+                    });
                 let expected = param_tys.as_ref().and_then(|params| params.get(i));
                 walk_typed(
                     az,
@@ -624,6 +638,9 @@ fn apply_expr_promote(
     node: &mut ArenaNode,
     transfer: Option<&TransferSink>,
 ) {
+    if span.is_some_and(|span| az.is_constant(&span)) {
+        return; // typeck reports `promote` of a constant
+    }
     if span.is_some_and(|span| az.is_bare_field(&span)) {
         return; // typeck reports `promote` of a field
     }
@@ -709,6 +726,9 @@ fn apply_expr_move(
     span: Option<Span>,
     node: &mut ArenaNode,
 ) {
+    if span.is_some_and(|span| az.is_constant(&span)) {
+        return; // typeck reports `move` of a constant
+    }
     if span.is_some_and(|span| az.is_bare_field(&span)) {
         return; // typeck reports `move` of a field
     }
@@ -792,7 +812,7 @@ fn method_call(az: &Analyzer, callee: &Expr) -> Option<(Expr, String)> {
     };
     match az.members.get(&span)? {
         MemberRef::Method { class, name, .. } => Some((receiver, format!("{class}.{name}"))),
-        MemberRef::Field { .. } => None,
+        MemberRef::Field { .. } | MemberRef::Constant { .. } => None,
     }
 }
 

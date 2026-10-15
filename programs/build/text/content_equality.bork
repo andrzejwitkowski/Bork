@@ -1,0 +1,26 @@
+// exit: 15
+fun same(a: &String, b: &String): bool {
+    return a == b
+}
+
+fun main(): i32 {
+    val lit = "GET"
+    val built = concat("G", "ET")
+    var count = 0
+    if (lit == built) {
+        count = count + 1
+    }
+    if (lit != "POST") {
+        count = count + 2
+    }
+    if (same(&lit, &built)) {
+        count = count + 4
+    }
+    if (&lit == built) {
+        count = count + 8
+    }
+    if ("" == "") {
+        count = count + 0
+    }
+    return count
+}

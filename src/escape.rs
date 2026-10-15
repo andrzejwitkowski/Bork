@@ -7,7 +7,8 @@
 
 use std::collections::HashMap;
 
-use crate::builtins::{self, Builtin};
+use crate::ast::BinOp;
+use crate::builtins;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{
     peel_to_body, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
@@ -211,11 +212,11 @@ impl<'h> Escape<'h, '_> {
     }
 
     fn check_return_string_form(&mut self, expr: &'h HirExpr) {
-        if expr.ty.is_string() && Self::is_concat_call(expr) {
+        if expr.ty.is_string() && Self::is_fresh_string(expr) {
             reject(
                 self.diagnostics,
-                "returning the result of `concat` is not supported yet: returned \
-                 `String` bytes must outlive the callee arena",
+                "returning the result of `concat` or `stringFromUtf8` is not supported yet: \
+                 returned `String` bytes must outlive the callee arena",
                 expr.span,
             );
             return;
@@ -229,16 +230,23 @@ impl<'h> Escape<'h, '_> {
             );
             return;
         }
-        if let HirExprKind::If {
-            then_block,
-            else_block,
-            ..
-        } = &expr.kind
-        {
-            self.check_return_string_in_block(then_block);
-            if let Some(else_block) = else_block {
-                self.check_return_string_in_block(else_block);
+        match &expr.kind {
+            HirExprKind::If {
+                then_block,
+                else_block,
+                ..
             }
+            | HirExprKind::PresenceMatch {
+                some_block: then_block,
+                none_block: else_block,
+                ..
+            } => {
+                self.check_return_string_in_block(then_block);
+                if let Some(else_block) = else_block {
+                    self.check_return_string_in_block(else_block);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -249,15 +257,37 @@ impl<'h> Escape<'h, '_> {
         }
     }
 
-    fn is_concat_call(expr: &HirExpr) -> bool {
-        matches!(
-            &expr.kind,
-            HirExprKind::Call { callee, .. } if matches!(
+    /// A value whose bytes are allocated by an allocating builtin, possibly wrapped in
+    /// `Some`, `!!`, `?:`, `if`, or `when` whose branch ends in one.
+    fn is_fresh_string(expr: &HirExpr) -> bool {
+        match &expr.kind {
+            HirExprKind::Call { callee, .. } => matches!(
                 &callee.kind,
-                HirExprKind::Ident { name, .. }
-                    if builtins::resolve(name) == Some(Builtin::Concat)
-            )
-        )
+                HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
+            ),
+            HirExprKind::Some(inner)
+            | HirExprKind::Unary { expr: inner, .. } => Self::is_fresh_string(inner),
+            HirExprKind::Binary { op: BinOp::Elvis, lhs, rhs } => {
+                Self::is_fresh_string(lhs) || Self::is_fresh_string(rhs)
+            }
+            HirExprKind::If { then_block, else_block, .. } => {
+                Self::block_ends_fresh(then_block)
+                    || else_block.as_ref().is_some_and(Self::block_ends_fresh)
+            }
+            HirExprKind::PresenceMatch {
+                some_block,
+                none_block,
+                ..
+            } => {
+                Self::block_ends_fresh(some_block)
+                    || none_block.as_ref().is_some_and(Self::block_ends_fresh)
+            }
+            _ => false,
+        }
+    }
+
+    fn block_ends_fresh(block: &HirBlock) -> bool {
+        matches!(peel_to_body(block).stmts.last(), Some(HirStmt::Expr(expr)) if Self::is_fresh_string(expr))
     }
 
     fn is_moved_or_promoted_string(expr: &HirExpr) -> bool {
@@ -326,7 +356,7 @@ impl<'h> Escape<'h, '_> {
             HirExprKind::Call { callee, args, .. } => {
                 let concat = matches!(
                     &callee.kind,
-                    HirExprKind::Ident { name, .. } if builtins::resolve(name) == Some(Builtin::Concat)
+                    HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
                 );
                 self.place(callee, None);
                 if expr.ty.is_string() && concat {
@@ -535,6 +565,23 @@ mod tests {
             }),
             "{:?}",
             result.diagnostics
+        );
+    }
+
+    #[test]
+    fn rejects_return_when_branch_yielding_string_from_utf8() {
+        assert_rejects(
+            "class Box { value: i32 }\n\
+             fun make(): String {\n\
+                 val bytes: [u8; 1] = [65]\n\
+                 val reference: Ref<Box> = Box(1)\n\
+                 return when reference {\n\
+                     Some(value) => { stringFromUtf8(&bytes, 0, 1) ?: \"x\" }\n\
+                     None => { \"x\" }\n\
+                 }\n\
+             }\n\
+             fun main() {}\n",
+            "stringFromUtf8",
         );
     }
 

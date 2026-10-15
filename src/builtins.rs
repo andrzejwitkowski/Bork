@@ -6,6 +6,7 @@ pub(crate) enum Builtin {
     Print,
     Println,
     Concat,
+    StringFromUtf8,
 }
 
 pub(crate) fn resolve(name: &str) -> Option<Builtin> {
@@ -13,6 +14,7 @@ pub(crate) fn resolve(name: &str) -> Option<Builtin> {
         "print" => Some(Builtin::Print),
         "println" => Some(Builtin::Println),
         "concat" => Some(Builtin::Concat),
+        "stringFromUtf8" => Some(Builtin::StringFromUtf8),
         _ => None,
     }
 }
@@ -23,6 +25,15 @@ pub(crate) fn is_print(name: &str) -> bool {
 
 pub(crate) fn is_concat(name: &str) -> bool {
     matches!(resolve(name), Some(Builtin::Concat))
+}
+
+/// Builtins whose result bytes are a new allocation in the consumer's sink (`concat`, `stringFromUtf8`).
+pub(crate) fn is_string_alloc(name: &str) -> bool {
+    matches!(resolve(name), Some(Builtin::Concat | Builtin::StringFromUtf8))
+}
+
+pub(crate) fn is_borrowed_arg(name: &str, index: usize) -> bool {
+    index == 0 && resolve(name) == Some(Builtin::StringFromUtf8)
 }
 
 pub(crate) fn is_intrinsic(name: &str) -> bool {
@@ -47,6 +58,8 @@ impl Builtin {
         match self {
             Builtin::Print => ("print", vec![Ty::i32()], Ty::unit()),
             Builtin::Println => ("println", vec![Ty::i32()], Ty::unit()),
+            // Typeck checks `stringFromUtf8` itself: its buffer parameter is any `&[u8; N]`.
+            Builtin::StringFromUtf8 => ("stringFromUtf8", Vec::new(), Ty::string(true)),
             Builtin::Concat => (
                 "concat",
                 vec![Ty::string(false), Ty::string(false)],

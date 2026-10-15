@@ -231,6 +231,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 BinOp::Eq | BinOp::Ne if lhs.ty.is_managed_ref() || rhs.ty.is_managed_ref() => {
                     self.emit_ref_eq(ops[0], ops[1], *op == BinOp::Ne).map(Some)
                 }
+                BinOp::Eq | BinOp::Ne if lhs.ty.is_text() && rhs.ty.is_text() => {
+                    self.emit_string_eq(ops[0], ops[1], *op == BinOp::Ne).map(Some)
+                }
                 BinOp::Eq | BinOp::Ne if is_nullable_equality(op, lhs, rhs) => self
                     .emit_nullable_eq(op, lhs, rhs, ops[0], ops[1], expr)
                     .map(Some),
@@ -360,6 +363,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 }
                 (Some(builtins::Builtin::Concat), [left, right]) => {
                     return self.emit_concat_values(*left, *right, expr).map(Some);
+                }
+                (Some(builtins::Builtin::StringFromUtf8), [buffer, start, count]) => {
+                    return self
+                        .emit_string_from_utf8(*buffer, *start, *count, expr)
+                        .map(Some);
                 }
                 _ => {}
             }

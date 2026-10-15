@@ -24,6 +24,8 @@ pub enum MemberRef {
     Field { class: String, name: String, index: usize, ty: Ty },
     /// `recv.m(..)` / bare `m(..)` call, or a method declaration name.
     Method { class: String, name: String, signature: String },
+    /// Global constant, at its declaration name and at each use.
+    Constant { name: String, ty: Ty, value: String },
 }
 
 /// Member resolutions keyed by the span of a bare name, a `recv.m` callee, or a method name.
@@ -38,12 +40,16 @@ pub fn check_with_members(
     program: &Program,
 ) -> (HirProgram, SpanTypes, MemberResolutions, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
+    let constants = crate::constants::collect_into(program, &mut diagnostics);
     reject_builtin_redefines(program, &mut diagnostics);
 
     let mut classes = build_classes(program, &mut diagnostics);
     validate_owned_layouts(&classes, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &classes, &mut diagnostics);
     let mut members = MemberResolutions::new();
+    for (name, constant) in &constants {
+        members.insert(constant.span, constant.member(name));
+    }
     collect_method_sigs(program, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut span_tys = SpanTypes::new();
     let mut functions: Vec<HirFunction> = program
@@ -51,7 +57,7 @@ pub fn check_with_members(
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| {
-            check_function(function, None, &fun_sigs, &classes, &mut diagnostics, &mut span_tys, &mut members)
+            check_function(function, None, &fun_sigs, &classes, &constants, &mut diagnostics, &mut span_tys, &mut members)
         })
         .collect();
     // Same order as sema roots: top-level functions, then methods class by class.
@@ -62,6 +68,7 @@ pub fn check_with_members(
                 Some(&class.name),
                 &fun_sigs,
                 &classes,
+                &constants,
                 &mut diagnostics,
                 &mut span_tys,
                 &mut members,
@@ -285,11 +292,12 @@ fn check_function(
     owner: Option<&str>,
     fun_sigs: &HashMap<String, FunSig>,
     classes: &ClassTable,
+    constants: &crate::constants::ConstantTable,
     diagnostics: &mut Vec<Diagnostic>,
     span_tys: &mut SpanTypes,
     members: &mut MemberResolutions,
 ) -> HirFunction {
-    let mut env = Env::new(fun_sigs, classes);
+    let mut env = Env::new(fun_sigs, classes, constants);
     env.self_class = owner.map(str::to_string);
     let name = match owner {
         Some(class) => format!("{class}.{}", function.name),

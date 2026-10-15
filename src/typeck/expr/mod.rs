@@ -240,6 +240,9 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
         );
     }
     let Some(binding) = env.binding(name) else {
+        if let Some(constant) = env.constants.get(name) {
+            return constant_use(name, constant, span, requested, env);
+        }
         env.error(format!("unknown binding `{name}`"), Some(span));
         return HirExpr::spanned(
             HirExprKind::Ident {
@@ -275,6 +278,21 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
         ty,
         span,
     )
+}
+
+/// A constant read lowers to its literal; `move`/`promote` are not meaningful on a constant.
+fn constant_use(
+    name: &str,
+    constant: &crate::constants::Constant,
+    span: Span,
+    requested: UseKind,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    if matches!(requested, UseKind::Move | UseKind::Promote) {
+        env.error(format!("cannot move or promote constant `{name}`"), Some(span));
+    }
+    env.members.insert(span, constant.member(name));
+    HirExpr::spanned(constant.value.clone(), constant.ty.clone(), span)
 }
 
 fn check_managed_ref(

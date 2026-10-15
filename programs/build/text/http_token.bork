@@ -1,0 +1,38 @@
+// exit: 10
+const TOKEN: String = "GET /"
+const LIMIT: i32 = 4
+
+class Request {
+    head: String
+
+    fun method_ok(): bool {
+        return head[0] == 71 && TOKEN == "GET /"
+    }
+}
+
+fun prefix_len(buf: &[u8; 6]): i32 {
+    val copied = stringFromUtf8(&buf, 0, LIMIT) ?: "bad"
+    return copied.length
+}
+
+fun main(): i32 {
+    var raw: [u8; 6] = [71, 69, 84, 32, 47, 65]
+    val path = stringFromUtf8(&raw, 0, 6) ?: TOKEN
+    raw[0] = 0
+    val req = Request(TOKEN)
+    var score = 0
+    if (req.method_ok()) {
+        score = score + 1
+    }
+    if (path == TOKEN) {
+        score = score + 0
+    }
+    val prefix = stringFromUtf8(&raw, 0, LIMIT) ?: "bad"
+    if (prefix[0] == 0 && prefix[1] == 69) {
+        score = score + 2
+    }
+    if (TOKEN[0] == 71) {
+        score = score + 2
+    }
+    return score + prefix_len(&raw) + 1
+}

@@ -1,0 +1,3 @@
+// diag: out of range
+const B: u8 = 256
+fun main() {}

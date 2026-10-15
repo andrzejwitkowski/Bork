@@ -371,6 +371,12 @@ Examples:
 - `return s` for a parameter or a local whose bytes already live at function depth (e.g. a string literal initializer); `return "literal"` uses constant storage.
 - `return move s`, `return concat(…)`, and inner-region `return` of owned strings are rejected until a caller-owned return arena exists (see **Still open**).
 
+### `stringFromUtf8`
+
+- The bounds check runs first and aborts on a bad range. UTF-8 validation runs next, before any allocation, so `None` never grows the arena.
+- A valid range is copied with one `arena_alloc` in the current sink (the same rule as `concat`), so a copy made in an inner block into an outer `var` lives in the outer arena.
+- Returning its result, directly or through `Some`, `!!`, `?:`, `if`, or a local, is rejected by escape analysis.
+
 ### `concat`
 
 - Builtin `concat(a, b)` allocates **one** result buffer in the current sink arena (two `memcpy` from arguments). No separate call-scoped temp arena type yet; argument strings are read in place (Copy/Shared/move as usual).

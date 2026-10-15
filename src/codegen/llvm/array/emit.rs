@@ -411,7 +411,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(())
     }
 
-    fn branch_abort_if(
+    pub(in crate::codegen::llvm) fn branch_abort_if(
         &mut self,
         cond: inkwell::values::IntValue<'ctx>,
         _span: Option<crate::span::Span>,

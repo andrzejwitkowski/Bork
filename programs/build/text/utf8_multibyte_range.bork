@@ -1,0 +1,9 @@
+// exit: 4
+fun main(): i32 {
+    var bytes: [u8; 4] = [206, 187, 33, 33]
+    val lambda = stringFromUtf8(&bytes, 0, 2) ?: "bad"
+    if (lambda.length == 2) {
+        return 4
+    }
+    return 0
+}
