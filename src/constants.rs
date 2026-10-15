@@ -40,15 +40,7 @@ pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
     for decl in &program.constants {
         let name = &decl.name.name;
         let span = decl.name.span;
-        let collision = if crate::builtins::is_intrinsic(name) {
-            Some("a builtin function")
-        } else if program.functions.iter().any(|f| &f.name == name) {
-            Some("a function")
-        } else if program.classes.iter().any(|c| &c.name == name) {
-            Some("a class")
-        } else {
-            None
-        };
+        let collision = conflicting_declaration(program, name);
         if let Some(what) = collision {
             diagnostics.push(error(
                 format!("constant `{name}` conflicts with {what}"),
@@ -70,8 +62,30 @@ pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
     (table, diagnostics)
 }
 
+fn conflicting_declaration(program: &Program, name: &str) -> Option<&'static str> {
+    let conflicts_with_builtin = crate::builtins::is_intrinsic(name);
+    let conflicts_with_function = program.functions.iter().any(|f| f.name == name);
+    let conflicts_with_class = program.classes.iter().any(|c| c.name == name);
+
+    if conflicts_with_builtin {
+        Some("a builtin function")
+    } else if conflicts_with_function {
+        Some("a function")
+    } else if conflicts_with_class {
+        Some("a class")
+    } else {
+        None
+    }
+}
+
 fn literal(ty: &Type, value: &Expr, span: Span) -> Result<(Ty, HirExprKind), Diagnostic> {
-    let ty = match ty {
+    let ty = constant_type(ty, span)?;
+    let value = literal_value(&ty, value, span)?;
+    Ok((ty, value))
+}
+
+fn constant_type(ty: &Type, span: Span) -> Result<Ty, Diagnostic> {
+    Ok(match ty {
         Type::Primitive {
             name,
             nullable: false,
@@ -94,13 +108,16 @@ fn literal(ty: &Type, value: &Expr, span: Span) -> Result<(Ty, HirExprKind), Dia
                 span,
             ))
         }
-    };
+    })
+}
+
+fn literal_value(ty: &Ty, value: &Expr, span: Span) -> Result<HirExprKind, Diagnostic> {
     let mismatch = || error(format!("constant initializer is not a {ty} literal"), span);
-    let prim = match ty.kind {
-        TyKind::Prim(prim) => Some(prim),
+    let prim = match &ty.kind {
+        TyKind::Prim(prim) => Some(*prim),
         _ => None,
     };
-    let value = match (value, prim) {
+    Ok(match (value, prim) {
         (Expr::Int(v), Some(prim)) if prim.is_integer() => {
             if !fits(*v, prim) {
                 return Err(error(
@@ -120,8 +137,7 @@ fn literal(ty: &Type, value: &Expr, span: Span) -> Result<(Ty, HirExprKind), Dia
         (Expr::Bool(v), Some(Prim::Bool)) => HirExprKind::Bool { value: *v },
         (Expr::Str(v), None) => HirExprKind::Str { value: v.clone() },
         _ => return Err(mismatch()),
-    };
-    Ok((ty, value))
+    })
 }
 
 fn fits(value: i64, prim: Prim) -> bool {
