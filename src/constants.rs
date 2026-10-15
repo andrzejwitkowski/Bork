@@ -34,7 +34,16 @@ impl Constant {
 
 pub type ConstantTable = HashMap<String, Constant>;
 
-pub fn collect(program: &Program, diagnostics: &mut Vec<Diagnostic>) -> ConstantTable {
+pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
+    let mut diagnostics = Vec::new();
+    let table = collect_into(program, &mut diagnostics);
+    (table, diagnostics)
+}
+
+pub(crate) fn collect_into(
+    program: &Program,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ConstantTable {
     let mut table = ConstantTable::new();
     for decl in &program.constants {
         let name = &decl.name.name;

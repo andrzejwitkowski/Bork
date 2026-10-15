@@ -40,7 +40,7 @@ pub fn check_with_members(
     program: &Program,
 ) -> (HirProgram, SpanTypes, MemberResolutions, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
-    let constants = crate::constants::collect(program, &mut diagnostics);
+    let constants = crate::constants::collect_into(program, &mut diagnostics);
     reject_builtin_redefines(program, &mut diagnostics);
 
     let mut classes = build_classes(program, &mut diagnostics);
