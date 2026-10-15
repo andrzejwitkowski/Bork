@@ -15,7 +15,7 @@ A region was one fixed 4 KiB buffer; going past it aborted the program (`arena o
 - `bork_arena_alloc(arena, size, align)`: unchanged.
 - `bork_arena_grow(arena, ptr, old, new, align)`: extends in place when the block is last on its page, otherwise allocates, copies, frees the old block. The returned pointer replaces `ptr`.
 - `bork_arena_free(arena, ptr, size)`: `size` must be what the block was allocated or last grown to.
-- Reset/pop keeps the first page (so a recycled arena keeps its address) and drops the other pages and large blocks.
+- Reset/pop keeps the first page (so a recycled arena keeps its address), moves the other pages to a spare list and frees large blocks. New pages come from the spare list first.
 
 ## Debug ABI v2
 `DebugArena` is 14 words: `payload` became `pages` (pointer to `DebugPage {base, used, capacity}` array) plus `page_count`; `used`/`capacity` are sums. `DebugRegistry` header is unchanged apart from `version = 2`. `tools/bork-debug` locates an object in any page. The `bork_debug_abi_v1` symbol keeps its name.
@@ -23,4 +23,4 @@ A region was one fixed 4 KiB buffer; going past it aborted the program (`arena o
 ## Known limits
 - Nothing in codegen calls grow/free yet; unit tests cover them.
 - Page lookup and first-fit are linear in the page count.
-- Extra pages are returned to the system on reset, not pooled.
+- Extra pages are kept as spares on reset and reused before new pages are allocated. Spare pages are not capped, so a pooled arena keeps its peak page count until it is dropped.
