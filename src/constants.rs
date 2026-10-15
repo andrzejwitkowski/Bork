@@ -34,9 +34,8 @@ impl Constant {
 
 pub type ConstantTable = HashMap<String, Constant>;
 
-pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
+pub fn collect(program: &Program, diagnostics: &mut Vec<Diagnostic>) -> ConstantTable {
     let mut table = ConstantTable::new();
-    let mut diagnostics = Vec::new();
     for decl in &program.constants {
         let name = &decl.name.name;
         let span = decl.name.span;
@@ -59,7 +58,7 @@ pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
-    (table, diagnostics)
+    table
 }
 
 fn conflicting_declaration(program: &Program, name: &str) -> Option<&'static str> {
