@@ -1,4 +1,4 @@
-"""Memory-only reader for the Bork debug registry ABI v1."""
+"""Memory-only reader for the Bork debug registry ABI v2."""
 from dataclasses import dataclass
 import json
 import pathlib
@@ -20,11 +20,13 @@ class Arena:
     live_scoped_children: int
     state: int
     mode: int
-    payload: int
+    pages: int
+    page_count: int
     used: int
     capacity: int
     source: str
     line: int
+    extents: tuple = ()  # (base, used, capacity) per page or large block
 
 
 @dataclass
@@ -94,26 +96,33 @@ class Decoder:
         status='none' if kind == 0 else 'stale' if arena is None else 'alive' if arena.state == 0 else 'expired' if kind == 4 else 'non-Alive'
         available=0
         if status == 'alive':
-            if arena.payload <= obj <= arena.payload+arena.used and arena.payload:
-                available=arena.payload+arena.used-obj
+            extent=next((e for e in arena.extents if e[0] <= obj <= e[0]+e[1]),None)
+            if extent:
+                available=extent[0]+extent[1]-obj
             else:
                 status='invalid object'
         return Ref(control,obj,('None','Arena','Borrow','Strong','Weak')[kind],status,available)
 
     def snapshot(self,address):
         version,sequence,ap,ac,sp,sc=self.words(address,6)
-        if version != 1: raise DebugError(f'unsupported debug ABI {version}')
+        if version != 2: raise DebugError(f'unsupported debug ABI {version}')
         if sequence & 1: raise DebugError('registry mutation in progress; stop at a stable point')
         if ac > 1000000 or sc > 1000000: raise DebugError('registry count exceeds limit')
         arenas={}
         for i in range(ac):
-            values=self.words(ap+i*13*self.size,13)
+            values=self.words(ap+i*14*self.size,14)
             if values[6] > 2 or values[7] > 3 or not values[0] or values[0] in arenas:
                 raise DebugError('invalid arena record')
-            if values[9] > values[10] or values[8] > self.maximum-values[10]:
+            if values[10] > values[11] or values[9] > 1000000:
                 raise DebugError('invalid arena allocation bounds')
-            values[11]=self.string(values[11])
-            arena=Arena(*values); arenas[arena.id]=arena
+            extents=[]
+            for j in range(values[9]):
+                base,used,capacity=self.words(values[8]+j*3*self.size,3)
+                if not base or used > capacity or base > self.maximum-capacity:
+                    raise DebugError('invalid arena allocation bounds')
+                extents.append((base,used,capacity))
+            values[12]=self.string(values[12])
+            arena=Arena(*values,tuple(extents)); arenas[arena.id]=arena
         slots=[]
         for i in range(sc):
             owner,addr,label,typ,scope,index=self.words(sp+i*6*self.size,6)

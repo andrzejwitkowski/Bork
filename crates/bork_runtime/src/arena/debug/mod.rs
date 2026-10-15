@@ -12,6 +12,8 @@ use registry::DEBUG;
 use std::ffi::{c_char, c_void};
 
 #[cfg(test)]
+pub(super) use abi::DebugPage;
+#[cfg(test)]
 use abi::{DebugArena, DebugRegistry, DebugSlot};
 #[cfg(test)]
 use slots::*;
