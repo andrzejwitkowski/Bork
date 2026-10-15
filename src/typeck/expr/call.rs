@@ -210,6 +210,24 @@ pub(super) fn finish_call(
         false,
     );
 
+    build_call(
+        name,
+        span,
+        callee_ty,
+        checked_args,
+        call_return_ty,
+        trailing.is_some(),
+    )
+}
+
+fn build_call(
+    name: String,
+    span: Span,
+    callee_ty: Ty,
+    args: Vec<HirExpr>,
+    return_ty: Ty,
+    has_trailing_closure: bool,
+) -> HirExpr {
     HirExpr::new(
         HirExprKind::Call {
             callee: Box::new(HirExpr::spanned(
@@ -220,10 +238,10 @@ pub(super) fn finish_call(
                 callee_ty,
                 span,
             )),
-            args: checked_args,
-            has_trailing_closure: trailing.is_some(),
+            args,
+            has_trailing_closure,
         },
-        call_return_ty,
+        return_ty,
     )
 }
 
@@ -320,12 +338,12 @@ fn check_string_from_utf8(
             Some(span),
         );
     }
-    let checked: Vec<HirExpr> = args
+    let checked: Vec<_> = args
         .iter()
         .enumerate()
         .map(|(index, arg)| {
-            let expected = if index == 0 { None } else { Some(&Ty::i32()) };
-            check(arg, expected, return_ty, env)
+            let expected = if index == 0 { None } else { Some(Ty::i32()) };
+            check(arg, expected.as_ref(), return_ty, env)
         })
         .collect();
     if checked.len() != 3 {
@@ -335,36 +353,43 @@ fn check_string_from_utf8(
         );
         return HirExpr::spanned(HirExprKind::None, Ty::unknown(), span);
     }
-    let buffer_ok = matches!(&checked[0].kind, HirExprKind::Unary { op: UnaryOp::Borrow, .. })
-        && checked[0].ty.is_ref()
-        && checked[0].ty.array_elem() == Some(&Ty::prim(crate::hir::Prim::U8));
-    if !buffer_ok && !checked[0].ty.is_unknown() {
+    let [buffer, start, count] = checked.as_slice() else {
+        unreachable!("argument count was checked above");
+    };
+    let buffer_is_borrowed_bytes = matches!(
+        &buffer.kind,
+        HirExprKind::Unary {
+            op: UnaryOp::Borrow,
+            ..
+        }
+    ) && buffer.ty.is_ref()
+        && buffer.ty.array_elem() == Some(&Ty::prim(crate::hir::Prim::U8));
+    if !buffer_is_borrowed_bytes && !buffer.ty.is_unknown() {
         env.error(
-            format!("`{name}` expects a borrowed byte array `&bytes`, got {}", checked[0].ty),
-            checked[0].span.or(Some(span)),
+            format!(
+                "`{name}` expects a borrowed byte array `&bytes`, got {}",
+                buffer.ty
+            ),
+            buffer.span.or(Some(span)),
         );
     }
-    for argument in &checked[1..] {
+    for argument in [start, count] {
         if !argument.ty.is_unknown() && argument.ty != Ty::i32() {
             env.error(
-                format!("`{name}` offsets and counts must be `i32`, got {}", argument.ty),
+                format!(
+                    "`{name}` offsets and counts must be `i32`, got {}",
+                    argument.ty
+                ),
                 argument.span.or(Some(span)),
             );
         }
     }
-    HirExpr::new(
-        HirExprKind::Call {
-            callee: Box::new(HirExpr::spanned(
-                HirExprKind::Ident {
-                    name: name.to_string(),
-                    use_kind: UseKind::Local,
-                },
-                Ty::unknown(),
-                span,
-            )),
-            args: checked,
-            has_trailing_closure: trailing.is_some(),
-        },
+    build_call(
+        name.to_string(),
+        span,
+        Ty::unknown(),
+        checked,
         Ty::string(true),
+        trailing.is_some(),
     )
 }
