@@ -68,3 +68,21 @@ fn golden_hir_types_match_snapshot() {
         .unwrap_or_else(|_| panic!("{} missing; run with BORK_BLESS=1", snapshot.display()));
     assert_eq!(actual, expected, "HIR types changed; if intended, rerun with BORK_BLESS=1");
 }
+
+#[test]
+fn inventory_mentions_every_variant() {
+    let doc = fs::read_to_string(root().join("docs/type-system/inventory.md")).unwrap();
+    let variants: &[&str] = &[
+        // ast::Type
+        "Primitive", "Named", "Array", "Func", "Ref", "ManagedRef", "Vec",
+        // hir::TyKind (the rest are shared with ast::Type)
+        "Prim", "Range", "Unknown",
+        // ast::Expr
+        "Int", "Float", "Bool", "Str", "ArrayLit", "Index", "Slice", "VecNew", "Ident", "Move",
+        "Promote", "None", "Some", "Binary", "Unary", "Field", "Call", "If", "IfVal",
+        // ast::Stmt
+        "Block", "VarDecl", "Assign", "For", "While", "Break", "Continue", "MoveBlock", "Return", "Expr",
+    ];
+    let missing: Vec<_> = variants.iter().filter(|v| !doc.contains(&format!("`{v}`"))).collect();
+    assert!(missing.is_empty(), "inventory.md does not mention: {missing:?}");
+}
