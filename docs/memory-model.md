@@ -4,9 +4,9 @@ Bork manages memory with **hierarchical arenas** tied to curly-brace regions (`{
 
 ## Philosophy
 
-- Each meaningful `{ … }` region owns a fixed arena (MVP model: **4 KB / 4096 bytes**).
-- Allocations inside a region are a pointer bump: check `offset + size ≤ 4096`, then advance `offset`.
-- Exiting the region sets `offset = 0` — instant bulk deallocation — and returns the slab to an **arena pool** for reuse by later regions.
+- Each meaningful `{ … }` region owns an arena: a list of **4 KiB pages** that grows on demand (see [arena-allocation.md](arena-allocation.md)).
+- Allocations inside a region are a pointer bump on the current page; when nothing fits, the arena adds a page (or a separate block for requests over 2 KiB).
+- Exiting the region resets the arena — instant bulk deallocation — and returns it to an **arena pool** for reuse by later regions.
 - Loop bodies reset their arena each iteration so memory stays O(1) across iterations (same slab, no pool round-trip required).
 - Cross-region data flow uses **Copy** (primitives), **Shared** (parent `val` reads), or **Move** (`var` / explicit consume / escape). No dangling pointers into a dead arena.
 
@@ -19,7 +19,7 @@ The 4 KB size matches common OS/database **page** granularity so hot working set
   ┌─────────────────┐                  ┌──────────────────────────┐
   │ return addr     │                  │ [====allocated====]....  │
   │ locals (scalars)│ ──pointers───►   │ bump ──┘                 │
-  │                 │                  │ capacity = 4096 bytes    │
+  │                 │                  │ pages of 4096 bytes      │
   └─────────────────┘                  └──────────────────────────┘
 
   leave B  ──►  arena.reset()  ──►  slab returned to ArenaPool
@@ -30,7 +30,7 @@ Scalars and control live on the stack/registers. Heap-like payloads for a region
 
 ### Arena pool
 
-Released 4 KiB slabs go on a free list (`ArenaPool`). Nested live regions keep distinct slabs; sequential siblings `acquire` recycled ones. `release` resets before parking.
+Released arenas go on a free list (`ArenaPool`). Nested live regions keep distinct arenas; sequential siblings `acquire` recycled ones. `release` resets before parking; extra pages are kept as spares inside the arena.
 
 ## Copy, Shared, and Move
 
