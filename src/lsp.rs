@@ -270,6 +270,12 @@ pub fn hover(analysis: &Analysis, source: &str, position: Position) -> Option<St
         .report()
         .and_then(|report| hover_for_analysis(report, source, position))
         .or_else(|| member_hover(&analysis.members, source, position))
+        .or_else(|| builtin_hover(source, position))
+}
+
+fn builtin_hover(source: &str, position: Position) -> Option<String> {
+    let word = SourceMap::new(source).word_at(position)?;
+    crate::builtins::hover_doc(&word).map(str::to_string)
 }
 
 fn member_hover(
@@ -329,6 +335,24 @@ mod tests {
         let offset = source.match_indices(needle).nth(nth).expect("needle").0;
         let analysis = analyze_source(source);
         hover(&analysis, source, byte_offset_to_position(source, offset)).expect("hover")
+    }
+
+    const BUILTIN_SRC: &str = "class Node {\n    id: i32\n}\nfun main(): i32 {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    var v = Vec<Ref<Node>>()\n    v.push(r)\n    return strongCount(r) + weakCount(r) + v.len()\n}\n";
+
+    #[test]
+    fn hover_on_ref_count_builtins_shows_signature() {
+        let strong = hover_at(BUILTIN_SRC, "strongCount", 0);
+        assert!(strong.contains("strongCount(r: Ref<T>): i32"), "{strong}");
+        let weak = hover_at(BUILTIN_SRC, "weakCount", 0);
+        assert!(weak.contains("child arenas"), "{weak}");
+    }
+
+    #[test]
+    fn hover_on_vec_method_shows_signature() {
+        let push = hover_at(BUILTIN_SRC, "push", 0);
+        assert!(push.contains("Vec<Ref<Node>>.push"), "{push}");
+        let len = hover_at(BUILTIN_SRC, "len", 0);
+        assert!(len.contains("Vec<Ref<Node>>.len"), "{len}");
     }
 
     #[test]

@@ -146,6 +146,9 @@ Type: Type = {
     "Ref" "<" <inner:Type> ">" => Type::ManagedRef {
         inner: Box::new(inner),
     },
+    "Vec" "<" <elem:Type> ">" => Type::Vec {
+        elem: Box::new(elem),
+    },
     "&" <inner:Type> => Type::Ref {
         inner: Box::new(inner),
         nullable: false,
@@ -191,7 +194,8 @@ ParenType: Type = {
                 | Type::Primitive { .. }
                 | Type::Array { .. }
                 | Type::Ref { .. }
-                | Type::ManagedRef { .. } => Err(ParseError::User {
+                | Type::ManagedRef { .. }
+                | Type::Vec { .. } => Err(ParseError::User {
                     error: "only function types may be parenthesized for nullability",
                 }),
             }
@@ -455,6 +459,11 @@ Atom: Expr = {
     <s:StrLit> => Expr::Str(s),
     <start:@L> "[" <elems:Comma<Expr>?> "]" <end:@R> => Expr::ArrayLit {
         elements: elems.unwrap_or_default(),
+        span: Span::new(start, end),
+    },
+    <start:@L> "Vec" "<" <elem:Type> ">" "(" <cap:Expr?> ")" <end:@R> => Expr::VecNew {
+        elem,
+        cap: cap.map(Box::new),
         span: Span::new(start, end),
     },
     <start:@L> "None" <end:@R> => Expr::None {

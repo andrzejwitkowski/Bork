@@ -1,0 +1,9 @@
+// diag: `Vec` element must be
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    val v = Vec<Node>()
+    return v.len()
+}

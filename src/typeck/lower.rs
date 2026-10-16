@@ -51,6 +51,19 @@ pub(crate) fn lower_type(
             }
             Ty::new(TyKind::ManagedRef(Box::new(inner_ty)), false)
         }
+        Type::Vec { elem } => {
+            let elem_ty = lower_type(elem, classes, diagnostics);
+            if !elem_ty.is_unknown() && !elem_ty.is_array_elem_supported() {
+                push_err(
+                    diagnostics,
+                    format!(
+                        "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{elem_ty}`"
+                    ),
+                    None,
+                );
+            }
+            Ty::new(TyKind::Vec(Box::new(elem_ty)), false)
+        }
         Type::Func {
             params,
             ret,

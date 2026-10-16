@@ -1,0 +1,5 @@
+// diag: `strongCount` expects a `Ref<T>`
+fun main(): i32 {
+    val n = 5
+    return strongCount(n)
+}

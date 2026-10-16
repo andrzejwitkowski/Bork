@@ -382,8 +382,18 @@ fn walk(
                 walk(az, element, node, transfer, record_borrow);
             }
         }
+        Expr::VecNew { cap, .. } => {
+            if let Some(cap) = cap {
+                walk(az, cap, node, None, record_borrow);
+            }
+        }
         Expr::Index { receiver, index, .. } => {
-            walk(az, receiver, node, None, record_borrow);
+            if receiver_is_vec(az, receiver) {
+                // Reading `v[i]` borrows the vector like `v.get(i)`.
+                walk_receiver(az, receiver, node);
+            } else {
+                walk(az, receiver, node, None, record_borrow);
+            }
             walk(az, index, node, None, record_borrow);
         }
         Expr::Slice { receiver, lo, hi, .. } => {
@@ -816,6 +826,11 @@ fn method_call(az: &Analyzer, callee: &Expr) -> Option<(Expr, String)> {
     }
 }
 
+fn receiver_is_vec(az: &Analyzer, receiver: &Expr) -> bool {
+    matches!(receiver, Expr::Ident { name, .. }
+        if az.env.get(name).is_some_and(|b| matches!(b.ty.as_option(), Some(Type::Vec { .. }))))
+}
+
 /// A method receiver is borrowed for the call, like an `&T` argument; a field chain borrows its root.
 fn walk_receiver(az: &mut Analyzer, receiver: &Expr, node: &mut ArenaNode) {
     let mut root = receiver;
@@ -960,6 +975,9 @@ fn hir_to_ast(ty: &crate::hir::Ty) -> Option<Type> {
         },
         crate::hir::TyKind::ManagedRef(inner) => Type::ManagedRef {
             inner: Box::new(hir_to_ast(inner)?),
+        },
+        crate::hir::TyKind::Vec(elem) => Type::Vec {
+            elem: Box::new(hir_to_ast(elem)?),
         },
         crate::hir::TyKind::Func { .. } | crate::hir::TyKind::Range(_) | crate::hir::TyKind::Unknown => {
             return None;

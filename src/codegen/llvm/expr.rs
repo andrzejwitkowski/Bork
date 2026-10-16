@@ -197,6 +197,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 if *use_kind == UseKind::RefCopy {
                     return self.clone_ref(value).map(Some);
                 }
+                if matches!(*use_kind, UseKind::Move | UseKind::Promote) && slot_ty.is_vec() {
+                    let copied = self.copy_vec_into_arena(value.into_pointer_value(), &slot_ty)?;
+                    return Ok(Some(copied.into()));
+                }
                 if matches!(*use_kind, UseKind::Move | UseKind::Promote) && value.is_struct_value()
                 {
                     let copied = if slot_ty.is_array() {
@@ -251,9 +255,20 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     self.emit_array_lit_values(ops, elem_ty, &expr.ty)?.into(),
                 ))
             }
+            HirExprKind::Index { receiver, .. } if receiver.ty.vec_elem().is_some() => {
+                self.emit_vec_get(ops[0], ops[1], &expr.ty, expr.span).map(Some)
+            }
             HirExprKind::Index { .. } => self
                 .emit_index_load_values(ops[0], ops[1], &expr.ty, expr.span)
                 .map(Some),
+            HirExprKind::VecNew { elem, .. } => self.emit_vec_new(elem, ops.first().copied()).map(Some),
+            HirExprKind::VecOp { op, receiver, .. } => {
+                let elem = receiver
+                    .ty
+                    .vec_elem()
+                    .ok_or_else(|| not_yet_supported("vector method receiver", expr.span))?;
+                self.emit_vec_op(*op, elem, &expr.ty, ops, expr.span)
+            }
             HirExprKind::Slice { .. } => Ok(Some(
                 self.emit_slice_values(ops[0], ops[1], &expr.ty, expr.span)?
                     .into(),
@@ -363,6 +378,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 }
                 (Some(builtins::Builtin::Concat), [left, right]) => {
                     return self.emit_concat_values(*left, *right, expr).map(Some);
+                }
+                (Some(kind @ (builtins::Builtin::StrongCount | builtins::Builtin::WeakCount)), [reference]) => {
+                    return self
+                        .emit_ref_count(*reference, kind == builtins::Builtin::WeakCount)
+                        .map(Some);
                 }
                 (Some(builtins::Builtin::StringFromUtf8), [buffer, start, count]) => {
                     return self
@@ -611,6 +631,14 @@ fn child_plan(expr: &HirExpr) -> ChildPlan<'_> {
         HirExprKind::Index {
             receiver, index, ..
         } => ChildPlan::Two(receiver, index),
+        HirExprKind::VecNew { cap: None, .. } => ChildPlan::Zero,
+        HirExprKind::VecNew { cap: Some(cap), .. } => ChildPlan::One(cap),
+        HirExprKind::VecOp { receiver, args, .. } => match args.as_slice() {
+            [] => ChildPlan::One(receiver),
+            [arg] => ChildPlan::Two(receiver, arg),
+            [index, value] => ChildPlan::Three(receiver, index, value),
+            _ => unreachable!("typeck limits Vec methods to two arguments"),
+        },
         HirExprKind::Slice { receiver, lo, hi } => ChildPlan::Three(receiver, lo, hi),
         HirExprKind::Call { args, .. } => ChildPlan::Many(args),
         HirExprKind::ArrayLit { elements } => ChildPlan::Many(elements),

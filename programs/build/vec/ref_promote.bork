@@ -1,0 +1,30 @@
+// exit: 21
+// Refs pushed in an inner block survive promotion of the vector into the outer var:
+// each handle is rehomed (edge kind recomputed) for the new owner.
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var outer = Vec<Ref<Node>>()
+    {
+        var inner = Vec<Ref<Node>>()
+        var i = 0
+        while (i < 6) {
+            inner.push(Node(i + 1))
+            i = i + 1
+        }
+        outer = promote inner
+    }
+    var total = 0
+    var j = 0
+    while (j < outer.len()) {
+        val item = outer.get(j)
+        if val n = item {
+            total = total + n.id
+        }
+        j = j + 1
+    }
+    // Node ids are 1..6, so total = 1 + 2 + 3 + 4 + 5 + 6 = 21.
+    return total
+}

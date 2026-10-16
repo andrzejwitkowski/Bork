@@ -87,7 +87,9 @@ fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
         HirExprKind::Bool { .. }
         | HirExprKind::Int { .. }
         | HirExprKind::Float { .. } => false,
-        HirExprKind::Str { .. } | HirExprKind::ArrayLit { .. } => true,
+        HirExprKind::Str { .. } | HirExprKind::ArrayLit { .. } | HirExprKind::VecNew { .. } => true,
+        // The header and buffer live in the vector's own arena, not the current sink.
+        HirExprKind::VecOp { args, .. } => args.iter().any(expr_may_allocate_sink),
         HirExprKind::Ident { use_kind, .. } => {
             matches!(*use_kind, crate::hir::UseKind::Move | crate::hir::UseKind::Promote)
                 && expr.ty.uses_arena_storage()
@@ -623,6 +625,19 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
                 walk_expr(driver, visitor, element)?;
+            }
+            visitor.after_expr(driver, expr)
+        }
+        HirExprKind::VecNew { cap, .. } => {
+            if let Some(cap) = cap {
+                walk_expr(driver, visitor, cap)?;
+            }
+            visitor.after_expr(driver, expr)
+        }
+        HirExprKind::VecOp { receiver, args, .. } => {
+            walk_expr(driver, visitor, receiver)?;
+            for arg in args {
+                walk_expr(driver, visitor, arg)?;
             }
             visitor.after_expr(driver, expr)
         }

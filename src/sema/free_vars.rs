@@ -174,6 +174,11 @@ fn collect_expr(
                 collect_expr(element, free, bound);
             }
         }
+        Expr::VecNew { cap, .. } => {
+            if let Some(cap) = cap {
+                collect_expr(cap, free, bound);
+            }
+        }
         Expr::Index { receiver, index, .. } => {
             collect_expr(receiver, free, bound);
             collect_expr(index, free, bound);

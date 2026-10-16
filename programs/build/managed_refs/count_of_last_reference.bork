@@ -1,0 +1,17 @@
+// exit: 0
+// `weakCount(move r)` releases the last weak Ref to an already-dead arena before reading the
+// counter. The read must not touch a freed control record, and the lease the builtin takes to
+// pin it must not show up in the result: the count is 0, as if the argument were gone.
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var r: Ref<Node> = None
+    {
+        val n = Node(1)
+        val keep: Ref<Node> = n
+        r = keep
+    }
+    return weakCount(move r)
+}

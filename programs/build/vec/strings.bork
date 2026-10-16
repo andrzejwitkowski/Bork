@@ -1,0 +1,13 @@
+// exit: 5
+// Strings pushed into a vector are copied into the vector's arena.
+fun main(): i32 {
+    var v = Vec<String>()
+    v.push("a")
+    v.push("hello")
+    v.push("xyz")
+    v.push("q")
+    v.push("zz")
+    // The fifth push grows the buffer (4 -> 8), copying the String descriptors.
+    val s = v.get(1) // "hello", still intact after the growth
+    return s.length // 5
+}

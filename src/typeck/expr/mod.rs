@@ -8,6 +8,7 @@ mod control;
 mod field;
 mod method;
 mod object;
+mod vec;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
@@ -63,6 +64,7 @@ pub(super) fn check(
             hi,
             span,
         } => check_slice(receiver, lo, hi, *span, return_ty, env),
+        Expr::VecNew { elem, cap, span } => vec::check_vec_new(elem, cap.as_deref(), *span, return_ty, env),
         Expr::Str(value) => HirExpr::new(
             HirExprKind::Str {
                 value: value.clone(),
