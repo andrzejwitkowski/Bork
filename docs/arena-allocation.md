@@ -24,7 +24,7 @@ Arena
 Tried in this order, the first that fits wins:
 
 1. **Large:** `size > 2048` → its own system block (`large`). Contiguous, any size.
-2. **Free list:** `size >= 16` → walk the list of class `ceil_class(size)` and take the first block whose address satisfies `align`. A block taken this way may be bigger than the request (up to the class size); that slack stays with the block.
+2. **Free list:** `size >= 16` → walk the list of class `ceil_class(size)` and take the first block whose address satisfies `align`. A block taken this way can be bigger than the request: a block is filed under its size rounded *down* and a request looks under its size rounded *up*, so a 127-byte hole serves a 33-byte request. The slack is not tracked (the arena does not remember the real block size), and if the block is freed again with the smaller size it is filed lower and the slack is lost until `reset`.
 3. **Bump, last page:** advance the offset of the newest page, aligning the address.
 4. **Bump, older pages:** the unused tails of earlier pages, first fit. These tails appear when a request did not fit and a new page was started.
 5. **New page:** from `spare` if there is one, otherwise a fresh 4096-byte page.
@@ -95,6 +95,7 @@ A loop body that resets its arena every iteration therefore reuses the same page
 - Nothing in codegen calls `grow`/`free` yet. `concat`, `stringFromUtf8` and array copies only `alloc`; the unit tests in `arena.rs` cover grow/free.
 - Page lookup (`free`, `grow`) and the older-page tail search are linear in the page count.
 - Holes are not merged with their neighbours.
+- Reusing a hole can waste part of it (up to about 3x the request, see step 2 of `alloc`). Collections that double their capacity use power-of-two sizes and do not lose anything this way. Accepted until a collection shows it matters; the alternative is to file and look up blocks by the same rounding, which wastes nothing but reuses fewer holes.
 - A hole is found only by requests whose size rounds up to its class (a 100-byte hole sits in the 64-byte class, so a 100-byte request, which needs the 128 class, cannot use it).
 - Passing a pointer the arena does not own, or a wrong size, to `free`/`grow` is a bug in the caller; debug builds assert on the pointer, not on the size.
 
