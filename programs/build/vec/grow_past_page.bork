@@ -1,5 +1,8 @@
 // exit: 136
-// 5000 i32 elements (20 KB) cross page and large-block boundaries; the exit code is 5000 mod 256.
+// 5000 i32 elements (20 KB) cross page and large-block boundaries.
+// `main` returns 5000, but a process exit status is only 8 bits (status & 0xFF), so the shell
+// sees 5000 mod 256 = 136 (5000 = 19 * 256 + 136). Any other value would mean lost or duplicated
+// elements.
 fun main(): i32 {
     var v = Vec<i32>()
     var i = 0
