@@ -377,6 +377,20 @@ impl<'ctx> Codegen<'ctx> {
         self.arena_handle_fn("bork_vec_drop_refs")
     }
 
+    /// `i1 bork_arena_count_lease_retain(ptr arena)`.
+    pub fn arena_count_lease_retain_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let params: [BasicMetadataTypeEnum; 1] = [ptr.into()];
+        self.runtime_fn("bork_arena_count_lease_retain", || {
+            self.context.bool_type().fn_type(&params, false)
+        })
+    }
+
+    /// `void bork_arena_count_lease_release(ptr arena)`.
+    pub fn arena_count_lease_release_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_arena_count_lease_release")
+    }
+
     /// `i64 bork_arena_{strong,weak}_count(ptr arena)`.
     pub fn arena_count_fn(&self, weak: bool) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());

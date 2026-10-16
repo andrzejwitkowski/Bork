@@ -37,7 +37,7 @@ One drop per `Vec<Ref<T>>`, registered on the header with `bork_arena_register_d
 - `move` inside one arena transfers the binding only.
 - Across arenas (`promote`, move into a longer-lived sink): new header and a `cap = len` buffer in the
   destination, then each slot is cloned and stored through `bork_ref_store_take` (`rehome`), which
-  recomputes `RefKind` against the new owner. The source is left intact, exactly as
+  recomputes `RefKind` against the new owner. The source binding is moved (unreadable) but its allocation stays until its arena dies, exactly as
   `copy_array_into_arena` does: the same routine also serves plain copies, where zeroing the source
   `len` would empty a live vector. Strings are copied byte-wise.
 - Mixed arenas inside one Vec are valid: each handle carries its own `control` and `kind`. A `push`

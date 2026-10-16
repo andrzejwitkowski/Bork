@@ -450,9 +450,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.register_ref_drop(owner, slot)
     }
 
-    /// `strongCount(r)` / `weakCount(r)`. The argument is an owned clone (`RefCopy` or a
-    /// call result), so it is released before the counter is read; the count then reflects only
-    /// the program's own references. A `None` handle has a null control and reads as 0.
+    /// `strongCount(r)` / `weakCount(r)`. The argument is released before the counter is read so
+    /// a temporary copy of `r` is not counted. Releasing the last reference can free the arena's
+    /// control record, so a weak lease pins it for the read; its own +1 is removed from
+    /// `weakCount`. A `None` handle has a null control, takes no lease and reads as 0.
     pub(super) fn emit_ref_count(
         &mut self,
         reference: BasicValueEnum<'ctx>,
@@ -462,8 +463,20 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .cx
             .builder
             .build_extract_value(reference.into_struct_value(), 0, "ref.control")?;
+        let leased = self
+            .cx
+            .builder
+            .build_call(
+                self.cx.arena_count_lease_retain_fn(),
+                &[control.into()],
+                "ref.count.lease",
+            )?
+            .try_as_basic_value()
+            .basic()
+            .expect("lease retain returns a flag")
+            .into_int_value();
         self.drop_ref_value(reference)?;
-        let count = self
+        let mut count = self
             .cx
             .builder
             .build_call(self.cx.arena_count_fn(weak), &[control.into()], "ref.count")?
@@ -471,6 +484,23 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic()
             .expect("count returns usize")
             .into_int_value();
+        if weak {
+            let without_lease = self.cx.builder.build_int_sub(
+                count,
+                count.get_type().const_int(1, false),
+                "ref.weak.unleased",
+            )?;
+            count = self
+                .cx
+                .builder
+                .build_select(leased, without_lease, count, "ref.weak")?
+                .into_int_value();
+        }
+        self.cx.builder.build_call(
+            self.cx.arena_count_lease_release_fn(),
+            &[control.into()],
+            "",
+        )?;
         Ok(self
             .cx
             .builder

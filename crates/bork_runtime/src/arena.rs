@@ -753,6 +753,26 @@ pub unsafe extern "C" fn bork_arena_strong_count(arena: *mut c_void) -> usize {
     with_control(arena, |control| control.strong_count)
 }
 
+/// Pins `arena`'s control record while a count is read, so releasing the last reference cannot
+/// free it first. Returns whether a lease was taken (a null `None` token has none). Unlike
+/// `bork_arena_retain_weak` it also works on a dead arena.
+#[no_mangle]
+pub unsafe extern "C" fn bork_arena_count_lease_retain(arena: *mut c_void) -> bool {
+    if arena.is_null() {
+        return false;
+    }
+    retain_weak_internal(arena);
+    true
+}
+
+/// Releases a lease taken by `bork_arena_count_lease_retain`; frees the control if it was the last.
+#[no_mangle]
+pub unsafe extern "C" fn bork_arena_count_lease_release(arena: *mut c_void) {
+    if !arena.is_null() {
+        release_weak_internal(arena);
+    }
+}
+
 /// Diagnostic: weak leases on `arena`, which include every child arena created under it.
 /// A null token (a `None` Ref) reads as 0.
 #[no_mangle]
