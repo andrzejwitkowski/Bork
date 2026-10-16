@@ -90,6 +90,7 @@ pub enum TyKind {
     Func { params: Vec<Ty>, ret: Box<Ty> },
     Ref(Box<Ty>),
     ManagedRef(Box<Ty>),
+    Vec(Box<Ty>),
     Range(Box<Ty>),
     Unknown,
 }
@@ -184,6 +185,9 @@ impl Ty {
                 TyKind::ManagedRef(Box::new(Self::from_ast(inner))),
                 false,
             ),
+            ast::Type::Vec { elem } => {
+                Self::new(TyKind::Vec(Box::new(Self::from_ast(elem))), false)
+            }
         }
     }
 
@@ -257,6 +261,19 @@ impl Ty {
         }
     }
 
+    pub fn is_vec(&self) -> bool {
+        !self.nullable && matches!(&self.kind, TyKind::Vec(_))
+    }
+
+    /// Element type of a `Vec<T>` or a borrow of one.
+    pub fn vec_elem(&self) -> Option<&Ty> {
+        match &self.kind {
+            TyKind::Vec(elem) => Some(elem),
+            TyKind::Ref(inner) => inner.vec_elem(),
+            _ => None,
+        }
+    }
+
     pub fn array_len(&self) -> Option<u32> {
         match &self.kind {
             TyKind::Array { len, .. } => Some(*len),
@@ -268,7 +285,7 @@ impl Ty {
     pub fn uses_arena_storage(&self) -> bool {
         match &self.kind {
             TyKind::Ref(inner) => inner.uses_arena_storage(),
-            TyKind::Named(_) | TyKind::Array { .. } => true,
+            TyKind::Named(_) | TyKind::Array { .. } | TyKind::Vec(_) => true,
             _ => false,
         }
     }
@@ -298,7 +315,11 @@ impl Ty {
     pub fn supports_nullable(&self) -> bool {
         !matches!(
             self.kind,
-            TyKind::Range(_) | TyKind::Ref(_) | TyKind::ManagedRef(_) | TyKind::Unknown
+            TyKind::Range(_)
+                | TyKind::Ref(_)
+                | TyKind::ManagedRef(_)
+                | TyKind::Vec(_)
+                | TyKind::Unknown
         )
     }
 
@@ -328,6 +349,7 @@ impl fmt::Display for Ty {
             }
             TyKind::Ref(inner) => write!(f, "&{inner}")?,
             TyKind::ManagedRef(inner) => write!(f, "Ref<{inner}>")?,
+            TyKind::Vec(elem) => write!(f, "Vec<{elem}>")?,
             TyKind::Range(elem) => write!(f, "Range<{elem}>")?,
             TyKind::Unknown => f.write_str("<unknown>")?,
         }

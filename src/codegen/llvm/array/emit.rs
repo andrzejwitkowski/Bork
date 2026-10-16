@@ -63,6 +63,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         value: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {
+        if array_ty.vec_elem().is_some() {
+            return self.emit_vec_index_store(array_ptr, array_ty, index, value, span);
+        }
         let elem_ty = array_ty
             .array_elem()
             .ok_or_else(|| not_yet_supported("index assignment target", span))?;
@@ -309,7 +312,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok((base, len))
     }
 
-    fn arena_alloc(
+    pub(in crate::codegen::llvm) fn arena_alloc(
         &self,
         arena: PointerValue<'ctx>,
         size: IntValue<'ctx>,
@@ -333,7 +336,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .into_pointer_value())
     }
 
-    fn elem_storage(
+    pub(in crate::codegen::llvm) fn elem_storage(
         &self,
         elem_ty: &Ty,
     ) -> Result<(inkwell::types::BasicTypeEnum<'ctx>, usize, usize), Diagnostic> {
@@ -376,7 +379,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(bytes)
     }
 
-    fn truncate_i32(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
+    pub(in crate::codegen::llvm) fn truncate_i32(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
         if value.get_type().get_bit_width() == 32 {
             value
         } else {
@@ -387,7 +390,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
-    fn guard_index(
+    pub(in crate::codegen::llvm) fn guard_index(
         &mut self,
         index: IntValue<'ctx>,
         len: IntValue<'ctx>,

@@ -1,0 +1,56 @@
+// exit: 0
+// A vector of Refs to one node grows 4 -> 8 -> 16 (ten pushes) and is promoted between arenas
+// that are older and newer than the node. The counters of the node's arena must move by exactly
+// the number of slots, and the slot kind must flip with the direction:
+//   slots in a newer arena than the node   -> weak  (weakCount += 10, strongCount unchanged)
+//   slots in an older arena than the node  -> strong (strongCount += 10, weakCount unchanged)
+// The exit code is 0, or the number of the first check that failed.
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    val n = Node(1)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    var code = 0
+
+    // Older than the node: strong slots, through two growths.
+    var older = Vec<Ref<Node>>()
+    var i = 0
+    while (i < 10) {
+        older.push(r)
+        i = i + 1
+    }
+    if (strongCount(r) != s0 + 10) { code = 1 }
+    if (weakCount(r) != w0) { code = 2 }
+
+    {
+        // Newer than the node: weak slots, again through two growths.
+        var newer = Vec<Ref<Node>>()
+        var j = 0
+        while (j < 10) {
+            newer.push(r)
+            j = j + 1
+        }
+        if (strongCount(r) != s0 + 10) { code = 3 }
+        if (weakCount(r) != w0 + 10) { code = 4 }
+
+        // Newer -> older: every copied slot is rehomed, so weak slots become strong.
+        older.clear()
+        if (strongCount(r) != s0) { code = 5 }
+        older = promote newer
+        if (strongCount(r) != s0 + 10) { code = 6 }
+        if (weakCount(r) != w0 + 10) { code = 7 }
+    }
+
+    // The block's own vector died with its arena; only the promoted strong slots remain.
+    if (strongCount(r) != s0 + 10) { code = 8 }
+    if (weakCount(r) != w0) { code = 9 }
+
+    older.clear()
+    if (strongCount(r) != s0) { code = 10 }
+    if (weakCount(r) != w0) { code = 11 }
+    return code
+}

@@ -1,0 +1,12 @@
+// exit: 5
+// Strings pushed into a vector are copied into the vector's arena.
+fun main(): i32 {
+    var v = Vec<String>()
+    v.push("a")
+    v.push("hello")
+    v.push("xyz")
+    v.push("q")
+    v.push("zz")
+    val s = v.get(1)
+    return s.length
+}

@@ -56,10 +56,12 @@ fn check_index_assign(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let bound = assign_binding(env, name, name_span, true);
-    let elem = bound.as_ref().and_then(|ty| ty.array_elem().cloned());
+    let elem = bound
+        .as_ref()
+        .and_then(|ty| ty.array_elem().or_else(|| ty.vec_elem()).cloned());
     if bound
         .as_ref()
-        .is_some_and(|ty| !ty.is_unknown() && ty.array_elem().is_none())
+        .is_some_and(|ty| !ty.is_unknown() && ty.array_elem().is_none() && ty.vec_elem().is_none())
     {
         env.error(
             format!("cannot index-assign `{name}`: expected an array"),
@@ -175,7 +177,7 @@ fn assign_binding(
                             format!("cannot index-assign through inferred view `{name}`"),
                             Some(span),
                         );
-                    } else if !b.ty.ref_inner().is_some_and(|inner| inner.is_array()) {
+                    } else if !b.ty.ref_inner().is_some_and(|inner| inner.is_array() || inner.is_vec()) {
                         env.error(
                             format!("cannot index-assign through borrow `{name}`"),
                             Some(span),

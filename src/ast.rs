@@ -125,6 +125,9 @@ pub enum Type {
     ManagedRef {
         inner: Box<Type>,
     },
+    Vec {
+        elem: Box<Type>,
+    },
 }
 
 impl Type {
@@ -183,6 +186,7 @@ impl Type {
             },
             Type::Ref { inner, .. } => Type::Ref { inner, nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner },
+            Type::Vec { elem } => Type::Vec { elem },
         }
     }
 
@@ -211,7 +215,7 @@ impl Type {
             | Type::Array { nullable, .. }
             | Type::Func { nullable, .. }
             | Type::Ref { nullable, .. } => *nullable,
-            Type::ManagedRef { .. } => false,
+            Type::ManagedRef { .. } | Type::Vec { .. } => false,
         }
     }
 }
@@ -233,6 +237,7 @@ impl fmt::Display for Type {
             }
             Type::Ref { inner, .. } => write!(f, "&{inner}")?,
             Type::ManagedRef { inner } => write!(f, "Ref<{inner}>")?,
+            Type::Vec { elem } => write!(f, "Vec<{elem}>")?,
         }
         if self.is_nullable() {
             f.write_str("?")?;
@@ -345,6 +350,12 @@ pub enum Expr {
         receiver: Box<Expr>,
         lo: Box<Expr>,
         hi: Box<Expr>,
+        span: crate::span::Span,
+    },
+    /// `Vec<T>()` or `Vec<T>(capacity)`.
+    VecNew {
+        elem: Type,
+        cap: Option<Box<Expr>>,
         span: crate::span::Span,
     },
     Ident {

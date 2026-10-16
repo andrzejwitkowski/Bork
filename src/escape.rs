@@ -321,6 +321,25 @@ impl<'h> Escape<'h, '_> {
                 };
                 buffer.max(deepest)
             }
+            HirExprKind::VecNew { cap, .. } => {
+                if let Some(cap) = cap {
+                    self.place(cap, None);
+                }
+                match sink {
+                    Some(0) | None => self.depth,
+                    Some(depth) => depth,
+                }
+            }
+            HirExprKind::VecOp { receiver, args, .. } => {
+                for arg in args {
+                    self.place(arg, None);
+                }
+                if !expr.ty.uses_arena_storage() {
+                    self.place(receiver, None);
+                    return 0;
+                }
+                self.array_value_depth(receiver)
+            }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
                 if !expr.ty.uses_arena_storage() {

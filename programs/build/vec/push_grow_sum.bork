@@ -1,0 +1,17 @@
+// exit: 45
+// Pushes past several doublings (4, 8, 16, 32) and sums through get and index.
+fun main(): i32 {
+    var v = Vec<i32>()
+    var i = 0
+    while (i < 10) {
+        v.push(i)
+        i = i + 1
+    }
+    var total = 0
+    var j = 0
+    while (j < v.len()) {
+        total = total + v[j]
+        j = j + 1
+    }
+    return total
+}

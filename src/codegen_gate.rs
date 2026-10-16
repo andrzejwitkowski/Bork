@@ -116,6 +116,17 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 gate_expr(element, diagnostics);
             }
         }
+        HirExprKind::VecNew { cap, .. } => {
+            if let Some(cap) = cap {
+                gate_expr(cap, diagnostics);
+            }
+        }
+        HirExprKind::VecOp { receiver, args, .. } => {
+            gate_expr(receiver, diagnostics);
+            for arg in args {
+                gate_expr(arg, diagnostics);
+            }
+        }
         HirExprKind::Index {
             receiver,
             index,

@@ -1,0 +1,17 @@
+// exit: 136
+// 5000 i32 elements (20 KB) cross page and large-block boundaries; the exit code is 5000 mod 256.
+fun main(): i32 {
+    var v = Vec<i32>()
+    var i = 0
+    while (i < 5000) {
+        v.push(1)
+        i = i + 1
+    }
+    var total = 0
+    var j = 0
+    while (j < v.len()) {
+        total = total + v[j]
+        j = j + 1
+    }
+    return total
+}

@@ -403,6 +403,15 @@ Examples:
 - **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts. Indexing applies to `[T; N]` and to **`&[T; N]`** (the element type is `T` in both cases).
 - **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). Inside a callee, `p[i] = v` for `p: &[T; N]` mutates the owner’s buffer. `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
 
+### `Vec<T>`
+
+- Built-in growable array (no user generics). Create with `Vec<T>()` or `Vec<T>(capacity)`; methods `push`, `pop` (`T?`, or the `Ref` itself), `get`, `set`, `len`, `clear`, plus `v[i]` and `v[i] = x`. Elements are Copy types, non-null `String`, or `Ref<T>`; a class object is stored as `Ref<T>`, never inline.
+- A value is a pointer to a header `{ buf, len, cap, arena }` allocated once in the owner arena. The header never moves; only `buf` moves, through `bork_arena_grow`. The first push allocates 4 elements, then capacity doubles.
+- Mutating methods need a `var` (or a `&Vec` parameter). Index reads and methods borrow the vector like an `&T` argument, so they work inside loops without `move`.
+- `move` / `promote` copies the vector into the sink arena: `String` bytes are copied and each `Ref` is cloned and rehomed, so its edge kind is recomputed for the new owner. The source stays valid until its arena dies, like `copy_array_into_arena`.
+- A `Vec<Ref<T>>` registers one drop on its header (`bork_vec_drop_refs`) that releases the first `len` slots. A per-slot drop would dangle because the buffer moves on growth.
+- `return` of a vector is rejected like arrays until a return arena exists. Element borrows blocking `push` are not enforced yet.
+
 ### Nullable (`T?`)
 
 - **`None`** does not bump the arena: for `String?` it is a null pointer and zero length; for scalar nullables codegen uses a “not present” tag with a zeroed payload.
@@ -428,6 +437,11 @@ Lexical arenas still bulk-free on scope exit. A `Ref<T>` that must outlive that 
 - Safe navigation of a class field requires `Ref<T>`; ordinary or nullable class handles cannot use `?.` for field access. Nullable strings and arrays retain their separate nullable `.length` rules.
 - A callee's lexical arena is a child of the caller's current arena. An owned `String`, array, or `Ref` return is rebased into the caller-supplied sink, so it survives the callee `pop`.
 - Record-owned String and array fields are materialized into the record's arena. Ref-array copies clone each handle and register one drop per destination slot. Drop of `Ref` slots, including record fields and `[Ref<T>; N]` elements, runs before the owner arena recycles its payload. There is no cycle collector.
+
+### `strongCount` / `weakCount`
+
+- Diagnostic builtins: `strongCount(r): i32` and `weakCount(r): i32` for a `Ref<T>` `r`. They read the strong and weak counters of the arena `r` points into; `None` reads as 0. The argument is released before the read, so the temporary copy of `r` is not counted.
+- The counters belong to the arena, not to the `Ref`: every `Ref` to objects in that arena shares them, and `weakCount` also counts child arenas created under it. Compare differences against a baseline taken in the same program rather than absolute values. `programs/build/vec/ref_counts_across_arenas.bork` does this for a growing `Vec<Ref<T>>` moved between older and newer arenas.
 
 ## Not planned (and not on the roadmap here)
 

@@ -419,6 +419,23 @@ impl RegionVisitor for Planner {
                 }
                 origins
             }
+            HirExprKind::VecNew { cap, .. } => {
+                if let Some(cap) = cap {
+                    self.origins(cap);
+                }
+                Origins::default()
+            }
+            HirExprKind::VecOp { op, args, .. } => {
+                let origins = self.combine(args);
+                if matches!(op, crate::hir::VecOp::Push | crate::hir::VecOp::Set)
+                    && args.last().is_some_and(|arg| arg.ty.is_managed_ref())
+                {
+                    // ponytail: a Vec's destination arena is only known at runtime, so refs
+                    // pushed into it are program-lived (as for Ref arrays).
+                    self.mark_program(&origins);
+                }
+                origins
+            }
             HirExprKind::Binary { lhs, rhs, .. } => self.combine([lhs.as_ref(), rhs.as_ref()]),
             HirExprKind::Call { args, .. } => {
                 for argument in args

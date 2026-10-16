@@ -50,6 +50,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         if field_ty.is_managed_ref() {
             return self.rehome_ref(owner, value);
         }
+        if field_ty.is_vec() {
+            let previous = self.alloc_sink;
+            self.alloc_sink = Some(owner);
+            let copied = self.copy_vec_into_arena(value.into_pointer_value(), field_ty);
+            self.alloc_sink = previous;
+            return copied.map(Into::into);
+        }
         let inner = field_ty.with_nullable(false);
         if !inner.is_string() && !inner.is_array() {
             return Ok(value);
@@ -441,6 +448,34 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .build_store(slot, self.cx.ref_handle_type().const_zero())?;
         self.store_ref(slot, owner, reference)?;
         self.register_ref_drop(owner, slot)
+    }
+
+    /// `strongCount(r)` / `weakCount(r)`. The argument is an owned clone (`RefCopy` or a
+    /// call result), so it is released before the counter is read; the count then reflects only
+    /// the program's own references. A `None` handle has a null control and reads as 0.
+    pub(super) fn emit_ref_count(
+        &mut self,
+        reference: BasicValueEnum<'ctx>,
+        weak: bool,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let control = self
+            .cx
+            .builder
+            .build_extract_value(reference.into_struct_value(), 0, "ref.control")?;
+        self.drop_ref_value(reference)?;
+        let count = self
+            .cx
+            .builder
+            .build_call(self.cx.arena_count_fn(weak), &[control.into()], "ref.count")?
+            .try_as_basic_value()
+            .basic()
+            .expect("count returns usize")
+            .into_int_value();
+        Ok(self
+            .cx
+            .builder
+            .build_int_truncate_or_bit_cast(count, self.cx.context.i32_type(), "ref.count.i32")?
+            .into())
     }
 
     pub(super) fn rehome_ref(

@@ -192,6 +192,35 @@ impl HirExpr {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VecOp {
+    Push,
+    Pop,
+    Get,
+    Set,
+    Len,
+    Clear,
+}
+
+impl VecOp {
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "push" => Self::Push,
+            "pop" => Self::Pop,
+            "get" => Self::Get,
+            "set" => Self::Set,
+            "len" => Self::Len,
+            "clear" => Self::Clear,
+            _ => return None,
+        })
+    }
+
+    /// Operations that write the vector header or buffer.
+    pub fn mutates(self) -> bool {
+        matches!(self, Self::Push | Self::Pop | Self::Set | Self::Clear)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum HirExprKind {
     Int {
@@ -215,6 +244,17 @@ pub enum HirExprKind {
         receiver: Box<HirExpr>,
         lo: Box<HirExpr>,
         hi: Box<HirExpr>,
+    },
+    /// `Vec<elem>()` / `Vec<elem>(cap)`; the expression type is `Vec<elem>`.
+    VecNew {
+        elem: Ty,
+        cap: Option<Box<HirExpr>>,
+    },
+    /// Built-in method on a `Vec`; `receiver` is a borrow of the vector.
+    VecOp {
+        op: VecOp,
+        receiver: Box<HirExpr>,
+        args: Vec<HirExpr>,
     },
     Ident {
         name: String,

@@ -1,0 +1,53 @@
+// exit: 21
+// `holder` (older arena) keeps six nodes alive through strong slots. `late` lives in the newer
+// block Z, so its slots are weak. While `holder` is full all six read back (sum 21); after
+// `holder.clear()` the nodes' owner block is long gone, so the weak slots must read as absent
+// and add nothing. Strong slots by mistake would add 6 * 100 more.
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var holder = Vec<Ref<Node>>()
+    {
+        val n1 = Node(1)
+        val n2 = Node(2)
+        val n3 = Node(3)
+        val n4 = Node(4)
+        val n5 = Node(5)
+        val n6 = Node(6)
+        holder.push(n1)
+        holder.push(n2)
+        holder.push(n3)
+        holder.push(n4)
+        holder.push(n5)
+        holder.push(n6)
+    }
+    var alive = 0
+    {
+        var late = Vec<Ref<Node>>()
+        var i = 0
+        while (i < holder.len()) {
+            late.push(holder.get(i))
+            i = i + 1
+        }
+        i = 0
+        while (i < late.len()) {
+            val item = late.get(i)
+            if val node = item {
+                alive = alive + node.id
+            }
+            i = i + 1
+        }
+        holder.clear()
+        i = 0
+        while (i < late.len()) {
+            val item = late.get(i)
+            if val node = item {
+                alive = alive + 100
+            }
+            i = i + 1
+        }
+    }
+    return alive
+}

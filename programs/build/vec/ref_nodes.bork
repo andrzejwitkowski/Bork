@@ -1,0 +1,23 @@
+// exit: 12
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var v = Vec<Ref<Node>>()
+    var i = 0
+    while (i < 6) {
+        v.push(Node(i + 1))
+        i = i + 1
+    }
+    var out = 0
+    val last = v.get(5)
+    val first = v.get(0)
+    if val n = last {
+        out = n.id
+    }
+    if val m = first {
+        out = out + m.id
+    }
+    return out + v.len() - 1
+}

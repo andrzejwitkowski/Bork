@@ -1,0 +1,21 @@
+// exit: 15
+// A vector built in an inner block is promoted into the outer var, which owns a copy.
+fun main(): i32 {
+    var outer = Vec<i32>()
+    {
+        var inner = Vec<i32>()
+        inner.push(1)
+        inner.push(2)
+        inner.push(3)
+        inner.push(4)
+        inner.push(5)
+        outer = promote inner
+    }
+    var total = 0
+    var j = 0
+    while (j < outer.len()) {
+        total = total + outer.get(j)
+        j = j + 1
+    }
+    return total
+}

@@ -39,6 +39,12 @@ pub(super) fn check_method_call(
         env.error("method call on a nullable receiver", Some(span));
         return poisoned(args, span, return_ty, env);
     }
+    if let Some(elem) = checked.ty.vec_elem().cloned() {
+        let borrowed = borrow(checked);
+        return super::vec::check_vec_method(
+            receiver, borrowed, elem, method, span, args, return_ty, env,
+        );
+    }
     let Some(class) = checked.ty.record_name().map(str::to_string) else {
         env.error("only named functions can be called", Some(span));
         return poisoned(args, span, return_ty, env);
@@ -112,7 +118,7 @@ fn borrow(receiver: HirExpr) -> HirExpr {
     }
 }
 
-fn poisoned(args: &[Expr], span: Span, return_ty: &Ty, env: &mut Env<'_>) -> HirExpr {
+pub(super) fn poisoned(args: &[Expr], span: Span, return_ty: &Ty, env: &mut Env<'_>) -> HirExpr {
     for arg in args {
         check(arg, None, return_ty, env);
     }

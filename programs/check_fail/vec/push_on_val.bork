@@ -1,0 +1,6 @@
+// diag: cannot mutate immutable `val` binding `v`
+fun main(): i32 {
+    val v = Vec<i32>()
+    v.push(1)
+    return v.len()
+}

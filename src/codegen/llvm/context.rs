@@ -116,6 +116,10 @@ impl<'ctx> Codegen<'ctx> {
         if ty.is_array() {
             return Some(self.buffer_descriptor_type().into());
         }
+        if ty.is_vec() {
+            // Pointer to the arena-resident header `{ buf, len, cap, arena }`.
+            return Some(self.context.ptr_type(AddressSpace::default()).into());
+        }
         if matches!(ty.kind, TyKind::Named(_)) {
             return Some(self.object_handle_type().into());
         }
@@ -343,6 +347,42 @@ impl<'ctx> Codegen<'ctx> {
         let i64_type = self.context.i64_type();
         let params: [BasicMetadataTypeEnum; 3] = [ptr.into(), i64_type.into(), i64_type.into()];
         self.runtime_fn("bork_arena_alloc", || ptr.fn_type(&params, false))
+    }
+
+    /// `ptr bork_arena_grow(ptr arena, ptr block, i64 old_size, i64 new_size, i64 align)`.
+    pub fn arena_grow_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let i64_type = self.context.i64_type();
+        let params: [BasicMetadataTypeEnum; 5] = [
+            ptr.into(),
+            ptr.into(),
+            i64_type.into(),
+            i64_type.into(),
+            i64_type.into(),
+        ];
+        self.runtime_fn("bork_arena_grow", || ptr.fn_type(&params, false))
+    }
+
+    /// `void bork_arena_register_drop(ptr arena, ptr value, ptr drop_fn)`.
+    pub fn arena_register_drop_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let params: [BasicMetadataTypeEnum; 3] = [ptr.into(), ptr.into(), ptr.into()];
+        self.runtime_fn("bork_arena_register_drop", || {
+            self.context.void_type().fn_type(&params, false)
+        })
+    }
+
+    /// `void bork_vec_drop_refs(ptr header)`: the drop for a `Vec<Ref<T>>` header.
+    pub fn vec_drop_refs_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_vec_drop_refs")
+    }
+
+    /// `i64 bork_arena_{strong,weak}_count(ptr arena)`.
+    pub fn arena_count_fn(&self, weak: bool) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let params: [BasicMetadataTypeEnum; 1] = [ptr.into()];
+        let name = if weak { "bork_arena_weak_count" } else { "bork_arena_strong_count" };
+        self.runtime_fn(name, || self.size_type().fn_type(&params, false))
     }
 
     /// `void bork_{print,println}_i64(i64)`.

@@ -73,6 +73,11 @@ pub(super) fn check_call(
         }
     }
     if let Expr::Ident { name, span } = callee {
+        if crate::builtins::is_ref_count(name) {
+            return check_ref_count(name, args, *span, trailing, return_ty, env);
+        }
+    }
+    if let Expr::Ident { name, span } = callee {
         if crate::builtins::resolve(name) == Some(crate::builtins::Builtin::StringFromUtf8) {
             return check_string_from_utf8(name, args, *span, trailing, return_ty, env);
         }
@@ -320,6 +325,33 @@ fn arg_matches_param(got: &Ty, expected: &Ty) -> bool {
         return got_inner == expected_inner;
     }
     false
+}
+
+/// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`, so the
+/// signature cannot be a fixed `FunSig`.
+fn check_ref_count(
+    name: &str,
+    args: &[Expr],
+    span: Span,
+    trailing: Option<&Closure>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+) -> HirExpr {
+    if trailing.is_some() {
+        env.error(format!("`{name}` does not accept trailing closures"), Some(span));
+    }
+    let checked: Vec<_> = args.iter().map(|arg| check(arg, None, return_ty, env)).collect();
+    let [reference] = checked.as_slice() else {
+        env.error(format!("`{name}` expects 1 argument, got {}", checked.len()), Some(span));
+        return HirExpr::spanned(HirExprKind::None, Ty::unknown(), span);
+    };
+    if !reference.ty.is_managed_ref() && !reference.ty.is_unknown() {
+        env.error(
+            format!("`{name}` expects a `Ref<T>`, got {}", reference.ty),
+            reference.span.or(Some(span)),
+        );
+    }
+    build_call(name.to_string(), span, Ty::unknown(), checked, Ty::i32(), trailing.is_some())
 }
 
 /// `stringFromUtf8(&bytes, start, count): String?`: the buffer is any `&[u8; N]`, so the
