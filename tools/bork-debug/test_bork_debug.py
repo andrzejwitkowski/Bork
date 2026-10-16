@@ -21,10 +21,12 @@ class Memory:
             raise RuntimeError('unmapped')
         return bytes(self.data[at:at+size])
     def fixture(self):
-        self.words(64, 1, 2, 256, 2, 1024, 7)
-        self.words(256, 1, 0, 0, 4, 3, 0, 0, 0, 4096, 128, 512, 3000, 12)
-        self.words(256+13*self.size, 2, 1, 1, 0, 1, 0, 2, 2, 0, 0, 0, 0, 0)
-        self.data[3000:3010] = b'a"b\\c.bk\0'
+        self.words(64, 2, 2, 256, 2, 1024, 7)
+        self.words(256, 1, 0, 0, 4, 3, 0, 0, 0, 6000, 1, 128, 512, 3000, 12)
+        self.words(256+14*self.size, 2, 1, 1, 0, 1, 0, 2, 2, 0, 0, 0, 0, 0, 0)
+        self.words(6000, 4096, 128, 512)
+        text = b'a"b\\c.bk\0'
+        self.data[3000:3000+len(text)] = text
         self.data[3100:3106] = b'value\0'
         for i, (control, kind) in enumerate([(0,0),(1,1),(1,2),(1,3),(1,4),(2,4),(99,4)]):
             address = 2048+i*32
@@ -45,7 +47,7 @@ class DecoderTests(unittest.TestCase):
             self.assertEqual(snap.slots[6].index, 6)
             self.assertFalse(any(a == 4096 for a,n in m.reads))
     def test_rejects_corrupt_and_inconsistent_snapshots(self):
-        for words, message in [((2,2,256,2,1024,7),'ABI'),((1,3,256,2,1024,7),'mutation'),((1,2,256,1000001,1024,7),'count'),((1,2,999999,2,1024,7),'read')]:
+        for words, message in [((3,2,256,2,1024,7),'ABI'),((2,3,256,2,1024,7),'mutation'),((2,2,256,1000001,1024,7),'count'),((2,2,999999,2,1024,7),'read')]:
             m = Memory().fixture(); m.words(64,*words)
             with self.assertRaisesRegex(d.DebugError,message):
                 d.Decoder(m.read,8,'little').snapshot(64)
@@ -72,7 +74,7 @@ class DecoderTests(unittest.TestCase):
 
     def test_graph_only_names_ref_targets_and_distinguishes_ref_kinds(self):
         m=Memory().fixture(); snap=d.Decoder(m.read,8,'little').snapshot(64)
-        snap.arenas[3]=dataclasses.replace(snap.arenas[1],id=3,payload=8192)
+        snap.arenas[3]=dataclasses.replace(snap.arenas[1],id=3,extents=((8192,8192,4096),))
         dot=d.to_dot(snap)
         self.assertNotIn('o3_8192',dot)
         self.assertIn('s1 -> o1_4096 [style=solid',dot)

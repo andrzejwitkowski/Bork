@@ -11,13 +11,14 @@ CPP_FIXTURE = '''#include <cstdint>
 namespace bork { template<class T> struct Ref { uintptr_t control; T* object; unsigned char kind; }; template<class T> struct Object { uintptr_t arena; T* object; }; }
 struct Payload { int answer; };
 struct Registry { uintptr_t version,sequence,arenas,arena_count,slots,slot_count; };
-uintptr_t arenas[]={1,0,0,2,1,0,0,0,0,0,64,0,0, 2,1,1,0,1,0,2,0,0,0,0,0,0};
-namespace bork_runtime { namespace arena { namespace debug { extern "C" { Registry bork_debug_registry={1,0,(uintptr_t)arenas,2,0,0}; } } } }
+uintptr_t pages[]={0,0,64};
+uintptr_t arenas[]={1,0,0,2,1,0,0,0,(uintptr_t)pages,1,0,64,0,0, 2,1,1,0,1,0,2,0,0,0,0,0,0,0};
+namespace bork_runtime { namespace arena { namespace debug { extern "C" { Registry bork_debug_registry={2,0,(uintptr_t)arenas,2,0,0}; } } } }
 Payload payload={42};
 bork::Ref<Payload> live={1,&payload,3};
 bork::Ref<Payload> expired={2,(Payload*)0x123,4};
 bork::Object<Payload> object={1,&payload};
-void stopped() {} int main() { arenas[8]=(uintptr_t)&payload; arenas[9]=sizeof(payload); stopped(); }
+void stopped() {} int main() { pages[0]=(uintptr_t)&payload; pages[1]=sizeof(payload); arenas[10]=sizeof(payload); stopped(); }
 '''
 
 @unittest.skipUnless(shutil.which('gdb') and shutil.which('cc'), 'requires GDB and C compiler')
@@ -28,8 +29,8 @@ class GDBTests(unittest.TestCase):
             source=root/'fixture.c'
             source.write_text('''#include <stdint.h>
 struct Registry { uintptr_t version,sequence,arenas,arena_count,slots,slot_count; };
-uintptr_t arena[]={1,0,0,2,0,0,0,0,0,0,64,0,0};
-struct Registry bork_debug_registry={1,0,(uintptr_t)arena,1,0,0};
+uintptr_t arena[]={1,0,0,2,0,0,0,0,0,0,0,64,0,0};
+struct Registry bork_debug_registry={2,0,(uintptr_t)arena,1,0,0};
 void stopped(void) {} int main(void) { stopped(); return 0; }
 ''')
             subprocess.run(['cc','-g','-O0',str(source),'-o',str(root/'fixture')],check=True)

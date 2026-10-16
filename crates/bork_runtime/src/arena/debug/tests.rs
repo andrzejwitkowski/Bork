@@ -118,7 +118,7 @@ fn nested_mutations_and_abi_word_layout() {
     );
     assert_eq!(
         std::mem::size_of::<DebugArena>(),
-        13 * std::mem::size_of::<usize>()
+        14 * std::mem::size_of::<usize>()
     );
     assert_eq!(
         std::mem::size_of::<DebugSlot>(),

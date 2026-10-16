@@ -1,8 +1,8 @@
 //! Thread-local snapshots, nested mutation publication and teardown invalidation.
-use super::super::{ArenaId, ARENA_CAPACITY, RUNTIME};
+use super::super::{ArenaId, RUNTIME};
 #[cfg(not(test))]
 use super::abi::bork_debug_registry;
-use super::abi::{DebugArena, DebugRegistry, DebugSlot, EMPTY};
+use super::abi::{DebugArena, DebugPage, DebugRegistry, DebugSlot, EMPTY};
 use std::{cell::RefCell, collections::HashMap};
 
 pub(super) struct DebugState {
@@ -10,6 +10,7 @@ pub(super) struct DebugState {
     pub(super) depth: usize,
     pub(super) next_scope: usize,
     pub(super) arenas: Vec<DebugArena>,
+    pub(super) pages: Vec<DebugPage>,
     pub(super) slots: Vec<DebugSlot>,
     pub(super) labels: HashMap<usize, (usize, usize)>,
 }
@@ -38,7 +39,7 @@ pub(in crate::arena) fn invalidate() {
 thread_local! {
     pub(super) static DEBUG: RefCell<DebugState> = RefCell::new(DebugState {
         header: EMPTY, depth: 0, next_scope: 1,
-        arenas: Vec::new(), slots: Vec::new(), labels: HashMap::new(),
+        arenas: Vec::new(), pages: Vec::new(), slots: Vec::new(), labels: HashMap::new(),
     });
 }
 
@@ -103,7 +104,8 @@ impl Drop for Mutation {
                 state
                     .labels
                     .retain(|id, _| runtime.controls.contains_key(&ArenaId::new(*id)));
-                state.arenas = runtime
+                let mut pages = Vec::new();
+                let mut arenas: Vec<(DebugArena, usize)> = runtime
                     .controls
                     .values()
                     .map(|c| {
@@ -112,23 +114,48 @@ impl Drop for Mutation {
                             .get(&c.arena_id.as_usize())
                             .copied()
                             .unwrap_or_default();
-                        DebugArena {
-                            id: c.arena_id.as_usize(),
-                            parent: c.parent.map_or(0, ArenaId::as_usize),
-                            depth: c.depth,
-                            strong_count: c.strong_count,
-                            weak_count: c.weak_count,
-                            live_scoped_children: c.live_scoped_children,
-                            state: c.state as usize,
-                            mode: c.mode as usize,
-                            payload: c.payload.as_ref().map_or(0, |a| a.buf.as_ptr() as usize),
-                            used: c.payload.as_ref().map_or(0, |a| a.offset),
-                            capacity: c.payload.as_ref().map_or(0, |_| ARENA_CAPACITY),
-                            source,
-                            line,
+                        let first = pages.len();
+                        for (base, used, capacity) in c
+                            .payload
+                            .as_ref()
+                            .map_or_else(Vec::new, |a| a.debug_pages())
+                        {
+                            pages.push(DebugPage {
+                                base,
+                                used,
+                                capacity,
+                            });
                         }
+                        let own = &pages[first..];
+                        (
+                            DebugArena {
+                                id: c.arena_id.as_usize(),
+                                parent: c.parent.map_or(0, ArenaId::as_usize),
+                                depth: c.depth,
+                                strong_count: c.strong_count,
+                                weak_count: c.weak_count,
+                                live_scoped_children: c.live_scoped_children,
+                                state: c.state as usize,
+                                mode: c.mode as usize,
+                                pages: 0,
+                                page_count: own.len(),
+                                used: own.iter().map(|p| p.used).sum(),
+                                capacity: own.iter().map(|p| p.capacity).sum(),
+                                source,
+                                line,
+                            },
+                            first,
+                        )
                     })
                     .collect();
+                // The page vector is final here, so element addresses are stable.
+                for (arena, first) in &mut arenas {
+                    if arena.page_count != 0 {
+                        arena.pages = &pages[*first] as *const DebugPage as usize;
+                    }
+                }
+                state.arenas = arenas.into_iter().map(|(a, _)| a).collect();
+                state.pages = pages;
             });
             state.arenas.sort_unstable_by_key(|a| a.id);
             state.header.arenas = state.arenas.as_ptr() as usize;

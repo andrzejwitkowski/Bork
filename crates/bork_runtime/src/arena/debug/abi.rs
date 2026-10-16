@@ -21,11 +21,21 @@ pub struct DebugArena {
     pub live_scoped_children: usize,
     pub state: usize,
     pub mode: usize,
-    pub payload: usize,
+    pub pages: usize,
+    pub page_count: usize,
     pub used: usize,
     pub capacity: usize,
     pub source: usize,
     pub line: usize,
+}
+
+/// One bump page or large block of an arena: `[base, base + used)` holds objects.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DebugPage {
+    pub base: usize,
+    pub used: usize,
+    pub capacity: usize,
 }
 
 #[repr(C)]
@@ -40,7 +50,7 @@ pub struct DebugSlot {
 }
 
 pub(super) const EMPTY: DebugRegistry = DebugRegistry {
-    version: 1,
+    version: 2,
     sequence: 0,
     arenas: 0,
     arena_count: 0,
