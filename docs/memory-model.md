@@ -405,8 +405,8 @@ Examples:
 
 ### `Vec<T>`
 
-- Built-in growable array (no user generics). Create with `Vec<T>()` or `Vec<T>(capacity)`; methods `push`, `pop` (`T?`, or the `Ref` itself), `get`, `set`, `len`, `clear`, plus `v[i]` and `v[i] = x`. Elements are Copy types, non-null `String`, or `Ref<T>`; a class object is stored as `Ref<T>`, never inline.
-- A value is a pointer to a header `{ buf, len, cap, arena }` allocated once in the owner arena. The header never moves; only `buf` moves, through `bork_arena_grow`. The first push allocates 4 elements, then capacity doubles.
+- Built-in growable array (no user generics). Create with `Vec<T>()` or `Vec<T>(capacity)`; methods `push`, `pop` (`T?`, or the `Ref` itself), `get`, `set`, `len`, `capacity`, `clear`, plus `v[i]` and `v[i] = x`. Elements are Copy types, non-null `String`, or `Ref<T>`; a class object is stored as `Ref<T>`, never inline.
+- A value is a pointer to a header `{ buf, len, cap, arena }` allocated once in the owner arena. The header never moves; only `buf` moves, through `bork_arena_grow`. `Vec<T>()` starts with capacity 0 and the first push allocates 4 elements, then capacity doubles. `Vec<T>(n)` allocates `n` elements up front (growth then doubles from `n`); `n` is an `i32` and a negative value aborts, like an out-of-range index. `capacity()` reports the current capacity.
 - Mutating methods need a `var` (or a `&Vec` parameter). Index reads and methods borrow the vector like an `&T` argument, so they work inside loops without `move`.
 - `move` / `promote` copies the vector into the sink arena: `String` bytes are copied and each `Ref` is cloned and rehomed, so its edge kind is recomputed for the new owner. The source binding is moved and cannot be read afterwards, but its allocation remains until its arena dies, like `copy_array_into_arena`.
 - A `Vec<Ref<T>>` registers one drop on its header (`bork_vec_drop_refs`) that releases the first `len` slots. A per-slot drop would dangle because the buffer moves on growth.

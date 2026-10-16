@@ -6,7 +6,7 @@ policy, the borrow rule and the header drop to this document.
 
 ## Goals / non-goals
 
-- Goals: `Vec<T>` with `new`, `withCapacity`, `push`, `pop`, `get`, `set`, `len`, `clear`, `v[i]`;
+- Goals: `Vec<T>` with `Vec<T>()` / `Vec<T>(capacity)`, `push`, `pop`, `get`, `set`, `len`, `capacity`, `clear`, `v[i]`;
   amortised O(1) push by doubling; correct `move` / `promote` across arenas.
 - Non-goals (v1): user generics, `Vec<Vec<T>>`, `Vec<T?>`, plain class elements (`Vec<Node>`),
   shrinking, iteration helpers, `return` of a Vec (rejected like arrays until a return arena exists).
@@ -16,7 +16,7 @@ policy, the borrow rule and the header drop to this document.
 - Header `{ ptr, len, cap }` is allocated once with `bork_arena_alloc` in the owner arena and never
   moves. Only the element buffer moves, through `bork_arena_grow`.
 - Capacity: first push allocates `cap = 4` (at least 16 bytes, smaller blocks are not recycled by the
-  arena), then `cap * 2`. `Vec.withCapacity(n)` allocates `n` up front. A buffer past the 2048-byte
+  arena), then `cap * 2`. `Vec<T>(n)` allocates `n` up front, growth then doubles from `n`; a negative `n` aborts. `capacity()` exposes the value. A buffer past the 2048-byte
   large threshold is grown with `realloc` by the arena; otherwise the last block on a page grows in
   place and any other block is copied, its old block going to the free list.
 

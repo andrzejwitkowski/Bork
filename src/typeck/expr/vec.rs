@@ -71,7 +71,7 @@ pub(super) fn check_vec_method(
         VecOp::Pop => (vec![], elem.with_nullable(true)),
         VecOp::Get => (vec![Ty::i32()], elem),
         VecOp::Set => (vec![Ty::i32(), elem], Ty::unit()),
-        VecOp::Len => (vec![], Ty::i32()),
+        VecOp::Len | VecOp::Capacity => (vec![], Ty::i32()),
         VecOp::Clear => (vec![], Ty::unit()),
     };
     if args.len() != params.len() {

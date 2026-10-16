@@ -199,6 +199,7 @@ pub enum VecOp {
     Get,
     Set,
     Len,
+    Capacity,
     Clear,
 }
 
@@ -210,6 +211,7 @@ impl VecOp {
             "get" => Self::Get,
             "set" => Self::Set,
             "len" => Self::Len,
+            "capacity" => Self::Capacity,
             "clear" => Self::Clear,
             _ => return None,
         })

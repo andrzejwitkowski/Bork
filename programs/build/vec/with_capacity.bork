@@ -1,0 +1,61 @@
+// exit: 0
+// `Vec<T>(n)` allocates n elements up front, so n pushes never grow the buffer; the next push
+// doubles from n (not from 4). `capacity()` makes this visible. The exit code is 0, or the number
+// of the last check that failed (a later failure overwrites `code`).
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var code = 0
+
+    // No capacity: nothing allocated until the first push, which allocates 4, then doubles.
+    var plain = Vec<i32>()
+    if (plain.capacity() != 0) { code = 1 }
+    plain.push(1)
+    if (plain.capacity() != 4) { code = 2 }
+    var i = 0
+    while (i < 4) {
+        plain.push(i)
+        i = i + 1
+    }
+    if (plain.capacity() != 8) { code = 3 }
+
+    // Capacity 100: a hundred pushes stay in the first buffer, the 101st doubles it.
+    var big = Vec<i32>(100)
+    if (big.capacity() != 100) { code = 4 }
+    i = 0
+    while (i < 100) {
+        big.push(i)
+        i = i + 1
+    }
+    if (big.capacity() != 100) { code = 5 }
+    big.push(100)
+    if (big.capacity() != 200) { code = 6 }
+    if (big.len() != 101) { code = 7 }
+
+    // A small odd capacity doubles from itself: 3 -> 6.
+    var odd = Vec<i32>(3)
+    odd.push(1)
+    odd.push(2)
+    odd.push(3)
+    odd.push(4)
+    if (odd.capacity() != 6) { code = 8 }
+
+    // Capacity 0 behaves like no capacity.
+    var zero = Vec<i32>(0)
+    zero.push(1)
+    if (zero.capacity() != 4) { code = 9 }
+
+    // Strings and Refs honour the capacity too (Refs also register their header drop).
+    var words = Vec<String>(2)
+    words.push("a")
+    words.push("b")
+    if (words.capacity() != 2) { code = 10 }
+    var nodes = Vec<Ref<Node>>(2)
+    nodes.push(Node(1))
+    nodes.push(Node(2))
+    nodes.push(Node(3))
+    if (nodes.capacity() != 4) { code = 11 }
+    return code
+}

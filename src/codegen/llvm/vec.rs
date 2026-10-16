@@ -200,11 +200,21 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let arena = self.sink_arena();
         let cap = match cap {
-            Some(cap) => Some(self.cx.builder.build_int_s_extend(
-                cap.into_int_value(),
-                self.cx.context.i64_type(),
-                "vec.cap",
-            )?),
+            Some(cap) => {
+                let cap = cap.into_int_value();
+                let negative = self.cx.builder.build_int_compare(
+                    IntPredicate::SLT,
+                    cap,
+                    cap.get_type().const_zero(),
+                    "vec.cap.neg",
+                )?;
+                self.branch_abort_if(negative, None)?;
+                Some(self.cx.builder.build_int_s_extend(
+                    cap,
+                    self.cx.context.i64_type(),
+                    "vec.cap",
+                )?)
+            }
             None => None,
         };
         Ok(self.vec_alloc(arena, elem_ty, cap)?.into())
@@ -407,12 +417,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let header = ops[0].into_pointer_value();
         match op {
-            VecOp::Len => {
-                let len = self.vec_load_word(header, LEN)?;
+            VecOp::Len | VecOp::Capacity => {
+                let field = if op == VecOp::Len { LEN } else { CAP };
+                let count = self.vec_load_word(header, field)?;
                 Ok(Some(
                     self.cx
                         .builder
-                        .build_int_truncate(len, self.cx.context.i32_type(), "vec.len")?
+                        .build_int_truncate(count, self.cx.context.i32_type(), "vec.count")?
                         .into(),
                 ))
             }
