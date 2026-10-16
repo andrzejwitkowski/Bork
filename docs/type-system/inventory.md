@@ -99,4 +99,17 @@ LLVM_SYS_231_PREFIX=/usr/lib/llvm-23 cargo test --features codegen   # tests/bui
 
 ## Test runs
 
-(Filled in below.)
+Recorded 2026-10-16 on branch `refactor/split-array-codegen` (base `510f1b8` plus the baseline commits), Linux.
+
+| Command | Result |
+|---|---|
+| `cargo test --workspace` | PASS: 298 unit, 13 arrays, 2 golden (new), 52 parser, 1 programs, 43 `bork_runtime` |
+| `cargo test --workspace --no-default-features` | PASS: 275 unit, 13 arrays, 2 golden, 52 parser, 1 programs, 43 `bork_runtime` |
+| `cargo test --features codegen --no-fail-fast` (LLVM 23.1.3 from `~/llvm23-prefix`, `LD_LIBRARY_PATH` for libz3/libLLVM) | **FAILED, environment-limited**: lib 352 pass; arrays 13, parser 52, golden 2 pass; `tests/build.rs` 7 pass / 45 fail; `tests/debug_build.rs` 1 pass / 3 fail; `tests/programs.rs` 1 pass / 2 fail |
+
+All 50 codegen failures coincide with 50 occurrences of `error: failed to run clang: No such file or directory`:
+`clang` is not installed on this machine (CI installs it with `llvm-23-dev clang`). The failing build/run
+tests (`tests/build.rs`, `tests/debug_build.rs`, the `build` / `build_fail` corpus in `tests/programs.rs`)
+therefore did **not** execute any compiled program here. Every `codegen-implemented` cell above stays **NOT RUN**.
+They must be re-run in an environment with `clang` before this baseline is treated as complete for codegen.
+
