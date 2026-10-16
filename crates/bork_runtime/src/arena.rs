@@ -155,46 +155,60 @@ impl Arena {
             return self.alloc_large(size, align);
         }
         if size >= MIN_CLASS {
-            let mut link: *mut *mut u8 = &mut self.free_lists[ceil_class(size)];
-            // SAFETY: every list node is a free block that stores its next pointer
-            // in its first bytes, and `link` points at the list head or such a node.
-            unsafe {
-                loop {
-                    let block = link.read_unaligned();
-                    if block.is_null() {
-                        break;
-                    }
-                    let next = block.cast::<*mut u8>().read_unaligned();
-                    if block as usize % align == 0 {
-                        link.write_unaligned(next);
-                        return block;
-                    }
-                    link = block.cast();
-                }
+            if let Some(ptr) = self.take_free_block(size, align) {
+                return ptr;
             }
         }
+        match self.bump_alloc(size, align) {
+            Some(ptr) => ptr,
+            // The alignment is too large for a page.
+            None => self.alloc_large(size, align),
+        }
+    }
+
+    /// Pops the first block of the size class that fits `size` and is aligned.
+    /// The block may be larger than `size`; its slack is not tracked.
+    fn take_free_block(&mut self, size: usize, align: usize) -> Option<*mut u8> {
+        let mut link: *mut *mut u8 = &mut self.free_lists[ceil_class(size)];
+        // SAFETY: every list node is a free block that stores its next pointer
+        // in its first bytes, and `link` points at the list head or such a node.
+        unsafe {
+            loop {
+                let block = link.read_unaligned();
+                if block.is_null() {
+                    return None;
+                }
+                let next = block.cast::<*mut u8>().read_unaligned();
+                if block as usize % align == 0 {
+                    link.write_unaligned(next);
+                    return Some(block);
+                }
+                link = block.cast();
+            }
+        }
+    }
+
+    /// Bumps in the newest page, then in the tails of older pages, then in a new
+    /// page. `None` means the alignment cannot be met inside a page.
+    fn bump_alloc(&mut self, size: usize, align: usize) -> Option<*mut u8> {
         let last = self.pages.len() - 1;
         if let Some(ptr) = self.pages[last].bump(size, align) {
-            return ptr;
+            return Some(ptr);
         }
         // Tails of older pages stay usable after a miss.
         for page in &mut self.pages[..last] {
             if let Some(ptr) = page.bump(size, align) {
-                return ptr;
+                return Some(ptr);
             }
         }
         let mut page = self.spare.pop().unwrap_or_else(Page::new);
-        match page.bump(size, align) {
-            Some(ptr) => {
-                self.pages.push(page);
-                ptr
-            }
-            // Alignment too large for a page.
-            None => {
-                self.spare.push(page);
-                self.alloc_large(size, align)
-            }
+        let ptr = page.bump(size, align);
+        if ptr.is_some() {
+            self.pages.push(page);
+        } else {
+            self.spare.push(page);
         }
+        ptr
     }
 
     fn alloc_large(&mut self, size: usize, align: usize) -> *mut u8 {
@@ -214,6 +228,20 @@ impl Arena {
         self.large.iter().any(|(p, _)| *p == ptr) || self.pages.iter().any(|p| p.contains(ptr))
     }
 
+    /// If the block is the newest one on its page (it ends where the bump offset
+    /// is), moves the offset back to its start so the space becomes page tail again.
+    fn rewind_if_last(&mut self, ptr: *mut u8, size: usize) -> bool {
+        let Some(page) = self.pages.iter_mut().find(|p| p.contains(ptr)) else {
+            return false;
+        };
+        let start = ptr as usize - page.base();
+        if start + size != page.offset {
+            return false;
+        }
+        page.offset = start;
+        true
+    }
+
     /// Returns a block of `size` bytes obtained from this arena for reuse.
     /// `size` must be what the block was allocated or last grown to.
     fn free(&mut self, ptr: *mut u8, size: usize) {
@@ -229,12 +257,8 @@ impl Arena {
             unsafe { std::alloc::dealloc(p, layout) };
             return;
         }
-        if let Some(page) = self.pages.iter_mut().find(|p| p.contains(ptr)) {
-            let start = ptr as usize - page.base();
-            if start + size == page.offset {
-                page.offset = start;
-                return;
-            }
+        if self.rewind_if_last(ptr, size) {
+            return;
         }
         // shortcut: blocks under 16 bytes are not recycled, until a collection needs it.
         if size >= MIN_CLASS {
