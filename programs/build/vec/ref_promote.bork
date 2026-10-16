@@ -25,5 +25,6 @@ fun main(): i32 {
         }
         j = j + 1
     }
+    // Node ids are 1..6, so total = 1 + 2 + 3 + 4 + 5 + 6 = 21.
     return total
 }

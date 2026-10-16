@@ -1,4 +1,6 @@
 // exit: 12
+// Six pushes grow the buffer once (4 -> 8); the Refs must survive the move of the buffer.
+// Node ids are 1..6 (the loop pushes Node(i + 1)).
 class Node {
     id: i32
 }
@@ -11,13 +13,14 @@ fun main(): i32 {
         i = i + 1
     }
     var out = 0
-    val last = v.get(5)
-    val first = v.get(0)
+    val last = v.get(5) // Ref to Node(6)
+    val first = v.get(0) // Ref to Node(1)
     if val n = last {
-        out = n.id
+        out = n.id // 6
     }
     if val m = first {
-        out = out + m.id
+        out = out + m.id // 6 + 1 = 7
     }
+    // 7 + v.len() (6) - 1 = 12
     return out + v.len() - 1
 }

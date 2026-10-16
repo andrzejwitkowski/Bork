@@ -7,10 +7,13 @@ fun main(): i32 {
     v.push(3)
     v[0] = 10
     v.set(1, 20)
+    // v is now [10, 20, 3]: v[0] was overwritten by index assign, v[1] by set.
     var out = 0
-    val last = v.pop() ?: 0
+    val last = v.pop() ?: 0 // 3: pop removes and returns the last element, v is [10, 20]
+    //  out = 0 + last (3) + v[1] (20) + v[0] (10) - 6 = 27
     out = out + last + v[1] + v[0] - 6
     v.clear()
-    val none = v.pop() ?: 4
+    val none = v.pop() ?: 4 // pop on an empty vector is None, so the elvis default 4 wins
+    // 27 + v.len() (0 after clear) + none (4) = 31
     return out + v.len() + none
 }

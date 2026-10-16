@@ -9,13 +9,14 @@ fun main(): i32 {
         inner.push(3)
         inner.push(4)
         inner.push(5)
-        outer = promote inner
+        outer = promote inner // outer gets its own copy; `inner` is unreadable from here on
     }
+    // The inner block's arena is gone, so reading outer proves the copy lives in outer's arena.
     var total = 0
     var j = 0
     while (j < outer.len()) {
         total = total + outer.get(j)
         j = j + 1
     }
-    return total
+    return total // 1 + 2 + 3 + 4 + 5 = 15
 }

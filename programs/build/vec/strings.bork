@@ -7,6 +7,7 @@ fun main(): i32 {
     v.push("xyz")
     v.push("q")
     v.push("zz")
-    val s = v.get(1)
-    return s.length
+    // The fifth push grows the buffer (4 -> 8), copying the String descriptors.
+    val s = v.get(1) // "hello", still intact after the growth
+    return s.length // 5
 }
