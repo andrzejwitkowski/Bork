@@ -382,7 +382,7 @@ pub unsafe extern "C" fn bork_ref_equal_ptr(lhs: *const RefHandle, rhs: *const R
     unsafe { bork_ref_equal(*lhs, *rhs) }
 }
 
-/// Header of a `Vec<Ref<T>>`: `{ buf, len, cap, arena }`, laid out by `codegen/llvm/vec.rs`.
+/// Header of a `Vec<Ref<T>>`: `{ buf, len, cap, arena }`. The field order is `BUF`/`LEN`/`CAP`/`ARENA` in `codegen/llvm/vec/mod.rs`.
 #[repr(C)]
 #[cfg_attr(not(test), allow(dead_code))]
 struct VecHeader {
