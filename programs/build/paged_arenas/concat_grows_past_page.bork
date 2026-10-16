@@ -1,3 +1,4 @@
+// One 5120-byte string (over a page) plus the 5100 bytes of its inputs, all in main's region.
 // exit: 0
 fun main(): i32 {
     val a = concat("0123456789", "0123456789")
@@ -8,7 +9,8 @@ fun main(): i32 {
     val f = concat(e, e)
     val g = concat(f, f)
     val h = concat(g, g)
-    if (h.length == 2560 && h[2559] == 57) {
+    val i = concat(h, h)
+    if (i.length == 5120 && i[5119] == 57) {
         return 0
     }
     return 1
