@@ -1,10 +1,28 @@
 // exit: 0
-// A vector of Refs to one node grows 4 -> 8 -> 16 (ten pushes) and is promoted between arenas
-// that are older and newer than the node. The counters of the node's arena must move by exactly
-// the number of slots, and the slot kind must flip with the direction:
-//   slots in a newer arena than the node   -> weak  (weakCount += 10, strongCount unchanged)
-//   slots in an older arena than the node  -> strong (strongCount += 10, weakCount unchanged)
-// The exit code is 0, or the number of the first check that failed.
+//
+// WHAT THIS TESTS
+// A Vec<Ref<Node>> that grows (4 -> 8 -> 16 slots over ten pushes) and is then promoted
+// into another arena must keep the reference counts of the node's arena exact, and each slot
+// must become strong or weak depending on where the vector lives:
+//   - vector in an arena OLDER than the node's arena -> slots are STRONG (they keep the node alive)
+//   - vector in an arena NEWER than the node's arena -> slots are WEAK   (back-edges, they do not)
+// `promote` into a different arena must therefore flip every slot's kind ("rehome"), and the
+// buffer growth in between must neither leak nor drop a reference.
+//
+// HOW IT OBSERVES THAT
+// strongCount(r) / weakCount(r) read the counters of the arena `r` points into. They are shared by
+// every Ref into that arena, so the test never compares absolute values: it takes a baseline
+// (s0, w0) first and then asserts exact differences from it.
+//
+// WHAT THE EXIT CODE MEANS
+// The test harness only sees the process exit status, so each `code = N` below is a label that
+// says which check failed. The program returns 0 when every check passed; otherwise it returns the
+// number of the LAST failed check (a later failure overwrites `code`). The comment above each
+// check says what a failure of that check would mean.
+//
+// Arena layout (ids grow with creation time):  main's arena  <  node's arena  <  inner block's arena
+//   `older` lives in main's arena       -> older than the node -> its slots are strong
+//   `newer` lives in the inner block    -> newer than the node -> its slots are weak
 class Node {
     id: i32
 }
@@ -12,45 +30,63 @@ class Node {
 fun main(): i32 {
     val n = Node(1)
     val r: Ref<Node> = n
+    // Baseline. Every later check is "baseline + the number of slots we know we created".
     val s0 = strongCount(r)
     val w0 = weakCount(r)
     var code = 0
 
-    // Older than the node: strong slots, through two growths.
+    // Step 1: ten pushes into `older` (grows 4 -> 8 -> 16). Ten strong slots, no weak ones.
     var older = Vec<Ref<Node>>()
     var i = 0
     while (i < 10) {
         older.push(r)
         i = i + 1
     }
+    // Check 1: strong == s0 + 10. Failing means a push (or a growth) lost or duplicated a reference.
     if (strongCount(r) != s0 + 10) { code = 1 }
+    // Check 2: weak == w0. Failing means the slots were classified weak although they point forward.
     if (weakCount(r) != w0) { code = 2 }
 
     {
-        // Newer than the node: weak slots, again through two growths.
+        // Step 2: ten pushes into `newer`, which lives in a NEWER arena than the node, so these
+        // ten slots are weak back-edges. The strong count must not move.
         var newer = Vec<Ref<Node>>()
         var j = 0
         while (j < 10) {
             newer.push(r)
             j = j + 1
         }
+        // Check 3: strong == s0 + 10 still. Failing means weak slots took strong references.
         if (strongCount(r) != s0 + 10) { code = 3 }
+        // Check 4: weak == w0 + 10. Failing means the slots in the newer arena were not weak.
         if (weakCount(r) != w0 + 10) { code = 4 }
 
-        // Newer -> older: every copied slot is rehomed, so weak slots become strong.
+        // Step 3: release the strong slots, then move `newer` into `older` (which lives in the
+        // older arena). Each copied slot is rehomed there, so weak slots must turn strong.
         older.clear()
+        // Check 5: strong == s0. Failing means clear() did not release all ten strong slots.
         if (strongCount(r) != s0) { code = 5 }
         older = promote newer
+        // Check 6: strong == s0 + 10. Failing means the promoted slots kept their old weak kind
+        // instead of being rehomed to strong (the node would not be kept alive).
         if (strongCount(r) != s0 + 10) { code = 6 }
+        // Check 7: weak == w0 + 10. `newer` still exists inside this block, so its own ten weak
+        // slots are still counted. Failing means promote released or duplicated them.
         if (weakCount(r) != w0 + 10) { code = 7 }
     }
 
-    // The block's own vector died with its arena; only the promoted strong slots remain.
+    // Step 4: the inner block ended. Its arena (and the vector `newer` in it) is gone, and the
+    // vector's single drop released its ten weak slots. Only the promoted strong slots remain.
+    // Check 8: strong == s0 + 10. Failing means ending the block released strong slots too.
     if (strongCount(r) != s0 + 10) { code = 8 }
+    // Check 9: weak == w0. Failing means the dead vector leaked its ten weak slots.
     if (weakCount(r) != w0) { code = 9 }
 
+    // Step 5: clearing the promoted vector releases the last ten strong slots: back to baseline.
     older.clear()
+    // Check 10: strong == s0. Failing means the promoted slots were not released by clear().
     if (strongCount(r) != s0) { code = 10 }
+    // Check 11: weak == w0. Failing means something left a weak reference behind.
     if (weakCount(r) != w0) { code = 11 }
     return code
 }
