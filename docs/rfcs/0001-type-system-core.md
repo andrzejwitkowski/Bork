@@ -37,7 +37,8 @@ typeck already works.
 - Implicit `&T` to `T` (auto-deref on assignment): hides moves and copies, which the ownership model
   must keep visible.
 
-**Consequences.** Assignability is `ty_a == ty_b` after substitution. Method lookup does not walk a
+**Consequences.** Assignability is `ty_a == ty_b` after substitution (sole exception: the `T` to `Ref<T>`
+creation in section 3). Method lookup does not walk a
 class hierarchy. Dynamic dispatch, if ever wanted, arrives as trait objects (#69).
 
 **Depends on.** #55, #60, #69.
@@ -69,7 +70,13 @@ computation pass is needed in HIR.
 - **`T??` is rejected** with a diagnostic at type lowering. It is not collapsed to `T?`: collapsing hides
   which layer is absent and breaks generic code (`T` instantiated with `U?`).
 - `T?`, `Ref<T>` and `Option<T>` are three different types. Conversions between them are **explicit
-  only**; there are no implicit coercions in either direction.
+  only**; there are no implicit coercions in either direction. `T` to `T?` needs `Some(..)` (current
+  behaviour: `val a: i32? = 5` is rejected).
+- **One existing exception is kept:** in checking mode, a value of class type `T` where `Ref<T>` is
+  expected is wrapped in a ref creation (`check_managed_ref`, `src/typeck/expr/mod.rs`; e.g.
+  `val r: Ref<Node> = Node("live")`, used across `programs/*/managed_refs`). This is an allocation into
+  a managed arena driven by the expected type, not subtyping: it never applies in synthesis mode, never
+  to `T?` or `Option<T>`, and never in the other direction. No new coercion may be added without an RFC.
 - Generic instantiation that would produce `T??` (for example `T?` with `T = U?`) is an error at the
   instantiation site, with a note pointing at the parameter.
 
@@ -84,7 +91,9 @@ Keeping them separate avoids blocking nullability work on ADTs while leaving a c
   through explicit `Some` / `None` expressions; this RFC does not widen that.
 
 **Consequences.** Today's `is_presence_capable` (nullable or `Ref<T>`) remains a representation query, not
-a subtyping relation. Existing `check_fail` diagnostics for nullable types are unchanged until the
+a subtyping relation. A generic signature that mentions `T?` cannot be instantiated with a nullable type
+(e.g. `fun first<T>(v: Vec<T>): T?` with `T = U?`); lifting that needs a "non-nullable" bound or
+`Option<T>`, decided with traits (#55) and #54. Existing `check_fail` diagnostics for nullable types are unchanged until the
 nullability phase re-blesses them.
 
 **Depends on.** #33, #54, and the nullability/ADT work (#49).
@@ -111,11 +120,11 @@ errors at the definition, not at some distant use.
 instances. `Vec<T>` becomes an ordinary generic class once #45 and #68 land; the vec design spec's
 "no general generics" non-goal ends then. Recursive generic layout is validated at declaration (#45).
 
-**Dangling reference.** Issue #29 says ownership is checked "see ownership contract RFC". No such issue
-exists under the `type-system` label. Until it does, the rule above ("conservative, pre-mono, `T` is
-move-only without bounds") is the contract and should be revisited if that RFC disagrees.
+**Ownership contract.** The precise typeck / ownership / region contract is RFC #30 (TS-P0-03); the
+conservative pre-mono check is implemented in #46. If #30 disagrees with the rule above ("`T` is
+move-only without bounds"), #30 wins and this section is amended.
 
-**Depends on.** #34, #42, #43, #45, #60, #68.
+**Depends on.** #30, #34, #42, #43, #44, #45, #46, #47, #48, #60, #68.
 
 ## 5. Inference scope: bidirectional with local unification
 
@@ -131,10 +140,11 @@ checking modular and make incremental/LSP re-checking cheap.
 - Whole-program Hindley-Milner: non-local errors, defeats modular checking.
 - Inferring return types of items: makes signatures depend on bodies, breaks recursion and forward use.
 
-**Consequences.** `[]` and `None` without an expected type still need annotations. Inference variables
-never escape a body; unresolved ones are an error, not a silent `Unknown`.
+**Consequences.** Local variables may omit their type; `[]` and `None` without an annotation get an
+inference variable resolved by later uses in the same body (#40). Inference variables never escape a
+body; unresolved ones are an error (#41), not a silent `Unknown`.
 
-**Depends on.** #38, #39.
+**Depends on.** #38, #39, #40, #41.
 
 ## 6. Identity: `DefId` / `TyId` in a side interner
 
@@ -153,7 +163,7 @@ and be stable under renaming and module moves.
 **Consequences.** Typeck is migrated in #36; the golden HIR-type snapshot
 (`tests/golden/hir_types.txt`) must keep printing names, not ids.
 
-**Depends on.** #31, #32, #33, #36.
+**Depends on.** #31, #32, #33, #35, #36, #37.
 
 ## 7. Numeric policy: no implicit coercion
 
@@ -167,17 +177,20 @@ and be stable under renaming and module moves.
   range check exists today; the owning phase adds it and re-blesses any affected diagnostics.)
 
 **Rationale.** This documents what `src/typeck/expr/mod.rs` and `binary.rs` already do, and fixes it as the
-contract before inference variables arrive (#38): an unconstrained integer literal variable defaults to
-`i32` at the end of the body.
+contract before inference variables arrive (#38). Once they do, a literal without an expected type gets
+an integer (or float) inference variable that any use in the same body may fix, e.g.
+`val x = 5` then `takes_i64(x)` makes `x: i64`; if nothing fixes it, it defaults to `i32` / `f64` at the
+end of the body (#40).
 
 **Rejected.**
 - Implicit widening (`i32` to `i64`): hides cost and overflow semantics, adds a second compatibility relation.
-- Literal defaults chosen from context beyond the peer rule: non-local and surprising.
+- Literal types chosen from outside the enclosing body: non-local, conflicts with section 5.
 
-**Consequences.** Mixed-width arithmetic needs explicit conversions. Programs in `programs/` keep
-passing unchanged because they already satisfy this policy.
+**Consequences.** Mixed-width arithmetic needs explicit conversions; an explicit conversion syntax does not
+exist yet and is owned by #40. The range check may break corpus programs that rely on silent truncation
+(today `val c: u8 = 300` is accepted); the owning phase must run the corpus and re-bless.
 
-**Depends on.** #38, #39.
+**Depends on.** #38, #39, #40.
 
 ## Migration impact on the current `TyKind`
 
@@ -187,12 +200,15 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 
 ## Open questions
 
-None blocking. The "ownership contract" cross-reference (section 4) needs an owner.
+- Explicit numeric conversion syntax (`as`, `i64(x)`, methods) is not chosen here (section 7).
+- Whether the implicit `T` to `Ref<T>` creation (section 3) stays long-term or becomes explicit is
+  left to the managed-ref / region work (#61); this RFC only freezes it as the sole exception.
 
 ## Reviewer checklist
 
 - [ ] Each of the 7 sections states a decision, rationale and rejected alternatives.
 - [ ] Section 3 rejects `T??` and keeps `T?`, `Ref<T>`, `Option<T>` as explicit conversions only.
+- [ ] Section 3's `T` to `Ref<T>` creation is accepted as the only implicit conversion.
 - [ ] Section 7 defaults literals to `i32` / `f64` and marks the range check as new.
 - [ ] Section 4's supersession of "no general generics" is accepted.
 - [ ] Downstream issues are linked to the sections they depend on (see PR description).
