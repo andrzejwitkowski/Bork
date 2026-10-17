@@ -71,6 +71,8 @@ From `docs/superpowers/specs/2026-10-16-vec-design.md`:
 - Non-goals: `Vec<Vec<T>>`, `Vec<T?>`, `Vec<Node>`.
 - Element-borrow rule: **not enforced yet**.
 
+Superseded in part by [RFC 0001](../rfcs/0001-type-system-core.md): "no general generics" holds only until the generics phase (#45, #68); generics will be monomorphized.
+
 ## Orphan / unwired tests
 
 - `TODO.md`: no test asserts that every `check()`-ok sample either passes the codegen gate or is listed as intentionally rejected.
