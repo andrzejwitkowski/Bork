@@ -1,0 +1,180 @@
+programs/build/basics/array_index_assign.bork::main() -> i32
+programs/build/basics/nested_i64.bork::sub(a: i64, b: i64) -> i64
+programs/build/basics/nested_i64.bork::main() -> i32
+programs/build/basics/println_string.bork::main() -> unit
+programs/build/basics/return_constant.bork::main() -> i32
+programs/build/basics/unit_main.bork::main() -> unit
+programs/build/borrow/array_slice.bork::main() -> i32
+programs/build/borrow/reborrow_in_for.bork::bump(buf: &[i32; 2]) -> unit
+programs/build/borrow/reborrow_in_for.bork::outer(buf: &[i32; 2]) -> unit
+programs/build/borrow/reborrow_in_for.bork::main() -> i32
+programs/build/borrow/reborrow_in_if.bork::set_head(buf: &[i32; 2], v: i32) -> unit
+programs/build/borrow/reborrow_in_if.bork::outer(buf: &[i32; 2], flag: bool) -> unit
+programs/build/borrow/reborrow_in_if.bork::main() -> i32
+programs/build/borrow/reference_in_while.bork::bump(buf: &[i32; 2]) -> unit
+programs/build/borrow/reference_in_while.bork::main() -> i32
+programs/build/borrow/reference_index_read.bork::first(buf: &[i32; 3]) -> i32
+programs/build/borrow/reference_index_read.bork::main() -> i32
+programs/build/classes/call_arg.bork::take(p: Point) -> i32
+programs/build/classes/call_arg.bork::main() -> i32
+programs/build/classes/mutable_field.bork::main() -> i32
+programs/build/classes/nested_field.bork::main() -> i32
+programs/build/classes/nullable_field_assign.bork::main() -> i32
+programs/build/classes/safe_ref_field.bork::main() -> i32
+programs/build/classes/string_field.bork::main() -> i32
+programs/build/classes/walkthrough_point.bork::sum(p: &Point) -> i32
+programs/build/classes/walkthrough_point.bork::main() -> i32
+programs/build/conditionals/else_if.bork::pick(n: i32) -> i32
+programs/build/conditionals/else_if.bork::main() -> i32
+programs/build/conditionals/if_else_return.bork::add(a: i32, b: i32) -> i32
+programs/build/conditionals/if_else_return.bork::main() -> i32
+programs/build/conditionals/logical_short_circuit.bork::side() -> i32
+programs/build/conditionals/logical_short_circuit.bork::main() -> i32
+programs/build/conditionals/nested_if.bork::main() -> i32
+programs/build/conditionals/nullable_assert.bork::main() -> unit
+programs/build/conditionals/nullable_elvis.bork::main() -> unit
+programs/build/conditionals/nullable_eq.bork::main() -> i32
+programs/build/conditionals/nullable_f32.bork::main() -> i32
+programs/build/conditionals/nullable_none.bork::main() -> unit
+programs/build/conditionals/nullable_safe_length.bork::main() -> i32
+programs/build/conditionals/value_if.bork::pick(flag: i32) -> i32
+programs/build/conditionals/value_if.bork::main() -> i32
+programs/build/constants/method_and_shadow.bork::shadow(STEP: i32) -> i32
+programs/build/constants/method_and_shadow.bork::main() -> i32
+programs/build/constants/method_and_shadow.bork::Counter.bump(this: &Counter) -> i32
+programs/build/constants/string_and_scalars.bork::status() -> String
+programs/build/constants/string_and_scalars.bork::len(s: &String) -> i32
+programs/build/constants/string_and_scalars.bork::main() -> i32
+programs/build/loops/for_nested.bork::main() -> i32
+programs/build/loops/for_sum.bork::main() -> i32
+programs/build/loops/while_accumulate.bork::main() -> i32
+programs/build/loops/while_break.bork::main() -> i32
+programs/build/managed_refs/cache_manager_graph.bork::main() -> i32
+programs/build/managed_refs/chained_cache_manager_graph.bork::main() -> i32
+programs/build/managed_refs/chained_expired_weak.bork::main() -> i32
+programs/build/managed_refs/chained_loop_cleanup.bork::main() -> i32
+programs/build/managed_refs/chained_partial_cleanup.bork::clear(holder: &Holder) -> Ref<Node>
+programs/build/managed_refs/chained_partial_cleanup.bork::main() -> i32
+programs/build/managed_refs/chained_three_bindings_value.bork::main() -> i32
+programs/build/managed_refs/count_of_last_reference.bork::main() -> i32
+programs/build/managed_refs/expired_weak_back_edge.bork::main() -> i32
+programs/build/managed_refs/presence_int_result.bork::pick(r: Ref<Node>) -> i32
+programs/build/managed_refs/presence_int_result.bork::main() -> i32
+programs/build/managed_refs/program_dynamic_across_blocks.bork::make_shared() -> Ref<Box>
+programs/build/managed_refs/program_dynamic_across_blocks.bork::main() -> i32
+programs/build/managed_refs/val_both_return_string_move.bork::run(r: Ref<Node>) -> i32
+programs/build/managed_refs/val_both_return_string_move.bork::main() -> i32
+programs/build/managed_refs/val_else_move_string.bork::run(r: Ref<Node>) -> unit
+programs/build/managed_refs/val_else_move_string.bork::main() -> unit
+programs/build/managed_refs/val_then_return_move.bork::run(r: Ref<Node>) -> i32
+programs/build/managed_refs/val_then_return_move.bork::main() -> i32
+programs/build/managed_refs/weak_back_edge_usage.bork::read_parent(child: Ref<Node>) -> i32
+programs/build/managed_refs/weak_back_edge_usage.bork::main() -> i32
+programs/build/managed_refs/when_arms_print.bork::label(r: Ref<Node>) -> unit
+programs/build/managed_refs/when_arms_print.bork::main() -> unit
+programs/build/methods/basic.bork::main() -> i32
+programs/build/methods/basic.bork::Point.sum(this: &Point) -> i32
+programs/build/methods/borrowed_receiver.bork::read(p: &Point) -> i32
+programs/build/methods/borrowed_receiver.bork::main() -> i32
+programs/build/methods/borrowed_receiver.bork::Point.get(this: &Point) -> i32
+programs/build/methods/explicit_this.bork::main() -> i32
+programs/build/methods/explicit_this.bork::Point.set(this: &Point, x: i32) -> unit
+programs/build/methods/field_receiver.bork::main() -> i32
+programs/build/methods/field_receiver.bork::Inner.get(this: &Inner) -> i32
+programs/build/methods/field_receiver.bork::Outer.deep(this: &Outer) -> i32
+programs/build/methods/if_val_receiver.bork::main() -> i32
+programs/build/methods/if_val_receiver.bork::Node.value(this: &Node) -> i32
+programs/build/methods/if_val_receiver.bork::Node.next_value(this: &Node) -> i32
+programs/build/methods/method_calls_method.bork::main() -> i32
+programs/build/methods/method_calls_method.bork::Point.sum(this: &Point) -> i32
+programs/build/methods/method_calls_method.bork::Point.twice(this: &Point) -> i32
+programs/build/methods/method_calls_method.bork::Point.fact(this: &Point, k: i32) -> i32
+programs/build/methods/mutate_field.bork::main() -> i32
+programs/build/methods/mutate_field.bork::Counter.bump(this: &Counter) -> unit
+programs/build/methods/nested_calls.bork::main() -> i32
+programs/build/methods/nested_calls.bork::Point.get(this: &Point) -> i32
+programs/build/methods/nested_calls.bork::Point.add(this: &Point, k: i32) -> i32
+programs/build/methods/owning_return.bork::main() -> i32
+programs/build/methods/owning_return.bork::Point.label(this: &Point) -> String
+programs/build/methods/owning_return.bork::Point.moved(this: &Point, dx: i32) -> Point
+programs/build/methods/same_name.bork::size() -> i32
+programs/build/methods/same_name.bork::main() -> i32
+programs/build/methods/same_name.bork::A.size(this: &A) -> i32
+programs/build/methods/same_name.bork::A.total(this: &A) -> i32
+programs/build/methods/same_name.bork::B.size(this: &B) -> i32
+programs/build/move_and_promote/array_string_move_index.bork::main() -> unit
+programs/build/move_and_promote/assign_up_move.bork::main() -> unit
+programs/build/move_and_promote/both_branches_return_move.bork::run(flag: bool) -> i32
+programs/build/move_and_promote/both_branches_return_move.bork::main() -> i32
+programs/build/move_and_promote/concat_outer.bork::main() -> unit
+programs/build/move_and_promote/print_ints.bork::main() -> unit
+programs/build/move_and_promote/promote_outer.bork::main() -> unit
+programs/build/move_and_promote/regional_move.bork::main() -> unit
+programs/build/move_and_promote/string_shared_nested.bork::main() -> unit
+programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool) -> i32
+programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
+programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
+programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
+programs/build/paged_arenas/concat_grows_past_page.bork::main() -> i32
+programs/build/paged_arenas/many_small_allocs_cross_pages.bork::main() -> i32
+programs/build/recursions/factorial.bork::fact(n: i32) -> i32
+programs/build/recursions/factorial.bork::main() -> i32
+programs/build/recursions/recursive_in_if.bork::walk(n: i32) -> i32
+programs/build/recursions/recursive_in_if.bork::main() -> i32
+programs/build/recursions/recursive_qsort_small.bork::partition(a: &[i32; 8], lo: i32, hi: i32) -> i32
+programs/build/recursions/recursive_qsort_small.bork::qsort(a: &[i32; 8], lo: i32, hi: i32) -> unit
+programs/build/recursions/recursive_qsort_small.bork::main() -> i32
+programs/build/text/byte_index.bork::first(s: &String) -> u8
+programs/build/text/byte_index.bork::main() -> i32
+programs/build/text/content_equality.bork::same(a: &String, b: &String) -> bool
+programs/build/text/content_equality.bork::main() -> i32
+programs/build/text/equality_effects_once.bork::main() -> i32
+programs/build/text/equality_effects_once.bork::Counter.next(this: &Counter) -> String
+programs/build/text/equality_keeps_owner.bork::main() -> i32
+programs/build/text/http_token.bork::prefix_len(buf: &[u8; 6]) -> i32
+programs/build/text/http_token.bork::main() -> i32
+programs/build/text/http_token.bork::Request.method_ok(this: &Request) -> bool
+programs/build/text/utf8_copy_independent.bork::main() -> i32
+programs/build/text/utf8_empty_is_present.bork::main() -> i32
+programs/build/text/utf8_invalid_is_none.bork::main() -> i32
+programs/build/text/utf8_multibyte_range.bork::main() -> i32
+programs/build/text/utf8_outer_sink_survives.bork::main() -> i32
+programs/build/vec/grow_past_page.bork::main() -> i32
+programs/build/vec/move_to_outer.bork::main() -> i32
+programs/build/vec/negative_capacity_aborts.bork::main() -> i32
+programs/build/vec/pop_set_clear.bork::main() -> i32
+programs/build/vec/push_grow_sum.bork::main() -> i32
+programs/build/vec/ref_counts_across_arenas.bork::main() -> i32
+programs/build/vec/ref_nodes.bork::main() -> i32
+programs/build/vec/ref_promote.bork::main() -> i32
+programs/build/vec/ref_promote_strong.bork::main() -> i32
+programs/build/vec/ref_weak_expires.bork::main() -> i32
+programs/build/vec/strings.bork::main() -> i32
+programs/build/vec/with_capacity.bork::main() -> i32
+programs/check/borrow/array_slice_length.bork::main() -> i32
+programs/check/borrow/reborrow_in_for.bork::inner(a: &[i32; 2]) -> unit
+programs/check/borrow/reborrow_in_for.bork::outer(a: &[i32; 2]) -> unit
+programs/check/borrow/reborrow_in_for.bork::main() -> unit
+programs/check/borrow/reborrow_in_if.bork::inner(a: &[i32; 2]) -> unit
+programs/check/borrow/reborrow_in_if.bork::outer(a: &[i32; 2], flag: bool) -> unit
+programs/check/borrow/reborrow_in_if.bork::main() -> unit
+programs/check/borrow/reference_nested_call.bork::inner(buf: &[i32; 2]) -> unit
+programs/check/borrow/reference_nested_call.bork::outer(p: &[i32; 2]) -> unit
+programs/check/borrow/reference_nested_call.bork::main() -> unit
+programs/check/conditionals/if_mismatch.bork::pick(flag: i32) -> i32
+programs/check/conditionals/if_mismatch.bork::main() -> i32
+programs/check/conditionals/if_return_move_then_use.bork::take(var n: Node) -> Ref<Node>
+programs/check/conditionals/if_return_move_then_use.bork::run(flag: bool) -> i32
+programs/check/conditionals/nullable_eq.bork::main() -> i32
+programs/check/loops/for_sum.bork::main() -> i32
+programs/check/loops/while_break_continue.bork::main() -> i32
+programs/check/managed_refs/chained_scope.bork::use(a: Ref<Node>) -> unit
+programs/check/managed_refs/chained_val_both_return_move.bork::take(var n: Node) -> Ref<Node>
+programs/check/managed_refs/chained_val_both_return_move.bork::run(r: Ref<Node>) -> i32
+programs/check/managed_refs/chained_val_else_moves_owner.bork::take(var n: Node) -> Ref<Node>
+programs/check/managed_refs/chained_val_else_moves_owner.bork::run(r: Ref<Node>) -> unit
+programs/check/methods/trailing_closure.bork::main() -> i32
+programs/check/methods/trailing_closure.bork::P.apply(this: &P, k: i32, f: (i32)->i32) -> i32
+programs/check/move_and_promote/move_block.bork::main() -> i32
+programs/check/recursions/self_call.bork::down(n: i32) -> i32
+programs/check/recursions/self_call.bork::main() -> i32
