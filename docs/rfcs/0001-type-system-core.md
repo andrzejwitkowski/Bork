@@ -72,7 +72,7 @@ computation pass is needed in HIR.
 - `T?`, `Ref<T>` and `Option<T>` are three different types. Conversions between them are **explicit
   only**; there are no implicit coercions in either direction. `T` to `T?` needs `Some(..)` (current
   behaviour: `val a: i32? = 5` is rejected).
-- **One existing exception is kept:** in checking mode, a value of class type `T` where `Ref<T>` is
+- **One exception, kept permanently as a deliberate shorthand:** in checking mode, a value of class type `T` where `Ref<T>` is
   expected is wrapped in a ref creation (`check_managed_ref`, `src/typeck/expr/mod.rs`; e.g.
   `val r: Ref<Node> = Node("live")`, used across `programs/*/managed_refs`). This is an allocation into
   a managed arena driven by the expected type, not subtyping: it never applies in synthesis mode, never
@@ -201,8 +201,6 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 ## Open questions
 
 - Explicit numeric conversion syntax (`as`, `i64(x)`, methods) is not chosen here (section 7).
-- Whether the implicit `T` to `Ref<T>` creation (section 3) stays long-term or becomes explicit is
-  left to the managed-ref / region work (#61); this RFC only freezes it as the sole exception.
 
 ## Reviewer checklist
 
