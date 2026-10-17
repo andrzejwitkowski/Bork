@@ -1,0 +1,198 @@
+# RFC 0001: Core type-system decisions (TS-P0-02, issue #29)
+
+- **Status:** Proposed
+- **Date:** 2026-10-17
+- **Issue:** #29 (epic: core-types, Phase 0)
+- **Baseline:** [`docs/type-system/inventory.md`](../type-system/inventory.md) (#28) describes what the compiler does today.
+- **Supersedes:** the line "no general generics" in `docs/type-system/inventory.md` and in `docs/superpowers/specs/2026-10-16-vec-design.md`. `Vec<T>` stays built-in until the generics phase (#45, #68) replaces it with a regular generic.
+
+## Motivation
+
+The type-system work in #31 to #69 fixes representation choices that are expensive to undo
+(`DefId`/`TyId`, interning, generics, enums, traits, `Option`). This RFC decides the
+semantic questions up front so those issues implement them instead of choosing them silently.
+
+Today: types are nominal by class name string (`TyKind::Named(String)`, `src/hir/ty.rs`); there is no
+subtyping; `Ty { kind, nullable: bool }` makes `T??` unrepresentable; `Ref<T>` is a separate
+`TyKind::ManagedRef` that is "presence-capable" like `T?` (`Ty::is_presence_capable`); `Unknown`
+doubles as the error type; `Vec` and `Range` are hardcoded kinds; compatibility is structural `Ty`
+equality (there is no central assignability function).
+
+Each section below has: Decision, Rationale, Rejected alternatives, Consequences, Depends on.
+
+## 1. Nominal typing only; no class subtyping
+
+**Decision.** Two class types are the same type only if they are the same definition. A class is never
+a subtype of another class. Shared behaviour is expressed with traits (#55). `&T` is **not** a subtype
+of `T` and `T` is not a subtype of `&T`. Moving between them is an explicit operation (borrow `&x`,
+read through the reference, copy or clone as allowed by the capability queries in #60).
+
+**Rationale.** Subtyping interacts with variance, layout (arena field offsets), ownership and drop.
+Without it, assignability is type equality, which keeps inference (section 5) simple and matches how
+typeck already works.
+
+**Rejected.**
+- Class inheritance / structural subtyping: needs variance rules and a uniform object layout, and fights
+  arena allocation by value.
+- Implicit `&T` to `T` (auto-deref on assignment): hides moves and copies, which the ownership model
+  must keep visible.
+
+**Consequences.** Assignability is `ty_a == ty_b` after substitution. Method lookup does not walk a
+class hierarchy. Dynamic dispatch, if ever wanted, arrives as trait objects (#69).
+
+**Depends on.** #55, #60, #69.
+
+## 2. Variance: invariant everywhere in v1
+
+**Decision.** Every type constructor is invariant in each of its parameters: generic parameters,
+`Ref<T>`, `&T`, `Vec<T>`, `[T; N]`, `Range<T>`, and function types. There is no way to declare variance.
+Changing this requires a new RFC (see #69).
+
+**Rationale.** Without subtyping (section 1) variance has nothing to act on except lifetimes/regions,
+which are deferred to the region RFC (#61). Invariance is the only choice that is sound without
+that machinery.
+
+**Rejected.**
+- Covariant `&T` / `Vec<T>`: only meaningful with subtyping or regions; unsound for mutable containers.
+- Per-parameter variance annotations: surface area with no user in v1.
+
+**Consequences.** `Vec<A>` and `Vec<B>` are unrelated types for any `A != B`. No variance
+computation pass is needed in HIR.
+
+**Depends on.** #43, #45, #61, #69.
+
+## 3. Nullability
+
+**Decision.**
+- `T?` stays a **distinct type constructor**, not sugar for `Option<T>`. `nullable` becomes a first-class
+  part of the type (#33), not an orthogonal flag that other code can forget to check.
+- **`T??` is rejected** with a diagnostic at type lowering. It is not collapsed to `T?`: collapsing hides
+  which layer is absent and breaks generic code (`T` instantiated with `U?`).
+- `T?`, `Ref<T>` and `Option<T>` are three different types. Conversions between them are **explicit
+  only**; there are no implicit coercions in either direction.
+- Generic instantiation that would produce `T??` (for example `T?` with `T = U?`) is an error at the
+  instantiation site, with a note pointing at the parameter.
+
+**Rationale.** `T?` is the cheap, presence-niche representation the codegen gate already lowers
+(`codegen_lowers_nullable`). `Option<T>` is the general ADT (#54) and needs patterns and enums first.
+Keeping them separate avoids blocking nullability work on ADTs while leaving a clear conversion story.
+
+**Rejected.**
+- `T?` as alias of `Option<T>`: couples nullable lowering to enums and exhaustiveness (#49 to #51).
+- Collapse `T??` to `T?`: loses information; `Some(None)` vs `None` become indistinguishable.
+- Implicit `T` to `T?` widening everywhere: the compiler already accepts `T` where `T?` is expected only
+  through explicit `Some` / `None` expressions; this RFC does not widen that.
+
+**Consequences.** Today's `is_presence_capable` (nullable or `Ref<T>`) remains a representation query, not
+a subtyping relation. Existing `check_fail` diagnostics for nullable types are unchanged until the
+nullability phase re-blesses them.
+
+**Depends on.** #33, #54, and the nullability/ADT work (#49).
+
+## 4. Generics: monomorphization only
+
+**Decision.** Generic items are compiled by **monomorphization**: one specialised copy per distinct set of
+concrete type arguments. There is no dictionary passing and no boxed/erased representation.
+A generic body is **type-checked once**, against its declared bounds, not once per instantiation.
+It is **ownership-checked once, before monomorphization, conservatively**: a parameter `T` is treated as
+move-only with no known capabilities unless a bound says otherwise, so a generic body that passes
+cannot fail ownership checks for any instantiation.
+
+**Rationale.** Layout and region handling in Bork are known statically; monomorphization gives direct
+calls and by-value layout with no runtime representation of types. Checking once against bounds gives
+errors at the definition, not at some distant use.
+
+**Rejected.**
+- Dictionary passing / type erasure: needs uniform boxed values; conflicts with arena by-value layout.
+- Check-per-instantiation (C++ templates style): errors appear at use sites and depend on the caller.
+- Ownership-check after monomorphization: accepts generic code that breaks for some instantiations.
+
+**Consequences.** Binary size grows with instantiation count; a later pass may dedupe identical
+instances. `Vec<T>` becomes an ordinary generic class once #45 and #68 land; the vec design spec's
+"no general generics" non-goal ends then. Recursive generic layout is validated at declaration (#45).
+
+**Dangling reference.** Issue #29 says ownership is checked "see ownership contract RFC". No such issue
+exists under the `type-system` label. Until it does, the rule above ("conservative, pre-mono, `T` is
+move-only without bounds") is the contract and should be revisited if that RFC disagrees.
+
+**Depends on.** #34, #42, #43, #45, #60, #68.
+
+## 5. Inference scope: bidirectional with local unification
+
+**Decision.** Type inference is **bidirectional** (synthesize / check) plus **unification of inference
+variables local to one function body**. Every item signature (function parameters and return, class fields,
+constants) is **explicit**. There is no inference across item boundaries.
+
+**Rationale.** This is what typeck does today (`expected: Option<&Ty>` passed down) and it extends
+naturally to generics via local inference variables (#38, #39). Explicit item signatures keep
+checking modular and make incremental/LSP re-checking cheap.
+
+**Rejected.**
+- Whole-program Hindley-Milner: non-local errors, defeats modular checking.
+- Inferring return types of items: makes signatures depend on bodies, breaks recursion and forward use.
+
+**Consequences.** `[]` and `None` without an expected type still need annotations. Inference variables
+never escape a body; unresolved ones are an error, not a silent `Unknown`.
+
+**Depends on.** #38, #39.
+
+## 6. Identity: `DefId` / `TyId` in a side interner
+
+**Decision.** Definitions are identified by `DefId` (an index into a definition table) and types by `TyId`
+(an index into a canonical type interner). Both live in a **side table owned by the compilation
+session**. They are never tied to arena allocation, region lifetimes or addresses of compiler data.
+`TyKind::Named(String)` is replaced by a `DefId` reference. Equal types intern to the same `TyId`.
+
+**Rationale.** Type identity must outlive any user-program arena notion, be cheap to compare and hash,
+and be stable under renaming and module moves.
+
+**Rejected.**
+- Names as identity (today's `Named(String)`): breaks with modules, generics and shadowing.
+- Pointer identity into an arena: couples type lifetime to allocation and blocks serialization/debug tooling.
+
+**Consequences.** Typeck is migrated in #36; the golden HIR-type snapshot
+(`tests/golden/hir_types.txt`) must keep printing names, not ids.
+
+**Depends on.** #31, #32, #33, #36.
+
+## 7. Numeric policy: no implicit coercion
+
+**Decision.**
+- There is **no implicit numeric conversion** between typed values: `i32` to `i64`, integer to float,
+  signed to unsigned all require an explicit conversion.
+- A literal takes the **expected type** when one is available and it is a compatible numeric type.
+  Otherwise an integer literal defaults to **`i32`** and a float literal to **`f64`**.
+- In a binary operation a literal adopts its peer operand's type; two typed operands must be equal.
+- A literal that does not fit its resulting type is an error. (**New rule, not current behaviour:** no
+  range check exists today; the owning phase adds it and re-blesses any affected diagnostics.)
+
+**Rationale.** This documents what `src/typeck/expr/mod.rs` and `binary.rs` already do, and fixes it as the
+contract before inference variables arrive (#38): an unconstrained integer literal variable defaults to
+`i32` at the end of the body.
+
+**Rejected.**
+- Implicit widening (`i32` to `i64`): hides cost and overflow semantics, adds a second compatibility relation.
+- Literal defaults chosen from context beyond the peer rule: non-local and surprising.
+
+**Consequences.** Mixed-width arithmetic needs explicit conversions. Programs in `programs/` keep
+passing unchanged because they already satisfy this policy.
+
+**Depends on.** #38, #39.
+
+## Migration impact on the current `TyKind`
+
+This RFC adds no `TyKind` variants itself. Follow-up issues change representation (`Named(String)` to a
+`DefId`, `Unknown` split into error/infer kinds, `nullable` made first-class). Any change to the variants in `hir::TyKind` or `ast::Type` must update
+`docs/type-system/inventory.md`, which `inventory_mentions_every_variant` enforces.
+
+## Open questions
+
+None blocking. The "ownership contract" cross-reference (section 4) needs an owner.
+
+## Reviewer checklist
+
+- [ ] Each of the 7 sections states a decision, rationale and rejected alternatives.
+- [ ] Section 3 rejects `T??` and keeps `T?`, `Ref<T>`, `Option<T>` as explicit conversions only.
+- [ ] Section 7 defaults literals to `i32` / `f64` and marks the range check as new.
+- [ ] Section 4's supersession of "no general generics" is accepted.
+- [ ] Downstream issues are linked to the sections they depend on (see PR description).
