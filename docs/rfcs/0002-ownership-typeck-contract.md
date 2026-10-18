@@ -58,8 +58,8 @@ Each dimension is a separate question with one owner. Code must not answer one b
 | escape of references | ownership/escape pre-mono | none (rejects) | "returning a reference" (`escape.rs:127`), guard escape (`escape.rs:427`) | #46 |
 | needs-drop | one capability query (`needs_drop`) | codegen, memory | no predicate; ad hoc `ty.is_managed_ref()` at about 6 codegen sites (`emit_fn.rs:683`, `managed_ref.rs:136,192`, `array/alloc.rs:58`, `vec/alloc.rs:50`, `region_emit.rs:311`) | #60, #62 |
 | layout | one layout query over concrete types | codegen, memory | `Codegen::basic_type` (`llvm/context.rs:103-133`), `array/layout.rs`, `vec/layout.rs`; typeck checks only recursive owned layout (`typeck/mod.rs:383`) | #66 |
-| region tree | sema | memory, region_walk, codegen | `ArenaReport` built from AST; matched to HIR by walk order and labels (`region_walk.rs:32-45,206-246`); `peel_blocks` written twice (`sema/mod.rs:21`, `hir/mod.rs:314`) | #35 (NodeId); new issue for `peel_blocks` |
-| sink / result ownership | one query (`owns_result`) | escape, memory, region_emit, call_abi | the rule `is_managed_ref() \|\| record_name().is_some()` is repeated in `region_emit.rs:51,168`, `memory.rs:466`, `call_abi.rs:66`; `escape.rs` mirrors the codegen region model by hand (its header says so) | new issue |
+| region tree | sema | memory, region_walk, codegen | `ArenaReport` built from AST; matched to HIR by walk order and labels (`region_walk.rs:32-45,206-246`); `peel_blocks` written twice (`sema/mod.rs:21`, `hir/mod.rs:314`) | #35 (NodeId); #74 (`peel_blocks`) |
+| sink / result ownership | one query (`owns_result`) | escape, memory, region_emit, call_abi | the rule `is_managed_ref() \|\| record_name().is_some()` is repeated in `region_emit.rs:51,168`, `memory.rs:466`, `call_abi.rs:66`; `escape.rs` mirrors the codegen region model by hand (its header says so) | #77 |
 | `codegen_push` | `region_walk::stamp_codegen_push` | codegen schedule | mutates `ArenaNode` in place | per-instance table, #47 |
 | allocation plan | `memory::plan` | codegen | keyed by `Span` (`memory.rs:26-44`); a record allocation without a span is a planner error (`memory.rs:136`); `expression_origins` uses `HirExpr` pointer addresses | #35 |
 | codegen support | `codegen_gate` | codegen | filter over HIR; not a source of semantic facts | #67 |
@@ -165,10 +165,12 @@ These are enforced in review and cannot be asserted:
 | drop and clone glue | #62 |
 | type layout | #66 |
 | gate modernization | #67 |
-| `peel_blocks` written twice | new issue needed |
-| `escape` mirroring the codegen region model | new issue needed |
-| `stamp.rs:47` panic vs diagnostic (INV-6) | new issue needed |
-| `Ref` handle layout assertion (INV-9) | new issue needed |
+| `peel_blocks` written twice | #74 (implement first) |
+| `escape` mirroring the codegen region model | #77 (implement last, before #37) |
+| `stamp.rs:47` panic vs diagnostic (INV-6) | #75 |
+| `Ref` handle layout assertion (INV-9) | #76 |
+
+Implementation order of the hardening issues: #74, then #75, with #76 in parallel, then #77. All four land before #35 and #37.
 
 ## Open questions
 
@@ -181,4 +183,3 @@ These are enforced in review and cannot be asserted:
 - [ ] Section 4 documents the pre-mono vs post-mono split with examples, including the gate exception.
 - [ ] Invariants in section 6 are numbered and each says where it is (or will be) checked.
 - [ ] Section 5 accepts `NodeId` over `Span` as the key for side tables.
-- [ ] The "new issue needed" rows in section 7 are filed before this is merged.
