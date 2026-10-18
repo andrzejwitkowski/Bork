@@ -310,17 +310,32 @@ pub enum HirExprKind {
     },
 }
 
-/// Peel nested bare `{ ... }` wrappers (same rule as `sema::peel_blocks` on AST).
-pub fn peel_blocks(block: &HirBlock) -> (&HirBlock, usize) {
-    let mut compacted = 0;
-    let mut current = block;
-    while let [HirStmt::Block(inner)] = current.stmts.as_slice() {
-        compacted += 1;
-        current = inner;
+pub use crate::ast::peel_blocks;
+
+impl ast::Peel for HirBlock {
+    fn sole_inner_block(&self) -> Option<&Self> {
+        match self.stmts.as_slice() {
+            [HirStmt::Block(inner)] => Some(inner),
+            _ => None,
+        }
     }
-    (current, compacted)
 }
 
 pub fn peel_to_body(block: &HirBlock) -> &HirBlock {
     peel_blocks(block).0
+}
+
+#[cfg(test)]
+mod peel_tests {
+    use super::*;
+
+    #[test]
+    fn collapses_nested_bare_blocks() {
+        let leaf = HirBlock::default();
+        let mid = HirBlock { stmts: vec![HirStmt::Block(leaf)], ..HirBlock::default() };
+        let outer = HirBlock { stmts: vec![HirStmt::Block(mid)], ..HirBlock::default() };
+        let (peeled, n) = peel_blocks(&outer);
+        assert_eq!(n, 2);
+        assert!(peeled.stmts.is_empty());
+    }
 }

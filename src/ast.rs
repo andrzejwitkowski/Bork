@@ -490,3 +490,28 @@ pub fn unescape_string_literal(raw: &str) -> String {
     }
     out
 }
+
+/// A block that may consist of exactly one nested bare `{ ... }`.
+pub trait Peel {
+    fn sole_inner_block(&self) -> Option<&Self>;
+}
+
+impl Peel for Block {
+    fn sole_inner_block(&self) -> Option<&Self> {
+        match self.stmts.as_slice() {
+            [Stmt::Block(inner)] => Some(inner),
+            _ => None,
+        }
+    }
+}
+
+/// Peel nested bare-block wrappers; the one rule shared by sema (AST) and HIR.
+pub fn peel_blocks<B: Peel>(block: &B) -> (&B, usize) {
+    let mut compacted = 0;
+    let mut current = block;
+    while let Some(inner) = current.sole_inner_block() {
+        compacted += 1;
+        current = inner;
+    }
+    (current, compacted)
+}
