@@ -1,0 +1,10 @@
+// diag: cannot mutate immutable `val` binding `h` (through a field)
+class H {
+    items: Vec<i32>
+}
+
+fun main(): i32 {
+    val h = H(Vec<i32>())
+    h.items.push(1)
+    return h.items.len()
+}
