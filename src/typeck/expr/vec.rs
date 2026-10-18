@@ -23,7 +23,6 @@ pub(super) fn check_vec_new(
         },
         env.classes,
         &mut env.diagnostics,
-        Some(span),
     );
     let elem_ty = lowered.vec_elem().cloned().unwrap_or_else(Ty::unknown);
     let cap = cap.map(|cap| {

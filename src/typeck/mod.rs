@@ -177,7 +177,7 @@ fn build_classes(
                 }
                 ClassFieldInfo {
                     name: field.name.name.clone(),
-                    ty: lower_type(&field.ty, &classes, diagnostics, Some(field.name.span)),
+                    ty: lower_type(&field.ty, &classes, diagnostics),
                     span: field.name.span,
                 }
             })
@@ -205,9 +205,9 @@ fn collect_fun_sigs(
                     params: function
                         .params
                         .iter()
-                        .map(|param| lower_type(&param.ty, classes, diagnostics, Some(param.name.span)))
+                        .map(|param| lower_type(&param.ty, classes, diagnostics))
                         .collect(),
-                    return_ty: lower_type(&function.return_type, classes, diagnostics, Some(function.name_span)),
+                    return_ty: lower_type(&function.return_type, classes, diagnostics),
                 },
             )
         })
@@ -251,9 +251,9 @@ fn collect_method_sigs(
             let params: Vec<Ty> = method
                 .params
                 .iter()
-                .map(|param| lower_type(&param.ty, classes, diagnostics, Some(param.name.span)))
+                .map(|param| lower_type(&param.ty, classes, diagnostics))
                 .collect();
-            let return_ty = lower_type(&method.return_type, classes, diagnostics, Some(method.name_span));
+            let return_ty = lower_type(&method.return_type, classes, diagnostics);
             let shown_params: Vec<String> = method
                 .params
                 .iter()
