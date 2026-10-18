@@ -178,3 +178,5 @@ programs/check/methods/trailing_closure.bork::P.apply(this: &P, k: i32, f: (i32)
 programs/check/move_and_promote/move_block.bork::main() -> i32
 programs/check/recursions/self_call.bork::down(n: i32) -> i32
 programs/check/recursions/self_call.bork::main() -> i32
+programs/check/vec/push_via_this_field.bork::main() -> i32
+programs/check/vec/push_via_this_field.bork::H.add(this: &H, k: i32) -> i32

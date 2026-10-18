@@ -106,15 +106,25 @@ pub(super) fn check_vec_method(
     )
 }
 
-/// A `val` vector cannot be mutated; a borrowed `&Vec` can, as `&[T; N]` can be index-assigned.
+/// A `val` vector cannot be mutated, whether it is the binding itself or reached through fields
+/// of a `val` object (`h.items.push(1)`). `this`, borrows and `Ref` handles are exempt, and
+/// temporaries (call results) have no binding to protect.
 fn reject_immutable(receiver: &Expr, env: &mut Env<'_>, span: Span) {
-    let Expr::Ident { name, .. } = receiver else {
+    let mut root = receiver;
+    while let Expr::Field { receiver, .. } = root {
+        root = receiver;
+    }
+    let Expr::Ident { name, .. } = root else {
         return;
     };
+    if name == "this" {
+        return;
+    }
     let Some(binding) = env.binding(name) else {
         return;
     };
-    if binding.kind == BindingKind::Val && !binding.ty.is_ref() {
-        env.error(format!("cannot mutate immutable `val` binding `{name}`"), Some(span));
+    if binding.kind == BindingKind::Val && !binding.ty.is_ref() && !binding.ty.is_managed_ref() {
+        let via = if std::ptr::eq(root, receiver) { "" } else { " (through a field)" };
+        env.error(format!("cannot mutate immutable `val` binding `{name}`{via}"), Some(span));
     }
 }

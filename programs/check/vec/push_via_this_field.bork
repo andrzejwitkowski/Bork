@@ -1,0 +1,13 @@
+class H {
+    items: Vec<i32>
+
+    fun add(k: i32): i32 {
+        this.items.push(k)
+        return this.items.len()
+    }
+}
+
+fun main(): i32 {
+    var h = H(Vec<i32>())
+    return h.add(1)
+}
