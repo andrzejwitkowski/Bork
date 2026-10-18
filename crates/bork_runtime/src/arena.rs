@@ -212,8 +212,9 @@ impl Arena {
     }
 
     fn alloc_large(&mut self, size: usize, align: usize) -> *mut u8 {
+        // `max(1)`: a size-0 request with a page-exceeding align lands here and must not become a zero-size layout.
         let layout =
-            Layout::from_size_align(size.next_multiple_of(PAGE_SIZE), align.max(MIN_CLASS))
+            Layout::from_size_align(size.max(1).next_multiple_of(PAGE_SIZE), align.max(MIN_CLASS))
                 .expect("invalid large allocation layout");
         // SAFETY: layout has non-zero size.
         let ptr = unsafe { std::alloc::alloc(layout) };
@@ -983,6 +984,19 @@ mod tests {
         let c = arena.alloc(2000, 1);
         assert_eq!(arena.pages.len(), 2);
         assert!(a != b && b != c);
+    }
+
+    #[test]
+    fn zero_size_overaligned_alloc_uses_a_nonzero_layout() {
+        let mut arena = Arena::new();
+        let ptr = arena.alloc_large(0, 8192); // direct: whether `alloc` reaches it depends on the page address
+        assert!(!ptr.is_null());
+        assert_eq!(ptr as usize % 8192, 0);
+        assert_eq!(arena.large.len(), 1);
+        assert!(arena.large[0].1.size() >= PAGE_SIZE);
+        arena.free(ptr, 0);
+        arena.reset();
+        assert!(arena.large.is_empty());
     }
 
     #[test]
