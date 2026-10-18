@@ -762,3 +762,14 @@ fun main(): i32 {
     ));
 }
 
+
+#[test]
+fn invalid_vec_element_diagnostic_has_span() {
+    let source = "class Node {\n    id: i32\n}\n\nfun main(): i32 {\n    val v = Vec<Node>()\n    return v.len()\n}\n";
+    let diagnostic = diags_of(source)
+        .into_iter()
+        .find(|d| d.message.contains("`Vec` element must be"))
+        .expect("element diagnostic");
+    let span = diagnostic.span.expect("element diagnostic carries a span");
+    assert_eq!(&source[span.start..span.end], "Vec<Node>()");
+}
