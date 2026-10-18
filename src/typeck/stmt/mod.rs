@@ -108,7 +108,7 @@ fn check_var_decl(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let declared_ty = ty.map(|ty| {
-        super::lower_type(ty, env.classes, &mut env.diagnostics)
+        super::lower_type(ty, env.classes, &mut env.diagnostics, Some(name_span))
     });
     let value = expr::check(value, declared_ty.as_ref(), return_ty, env);
     // Bind whatever type we can settle on, even after a bad initializer,
