@@ -2,8 +2,12 @@
 //!
 //! `place` is the same rule as codegen `alloc_sink`: `move`, `promote`, and `concat` land in
 //! the consumer's sink when one is set, otherwise in the current region. A plain load keeps
-//! the depth already stored on the binding. Region depths mirror `RegionEmitter`, including
-//! block peeling.
+//! the depth already stored on the binding.
+//!
+//! This stays a standalone HIR pass instead of a `region_walk` visitor: it needs a bottom-up
+//! value depth per expression plus a top-down sink, while `RegionVisitor` callbacks return
+//! `()`. It shares `peel_to_body` and `Ty::owns_result` with codegen, so block peeling and the
+//! sink rule have one definition.
 
 use std::collections::HashMap;
 
@@ -99,7 +103,7 @@ impl<'h> Escape<'h, '_> {
                     if sink.is_none()
                         && value == self.depth
                         && expr.ty.uses_arena_storage()
-                        && expr.ty.record_name().is_none()
+                        && !expr.ty.owns_result()
                     {
                         reject(
                             self.diagnostics,

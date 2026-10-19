@@ -48,7 +48,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         value_ty: Option<&Ty>,
     ) -> Result<Option<BasicValueEnum<'ctx>>, WalkError> {
         let previous = self.alloc_sink;
-        if value_ty.is_some_and(|ty| ty.is_managed_ref() || ty.record_name().is_some()) {
+        if value_ty.is_some_and(|ty| ty.owns_result()) {
             self.alloc_sink = Some(self.sink_arena());
         }
         let ptr = self.codegen_driver_ptr();
@@ -165,7 +165,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         // Tail sources are evaluated inside the presence region (as in sema), so their
         // allocations use that region's arena; only the arm's values go to the result sink.
         self.emit_chained_guards(driver, &bindings.tail, outer_depth, split.absent_target())?;
-        if result_ty.is_managed_ref() || result_ty.record_name().is_some() {
+        if result_ty.owns_result() {
             self.alloc_sink = Some(result_sink);
         }
         let branch_value = self.emit_presence_arm(
