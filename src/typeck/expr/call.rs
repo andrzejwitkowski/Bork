@@ -15,7 +15,7 @@ fn callee_signature(callee: &Expr, env: &mut Env<'_>) -> Option<(String, Span, V
         return None;
     };
     if let Some(signature) = env.fun_sig(name).cloned() {
-        return Some((name.clone(), *span, signature.params, signature.return_ty));
+        return Some((name.clone(), *span, signature.params, signature.ret));
     }
     match env.binding(name).map(|binding| binding.ty.clone()) {
         Some(Ty {

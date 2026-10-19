@@ -12,10 +12,18 @@
 //! - `String` is its own variant, not a class: it has no `DefId`.
 //! - `Named(name)` becomes `Class(DefId)`; a name that is not a class cannot be interned.
 
+mod fold;
+mod print;
+mod sig;
+
 use std::collections::HashMap;
 
 use crate::defs::{DefId, DefTable};
 use crate::hir::{Prim, Ty, TyKind};
+
+pub use fold::{normalize, subst, super_fold, walk, TypeFolder, TypeVisitor};
+pub use print::TyPrinter;
+pub use sig::{FnSig, FnSigs};
 
 /// Index of an interned type; only meaningful within the `TyCtx` that issued it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -205,12 +213,12 @@ impl TyCtx {
 mod tests {
     use super::*;
 
-    fn ctx() -> TyCtx {
+    pub(super) fn ctx() -> TyCtx {
         let program = crate::parse("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nfun main() {}\n").unwrap();
         TyCtx::new(&DefTable::build(&program))
     }
 
-    fn named(n: &str) -> Ty {
+    pub(super) fn named(n: &str) -> Ty {
         Ty::new(TyKind::Named(n.into()), false)
     }
 
@@ -220,7 +228,7 @@ mod tests {
     ];
 
     /// One of each shape, nested to depth 3 where it makes sense.
-    fn samples() -> Vec<Ty> {
+    pub(super) fn samples() -> Vec<Ty> {
         let leaves: Vec<Ty> = PRIMS
             .iter()
             .map(|p| Ty::prim(*p))

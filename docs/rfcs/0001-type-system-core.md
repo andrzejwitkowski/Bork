@@ -165,6 +165,11 @@ and be stable under renaming and module moves.
 `Param(ParamIdx)` / `Infer(InferVar)` are `u32` newtypes with no HIR form (`to_ty` panics), `String` is its own variant (it has no `DefId`), and interning a class name the `DefTable`
 does not know is an error, not a panic. Ids are only comparable within one `TyCtx`.
 
+**Folding, printing, signatures (#34).** `TypeVisitor`/`TypeFolder`, `subst` (`Param(i)` to `args[i]`; an
+instantiation that would make `T??` is an error, `Error?` stays `Error`), `normalize` (identity today: ids from
+`TyCtx` are already canonical), `TyCtx::display` (same text as `hir::Ty`'s `Display`, so `(i32)->i32` without
+spaces) and `FnSig<T>`. Typeck's `FunSig` is now `FnSig<hir::Ty>`, still name-keyed until #36.
+
 **Consequences.** Typeck is migrated in #36; the golden HIR-type snapshot
 (`tests/golden/hir_types.txt`) must keep printing names, not ids.
 

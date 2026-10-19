@@ -16,11 +16,7 @@ pub(super) struct Binding {
     pub(super) explicit_ref: bool,
 }
 
-#[derive(Clone)]
-pub(crate) struct FunSig {
-    pub(crate) params: Vec<Ty>,
-    pub(crate) return_ty: Ty,
-}
+pub(crate) type FunSig = crate::ty::FnSig<Ty>;
 
 #[derive(Clone, Debug)]
 pub(super) struct ClassFieldInfo {

@@ -42,6 +42,7 @@ fn corpus_types_round_trip_through_the_interner() {
             let id = ctx.intern(ty).unwrap_or_else(|e| panic!("{}: {e:?}", file.display()));
             assert_eq!(&ctx.to_ty(id), ty, "{}", file.display());
             assert_eq!(ctx.intern(ty).unwrap(), id, "{}: not idempotent", file.display());
+            assert_eq!(ctx.display(id).to_string(), ty.to_string(), "{}: printer", file.display());
             interned += 1;
         }
     }
