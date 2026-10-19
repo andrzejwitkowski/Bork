@@ -6,7 +6,9 @@
 //! the `intern` / `to_ty` bridge (#36, #37).
 //!
 //! Choices that differ from a naive mirror of `hir::TyKind`:
-//! - `nullable` stays a flag next to the data, as in `hir::Ty` (first-class nullable is #33).
+//! - `T?` is a constructor, `TyData::Nullable`, not a flag. `T??` is rejected (`TyCtx::nullable`).
+//! - `Error` replaces `hir`'s `Unknown`; `Error?` is `Error` (an error absorbs, no cascade), so a
+//!   hir `Unknown?` does not round trip. `Param` and `Infer` have no `hir::Ty` form: `to_ty` panics.
 //! - `String` is its own variant, not a class: it has no `DefId`.
 //! - `Named(name)` becomes `Class(DefId)`; a name that is not a class cannot be interned.
 
@@ -31,24 +33,34 @@ pub enum TyData {
     ManagedRef(TyId),
     Vec(TyId),
     Range(TyId),
-    Unknown,
+    /// `T?`; the inner type is never `Nullable` or `Error`.
+    Nullable(TyId),
+    /// A generic parameter (Phase 3); never reaches HIR.
+    Param(ParamIdx),
+    /// An inference variable, local to one body; never reaches HIR.
+    Infer(InferVar),
+    /// A type that already has a diagnostic; checks against it stay silent.
+    Error,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ParamIdx(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InferVar(pub u32);
+
+/// `T?` of a type that is already nullable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestedNullable;
 
 /// `hir::Ty` named a class the definition table does not know.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownClass(pub String);
 
-/// A type's shape plus its nullable flag: the hash-consing key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TyKey {
-    pub data: TyData,
-    pub nullable: bool,
-}
-
-/// The session-owned interner: one id per distinct `(shape, nullable)`.
+/// The session-owned interner: one id per distinct `TyData`.
 pub struct TyCtx {
-    types: Vec<TyKey>,
-    ids: HashMap<TyKey, TyId>,
+    types: Vec<TyData>,
+    ids: HashMap<TyData, TyId>,
     class_ids: HashMap<String, DefId>,
     class_names: HashMap<DefId, String>,
 }
@@ -102,27 +114,67 @@ impl TyCtx {
             TyKind::ManagedRef(inner) => TyData::ManagedRef(self.intern_checked(inner)),
             TyKind::Vec(inner) => TyData::Vec(self.intern_checked(inner)),
             TyKind::Range(inner) => TyData::Range(self.intern_checked(inner)),
-            TyKind::Unknown => TyData::Unknown,
+            TyKind::Unknown => TyData::Error,
         };
-        let key = TyKey { data, nullable: ty.nullable };
-        if let Some(&id) = self.ids.get(&key) {
+        let id = self.add(data);
+        // hir's flag is never set on an already-nullable type, so this cannot fail.
+        if ty.nullable { self.nullable(id).expect("hir types are never nested nullable") } else { id }
+    }
+
+    fn add(&mut self, data: TyData) -> TyId {
+        if let Some(&id) = self.ids.get(&data) {
             return id;
         }
         let id = TyId(self.types.len() as u32);
-        self.types.push(key.clone());
-        self.ids.insert(key, id);
+        self.types.push(data.clone());
+        self.ids.insert(data, id);
         id
     }
 
-    /// The type data and nullable flag of `id`, which must come from this context: a foreign id
+    /// `T?`. `T??` is an error (RFC 0001 section 3); `Error?` is `Error`.
+    pub fn nullable(&mut self, id: TyId) -> Result<TyId, NestedNullable> {
+        match self.data(id) {
+            TyData::Nullable(_) => Err(NestedNullable),
+            TyData::Error => Ok(id),
+            _ => Ok(self.add(TyData::Nullable(id))),
+        }
+    }
+
+    pub fn param(&mut self, param: ParamIdx) -> TyId {
+        self.add(TyData::Param(param))
+    }
+
+    pub fn infer(&mut self, var: InferVar) -> TyId {
+        self.add(TyData::Infer(var))
+    }
+
+    pub fn error(&mut self) -> TyId {
+        self.add(TyData::Error)
+    }
+
+    pub fn is_error(&self, id: TyId) -> bool {
+        matches!(self.data(id), TyData::Error)
+    }
+
+    /// Mirrors `hir::Ty::is_copy`: a non-nullable primitive.
+    pub fn is_copy(&self, id: TyId) -> bool {
+        matches!(self.data(id), TyData::Prim(_))
+    }
+
+    /// Mirrors `hir::Ty::is_presence_capable`: `T?` or a managed reference.
+    pub fn is_presence_capable(&self, id: TyId) -> bool {
+        matches!(self.data(id), TyData::Nullable(_) | TyData::ManagedRef(_))
+    }
+
+    /// The type data of `id`, which must come from this context: a foreign id
     /// either panics (out of range) or silently names an unrelated type.
-    pub fn data(&self, id: TyId) -> &TyKey {
+    pub fn data(&self, id: TyId) -> &TyData {
         &self.types[id.0 as usize]
     }
 
     /// Rebuilds the `hir::Ty` for `id`, which must come from this context (see [`TyCtx::data`]).
     pub fn to_ty(&self, id: TyId) -> Ty {
-        let TyKey { data, nullable } = self.data(id);
+        let data = self.data(id);
         let boxed = |inner: &TyId| Box::new(self.to_ty(*inner));
         let kind = match data {
             TyData::Prim(prim) => TyKind::Prim(*prim),
@@ -137,9 +189,15 @@ impl TyCtx {
             TyData::ManagedRef(inner) => TyKind::ManagedRef(boxed(inner)),
             TyData::Vec(inner) => TyKind::Vec(boxed(inner)),
             TyData::Range(inner) => TyKind::Range(boxed(inner)),
-            TyData::Unknown => TyKind::Unknown,
+            TyData::Error => TyKind::Unknown,
+            TyData::Nullable(inner) => {
+                let mut ty = self.to_ty(*inner);
+                ty.nullable = true;
+                return ty;
+            }
+            TyData::Param(_) | TyData::Infer(_) => panic!("Param/Infer are unreachable in HIR after typeck"),
         };
-        Ty::new(kind, *nullable)
+        Ty::new(kind, false)
     }
 }
 
@@ -190,7 +248,13 @@ mod tests {
         );
         all.push(deep);
         // every shape again with the nullable flag set
-        let nullable: Vec<Ty> = all.iter().cloned().map(|mut t| { t.nullable = true; t }).collect();
+        // `Unknown?` is the one lossy case (Error absorbs nullable), so it is not a sample
+        let nullable: Vec<Ty> = all
+            .iter()
+            .filter(|t| t.kind != TyKind::Unknown)
+            .cloned()
+            .map(|mut t| { t.nullable = true; t })
+            .collect();
         all.extend(nullable);
         all
     }
@@ -253,5 +317,63 @@ mod tests {
         let nested = Ty::new(TyKind::Vec(Box::new(Ty::new(TyKind::Ref(Box::new(named("Nope"))), false))), false);
         assert_eq!(ctx.intern(&nested), Err(UnknownClass("Nope".into())));
         assert_eq!(ctx.types.len(), before);
+    }
+
+    #[test]
+    fn nested_nullable_is_rejected_and_error_absorbs_nullable() {
+        let mut ctx = ctx();
+        let t = ctx.intern(&Ty::new(TyKind::Prim(Prim::I32), true)).unwrap();
+        let before = ctx.types.len();
+        assert_eq!(ctx.nullable(t), Err(NestedNullable));
+        assert_eq!(ctx.types.len(), before);
+        let err = ctx.error();
+        assert_eq!(ctx.nullable(err), Ok(err));
+        assert!(ctx.is_error(err) && !ctx.is_error(t));
+    }
+
+    #[test]
+    fn nullable_ref_and_managed_ref_are_distinct_types() {
+        let mut ctx = ctx();
+        let i = ctx.intern(&Ty::i32()).unwrap();
+        let opt = ctx.nullable(i).unwrap();
+        let r = ctx.intern(&Ty::new(TyKind::Ref(Box::new(Ty::i32())), false)).unwrap();
+        let m = ctx.intern(&Ty::new(TyKind::ManagedRef(Box::new(Ty::i32())), false)).unwrap();
+        let ids = [i, opt, r, m];
+        assert_eq!(ids.iter().collect::<std::collections::HashSet<_>>().len(), 4);
+        assert_eq!(ctx.nullable(i).unwrap(), opt);
+    }
+
+    #[test]
+    fn copy_and_presence_queries_match_hir() {
+        let mut ctx = ctx();
+        for ty in samples() {
+            let id = ctx.intern(&ty).unwrap();
+            assert_eq!(ctx.is_copy(id), ty.is_copy(), "{ty}");
+            assert_eq!(ctx.is_presence_capable(id), ty.is_presence_capable(), "{ty}");
+        }
+    }
+
+    #[test]
+    fn error_round_trips_to_unknown_and_unknown_nullable_is_absorbed() {
+        let mut ctx = ctx();
+        let id = ctx.intern(&Ty::new(TyKind::Unknown, true)).unwrap();
+        assert!(ctx.is_error(id));
+        assert_eq!(ctx.to_ty(id), Ty::unknown());
+    }
+
+    #[test]
+    #[should_panic(expected = "unreachable in HIR")]
+    fn param_has_no_hir_form() {
+        let mut ctx = ctx();
+        let id = ctx.param(ParamIdx(0));
+        ctx.to_ty(id);
+    }
+
+    #[test]
+    #[should_panic(expected = "unreachable in HIR")]
+    fn infer_has_no_hir_form() {
+        let mut ctx = ctx();
+        let id = ctx.infer(InferVar(0));
+        ctx.to_ty(id);
     }
 }
