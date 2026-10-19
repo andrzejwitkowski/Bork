@@ -36,9 +36,16 @@ pub enum TyData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownClass(pub String);
 
+/// A type's shape plus its nullable flag: the hash-consing key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TyKey {
+    pub data: TyData,
+    pub nullable: bool,
+}
+
 pub struct TyCtx {
-    types: Vec<(TyData, bool)>,
-    ids: HashMap<(TyData, bool), TyId>,
+    types: Vec<TyKey>,
+    ids: HashMap<TyKey, TyId>,
     class_ids: HashMap<String, DefId>,
     class_names: HashMap<DefId, String>,
 }
@@ -91,7 +98,7 @@ impl TyCtx {
             TyKind::Range(inner) => TyData::Range(self.intern_checked(inner)),
             TyKind::Unknown => TyData::Unknown,
         };
-        let key = (data, ty.nullable);
+        let key = TyKey { data, nullable: ty.nullable };
         if let Some(&id) = self.ids.get(&key) {
             return id;
         }
@@ -102,14 +109,13 @@ impl TyCtx {
     }
 
     /// The type data and nullable flag of `id`. Panics on an id from another context.
-    pub fn data(&self, id: TyId) -> (&TyData, bool) {
-        let (data, nullable) = &self.types[id.0 as usize];
-        (data, *nullable)
+    pub fn data(&self, id: TyId) -> &TyKey {
+        &self.types[id.0 as usize]
     }
 
     /// Rebuilds the `hir::Ty` for `id`. Panics on an id from another context.
     pub fn to_ty(&self, id: TyId) -> Ty {
-        let (data, nullable) = self.data(id);
+        let TyKey { data, nullable } = self.data(id);
         let boxed = |inner: &TyId| Box::new(self.to_ty(*inner));
         let kind = match data {
             TyData::Prim(prim) => TyKind::Prim(*prim),
@@ -126,7 +132,7 @@ impl TyCtx {
             TyData::Range(inner) => TyKind::Range(boxed(inner)),
             TyData::Unknown => TyKind::Unknown,
         };
-        Ty::new(kind, nullable)
+        Ty::new(kind, *nullable)
     }
 }
 
