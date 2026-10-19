@@ -138,8 +138,8 @@ Each invariant has a number and, where it can be checked, a check site. Tests an
 | INV-2b | Post-mono passes (escape sink check, memory plan, stamp, codegen) emit no user diagnostics; failure is an ICE. The gate is the exception. | mono -> codegen | `memory::plan` returns diagnostics (`memory.rs:61-68`). |
 | INV-3 | A `&T` never appears in a class field, a return type, or a `var` binding, until region parameters exist (#61). | typeck, sema | Enforced in three places (see section 3). |
 | INV-4 | No `T??` (RFC 0001 section 3). | type lowering | Unrepresentable today. |
-| INV-5 | HIR function and method order matches the sema roots. | typeck -> sema | Comment only (`typeck/mod.rs:63`); only the count is checked (`region_walk.rs:745,773`). |
-| INV-6 | Every sema region node matches exactly one HIR region site. Failure is an ICE. | sema -> region_walk | `stamp.rs:47` panics with `.expect`, while `memory::plan` turns the same failure into a diagnostic. |
+| INV-5 | HIR function and method order matches the sema roots. | typeck -> sema | Count and order are checked in `region_walk::check_roots`; a mismatch is an ICE (#75). |
+| INV-6 | Every sema region node matches exactly one HIR region site. Failure is an ICE. | sema -> region_walk | `stamp_codegen_push` and `memory::plan` both report via `WalkError::ice_diagnostic` (#75). |
 | INV-7 | Every record allocation has an allocation site in the memory plan. | memory -> codegen | Planner error (`memory.rs:136`), `managed_ref.rs:93`. |
 | INV-8 | HIR given to codegen has passed `codegen_gate::gate`. | gate -> codegen | Enforced by call order in `codegen/mod.rs`. |
 | INV-9 | The LLVM `Ref` handle struct has the layout of the runtime `RefHandle`. | codegen / runtime | Two hand-written definitions (`llvm/context.rs:151`, `crates/bork_runtime/src/refs.rs:12`); nothing asserts equality. |

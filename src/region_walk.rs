@@ -164,6 +164,23 @@ impl WalkError {
         &self.message
     }
 
+    fn in_function(mut self, function: &str) -> Self {
+        if self.diagnostic.is_none() {
+            self.message = format!("in function `{function}`: {}", self.message);
+        }
+        self
+    }
+
+    /// INV-6: a walk failure means sema and HIR disagree; report it as an ICE.
+    pub fn ice_diagnostic(self) -> crate::diag::Diagnostic {
+        self.diagnostic.unwrap_or_else(|| crate::diag::Diagnostic {
+            phase: crate::diag::Phase::Ownership,
+            severity: crate::diag::Severity::Error,
+            message: format!("internal compiler error: region walk mismatch {}", self.message),
+            span: None,
+        })
+    }
+
     pub fn into_diagnostic(self) -> Option<crate::diag::Diagnostic> {
         self.diagnostic
     }
@@ -737,11 +754,8 @@ where
     Ok(())
 }
 
-pub fn walk_program<V: RegionVisitor>(
-    program: &HirProgram,
-    roots: &mut [ArenaNode],
-    visitor: &mut V,
-) -> Result<(), WalkError> {
+/// INV-5: HIR functions and sema roots line up by count and by order.
+fn check_roots(program: &HirProgram, roots: &[ArenaNode]) -> Result<(), WalkError> {
     if program.functions.len() != roots.len() {
         return Err(WalkError::message(format!(
             "HIR has {} functions, report has {}",
@@ -749,6 +763,24 @@ pub fn walk_program<V: RegionVisitor>(
             roots.len()
         )));
     }
+    for (function, root) in program.functions.iter().zip(roots) {
+        let expected = format!("fun {}", function.name);
+        if root.label != expected {
+            return Err(WalkError::message(format!(
+                "function order mismatch: HIR `{}`, report root `{}`",
+                function.name, root.label
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub fn walk_program<V: RegionVisitor>(
+    program: &HirProgram,
+    roots: &mut [ArenaNode],
+    visitor: &mut V,
+) -> Result<(), WalkError> {
+    check_roots(program, roots)?;
     for (root_index, function) in program.functions.iter().enumerate() {
         visitor
             .on_function_root_mut(&mut roots[root_index])
@@ -759,7 +791,8 @@ pub fn walk_program<V: RegionVisitor>(
             path: Vec::new(),
             next_child: 0,
         };
-        walk_one_function(function, &mut cursor, visitor)?;
+        walk_one_function(function, &mut cursor, visitor)
+            .map_err(|e| e.in_function(&function.name))?;
     }
     Ok(())
 }
@@ -769,13 +802,7 @@ pub fn walk_program_readonly<V: RegionVisitor>(
     roots: &[ArenaNode],
     visitor: &mut V,
 ) -> Result<(), WalkError> {
-    if program.functions.len() != roots.len() {
-        return Err(WalkError::message(format!(
-            "HIR has {} functions, report has {}",
-            program.functions.len(),
-            roots.len()
-        )));
-    }
+    check_roots(program, roots)?;
     for (root_index, function) in program.functions.iter().enumerate() {
         visitor
             .on_function_root(&roots[root_index])
@@ -786,7 +813,8 @@ pub fn walk_program_readonly<V: RegionVisitor>(
             path: Vec::new(),
             next_child: 0,
         };
-        walk_one_function(function, &mut cursor, visitor)?;
+        walk_one_function(function, &mut cursor, visitor)
+            .map_err(|e| e.in_function(&function.name))?;
     }
     Ok(())
 }
@@ -831,8 +859,22 @@ mod tests {
         let result = check("fun main() {\n    val y = 2\n    { val x = 1 }\n}");
         assert!(result.is_ok());
         let mut report = result.report.unwrap();
-        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
+        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report).unwrap();
         assert!(!report.roots[0].children[0].codegen_push);
+    }
+
+    #[test]
+    fn region_mismatch_is_ice_in_stamp_and_plan() {
+        let result = check("fun a() {}\nfun main() {}\n");
+        assert!(result.is_ok());
+        let hir = result.hir.as_ref().unwrap();
+        let mut report = result.report.unwrap();
+        report.roots.reverse();
+        let stamp = stamp_codegen_push(hir, &mut report).unwrap_err();
+        let (_, plan) = crate::memory::plan(hir, &report);
+        assert_eq!(plan, vec![stamp.clone()]);
+        assert!(stamp.message.starts_with("internal compiler error"), "{}", stamp.message);
+        assert!(stamp.message.contains("`a`") && stamp.message.contains("`fun main`"), "{}", stamp.message);
     }
 
     #[test]
@@ -841,7 +883,7 @@ mod tests {
         let result = check(source);
         assert!(result.is_ok());
         let mut report = result.report.unwrap();
-        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
+        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report).unwrap();
     }
 
     #[cfg(feature = "codegen")]
@@ -876,7 +918,7 @@ mod tests {
                 let result = check(source);
                 assert!(result.is_ok(), "{source:?}");
                 let mut report = result.report.unwrap();
-                stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report);
+                stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report).unwrap();
                 let hir = result.hir.as_ref().unwrap();
                 let events = schedule(hir, &report).expect("schedule");
                 for event in events {

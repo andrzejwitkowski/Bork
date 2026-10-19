@@ -59,8 +59,10 @@ pub fn check(source: &str) -> CheckResult {
             let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &report);
             diagnostics.append(&mut plan_diagnostics);
             if diagnostics.is_empty() {
-                crate::region_walk::stamp_codegen_push(&program, &mut report);
-                memory_plan = Some(plan);
+                match crate::region_walk::stamp_codegen_push(&program, &mut report) {
+                    Ok(()) => memory_plan = Some(plan),
+                    Err(ice) => diagnostics.push(ice),
+                }
             }
         }
         hir = diagnostics.is_empty().then_some(program);
