@@ -4,6 +4,7 @@ use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
 
 mod closures;
 mod constants;
+mod defs;
 mod nullable;
 mod managed_ref;
 mod methods;

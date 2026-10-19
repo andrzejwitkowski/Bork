@@ -185,13 +185,13 @@ wariantem `Expr::Call`.
 
 ## 2. Typeck: AST → typowany HIR
 
-Wejście to `typeck::check` w `src/typeck/mod.rs`. Pracuje w czterech krokach:
+Wejście to `typeck::check` w `src/typeck/mod.rs`. Najpierw buduje tablicę definicji (`DefTable`: `DefId` dla każdej klasy, funkcji, metody i stałej; to ona wykrywa duplikaty i kolizje z wbudowanymi nazwami), potem pracuje w czterech krokach:
 
 ~~~rust
-reject_builtin_redefines(program, &mut diagnostics);
-let classes = build_classes(program, &mut diagnostics);
+let defs = DefTable::build(program); // src/defs.rs: DefId i konflikty nazw
+let classes = build_classes(program, &defs, &mut diagnostics);
 validate_owned_layouts(&classes, &mut diagnostics);
-let fun_sigs = collect_fun_sigs(program, &classes, &mut diagnostics);
+let fun_sigs = collect_fun_sigs(program, &defs, &classes, &mut diagnostics);
 // potem check_function dla każdej funkcji
 ~~~
 

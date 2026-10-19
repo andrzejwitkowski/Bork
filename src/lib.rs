@@ -3,6 +3,7 @@ pub mod arena;
 pub mod ast;
 pub mod constants;
 mod builtins;
+pub mod defs;
 mod codegen_gate;
 #[cfg(feature = "codegen")]
 pub mod codegen;

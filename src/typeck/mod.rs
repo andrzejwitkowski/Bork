@@ -40,17 +40,20 @@ pub fn check_with_members(
     program: &Program,
 ) -> (HirProgram, SpanTypes, MemberResolutions, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
-    let constants = crate::constants::collect_into(program, &mut diagnostics);
-    reject_builtin_redefines(program, &mut diagnostics);
+    let defs = crate::defs::DefTable::build(program);
+    let constants = crate::constants::collect_into(program, &defs, &mut diagnostics);
+    for index in 0..program.functions.len() {
+        diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
+    }
 
-    let mut classes = build_classes(program, &mut diagnostics);
+    let mut classes = build_classes(program, &defs, &mut diagnostics);
     validate_owned_layouts(&classes, &mut diagnostics);
-    let mut fun_sigs = collect_fun_sigs(program, &classes, &mut diagnostics);
+    let mut fun_sigs = collect_fun_sigs(program, &defs, &classes, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
         members.insert(constant.span, constant.member(name));
     }
-    collect_method_sigs(program, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
+    collect_method_sigs(program, &defs, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut span_tys = SpanTypes::new();
     let mut functions: Vec<HirFunction> = program
         .functions
@@ -103,41 +106,18 @@ pub fn check_with_members(
     )
 }
 
-fn reject_builtin_redefines(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
-    for function in &program.functions {
-        if crate::builtins::is_intrinsic(&function.name) {
-            diagnostics.push(Diagnostic {
-                phase: Phase::Type,
-                severity: Severity::Error,
-                message: format!("cannot redefine builtin function `{}`", function.name),
-                span: builtin_redefine_span(function),
-            });
-        }
-    }
-}
-
 fn build_classes(
     program: &Program,
+    defs: &crate::defs::DefTable,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ClassTable {
     let mut classes = ClassTable::new();
-    for class in &program.classes {
-        if class.name == "String"
-            || !matches!(
-                crate::ast::Type::from_ident(&class.name, false),
-                crate::ast::Type::Named { .. }
-            )
-        {
-            diagnostics.push(type_error(
-                format!("class `{}` conflicts with a builtin type name", class.name),
-                class.fields.first().map(|field| field.name.span),
-            ));
-        }
+    for (index, class) in program.classes.iter().enumerate() {
+        use crate::defs::Clash;
+        diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| {
+            matches!(c, Clash::ClassBuiltinType | Clash::ClassDuplicate)
+        }));
         if classes.contains_key(&class.name) {
-            diagnostics.push(type_error(
-                format!("duplicate class `{}`", class.name),
-                class.fields.first().map(|field| field.name.span),
-            ));
             continue;
         }
         classes.insert(
@@ -191,6 +171,7 @@ fn build_classes(
 
 fn collect_fun_sigs(
     program: &Program,
+    defs: &crate::defs::DefTable,
     classes: &ClassTable,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> HashMap<String, FunSig> {
@@ -213,13 +194,8 @@ fn collect_fun_sigs(
         })
         .collect();
     fun_sigs.extend(crate::builtins::signatures());
-    for class in &program.classes {
-        if fun_sigs.contains_key(&class.name) {
-            diagnostics.push(type_error(
-                format!("class `{}` conflicts with another type or function", class.name),
-                class.fields.first().map(|field| field.name.span),
-            ));
-        }
+    for index in 0..program.classes.len() {
+        diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| c == crate::defs::Clash::ClassFn));
     }
     fun_sigs
 }
@@ -227,25 +203,18 @@ fn collect_fun_sigs(
 /// Registers each method as `C.m` with a leading `this: &C` parameter.
 fn collect_method_sigs(
     program: &Program,
+    defs: &crate::defs::DefTable,
     classes: &mut ClassTable,
     fun_sigs: &mut HashMap<String, FunSig>,
     members: &mut MemberResolutions,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for class in &program.classes {
-        for method in &class.methods {
-            if class.fields.iter().any(|field| field.name.name == method.name) {
-                diagnostics.push(type_error(
-                    format!("class `{}` already has a field named `{}`", class.name, method.name),
-                    Some(method.name_span),
-                ));
-            }
+    for (class_index, class) in program.classes.iter().enumerate() {
+        for (method_index, method) in class.methods.iter().enumerate() {
+            let method_id = defs.method_id(class_index, method_index);
+            diagnostics.extend(defs.diagnostics(method_id, |_| true));
             let qualified = format!("{}.{}", class.name, method.name);
             if fun_sigs.contains_key(&qualified) {
-                diagnostics.push(type_error(
-                    format!("duplicate method `{}` in class `{}`", method.name, class.name),
-                    Some(method.name_span),
-                ));
                 continue;
             }
             let params: Vec<Ty> = method
@@ -419,10 +388,6 @@ fn validate_owned_layouts(classes: &ClassTable, diagnostics: &mut Vec<Diagnostic
             ));
         }
     }
-}
-
-fn builtin_redefine_span(function: &Function) -> Option<Span> {
-    function.params.first().map(|param| param.name.span)
 }
 
 #[cfg(test)]
