@@ -93,7 +93,7 @@ A loop body that resets its arena every iteration therefore reuses the same page
 ## Limits
 
 - Nothing in codegen calls `grow`/`free` yet. `concat`, `stringFromUtf8` and array copies only `alloc`; the unit tests in `arena.rs` cover grow/free.
-- Page lookup (`free`, `grow`) and the older-page tail search are linear in the page count.
+- Page lookup (`free`, `grow`) is linear in the page count. The older-page tail search is skipped when `older_max_tail` (an upper bound on older tails) is smaller than the request, so mid-size misses cost O(1); a hit still scans from the first page.
 - Holes are not merged with their neighbours.
 - Reusing a hole can waste part of it (up to about 3x the request, see step 2 of `alloc`). Collections that double their capacity use power-of-two sizes and do not lose anything this way. Accepted until a collection shows it matters; the alternative is to file and look up blocks by the same rounding, which wastes nothing but reuses fewer holes.
 - A hole is found only by requests whose size rounds up to its class (a 100-byte hole sits in the 64-byte class, so a 100-byte request, which needs the 128 class, cannot use it).
