@@ -131,6 +131,18 @@ count = count + 1
 - `: Type` is optional when the initializer determines the type.
 - A name shadows an outer name for the rest of the block.
 
+## Reserved words
+
+These are lexer tokens, so they cannot name a binding, parameter, field, function, class or constant:
+
+- declarations: `class`, `const`, `fun`, `val`, `var`, `this`
+- control flow: `if`, `else`, `when`, `for`, `in`, `while`, `break`, `continue`, `return`
+- values: `true`, `false`, `Some`, `None`
+- ownership: `move`, `promote`
+- type constructors: `Ref`, `Vec`
+
+`const` is an ordinary keyword. `Ref` and `Vec` stay reserved only until `Vec` becomes a regular generic type (#45, #68); until then they are parsed specially (`Vec<T>(cap)` is its own expression). The type-system RFCs' assumption that the lexer does not special-case type names is the target, not today's behaviour. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
+
 ## Statements
 
 One statement per line. A `{ ... }` block is a statement and opens an arena region.
