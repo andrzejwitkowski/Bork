@@ -80,7 +80,7 @@ pub(crate) fn supports_print_arg(ty: &Ty) -> bool {
 pub(crate) fn signatures() -> [(String, FunSig); 3] {
     [Builtin::Print, Builtin::Println, Builtin::Concat].map(|builtin| {
         let (name, params, return_ty) = builtin.sig();
-        (name.to_string(), FunSig { params, return_ty })
+        (name.to_string(), FunSig::new(params, return_ty))
     })
 }
 

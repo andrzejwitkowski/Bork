@@ -182,14 +182,14 @@ fn collect_fun_sigs(
         .map(|function| {
             (
                 function.name.clone(),
-                FunSig {
-                    params: function
+                FunSig::new(
+                    function
                         .params
                         .iter()
                         .map(|param| lower_type(&param.ty, classes, diagnostics, Some(param.name.span)))
                         .collect(),
-                    return_ty: lower_type(&function.return_type, classes, diagnostics, Some(function.name_span)),
-                },
+                    lower_type(&function.return_type, classes, diagnostics, Some(function.name_span)),
+                ),
             )
         })
         .collect();
@@ -236,10 +236,7 @@ fn collect_method_sigs(
             );
             fun_sigs.insert(
                 qualified,
-                FunSig {
-                    params: std::iter::once(this_ty).chain(params).collect(),
-                    return_ty,
-                },
+                FunSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty),
             );
             if let Some(info) = classes.get_mut(&class.name) {
                 info.methods.insert(method.name.clone(), signature.clone());
@@ -289,7 +286,7 @@ fn check_function(
         });
     }
     params.extend(bind_params(function, param_tys, &mut env));
-    let return_ty = signature.return_ty;
+    let return_ty = signature.ret;
     let body = stmt::check_block(&function.body, &return_ty, &mut env, false);
     if return_ty != Ty::unit() && !stmt::block_always_returns(&body) {
         env.error(

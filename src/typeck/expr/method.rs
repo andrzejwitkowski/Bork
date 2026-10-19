@@ -69,7 +69,7 @@ pub(super) fn check_method_call(
         qualified,
         span,
         sig.params,
-        sig.return_ty,
+        sig.ret,
         Some(borrow(checked)),
         args,
         trailing,
