@@ -59,12 +59,7 @@ impl Origins {
 pub fn plan(program: &HirProgram, report: &ArenaReport) -> (MemoryPlan, Vec<Diagnostic>) {
     let mut planner = Planner::default();
     if let Err(error) = region_walk::walk_program_readonly(program, &report.roots, &mut planner) {
-        planner.diagnostics.push(Diagnostic {
-            phase: Phase::Ownership,
-            severity: Severity::Error,
-            message: format!("cannot build memory plan: {}", error.as_str()),
-            span: None,
-        });
+        planner.diagnostics.push(error.ice_diagnostic());
     }
     planner.propagate_program_lifetimes();
     planner

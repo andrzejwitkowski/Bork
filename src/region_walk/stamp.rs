@@ -42,7 +42,9 @@ impl RegionVisitor for StampVisitor {
     }
 }
 
-pub fn stamp_codegen_push(program: &HirProgram, report: &mut crate::sema::ArenaReport) {
-    let mut visitor = StampVisitor;
-    walk_program(program, &mut report.roots, &mut visitor).expect("stamp walk");
+pub fn stamp_codegen_push(
+    program: &HirProgram,
+    report: &mut crate::sema::ArenaReport,
+) -> Result<(), crate::diag::Diagnostic> {
+    walk_program(program, &mut report.roots, &mut StampVisitor).map_err(WalkError::ice_diagnostic)
 }

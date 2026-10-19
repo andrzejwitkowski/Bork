@@ -471,7 +471,7 @@ mod tests {
             let checked = check(source);
             assert!(checked.is_ok(), "{source:?}");
             let mut report = checked.report.unwrap();
-            stamp_codegen_push(checked.hir.as_ref().unwrap(), &mut report);
+            stamp_codegen_push(checked.hir.as_ref().unwrap(), &mut report).unwrap();
             let events = schedule(checked.hir.as_ref().unwrap(), &report).expect("schedule");
             let scheduled_pushes = events
                 .iter()
