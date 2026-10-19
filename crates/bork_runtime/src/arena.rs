@@ -56,6 +56,11 @@ struct Arena {
     spare: Vec<Box<Page>>,
     free_lists: [*mut u8; CLASSES],
     large: Vec<(*mut u8, Layout)>,
+    // Upper bound on the free tail of any page but the newest: lets a miss skip the
+    // older-page scan. Anything that grows an older tail must raise it.
+    older_max_tail: usize,
+    #[cfg(test)]
+    probes: usize,
 }
 
 #[repr(u8)]
@@ -146,6 +151,9 @@ impl Arena {
             spare: Vec::new(),
             free_lists: [std::ptr::null_mut(); CLASSES],
             large: Vec::new(),
+            older_max_tail: 0,
+            #[cfg(test)]
+            probes: 0,
         }
     }
 
@@ -192,18 +200,34 @@ impl Arena {
     /// page. `None` means the alignment cannot be met inside a page.
     fn bump_alloc(&mut self, size: usize, align: usize) -> Option<*mut u8> {
         let last = self.pages.len() - 1;
+        #[cfg(test)]
+        {
+            self.probes += 1;
+        }
         if let Some(ptr) = self.pages[last].bump(size, align) {
             return Some(ptr);
         }
-        // Tails of older pages stay usable after a miss.
-        for page in &mut self.pages[..last] {
-            if let Some(ptr) = page.bump(size, align) {
-                return Some(ptr);
+        // Tails of older pages stay usable after a miss, unless none can hold `size`.
+        // shortcut: a hit still scans from page 0; add a first-fit cursor if that shows up.
+        if size <= self.older_max_tail {
+            let mut max_tail = 0;
+            for page in &mut self.pages[..last] {
+                #[cfg(test)]
+                {
+                    self.probes += 1;
+                }
+                if let Some(ptr) = page.bump(size, align) {
+                    return Some(ptr);
+                }
+                max_tail = max_tail.max(PAGE_SIZE - page.offset);
             }
+            self.older_max_tail = max_tail;
         }
         let mut page = self.spare.pop().unwrap_or_else(Page::new);
         let ptr = page.bump(size, align);
         if ptr.is_some() {
+            let prev_tail = PAGE_SIZE - self.pages[last].offset;
+            self.older_max_tail = self.older_max_tail.max(prev_tail);
             self.pages.push(page);
         } else {
             self.spare.push(page);
@@ -240,6 +264,7 @@ impl Arena {
             return false;
         }
         page.offset = start;
+        self.older_max_tail = PAGE_SIZE;
         true
     }
 
@@ -297,6 +322,7 @@ impl Arena {
             let start = ptr as usize - page.base();
             if start + old == page.offset && start + new <= PAGE_SIZE {
                 page.offset = start + new;
+                self.older_max_tail = PAGE_SIZE;
                 return ptr;
             }
         }
@@ -310,6 +336,7 @@ impl Arena {
     /// Keeps the first page so recycled arenas start with the same address.
     fn reset(&mut self) {
         self.pages[0].offset = 0;
+        self.older_max_tail = 0;
         for mut page in self.pages.drain(1..) {
             page.offset = 0;
             self.spare.push(page);
@@ -997,6 +1024,45 @@ mod tests {
         arena.free(ptr, 0);
         arena.reset();
         assert!(arena.large.is_empty());
+    }
+
+    #[test]
+    fn mid_size_allocs_do_not_rescan_old_pages() {
+        let mut arena = Arena::new();
+        let allocs = 4000;
+        for _ in 0..allocs {
+            arena.alloc(1800, 1);
+        }
+        assert!(arena.pages.len() >= allocs / 2);
+        assert!(arena.probes <= 3 * allocs, "{} probes", arena.probes);
+    }
+
+    #[test]
+    fn older_tail_grown_by_rewind_is_found() {
+        let mut arena = Arena::new();
+        let a = arena.alloc(2000, 1);
+        let b = arena.alloc(2040, 1); // page 0 is now full
+        arena.alloc(2000, 1);
+        arena.alloc(2000, 1); // a miss records that older pages have no room
+        arena.free(b, 2040); // rewinds page 0 by 2040 bytes
+        let c = arena.alloc(2000, 1);
+        assert!(arena.pages[0].contains(c), "rewound tail of page 0 is reusable");
+        let _ = a;
+    }
+
+    #[test]
+    fn tail_bound_survives_reset() {
+        let mut arena = Arena::new();
+        for _ in 0..6 {
+            arena.alloc(1800, 1);
+        }
+        arena.reset();
+        let p = arena.alloc(1800, 1);
+        assert!(arena.pages[0].contains(p));
+        let q = arena.alloc(1800, 1);
+        assert!(arena.pages[0].contains(q), "page 0 still has room");
+        let r = arena.alloc(1800, 1);
+        assert!(arena.pages.len() == 2 && arena.pages[1].contains(r));
     }
 
     #[test]
