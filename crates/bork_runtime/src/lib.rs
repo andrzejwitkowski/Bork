@@ -4,6 +4,22 @@ mod arena;
 mod refs;
 mod text;
 
+/// `RefHandle` ABI as `(size, align, [control, object, kind] offsets)`; compared against the
+/// LLVM `Ref` struct in `bork` (RFC 0002 INV-9).
+pub const REF_HANDLE_LAYOUT: (usize, usize, [usize; 3]) = {
+    use refs::RefHandle;
+    use std::mem::{align_of, offset_of, size_of};
+    (
+        size_of::<RefHandle>(),
+        align_of::<RefHandle>(),
+        [
+            offset_of!(RefHandle, control),
+            offset_of!(RefHandle, object),
+            offset_of!(RefHandle, kind),
+        ],
+    )
+};
+
 use std::io::{self, Write};
 use std::slice;
 

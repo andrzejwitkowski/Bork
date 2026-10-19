@@ -164,6 +164,14 @@ impl<'ctx> Codegen<'ctx> {
         )
     }
 
+    #[cfg(test)]
+    pub fn ref_handle_offsets(&self) -> [usize; 3] {
+        let ty = self.ref_handle_type();
+        // Trailing fields can hide in padding, so the count is checked too.
+        assert_eq!(ty.count_fields(), 3, "Ref handle must be {{control, object, kind}}");
+        std::array::from_fn(|i| self.target_data.offset_of_element(&ty, i as u32).unwrap() as usize)
+    }
+
     pub fn ref_observation_type(&self) -> StructType<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
         self.context.struct_type(&[ptr.into(), ptr.into()], false)
@@ -503,4 +511,22 @@ pub fn native_target_machine_with_debug(debug: bool) -> Result<TargetMachine, St
             CodeModel::Default,
         )
         .ok_or_else(|| format!("LLVM cannot create a target machine for {triple}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// INV-9: the hand-written LLVM `Ref` struct must match the runtime `#[repr(C)] RefHandle`.
+    #[test]
+    fn ref_handle_layout_matches_runtime() {
+        let context = Context::create();
+        let cg = Codegen::new(&context, "layout", &[], MemoryPlan::default()).unwrap();
+        let (size, align, offsets) = bork_runtime::REF_HANDLE_LAYOUT;
+        assert_eq!(
+            (cg.ref_handle_layout(), cg.ref_handle_offsets()),
+            ((size, align), offsets),
+            "LLVM Ref handle != runtime RefHandle (size/align, field offsets); update both definitions"
+        );
+    }
 }

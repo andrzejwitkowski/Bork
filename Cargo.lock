@@ -88,6 +88,7 @@ dependencies = [
 name = "bork"
 version = "0.1.0"
 dependencies = [
+ "bork_runtime",
  "inkwell",
  "lalrpop",
  "lalrpop-util",
