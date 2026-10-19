@@ -36,26 +36,25 @@ pub type ConstantTable = HashMap<String, Constant>;
 
 pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
-    let table = collect_into(program, &mut diagnostics);
+    let table = collect_into(program, &crate::defs::DefTable::build(program), &mut diagnostics);
     (table, diagnostics)
 }
 
 pub(crate) fn collect_into(
     program: &Program,
+    defs: &crate::defs::DefTable,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ConstantTable {
     let mut table = ConstantTable::new();
-    for decl in &program.constants {
+    for (index, decl) in program.constants.iter().enumerate() {
         let name = &decl.name.name;
         let span = decl.name.span;
-        let collision = conflicting_declaration(program, name);
-        if let Some(what) = collision {
-            diagnostics.push(error(
-                format!("constant `{name}` conflicts with {what}"),
-                span,
-            ));
+        let collisions = defs.diagnostics(defs.const_id(index), |_| true);
+        if !collisions.is_empty() {
+            diagnostics.extend(collisions);
             continue;
         }
+        // A constant with an invalid literal is not in `table`, so only valid ones count as the original.
         if table.contains_key(name) {
             diagnostics.push(error(format!("duplicate constant `{name}`"), span));
             continue;
@@ -68,22 +67,6 @@ pub(crate) fn collect_into(
         }
     }
     table
-}
-
-fn conflicting_declaration(program: &Program, name: &str) -> Option<&'static str> {
-    let conflicts_with_builtin = crate::builtins::is_intrinsic(name);
-    let conflicts_with_function = program.functions.iter().any(|f| f.name == name);
-    let conflicts_with_class = program.classes.iter().any(|c| c.name == name);
-
-    if conflicts_with_builtin {
-        Some("a builtin function")
-    } else if conflicts_with_function {
-        Some("a function")
-    } else if conflicts_with_class {
-        Some("a class")
-    } else {
-        None
-    }
 }
 
 fn literal(ty: &Type, value: &Expr, span: Span) -> Result<(Ty, HirExprKind), Diagnostic> {
