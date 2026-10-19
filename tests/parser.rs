@@ -816,6 +816,39 @@ fn parses_global_constants_among_items() {
     assert_eq!(program.functions.len(), 1);
 }
 
+/// Keep in sync with "Reserved words" in docs/language.md.
+const RESERVED: [&str; 23] = [
+    "break", "class", "const", "continue", "else", "false", "for", "fun", "if", "in", "move",
+    "None", "promote", "Ref", "return", "Some", "this", "true", "val", "var", "Vec", "when",
+    "while",
+];
+
+#[test]
+fn reserved_words_cannot_be_binding_names() {
+    for word in RESERVED {
+        let source = format!("fun main() {{ val {word}: i32 = 1 }}");
+        assert!(parse(&source).is_err(), "`{word}` parsed as a binding name");
+    }
+}
+
+#[test]
+fn vec_cannot_name_a_param_class_or_function() {
+    assert!(parse("fun f(Vec: i32) {}").is_err());
+    assert!(parse("class Point {\n x: i32\n}\n").is_ok());
+    assert!(parse("class Vec {\n x: i32\n}\n").is_err());
+    assert!(parse("fun Point() {}").is_ok());
+    assert!(parse("fun Vec() {}").is_err());
+    assert!(parse("fun f(Ref: i32) {}").is_err());
+}
+
+#[test]
+fn near_misses_of_reserved_words_are_identifiers() {
+    for word in ["vec", "constant", "Vector", "Reference", "valid"] {
+        let source = format!("fun main() {{ val {word}: i32 = 1 }}");
+        assert!(parse(&source).is_ok(), "`{word}` should be an identifier");
+    }
+}
+
 #[test]
 fn const_requires_type_and_is_a_keyword() {
     assert!(parse("const PORT = 1\n").is_err());
