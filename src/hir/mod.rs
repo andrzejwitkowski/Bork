@@ -3,7 +3,9 @@
 //! HIR carries no region identity. Arenas and nesting live in
 //! `sema::ArenaReport`; codegen should read region identity from there.
 
+mod number;
 mod ty;
+pub use number::number_nodes;
 pub use ty::{Prim, Ty, TyKind};
 
 use crate::ast;
@@ -167,8 +169,19 @@ impl HirAssignTarget {
 }
 
 /// An expression annotated with the type it was inferred or checked at.
+/// Identity of one HIR expression, unique within a program once [`number_nodes`] has run.
+/// Spans are locations: literals have none and generic instances will share them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NodeId(u32);
+
+impl NodeId {
+    /// Not yet numbered (or synthetic); never a key for a fact.
+    pub const DUMMY: NodeId = NodeId(u32::MAX);
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirExpr {
+    pub id: NodeId,
     pub ty: Ty,
     pub span: Option<Span>,
     pub kind: HirExprKind,
@@ -177,6 +190,7 @@ pub struct HirExpr {
 impl HirExpr {
     pub fn new(kind: HirExprKind, ty: Ty) -> Self {
         Self {
+            id: NodeId::DUMMY,
             ty,
             span: None,
             kind,
@@ -185,6 +199,7 @@ impl HirExpr {
 
     pub fn spanned(kind: HirExprKind, ty: Ty, span: Span) -> Self {
         Self {
+            id: NodeId::DUMMY,
             ty,
             span: Some(span),
             kind,

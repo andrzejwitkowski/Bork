@@ -320,6 +320,7 @@ fn check_managed_ref(
     {
         let span = source.span;
         return HirExpr {
+            id: crate::hir::NodeId::DUMMY,
             ty: expected.clone(),
             span,
             kind: HirExprKind::RefCreate(Box::new(source)),

@@ -109,6 +109,7 @@ fn borrow(receiver: HirExpr) -> HirExpr {
         _ => receiver,
     };
     HirExpr {
+        id: crate::hir::NodeId::DUMMY,
         kind: HirExprKind::Unary {
             op: UnaryOp::Borrow,
             expr: Box::new(receiver),

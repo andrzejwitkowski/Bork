@@ -158,7 +158,7 @@ These are enforced in review and cannot be asserted:
 
 | Duplicate or gap | Removed by |
 |---|---|
-| `Span`-keyed tables | #35 (NodeId), #37 |
+| `Span`-keyed tables | #35 (NodeId), #37; `MemoryPlan` is keyed by `NodeId` (slice 1), `SpanTypes`/`MemberResolutions` and the sema/LSP joins remain (slice 2) |
 | two `is_copy`, sema re-deriving `UseKind` | #37, #60 |
 | pre-mono ownership of generic bodies | #46 |
 | mono collector and instance tables | #47 |
