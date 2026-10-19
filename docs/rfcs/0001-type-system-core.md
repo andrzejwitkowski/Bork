@@ -161,8 +161,8 @@ and be stable under renaming and module moves.
 - Pointer identity into an arena: couples type lifetime to allocation and blocks serialization/debug tooling.
 
 **Implementation (#32).** `src/ty` holds `TyId`, `TyData` and the `TyCtx` hash-consing interner, with an
-`intern(&hir::Ty)` / `to_ty(TyId)` bridge so passes migrate one at a time. `nullable` stays a flag beside the
-data until #33, `String` is its own variant (it has no `DefId`), and interning a class name the `DefTable`
+`intern(&hir::Ty)` / `to_ty(TyId)` bridge so passes migrate one at a time. `T?` is `Nullable(TyId)` (#33; `T??` is rejected, `Error?` is `Error`), `Error` replaces `Unknown`,
+`Param(ParamIdx)` / `Infer(InferVar)` are `u32` newtypes with no HIR form (`to_ty` panics), `String` is its own variant (it has no `DefId`), and interning a class name the `DefTable`
 does not know is an error, not a panic. Ids are only comparable within one `TyCtx`.
 
 **Consequences.** Typeck is migrated in #36; the golden HIR-type snapshot
