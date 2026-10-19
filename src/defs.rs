@@ -169,6 +169,11 @@ impl DefTable {
         self.classes.get(name).copied()
     }
 
+    /// Every class by name (the first declaration of each name), in no particular order.
+    pub fn classes(&self) -> impl Iterator<Item = (&str, DefId)> {
+        self.classes.iter().map(|(name, id)| (name.as_str(), *id))
+    }
+
     /// A user function (never a builtin; see [`DefTable::lookup_intrinsic`]).
     pub fn lookup_fn(&self, name: &str) -> Option<DefId> {
         self.fns.get(name).copied()

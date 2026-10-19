@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::ast;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Prim {
     I8,
     I16,
