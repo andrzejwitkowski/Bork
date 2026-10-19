@@ -133,7 +133,7 @@ Each invariant has a number and, where it can be checked, a check site. Tests an
 
 | # | Invariant | Holds at | Today |
 |---|---|---|---|
-| INV-1 | After typeck succeeds, HIR contains no `Unknown` or inference type. **Target**, owned by #33 and #41. | typeck -> sema | Violated: builtin callee idents get `Ty::unknown()` (`typeck/expr/call.rs:354,419`). |
+| INV-1 | After typeck succeeds, HIR contains no `Unknown` or inference type. **Target**, owned by #33 and #41. | typeck -> sema | Builtin callee idents now carry a function type (`check_builtin_call`, #85). |
 | INV-2 | Every HIR expression has a `UseKind` consistent with its type's capabilities (`Copy` implies copyable). Holds after typeck and again after mono. | typeck -> sema; mono -> codegen | Unchecked. |
 | INV-2b | Post-mono passes (escape sink check, memory plan, stamp, codegen) emit no user diagnostics; failure is an ICE. The gate is the exception. | mono -> codegen | `memory::plan` returns diagnostics (`memory.rs:61-68`). |
 | INV-3 | A `&T` never appears in a class field, a return type, or a `var` binding, until region parameters exist (#61). | typeck, sema | Enforced in three places (see section 3). |
