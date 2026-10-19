@@ -435,9 +435,7 @@ impl RegionVisitor for Planner {
             HirExprKind::Call { args, .. } => {
                 for argument in args
                     .iter()
-                    .filter(|argument| {
-                        argument.ty.record_name().is_some() || argument.ty.is_managed_ref()
-                    })
+                    .filter(|argument| argument.ty.owns_result())
                 {
                     // ponytail: calls have no escape summaries, so record arguments are program-lived.
                     self.mark_program(&self.origins(argument));
@@ -458,7 +456,7 @@ impl RegionVisitor for Planner {
                 if let Some(block) = else_block {
                     origins.extend(&self.block_origins(block));
                 }
-                if expr.ty.is_managed_ref() || expr.ty.record_name().is_some() {
+                if expr.ty.owns_result() {
                     self.mark_program(&origins);
                 }
                 origins

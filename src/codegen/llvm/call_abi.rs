@@ -19,7 +19,7 @@ impl CallAbi {
     pub(super) fn of(function: &HirFunction) -> Self {
         if function.name == "main" {
             Self::Main
-        } else if owns_result(&function.return_ty) {
+        } else if returns_into_sink(&function.return_ty) {
             Self::OwningReturn
         } else {
             Self::Callee
@@ -63,6 +63,7 @@ impl CallAbi {
     }
 }
 
-fn owns_result(ty: &Ty) -> bool {
-    ty.is_managed_ref() || ty.uses_arena_storage()
+/// Wider than `Ty::owns_result`: the ABI also passes a sink for strings, arrays and Vecs.
+fn returns_into_sink(ty: &Ty) -> bool {
+    ty.owns_result() || ty.uses_arena_storage()
 }

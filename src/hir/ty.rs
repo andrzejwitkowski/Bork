@@ -213,6 +213,12 @@ impl Ty {
         matches!(self.kind, TyKind::ManagedRef(_))
     }
 
+    /// The sink rule: a value of this type is allocated into its consumer's sink arena
+    /// rather than the current region (codegen `alloc_sink`, escape, memory plan).
+    pub fn owns_result(&self) -> bool {
+        self.is_managed_ref() || self.record_name().is_some()
+    }
+
     pub fn is_presence_capable(&self) -> bool {
         self.nullable || self.is_managed_ref()
     }
@@ -362,7 +368,7 @@ impl fmt::Display for Ty {
 
 #[cfg(test)]
 mod tests {
-    use super::{Prim, Ty};
+    use super::{Prim, Ty, TyKind};
     use crate::ast::Type;
 
     #[test]
@@ -373,6 +379,17 @@ mod tests {
         });
         assert!(t.is_string());
         assert!(!t.is_copy());
+    }
+
+    #[test]
+    fn owns_result_is_managed_ref_or_record() {
+        let named = |n: &str| Ty::new(TyKind::Named(n.into()), false);
+        let record = named("Point");
+        assert!(record.owns_result());
+        assert!(Ty::new(TyKind::Ref(Box::new(record.clone())), false).owns_result());
+        assert!(Ty::new(TyKind::ManagedRef(Box::new(record)), false).owns_result());
+        assert!(!named("String").owns_result());
+        assert!(!Ty::i32().owns_result());
     }
 
     #[test]
