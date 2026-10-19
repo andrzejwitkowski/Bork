@@ -9,6 +9,8 @@ use std::num::NonZeroUsize;
 
 const PAGE_SIZE: usize = 4096;
 // Larger requests get their own system block; smaller ones live in pages.
+// Pages a reset arena keeps for reuse; the rest are freed so a pooled arena does not pin its peak.
+const MAX_SPARE_PAGES: usize = 8;
 const LARGE_THRESHOLD: usize = PAGE_SIZE / 2;
 const MIN_CLASS: usize = 16;
 // Free-list classes: 16, 32, ..., 2048 bytes.
@@ -339,7 +341,9 @@ impl Arena {
         self.older_max_tail = 0;
         for mut page in self.pages.drain(1..) {
             page.offset = 0;
-            self.spare.push(page);
+            if self.spare.len() < MAX_SPARE_PAGES {
+                self.spare.push(page);
+            }
         }
         self.free_lists = [std::ptr::null_mut(); CLASSES];
         for (p, layout) in self.large.drain(..) {
@@ -1194,6 +1198,24 @@ mod tests {
         assert!(all(bigger, 1000, 9));
         assert_eq!(arena.large.len(), 1);
         assert_eq!(arena.large[0].1.size(), 20_480);
+    }
+
+    #[test]
+    fn reset_caps_spare_pages() {
+        let mut arena = Arena::new();
+        for _ in 0..2 {
+            for _ in 0..MAX_SPARE_PAGES * 8 {
+                arena.alloc(1800, 1);
+            }
+            assert!(arena.pages.len() > MAX_SPARE_PAGES * 2);
+            arena.reset();
+            assert_eq!(arena.pages.len(), 1);
+            assert_eq!(arena.spare.len(), MAX_SPARE_PAGES);
+        }
+        for _ in 0..MAX_SPARE_PAGES * 4 {
+            arena.alloc(1800, 1); // still works past the spare pool
+        }
+        assert!(arena.spare.is_empty(), "spare pages are reused first");
     }
 
     #[test]

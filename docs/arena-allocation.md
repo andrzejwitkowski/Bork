@@ -84,7 +84,7 @@ A growing collection should double its capacity: the holes it leaves are then 1x
 ## `reset` / `pop`
 
 - Zero the offset of the first page. It stays, so a recycled arena keeps its address.
-- Other pages go to `spare` (offset zeroed). They are reused before the system is asked for more. `spare` is not capped, so a pooled arena keeps its peak page count.
+- Other pages go to `spare` (offset zeroed). They are reused before the system is asked for more. `spare` keeps at most 8 pages (`MAX_SPARE_PAGES`); the rest are freed, so a pooled arena does not pin its peak page count. A loop that needs more pages per iteration re-allocates the excess.
 - Free lists are cleared, large blocks are released.
 - The arena then goes back to the thread-local `ArenaPool`.
 
