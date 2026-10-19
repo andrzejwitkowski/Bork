@@ -109,3 +109,33 @@ fn string_from_utf8_rejects_trailing_closure() {
         "{d:?}"
     );
 }
+
+#[test]
+fn ref_count_builtins_check_arity_and_trailing_closures() {
+    let d = diags_of("fun main() {\n val n = strongCount()\n}");
+    assert!(d.iter().any(|d| d.message.contains("`strongCount` expects 1 argument, got 0")), "{d:?}");
+    let d = diags_of("class N {\n x: i32\n}\nfun main() {\n val r: Ref<N> = N(1)\n val n = weakCount(r) { x -> x }\n}");
+    assert!(d.iter().any(|d| d.message.contains("`weakCount` does not accept trailing closures")), "{d:?}");
+}
+
+/// INV-1: builtin callee idents carry a real function type, not `Unknown`.
+#[test]
+fn special_builtin_callees_have_function_types() {
+    use crate::hir::{HirExprKind, HirStmt, TyKind};
+    let hir = hir_of(
+        "class N {\n x: i32\n}\nfun main() {\n\
+         val r: Ref<N> = N(1)\n val c = strongCount(r)\n\
+         var b: [u8; 1] = [65]\n val s = stringFromUtf8(&b, 0, 1)\n}",
+    );
+    let mut seen = 0;
+    for stmt in &hir.functions[0].body.stmts {
+        let HirStmt::VarDecl { value, .. } = stmt else { continue };
+        let HirExprKind::Call { callee, .. } = &value.kind else { continue };
+        let TyKind::Func { ret, .. } = &callee.ty.kind else {
+            panic!("callee type is {:?}", callee.ty)
+        };
+        assert_eq!(**ret, value.ty);
+        seen += 1;
+    }
+    assert_eq!(seen, 2);
+}

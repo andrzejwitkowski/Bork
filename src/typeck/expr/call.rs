@@ -327,8 +327,49 @@ fn arg_matches_param(got: &Ty, expected: &Ty) -> bool {
     false
 }
 
-/// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`, so the
-/// signature cannot be a fixed `FunSig`.
+/// Shared checking for builtins whose parameters are not a fixed `FunSig` (any `Ref<T>`, any
+/// `&[u8; N]`). The callee gets the instantiated function type, as `print` does in `finish_call`.
+#[allow(clippy::too_many_arguments)]
+fn check_builtin_call(
+    name: &str,
+    args: &[Expr],
+    span: Span,
+    trailing: Option<&Closure>,
+    return_ty: &Ty,
+    env: &mut Env<'_>,
+    arity: usize,
+    expected: impl Fn(usize) -> Option<Ty>,
+    result: Ty,
+    validate: impl FnOnce(&[HirExpr], &mut Env<'_>),
+) -> HirExpr {
+    if trailing.is_some() {
+        env.error(format!("`{name}` does not accept trailing closures"), Some(span));
+    }
+    let checked: Vec<_> = args
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| check(arg, expected(index).as_ref(), return_ty, env))
+        .collect();
+    if checked.len() != arity {
+        let noun = if arity == 1 { "argument" } else { "arguments" };
+        env.error(
+            format!("`{name}` expects {arity} {noun}, got {}", checked.len()),
+            Some(span),
+        );
+        return HirExpr::spanned(HirExprKind::None, Ty::unknown(), span);
+    }
+    validate(&checked, env);
+    let callee_ty = Ty::new(
+        TyKind::Func {
+            params: checked.iter().map(|arg| arg.ty.clone()).collect(),
+            ret: Box::new(result.clone()),
+        },
+        false,
+    );
+    build_call(name.to_string(), span, callee_ty, checked, result, trailing.is_some())
+}
+
+/// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`.
 fn check_ref_count(
     name: &str,
     args: &[Expr],
@@ -337,25 +378,18 @@ fn check_ref_count(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
-    if trailing.is_some() {
-        env.error(format!("`{name}` does not accept trailing closures"), Some(span));
-    }
-    let checked: Vec<_> = args.iter().map(|arg| check(arg, None, return_ty, env)).collect();
-    let [reference] = checked.as_slice() else {
-        env.error(format!("`{name}` expects 1 argument, got {}", checked.len()), Some(span));
-        return HirExpr::spanned(HirExprKind::None, Ty::unknown(), span);
-    };
-    if !reference.ty.is_managed_ref() && !reference.ty.is_unknown() {
-        env.error(
-            format!("`{name}` expects a `Ref<T>`, got {}", reference.ty),
-            reference.span.or(Some(span)),
-        );
-    }
-    build_call(name.to_string(), span, Ty::unknown(), checked, Ty::i32(), trailing.is_some())
+    check_builtin_call(name, args, span, trailing, return_ty, env, 1, |_| None, Ty::i32(), |checked, env| {
+        let reference = &checked[0];
+        if !reference.ty.is_managed_ref() && !reference.ty.is_unknown() {
+            env.error(
+                format!("`{name}` expects a `Ref<T>`, got {}", reference.ty),
+                reference.span.or(Some(span)),
+            );
+        }
+    })
 }
 
-/// `stringFromUtf8(&bytes, start, count): String?`: the buffer is any `&[u8; N]`, so the
-/// signature cannot be a fixed `FunSig`.
+/// `stringFromUtf8(&bytes, start, count): String?`: the buffer is any `&[u8; N]`.
 fn check_string_from_utf8(
     name: &str,
     args: &[Expr],
@@ -364,64 +398,38 @@ fn check_string_from_utf8(
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirExpr {
-    if trailing.is_some() {
-        env.error(
-            format!("`{name}` does not accept trailing closures"),
-            Some(span),
-        );
-    }
-    let checked: Vec<_> = args
-        .iter()
-        .enumerate()
-        .map(|(index, arg)| {
-            let expected = if index == 0 { None } else { Some(Ty::i32()) };
-            check(arg, expected.as_ref(), return_ty, env)
-        })
-        .collect();
-    if checked.len() != 3 {
-        env.error(
-            format!("`{name}` expects 3 arguments, got {}", checked.len()),
-            Some(span),
-        );
-        return HirExpr::spanned(HirExprKind::None, Ty::unknown(), span);
-    }
-    let [buffer, start, count] = checked.as_slice() else {
-        unreachable!("argument count was checked above");
-    };
-    let buffer_is_borrowed_bytes = matches!(
-        &buffer.kind,
-        HirExprKind::Unary {
-            op: UnaryOp::Borrow,
-            ..
-        }
-    ) && buffer.ty.is_ref()
-        && buffer.ty.array_elem() == Some(&Ty::prim(crate::hir::Prim::U8));
-    if !buffer_is_borrowed_bytes && !buffer.ty.is_unknown() {
-        env.error(
-            format!(
-                "`{name}` expects a borrowed byte array `&bytes`, got {}",
-                buffer.ty
-            ),
-            buffer.span.or(Some(span)),
-        );
-    }
-    for argument in [start, count] {
-        if !argument.ty.is_unknown() && argument.ty != Ty::i32() {
+    let expected = |index| (index > 0).then(Ty::i32);
+    check_builtin_call(name, args, span, trailing, return_ty, env, 3, expected, Ty::string(true), |checked, env| {
+        let [buffer, start, count] = checked else {
+            unreachable!("argument count was checked by check_builtin_call");
+        };
+        let buffer_is_borrowed_bytes = matches!(
+            &buffer.kind,
+            HirExprKind::Unary {
+                op: UnaryOp::Borrow,
+                ..
+            }
+        ) && buffer.ty.is_ref()
+            && buffer.ty.array_elem() == Some(&Ty::prim(crate::hir::Prim::U8));
+        if !buffer_is_borrowed_bytes && !buffer.ty.is_unknown() {
             env.error(
                 format!(
-                    "`{name}` offsets and counts must be `i32`, got {}",
-                    argument.ty
+                    "`{name}` expects a borrowed byte array `&bytes`, got {}",
+                    buffer.ty
                 ),
-                argument.span.or(Some(span)),
+                buffer.span.or(Some(span)),
             );
         }
-    }
-    build_call(
-        name.to_string(),
-        span,
-        Ty::unknown(),
-        checked,
-        Ty::string(true),
-        trailing.is_some(),
-    )
+        for argument in [start, count] {
+            if !argument.ty.is_unknown() && argument.ty != Ty::i32() {
+                env.error(
+                    format!(
+                        "`{name}` offsets and counts must be `i32`, got {}",
+                        argument.ty
+                    ),
+                    argument.span.or(Some(span)),
+                );
+            }
+        }
+    })
 }
