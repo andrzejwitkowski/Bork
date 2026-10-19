@@ -19,6 +19,7 @@ pub mod memory;
 pub mod lsp;
 pub mod sema;
 pub mod span;
+pub mod ty;
 pub mod typeck;
 
 use lalrpop_util::lalrpop_mod;
