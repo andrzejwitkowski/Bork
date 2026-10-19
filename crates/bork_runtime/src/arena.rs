@@ -137,6 +137,16 @@ struct ArenaControl {
     drops: Vec<DropEntry>,
 }
 
+/// Page blocks are at least `MIN_CLASS` bytes, so every freed block can join a free list.
+/// Callers keep passing the requested size; `free`, `grow` and `rewind_if_last` round it too.
+fn block_size(size: usize) -> usize {
+    if size == 0 {
+        0
+    } else {
+        size.max(MIN_CLASS)
+    }
+}
+
 fn ceil_class(size: usize) -> usize {
     size.max(MIN_CLASS).next_power_of_two().trailing_zeros() as usize
         - MIN_CLASS.trailing_zeros() as usize
@@ -164,7 +174,8 @@ impl Arena {
         if size > LARGE_THRESHOLD {
             return self.alloc_large(size, align);
         }
-        if size >= MIN_CLASS {
+        let size = block_size(size);
+        if size > 0 {
             if let Some(ptr) = self.take_free_block(size, align) {
                 return ptr;
             }
@@ -262,7 +273,7 @@ impl Arena {
             return false;
         };
         let start = ptr as usize - page.base();
-        if start + size != page.offset {
+        if start + block_size(size) != page.offset {
             return false;
         }
         page.offset = start;
@@ -276,6 +287,7 @@ impl Arena {
         if size == 0 {
             return;
         }
+        let size = block_size(size);
         debug_assert!(self.owns(ptr), "free of a block this arena does not own");
         // Membership, not size, picks the container: blocks grown in place or
         // over-aligned ones do not match their size class.
@@ -288,16 +300,13 @@ impl Arena {
         if self.rewind_if_last(ptr, size) {
             return;
         }
-        // shortcut: blocks under 16 bytes are not recycled, until a collection needs it.
-        if size >= MIN_CLASS {
-            let class = floor_class(size);
-            // SAFETY: the block is at least MIN_CLASS bytes, enough for a pointer.
-            unsafe {
-                ptr.cast::<*mut u8>()
-                    .write_unaligned(self.free_lists[class])
-            };
-            self.free_lists[class] = ptr;
-        }
+        let class = floor_class(size);
+        // SAFETY: page blocks are at least MIN_CLASS bytes, enough for a pointer.
+        unsafe {
+            ptr.cast::<*mut u8>()
+                .write_unaligned(self.free_lists[class])
+        };
+        self.free_lists[class] = ptr;
     }
 
     /// Resizes a block, in place when it is the last one on its page. Otherwise
@@ -322,8 +331,9 @@ impl Arena {
         }
         if let Some(page) = self.pages.iter_mut().find(|p| p.contains(ptr)) {
             let start = ptr as usize - page.base();
-            if start + old == page.offset && start + new <= PAGE_SIZE {
-                page.offset = start + new;
+            let (old_end, new_end) = (start + block_size(old), start + block_size(new));
+            if old_end == page.offset && new_end <= PAGE_SIZE {
+                page.offset = new_end;
                 self.older_max_tail = PAGE_SIZE;
                 return ptr;
             }
@@ -1201,6 +1211,41 @@ mod tests {
     }
 
     #[test]
+    fn tiny_block_freed_mid_page_is_recycled() {
+        let mut arena = Arena::new();
+        let a = arena.alloc(4, 1);
+        let _b = arena.alloc(4, 1);
+        arena.free(a, 4);
+        assert_eq!(arena.alloc(4, 1), a);
+    }
+
+    #[test]
+    fn tiny_last_block_rewinds_and_grows_in_place() {
+        let mut arena = Arena::new();
+        let a = arena.alloc(3, 1);
+        assert_eq!(arena.grow(a, 3, 12, 1), a);
+        assert_eq!(arena.pages[0].offset, MIN_CLASS);
+        arena.free(a, 12);
+        assert_eq!(arena.pages[0].offset, 0);
+    }
+
+    #[test]
+    fn small_element_vec_growth_is_bounded() {
+        let mut arena = Arena::new();
+        let (mut buf, mut cap) = (arena.alloc(1, 1), 1);
+        let mut pins = Vec::new();
+        while cap < 100_000 {
+            pins.push(arena.alloc(1, 1)); // keeps `buf` from growing in place
+            buf = arena.grow(buf, cap, cap * 2, 1);
+            cap *= 2;
+        }
+        let used: usize = arena.pages.iter().map(|p| p.offset).sum::<usize>()
+            + arena.large.iter().map(|(_, l)| l.size()).sum::<usize>();
+        assert!(used <= 4 * cap, "{used} bytes used for a {cap}-byte buffer");
+        let _ = buf;
+    }
+
+    #[test]
     fn reset_caps_spare_pages() {
         let mut arena = Arena::new();
         for _ in 0..2 {
@@ -1296,7 +1341,7 @@ mod debug_tests {
                 .find(|a| a.id == owner.addr())
                 .unwrap()
                 .used,
-            9
+            MIN_CLASS, // a 9-byte request occupies a whole minimum block
         );
         let new = unsafe { bork_arena_reset(owner) };
         assert_ne!(new, owner);

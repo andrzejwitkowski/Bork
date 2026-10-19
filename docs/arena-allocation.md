@@ -24,7 +24,7 @@ Arena
 Tried in this order, the first that fits wins:
 
 1. **Large:** `size > 2048` → its own system block (`large`). Contiguous, any size.
-2. **Free list:** `size >= 16` → walk the list of class `ceil_class(size)` and take the first block whose address satisfies `align`. A block taken this way can be bigger than the request: a block is filed under its size rounded *down* and a request looks under its size rounded *up*, so a 127-byte hole serves a 33-byte request. The slack is not tracked (the arena does not remember the real block size), and if the block is freed again with the smaller size it is filed lower and the slack is lost until `reset`.
+2. **Free list:** any non-zero size (requests under 16 bytes are rounded up to a 16-byte block, so a 1-byte allocation costs 16 bytes, but its block can always be recycled) → walk the list of class `ceil_class(size)` and take the first block whose address satisfies `align`. A block taken this way can be bigger than the request: a block is filed under its size rounded *down* and a request looks under its size rounded *up*, so a 127-byte hole serves a 33-byte request. The slack is not tracked (the arena does not remember the real block size), and if the block is freed again with the smaller size it is filed lower and the slack is lost until `reset`.
 3. **Bump, last page:** advance the offset of the newest page, aligning the address.
 4. **Bump, older pages:** the unused tails of earlier pages, first fit. These tails appear when a request did not fit and a new page was started.
 5. **New page:** from `spare` if there is one, otherwise a fresh 4096-byte page.
@@ -51,8 +51,7 @@ alloc 10000  large                            own 12288-byte block
 |---|---|
 | in `large` | released to the system immediately |
 | the last block on its page (`ptr + size == offset`) | the page offset moves back: the space is plain tail again |
-| any other block, `size >= 16` | pushed on the free list of class `floor_class(size)` (its first 8 bytes store the next pointer) |
-| any other block, `size < 16` | dropped until the arena resets (known shortcut) |
+| any other block | pushed on the free list of class `floor_class(size)` (its first 8 bytes store the next pointer) |
 
 `floor_class` rounds down, so a 100-byte hole goes to the 64-byte class and a later 64-byte request can use it. A request is never given a block that is too small.
 
