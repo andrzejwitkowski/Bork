@@ -834,8 +834,8 @@ fn reserved_words_cannot_be_binding_names() {
 #[test]
 fn vec_cannot_name_a_param_class_or_function() {
     assert!(parse("fun f(Vec: i32) {}").is_err());
-    assert!(parse("class Point(x: i32)").is_ok());
-    assert!(parse("class Vec(x: i32)").is_err());
+    assert!(parse("class Point {\n x: i32\n}\n").is_ok());
+    assert!(parse("class Vec {\n x: i32\n}\n").is_err());
     assert!(parse("fun Point() {}").is_ok());
     assert!(parse("fun Vec() {}").is_err());
     assert!(parse("fun f(Ref: i32) {}").is_err());
