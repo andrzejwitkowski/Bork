@@ -15,9 +15,11 @@ use std::collections::HashMap;
 use crate::defs::{DefId, DefTable};
 use crate::hir::{Prim, Ty, TyKind};
 
+/// Index of an interned type; only meaningful within the `TyCtx` that issued it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TyId(u32);
 
+/// The shape of a type; children are ids, so equal shapes compare in O(1).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TyData {
     Prim(Prim),
@@ -43,6 +45,7 @@ pub struct TyKey {
     pub nullable: bool,
 }
 
+/// The session-owned interner: one id per distinct `(shape, nullable)`.
 pub struct TyCtx {
     types: Vec<TyKey>,
     ids: HashMap<TyKey, TyId>,
@@ -51,6 +54,7 @@ pub struct TyCtx {
 }
 
 impl TyCtx {
+    /// A context that resolves class names through a snapshot of `defs`.
     pub fn new(defs: &DefTable) -> TyCtx {
         let class_ids: HashMap<String, DefId> =
             defs.classes().map(|(name, id)| (name.to_string(), id)).collect();
@@ -65,6 +69,7 @@ impl TyCtx {
         Ok(self.intern_checked(ty))
     }
 
+    /// Fails on the first class name `defs` does not know.
     fn check_classes(&self, ty: &Ty) -> Result<(), UnknownClass> {
         match &ty.kind {
             TyKind::Named(name) if name != "String" && !self.class_ids.contains_key(name) => {
@@ -82,6 +87,7 @@ impl TyCtx {
         }
     }
 
+    /// Interns bottom-up; every class name must already be validated.
     fn intern_checked(&mut self, ty: &Ty) -> TyId {
         let data = match &ty.kind {
             TyKind::Prim(prim) => TyData::Prim(*prim),
@@ -108,12 +114,13 @@ impl TyCtx {
         id
     }
 
-    /// The type data and nullable flag of `id`. Panics on an id from another context.
+    /// The type data and nullable flag of `id`, which must come from this context: a foreign id
+    /// either panics (out of range) or silently names an unrelated type.
     pub fn data(&self, id: TyId) -> &TyKey {
         &self.types[id.0 as usize]
     }
 
-    /// Rebuilds the `hir::Ty` for `id`. Panics on an id from another context.
+    /// Rebuilds the `hir::Ty` for `id`, which must come from this context (see [`TyCtx::data`]).
     pub fn to_ty(&self, id: TyId) -> Ty {
         let TyKey { data, nullable } = self.data(id);
         let boxed = |inner: &TyId| Box::new(self.to_ty(*inner));
