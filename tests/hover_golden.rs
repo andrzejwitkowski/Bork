@@ -1,3 +1,4 @@
+#![cfg(feature = "lsp")]
 //! Frozen baseline: LSP hover at every byte offset of every corpus sample, as a count and a
 //! hash per file. Pins which member/binding each position resolves to.
 //! Refresh with `BORK_BLESS=1 cargo test --test hover_golden` after an intended change.
