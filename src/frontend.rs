@@ -52,6 +52,7 @@ pub fn check(source: &str) -> CheckResult {
     let mut memory_plan = None;
     if let Some(mut program) = hir {
         crate::hoist::annotate(&mut program);
+        crate::hir::number_nodes(&mut program);
         for function in &program.functions {
             crate::escape::check_function(function, &mut diagnostics);
         }

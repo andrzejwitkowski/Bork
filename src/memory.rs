@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Ty};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, NodeId, Ty};
 use crate::region_walk::{
     self, ArenaCursor, RegionSite, RegionVisitor, WalkDriver, WalkError,
 };
@@ -24,6 +24,9 @@ pub enum LifetimeDomain {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArenaPlan {
+    /// The allocating expression; the key every lookup uses.
+    pub node: NodeId,
+    /// Where it is in the source; for display and ordering only.
     pub allocation_site: Span,
     pub class_name: String,
     pub class: ArenaClass,
@@ -36,18 +39,16 @@ pub struct MemoryPlan {
 }
 
 impl MemoryPlan {
-    pub fn allocation_at(&self, site: Span) -> Option<&ArenaPlan> {
-        self.allocations
-            .iter()
-            .find(|allocation| allocation.allocation_site == site)
+    pub fn allocation_at(&self, node: NodeId) -> Option<&ArenaPlan> {
+        self.allocations.iter().find(|allocation| allocation.node == node)
     }
 }
 
 #[derive(Debug, Clone, Default)]
-struct Origins(HashSet<Span>);
+struct Origins(HashSet<NodeId>);
 
 impl Origins {
-    fn one(site: Span) -> Self {
+    fn one(site: NodeId) -> Self {
         Self(HashSet::from([site]))
     }
 
@@ -77,28 +78,25 @@ pub fn plan(program: &HirProgram, report: &ArenaReport) -> (MemoryPlan, Vec<Diag
 struct Planner {
     scope_ids: Vec<usize>,
     scopes: Vec<HashMap<String, Origins>>,
-    expression_origins: HashMap<usize, Origins>,
-    field_origins: HashMap<(Span, usize), Origins>,
-    allocation_indices: HashMap<Span, usize>,
+    expression_origins: HashMap<NodeId, Origins>,
+    field_origins: HashMap<(NodeId, usize), Origins>,
+    allocation_indices: HashMap<NodeId, usize>,
     allocations: Vec<ArenaPlan>,
-    edges: Vec<(Span, Span)>,
+    edges: Vec<(NodeId, NodeId)>,
     diagnostics: Vec<Diagnostic>,
 }
 
 impl Planner {
-    fn expr_key(expr: &HirExpr) -> usize {
-        expr as *const HirExpr as usize
-    }
-
     fn origins(&self, expr: &HirExpr) -> Origins {
         self.expression_origins
-            .get(&Self::expr_key(expr))
+            .get(&expr.id)
             .cloned()
             .unwrap_or_default()
     }
 
     fn remember(&mut self, expr: &HirExpr, origins: Origins) {
-        self.expression_origins.insert(Self::expr_key(expr), origins);
+        debug_assert!(expr.id != NodeId::DUMMY, "plan needs a numbered HIR");
+        self.expression_origins.insert(expr.id, origins);
     }
 
     fn lookup(&self, name: &str) -> Origins {
@@ -137,17 +135,19 @@ impl Planner {
             });
             return Origins::default();
         };
-        if !self.allocation_indices.contains_key(&site) {
+        debug_assert!(expr.id != NodeId::DUMMY, "plan needs a numbered HIR");
+        if !self.allocation_indices.contains_key(&expr.id) {
             let scope = self.scope_ids.last().copied().unwrap_or(0);
-            self.allocation_indices.insert(site, self.allocations.len());
+            self.allocation_indices.insert(expr.id, self.allocations.len());
             self.allocations.push(ArenaPlan {
+                node: expr.id,
                 allocation_site: site,
                 class_name: class_name.to_owned(),
                 class: ArenaClass::Lexical,
                 lifetime_domain: LifetimeDomain::LexicalScope(scope),
             });
         }
-        Origins::one(site)
+        Origins::one(expr.id)
     }
 
     fn mark_dynamic(&mut self, origins: &Origins) {
@@ -186,7 +186,7 @@ impl Planner {
         }
     }
 
-    fn is_program(&self, site: Span) -> bool {
+    fn is_program(&self, site: NodeId) -> bool {
         self.allocation_indices
             .get(&site)
             .is_some_and(|index| self.allocations[*index].lifetime_domain == LifetimeDomain::Program)

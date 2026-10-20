@@ -90,7 +90,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let span = expr
             .span
             .ok_or_else(|| not_yet_supported("record allocation without a source span", None))?;
-        let allocation = self.cx.memory_plan.allocation_at(span).ok_or_else(|| {
+        let allocation = self.cx.memory_plan.allocation_at(expr.id).ok_or_else(|| {
             not_yet_supported("record allocation without a memory plan", Some(span))
         })?;
         let previous = self.alloc_sink;
