@@ -61,7 +61,7 @@ Each dimension is a separate question with one owner. Code must not answer one b
 | region tree | sema | memory, region_walk, codegen | `ArenaReport` built from AST; matched to HIR by walk order and labels (`region_walk.rs:32-45,206-246`); `peel_blocks` written twice (`sema/mod.rs:21`, `hir/mod.rs:314`) | #35 (NodeId); #74 (`peel_blocks`) |
 | sink / result ownership | one query (`owns_result`) | escape, memory, region_emit, call_abi | `Ty::owns_result` is the one definition (`region_emit`, `memory`, `escape`); `call_abi` widens it with `uses_arena_storage` for the ABI; `escape.rs` stays a standalone HIR pass sharing `peel_to_body` and `owns_result` | #77 |
 | `codegen_push` | `region_walk::stamp_codegen_push` | codegen schedule | mutates `ArenaNode` in place | per-instance table, #47 |
-| allocation plan | `memory::plan` | codegen | keyed by `Span` (`memory.rs:26-44`); a record allocation without a span is a planner error (`memory.rs:136`); `expression_origins` uses `HirExpr` pointer addresses | #35 |
+| allocation plan | `memory::plan` | codegen | keyed by `NodeId` (`memory.rs:26-44`, `expression_origins` too; slice 1 of #35); a record allocation without a span is still a planner error (`memory.rs:133`) | #35 |
 | codegen support | `codegen_gate` | codegen | filter over HIR; not a source of semantic facts | #67 |
 
 Per-pass rules that follow from the table:
@@ -123,7 +123,7 @@ A body accepted this way cannot fail ownership for any instantiation (INV-10).
 **Rejected.**
 
 - `(Span, instance)` pairs: still collides within one body.
-- Pointer address (as `memory.rs:94` does today): unstable across clones and mono substitution.
+- Pointer address (what `memory.rs` used before slice 1 of #35): unstable across clones and mono substitution.
 
 Implementation is out of scope (#35).
 
@@ -135,12 +135,12 @@ Each invariant has a number and, where it can be checked, a check site. Tests an
 |---|---|---|---|
 | INV-1 | After typeck succeeds, HIR contains no `Unknown` or inference type. **Target**, owned by #33 and #41. | typeck -> sema | Builtin callee idents now carry a function type (`check_builtin_call`, #85). |
 | INV-2 | Every HIR expression has a `UseKind` consistent with its type's capabilities (`Copy` implies copyable). Holds after typeck and again after mono. | typeck -> sema; mono -> codegen | Unchecked. |
-| INV-2b | Post-mono passes (escape sink check, memory plan, stamp, codegen) emit no user diagnostics; failure is an ICE. The gate is the exception. | mono -> codegen | `memory::plan` returns diagnostics (`memory.rs:61-68`). |
+| INV-2b | Post-mono passes (escape sink check, memory plan, stamp, codegen) emit no user diagnostics; failure is an ICE. The gate is the exception. | mono -> codegen | `memory::plan` returns diagnostics (`memory.rs:60-68`). |
 | INV-3 | A `&T` never appears in a class field, a return type, or a `var` binding, until region parameters exist (#61). | typeck, sema | Enforced in three places (see section 3). |
 | INV-4 | No `T??` (RFC 0001 section 3). | type lowering | Unrepresentable today. |
 | INV-5 | HIR function and method order matches the sema roots. | typeck -> sema | Count and order are checked in `region_walk::check_roots`; a mismatch is an ICE (#75). |
 | INV-6 | Every sema region node matches exactly one HIR region site. Failure is an ICE. | sema -> region_walk | `stamp_codegen_push` and `memory::plan` both report via `WalkError::ice_diagnostic` (#75). |
-| INV-7 | Every record allocation has an allocation site in the memory plan. | memory -> codegen | Planner error (`memory.rs:136`), `managed_ref.rs:93`. |
+| INV-7 | Every record allocation has an allocation site in the memory plan. | memory -> codegen | Planner error (`memory.rs:133`), `managed_ref.rs:93`. |
 | INV-8 | HIR given to codegen has passed `codegen_gate::gate`. | gate -> codegen | Enforced by call order in `codegen/mod.rs`. |
 | INV-9 | The LLVM `Ref` handle struct has the layout of the runtime `RefHandle`. | codegen / runtime | Two hand-written definitions (`llvm/context.rs:151`, `crates/bork_runtime/src/refs.rs:12`); `ref_handle_layout_matches_runtime` asserts size, alignment and offsets (#76). |
 | INV-10 | A generic body accepted pre-mono passes ownership for every instance. Checkable: debug builds re-run the ownership check per instance and assert acceptance. | mono | n/a until #46/#47. |
