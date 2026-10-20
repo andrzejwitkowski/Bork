@@ -4,7 +4,7 @@ use crate::ast::BindingKind;
 use crate::constants::ConstantTable;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::Ty;
-use crate::span::Span;
+use crate::span::{AstId, Span};
 
 use super::MemberResolutions;
 
@@ -42,7 +42,7 @@ pub(super) struct Env<'a> {
     pub(super) constants: &'a ConstantTable,
     pub(super) diagnostics: Vec<Diagnostic>,
     /// Declaration and field assignment types keyed by source span.
-    pub(super) span_tys: HashMap<Span, Ty>,
+    pub(super) node_tys: HashMap<AstId, Ty>,
     pub(super) loop_depth: usize,
     /// Class whose method body is being checked; `None` in top-level functions.
     pub(super) self_class: Option<String>,
@@ -62,7 +62,7 @@ impl<'a> Env<'a> {
             classes,
             constants,
             diagnostics: Vec::new(),
-            span_tys: HashMap::new(),
+            node_tys: HashMap::new(),
             loop_depth: 0,
             self_class: None,
             members: MemberResolutions::new(),
@@ -105,10 +105,10 @@ impl<'a> Env<'a> {
 
     /// Records a bare `name` at `span` as a field read through `this`. Returns its type, or None
     /// if `name` is not a field of the enclosing class.
-    pub(super) fn resolve_bare_field(&mut self, name: &str, span: Span) -> Option<Ty> {
+    pub(super) fn resolve_bare_field(&mut self, name: &str, id: AstId) -> Option<Ty> {
         let (class, index, ty) = self.implicit_field(name)?;
         self.members.insert(
-            span,
+            id.numbered(),
             super::MemberRef::Field {
                 class,
                 name: name.to_string(),
@@ -121,8 +121,8 @@ impl<'a> Env<'a> {
 
     /// Bare field in a position that needs a binding (`move x`, `&x`, `x[i] = v`, capture list):
     /// records the member and reports `message`. Returns the field type, or None if `name` is no field.
-    pub(super) fn reject_bare_field(&mut self, name: &str, span: Span, message: &str) -> Option<Ty> {
-        let ty = self.resolve_bare_field(name, span)?;
+    pub(super) fn reject_bare_field(&mut self, name: &str, span: Span, id: AstId, message: &str) -> Option<Ty> {
+        let ty = self.resolve_bare_field(name, id)?;
         self.error(message, Some(span));
         Some(ty)
     }
@@ -134,7 +134,7 @@ impl<'a> Env<'a> {
                 "cannot capture field `{}`; fields are reached through the `this` borrow",
                 capture.name
             );
-            self.reject_bare_field(&capture.name, capture.span, &message);
+            self.reject_bare_field(&capture.name, capture.span, capture.id, &message);
         }
     }
 

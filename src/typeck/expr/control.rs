@@ -143,7 +143,7 @@ fn check_conditional_binding(
             Ty::unknown()
         }
     };
-    env.span_tys.insert(binding.name.span, binding_ty.clone());
+    env.node_tys.insert(binding.name.id.numbered(), binding_ty.clone());
     env.bind(
         binding.name.name.clone(),
         BindingKind::Val,

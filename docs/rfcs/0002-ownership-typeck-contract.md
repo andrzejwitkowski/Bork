@@ -20,7 +20,7 @@ The pipeline as it is today (`src/frontend.rs`, `check`):
 
 1. `parse`
 2. `typeck::check_with_members` returns `(hir, span_tys, members, diagnostics)`
-3. `sema::analyze_with_members(&program, ...)` walks the **AST** again (not HIR) and builds the `ArenaReport`. Typeck types reach it through `SpanTypes` and `hir_to_ast` (`src/sema/walk.rs:950-985`).
+3. `sema::analyze_with_members(&program, ...)` walks the **AST** again (not HIR) and builds the `ArenaReport`. Typeck types reach it through `NodeTypes` (keyed by `AstId`) and `hir_to_ast` (`src/sema/walk.rs:950-985`).
 4. Everything below runs only with zero diagnostics so far:
    `hoist::annotate` (mutates HIR), `escape::check_function`, `memory::plan`, `region_walk::stamp_codegen_push` (mutates `ArenaNode.codegen_push`)
 5. `codegen_gate::gate` runs inside `codegen::build_with_options` (`src/codegen/mod.rs:56`) and in the LSP (`src/lsp.rs:178`), not in the frontend.
@@ -48,7 +48,7 @@ Each dimension is a separate question with one owner. Code must not answer one b
 
 | Fact | Target producer | Consumers | Today | Removed by |
 |---|---|---|---|---|
-| identity, per-expression type | typeck, into HIR | sema, escape, memory, codegen | HIR `ty`; `SpanTypes` (3 write sites: `typeck/stmt/mod.rs:133`, `stmt/assign.rs:132`, `expr/control.rs:146`) read only by sema | #35, #36, #37 |
+| identity, per-expression type | typeck, into HIR | sema, escape, memory, codegen | HIR `ty`; `NodeTypes` keyed by `AstId` (3 write sites: `typeck/stmt/mod.rs:133`, `stmt/assign.rs:132`, `expr/control.rs:146`) read only by sema | #35, #36, #37 |
 | copyability | one capability query (`is_copy`) | typeck, mono, codegen | `hir::Ty::is_copy` (`src/hir/ty.rs:224`) **and** `ast::Type::is_copy` (`src/ast.rs:163`); codegen decides again at `llvm/presence.rs:175-182` | #60 |
 | ownership (`UseKind`), pre-mono | typeck | sema (consume), escape, codegen, region_walk, hoist, gate | typeck sets `UseKind` (`typeck/expr/mod.rs:258-273`); sema **recomputes** it from AST types (`sema/policy.rs:14-43`, `walk.rs:673,757,891`); `Ownership` (`sema/report.rs:7`) is read only by `dump.rs` and `lsp.rs` | #37, #46 |
 | ownership (`UseKind`), post-mono | monomorphizer (#47), via the same capability query | escape sink check, memory, codegen | n/a | #47, #60 |
@@ -158,7 +158,7 @@ These are enforced in review and cannot be asserted:
 
 | Duplicate or gap | Removed by |
 |---|---|
-| `Span`-keyed tables | #35 (NodeId), #37; `MemoryPlan` is keyed by `NodeId` (slice 1), `SpanTypes`/`MemberResolutions` and the sema/LSP joins remain (slice 2) |
+| `Span`-keyed tables | done in #35: `MemoryPlan` by `hir::NodeId` (slice 1); `NodeTypes`/`MemberResolutions` by `ast::AstId` (slice 2, #103) |
 | two `is_copy`, sema re-deriving `UseKind` | #37, #60 |
 | pre-mono ownership of generic bodies | #46 |
 | mono collector and instance tables | #47 |
@@ -171,6 +171,8 @@ These are enforced in review and cannot be asserted:
 | `Ref` handle layout assertion (INV-9) | #76 |
 
 Implementation order of the hardening issues: #74, then #75, with #76 in parallel, then #77. All four land before #35 and #37.
+
+**Decision (#103).** Sema stays on the AST. `ast_number::number_nodes` runs inside `parse` and gives every AST node that carries a typeck fact (`VarDecl`, assign targets, `Ident`/`Move`/`Promote`/`Field`, methods, every `SpannedName`) an `AstId`; typeck keys `NodeTypes`/`MemberResolutions` by it, and the LSP resolves a position through the `(Span, AstId)` index. `AstId` is a separate type from `hir::NodeId`: the two number different trees at different times. Running sema on HIR was rejected (~1.5k lines match `ast::Stmt/Expr`; HIR has no binding spans). Remaining `Span` uses are diagnostics, `BindingInfo.span` and debug info.
 
 ## Open questions
 

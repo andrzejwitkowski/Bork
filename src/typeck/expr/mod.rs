@@ -12,7 +12,7 @@ mod vec;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 
 use super::env::Env;
 
@@ -71,23 +71,23 @@ pub(super) fn check(
             },
             Ty::string(false),
         ),
-        Expr::Ident { name, span } => method::implicit_field(name, *span, return_ty, env)
-            .unwrap_or_else(|| check_ident(name, *span, UseKind::Local, env)),
+        Expr::Ident { name, span, id } => method::implicit_field(name, *span, *id, return_ty, env)
+            .unwrap_or_else(|| check_ident(name, *span, *id, UseKind::Local, env)),
         Expr::Unary {
             op: UnaryOp::Borrow,
             expr,
             span,
         } => match expr.as_ref() {
-            Expr::Ident { name, span: name_span } => {
-                borrow::check_borrow(name, *name_span, *span, expected, env)
+            Expr::Ident { name, span: name_span, id } => {
+                borrow::check_borrow(name, *name_span, *id, *span, expected, env)
             }
             _ => {
                 env.error("`&` borrows a name", Some(*span));
                 HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span)
             }
         },
-        Expr::Move { name, span } => check_ident(name, *span, UseKind::Move, env),
-        Expr::Promote { name, span } => check_ident(name, *span, UseKind::Promote, env),
+        Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
+        Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
         Expr::None { span } => {
             let Some(ty) = expected.filter(|ty| ty.is_presence_capable()) else {
                 env.error("cannot infer type of `None`", Some(*span));
@@ -175,6 +175,7 @@ pub(super) fn check(
             name,
             safe,
             span,
+            ..
         } => check_field(receiver, name, *safe, *span, return_ty, env),
         Expr::Call {
             callee,
@@ -208,7 +209,7 @@ pub(super) fn check(
     }
 }
 
-pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut Env<'_>) -> HirExpr {
+pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind, env: &mut Env<'_>) -> HirExpr {
     if name == "this" {
         if env.self_class.is_none() {
             env.error("`this` is only available inside a class method", Some(span));
@@ -231,7 +232,7 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
         UseKind::Borrow => Some(format!("cannot borrow field `{name}`: `&` borrows a name; bind the field to a `val` first")),
         _ => None,
     };
-    if let Some(ty) = field_message.and_then(|message| env.reject_bare_field(name, span, &message)) {
+    if let Some(ty) = field_message.and_then(|message| env.reject_bare_field(name, span, id, &message)) {
         return HirExpr::spanned(
             HirExprKind::Ident {
                 name: name.to_string(),
@@ -243,7 +244,7 @@ pub(super) fn check_ident(name: &str, span: Span, requested: UseKind, env: &mut 
     }
     let Some(binding) = env.binding(name) else {
         if let Some(constant) = env.constants.get(name) {
-            return constant_use(name, constant, span, requested, env);
+            return constant_use(name, constant, span, id, requested, env);
         }
         env.error(format!("unknown binding `{name}`"), Some(span));
         return HirExpr::spanned(
@@ -287,13 +288,14 @@ fn constant_use(
     name: &str,
     constant: &crate::constants::Constant,
     span: Span,
+    id: AstId,
     requested: UseKind,
     env: &mut Env<'_>,
 ) -> HirExpr {
     if matches!(requested, UseKind::Move | UseKind::Promote) {
         env.error(format!("cannot move or promote constant `{name}`"), Some(span));
     }
-    env.members.insert(span, constant.member(name));
+    env.members.insert(id.numbered(), constant.member(name));
     HirExpr::spanned(constant.value.clone(), constant.ty.clone(), span)
 }
 

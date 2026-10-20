@@ -52,8 +52,8 @@ pipeline'u wygląda tak samo jak dla `sum` poniżej.
 src/main.rs                     bork build plik.bork
 └── frontend::check             src/frontend.rs
     ├── parse                   src/lib.rs + src/parser.lalrpop  -> ast::Program
-    ├── typeck::check           src/typeck/                      -> HirProgram + SpanTypes
-    ├── sema::analyze_with_span_tys  src/sema/                   -> ArenaReport (+ błędy własności)
+    ├── typeck::check           src/typeck/                      -> HirProgram + NodeTypes
+    ├── sema::analyze_with_members   src/sema/                   -> ArenaReport (+ błędy własności)
     ├── hoist::annotate         src/hoist.rs                     (mutuje HIR)
     ├── escape::check_function  src/escape.rs                    (tylko diagnostyki)
     ├── memory::plan            src/memory.rs                    -> MemoryPlan
@@ -70,9 +70,9 @@ src/main.rs                     bork build plik.bork
 gdy typeck i sema nie zgłosiły żadnej diagnostyki.
 
 ~~~rust
-let (hir, span_tys, mut type_diagnostics) = typeck::check(&program);
+let (hir, node_tys, members, mut type_diagnostics) = typeck::check_with_members(&program);
 let (mut report, ownership_errors) =
-    crate::sema::analyze_with_span_tys(&program, span_tys);
+    crate::sema::analyze_with_members(&program, node_tys, members.clone());
 ...
 let mut hir = diagnostics.is_empty().then_some(hir);
 ~~~
@@ -336,15 +336,16 @@ p.name.length  -> Field { receiver: <p.name>, name: "length" } : i32
 ### Wynikowy HIR
 
 `typeck::check` składa `HirProgram { classes, functions }` (`src/hir/mod.rs`).
-Każde `HirExpr` niesie `ty` i `span`. Oprócz HIR typeck zwraca `SpanTypes`,
-czyli typy deklaracji według spanów, z których korzysta sema.
+Każde `HirExpr` niesie `ty` i `span`. Oprócz HIR typeck zwraca `NodeTypes`,
+czyli typy deklaracji według `AstId` węzła AST (numeruje je `ast_number::number_nodes`
+zaraz po parsowaniu), z których korzysta sema.
 
 ## 3. Sema: własność i drzewo aren
 
 Sema (`src/sema/`) pracuje na AST, nie na HIR, ale dostaje typy z typecku:
 
 ~~~rust
-pub fn analyze_with_span_tys(program: &Program, span_tys: SpanTypes)
+pub fn analyze_with_node_tys(program: &Program, node_tys: NodeTypes)
     -> (ArenaReport, Vec<SemaError>)
 ~~~
 

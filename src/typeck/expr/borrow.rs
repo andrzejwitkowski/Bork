@@ -1,6 +1,6 @@
 use crate::ast::UnaryOp;
 use crate::hir::{HirExpr, HirExprKind, Ty, TyKind, UseKind};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 
 use super::check_ident;
 use super::super::env::Env;
@@ -8,11 +8,12 @@ use super::super::env::Env;
 pub(super) fn check_borrow(
     name: &str,
     name_span: Span,
+    name_id: AstId,
     span: Span,
     expected: Option<&Ty>,
     env: &mut Env<'_>,
 ) -> HirExpr {
-    let inner = check_ident(name, name_span, UseKind::Borrow, env);
+    let inner = check_ident(name, name_span, name_id, UseKind::Borrow, env);
     if inner.ty.is_copy() {
         env.error(format!("cannot borrow Copy type `{}`", inner.ty), Some(span));
     }

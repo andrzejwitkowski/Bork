@@ -35,10 +35,17 @@ fn render() -> String {
     for rel in rels {
         let result = check(&fs::read_to_string(root().join(&rel)).unwrap());
         out.push_str(&format!("== {rel}\n"));
-        for d in &result.diagnostics {
-            let span = d.span.map(|s| format!("{}..{}", s.start, s.end)).unwrap_or_default();
-            out.push_str(&format!("{:?} {:?} [{span}] {}\n", d.phase, d.severity, d.message));
-        }
+        // Sorted: some checks iterate a HashMap, so diagnostic order is not stable across runs.
+        let mut lines: Vec<String> = result
+            .diagnostics
+            .iter()
+            .map(|d| {
+                let span = d.span.map(|s| format!("{}..{}", s.start, s.end)).unwrap_or_default();
+                format!("{:?} {:?} [{span}] {}\n", d.phase, d.severity, d.message)
+            })
+            .collect();
+        lines.sort();
+        out.extend(lines);
         if let Some(report) = &result.report {
             out.push_str(&dump_arenas(report));
         }

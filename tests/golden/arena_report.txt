@@ -1507,8 +1507,8 @@ Arenas
         ├── b [Borrow ← presence guard]
         └── r [Shared ← fun use]
 == programs/check_fail/managed_refs/chained_owned_field_escape.bork
-Type Error [405..406] None branch has type Leaf, expected &Leaf
 Type Error [385..388] initializer for `box` has type &Leaf, expected Leaf
+Type Error [405..406] None branch has type Leaf, expected &Leaf
 Arenas
 ├── fun replace
 │   └── owner [Borrow ← call site]

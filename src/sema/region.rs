@@ -120,15 +120,15 @@ pub(super) fn resolve_move_captures(
 ) -> Vec<SpannedName> {
     match explicit_captures {
         // A field in the list is reported by typeck.
-        Some(caps) => caps.iter().filter(|n| !az.is_bare_field(&n.span)).cloned().collect(),
+        Some(caps) => caps.iter().filter(|n| !az.is_bare_field(n.id)).cloned().collect(),
         // A bare field reads through `this`, so it captures `this` (once).
         None => {
             let mut seen = std::collections::HashSet::new();
             free_vars_in_block(body)
                 .into_iter()
                 .map(|n| {
-                    if az.is_bare_field(&n.span) {
-                        SpannedName::new("this", n.span)
+                    if az.is_bare_field(n.id) {
+                        SpannedName { name: "this".into(), ..n }
                     } else {
                         n
                     }

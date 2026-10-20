@@ -13,6 +13,7 @@ pub struct Constant {
     pub ty: Ty,
     pub value: HirExprKind,
     pub span: Span,
+    pub id: crate::span::AstId,
 }
 
 impl Constant {
@@ -61,7 +62,7 @@ pub(crate) fn collect_into(
         }
         match literal(&decl.ty, &decl.value, decl.value_span) {
             Ok((ty, value)) => {
-                table.insert(name.clone(), Constant { ty, value, span });
+                table.insert(name.clone(), Constant { ty, value, span, id: decl.name.id });
             }
             Err(diagnostic) => diagnostics.push(diagnostic),
         }

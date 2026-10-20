@@ -81,8 +81,8 @@ pub(super) struct Analyzer {
     pub(super) fun_sigs: HashMap<String, Vec<BindingKind>>,
     pub(super) fun_param_tys: HashMap<String, Vec<crate::ast::Type>>,
     pub(super) classes: HashMap<String, crate::ast::Class>,
-    /// Declaration and field assignment types from typeck, keyed by source span.
-    pub(super) span_tys: HashMap<Span, crate::hir::Ty>,
+    /// Declaration and field assignment types from typeck, keyed by AST node.
+    pub(super) node_tys: HashMap<crate::span::AstId, crate::hir::Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
     /// Member resolutions from typeck (bare fields, method calls).
@@ -98,19 +98,19 @@ impl Analyzer {
             fun_sigs: HashMap::new(),
             fun_param_tys: HashMap::new(),
             classes: HashMap::new(),
-            span_tys: HashMap::new(),
+            node_tys: HashMap::new(),
             loop_move_ban: Vec::new(),
             members: Default::default(),
         }
     }
 
-    pub(super) fn is_constant(&self, span: &Span) -> bool {
-        matches!(self.members.get(span), Some(crate::typeck::MemberRef::Constant { .. }))
+    pub(super) fn is_constant(&self, id: crate::span::AstId) -> bool {
+        matches!(self.members.get(&id), Some(crate::typeck::MemberRef::Constant { .. }))
     }
 
-    /// Typeck resolved the name at `span` to a field of the enclosing class (read through `this`).
-    pub(super) fn is_bare_field(&self, span: &Span) -> bool {
-        matches!(self.members.get(span), Some(crate::typeck::MemberRef::Field { .. }))
+    /// Typeck resolved the name at node `id` to a field of the enclosing class (read through `this`).
+    pub(super) fn is_bare_field(&self, id: crate::span::AstId) -> bool {
+        matches!(self.members.get(&id), Some(crate::typeck::MemberRef::Field { .. }))
     }
 
     pub(super) fn alloc_id(&mut self) -> usize {

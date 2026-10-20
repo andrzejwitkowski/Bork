@@ -1,6 +1,7 @@
 mod region_walk;
 pub mod arena;
 pub mod ast;
+pub mod ast_number;
 pub mod constants;
 mod builtins;
 pub mod defs;
@@ -33,12 +34,20 @@ use layout::normalize_parenthesized_newlines;
 
 pub type Error = ParseError<usize, String, &'static str>;
 
+/// Parses and numbers the AST ([`ast_number::number_nodes`]).
 pub fn parse(source: &str) -> Result<Program, Error> {
+    parse_indexed(source).map(|(program, _)| program)
+}
+
+/// Like [`parse`], plus the `(Span, AstId)` index of every numbered node (for the LSP).
+pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::AstId)>), Error> {
     let normalized = normalize_parenthesized_newlines(source);
     let input = normalized.as_deref().unwrap_or(source);
-    parser::ProgramParser::new()
+    let mut program = parser::ProgramParser::new()
         .parse(input)
-        .map_err(|err| err.map_token(|token| token.to_string()))
+        .map_err(|err| err.map_token(|token| token.to_string()))?;
+    let index = ast_number::number_nodes(&mut program);
+    Ok((program, index))
 }
 
 pub const MVP_SAMPLE: &str = r#"

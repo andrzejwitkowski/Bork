@@ -1,5 +1,7 @@
 use std::fmt;
 
+pub use crate::span::AstId;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub constants: Vec<ConstDecl>,
@@ -86,6 +88,7 @@ impl Program {
 pub struct Function {
     pub name: String,
     pub name_span: crate::span::Span,
+    pub id: crate::span::AstId,
     pub params: Vec<Param>,
     pub return_type: Type,
     pub body: Block,
@@ -281,6 +284,7 @@ pub enum Stmt {
         kind: BindingKind,
         name: String,
         name_span: crate::span::Span,
+        id: crate::span::AstId,
         ty: Option<Type>,
         value: Expr,
     },
@@ -317,10 +321,12 @@ pub enum AssignTarget {
     Name {
         name: String,
         name_span: crate::span::Span,
+        id: crate::span::AstId,
     },
     Index {
         name: String,
         name_span: crate::span::Span,
+        id: crate::span::AstId,
         index: Expr,
         borrowed: bool,
     },
@@ -328,6 +334,7 @@ pub enum AssignTarget {
         receiver: Expr,
         name: String,
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
 }
 
@@ -361,14 +368,17 @@ pub enum Expr {
     Ident {
         name: String,
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
     Move {
         name: String,
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
     Promote {
         name: String,
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
     None {
         span: crate::span::Span,
@@ -393,6 +403,7 @@ pub enum Expr {
         name: String,
         safe: bool,
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
     Call {
         callee: Box<Expr>,

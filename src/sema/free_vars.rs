@@ -1,21 +1,21 @@
 //! Free-variable collection for inferred move captures.
 
 use crate::ast::{AssignTarget, Block, Expr, Stmt};
-use crate::span::{Span, SpannedName};
+use crate::span::{AstId, Span, SpannedName};
 use std::collections::{BTreeMap, HashSet};
 
 pub(super) fn free_vars_in_block(block: &Block) -> Vec<SpannedName> {
-    let mut free: BTreeMap<String, Span> = BTreeMap::new();
+    let mut free: BTreeMap<String, (Span, AstId)> = BTreeMap::new();
     let mut bound = HashSet::new();
     collect_block(block, &mut free, &mut bound);
     free.into_iter()
-        .map(|(name, span)| SpannedName::new(name, span))
+        .map(|(name, (span, id))| SpannedName { name, span, id })
         .collect()
 }
 
 fn collect_block(
     block: &Block,
-    free: &mut BTreeMap<String, Span>,
+    free: &mut BTreeMap<String, (Span, AstId)>,
     bound: &mut HashSet<String>,
 ) {
     for stmt in &block.stmts {
@@ -25,7 +25,7 @@ fn collect_block(
 
 fn collect_stmt(
     stmt: &Stmt,
-    free: &mut BTreeMap<String, Span>,
+    free: &mut BTreeMap<String, (Span, AstId)>,
     bound: &mut HashSet<String>,
 ) {
     match stmt {
@@ -37,7 +37,7 @@ fn collect_stmt(
             if let Some(caps) = captures {
                 for cap in caps {
                     if !bound.contains(&cap.name) {
-                        free.entry(cap.name.clone()).or_insert(cap.span);
+                        free.entry(cap.name.clone()).or_insert((cap.span, cap.id));
                     }
                 }
             }
@@ -55,19 +55,20 @@ fn collect_stmt(
         }
         Stmt::Assign { target, value } => {
             match target {
-                AssignTarget::Name { name, name_span } => {
+                AssignTarget::Name { name, name_span, id } => {
                     if !bound.contains(name) {
-                        free.entry(name.clone()).or_insert(*name_span);
+                        free.entry(name.clone()).or_insert((*name_span, *id));
                     }
                 }
                 AssignTarget::Index {
                     name,
                     name_span,
+                    id,
                     index,
                     ..
                 } => {
                     if !bound.contains(name) {
-                        free.entry(name.clone()).or_insert(*name_span);
+                        free.entry(name.clone()).or_insert((*name_span, *id));
                     }
                     collect_expr(index, free, bound);
                 }
@@ -96,13 +97,13 @@ fn collect_stmt(
 
 fn collect_expr(
     expr: &Expr,
-    free: &mut BTreeMap<String, Span>,
+    free: &mut BTreeMap<String, (Span, AstId)>,
     bound: &mut HashSet<String>,
 ) {
     match expr {
-        Expr::Ident { name, span } => {
+        Expr::Ident { name, span, id } => {
             if !bound.contains(name) {
-                free.entry(name.clone()).or_insert(*span);
+                free.entry(name.clone()).or_insert((*span, *id));
             }
         }
         // Operand of `move name` is transferred by the expression itself, not by
@@ -134,7 +135,7 @@ fn collect_expr(
                 if let Some(caps) = &c.captures {
                     for cap in caps {
                         if !bound.contains(&cap.name) {
-                            free.entry(cap.name.clone()).or_insert(cap.span);
+                            free.entry(cap.name.clone()).or_insert((cap.span, cap.id));
                         }
                         inner.insert(cap.name.clone());
                     }
