@@ -1,0 +1,1711 @@
+== programs/build/basics/array_index_assign.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    └── i [Local]
+== programs/build/basics/nested_i64.bork
+Arenas
+├── fun sub
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── total [Local]
+    └── Block
+        ├── big [Local]
+        ├── total [Copy]
+        └── IfThen
+            └── total [Copy]
+== programs/build/basics/println_string.bork
+Arenas
+└── fun main
+== programs/build/basics/return_constant.bork
+Arenas
+└── fun main
+== programs/build/basics/unit_main.bork
+Arenas
+└── fun main
+    └── x [Local]
+== programs/build/borrow/array_slice.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    └── b [Local]
+== programs/build/borrow/reborrow_in_for.bork
+Arenas
+├── fun bump
+│   └── buf [Borrow ← call site]
+├── fun outer
+│   ├── buf [Borrow ← call site]
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       └── buf [Borrow ← fun outer]
+└── fun main
+    └── a [Local]
+== programs/build/borrow/reborrow_in_if.bork
+Arenas
+├── fun set_head
+│   ├── buf [Borrow ← call site]
+│   └── v [Local]
+├── fun outer
+│   ├── buf [Borrow ← call site]
+│   ├── flag [Local]
+│   └── IfThen
+│       └── buf [Borrow ← fun outer]
+└── fun main
+    └── a [Local]
+== programs/build/borrow/reference_in_while.bork
+Arenas
+├── fun bump
+│   └── buf [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    ├── i [Local]
+    └── WhileLoop
+        ├── a [Borrow ← fun main]
+        └── i [Copy]
+== programs/build/borrow/reference_index_read.bork
+Arenas
+├── fun first
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/build/classes/call_arg.bork
+Arenas
+├── fun take
+│   └── p [Local]
+└── fun main
+== programs/build/classes/mutable_field.bork
+Arenas
+└── fun main
+    ├── p [Local]
+    └── r [Local]
+== programs/build/classes/nested_field.bork
+Arenas
+└── fun main
+    └── o [Local]
+== programs/build/classes/nullable_field_assign.bork
+Arenas
+└── fun main
+    └── b [Local]
+== programs/build/classes/safe_ref_field.bork
+Arenas
+└── fun main
+    ├── p [Local]
+    ├── n [Local]
+    ├── a [Local]
+    └── b [Local]
+== programs/build/classes/string_field.bork
+Arenas
+└── fun main
+== programs/build/classes/walkthrough_point.bork
+Arenas
+├── fun sum
+│   └── p [Borrow ← call site]
+└── fun main
+    └── p [Local]
+== programs/build/conditionals/else_if.bork
+Arenas
+├── fun pick
+│   ├── n [Local]
+│   ├── IfThen
+│   └── IfElse
+│       ├── n [Copy]
+│       ├── IfThen
+│       └── IfElse
+└── fun main
+== programs/build/conditionals/if_else_return.bork
+Arenas
+├── fun add
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── x [Local]
+    ├── IfThen
+    │   └── x [Copy]
+    └── IfElse
+== programs/build/conditionals/logical_short_circuit.bork
+Arenas
+├── fun side
+└── fun main
+    ├── n [Local]
+    ├── IfThen
+    └── IfThen
+        └── n [Copy]
+== programs/build/conditionals/nested_if.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    └── IfThen
+        ├── n [Copy]
+        └── IfThen
+== programs/build/conditionals/nullable_assert.bork
+Arenas
+└── fun main
+    └── s [Local]
+== programs/build/conditionals/nullable_elvis.bork
+Arenas
+└── fun main
+    └── s [Local]
+== programs/build/conditionals/nullable_eq.bork
+Arenas
+└── fun main
+    ├── name [Local]
+    ├── IfThen
+    └── IfElse
+== programs/build/conditionals/nullable_f32.bork
+Arenas
+└── fun main
+    └── n [Local]
+== programs/build/conditionals/nullable_none.bork
+Arenas
+└── fun main
+    └── s [Local]
+== programs/build/conditionals/nullable_safe_length.bork
+Arenas
+└── fun main
+    ├── name [Local]
+    ├── length [Local]
+    └── IfThen
+== programs/build/conditionals/value_if.bork
+Arenas
+├── fun pick
+│   ├── flag [Local]
+│   ├── v [Local]
+│   ├── IfThen
+│   └── IfElse
+└── fun main
+== programs/build/constants/method_and_shadow.bork
+Arenas
+├── fun shadow
+│   └── STEP [Local]
+├── fun main
+│   └── c [Local]
+└── fun Counter.bump
+    └── this [Borrow ← call site]
+== programs/build/constants/string_and_scalars.bork
+Arenas
+├── fun status
+├── fun len
+│   └── s [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── IfThen
+        ├── a [Shared ← fun main]
+        └── b [Shared ← fun main]
+== programs/build/loops/for_nested.bork
+Arenas
+└── fun main
+    ├── total [Local]
+    └── ForLoop (i)
+        ├── i [Local]
+        └── ForLoop (j)
+            ├── j [Local]
+            └── total [Copy]
+== programs/build/loops/for_sum.bork
+Arenas
+└── fun main
+    ├── total [Local]
+    └── ForLoop (i)
+        ├── i [Local]
+        └── total [Copy]
+== programs/build/loops/while_accumulate.bork
+Arenas
+└── fun main
+    ├── i [Local]
+    ├── sum [Local]
+    └── WhileLoop
+        ├── sum [Copy]
+        └── i [Copy]
+== programs/build/loops/while_break.bork
+Arenas
+└── fun main
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── IfThen
+== programs/build/managed_refs/cache_manager_graph.bork
+Arenas
+└── fun main
+    ├── answer [Local]
+    └── Block
+        ├── cache [Local]
+        ├── root [Local]
+        ├── child [Local]
+        ├── cache_ref [Local]
+        └── IfValSome
+            ├── manager [Borrow ← presence guard]
+            └── IfValSome
+                ├── root_live [Borrow ← presence guard]
+                └── IfValSome
+                    ├── child_live [Borrow ← presence guard]
+                    └── IfValSome
+                        ├── parent [Borrow ← presence guard]
+                        ├── manager [Shared ← IfValSome]
+                        └── IfValSome
+                            ├── hot [Borrow ← presence guard]
+                            ├── root_live [Shared ← IfValSome]
+                            ├── child_live [Shared ← IfValSome]
+                            └── parent [Shared ← IfValSome]
+== programs/build/managed_refs/chained_cache_manager_graph.bork
+Arenas
+└── fun main
+    ├── answer [Local]
+    └── Block
+        ├── cache [Local]
+        ├── root [Local]
+        ├── child [Local]
+        ├── cache_ref [Local]
+        └── IfValSome
+            ├── manager [Borrow ← presence guard]
+            ├── root_live [Borrow ← presence guard]
+            ├── child_live [Borrow ← presence guard]
+            ├── parent [Borrow ← presence guard]
+            └── hot [Borrow ← presence guard]
+== programs/build/managed_refs/chained_expired_weak.bork
+Arenas
+└── fun main
+    ├── saved [Local]
+    ├── Block
+    │   ├── parent [Local]
+    │   └── child [Local]
+    └── IfValSome
+        ├── live_child [Borrow ← presence guard]
+        └── live_parent [Borrow ← presence guard]
+== programs/build/managed_refs/chained_loop_cleanup.bork
+Arenas
+└── fun main
+    ├── r [Local]
+    ├── n [Local]
+    ├── text [Local]
+    ├── missing [Local]
+    ├── refs [Local]
+    ├── IfValSome
+    │   ├── start [Borrow ← presence guard]
+    │   └── r [Shared ← fun main]
+    ├── WhileLoop
+    │   ├── n [Copy]
+    │   ├── r [Shared ← fun main]
+    │   └── IfValSome
+    │       ├── a [Borrow ← presence guard]
+    │       ├── b [Borrow ← presence guard]
+    │       ├── n [Copy]
+    │       └── IfThen
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   └── b [Borrow ← presence guard]
+    ├── IfValNone
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   └── b [Borrow ← presence guard]
+    ├── IfValNone
+    │   └── missing [Shared ← fun main]
+    └── IfValSome
+        ├── a [Borrow ← presence guard]
+        ├── b [Borrow ← presence guard]
+        └── n [Copy]
+== programs/build/managed_refs/chained_partial_cleanup.bork
+Arenas
+├── fun clear
+│   ├── holder [Borrow ← call site]
+│   └── missing [Local]
+└── fun main
+    ├── holder [Local]
+    ├── child_ref [Local]
+    ├── Block
+    │   ├── target [Local]
+    │   └── holder [Shared ← fun main]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   ├── b [Borrow ← presence guard]
+    │   └── holder [Shared ← fun main]
+    └── IfValNone
+        ├── child_ref [Shared ← fun main]
+        └── IfValSome
+            ├── child [Borrow ← presence guard]
+            └── parent [Borrow ← presence guard]
+== programs/build/managed_refs/chained_three_bindings_value.bork
+Arenas
+└── fun main
+    ├── c [Local]
+    ├── b [Local]
+    ├── a [Local]
+    ├── found [Local]
+    └── IfValSome
+        ├── x [Borrow ← presence guard]
+        ├── y [Borrow ← presence guard]
+        └── z [Borrow ← presence guard]
+== programs/build/managed_refs/count_of_last_reference.bork
+Arenas
+└── fun main
+    ├── r [Moved ← fun main]
+    └── Block
+        ├── n [Local]
+        └── keep [Local]
+== programs/build/managed_refs/expired_weak_back_edge.bork
+Arenas
+└── fun main
+    ├── saved [Local]
+    ├── Block
+    │   ├── parent [Local]
+    │   └── child [Local]
+    └── IfValSome
+        ├── live_child [Borrow ← presence guard]
+        └── IfValSome
+            └── live_parent [Borrow ← presence guard]
+== programs/build/managed_refs/presence_int_result.bork
+Arenas
+├── fun pick
+│   ├── r [Local]
+│   ├── code [Local]
+│   ├── IfValSome
+│   │   ├── a [Borrow ← presence guard]
+│   │   └── b [Borrow ← presence guard]
+│   └── IfValNone
+└── fun main
+    ├── tail [Local]
+    ├── head [Local]
+    └── alone [Local]
+== programs/build/managed_refs/program_dynamic_across_blocks.bork
+Arenas
+├── fun make_shared
+└── fun main
+    ├── shared [Local]
+    ├── total [Local]
+    ├── Block
+    │   ├── local [Local]
+    │   ├── shared [Shared ← fun main]
+    │   └── IfValSome
+    │       ├── live [Borrow ← presence guard]
+    │       ├── total [Copy]
+    │       └── local [Shared ← Block]
+    ├── Block
+    │   ├── local [Local]
+    │   ├── shared [Shared ← fun main]
+    │   └── IfValSome
+    │       ├── live [Borrow ← presence guard]
+    │       ├── total [Copy]
+    │       └── local [Shared ← Block]
+    └── IfValSome
+        ├── live [Borrow ← presence guard]
+        └── total [Copy]
+== programs/build/managed_refs/val_both_return_string_move.bork
+Arenas
+├── fun run
+│   ├── r [Local]
+│   ├── s [Local]
+│   ├── IfValSome
+│   │   ├── a [Borrow ← presence guard]
+│   │   └── MoveBlock (move)
+│   │       ├── s [Moved ← fun run]
+│   │       └── a [Shared ← IfValSome]
+│   └── IfValNone
+└── fun main
+    └── r [Local]
+== programs/build/managed_refs/val_else_move_string.bork
+Arenas
+├── fun run
+│   ├── r [Local]
+│   ├── s [Local]
+│   ├── IfValSome
+│   │   └── a [Borrow ← presence guard]
+│   └── IfValNone
+│       └── MoveBlock (move)
+│           └── s [Moved ← fun run]
+└── fun main
+    └── r [Local]
+== programs/build/managed_refs/val_then_return_move.bork
+Arenas
+├── fun run
+│   ├── r [Local]
+│   ├── s [Local]
+│   └── IfValSome
+│       ├── a [Borrow ← presence guard]
+│       └── MoveBlock (move)
+│           ├── s [Moved ← fun run]
+│           └── a [Shared ← IfValSome]
+└── fun main
+    └── dead [Local]
+== programs/build/managed_refs/weak_back_edge_usage.bork
+Arenas
+├── fun read_parent
+│   ├── child [Local]
+│   └── IfValSome
+│       ├── live_child [Borrow ← presence guard]
+│       └── IfValSome
+│           └── parent [Borrow ← presence guard]
+└── fun main
+    ├── parent [Local]
+    ├── child [Local]
+    └── child_ref [Local]
+== programs/build/managed_refs/when_arms_print.bork
+Arenas
+├── fun label
+│   ├── r [Local]
+│   ├── IfValSome
+│   │   └── n [Borrow ← presence guard]
+│   └── IfValNone
+└── fun main
+    ├── live [Local]
+    └── dead [Local]
+== programs/build/methods/basic.bork
+Arenas
+├── fun main
+│   └── p [Local]
+└── fun Point.sum
+    └── this [Borrow ← call site]
+== programs/build/methods/borrowed_receiver.bork
+Arenas
+├── fun read
+│   └── p [Borrow ← call site]
+├── fun main
+│   └── p [Local]
+└── fun Point.get
+    └── this [Borrow ← call site]
+== programs/build/methods/explicit_this.bork
+Arenas
+├── fun main
+│   └── p [Local]
+└── fun Point.set
+    ├── this [Borrow ← call site]
+    └── x [Local]
+== programs/build/methods/field_receiver.bork
+Arenas
+├── fun main
+│   └── o [Local]
+├── fun Inner.get
+│   └── this [Borrow ← call site]
+└── fun Outer.deep
+    └── this [Borrow ← call site]
+== programs/build/methods/if_val_receiver.bork
+Arenas
+├── fun main
+│   ├── a [Local]
+│   └── b [Local]
+├── fun Node.value
+│   └── this [Borrow ← call site]
+└── fun Node.next_value
+    ├── this [Borrow ← call site]
+    └── IfValSome
+        └── n [Borrow ← presence guard]
+== programs/build/methods/method_calls_method.bork
+Arenas
+├── fun main
+│   └── p [Local]
+├── fun Point.sum
+│   └── this [Borrow ← call site]
+├── fun Point.twice
+│   └── this [Borrow ← call site]
+└── fun Point.fact
+    ├── this [Borrow ← call site]
+    ├── k [Local]
+    └── IfThen
+== programs/build/methods/mutate_field.bork
+Arenas
+├── fun main
+│   └── c [Local]
+└── fun Counter.bump
+    └── this [Borrow ← call site]
+== programs/build/methods/nested_calls.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   └── q [Local]
+├── fun Point.get
+│   └── this [Borrow ← call site]
+└── fun Point.add
+    ├── this [Borrow ← call site]
+    └── k [Local]
+== programs/build/methods/owning_return.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   └── q [Local]
+├── fun Point.label
+│   └── this [Borrow ← call site]
+└── fun Point.moved
+    ├── this [Borrow ← call site]
+    └── dx [Local]
+== programs/build/methods/same_name.bork
+Arenas
+├── fun size
+├── fun main
+│   ├── a [Local]
+│   └── b [Local]
+├── fun A.size
+│   └── this [Borrow ← call site]
+├── fun A.total
+│   └── this [Borrow ← call site]
+└── fun B.size
+    └── this [Borrow ← call site]
+== programs/build/move_and_promote/array_string_move_index.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    └── s [Moved ← fun main]
+== programs/build/move_and_promote/assign_up_move.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── inner [Moved ← Block]
+== programs/build/move_and_promote/both_branches_return_move.bork
+Arenas
+├── fun run
+│   ├── flag [Local]
+│   ├── s [Local]
+│   ├── IfThen
+│   │   └── MoveBlock (move)
+│   │       └── s [Moved ← fun run]
+│   └── IfElse
+│       └── MoveBlock (move)
+│           └── s [Moved ← fun run]
+└── fun main
+== programs/build/move_and_promote/concat_outer.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── piece [Moved ← Block]
+== programs/build/move_and_promote/print_ints.bork
+Arenas
+└── fun main
+    ├── s [Moved ← fun main]
+    └── t [Local]
+== programs/build/move_and_promote/promote_outer.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        ├── held [Local]
+        └── held [Moved ← Block]
+== programs/build/move_and_promote/regional_move.bork
+Arenas
+└── fun main
+    ├── s [Local]
+    └── MoveBlock (move)
+        └── s [Moved ← fun main]
+== programs/build/move_and_promote/string_shared_nested.bork
+Arenas
+└── fun main
+    ├── s [Local]
+    └── Block
+        └── s [Shared ← fun main]
+== programs/build/move_and_promote/then_return_move_not_taken.bork
+Arenas
+├── fun run
+│   ├── flag [Local]
+│   ├── s [Local]
+│   └── IfThen
+│       └── MoveBlock (move)
+│           └── s [Moved ← fun run]
+└── fun main
+== programs/build/move_and_promote/then_return_move_taken.bork
+Arenas
+├── fun run
+│   ├── flag [Local]
+│   ├── s [Local]
+│   └── IfThen
+│       └── MoveBlock (move)
+│           └── s [Moved ← fun run]
+└── fun main
+== programs/build/paged_arenas/concat_grows_past_page.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── d [Local]
+    ├── e [Local]
+    ├── f [Local]
+    ├── g [Local]
+    ├── h [Local]
+    ├── i [Local]
+    └── IfThen
+== programs/build/paged_arenas/many_small_allocs_cross_pages.bork
+Arenas
+└── fun main
+    ├── total [Local]
+    ├── p0 [Local]
+    ├── p1 [Local]
+    ├── p2 [Local]
+    ├── p3 [Local]
+    ├── p4 [Local]
+    ├── p5 [Local]
+    ├── p6 [Local]
+    ├── p7 [Local]
+    ├── p8 [Local]
+    ├── p9 [Local]
+    ├── p10 [Local]
+    ├── p11 [Local]
+    ├── p12 [Local]
+    ├── p13 [Local]
+    ├── p14 [Local]
+    ├── p15 [Local]
+    ├── p16 [Local]
+    ├── p17 [Local]
+    ├── p18 [Local]
+    ├── p19 [Local]
+    ├── p20 [Local]
+    ├── p21 [Local]
+    ├── p22 [Local]
+    ├── p23 [Local]
+    ├── p24 [Local]
+    ├── p25 [Local]
+    ├── p26 [Local]
+    ├── p27 [Local]
+    ├── p28 [Local]
+    ├── p29 [Local]
+    ├── p30 [Local]
+    ├── p31 [Local]
+    ├── p32 [Local]
+    ├── p33 [Local]
+    ├── p34 [Local]
+    ├── p35 [Local]
+    ├── p36 [Local]
+    ├── p37 [Local]
+    ├── p38 [Local]
+    ├── p39 [Local]
+    ├── p40 [Local]
+    ├── p41 [Local]
+    ├── p42 [Local]
+    ├── p43 [Local]
+    ├── p44 [Local]
+    ├── p45 [Local]
+    ├── p46 [Local]
+    ├── p47 [Local]
+    ├── p48 [Local]
+    ├── p49 [Local]
+    ├── p50 [Local]
+    ├── p51 [Local]
+    ├── p52 [Local]
+    ├── p53 [Local]
+    ├── p54 [Local]
+    ├── p55 [Local]
+    ├── p56 [Local]
+    ├── p57 [Local]
+    ├── p58 [Local]
+    ├── p59 [Local]
+    ├── p60 [Local]
+    ├── p61 [Local]
+    ├── p62 [Local]
+    ├── p63 [Local]
+    ├── p64 [Local]
+    ├── p65 [Local]
+    ├── p66 [Local]
+    ├── p67 [Local]
+    ├── p68 [Local]
+    ├── p69 [Local]
+    ├── p70 [Local]
+    ├── p71 [Local]
+    ├── p72 [Local]
+    ├── p73 [Local]
+    ├── p74 [Local]
+    ├── p75 [Local]
+    ├── p76 [Local]
+    ├── p77 [Local]
+    ├── p78 [Local]
+    ├── p79 [Local]
+    ├── p80 [Local]
+    ├── p81 [Local]
+    ├── p82 [Local]
+    ├── p83 [Local]
+    ├── p84 [Local]
+    ├── p85 [Local]
+    ├── p86 [Local]
+    ├── p87 [Local]
+    ├── p88 [Local]
+    ├── p89 [Local]
+    ├── p90 [Local]
+    ├── p91 [Local]
+    ├── p92 [Local]
+    ├── p93 [Local]
+    ├── p94 [Local]
+    ├── p95 [Local]
+    ├── p96 [Local]
+    ├── p97 [Local]
+    ├── p98 [Local]
+    ├── p99 [Local]
+    ├── p100 [Local]
+    ├── p101 [Local]
+    ├── p102 [Local]
+    ├── p103 [Local]
+    ├── p104 [Local]
+    ├── p105 [Local]
+    ├── p106 [Local]
+    ├── p107 [Local]
+    ├── p108 [Local]
+    ├── p109 [Local]
+    ├── p110 [Local]
+    ├── p111 [Local]
+    ├── p112 [Local]
+    ├── p113 [Local]
+    ├── p114 [Local]
+    ├── p115 [Local]
+    ├── p116 [Local]
+    ├── p117 [Local]
+    ├── p118 [Local]
+    ├── p119 [Local]
+    ├── p120 [Local]
+    ├── p121 [Local]
+    ├── p122 [Local]
+    ├── p123 [Local]
+    ├── p124 [Local]
+    ├── p125 [Local]
+    ├── p126 [Local]
+    ├── p127 [Local]
+    ├── p128 [Local]
+    ├── p129 [Local]
+    ├── p130 [Local]
+    ├── p131 [Local]
+    ├── p132 [Local]
+    ├── p133 [Local]
+    ├── p134 [Local]
+    ├── p135 [Local]
+    ├── p136 [Local]
+    ├── p137 [Local]
+    ├── p138 [Local]
+    ├── p139 [Local]
+    ├── p140 [Local]
+    ├── p141 [Local]
+    ├── p142 [Local]
+    ├── p143 [Local]
+    ├── p144 [Local]
+    ├── p145 [Local]
+    ├── p146 [Local]
+    ├── p147 [Local]
+    ├── p148 [Local]
+    ├── p149 [Local]
+    ├── p150 [Local]
+    ├── p151 [Local]
+    ├── p152 [Local]
+    ├── p153 [Local]
+    ├── p154 [Local]
+    ├── p155 [Local]
+    ├── p156 [Local]
+    ├── p157 [Local]
+    ├── p158 [Local]
+    ├── p159 [Local]
+    ├── p160 [Local]
+    ├── p161 [Local]
+    ├── p162 [Local]
+    ├── p163 [Local]
+    ├── p164 [Local]
+    ├── p165 [Local]
+    ├── p166 [Local]
+    ├── p167 [Local]
+    ├── p168 [Local]
+    ├── p169 [Local]
+    ├── p170 [Local]
+    ├── p171 [Local]
+    ├── p172 [Local]
+    ├── p173 [Local]
+    ├── p174 [Local]
+    ├── p175 [Local]
+    ├── p176 [Local]
+    ├── p177 [Local]
+    ├── p178 [Local]
+    ├── p179 [Local]
+    ├── p180 [Local]
+    ├── p181 [Local]
+    ├── p182 [Local]
+    ├── p183 [Local]
+    ├── p184 [Local]
+    ├── p185 [Local]
+    ├── p186 [Local]
+    ├── p187 [Local]
+    ├── p188 [Local]
+    ├── p189 [Local]
+    ├── p190 [Local]
+    ├── p191 [Local]
+    ├── p192 [Local]
+    ├── p193 [Local]
+    ├── p194 [Local]
+    ├── p195 [Local]
+    ├── p196 [Local]
+    ├── p197 [Local]
+    ├── p198 [Local]
+    ├── p199 [Local]
+    ├── p200 [Local]
+    ├── p201 [Local]
+    ├── p202 [Local]
+    ├── p203 [Local]
+    ├── p204 [Local]
+    ├── p205 [Local]
+    ├── p206 [Local]
+    ├── p207 [Local]
+    ├── p208 [Local]
+    ├── p209 [Local]
+    ├── p210 [Local]
+    ├── p211 [Local]
+    ├── p212 [Local]
+    ├── p213 [Local]
+    ├── p214 [Local]
+    ├── p215 [Local]
+    ├── p216 [Local]
+    ├── p217 [Local]
+    ├── p218 [Local]
+    ├── p219 [Local]
+    └── IfThen
+== programs/build/recursions/factorial.bork
+Arenas
+├── fun fact
+│   ├── n [Local]
+│   └── IfThen
+└── fun main
+== programs/build/recursions/recursive_in_if.bork
+Arenas
+├── fun walk
+│   ├── n [Local]
+│   └── IfThen
+└── fun main
+== programs/build/recursions/recursive_qsort_small.bork
+Arenas
+├── fun partition
+│   ├── a [Borrow ← call site]
+│   ├── lo [Local]
+│   ├── hi [Local]
+│   ├── pivot [Local]
+│   ├── i [Local]
+│   ├── j [Local]
+│   ├── t2 [Local]
+│   └── WhileLoop
+│       ├── a [Shared ← fun partition]
+│       ├── j [Copy]
+│       ├── pivot [Copy]
+│       └── IfThen
+│           ├── t [Local]
+│           ├── a [Shared ← fun partition]
+│           ├── i [Copy]
+│           └── j [Copy]
+├── fun qsort
+│   ├── a [Borrow ← call site]
+│   ├── lo [Local]
+│   ├── hi [Local]
+│   └── IfThen
+│       ├── p [Local]
+│       ├── a [Borrow ← fun qsort]
+│       ├── lo [Copy]
+│       └── hi [Copy]
+└── fun main
+    └── a [Local]
+== programs/build/text/byte_index.bork
+Arenas
+├── fun first
+│   └── s [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    ├── n [Local]
+    ├── nul [Local]
+    ├── IfThen
+    │   └── n [Copy]
+    ├── IfThen
+    │   └── n [Copy]
+    ├── IfThen
+    │   └── n [Copy]
+    ├── IfThen
+    │   └── n [Copy]
+    └── IfThen
+        └── n [Copy]
+== programs/build/text/content_equality.bork
+Arenas
+├── fun same
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+└── fun main
+    ├── lit [Local]
+    ├── built [Local]
+    ├── count [Local]
+    ├── IfThen
+    │   └── count [Copy]
+    ├── IfThen
+    │   └── count [Copy]
+    ├── IfThen
+    │   └── count [Copy]
+    ├── IfThen
+    │   └── count [Copy]
+    └── IfThen
+        └── count [Copy]
+== programs/build/text/equality_effects_once.bork
+Arenas
+├── fun main
+│   ├── counter [Local]
+│   └── IfThen
+└── fun Counter.next
+    ├── this [Borrow ← call site]
+    └── IfThen
+== programs/build/text/equality_keeps_owner.bork
+Arenas
+└── fun main
+    ├── cur [Moved ← fun main]
+    ├── want [Local]
+    ├── hits [Local]
+    ├── again [Local]
+    ├── IfThen
+    │   └── hits [Copy]
+    ├── IfThen
+    │   └── hits [Copy]
+    └── IfThen
+        └── hits [Copy]
+== programs/build/text/http_token.bork
+Arenas
+├── fun prefix_len
+│   ├── buf [Borrow ← call site]
+│   └── copied [Local]
+├── fun main
+│   ├── raw [Local]
+│   ├── path [Local]
+│   ├── req [Local]
+│   ├── score [Local]
+│   ├── prefix [Local]
+│   ├── IfThen
+│   │   └── score [Copy]
+│   ├── IfThen
+│   │   └── score [Copy]
+│   ├── IfThen
+│   │   └── score [Copy]
+│   └── IfThen
+│       └── score [Copy]
+└── fun Request.method_ok
+    └── this [Borrow ← call site]
+== programs/build/text/utf8_copy_independent.bork
+Arenas
+└── fun main
+    ├── bytes [Local]
+    ├── method [Local]
+    └── IfThen
+== programs/build/text/utf8_empty_is_present.bork
+Arenas
+└── fun main
+    ├── bytes [Local]
+    ├── empty [Local]
+    ├── text [Local]
+    └── IfThen
+== programs/build/text/utf8_invalid_is_none.bork
+Arenas
+└── fun main
+    ├── bytes [Local]
+    ├── s [Local]
+    └── IfThen
+== programs/build/text/utf8_multibyte_range.bork
+Arenas
+└── fun main
+    ├── bytes [Local]
+    ├── lambda [Local]
+    └── IfThen
+== programs/build/text/utf8_outer_sink_survives.bork
+Arenas
+└── fun main
+    ├── out [Moved ← fun main]
+    ├── text [Local]
+    ├── IfThen
+    │   └── bytes [Local]
+    ├── IfThen
+    └── IfThen
+== programs/build/vec/grow_past_page.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── j [Local]
+    ├── WhileLoop
+    │   ├── v [Borrow ← fun main]
+    │   └── i [Copy]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── v [Borrow ← fun main]
+        └── j [Copy]
+== programs/build/vec/move_to_outer.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── total [Local]
+    ├── j [Local]
+    ├── Block
+    │   ├── inner [Local]
+    │   └── inner [Moved ← Block]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── outer [Borrow ← fun main]
+        └── j [Copy]
+== programs/build/vec/negative_capacity_aborts.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    └── v [Local]
+== programs/build/vec/pop_set_clear.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── out [Local]
+    ├── last [Local]
+    └── none [Local]
+== programs/build/vec/push_grow_sum.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── j [Local]
+    ├── WhileLoop
+    │   ├── v [Borrow ← fun main]
+    │   └── i [Copy]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── v [Borrow ← fun main]
+        └── j [Copy]
+== programs/build/vec/ref_counts_across_arenas.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── s0 [Local]
+    ├── w0 [Local]
+    ├── code [Local]
+    ├── older [Local]
+    ├── i [Local]
+    ├── WhileLoop
+    │   ├── older [Borrow ← fun main]
+    │   ├── r [Shared ← fun main]
+    │   └── i [Copy]
+    ├── IfThen
+    ├── IfThen
+    ├── Block
+    │   ├── newer [Local]
+    │   ├── j [Local]
+    │   ├── r [Shared ← fun main]
+    │   ├── s0 [Copy]
+    │   ├── w0 [Copy]
+    │   ├── older [Borrow ← fun main]
+    │   ├── newer [Moved ← Block]
+    │   ├── WhileLoop
+    │   │   ├── newer [Borrow ← Block]
+    │   │   ├── r [Shared ← fun main]
+    │   │   └── j [Copy]
+    │   ├── IfThen
+    │   ├── IfThen
+    │   ├── IfThen
+    │   ├── IfThen
+    │   └── IfThen
+    ├── IfThen
+    ├── IfThen
+    ├── IfThen
+    └── IfThen
+== programs/build/vec/ref_nodes.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── i [Local]
+    ├── out [Local]
+    ├── last [Local]
+    ├── first [Local]
+    ├── WhileLoop
+    │   ├── v [Borrow ← fun main]
+    │   └── i [Copy]
+    ├── IfValSome
+    │   └── n [Borrow ← presence guard]
+    └── IfValSome
+        ├── m [Borrow ← presence guard]
+        └── out [Copy]
+== programs/build/vec/ref_promote.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── total [Local]
+    ├── j [Local]
+    ├── Block
+    │   ├── inner [Local]
+    │   ├── i [Local]
+    │   ├── inner [Moved ← Block]
+    │   └── WhileLoop
+    │       ├── inner [Borrow ← Block]
+    │       └── i [Copy]
+    └── WhileLoop
+        ├── item [Local]
+        ├── outer [Borrow ← fun main]
+        ├── j [Copy]
+        └── IfValSome
+            ├── n [Borrow ← presence guard]
+            └── total [Copy]
+== programs/build/vec/ref_promote_strong.bork
+Arenas
+└── fun main
+    ├── saved [Local]
+    ├── total [Local]
+    ├── i [Local]
+    ├── Block
+    │   ├── n1 [Local]
+    │   ├── n2 [Local]
+    │   ├── n3 [Local]
+    │   ├── n4 [Local]
+    │   ├── n5 [Local]
+    │   ├── n6 [Local]
+    │   └── Block
+    │       ├── tmp [Local]
+    │       ├── n1 [Shared ← Block]
+    │       ├── n2 [Shared ← Block]
+    │       ├── n3 [Shared ← Block]
+    │       ├── n4 [Shared ← Block]
+    │       ├── n5 [Shared ← Block]
+    │       ├── n6 [Shared ← Block]
+    │       └── tmp [Moved ← Block]
+    └── WhileLoop
+        ├── item [Local]
+        ├── saved [Borrow ← fun main]
+        ├── i [Copy]
+        └── IfValSome
+            ├── node [Borrow ← presence guard]
+            └── total [Copy]
+== programs/build/vec/ref_weak_expires.bork
+Arenas
+└── fun main
+    ├── holder [Local]
+    ├── alive [Local]
+    ├── Block
+    │   ├── n1 [Local]
+    │   ├── n2 [Local]
+    │   ├── n3 [Local]
+    │   ├── n4 [Local]
+    │   ├── n5 [Local]
+    │   ├── n6 [Local]
+    │   └── holder [Borrow ← fun main]
+    └── Block
+        ├── late [Local]
+        ├── i [Local]
+        ├── holder [Borrow ← fun main]
+        ├── WhileLoop
+        │   ├── late [Borrow ← Block]
+        │   ├── holder [Borrow ← fun main]
+        │   └── i [Copy]
+        ├── WhileLoop
+        │   ├── item [Local]
+        │   ├── late [Borrow ← Block]
+        │   ├── i [Copy]
+        │   └── IfValSome
+        │       ├── node [Borrow ← presence guard]
+        │       └── alive [Copy]
+        └── WhileLoop
+            ├── item [Local]
+            ├── late [Borrow ← Block]
+            ├── i [Copy]
+            └── IfValSome
+                ├── node [Borrow ← presence guard]
+                └── alive [Copy]
+== programs/build/vec/strings.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    └── s [Local]
+== programs/build/vec/with_capacity.bork
+Arenas
+└── fun main
+    ├── code [Local]
+    ├── plain [Local]
+    ├── i [Local]
+    ├── big [Local]
+    ├── odd [Local]
+    ├── zero [Local]
+    ├── words [Local]
+    ├── nodes [Local]
+    ├── IfThen
+    ├── IfThen
+    ├── WhileLoop
+    │   ├── plain [Borrow ← fun main]
+    │   └── i [Copy]
+    ├── IfThen
+    ├── IfThen
+    ├── WhileLoop
+    │   ├── big [Borrow ← fun main]
+    │   └── i [Copy]
+    ├── IfThen
+    ├── IfThen
+    ├── IfThen
+    ├── IfThen
+    ├── IfThen
+    ├── IfThen
+    └── IfThen
+== programs/build_fail/escape_inner_return_string.bork
+Ownership Error [103..104] returning a `String` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun mk
+│   ├── s [Local]
+│   └── Block
+│       ├── x [Local]
+│       └── s [Moved ← fun mk]
+└── fun main
+== programs/build_fail/methods/trailing_closure.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   └── Closure
+│       └── v [Local]
+└── fun P.apply
+    ├── this [Borrow ← call site]
+    ├── k [Local]
+    └── f [Local]
+== programs/build_fail/text/return_direct.bork
+Ownership Error [] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
+Arenas
+├── fun make
+│   └── b [Local]
+└── fun main
+== programs/build_fail/text/return_elvis.bork
+Ownership Error [82..113] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
+Arenas
+├── fun make
+│   └── b [Local]
+└── fun main
+== programs/build_fail/text/return_not_null_assert.bork
+Ownership Error [82..108] returning a `String` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Ownership Error [82..108] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
+Arenas
+├── fun make
+│   └── b [Local]
+└── fun main
+== programs/build_fail/text/return_some_concat.bork
+Ownership Error [49..71] returning a `String?` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Ownership Error [49..71] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
+Arenas
+├── fun make
+└── fun main
+== programs/build_fail/text/return_through_local.bork
+Ownership Error [118..119] returning a `String?` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── b [Local]
+│   └── s [Local]
+└── fun main
+== programs/check/borrow/array_slice_length.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    └── b [Local]
+== programs/check/borrow/reborrow_in_for.bork
+Arenas
+├── fun inner
+│   └── a [Borrow ← call site]
+├── fun outer
+│   ├── a [Borrow ← call site]
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       └── a [Borrow ← fun outer]
+└── fun main
+    └── x [Local]
+== programs/check/borrow/reborrow_in_if.bork
+Arenas
+├── fun inner
+│   └── a [Borrow ← call site]
+├── fun outer
+│   ├── a [Borrow ← call site]
+│   ├── flag [Local]
+│   └── IfThen
+│       └── a [Borrow ← fun outer]
+└── fun main
+    └── x [Local]
+== programs/check/borrow/reference_nested_call.bork
+Arenas
+├── fun inner
+│   └── buf [Borrow ← call site]
+├── fun outer
+│   └── p [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/check/conditionals/if_mismatch.bork
+Arenas
+├── fun pick
+│   ├── flag [Local]
+│   ├── v [Local]
+│   ├── IfThen
+│   └── IfElse
+└── fun main
+== programs/check/conditionals/if_return_move_then_use.bork
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── flag [Local]
+    ├── owner [Local]
+    └── IfThen
+        └── owner [Moved ← fun run]
+== programs/check/conditionals/nullable_eq.bork
+Arenas
+└── fun main
+    ├── name [Local]
+    ├── IfThen
+    └── IfElse
+== programs/check/loops/for_sum.bork
+Arenas
+└── fun main
+    ├── total [Local]
+    └── ForLoop (i)
+        ├── i [Local]
+        └── total [Copy]
+== programs/check/loops/while_break_continue.bork
+Arenas
+└── fun main
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── IfThen
+== programs/check/managed_refs/chained_scope.bork
+Arenas
+└── fun use
+    ├── a [Local]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   └── b [Borrow ← presence guard]
+    └── IfValNone
+        └── a [Shared ← fun use]
+== programs/check/managed_refs/chained_val_both_return_move.bork
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── r [Local]
+    ├── owner [Local]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   └── owner [Moved ← fun run]
+    └── IfValNone
+== programs/check/managed_refs/chained_val_else_moves_owner.bork
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── r [Local]
+    ├── owner [Local]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   └── owner [Moved ← fun run]
+    └── IfValNone
+        └── MoveBlock (move)
+            └── owner [Moved ← fun run]
+== programs/check/methods/trailing_closure.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   └── Closure
+│       └── v [Local]
+└── fun P.apply
+    ├── this [Borrow ← call site]
+    ├── k [Local]
+    └── f [Local]
+== programs/check/move_and_promote/move_block.bork
+Arenas
+└── fun main
+    ├── s [Local]
+    └── MoveBlock (move)
+        ├── s [Moved ← fun main]
+        └── len [Local]
+== programs/check/recursions/self_call.bork
+Arenas
+├── fun down
+│   ├── n [Local]
+│   └── IfThen
+└── fun main
+== programs/check/vec/push_via_this_field.bork
+Arenas
+├── fun main
+│   └── h [Local]
+└── fun H.add
+    ├── this [Borrow ← call site]
+    └── k [Local]
+== programs/check_fail/borrow/lift_borrow_in_if.bork
+Ownership Error [87..88] cannot lift borrow `a` out of fun outer
+Arenas
+├── fun outer
+│   ├── a [Borrow ← call site]
+│   └── IfThen
+│       └── p [Local]
+└── fun main
+    └── a [Local]
+== programs/check_fail/borrow/reference_requires_ampersand.bork
+Ownership Error [120..121] use `move a` to pass ownership
+Type Error [120..121] argument 1 to `bump` expects borrow `&…`, got [i32; 2]
+Type Error [120..121] argument 1 to `bump` has type [i32; 2], expected &[i32; 2]
+Arenas
+├── fun bump
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/check_fail/classes/owned_layout_cycle.bork
+Type Error [45..46] class `A` has a recursive by-value layout; use `Ref<A>`
+Type Error [62..63] class `B` has a recursive by-value layout; use `Ref<B>`
+Arenas
+└── fun main
+== programs/check_fail/classes/ref_dot.bork
+Type Error [126..129] field access on managed Ref `Ref<Point>` requires `if val`, `when`, or `?.`
+Arenas
+└── fun main
+    └── p [Local]
+== programs/check_fail/conditionals/assign_to_val.bork
+Type Error [77..78] cannot assign to immutable `val` binding `x`
+Arenas
+└── fun main
+    └── x [Local]
+== programs/check_fail/conditionals/if_both_paths_move_then_use.bork
+Ownership Error [193..194] use of `s` after move from fun main
+Arenas
+└── fun main
+    ├── flag [Local]
+    ├── s [Local]
+    ├── IfThen
+    │   └── MoveBlock (move)
+    │       └── s [Moved ← fun main]
+    └── IfElse
+        └── MoveBlock (move)
+            └── s [Moved ← fun main]
+== programs/check_fail/conditionals/if_one_path_move_then_use.bork
+Ownership Error [206..211] use of `owner` after move from fun run
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── flag [Local]
+    ├── owner [Local]
+    └── IfThen
+        └── owner [Moved ← fun run]
+== programs/check_fail/constants/assign.bork
+Type Error [69..70] cannot assign to constant `N`
+Arenas
+└── fun main
+== programs/check_fail/constants/range.bork
+Type Error [36..39] integer literal 256 is out of range for u8
+Arenas
+└── fun main
+== programs/check_fail/loops/break_outside_loop.bork
+Type Error [37..42] `break` outside of a loop
+Arenas
+└── fun main
+== programs/check_fail/managed_refs/chained_borrow_escape.bork
+Ownership Error [133..134] returning a reference is not supported
+Ownership Error [174..183] returning a reference is not supported
+Arenas
+└── fun use
+    ├── r [Local]
+    ├── fallback [Local]
+    └── IfValSome
+        ├── a [Borrow ← presence guard]
+        └── b [Borrow ← presence guard]
+== programs/check_fail/managed_refs/chained_duplicate.bork
+Type Error [113..114] duplicate conditional binding 'a'
+Arenas
+└── fun use
+    ├── r [Local]
+    └── IfValSome
+        ├── a [Borrow ← presence guard]
+        ├── a [Borrow ← presence guard]
+        └── r [Shared ← fun use]
+== programs/check_fail/managed_refs/chained_forward_reference.bork
+Type Error [96..97] unknown binding `b`
+Arenas
+└── fun use
+    ├── r [Local]
+    └── IfValSome
+        ├── a [Local]
+        ├── b [Borrow ← presence guard]
+        └── r [Shared ← fun use]
+== programs/check_fail/managed_refs/chained_owned_field_escape.bork
+Type Error [405..406] None branch has type Leaf, expected &Leaf
+Type Error [385..388] initializer for `box` has type &Leaf, expected Leaf
+Arenas
+├── fun replace
+│   └── owner [Borrow ← call site]
+└── fun main
+    ├── fallback [Local]
+    ├── owner [Local]
+    ├── box [Local]
+    ├── overwrite [Local]
+    ├── overwrite2 [Local]
+    ├── overwrite3 [Local]
+    ├── Block
+    │   ├── old [Local]
+    │   └── owner [Shared ← fun main]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   ├── b [Borrow ← presence guard]
+    │   └── owner [Shared ← fun main]
+    └── IfValNone
+        └── fallback [Shared ← fun main]
+== programs/check_fail/managed_refs/chained_val_header_move_then_else_read.bork
+Ownership Error [221..226] use of `owner` after move from fun run
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── r [Local]
+    ├── owner [Local]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   ├── b [Borrow ← presence guard]
+    │   └── owner [Moved ← fun run]
+    └── IfValNone
+== programs/check_fail/managed_refs/chained_val_move_then_use.bork
+Ownership Error [211..216] use of `owner` after move from fun run
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── r [Local]
+    ├── owner [Local]
+    └── IfValSome
+        ├── a [Borrow ← presence guard]
+        └── owner [Moved ← fun run]
+== programs/check_fail/managed_refs/chained_val_shadowed_move_then_use.bork
+Ownership Error [271..276] use of `owner` after move from fun run
+Arenas
+├── fun take
+│   └── n [Local]
+└── fun run
+    ├── r [Local]
+    ├── owner [Local]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   ├── b [Borrow ← presence guard]
+    │   ├── owner [Borrow ← presence guard]
+    │   ├── owner [Local]
+    │   ├── owner [Moved ← fun run]
+    │   └── r [Shared ← fun run]
+    └── IfValNone
+== programs/check_fail/managed_refs/chained_wrong_type.bork
+Type Error [117..118] presence matching requires Ref<T>, got i32
+Arenas
+└── fun use
+    ├── r [Local]
+    └── IfValSome
+        ├── a [Borrow ← presence guard]
+        └── b [Local]
+== programs/check_fail/managed_refs/guard_borrow_field.bork
+Type Error [134..138] borrowed references cannot be stored in class fields
+Arenas
+├── fun replace
+│   └── owner [Borrow ← call site]
+└── fun main
+    ├── fallback [Local]
+    ├── owner [Local]
+    ├── box [Local]
+    ├── overwrite [Local]
+    ├── overwrite2 [Local]
+    ├── Block
+    │   ├── old [Local]
+    │   └── owner [Shared ← fun main]
+    ├── IfValSome
+    │   ├── a [Borrow ← presence guard]
+    │   ├── b [Borrow ← presence guard]
+    │   └── owner [Shared ← fun main]
+    └── IfValNone
+        └── fallback [Shared ← fun main]
+== programs/check_fail/methods/assign_this.bork
+Ownership Error [92..97] cannot bind a borrow view to `var`; use `val` for `other`
+Type Error [85..89] cannot assign to `this`
+Arenas
+├── fun main
+└── fun P.f
+    ├── this [Borrow ← call site]
+    └── other [Borrow ← call site]
+== programs/check_fail/methods/borrow_bare_field.bork
+Type Error [175..180] cannot borrow field `inner`: `&` borrows a name; bind the field to a `val` first
+Arenas
+├── fun look
+│   └── i [Borrow ← call site]
+├── fun main
+└── fun P.c
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/duplicate_method.bork
+Type Error [76..77] duplicate method `f` in class `P`
+Arenas
+├── fun main
+├── fun P.f
+│   └── this [Borrow ← call site]
+└── fun P.f
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/method_field_clash.bork
+Type Error [78..79] class `P` already has a field named `x`
+Arenas
+├── fun main
+└── fun P.x
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/move_this.bork
+Ownership Error [100..104] cannot move `this`: it is a borrow, not an owner
+Type Error [100..104] cannot move `this`; it is a borrow
+Arenas
+├── fun main
+└── fun P.f
+    ├── this [Borrow ← call site]
+    └── q [Local]
+== programs/check_fail/methods/nullable_receiver.bork
+Type Error [90..93] method call on a nullable receiver
+Arenas
+├── fun g
+│   └── p [Local]
+├── fun main
+└── fun P.f
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/ref_receiver.bork
+Type Error [133..136] method call on managed Ref requires `if val` or `when`
+Arenas
+├── fun main
+│   └── r [Local]
+└── fun P.f
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/temporary_receiver.bork
+Type Error [146..152] method receiver must be a named value; bind it to a `val` first
+Arenas
+├── fun main
+└── fun P.f
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/this_outside_method.bork
+Type Error [85..89] `this` is only available inside a class method
+Arenas
+└── fun main
+== programs/check_fail/methods/unknown_method.bork
+Type Error [97..100] class `P` has no method `g`
+Arenas
+├── fun main
+│   └── p [Local]
+└── fun P.f
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/use_after_move_receiver.bork
+Ownership Error [168..169] use of `p` after move from fun main
+Arenas
+├── fun main
+│   ├── p [Moved ← fun main]
+│   └── q [Local]
+└── fun P.get
+    └── this [Borrow ← call site]
+== programs/check_fail/methods/wrong_arg_count.bork
+Type Error [117..120] function `P.f` expects 1 arguments, got 0
+Arenas
+├── fun main
+│   └── p [Local]
+└── fun P.f
+    ├── this [Borrow ← call site]
+    └── a [Local]
+== programs/check_fail/move_and_promote/move_without_keyword.bork
+Ownership Error [88..89] use `move s` to pass ownership
+Arenas
+├── fun take
+│   └── s [Local]
+└── fun main
+    └── s [Local]
+== programs/check_fail/vec/class_element.bork
+Type Error [89..100] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
+Arenas
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/count_of_non_ref.bork
+Type Error [97..98] `strongCount` expects a `Ref<T>`, got i32
+Arenas
+└── fun main
+    └── n [Local]
+== programs/check_fail/vec/push_on_val.bork
+Type Error [96..102] cannot mutate immutable `val` binding `v`
+Arenas
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/push_through_val_field.bork
+Type Error [150..162] cannot mutate immutable `val` binding `h` (through a field)
+Arenas
+└── fun main
+    └── h [Local]
