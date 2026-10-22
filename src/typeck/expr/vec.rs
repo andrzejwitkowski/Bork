@@ -30,7 +30,7 @@ pub(super) fn check_vec_new(
     };
     let i32_ty = env.tcx.i32();
     let cap = cap.map(|cap| {
-        let cap = check(cap, Some(i32_ty), return_ty, env);
+        let cap = check(cap, i32_ty, return_ty, env);
         if !env.tcx.is_unknown(cap.ty) && cap.ty != i32_ty {
             env.error(
                 format!("`Vec` capacity must be `i32`, got {}", env.show(cap.ty)),
@@ -92,17 +92,8 @@ pub(super) fn check_vec_method(
         .iter()
         .zip(&params)
         .map(|(arg, &param)| {
-            let arg = check(arg, Some(param), return_ty, env);
-            if !env.tcx.is_unknown(arg.ty) && arg.ty != param {
-                env.error(
-                    format!(
-                        "`Vec.{method}` argument has type {}, expected {}",
-                        env.show(arg.ty),
-                        env.show(param)
-                    ),
-                    arg.span.or(Some(span)),
-                );
-            }
+            let arg = check(arg, param, return_ty, env);
+            env.mismatch(&format!("`Vec.{method}` argument"), arg.ty, param, arg.span.or(Some(span)));
             arg.hir
         })
         .collect();

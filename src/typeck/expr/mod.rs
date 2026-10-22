@@ -1,4 +1,14 @@
-//! Expression type checking.
+//! Expression type checking, bidirectional.
+//!
+//! Mode per `Expr` kind (RFC 0001 §5):
+//! - **check** (uses the expected type): `Int`, `Float`, `ArrayLit`, `None`, `Some`, `If`/`IfVal`
+//!   branches, `&` borrow, `!!`, `?:`, arithmetic `Binary`, call/constructor/`Vec` arguments, and a
+//!   managed `Ref<T>` target (wraps `T` in `RefCreate`).
+//! - **synthesize**: `Bool`, `Str`, `Index`, `Slice`, `VecNew`, `Ident`, `Move`, `Promote`,
+//!   `Field`, `Call`, `!`, other `Binary`.
+//!
+//! Mode switch: a synthesized expression met with an expected type is compared by the caller
+//! with `Env::mismatch`, the one place that words a type mismatch.
 
 pub(super) mod array;
 mod binary;
@@ -24,9 +34,21 @@ use call::check_call;
 use control::{check_if, check_presence};
 use field::check_field;
 
-/// Check always yields an expression: a failed check is reported once and
+/// Synthesize: the type comes from the expression alone.
+pub(super) fn synthesize(expr: &Expr, return_ty: TyId, env: &mut Env<'_>) -> Checked {
+    dispatch(expr, None, return_ty, env)
+}
+
+/// Check: push `expected` into the expression. Callers report a remaining mismatch with
+/// `Env::mismatch` (synthesize-then-subsume), so there is a single message format.
+pub(super) fn check(expr: &Expr, expected: TyId, return_ty: TyId, env: &mut Env<'_>) -> Checked {
+    dispatch(expr, Some(expected), return_ty, env)
+}
+
+/// Shared body of `synthesize` and `check`; `expected` is only a hint when `None`.
+/// Always yields an expression: a failed check is reported once and
 /// poisoned with the error type, which suppresses follow-on mismatches.
-pub(super) fn check(
+pub(super) fn dispatch(
     expr: &Expr,
     expected: Option<TyId>,
     return_ty: TyId,
@@ -103,7 +125,7 @@ pub(super) fn check(
             let expected_inner = expected
                 .filter(|&ty| env.tcx.is_nullable(ty))
                 .map(|ty| env.tcx.with_nullable(ty, false));
-            let inner = check(inner, expected_inner, return_ty, env);
+            let inner = dispatch(inner, expected_inner, return_ty, env);
             let ty = if env.tcx.supports_nullable(inner.ty) {
                 env.tcx.with_nullable(inner.ty, true)
             } else {
@@ -130,7 +152,7 @@ pub(super) fn check(
             span,
         } => {
             let bool_ty = env.tcx.bool();
-            let operand = check(expr, Some(bool_ty), return_ty, env);
+            let operand = check(expr, bool_ty, return_ty, env);
             if !env.tcx.is_unknown(operand.ty) && operand.ty != bool_ty {
                 env.error(
                     format!("operand of `!` must have type bool, got {}", env.show(operand.ty)),
@@ -154,7 +176,7 @@ pub(super) fn check(
             let expected_operand = expected
                 .filter(|&ty| env.tcx.supports_nullable(ty))
                 .map(|ty| env.tcx.with_nullable(ty, true));
-            let operand = check(expr, expected_operand, return_ty, env);
+            let operand = dispatch(expr, expected_operand, return_ty, env);
             let result_ty = if env.tcx.is_nullable(operand.ty) {
                 env.tcx.with_nullable(operand.ty, false)
             } else {
@@ -295,8 +317,8 @@ fn check_managed_ref(
 
     let expected_inner = env.tcx.managed_ref_inner(expected);
     let source = match expr {
-        Expr::Some { expr, .. } => check(expr, expected_inner, return_ty, env),
-        other => check(other, None, return_ty, env),
+        Expr::Some { expr, .. } => dispatch(expr, expected_inner, return_ty, env),
+        other => synthesize(other, return_ty, env),
     };
     if source.ty == expected {
         return source;

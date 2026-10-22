@@ -72,7 +72,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: TyId, env: &mut Env<'_>) -> HirStmt 
         } => check_var_decl(*kind, name, *name_span, *id, ty.as_ref(), value, return_ty, env),
         Stmt::Assign { target, value } => assign::check(target, value, return_ty, env),
         Stmt::Return(value) => check_return(value.as_ref(), return_ty, env),
-        Stmt::Expr(value) => HirStmt::Expr(expr::check(value, None, return_ty, env).hir),
+        Stmt::Expr(value) => HirStmt::Expr(expr::synthesize(value, return_ty, env).hir),
         Stmt::For { name, iter, body } => check_for(&name.name, iter, body, return_ty, env),
         Stmt::While { cond, body } => check_while(cond, body, return_ty, env),
         Stmt::Break { span } => {
@@ -111,7 +111,7 @@ fn check_var_decl(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let declared_ty = ty.map(|ty| env.lower(ty, Some(name_span)));
-    let value = expr::check(value, declared_ty, return_ty, env);
+    let value = expr::dispatch(value, declared_ty, return_ty, env);
     // Bind whatever type we can settle on, even after a bad initializer,
     // so later uses of `name` are not reported as unknown bindings.
     let declared_ty = declared_ty.unwrap_or(value.ty);
@@ -121,16 +121,7 @@ fn check_var_decl(
             Some(name_span),
         );
     }
-    if !env.tcx.is_unknown(value.ty) && !env.tcx.is_unknown(declared_ty) && declared_ty != value.ty {
-        env.error(
-            format!(
-                "initializer for `{name}` has type {}, expected {}",
-                env.show(value.ty),
-                env.show(declared_ty)
-            ),
-            Some(name_span),
-        );
-    }
+    env.mismatch(&format!("initializer for `{name}`"), value.ty, declared_ty, Some(name_span));
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
@@ -150,31 +141,13 @@ fn check_return(
 ) -> HirStmt {
     let checked = match value {
         Some(value) => {
-            let value = expr::check(value, Some(return_ty), return_ty, env);
-            if !env.tcx.is_unknown(value.ty) && value.ty != return_ty {
-                env.error(
-                    format!(
-                        "return value has type {}, expected {}",
-                        env.show(value.ty),
-                        env.show(return_ty)
-                    ),
-                    value.span,
-                );
-            }
+            let value = expr::check(value, return_ty, return_ty, env);
+            env.mismatch("return value", value.ty, return_ty, value.span);
             Some(value.hir)
         }
         None => {
             let unit = env.tcx.unit();
-            if unit != return_ty {
-                env.error(
-                    format!(
-                        "empty return has type {}, expected {}",
-                        env.show(unit),
-                        env.show(return_ty)
-                    ),
-                    None,
-                );
-            }
+            env.mismatch("empty return", unit, return_ty, None);
             None
         }
     };
@@ -188,7 +161,7 @@ fn check_for(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let iter = expr::check(iter, None, return_ty, env);
+    let iter = expr::synthesize(iter, return_ty, env);
     let elem = match env.tcx.range_elem(iter.ty) {
         Some(elem) => Some(elem),
         None => {
@@ -227,13 +200,8 @@ fn check_while(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let bool_ty = env.tcx.bool();
-    let cond = expr::check(cond, Some(bool_ty), return_ty, env);
-    if !env.tcx.is_unknown(cond.ty) && cond.ty != bool_ty {
-        env.error(
-            format!("while condition has type {}, expected bool", env.show(cond.ty)),
-            cond.span,
-        );
-    }
+    let cond = expr::check(cond, bool_ty, return_ty, env);
+    env.mismatch("while condition", cond.ty, bool_ty, cond.span);
     env.loop_depth += 1;
     let body = check_block(body, return_ty, env, true);
     env.loop_depth -= 1;

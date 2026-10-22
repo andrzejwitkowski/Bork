@@ -4,7 +4,7 @@ use crate::span::Span;
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
-use super::check;
+use super::{check, dispatch, synthesize};
 
 fn const_i32(expr: &HirExpr) -> Option<i32> {
     match &expr.kind {
@@ -39,7 +39,7 @@ pub(super) fn check_array_lit(
     let mut inferred = elem_hint;
     let mut checked = Vec::with_capacity(elements.len());
     for element in elements {
-        let hir = check(element, inferred, return_ty, env);
+        let hir = dispatch(element, inferred, return_ty, env);
         if env.tcx.is_unknown(hir.ty) {
             checked.push(hir);
             continue;
@@ -106,9 +106,9 @@ pub(super) fn check_index(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let receiver_hir = check(receiver, None, return_ty, env);
+    let receiver_hir = synthesize(receiver, return_ty, env);
     let i32_ty = env.tcx.i32();
-    let index_hir = check(index, Some(i32_ty), return_ty, env);
+    let index_hir = check(index, i32_ty, return_ty, env);
     let elem_ty = if env.tcx.is_text(receiver_hir.ty) {
         env.tcx.prim(crate::hir::Prim::U8)
     } else if let Some(elem) = env
@@ -158,10 +158,10 @@ pub(super) fn check_slice(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let receiver = check(receiver, None, return_ty, env);
+    let receiver = synthesize(receiver, return_ty, env);
     let i32_ty = env.tcx.i32();
-    let lo = check(lo, Some(i32_ty), return_ty, env);
-    let hi = check(hi, Some(i32_ty), return_ty, env);
+    let lo = check(lo, i32_ty, return_ty, env);
+    let hi = check(hi, i32_ty, return_ty, env);
     if !env.tcx.is_array(receiver.ty) && !env.tcx.is_unknown(receiver.ty) {
         env.error(
             format!("slicing requires an array type, got {}", env.show(receiver.ty)),

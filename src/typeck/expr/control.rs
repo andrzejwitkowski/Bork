@@ -8,7 +8,7 @@ use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
 use super::super::stmt;
-use super::check;
+use super::{check, dispatch, synthesize};
 
 pub(super) fn check_if(
     cond: &Expr,
@@ -19,29 +19,15 @@ pub(super) fn check_if(
     env: &mut Env<'_>,
 ) -> Checked {
     let bool_ty = env.tcx.bool();
-    let cond = check(cond, Some(bool_ty), return_ty, env);
-    if !env.tcx.is_unknown(cond.ty) && cond.ty != bool_ty {
-        env.error(
-            format!("if condition has type {}, expected bool", env.show(cond.ty)),
-            cond.span,
-        );
-    }
+    let cond = check(cond, bool_ty, return_ty, env);
+    env.mismatch("if condition", cond.ty, bool_ty, cond.span);
     let (then_block, then_ty) = check_value_block(then_block, expected, return_ty, env);
     let else_block = else_block.map(|block| check_value_block(block, expected, return_ty, env));
 
     let result_ty = match (&else_block, expected) {
         (Some((_, else_ty)), _) if *else_ty == then_ty => then_ty,
         (Some((_, else_ty)), Some(_)) => {
-            if !env.tcx.is_unknown(*else_ty) && !env.tcx.is_unknown(then_ty) {
-                env.error(
-                    format!(
-                        "else branch has type {}, expected {}",
-                        env.show(*else_ty),
-                        env.show(then_ty)
-                    ),
-                    None,
-                );
-            }
+            env.mismatch("else branch", *else_ty, then_ty, None);
             then_ty
         }
         (Some(_), None) => env.tcx.unit(),
@@ -90,16 +76,7 @@ pub(super) fn check_presence(
     let result_ty = match (&none_block, expected) {
         (Some((_, none_ty)), _) if *none_ty == some_ty => some_ty,
         (Some((_, none_ty)), Some(_)) => {
-            if !env.tcx.is_unknown(*none_ty) && !env.tcx.is_unknown(some_ty) {
-                env.error(
-                    format!(
-                        "None branch has type {}, expected {}",
-                        env.show(*none_ty),
-                        env.show(some_ty)
-                    ),
-                    Some(binding_span),
-                );
-            }
+            env.mismatch("None branch", *none_ty, some_ty, Some(binding_span));
             some_ty
         }
         (Some(_), None) => env.tcx.unit(),
@@ -139,7 +116,7 @@ fn check_conditional_binding(
             Some(binding.name.span),
         );
     }
-    let value = check(&binding.value, None, return_ty, env);
+    let value = synthesize(&binding.value, return_ty, env);
     let binding_ty = match env.tcx.managed_ref_inner(value.ty) {
         Some(target) => env.tcx.ref_to(target),
         None => {
@@ -195,7 +172,7 @@ pub(super) fn check_value_block_in_current_scope(
         .collect::<Vec<_>>();
     let result_ty = match last {
         Stmt::Expr(value) => {
-            let value = check(value, expected, return_ty, env);
+            let value = dispatch(value, expected, return_ty, env);
             let ty = value.ty;
             stmts.push(HirStmt::Expr(value.hir));
             ty
