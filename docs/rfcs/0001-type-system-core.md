@@ -136,6 +136,12 @@ constants) is **explicit**. There is no inference across item boundaries.
 naturally to generics via local inference variables (#38, #39). Explicit item signatures keep
 checking modular and make incremental/LSP re-checking cheap.
 
+**Implementation (#38).** `src/infer` holds `InferCtxt`: union-find over `TyData::Infer` variables of kind
+General / Int / Float (literals), `unify` (Array, Func, Ref, ManagedRef, Vec, Range, Nullable; `Error` absorbs),
+an occurs check, snapshots with `rollback_to`/`commit`, and `resolve_shallow`/`resolve`. A failed `unify` leaves
+the context unchanged. Failures are a structured `TypeError` (mismatch, occurs, arity, kind, nested nullable)
+that callers turn into spanned diagnostics. It is not called by typeck yet (#39, #40).
+
 **Rejected.**
 - Whole-program Hindley-Milner: non-local errors, defeats modular checking.
 - Inferring return types of items: makes signatures depend on bodies, breaks recursion and forward use.
