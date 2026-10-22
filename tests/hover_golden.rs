@@ -47,7 +47,7 @@ fn render() -> String {
             let position = byte_offset_to_position(&source, offset);
             if let Some(text) = hover(&analysis, &source, position) {
                 hits += 1;
-                fnv(&mut hash, &offset.to_le_bytes());
+                fnv(&mut hash, &(offset as u64).to_le_bytes()); // fixed width: same hash on 32-bit
                 fnv(&mut hash, text.as_bytes());
             }
         }

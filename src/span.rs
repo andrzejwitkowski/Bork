@@ -21,9 +21,11 @@ pub struct AstId(pub u32);
 impl AstId {
     pub const DUMMY: AstId = AstId(u32::MAX);
 
-    /// A fact keyed by an unnumbered node would collide with every other one.
+    /// A fact keyed by an unnumbered node would silently collide with every other one, so this
+    /// panics (in release too). `typeck::check` and `sema::analyze` need a numbered AST: use
+    /// `parse`, or call [`crate::ast_number::number_nodes`] on a hand-built `Program`.
     pub fn numbered(self) -> AstId {
-        debug_assert!(self != AstId::DUMMY, "fact recorded for an unnumbered AST node");
+        assert!(self != AstId::DUMMY, "fact recorded for an unnumbered AST node; run ast_number::number_nodes");
         self
     }
 }
@@ -42,5 +44,21 @@ impl SpannedName {
             span,
             id: AstId::DUMMY,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AstId;
+
+    #[test]
+    #[should_panic(expected = "unnumbered AST node")]
+    fn dummy_id_cannot_key_a_fact() {
+        AstId::DUMMY.numbered();
+    }
+
+    #[test]
+    fn numbered_id_passes_through() {
+        assert_eq!(AstId(3).numbered(), AstId(3));
     }
 }
