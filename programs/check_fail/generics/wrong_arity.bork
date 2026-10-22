@@ -1,0 +1,6 @@
+// diag: `Box` expects 1 type argument, got 2
+class Box<T> {
+    v: T
+}
+fun f(x: Box<i32, i32>) {}
+fun main() {}

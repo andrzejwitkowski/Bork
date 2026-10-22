@@ -1,5 +1,6 @@
 mod env;
 mod expr;
+mod generics;
 mod lower;
 mod stmt;
 
@@ -55,7 +56,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
         diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
     }
 
-    reject_generics(program, &mut diagnostics);
+    generics::validate(program, &defs, &mut diagnostics);
     let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
     validate_owned_layouts(&classes, &tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
@@ -101,6 +102,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
         .filter_map(|class| classes.get(&defs.lookup_class(&class.name)?))
         .map(|class| HirClass {
             name: class.name.clone(),
+            generics: class.generics.clone(),
             fields: class
                 .fields
                 .iter()
@@ -142,6 +144,7 @@ fn build_classes(
             name: class.name.clone(),
             fields: Vec::new(),
             methods: HashMap::new(),
+            generics: generics::names(&class.generics, &[]),
         });
     }
     let mut filled = HashSet::new();
@@ -151,6 +154,7 @@ fn build_classes(
             continue;
         }
         let mut field_names = HashSet::new();
+        let scope = generics::scope(&class.generics, &[]);
         let fields = class
             .fields
             .iter()
@@ -173,7 +177,7 @@ fn build_classes(
                 }
                 ClassFieldInfo {
                     name: field.name.name.clone(),
-                    ty: lower_type(&field.ty, defs, tcx, diagnostics, Some(field.name.span)),
+                    ty: lower_type(&field.ty, defs, &scope, tcx, diagnostics, Some(field.name.span)),
                     span: field.name.span,
                 }
             })
@@ -197,15 +201,18 @@ fn collect_fun_sigs(
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
     {
+        let scope = generics::scope(&[], &function.generics);
         let params = function
             .params
             .iter()
-            .map(|param| lower_type(&param.ty, defs, tcx, diagnostics, Some(param.name.span)))
+            .map(|param| lower_type(&param.ty, defs, &scope, tcx, diagnostics, Some(param.name.span)))
             .collect();
-        let ret = lower_type(&function.return_type, defs, tcx, diagnostics, Some(function.name_span));
+        let ret = lower_type(&function.return_type, defs, &scope, tcx, diagnostics, Some(function.name_span));
         // Redeclared names share one id; the last declaration wins.
         let id = defs.lookup_fn(&function.name).expect("every function is registered");
-        fun_sigs.insert(id, FnSig::new(params, ret));
+        let mut sig = FnSig::new(params, ret);
+        sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
+        fun_sigs.insert(id, sig);
     }
     for (name, sig) in crate::builtins::signatures(tcx) {
         let id = defs.lookup_intrinsic(name).expect("every builtin is registered");
@@ -237,12 +244,13 @@ fn collect_method_sigs(
             if fun_sigs.contains_key(&key) {
                 continue;
             }
+            let scope = generics::scope(&class.generics, &method.generics);
             let params: Vec<TyId> = method
                 .params
                 .iter()
-                .map(|param| lower_type(&param.ty, defs, tcx, diagnostics, Some(param.name.span)))
+                .map(|param| lower_type(&param.ty, defs, &scope, tcx, diagnostics, Some(param.name.span)))
                 .collect();
-            let return_ty = lower_type(&method.return_type, defs, tcx, diagnostics, Some(method.name_span));
+            let return_ty = lower_type(&method.return_type, defs, &scope, tcx, diagnostics, Some(method.name_span));
             let shown_params: Vec<String> = method
                 .params
                 .iter()
@@ -258,7 +266,9 @@ fn collect_method_sigs(
             );
             let class_ty = tcx.class(owner);
             let this_ty = tcx.ref_to(class_ty);
-            fun_sigs.insert(key, FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty));
+            let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty);
+            sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
+            fun_sigs.insert(key, sig);
             if let Some(info) = classes.get_mut(&owner) {
                 info.methods.insert(key, signature.clone());
             }
@@ -300,6 +310,40 @@ fn check_function(
         Some(class) => format!("{}.{}", defs.get(class).name, function.name),
         None => function.name.clone(),
     };
+    let generics: Vec<String> = owner
+        .and_then(|class| classes.get(&class))
+        .map_or(&[][..], |class| &class.generics[..])
+        .iter()
+        .cloned()
+        .chain(function.generics.iter().map(|param| param.name.name.clone()))
+        .collect();
+    if !generics.is_empty() {
+        // Bodies see `Param` types only once #44 can check them; HIR keeps the declaration.
+        diagnostics.push(Diagnostic {
+            phase: Phase::Type,
+            severity: Severity::Error,
+            message: format!("the body of generic `{name}` is not checked yet; generic items are declaration-only"),
+            span: Some(function.name_span),
+        });
+        let mut tys = signature.params.into_iter();
+        let mut params = Vec::new();
+        if owner.is_some() {
+            params.push(HirParam { kind: crate::ast::BindingKind::Val, name: "this".to_string(), ty: tys.next().expect("methods have `this`") });
+        }
+        params.extend(function.params.iter().zip(tys).map(|(param, ty)| HirParam {
+            kind: param.kind,
+            name: param.name.name.clone(),
+            ty,
+        }));
+        return HirFunction {
+            name,
+            generics,
+            name_span: function.name_span,
+            params,
+            return_ty: signature.ret,
+            body: Default::default(),
+        };
+    }
     let mut env = Env::new(defs, tcx, fun_sigs, classes, constants);
     env.self_class = owner;
     let mut param_tys = signature.params;
@@ -339,6 +383,7 @@ fn check_function(
     members.extend(std::mem::take(&mut env.members));
     HirFunction {
         name,
+        generics,
         name_span: function.name_span,
         params,
         return_ty,
@@ -440,26 +485,4 @@ fn has_infer(tcx: &TyCtx, ty: TyId) -> bool {
     let mut find = Find(false);
     crate::ty::TypeVisitor::visit(&mut find, tcx, ty);
     find.0
-}
-
-/// Generic declarations parse (#42) but are not checked yet.
-fn reject_generics(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
-    let methods = program.classes.iter().flat_map(|class| class.methods.iter());
-    let generics = program
-        .functions
-        .iter()
-        .chain(methods)
-        .flat_map(|function| &function.generics)
-        .chain(program.classes.iter().flat_map(|class| &class.generics));
-    for param in generics {
-        diagnostics.push(Diagnostic {
-            phase: Phase::Type,
-            severity: Severity::Error,
-            message: format!(
-                "generic parameter `{}` is not supported yet; remove the `<..>` list",
-                param.name.name
-            ),
-            span: Some(param.name.span),
-        });
-    }
 }

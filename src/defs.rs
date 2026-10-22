@@ -48,6 +48,8 @@ pub struct Def {
     /// The class of a method.
     pub owner: Option<DefId>,
     clashes: Vec<Clash>,
+    /// Number of type parameters (classes only).
+    pub arity: usize,
     /// Where this definition's clash diagnostics point (the AST has no class name span).
     span: Option<Span>,
 }
@@ -111,6 +113,7 @@ impl DefTable {
                 clashes.push(Clash::ClassFn);
             }
             table.defs[id.0 as usize].clashes = clashes;
+            table.defs[id.0 as usize].arity = class.generics.len();
             table.class_ids.push(id);
         }
 
@@ -156,7 +159,7 @@ impl DefTable {
 
     fn add(&mut self, kind: DefKind, name: &str, owner: Option<DefId>, span: Option<Span>) -> DefId {
         let id = DefId(self.defs.len() as u32);
-        self.defs.push(Def { id, kind, name: name.to_string(), owner, clashes: Vec::new(), span });
+        self.defs.push(Def { id, kind, name: name.to_string(), owner, clashes: Vec::new(), arity: 0, span });
         id
     }
 

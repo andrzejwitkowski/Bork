@@ -5,11 +5,15 @@ use crate::defs::DefTable;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::Prim;
 use crate::span::Span;
-use crate::ty::{TyCtx, TyData, TyId};
+use crate::ty::{ParamIdx, TyCtx, TyData, TyId};
+
+/// Type parameters visible to a declaration, in index order.
+pub(crate) type Scope = [(String, ParamIdx)];
 
 pub(crate) fn lower_type(
     ty: &Type,
     defs: &DefTable,
+    scope: &Scope,
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
@@ -20,29 +24,16 @@ pub(crate) fn lower_type(
             tcx.error()
         }
         Type::Array { elem, len, .. } => {
-            let elem = lower_type(elem, defs, tcx, diagnostics, span);
+            let elem = lower_type(elem, defs, scope, tcx, diagnostics, span);
             tcx.array(elem, *len)
         }
-        Type::Named { name, args, .. } if !args.is_empty() => {
-            push_err(
-                diagnostics,
-                format!("type arguments on `{name}` are not supported yet; use `{name}` without `<..>`"),
-                span,
-            );
-            tcx.error()
-        }
-        Type::Named { name, nullable, .. } if name == "String" => tcx.string(*nullable),
-        Type::Named { name, nullable, .. } if defs.lookup_class(name).is_some() => {
-            let class = tcx.class(defs.lookup_class(name).expect("checked by the guard"));
-            tcx.with_nullable(class, *nullable)
-        }
-        Type::Named { name, .. } => {
-            push_err(diagnostics, format!("unknown named type `{name}`"), span);
-            tcx.error()
+        Type::Named { name, args, nullable } => {
+            lower_named(name, args, *nullable, defs, scope, tcx, diagnostics, span)
         }
         Type::ManagedRef { inner } => {
-            let inner_ty = lower_type(inner, defs, tcx, diagnostics, span);
-            let is_class = matches!(tcx.data(inner_ty), TyData::Class(_));
+            let inner_ty = lower_type(inner, defs, scope, tcx, diagnostics, span);
+            // A parameter may turn out to be a class; checked at instantiation.
+            let is_class = matches!(tcx.data(inner_ty), TyData::Class(_) | TyData::Param(_));
             if !tcx.is_unknown(inner_ty) && !is_class {
                 push_err(
                     diagnostics,
@@ -60,8 +51,10 @@ pub(crate) fn lower_type(
             tcx.managed_ref(inner_ty)
         }
         Type::Vec { elem } => {
-            let elem_ty = lower_type(elem, defs, tcx, diagnostics, span);
-            if !tcx.is_unknown(elem_ty) && !tcx.is_array_elem_supported(elem_ty) {
+            let elem_ty = lower_type(elem, defs, scope, tcx, diagnostics, span);
+            if !tcx.is_unknown(elem_ty) && !tcx.is_array_elem_supported(elem_ty)
+                && !matches!(tcx.data(elem_ty), TyData::Param(_))
+            {
                 push_err(
                     diagnostics,
                     format!(
@@ -80,13 +73,13 @@ pub(crate) fn lower_type(
         } => {
             let params = params
                 .iter()
-                .map(|param| lower_type(param, defs, tcx, diagnostics, span))
+                .map(|param| lower_type(param, defs, scope, tcx, diagnostics, span))
                 .collect();
-            let ret = lower_type(ret, defs, tcx, diagnostics, span);
+            let ret = lower_type(ret, defs, scope, tcx, diagnostics, span);
             let func = tcx.func(params, ret);
             tcx.with_nullable(func, *nullable)
         }
-        Type::Ref { inner, nullable } => lower_ref(inner, *nullable, defs, tcx, diagnostics, span),
+        Type::Ref { inner, nullable } => lower_ref(inner, *nullable, defs, scope, tcx, diagnostics, span),
         Type::Primitive { name, nullable } => match Prim::from_name(name) {
             Some(prim) => {
                 let ty = tcx.prim(prim);
@@ -97,10 +90,63 @@ pub(crate) fn lower_type(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn lower_named(
+    name: &str,
+    args: &[Type],
+    nullable: bool,
+    defs: &DefTable,
+    scope: &Scope,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+    span: Option<Span>,
+) -> TyId {
+    if let Some(&(_, idx)) = scope.iter().find(|(param, _)| param == name) {
+        if !args.is_empty() {
+            push_err(diagnostics, format!("type parameter `{name}` takes no type arguments"), span);
+            return tcx.error();
+        }
+        let param = tcx.param(idx);
+        return tcx.with_nullable(param, nullable);
+    }
+    // Lowered for their own errors (unknown names); instantiation itself is #44.
+    for arg in args {
+        lower_type(arg, defs, scope, tcx, diagnostics, span);
+    }
+    if name == "String" {
+        if !args.is_empty() {
+            push_err(diagnostics, "`String` takes no type arguments", span);
+            return tcx.error();
+        }
+        return tcx.string(nullable);
+    }
+    let Some(class) = defs.lookup_class(name) else {
+        push_err(diagnostics, format!("unknown named type `{name}`"), span);
+        return tcx.error();
+    };
+    let arity = defs.get(class).arity;
+    if args.len() != arity {
+        let message = match arity {
+            0 => format!("`{name}` takes no type arguments"),
+            1 => format!("`{name}` expects 1 type argument, got {}", args.len()),
+            _ => format!("`{name}` expects {arity} type arguments, got {}", args.len()),
+        };
+        push_err(diagnostics, message, span);
+        return tcx.error();
+    }
+    if arity > 0 {
+        push_err(diagnostics, "instantiating generic types is not supported yet (#44)", span);
+        return tcx.error();
+    }
+    let class = tcx.class(class);
+    tcx.with_nullable(class, nullable)
+}
+
 fn lower_ref(
     inner: &Type,
     nullable: bool,
     defs: &DefTable,
+    scope: &Scope,
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
@@ -112,7 +158,7 @@ fn lower_ref(
             span,
         );
     }
-    let inner_ty = lower_type(inner, defs, tcx, diagnostics, span);
+    let inner_ty = lower_type(inner, defs, scope, tcx, diagnostics, span);
     if !tcx.is_unknown(inner_ty) && tcx.is_copy(inner_ty) {
         push_err(
             diagnostics,

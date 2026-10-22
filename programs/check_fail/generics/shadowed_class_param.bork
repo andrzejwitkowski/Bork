@@ -1,0 +1,6 @@
+// diag: shadows the class type parameter `T`
+class Box<T> {
+    v: T
+    fun m<T>(x: T) {}
+}
+fun main() {}
