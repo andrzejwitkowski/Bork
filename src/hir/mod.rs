@@ -56,6 +56,8 @@ pub struct HirProgram {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirClass {
     pub name: String,
+    /// Type parameter names; `TyData::Param(i)` in field types refers to `generics[i]`.
+    pub generics: Vec<String>,
     pub fields: Vec<HirClassField>,
 }
 
@@ -68,6 +70,8 @@ pub struct HirClassField {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirFunction {
     pub name: String,
+    /// Type parameter names, owner class first; `TyData::Param(i)` refers to `generics[i]`.
+    pub generics: Vec<String>,
     pub name_span: Span,
     pub params: Vec<HirParam>,
     pub return_ty: TyId,

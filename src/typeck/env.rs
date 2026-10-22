@@ -49,6 +49,8 @@ pub(super) struct ClassInfo {
     pub(super) fields: Vec<ClassFieldInfo>,
     /// Method definition -> display signature (`fun C.m(a: i32): i32`). Signatures are in `fun_sigs`.
     pub(super) methods: HashMap<DefId, String>,
+    /// Names of the class type parameters.
+    pub(super) generics: Vec<String>,
 }
 
 pub(super) type ClassTable = HashMap<DefId, ClassInfo>;
@@ -213,7 +215,7 @@ impl<'a> Env<'a> {
 
     /// Lowers a written type, reporting problems at `span`.
     pub(super) fn lower(&mut self, ty: &crate::ast::Type, span: Option<Span>) -> TyId {
-        super::lower_type(ty, self.defs, self.tcx, &mut self.diagnostics, span)
+        super::lower_type(ty, self.defs, &[], self.tcx, &mut self.diagnostics, span)
     }
 
     pub(super) fn enter_scope(&mut self) {

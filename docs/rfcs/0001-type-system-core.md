@@ -238,3 +238,5 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 **Implementation (#41).** Typeck asserts (debug) that no inference variable survives into HIR types. `None` without an annotation reports a fix hint. General variables for `None`/`[]` are deferred: only literal variables exist, and they always default, so the "unresolved variable" error cannot fire yet.
 
 **Implementation (#42).** Syntax only: `Function`/`Class` carry `generics`, `Type::Named` carries `args`, `Expr::Call` carries `type_args`. Expression-position arguments use turbofish (`::<`) to avoid the `a < b > (c)` ambiguity. Typeck reports generic syntax as unsupported.
+
+**Implementation (#43).** `lower_type` takes a type-parameter scope; `FnSig.generics`, `HirFunction.generics` and `HirClass.generics` hold parameter names (`Param(i)` indexes them, owner class first). Declarations are validated in `typeck/generics.rs`. Unused parameters are not reported. Generic bodies and instantiation are #44.

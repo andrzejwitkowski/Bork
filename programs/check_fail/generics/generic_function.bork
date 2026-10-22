@@ -1,4 +1,4 @@
-// diag: generic parameter `T` is not supported yet
+// diag: the body of generic `id` is not checked yet
 fun id<T>(x: T): T {
     return x
 }

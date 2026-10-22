@@ -1,0 +1,6 @@
+// diag: `Plain` takes no type arguments
+class Plain {
+    n: i32
+}
+fun f(x: Plain<i32>) {}
+fun main() {}

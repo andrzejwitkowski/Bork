@@ -135,7 +135,12 @@ programs/check_fail/conditionals/if_both_paths_move_then_use.bork: hits=35 hash=
 programs/check_fail/conditionals/if_one_path_move_then_use.bork: hits=20 hash=827eeb8ae1785bed
 programs/check_fail/constants/assign.bork: hits=1 hash=35354576bc4b80d7
 programs/check_fail/constants/range.bork: hits=0 hash=cbf29ce484222325
-programs/check_fail/generics/generic_function.bork: hits=2 hash=835306efea759223
+programs/check_fail/generics/duplicate_param.bork: hits=1 hash=bff2cadd23a850b2
+programs/check_fail/generics/generic_function.bork: hits=2 hash=1e710987508819d3
+programs/check_fail/generics/shadowed_class_param.bork: hits=2 hash=d32e1e199f73c3bb
+programs/check_fail/generics/type_args_on_non_generic.bork: hits=1 hash=24b3a4e249179b12
+programs/check_fail/generics/unknown_param.bork: hits=1 hash=74385c3ffc5486c8
+programs/check_fail/generics/wrong_arity.bork: hits=1 hash=19f81c5076eb4749
 programs/check_fail/inference/arith_mixed_literal_types.bork: hits=10 hash=820fdc0df021c5df
 programs/check_fail/inference/empty_array_without_annotation.bork: hits=1 hash=705dedf45e598b4e
 programs/check_fail/inference/float_literal_as_int.bork: hits=6 hash=35c1ecc941b67bdd

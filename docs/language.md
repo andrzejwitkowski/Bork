@@ -488,3 +488,5 @@ Division by zero, and signed division of the minimum value by `-1`, abort at run
 ## Generics (syntax only)
 
 `fun f<T>(x: T): T`, `class Box<T>`, type arguments `Box<i32>` and explicit call arguments `f::<i32>(x)` parse. Bare `Box<i32>(x)` in an expression is still a comparison; use `Box::<i32>(x)`. The checker rejects all of it for now ("not supported yet"). Do not add a `>>` token: nested `Vec<Vec<T>>` relies on its absence.
+
+Type parameters are scoped to their `fun`/`class` (a method sees its class's parameters first) and must not repeat, shadow a class parameter, or reuse a type name. Type-argument arity is checked (`Box<i32, i32>` on `class Box<T>` is an error). Generic items lower to HIR with `Param` types but stay declaration-only: their bodies and instantiations (`Box<i32>`) are not checked yet, so such programs are still rejected.
