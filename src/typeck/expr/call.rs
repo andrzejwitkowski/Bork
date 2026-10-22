@@ -97,11 +97,12 @@ pub(super) fn check_call(
     env: &mut Env<'_>,
 ) -> Checked {
     if !type_args.is_empty() && !is_generic_fn(callee, env) {
-        let (name, span) = match callee {
-            Expr::Ident { name, span, .. } => (name.as_str(), Some(*span)),
-            _ => ("callee", None),
-        };
-        env.error(format!("`{name}` is not generic; it takes no explicit type arguments"), span);
+        match callee {
+            Expr::Ident { name, span, .. } => {
+                env.error(format!("`{name}` is not generic; it takes no explicit type arguments"), Some(*span));
+            }
+            _ => env.error("only generic functions take explicit type arguments", None),
+        }
     }
     if let Expr::Field {
         receiver,
