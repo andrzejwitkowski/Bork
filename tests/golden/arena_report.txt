@@ -1575,6 +1575,14 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/generics/generic_function.bork
+Type Error [56..58] unknown named type `T`
+Type Error [59..60] generic parameter `T` is not supported yet; remove the `<..>` list
+Type Error [62..63] unknown named type `T`
+Arenas
+├── fun id
+│   └── x [Local]
+└── fun main
 == programs/check_fail/inference/arith_mixed_literal_types.bork
 Type Error [263..264] arithmetic operands must have the same numeric type, got u8 and i64
 Arenas

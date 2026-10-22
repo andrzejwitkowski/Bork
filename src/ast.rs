@@ -12,6 +12,7 @@ pub struct Program {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Class {
     pub name: String,
+    pub generics: Vec<TypeParam>,
     pub fields: Vec<ClassField>,
     pub methods: Vec<Function>,
 }
@@ -24,7 +25,7 @@ pub enum ClassMember {
 }
 
 impl Class {
-    pub fn from_members(name: String, members: Vec<ClassMember>) -> Self {
+    pub fn from_members(name: String, generics: Vec<TypeParam>, members: Vec<ClassMember>) -> Self {
         let mut fields = Vec::new();
         let mut methods = Vec::new();
         for member in members {
@@ -35,6 +36,7 @@ impl Class {
         }
         Self {
             name,
+            generics,
             fields,
             methods,
         }
@@ -89,9 +91,16 @@ pub struct Function {
     pub name: String,
     pub name_span: crate::span::Span,
     pub id: crate::span::AstId,
+    pub generics: Vec<TypeParam>,
     pub params: Vec<Param>,
     pub return_type: Type,
     pub body: Block,
+}
+
+/// `T` in `fun f<T>` / `class Box<T>`. Bounds are a later ticket.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeParam {
+    pub name: crate::span::SpannedName,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,6 +118,7 @@ pub enum Type {
     },
     Named {
         name: String,
+        args: Vec<Type>,
         nullable: bool,
     },
     Array {
@@ -146,6 +156,7 @@ impl Type {
             _ => {
                 return Type::Named {
                     name: name.to_string(),
+                    args: Vec::new(),
                     nullable,
                 };
             }
@@ -176,7 +187,7 @@ impl Type {
     pub fn with_nullable(self, nullable: bool) -> Self {
         match self {
             Type::Primitive { name, .. } => Type::Primitive { name, nullable },
-            Type::Named { name, .. } => Type::Named { name, nullable },
+            Type::Named { name, args, .. } => Type::Named { name, args, nullable },
             Type::Array { elem, len, .. } => Type::Array {
                 elem,
                 len,
@@ -226,7 +237,20 @@ impl Type {
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Primitive { name, .. } | Type::Named { name, .. } => f.write_str(name)?,
+            Type::Primitive { name, .. } => f.write_str(name)?,
+            Type::Named { name, args, .. } => {
+                f.write_str(name)?;
+                if !args.is_empty() {
+                    f.write_str("<")?;
+                    for (index, arg) in args.iter().enumerate() {
+                        if index > 0 {
+                            f.write_str(", ")?;
+                        }
+                        write!(f, "{arg}")?;
+                    }
+                    f.write_str(">")?;
+                }
+            }
             Type::Array { elem, len, .. } => write!(f, "[{elem}; {len}]")?,
             Type::Func { params, ret, .. } => {
                 f.write_str("(")?;
@@ -407,6 +431,8 @@ pub enum Expr {
     },
     Call {
         callee: Box<Expr>,
+        /// Explicit `f::<T>(..)` arguments; empty when omitted.
+        type_args: Vec<Type>,
         args: Vec<Expr>,
         trailing: Option<Closure>,
     },

@@ -1,0 +1,5 @@
+// diag: generic parameter `T` is not supported yet
+fun id<T>(x: T): T {
+    return x
+}
+fun main() {}

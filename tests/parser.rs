@@ -81,7 +81,7 @@ fun link(a: Node, b: Node) {
     assert!(matches!(
         &prog.classes[0].fields[1].ty,
         Type::ManagedRef { inner }
-            if matches!(inner.as_ref(), Type::Named { name, nullable: false } if name == "Node")
+            if matches!(inner.as_ref(), Type::Named { name, nullable: false, .. } if name == "Node")
     ));
     assert!(matches!(
         &prog.functions[0].body.stmts[0],
@@ -455,6 +455,7 @@ fn parses_process_user_sample() {
         f.params[0].ty,
         Type::Named {
             name: "String".into(),
+            args: vec![],
             nullable: true,
         }
     );
@@ -476,7 +477,7 @@ fn parses_process_user_sample() {
     assert!(matches!(
         &f.body.stmts[0],
         Stmt::VarDecl {
-            ty: Some(Type::Named { name, nullable: false }),
+            ty: Some(Type::Named { name, nullable: false, .. }),
             value: Expr::Binary {
                 op: BinOp::Elvis,
                 rhs,
@@ -492,7 +493,7 @@ fn parses_process_user_sample() {
     assert!(matches!(
         &inner.stmts[0],
         Stmt::VarDecl {
-            ty: Some(Type::Named { name, nullable: true }),
+            ty: Some(Type::Named { name, nullable: true, .. }),
             value: Expr::Some { .. },
             ..
         } if name == "String"
@@ -853,4 +854,72 @@ fn near_misses_of_reserved_words_are_identifiers() {
 fn const_requires_type_and_is_a_keyword() {
     assert!(parse("const PORT = 1\n").is_err());
     assert!(parse("fun main() { val const: i32 = 1 }").is_err());
+}
+
+fn ret_ty(src: &str) -> Type {
+    parse(src).expect("parses").functions[0].return_type.clone()
+}
+
+fn named(name: &str, args: Vec<Type>) -> Type {
+    Type::Named { name: name.into(), args, nullable: false }
+}
+
+#[test]
+fn generic_function_and_class_declarations() {
+    let p = parse("fun f<T>(x: T): T { return x }\nfun g<A, B>(a: A) {}\nclass Box<T> {\n    v: T\n    fun get(): T { return v }\n}\n").unwrap();
+    let names = |g: &[TypeParam]| g.iter().map(|t| t.name.name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&p.functions[0].generics), ["T"]);
+    assert_eq!(names(&p.functions[1].generics), ["A", "B"]);
+    assert_eq!(names(&p.classes[0].generics), ["T"]);
+    assert!(p.classes[0].methods[0].generics.is_empty());
+    assert_eq!(p.functions[0].return_type, named("T", vec![]));
+}
+
+#[test]
+fn type_arguments_in_type_position() {
+    assert_eq!(ret_ty("fun f(): Box<i32> {}"), named("Box", vec![Type::from_ident("i32", false)]));
+    assert_eq!(
+        ret_ty("fun f(): Pair<A, Box<B>>? {}"),
+        named("Pair", vec![named("A", vec![]), named("Box", vec![named("B", vec![])])]).with_nullable(true)
+    );
+}
+
+#[test]
+fn generic_types_round_trip_through_display() {
+    for text in ["Box<i32>", "Pair<A, Box<B>>", "Box<i32>?", "Box<[i32; 2]>", "Vec<Box<i32>>"] {
+        let ty = ret_ty(&format!("fun f(): {text} {{}}"));
+        assert_eq!(ty.to_string(), text);
+        assert_eq!(ret_ty(&format!("fun f(): {ty} {{}}")), ty);
+    }
+}
+
+#[test]
+fn turbofish_call_carries_type_arguments() {
+    let p = parse("fun main() {\n    f::<i32>(1)\n    Box::<i32>(2)\n}\n").unwrap();
+    for stmt in &p.functions[0].body.stmts {
+        assert!(matches!(stmt, Stmt::Expr(Expr::Call { type_args, args, .. }) if type_args.len() == 1 && args.len() == 1));
+    }
+}
+
+#[test]
+fn angle_brackets_in_expressions_stay_comparisons() {
+    for src in ["val x = a < b > (c)", "val x = f(a < b, c > (d))", "val x = Box<i32>(1)"] {
+        let p = parse(&format!("fun main() {{\n    {src}\n}}\n")).unwrap();
+        let text = format!("{:?}", p.functions[0].body.stmts[0]);
+        assert!(text.contains("Binary"), "{src}: {text}");
+        assert!(!text.contains("type_args: [Primitive") && !text.contains("type_args: [Named"), "{src}");
+    }
+}
+
+#[test]
+fn malformed_generic_lists_are_rejected() {
+    for src in ["fun f<>() {}", "fun f<T,>() {}", "fun f<Vec>() {}", "class C<> {\n}\n", "fun f(): Box<> {}", "fun main() { f::<>(1) }"] {
+        assert!(parse(src).is_err(), "{src}");
+    }
+}
+
+#[test]
+fn vec_and_ref_types_parse_as_before() {
+    assert_eq!(ret_ty("fun f(): Vec<Vec<i32>> {}").to_string(), "Vec<Vec<i32>>");
+    assert!(matches!(ret_ty("fun f(): Ref<Node> {}"), Type::ManagedRef { .. }));
 }

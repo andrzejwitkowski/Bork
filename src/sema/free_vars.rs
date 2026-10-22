@@ -122,6 +122,7 @@ fn collect_expr(
             callee,
             args,
             trailing,
+            ..
         } => {
             collect_expr(callee, free, bound);
             for a in args {

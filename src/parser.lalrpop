@@ -1,6 +1,6 @@
 use crate::ast::{
     unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, ClassField, ClassMember, Closure,
-    ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type,
+    ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type, TypeParam,
     UnaryOp,
 };
 use crate::span::{AstId, Span, SpannedName};
@@ -29,6 +29,7 @@ match {
     "None" => "None",
     "move" => "move",
     "promote" => "promote",
+    "::" => "::",
 } else {
     _
 }
@@ -83,7 +84,9 @@ ConstDecl: ConstDecl = {
 };
 
 ClassDecl: Class = {
-    "class" <name:Ident> "{" <members:ClassBody> "}" => Class::from_members(name, members),
+    "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
+        Class::from_members(name, generics.unwrap_or_default(), members)
+    },
 };
 
 ClassBody: Vec<ClassMember> = {
@@ -120,12 +123,21 @@ ClassFieldDecl: ClassField = {
     <name:SpannedIdent> ":" <ty:Type> => ClassField { name, ty },
 };
 
+TypeParams: Vec<TypeParam> = {
+    "<" <names:Comma<SpannedIdent>> ">" => names.into_iter().map(|name| TypeParam { name }).collect(),
+};
+
+TypeArgs: Vec<Type> = {
+    "<" <types:Comma<Type>> ">" => types,
+};
+
 Function: Function = {
-    "fun" <name:SpannedIdent> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <body:Block> => {
+    "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <body:Block> => {
         Function {
             name: name.name,
             name_span: name.span,
             id: AstId::DUMMY,
+            generics: generics.unwrap_or_default(),
             params: params.unwrap_or_default(),
             return_type: ret,
             body,
@@ -160,6 +172,7 @@ Type: Type = {
         nullable: q.is_some(),
     },
     <name:Ident> <q:"?"?> => Type::from_ident(&name, q.is_some()),
+    <name:Ident> <args:TypeArgs> <q:"?"?> => Type::Named { name, args, nullable: q.is_some() },
     "(" <ty:ParenType> => ty,
 };
 
@@ -402,6 +415,13 @@ MulOp: BinOp = {
 ExprSuffix: Expr = {
     <callee:ExprSuffix> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
         callee: Box::new(callee),
+        type_args: Vec::new(),
+        args: args.unwrap_or_default(),
+        trailing,
+    },
+    <callee:ExprSuffix> "::" <type_args:TypeArgs> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
+        callee: Box::new(callee),
+        type_args,
         args: args.unwrap_or_default(),
         trailing,
     },
