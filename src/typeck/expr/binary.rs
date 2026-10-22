@@ -45,7 +45,6 @@ pub(super) fn check_binary(
 
     let span = lhs.span.or(rhs.span);
     let (lhs_ty, rhs_ty) = (lhs.ty, rhs.ty);
-    // Literal variables on either side agree here; later uses see the settled type.
     let poisoned = env.tcx.is_unknown(lhs_ty) || env.tcx.is_unknown(rhs_ty);
     let (bool_ty, i32_ty) = (env.tcx.bool(), env.tcx.i32());
 

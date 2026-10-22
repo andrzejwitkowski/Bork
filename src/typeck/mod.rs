@@ -327,9 +327,7 @@ fn check_function(
     let mut body = body;
     let (infcx, tcx) = (&env.infcx, &mut *env.tcx);
     let mut settle = |ty: TyId| infcx.resolve(tcx, ty).unwrap_or(ty);
-    let mut resolved = HirFunction { name: String::new(), name_span: function.name_span, params: Vec::new(), return_ty, body };
-    crate::hir::resolve_types(&mut resolved, &mut settle);
-    body = resolved.body;
+    crate::hir::resolve_types(&mut body, &mut settle);
     env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
     diagnostics.append(&mut env.diagnostics);
     node_tys.extend(std::mem::take(&mut env.node_tys));

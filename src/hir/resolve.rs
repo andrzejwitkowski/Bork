@@ -1,11 +1,11 @@
 //! Rewrites every type in one function body, used to replace literal inference variables.
 
-use super::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt};
+use super::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirStmt};
 use crate::ty::TyId;
 
-/// Applies `f` to the type of every expression, declaration and presence binding in `function`.
-pub fn resolve_types(function: &mut HirFunction, f: &mut impl FnMut(TyId) -> TyId) {
-    block(&mut function.body, f);
+/// Applies `f` to the type of every expression, declaration and presence binding in `body`.
+pub fn resolve_types(body: &mut HirBlock, f: &mut impl FnMut(TyId) -> TyId) {
+    block(body, f);
 }
 
 fn block(b: &mut HirBlock, f: &mut impl FnMut(TyId) -> TyId) {
