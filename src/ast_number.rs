@@ -12,6 +12,7 @@ pub fn number_nodes(program: &mut Program) -> Vec<(Span, AstId)> {
         n.expr(&mut constant.value);
     }
     for class in &mut program.classes {
+        class.generics.iter_mut().for_each(|g| n.name(&mut g.name));
         class.fields.iter_mut().for_each(|f| n.name(&mut f.name));
         class.methods.iter_mut().for_each(|m| n.function(m));
     }
@@ -43,6 +44,7 @@ impl Numberer {
 
     fn function(&mut self, f: &mut crate::ast::Function) {
         f.id = self.fresh(f.name_span);
+        f.generics.iter_mut().for_each(|g| self.name(&mut g.name));
         f.params.iter_mut().for_each(|p| self.name(&mut p.name));
         self.block(&mut f.body);
     }
@@ -136,7 +138,7 @@ impl Numberer {
                 *id = self.fresh(*span);
                 self.expr(receiver);
             }
-            Expr::Call { callee, args, trailing } => {
+            Expr::Call { callee, args, trailing, .. } => {
                 self.expr(callee);
                 args.iter_mut().for_each(|a| self.expr(a));
                 trailing.iter_mut().for_each(|c| self.closure(c));

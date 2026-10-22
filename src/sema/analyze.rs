@@ -85,6 +85,7 @@ fn this_type(class: &str) -> Type {
     Type::Ref {
         inner: Box::new(Type::Named {
             name: class.to_string(),
+                args: Vec::new(),
             nullable: false,
         }),
         nullable: false,

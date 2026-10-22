@@ -89,6 +89,7 @@ fn constant_type(ty: &Type, span: Span, tcx: &mut TyCtx) -> Result<TyId, Diagnos
         Type::Named {
             name,
             nullable: false,
+            ..
         } if name == "String" => tcx.string(false),
         other => {
             return Err(error(

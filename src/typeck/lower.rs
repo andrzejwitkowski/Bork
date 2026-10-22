@@ -23,8 +23,16 @@ pub(crate) fn lower_type(
             let elem = lower_type(elem, defs, tcx, diagnostics, span);
             tcx.array(elem, *len)
         }
-        Type::Named { name, nullable } if name == "String" => tcx.string(*nullable),
-        Type::Named { name, nullable } if defs.lookup_class(name).is_some() => {
+        Type::Named { name, args, .. } if !args.is_empty() => {
+            push_err(
+                diagnostics,
+                format!("type arguments on `{name}` are not supported yet; use `{name}` without `<..>`"),
+                span,
+            );
+            tcx.error()
+        }
+        Type::Named { name, nullable, .. } if name == "String" => tcx.string(*nullable),
+        Type::Named { name, nullable, .. } if defs.lookup_class(name).is_some() => {
             let class = tcx.class(defs.lookup_class(name).expect("checked by the guard"));
             tcx.with_nullable(class, *nullable)
         }

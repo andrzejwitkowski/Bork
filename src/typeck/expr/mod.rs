@@ -213,9 +213,15 @@ pub(super) fn dispatch(
         } => check_field(receiver, name, *safe, *span, return_ty, env),
         Expr::Call {
             callee,
+            type_args,
             args,
             trailing,
-        } => check_call(callee, args, trailing.as_ref(), return_ty, env),
+        } => {
+            if !type_args.is_empty() {
+                env.error("explicit type arguments `::<..>` are not supported yet", None);
+            }
+            check_call(callee, args, trailing.as_ref(), return_ty, env)
+        }
         Expr::If {
             cond,
             then_block,

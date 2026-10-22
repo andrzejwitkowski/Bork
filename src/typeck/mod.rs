@@ -55,6 +55,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
         diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
     }
 
+    reject_generics(program, &mut diagnostics);
     let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
     validate_owned_layouts(&classes, &tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
@@ -439,4 +440,26 @@ fn has_infer(tcx: &TyCtx, ty: TyId) -> bool {
     let mut find = Find(false);
     crate::ty::TypeVisitor::visit(&mut find, tcx, ty);
     find.0
+}
+
+/// Generic declarations parse (#42) but are not checked yet.
+fn reject_generics(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+    let methods = program.classes.iter().flat_map(|class| class.methods.iter());
+    let generics = program
+        .functions
+        .iter()
+        .chain(methods)
+        .flat_map(|function| &function.generics)
+        .chain(program.classes.iter().flat_map(|class| &class.generics));
+    for param in generics {
+        diagnostics.push(Diagnostic {
+            phase: Phase::Type,
+            severity: Severity::Error,
+            message: format!(
+                "generic parameter `{}` is not supported yet; remove the `<..>` list",
+                param.name.name
+            ),
+            span: Some(param.name.span),
+        });
+    }
 }

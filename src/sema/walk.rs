@@ -414,6 +414,7 @@ fn walk(
             callee,
             args,
             trailing,
+            ..
         } => {
             let (formals, param_tys) = if let Some((receiver, qualified)) = method_call(az, callee) {
                 walk_receiver(az, &receiver, node);
@@ -963,8 +964,8 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
     let nullable = tcx.is_nullable(id);
     let kind = match tcx.data(tcx.base(id)) {
         TyData::Prim(prim) => Type::from_ident(prim.as_str(), nullable),
-        TyData::String => Type::Named { name: "String".into(), nullable },
-        TyData::Class(def) => Type::Named { name: tcx.class_name(*def).to_string(), nullable },
+        TyData::String => Type::Named { name: "String".into(), args: Vec::new(), nullable },
+        TyData::Class(def) => Type::Named { name: tcx.class_name(*def).to_string(), args: Vec::new(), nullable },
         TyData::Array { elem, len } => Type::Array {
             elem: Box::new(id_to_ast(tcx, *elem)?),
             len: *len,

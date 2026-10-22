@@ -206,6 +206,7 @@ mod tests {
             0,
             Ty::Known(Type::Named {
                 name: "String".into(),
+                args: Vec::new(),
                 nullable: false,
             }),
             BindingKind::Val,
@@ -223,6 +224,7 @@ mod tests {
             0,
             Ty::Known(Type::Named {
                 name: "String".into(),
+                args: Vec::new(),
                 nullable: false,
             }),
             BindingKind::Var,
@@ -240,6 +242,7 @@ mod tests {
             0,
             Ty::Known(Type::Named {
                 name: "String".into(),
+                args: Vec::new(),
                 nullable: false,
             }),
             BindingKind::Var,
@@ -264,6 +267,7 @@ mod tests {
             arena_label: "MoveBlock (move)".into(),
             ty: Ty::Known(Type::Named {
                 name: "String".into(),
+                args: Vec::new(),
                 nullable: false,
             }),
             kind: BindingKind::Var,
@@ -288,6 +292,7 @@ mod tests {
             0,
             Ty::Known(Type::Named {
                 name: "String".into(),
+                args: Vec::new(),
                 nullable: false,
             }),
             BindingKind::Val,

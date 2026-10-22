@@ -484,3 +484,7 @@ Rejected by codegen (the frontend still accepts them): trailing closures. Safe n
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 
 Division by zero, and signed division of the minimum value by `-1`, abort at runtime.
+
+## Generics (syntax only)
+
+`fun f<T>(x: T): T`, `class Box<T>`, type arguments `Box<i32>` and explicit call arguments `f::<i32>(x)` parse. Bare `Box<i32>(x)` in an expression is still a comparison; use `Box::<i32>(x)`. The checker rejects all of it for now ("not supported yet"). Do not add a `>>` token: nested `Vec<Vec<T>>` relies on its absence.
