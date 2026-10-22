@@ -1334,6 +1334,15 @@ Arenas
     ├── name [Local]
     ├── IfThen
     └── IfElse
+== programs/check/inference/literal_fixed_by_use.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+└── fun main
+    ├── x [Local]
+    └── f [Local]
 == programs/check/loops/for_sum.bork
 Arenas
 └── fun main
@@ -1474,6 +1483,15 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/inference/literal_conflicting_uses.bork
+Type Error [166..167] argument 1 to `takes_i64` has type u8, expected i64
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+└── fun main
+    └── x [Local]
 == programs/check_fail/loops/break_outside_loop.bork
 Type Error [37..42] `break` outside of a loop
 Arenas

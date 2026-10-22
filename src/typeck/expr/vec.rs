@@ -31,7 +31,7 @@ pub(super) fn check_vec_new(
     let i32_ty = env.tcx.i32();
     let cap = cap.map(|cap| {
         let cap = check(cap, i32_ty, return_ty, env);
-        if !env.tcx.is_unknown(cap.ty) && cap.ty != i32_ty {
+        if !env.tcx.is_unknown(cap.ty) && !env.same(cap.ty, i32_ty) {
             env.error(
                 format!("`Vec` capacity must be `i32`, got {}", env.show(cap.ty)),
                 cap.span.or(Some(span)),

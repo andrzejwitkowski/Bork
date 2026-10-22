@@ -108,6 +108,7 @@ programs/check/borrow/reference_nested_call.bork: hits=10 hash=0a6f165229ad1994
 programs/check/conditionals/if_mismatch.bork: hits=10 hash=46900b87c1a0cced
 programs/check/conditionals/if_return_move_then_use.bork: hits=25 hash=c87367bad3285e18
 programs/check/conditionals/nullable_eq.bork: hits=8 hash=205e1f814db703b5
+programs/check/inference/literal_fixed_by_use.bork: hits=8 hash=027909b1f0fb4b3e
 programs/check/loops/for_sum.bork: hits=17 hash=c2d57bc83a3ab548
 programs/check/loops/while_break_continue.bork: hits=4 hash=db99b682a48e983e
 programs/check/managed_refs/chained_scope.bork: hits=8 hash=ca379a0f1405957b
@@ -126,6 +127,7 @@ programs/check_fail/conditionals/if_both_paths_move_then_use.bork: hits=35 hash=
 programs/check_fail/conditionals/if_one_path_move_then_use.bork: hits=20 hash=827eeb8ae1785bed
 programs/check_fail/constants/assign.bork: hits=1 hash=35354576bc4b80d7
 programs/check_fail/constants/range.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/inference/literal_conflicting_uses.bork: hits=5 hash=7f8de473466e7d1b
 programs/check_fail/loops/break_outside_loop.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/managed_refs/chained_borrow_escape.bork: hits=22 hash=a17d01e0beb7aab8
 programs/check_fail/managed_refs/chained_duplicate.bork: hits=5 hash=1ac80569ae9b81ae

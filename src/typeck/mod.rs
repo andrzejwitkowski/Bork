@@ -322,6 +322,15 @@ fn check_function(
             None,
         );
     }
+    // Defaulting happens once, here; after it no literal variable remains.
+    env.infcx.default_literals(env.tcx);
+    let mut body = body;
+    let (infcx, tcx) = (&env.infcx, &mut *env.tcx);
+    let mut settle = |ty: TyId| infcx.resolve(tcx, ty).unwrap_or(ty);
+    let mut resolved = HirFunction { name: String::new(), name_span: function.name_span, params: Vec::new(), return_ty, body };
+    crate::hir::resolve_types(&mut resolved, &mut settle);
+    body = resolved.body;
+    env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
     diagnostics.append(&mut env.diagnostics);
     node_tys.extend(std::mem::take(&mut env.node_tys));
     members.extend(std::mem::take(&mut env.members));

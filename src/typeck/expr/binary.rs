@@ -17,7 +17,7 @@ pub(super) fn check_binary(
 ) -> Checked {
     let outer_numeric = match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
-            expected.filter(|&ty| env.tcx.is_numeric(ty))
+            expected.filter(|&ty| env.is_numeric(ty))
         }
         _ => None,
     };
@@ -45,6 +45,7 @@ pub(super) fn check_binary(
 
     let span = lhs.span.or(rhs.span);
     let (lhs_ty, rhs_ty) = (lhs.ty, rhs.ty);
+    // Literal variables on either side agree here; later uses see the settled type.
     let poisoned = env.tcx.is_unknown(lhs_ty) || env.tcx.is_unknown(rhs_ty);
     let (bool_ty, i32_ty) = (env.tcx.bool(), env.tcx.i32());
 
@@ -53,7 +54,7 @@ pub(super) fn check_binary(
             if poisoned {
                 env.tcx.error()
             } else {
-                if lhs_ty != rhs_ty || !env.tcx.is_numeric(lhs_ty) {
+                if !env.same(lhs_ty, rhs_ty) || !env.is_numeric(lhs_ty) {
                     env.error(
                         format!(
                             "arithmetic operands must have the same numeric type, got \
@@ -68,7 +69,7 @@ pub(super) fn check_binary(
             }
         }
         BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-            if !poisoned && !(lhs_ty == rhs_ty && env.tcx.is_numeric(lhs_ty)) {
+            if !poisoned && !(env.same(lhs_ty, rhs_ty) && env.is_numeric(lhs_ty)) {
                 env.error(
                     format!(
                         "ordered comparison operands must have the same non-nullable \
@@ -83,7 +84,7 @@ pub(super) fn check_binary(
         }
         BinOp::Eq | BinOp::Ne => {
             if !poisoned
-                && lhs_ty != rhs_ty
+                && !env.same(lhs_ty, rhs_ty)
                 && !(env.tcx.is_text(lhs_ty) && env.tcx.is_text(rhs_ty))
             {
                 env.error(
@@ -98,7 +99,7 @@ pub(super) fn check_binary(
             bool_ty
         }
         BinOp::And | BinOp::Or => {
-            if !poisoned && (lhs_ty != bool_ty || rhs_ty != bool_ty) {
+            if !poisoned && (!env.same(lhs_ty, bool_ty) || !env.same(rhs_ty, bool_ty)) {
                 env.error(
                     format!(
                         "logical operands must have type bool, got {} and {}",
@@ -111,7 +112,7 @@ pub(super) fn check_binary(
             bool_ty
         }
         BinOp::RangeTo => {
-            if !poisoned && (lhs_ty != i32_ty || rhs_ty != i32_ty) {
+            if !poisoned && (!env.same(lhs_ty, i32_ty) || !env.same(rhs_ty, i32_ty)) {
                 env.error(
                     format!(
                         "range bounds must have type i32, got {} and {}",

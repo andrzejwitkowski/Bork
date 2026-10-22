@@ -1,5 +1,5 @@
-//! Inference variables and unification (RFC 0001 section 5). Standalone: nothing in the checker
-//! calls it yet. Every method takes the `TyCtx` that issued the variables' ids.
+//! Inference variables and unification (RFC 0001 section 5). Typeck uses one per function body
+//! for untyped literal locals. Every method takes the `TyCtx` that issued the variables' ids.
 
 mod error;
 mod unify;
@@ -115,6 +115,27 @@ impl InferCtxt {
     /// The kind of a variable (of its whole equivalence class).
     pub fn kind_of(&self, var: InferVar) -> VarKind {
         self.vars[self.root(var.0) as usize].kind
+    }
+
+    /// Binds every unbound literal variable to its default (`i32`, `f64`). General variables stay.
+    pub fn default_literals(&mut self, tcx: &mut TyCtx) {
+        for index in 0..self.vars.len() as u32 {
+            let root = self.root(index);
+            let data = &self.vars[root as usize];
+            let default = match (data.value, data.kind) {
+                (None, VarKind::Int) => Prim::I32,
+                (None, VarKind::Float) => Prim::F64,
+                _ => continue,
+            };
+            let mut data = data.clone();
+            data.value = Some(tcx.prim_id(default));
+            self.set(root, data);
+        }
+    }
+
+    /// What the variable's class is bound to, if anything (read-only `resolve_shallow` step).
+    pub fn value_of(&self, var: InferVar) -> Option<TyId> {
+        self.vars[self.root(var.0) as usize].value
     }
 
     /// Follows variable links until a non-variable type or an unbound variable (as its class

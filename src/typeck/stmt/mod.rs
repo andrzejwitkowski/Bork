@@ -111,7 +111,17 @@ fn check_var_decl(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let declared_ty = ty.map(|ty| env.lower(ty, Some(name_span)));
-    let value = expr::dispatch(value, declared_ty, return_ty, env);
+    // An untyped literal gets a variable that later uses fix; defaulted at the end of the body.
+    let literal_kind = match value {
+        crate::ast::Expr::Int(_) => Some(crate::infer::VarKind::Int),
+        crate::ast::Expr::Float(_) => Some(crate::infer::VarKind::Float),
+        _ => None,
+    };
+    let hint = match (declared_ty, literal_kind) {
+        (None, Some(kind)) => Some(env.infcx.new_var(env.tcx, kind)),
+        _ => declared_ty,
+    };
+    let value = expr::dispatch(value, hint, return_ty, env);
     // Bind whatever type we can settle on, even after a bad initializer,
     // so later uses of `name` are not reported as unknown bindings.
     let declared_ty = declared_ty.unwrap_or(value.ty);
@@ -172,7 +182,7 @@ fn check_for(
         }
     };
     let i32_ty = env.tcx.i32();
-    if elem.is_some_and(|elem| elem != i32_ty) {
+    if elem.is_some_and(|elem| !env.same(elem, i32_ty)) {
         env.error("for-loop range elements must have type i32", None);
     }
 

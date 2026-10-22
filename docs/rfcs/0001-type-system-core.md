@@ -232,3 +232,5 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 - [ ] Section 7 defaults literals to `i32` / `f64` and marks the range check as new.
 - [ ] Section 4's supersession of "no general generics" is accepted.
 - [ ] Downstream issues are linked to the sections they depend on (see PR description).
+
+**Implementation (#40).** An unannotated `val`/`var` whose initializer is a bare literal gets an Int/Float inference variable (`Env::infcx`, one per function body). `Env::same`/`Env::mismatch` unify; `check_function` defaults the remaining variables once (`InferCtxt::default_literals`) and rewrites all HIR types with `hir::resolve_types`. `None`, `[]` and arithmetic results are not variables yet.

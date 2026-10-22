@@ -36,7 +36,7 @@ fun main() {
 | `(A, B) -> R` | function type |
 | `((A, B) -> R)?` | nullable function type |
 
-Integer literals adopt the expected integer type. Non-null primitives are **Copy**. Classes, `T?`, `String`, and `[T; N]` are not. `Ref<T>` handles can be copied without making their class targets Copy.
+Integer literals adopt the expected integer type. An untyped `val`/`var` initialised with a bare literal takes its type from later uses in the same function (`val x = 1; takes_u8(x)` makes `x: u8`); if nothing fixes it, it defaults to `i32`/`f64` at the end of the function. Non-null primitives are **Copy**. Classes, `T?`, `String`, and `[T; N]` are not. `Ref<T>` handles can be copied without making their class targets Copy.
 
 ## Classes and `Ref<T>`
 
