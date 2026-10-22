@@ -3,9 +3,10 @@
 use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{
-    HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, TyKind, UseKind,
+    HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Prim, UseKind,
 };
 use crate::span::Span;
+use crate::ty::{TyCtx, TyData, TyId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NullableRepr {
@@ -13,72 +14,72 @@ pub(crate) enum NullableRepr {
     TaggedScalar,
 }
 
-pub(crate) fn nullable_repr(ty: &Ty) -> Option<NullableRepr> {
-    if !ty.is_nullable() {
+pub(crate) fn nullable_repr(tcx: &TyCtx, ty: TyId) -> Option<NullableRepr> {
+    if !tcx.is_nullable(ty) {
         return None;
     }
-    let inner = ty.with_nullable(false);
-    if inner.is_string() || inner.is_array() {
+    let inner = tcx.base(ty);
+    if tcx.is_string(inner) || tcx.is_array(inner) {
         return Some(NullableRepr::Buffer);
     }
-    match inner.kind {
-        TyKind::Prim(Prim::Unit) => None,
-        TyKind::Prim(_) => Some(NullableRepr::TaggedScalar),
+    match tcx.data(inner) {
+        TyData::Prim(Prim::Unit) => None,
+        TyData::Prim(_) => Some(NullableRepr::TaggedScalar),
         _ => None,
     }
 }
 
-pub fn codegen_lowers_nullable(ty: &Ty) -> bool {
-    !ty.is_nullable() || nullable_repr(ty).is_some()
+pub fn codegen_lowers_nullable(tcx: &TyCtx, ty: TyId) -> bool {
+    !tcx.is_nullable(ty) || nullable_repr(tcx, ty).is_some()
 }
 
-pub fn gate(hir: &HirProgram) -> Vec<Diagnostic> {
+pub fn gate(hir: &HirProgram, tcx: &TyCtx) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for function in &hir.functions {
-        gate_block(&function.body, &mut diagnostics);
+        gate_block(tcx, &function.body, &mut diagnostics);
     }
     diagnostics
 }
 
-fn gate_block(block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
+fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
     for statement in &block.stmts {
         match statement {
             HirStmt::Return { value } => {
                 if let Some(value) = value {
-                    gate_expr(value, diagnostics);
+                    gate_expr(tcx, value, diagnostics);
                 }
             }
             HirStmt::Block(block) | HirStmt::MoveBlock { body: block, .. } => {
-                gate_block(block, diagnostics);
+                gate_block(tcx, block, diagnostics);
             }
-            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => gate_expr(value, diagnostics),
+            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => gate_expr(tcx, value, diagnostics),
             HirStmt::Assign { target, value } => {
                 if let Some(receiver) = target.receiver() {
-                    gate_expr(receiver, diagnostics);
+                    gate_expr(tcx, receiver, diagnostics);
                 }
                 if let Some(index) = target.index() {
-                    gate_expr(index, diagnostics);
+                    gate_expr(tcx, index, diagnostics);
                 }
-                gate_expr(value, diagnostics);
+                gate_expr(tcx, value, diagnostics);
             }
             HirStmt::For { iter, body, .. } => {
-                gate_expr(iter, diagnostics);
-                gate_block(body, diagnostics);
+                gate_expr(tcx, iter, diagnostics);
+                gate_block(tcx, body, diagnostics);
             }
             HirStmt::While { cond, body } => {
-                gate_expr(cond, diagnostics);
-                gate_block(body, diagnostics);
+                gate_expr(tcx, cond, diagnostics);
+                gate_block(tcx, body, diagnostics);
             }
             HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
         }
     }
 }
 
-fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    if !codegen_lowers_nullable(&expr.ty) {
+fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
+    if !codegen_lowers_nullable(tcx, expr.ty_id) {
         reject(
             diagnostics,
-            &format!("nullable type `{}` is not supported by codegen", expr.ty),
+            &format!("nullable type `{}` is not supported by codegen", tcx.display(expr.ty_id)),
             expr.span,
         );
     }
@@ -91,17 +92,16 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             use_kind: UseKind::Move | UseKind::Promote,
             ..
         } => {
-            if expr.ty.record_name().is_some() {
+            if tcx.record_def(expr.ty_id).is_some() {
                 reject(
                     diagnostics,
                     "moving class objects is not supported by codegen yet",
                     expr.span,
                 );
             }
-            if expr
-                .ty
-                .array_elem()
-                .is_some_and(|elem| elem.is_managed_ref())
+            if tcx
+                .array_elem(expr.ty_id)
+                .is_some_and(|elem| tcx.is_managed_ref(elem))
             {
                 reject(
                     diagnostics,
@@ -113,18 +113,18 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         HirExprKind::Ident { .. } => {}
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
-                gate_expr(element, diagnostics);
+                gate_expr(tcx, element, diagnostics);
             }
         }
         HirExprKind::VecNew { cap, .. } => {
             if let Some(cap) = cap {
-                gate_expr(cap, diagnostics);
+                gate_expr(tcx, cap, diagnostics);
             }
         }
         HirExprKind::VecOp { receiver, args, .. } => {
-            gate_expr(receiver, diagnostics);
+            gate_expr(tcx, receiver, diagnostics);
             for arg in args {
-                gate_expr(arg, diagnostics);
+                gate_expr(tcx, arg, diagnostics);
             }
         }
         HirExprKind::Index {
@@ -132,13 +132,13 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             index,
             use_kind: _,
         } => {
-            gate_expr(receiver, diagnostics);
-            gate_expr(index, diagnostics);
+            gate_expr(tcx, receiver, diagnostics);
+            gate_expr(tcx, index, diagnostics);
         }
         HirExprKind::Slice { receiver, lo, hi } => {
-            gate_expr(receiver, diagnostics);
-            gate_expr(lo, diagnostics);
-            gate_expr(hi, diagnostics);
+            gate_expr(tcx, receiver, diagnostics);
+            gate_expr(tcx, lo, diagnostics);
+            gate_expr(tcx, hi, diagnostics);
         }
         HirExprKind::Binary { op, lhs, rhs } => {
             if !matches!(
@@ -164,8 +164,8 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     expr.span,
                 );
             }
-            gate_expr(lhs, diagnostics);
-            gate_expr(rhs, diagnostics);
+            gate_expr(tcx, lhs, diagnostics);
+            gate_expr(tcx, rhs, diagnostics);
         }
         HirExprKind::Call {
             callee,
@@ -179,9 +179,9 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     expr.span.or(callee.span),
                 );
             }
-            gate_expr(callee, diagnostics);
+            gate_expr(tcx, callee, diagnostics);
             for argument in args {
-                gate_expr(argument, diagnostics);
+                gate_expr(tcx, argument, diagnostics);
             }
         }
         HirExprKind::If {
@@ -189,10 +189,10 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             then_block,
             else_block,
         } => {
-            gate_expr(cond, diagnostics);
-            gate_block(then_block, diagnostics);
+            gate_expr(tcx, cond, diagnostics);
+            gate_block(tcx, then_block, diagnostics);
             if let Some(else_block) = else_block {
-                gate_block(else_block, diagnostics);
+                gate_block(tcx, else_block, diagnostics);
             }
         }
         HirExprKind::None => {}
@@ -201,14 +201,14 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         | HirExprKind::Unary {
             op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow,
             expr: inner,
-        } => gate_expr(inner, diagnostics),
+        } => gate_expr(tcx, inner, diagnostics),
         HirExprKind::ObjectConstruct { fields, .. } => {
             for field in fields {
-                gate_expr(field, diagnostics);
+                gate_expr(tcx, field, diagnostics);
             }
         }
         HirExprKind::ObjectField { receiver, .. } => {
-            gate_expr(receiver, diagnostics);
+            gate_expr(tcx, receiver, diagnostics);
         }
         HirExprKind::PresenceMatch {
             bindings,
@@ -217,11 +217,11 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             ..
         } => {
             for binding in bindings.iter() {
-                gate_expr(&binding.value, diagnostics);
+                gate_expr(tcx, &binding.value, diagnostics);
             }
-            gate_block(some_block, diagnostics);
+            gate_block(tcx, some_block, diagnostics);
             if let Some(block) = none_block {
-                gate_block(block, diagnostics);
+                gate_block(tcx, block, diagnostics);
             }
         }
         HirExprKind::Field {
@@ -230,12 +230,12 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             safe,
             ..
         } => {
-            let inner = receiver.ty.with_nullable(false);
+            let inner = tcx.base(receiver.ty_id);
             let length_ok = name == "length"
-                && (receiver.ty.uses_arena_storage()
+                && (tcx.uses_arena_storage(receiver.ty_id)
                     || (*safe
-                        && receiver.ty.is_nullable()
-                        && (inner.is_string() || inner.is_array())));
+                        && tcx.is_nullable(receiver.ty_id)
+                        && (tcx.is_string(inner) || tcx.is_array(inner))));
             if !length_ok {
                 reject(
                     diagnostics,
@@ -243,7 +243,7 @@ fn gate_expr(expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                     expr.span.or(receiver.span),
                 );
             }
-            gate_expr(receiver, diagnostics);
+            gate_expr(tcx, receiver, diagnostics);
         }
     }
 }
@@ -266,7 +266,7 @@ mod tests {
         let result = crate::frontend::check(crate::MVP_SAMPLE);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
 
         assert!(diagnostics
             .iter()
@@ -278,7 +278,7 @@ mod tests {
         let source = "class P {\n    x: i32\n    fun get(): i32 {\n        return x\n    }\n}\nfun main(): i32 {\n    val p = P(1)\n    return p.get()\n}";
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        assert!(super::gate(result.hir.as_ref().unwrap()).is_empty());
+        assert!(super::gate(result.hir.as_ref().unwrap(), &result.tcx).is_empty());
     }
 
     #[test]
@@ -294,7 +294,7 @@ fun main(name: String?): String {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
 
         assert!(
             diagnostics.is_empty(),
@@ -311,7 +311,7 @@ fun main(name: String?): String {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
 
         assert!(
             diagnostics.is_empty(),
@@ -332,7 +332,7 @@ fun main(): i32 {
 "#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.is_empty(),
             "records and if-val should lower: {diagnostics:?}"
@@ -352,7 +352,7 @@ fun main() {
 "#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -367,7 +367,7 @@ fun main() {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.is_empty(),
             "f32? is a scalar T? and must lower: {diagnostics:?}"
@@ -386,7 +386,7 @@ fun main(): i32 {
 "#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let diagnostics = super::gate(result.hir.as_ref().unwrap());
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.is_empty(),
             "Ref<Point> `?.x` must pass codegen gate: {diagnostics:?}"

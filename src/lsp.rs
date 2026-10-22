@@ -155,6 +155,7 @@ pub struct Analysis {
     report: Option<ArenaReport>,
     diagnostics: Vec<LspDiagnostic>,
     members: crate::typeck::MemberResolutions,
+    tcx: crate::ty::TyCtx,
     node_index: Vec<(crate::span::Span, crate::span::AstId)>,
 }
 
@@ -176,7 +177,7 @@ pub fn analyze_source(source: &str) -> Analysis {
         .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
         .collect();
     if let Some(hir) = &result.hir {
-        for diagnostic in gate(hir) {
+        for diagnostic in gate(hir, &result.tcx) {
             diagnostics.push(frontend_diagnostic_to_lsp(source, &diagnostic));
         }
     }
@@ -184,6 +185,7 @@ pub fn analyze_source(source: &str) -> Analysis {
         report: result.report,
         diagnostics,
         members: result.members,
+        tcx: result.tcx,
         node_index: result.node_index,
     }
 }
@@ -304,10 +306,12 @@ fn member_hover(
         .min_by_key(|(span, _)| span.end - span.start)
         .map(|(_, member)| match member {
             MemberRef::Field { class, name, ty, .. } => {
+                let ty = analysis.tcx.display(*ty);
                 format!("field `{name}` of `{class}` (via `this`)\nType: `{ty}`")
             }
             MemberRef::Method { signature, .. } => format!("`{signature}`"),
-            MemberRef::Constant { name, ty, value, .. } => {
+            MemberRef::Constant { name, ty, value } => {
+                let ty = analysis.tcx.display(*ty);
                 format!("const `{name}`\nType: `{ty}`\nValue: `{value}`")
             }
         })

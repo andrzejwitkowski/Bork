@@ -3,7 +3,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, NodeId, Ty};
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, NodeId};
+use crate::ty::TyCtx;
 use crate::region_walk::{
     self, ArenaCursor, RegionSite, RegionVisitor, WalkDriver, WalkError,
 };
@@ -57,9 +58,9 @@ impl Origins {
     }
 }
 
-pub fn plan(program: &HirProgram, report: &ArenaReport) -> (MemoryPlan, Vec<Diagnostic>) {
-    let mut planner = Planner::default();
-    if let Err(error) = region_walk::walk_program_readonly(program, &report.roots, &mut planner) {
+pub fn plan(program: &HirProgram, tcx: &TyCtx, report: &ArenaReport) -> (MemoryPlan, Vec<Diagnostic>) {
+    let mut planner = Planner::new(tcx);
+    if let Err(error) = region_walk::walk_program_readonly(program, tcx, &report.roots, &mut planner) {
         planner.diagnostics.push(error.ice_diagnostic());
     }
     planner.propagate_program_lifetimes();
@@ -74,8 +75,8 @@ pub fn plan(program: &HirProgram, report: &ArenaReport) -> (MemoryPlan, Vec<Diag
     )
 }
 
-#[derive(Default)]
-struct Planner {
+struct Planner<'t> {
+    tcx: &'t TyCtx,
     scope_ids: Vec<usize>,
     scopes: Vec<HashMap<String, Origins>>,
     expression_origins: HashMap<NodeId, Origins>,
@@ -86,7 +87,21 @@ struct Planner {
     diagnostics: Vec<Diagnostic>,
 }
 
-impl Planner {
+impl<'t> Planner<'t> {
+    fn new(tcx: &'t TyCtx) -> Self {
+        Planner {
+            tcx,
+            scope_ids: Vec::new(),
+            scopes: Vec::new(),
+            expression_origins: HashMap::new(),
+            field_origins: HashMap::new(),
+            allocation_indices: HashMap::new(),
+            allocations: Vec::new(),
+            edges: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
+
     fn origins(&self, expr: &HirExpr) -> Origins {
         self.expression_origins
             .get(&expr.id)
@@ -227,7 +242,7 @@ impl Planner {
     }
 }
 
-impl RegionVisitor for Planner {
+impl RegionVisitor for Planner<'_> {
     fn begin_function_body(
         &mut self,
         _name: &str,
@@ -305,7 +320,7 @@ impl RegionVisitor for Planner {
                         receiver,
                         field_index,
                         ..
-                    } if value.ty.is_managed_ref() => {
+                    } if self.tcx.is_managed_ref(value.ty_id) => {
                         let receivers = self.origins(receiver);
                         self.add_ref_edges(&receivers, &value_origins);
                         for source in receivers.0 {
@@ -316,15 +331,12 @@ impl RegionVisitor for Planner {
                         }
                     }
                     crate::hir::HirAssignTarget::Field { .. }
-                        if value
-                            .ty
-                            .array_elem()
-                            .is_some_and(Ty::is_managed_ref) =>
+                        if self.tcx.array_elem(value.ty_id).is_some_and(|elem| self.tcx.is_managed_ref(elem)) =>
                     {
                         self.mark_program(&value_origins);
                     }
                     crate::hir::HirAssignTarget::Index { name, .. }
-                        if value.ty.is_managed_ref() =>
+                        if self.tcx.is_managed_ref(value.ty_id) =>
                     {
                         let mut origins = self.lookup(name);
                         origins.extend(&value_origins);
@@ -336,7 +348,7 @@ impl RegionVisitor for Planner {
             }
             HirStmt::Return { value: Some(value) } => {
                 driver.walk_expr(self, value)?;
-                if value.ty.is_managed_ref() {
+                if self.tcx.is_managed_ref(value.ty_id) {
                     self.mark_program(&self.origins(value));
                 }
             }
@@ -361,7 +373,7 @@ impl RegionVisitor for Planner {
             HirExprKind::ObjectConstruct { class_name, fields } => {
                 let allocation = self.add_allocation(expr, class_name);
                 for (field_index, field) in fields.iter().enumerate() {
-                    if field.ty.is_managed_ref() {
+                    if self.tcx.is_managed_ref(field.ty_id) {
                         let targets = self.origins(field);
                         self.add_ref_edges(&allocation, &targets);
                         for source in &allocation.0 {
@@ -389,7 +401,7 @@ impl RegionVisitor for Planner {
                 receiver,
                 field_index,
                 ..
-            } if expr.ty.is_managed_ref() => {
+            } if self.tcx.is_managed_ref(expr.ty_id) => {
                 let mut origins = Origins::default();
                 for source in self.origins(receiver).0 {
                     if let Some(field) = self.field_origins.get(&(source, *field_index)) {
@@ -403,10 +415,7 @@ impl RegionVisitor for Planner {
             | HirExprKind::Slice { receiver, .. } => self.origins(receiver),
             HirExprKind::ArrayLit { elements } => {
                 let origins = self.combine(elements);
-                if expr
-                    .ty
-                    .array_elem()
-                    .is_some_and(Ty::is_managed_ref)
+                if self.tcx.array_elem(expr.ty_id).is_some_and(|elem| self.tcx.is_managed_ref(elem))
                 {
                     // ponytail: promote all Ref-array origins; destination-aware escape analysis
                     // can narrow this once field/call summaries exist.
@@ -423,7 +432,7 @@ impl RegionVisitor for Planner {
             HirExprKind::VecOp { op, args, .. } => {
                 let origins = self.combine(args);
                 if matches!(op, crate::hir::VecOp::Push | crate::hir::VecOp::Set)
-                    && args.last().is_some_and(|arg| arg.ty.is_managed_ref())
+                    && args.last().is_some_and(|arg| self.tcx.is_managed_ref(arg.ty_id))
                 {
                     // ponytail: a Vec's destination arena is only known at runtime, so refs
                     // pushed into it are program-lived (as for Ref arrays).
@@ -435,7 +444,7 @@ impl RegionVisitor for Planner {
             HirExprKind::Call { args, .. } => {
                 for argument in args
                     .iter()
-                    .filter(|argument| argument.ty.owns_result())
+                    .filter(|argument| self.tcx.owns_result(argument.ty_id))
                 {
                     // ponytail: calls have no escape summaries, so record arguments are program-lived.
                     self.mark_program(&self.origins(argument));
@@ -456,7 +465,7 @@ impl RegionVisitor for Planner {
                 if let Some(block) = else_block {
                     origins.extend(&self.block_origins(block));
                 }
-                if expr.ty.owns_result() {
+                if self.tcx.owns_result(expr.ty_id) {
                     self.mark_program(&origins);
                 }
                 origins
@@ -481,6 +490,7 @@ mod tests {
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
         let (plan, diagnostics) = plan(
             checked.hir.as_ref().expect("typed HIR"),
+            &checked.tcx,
             checked.report.as_ref().expect("arena report"),
         );
         assert!(diagnostics.is_empty(), "{diagnostics:?}");

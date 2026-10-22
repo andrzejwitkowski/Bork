@@ -278,7 +278,7 @@ fn constant_use(
     if matches!(requested, UseKind::Move | UseKind::Promote) {
         env.error(format!("cannot move or promote constant `{name}`"), Some(span));
     }
-    env.members.insert(id.numbered(), constant.member(name, env.tcx));
+    env.members.insert(id.numbered(), constant.member(name));
     let ty = constant.ty;
     env.expr_at(constant.value.clone(), ty, span)
 }

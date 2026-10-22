@@ -19,8 +19,9 @@ use crate::hir::{
     HirFunction, HirStmt, UseKind,
 };
 use crate::span::Span;
+use crate::ty::TyCtx;
 
-pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>) {
+pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec<Diagnostic>) {
     let params = function
         .params
         .iter()
@@ -35,6 +36,7 @@ pub fn check_function(function: &HirFunction, diagnostics: &mut Vec<Diagnostic>)
     let mut escape = Escape {
         depth: 0,
         scopes: vec![params],
+        tcx,
         diagnostics,
     };
     escape.region(&function.body, false, None);
@@ -58,6 +60,7 @@ struct Local {
 struct Escape<'h, 'd> {
     depth: usize,
     scopes: Vec<HashMap<&'h str, Local>>,
+    tcx: &'d TyCtx,
     diagnostics: &'d mut Vec<Diagnostic>,
 }
 
@@ -102,8 +105,8 @@ impl<'h> Escape<'h, '_> {
                     value = self.place(expr, sink);
                     if sink.is_none()
                         && value == self.depth
-                        && expr.ty.uses_arena_storage()
-                        && !expr.ty.owns_result()
+                        && self.tcx.uses_arena_storage(expr.ty_id)
+                        && !self.tcx.owns_result(expr.ty_id)
                     {
                         reject(
                             self.diagnostics,
@@ -128,7 +131,7 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                if value.ty.is_ref() {
+                if self.tcx.is_ref(value.ty_id) {
                     reject(
                         self.diagnostics,
                         "returning a reference is not supported",
@@ -136,7 +139,7 @@ impl<'h> Escape<'h, '_> {
                     );
                     return;
                 }
-                if !value.ty.uses_arena_storage() {
+                if !self.tcx.uses_arena_storage(value.ty_id) {
                     return;
                 }
                 if self.place(value, Some(0)) > 0 {
@@ -145,7 +148,7 @@ impl<'h> Escape<'h, '_> {
                         &format!(
                             "returning a `{value_ty}` whose bytes live in an inner region is not \
                              supported: that arena is freed before the value is returned",
-                            value_ty = value.ty
+                            value_ty = self.tcx.display(value.ty_id)
                         ),
                         value.span,
                     );
@@ -189,7 +192,7 @@ impl<'h> Escape<'h, '_> {
                     }
                 }
                 let outlives = value_depth > depth;
-                if outlives && value.ty.uses_arena_storage() {
+                if outlives && self.tcx.uses_arena_storage(value.ty_id) {
                     reject(
                         self.diagnostics,
                         &format!(
@@ -216,7 +219,7 @@ impl<'h> Escape<'h, '_> {
     }
 
     fn check_return_string_form(&mut self, expr: &'h HirExpr) {
-        if expr.ty.is_string() && Self::is_fresh_string(expr) {
+        if self.tcx.is_string(expr.ty_id) && self.is_fresh_string(expr) {
             reject(
                 self.diagnostics,
                 "returning the result of `concat` or `stringFromUtf8` is not supported yet: \
@@ -225,7 +228,7 @@ impl<'h> Escape<'h, '_> {
             );
             return;
         }
-        if Self::is_moved_or_promoted_string(expr) {
+        if self.is_moved_or_promoted_string(expr) {
             reject(
                 self.diagnostics,
                 "returning a moved or promoted `String` is not supported yet: use \
@@ -263,44 +266,44 @@ impl<'h> Escape<'h, '_> {
 
     /// A value whose bytes are allocated by an allocating builtin, possibly wrapped in
     /// `Some`, `!!`, `?:`, `if`, or `when` whose branch ends in one.
-    fn is_fresh_string(expr: &HirExpr) -> bool {
+    fn is_fresh_string(&self, expr: &HirExpr) -> bool {
         match &expr.kind {
             HirExprKind::Call { callee, .. } => matches!(
                 &callee.kind,
                 HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
             ),
             HirExprKind::Some(inner)
-            | HirExprKind::Unary { expr: inner, .. } => Self::is_fresh_string(inner),
+            | HirExprKind::Unary { expr: inner, .. } => self.is_fresh_string(inner),
             HirExprKind::Binary { op: BinOp::Elvis, lhs, rhs } => {
-                Self::is_fresh_string(lhs) || Self::is_fresh_string(rhs)
+                self.is_fresh_string(lhs) || self.is_fresh_string(rhs)
             }
             HirExprKind::If { then_block, else_block, .. } => {
-                Self::block_ends_fresh(then_block)
-                    || else_block.as_ref().is_some_and(Self::block_ends_fresh)
+                self.block_ends_fresh(then_block)
+                    || else_block.as_ref().is_some_and(|block| self.block_ends_fresh(block))
             }
             HirExprKind::PresenceMatch {
                 some_block,
                 none_block,
                 ..
             } => {
-                Self::block_ends_fresh(some_block)
-                    || none_block.as_ref().is_some_and(Self::block_ends_fresh)
+                self.block_ends_fresh(some_block)
+                    || none_block.as_ref().is_some_and(|block| self.block_ends_fresh(block))
             }
             _ => false,
         }
     }
 
-    fn block_ends_fresh(block: &HirBlock) -> bool {
-        matches!(peel_to_body(block).stmts.last(), Some(HirStmt::Expr(expr)) if Self::is_fresh_string(expr))
+    fn block_ends_fresh(&self, block: &HirBlock) -> bool {
+        matches!(peel_to_body(block).stmts.last(), Some(HirStmt::Expr(expr)) if self.is_fresh_string(expr))
     }
 
-    fn is_moved_or_promoted_string(expr: &HirExpr) -> bool {
+    fn is_moved_or_promoted_string(&self, expr: &HirExpr) -> bool {
         matches!(
             &expr.kind,
             HirExprKind::Ident {
                 use_kind: UseKind::Move | UseKind::Promote,
                 ..
-            } if expr.ty.is_string()
+            } if self.tcx.is_string(expr.ty_id)
         )
     }
 
@@ -338,7 +341,7 @@ impl<'h> Escape<'h, '_> {
                 for arg in args {
                     self.place(arg, None);
                 }
-                if !expr.ty.uses_arena_storage() {
+                if !self.tcx.uses_arena_storage(expr.ty_id) {
                     self.place(receiver, None);
                     return 0;
                 }
@@ -346,7 +349,7 @@ impl<'h> Escape<'h, '_> {
             }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
-                if !expr.ty.uses_arena_storage() {
+                if !self.tcx.uses_arena_storage(expr.ty_id) {
                     self.place(receiver, None);
                     return 0;
                 }
@@ -359,7 +362,7 @@ impl<'h> Escape<'h, '_> {
                 depth
             }
             HirExprKind::Ident { name, use_kind } => {
-                if expr.ty.uses_arena_storage()
+                if self.tcx.uses_arena_storage(expr.ty_id)
                     && matches!(*use_kind, UseKind::Move | UseKind::Promote)
                 {
                     match sink {
@@ -382,14 +385,14 @@ impl<'h> Escape<'h, '_> {
                     HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
                 );
                 self.place(callee, None);
-                if expr.ty.is_string() && concat {
+                if self.tcx.is_string(expr.ty_id) && concat {
                     for arg in args {
                         self.place(arg, None);
                     }
                     sink.unwrap_or(self.depth)
                 } else {
                     let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
-                    if expr.ty.uses_arena_storage() {
+                    if self.tcx.uses_arena_storage(expr.ty_id) {
                         deepest
                     } else {
                         0
@@ -428,7 +431,7 @@ impl<'h> Escape<'h, '_> {
                 ..
             } => {
                 self.place(&bindings.head.value, None);
-                if expr.ty.is_ref() {
+                if self.tcx.is_ref(expr.ty_id) {
                     reject(
                         self.diagnostics,
                         "a presence guard reference cannot escape its scope",
@@ -441,7 +444,7 @@ impl<'h> Escape<'h, '_> {
                 let none_depth = none_block
                     .as_ref()
                     .map_or(0, |block| self.region(block, true, Some(result_depth)));
-                if expr.ty.uses_arena_storage() {
+                if self.tcx.uses_arena_storage(expr.ty_id) {
                     result_depth
                 } else {
                     some_depth.max(none_depth)
@@ -528,7 +531,7 @@ mod tests {
         let source = "fun main() {\n    var s = \"a\"\n    var src = \"b\"\n    var x = move src\n    s = move x\n    println(s)\n}\n";
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let mut hir = result.hir.unwrap();
+        let mut hir = result.hir.clone().unwrap();
         let stmts = &mut hir.functions[0].body.stmts;
         let assign = stmts.remove(3);
         let decl = stmts.remove(2);
@@ -552,7 +555,7 @@ mod tests {
 
         let mut diagnostics = Vec::new();
         for function in &hir.functions {
-            crate::escape::check_function(function, &mut diagnostics);
+            crate::escape::check_function(function, &result.tcx, &mut diagnostics);
         }
 
         assert!(

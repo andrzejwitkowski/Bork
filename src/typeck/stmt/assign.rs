@@ -133,8 +133,7 @@ fn check_receiver_field(
         let value = expr::check(value, None, return_ty, env);
         return HirStmt::Expr(value.hir);
     };
-    let legacy = env.tcx.to_ty(field_ty);
-    env.node_tys.insert(field_id.numbered(), legacy);
+    env.node_tys.insert(field_id.numbered(), field_ty);
     let value = expr::check(value, Some(field_ty), return_ty, env);
     reject_type_mismatch(
         env,

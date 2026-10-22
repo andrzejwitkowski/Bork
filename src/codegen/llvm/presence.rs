@@ -4,7 +4,8 @@ use inkwell::values::{BasicValue, BasicValueEnum, IntValue, PointerValue, Struct
 use inkwell::IntPredicate;
 
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, Ty};
+use crate::ty::TyId;
+use crate::hir::{HirExpr};
 
 use super::emit_fn::FnEmitter;
 use super::not_yet_supported;
@@ -59,7 +60,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         label: &str,
         is_absent: IntValue<'ctx>,
-        result_ty: Option<&Ty>,
+        result_ty: Option<TyId>,
     ) -> Result<PresenceSplit<'ctx>, Diagnostic> {
         let some_bb = self
             .cx
@@ -145,7 +146,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         receiver: BasicValueEnum<'ctx>,
         class_name: &str,
         field_index: usize,
-        result_ty: &Ty,
+        result_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let (observation, object, is_absent) = self.observe_ref(receiver)?;
@@ -153,37 +154,36 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let field_ty = self
             .cx
             .record_field_type(class_name, field_index)
-            .cloned()
             .ok_or_else(|| not_yet_supported("record field", span))?;
         let mut split = self.open_presence("nav", is_absent, Some(result_ty))?;
-        let loaded = self.load_object_field(object, class_name, field_index, &field_ty, span)?;
-        let present = self.materialize_navigated_field(loaded, &field_ty, result_ty)?;
+        let loaded = self.load_object_field(object, class_name, field_index, field_ty, span)?;
+        let present = self.materialize_navigated_field(loaded, field_ty, result_ty)?;
         self.release_observation(observation)?;
         self.end_present_arm(&mut split, Some(present))?;
         self.release_observation(observation)?;
         let absent = self.cx.const_null_value(result_ty)?;
         self.end_absent_arm(split, Some(absent))?
-            .ok_or_else(|| not_yet_supported(&format!("navigated type `{result_ty}`"), span))
+            .ok_or_else(|| not_yet_supported(&format!("navigated type `{}`", self.cx.tcx.display(result_ty)), span))
     }
 
     fn materialize_navigated_field(
         &mut self,
         loaded: BasicValueEnum<'ctx>,
-        field_ty: &Ty,
-        result_ty: &Ty,
+        field_ty: TyId,
+        result_ty: TyId,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if field_ty.is_managed_ref() || field_ty.is_array() || field_ty.is_string() {
+        if self.cx.tcx.is_managed_ref(field_ty) || self.cx.tcx.is_array(field_ty) || self.cx.tcx.is_string(field_ty) {
             let sink = self.sink_arena();
             return self.materialize_owned_value(loaded, field_ty, sink);
         }
-        if field_ty.is_nullable() && field_ty.with_nullable(false).is_copy() {
+        if self.cx.tcx.is_nullable(field_ty) && self.cx.tcx.is_copy(self.cx.tcx.base(field_ty)) {
             return Ok(loaded);
         }
-        if field_ty.is_copy() {
+        if self.cx.tcx.is_copy(field_ty) {
             return self.emit_nullable_some(result_ty, loaded);
         }
         Err(not_yet_supported(
-            &format!("safe navigation of `{field_ty}`"),
+            &format!("safe navigation of `{}`", self.cx.tcx.display(field_ty)),
             None,
         ))
     }
@@ -217,12 +217,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic()
             .expect("bork_ref_is_none returns bool")
             .into_int_value();
-        let mut split = self.open_presence("ref.elvis", is_absent, Some(&expr.ty))?;
+        let mut split = self.open_presence("ref.elvis", is_absent, Some(expr.ty_id))?;
         self.end_present_arm(&mut split, Some(lhs))?;
         self.drop_ref_value(lhs)?;
-        let rhs_val = self.emit_skipped_as(rhs, &expr.ty)?;
+        let rhs_val = self.emit_skipped_as(rhs, expr.ty_id)?;
         self.end_absent_arm(split, Some(rhs_val))?
-            .ok_or_else(|| not_yet_supported(&format!("type `{}`", expr.ty), expr.span))
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty_id)), expr.span))
     }
 
 }

@@ -1,4 +1,5 @@
 //! Calls that label persistent Ref slots and arenas in the debug runtime.
+use crate::ty::TyId;
 use crate::{codegen::llvm::context::Codegen, diag::Diagnostic, hir::Ty};
 use inkwell::{
     values::{IntValue, PointerValue},
@@ -11,7 +12,7 @@ impl<'ctx> Codegen<'ctx> {
         owner: PointerValue<'ctx>,
         slot: PointerValue<'ctx>,
         label: &str,
-        ty: &Ty,
+        ty: TyId,
         scope: IntValue<'ctx>,
         index: IntValue<'ctx>,
     ) -> Result<(), Diagnostic> {
@@ -39,7 +40,7 @@ impl<'ctx> Codegen<'ctx> {
             .as_pointer_value();
         let ty = self
             .builder
-            .build_global_string_ptr(&ty.to_string(), "debug.type")?
+            .build_global_string_ptr(&self.tcx.display(ty).to_string(), "debug.type")?
             .as_pointer_value();
         self.builder.build_call(
             function,
@@ -60,7 +61,7 @@ impl<'ctx> Codegen<'ctx> {
         &self,
         slot: PointerValue<'ctx>,
         label: &str,
-        ty: &Ty,
+        ty: TyId,
         index: IntValue<'ctx>,
     ) -> Result<(), Diagnostic> {
         if self.debug.is_none() {
@@ -84,7 +85,7 @@ impl<'ctx> Codegen<'ctx> {
             .as_pointer_value();
         let ty = self
             .builder
-            .build_global_string_ptr(&ty.to_string(), "debug.type")?
+            .build_global_string_ptr(&self.tcx.display(ty).to_string(), "debug.type")?
             .as_pointer_value();
         self.builder.build_call(
             function,

@@ -66,7 +66,13 @@ pub struct NestedNullable;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownClass(pub String);
 
+const ALL_PRIMS: [Prim; 12] = [
+    Prim::I8, Prim::I16, Prim::I32, Prim::I64, Prim::U8, Prim::U16,
+    Prim::U32, Prim::U64, Prim::F32, Prim::F64, Prim::Bool, Prim::Unit,
+];
+
 /// The session-owned interner: one id per distinct `TyData`.
+#[derive(Clone)]
 pub struct TyCtx {
     types: Vec<TyData>,
     ids: HashMap<TyData, TyId>,
@@ -80,7 +86,12 @@ impl TyCtx {
         let class_ids: HashMap<String, DefId> =
             defs.classes().map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
-        TyCtx { types: Vec::new(), ids: HashMap::new(), class_ids, class_names }
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_ids, class_names };
+        // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
+        for prim in ALL_PRIMS {
+            ctx.add(TyData::Prim(prim));
+        }
+        ctx
     }
 
     /// The canonical id of `ty`. On `Err` nothing was added to the context.

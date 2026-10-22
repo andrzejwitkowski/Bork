@@ -153,7 +153,7 @@ fn check_conditional_binding(
         }
     };
     let legacy = env.tcx.to_ty(binding_ty);
-    env.node_tys.insert(binding.name.id.numbered(), legacy.clone());
+    env.node_tys.insert(binding.name.id.numbered(), binding_ty);
     env.bind(
         binding.name.name.clone(),
         BindingKind::Val,

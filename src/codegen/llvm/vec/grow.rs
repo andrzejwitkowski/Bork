@@ -4,7 +4,7 @@ use inkwell::values::PointerValue;
 use inkwell::{AddressSpace, IntPredicate};
 
 use crate::diag::Diagnostic;
-use crate::hir::Ty;
+use crate::ty::TyId;
 
 use super::super::emit_fn::FnEmitter;
 use super::{ARENA, BUF, CAP, FIRST_CAPACITY, LEN};
@@ -14,7 +14,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn vec_reserve_one(
         &mut self,
         header: PointerValue<'ctx>,
-        elem_ty: &Ty,
+        elem_ty: TyId,
     ) -> Result<(), Diagnostic> {
         let (_, stride, align) = self.elem_storage(elem_ty)?;
         let context = self.cx.context;

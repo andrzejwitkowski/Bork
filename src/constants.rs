@@ -18,7 +18,7 @@ pub struct Constant {
 }
 
 impl Constant {
-    pub fn member(&self, name: &str, tcx: &TyCtx) -> crate::typeck::MemberRef {
+    pub fn member(&self, name: &str) -> crate::typeck::MemberRef {
         let value = match &self.value {
             HirExprKind::Int { value } => value.to_string(),
             HirExprKind::Float { value } => value.to_string(),
@@ -28,8 +28,7 @@ impl Constant {
         };
         crate::typeck::MemberRef::Constant {
             name: name.to_string(),
-            ty: tcx.to_ty(self.ty),
-            ty_id: self.ty,
+            ty: self.ty,
             value,
         }
     }

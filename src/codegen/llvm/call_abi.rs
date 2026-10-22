@@ -2,7 +2,8 @@ use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, PointerValue};
 use inkwell::AddressSpace;
 
-use crate::hir::{HirFunction, Ty};
+use crate::ty::TyId;
+use crate::hir::HirFunction;
 
 use super::context::Codegen;
 
@@ -16,10 +17,10 @@ pub(super) enum CallAbi {
 }
 
 impl CallAbi {
-    pub(super) fn of(function: &HirFunction) -> Self {
+    pub(super) fn of(cx: &Codegen<'_>, function: &HirFunction) -> Self {
         if function.name == "main" {
             Self::Main
-        } else if returns_into_sink(&function.return_ty) {
+        } else if returns_into_sink(cx, function.return_ty_id) {
             Self::OwningReturn
         } else {
             Self::Callee
@@ -64,6 +65,6 @@ impl CallAbi {
 }
 
 /// Wider than `Ty::owns_result`: the ABI also passes a sink for strings, arrays and Vecs.
-fn returns_into_sink(ty: &Ty) -> bool {
-    ty.owns_result() || ty.uses_arena_storage()
+fn returns_into_sink(cx: &Codegen<'_>, ty: TyId) -> bool {
+    cx.tcx.owns_result(ty) || cx.tcx.uses_arena_storage(ty)
 }

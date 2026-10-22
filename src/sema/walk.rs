@@ -124,7 +124,6 @@ fn walk_stmt(
                 .node_tys
                 .get(id)
                 .cloned()
-                .map(ty_from_hir)
                 .unwrap_or(Ty::Unknown);
             let sink = TransferSink::Binding {
                 dest: *kind,
@@ -192,7 +191,7 @@ fn walk_stmt(
                     (name, span, None, false)
                 }
                 AssignTarget::Field { receiver, id, .. } => {
-                    let target_ty = az.node_tys.get(id).cloned().map(ty_from_hir);
+                    let target_ty = az.node_tys.get(id).cloned();
                     walk(az, receiver, node, None, true);
                     walk_typed(
                         az,
@@ -212,7 +211,6 @@ fn walk_stmt(
                     .node_tys
                     .get(id)
                     .cloned()
-                    .map(ty_from_hir)
                     .and_then(|ty| ty.as_option()),
                 (AssignTarget::Name { .. }, ty) => ty,
                 (AssignTarget::Index { .. }, Some(ty)) => {
@@ -229,7 +227,6 @@ fn walk_stmt(
                     .node_tys
                     .get(id)
                     .cloned()
-                    .map(ty_from_hir)
                     .and_then(|ty| ty.as_option()),
                 _ => None,
             };
@@ -629,7 +626,6 @@ fn bind_presence_guard(az: &mut Analyzer, frame: &mut RegionFrame, binding: &Con
         .node_tys
         .get(&binding.name.id)
         .cloned()
-        .map(ty_from_hir)
         .unwrap_or(Ty::Unknown);
     frame.bind_param(
         az,
@@ -953,41 +949,43 @@ fn record_observation(
     });
 }
 
-fn ty_from_hir(ty: crate::hir::Ty) -> Ty {
-    match hir_to_ast(&ty) {
+/// Typeck's type of a node as sema's own `Ty`; types sema does not model (functions, ranges,
+/// errors) are `Unknown`.
+pub(super) fn ty_from_id(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Ty {
+    match id_to_ast(tcx, id) {
         Some(ty) => Ty::Known(ty),
         None => Ty::Unknown,
     }
 }
 
-fn hir_to_ast(ty: &crate::hir::Ty) -> Option<Type> {
-    if ty.is_unknown() {
-        return None;
-    }
-    let kind = match &ty.kind {
-        crate::hir::TyKind::Prim(prim) => Type::from_ident(prim.as_str(), ty.nullable),
-        crate::hir::TyKind::Named(name) => Type::Named {
-            name: name.clone(),
-            nullable: ty.nullable,
-        },
-        crate::hir::TyKind::Array { elem, len } => Type::Array {
-            elem: Box::new(hir_to_ast(elem)?),
+fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
+    use crate::ty::TyData;
+    let nullable = tcx.is_nullable(id);
+    let kind = match tcx.data(tcx.base(id)) {
+        TyData::Prim(prim) => Type::from_ident(prim.as_str(), nullable),
+        TyData::String => Type::Named { name: "String".into(), nullable },
+        TyData::Class(def) => Type::Named { name: tcx.class_name(*def).to_string(), nullable },
+        TyData::Array { elem, len } => Type::Array {
+            elem: Box::new(id_to_ast(tcx, *elem)?),
             len: *len,
-            nullable: ty.nullable,
+            nullable,
         },
-        crate::hir::TyKind::Ref(inner) => Type::Ref {
-            inner: Box::new(hir_to_ast(inner)?),
+        TyData::Ref(inner) => Type::Ref {
+            inner: Box::new(id_to_ast(tcx, *inner)?),
             nullable: false,
         },
-        crate::hir::TyKind::ManagedRef(inner) => Type::ManagedRef {
-            inner: Box::new(hir_to_ast(inner)?),
+        TyData::ManagedRef(inner) => Type::ManagedRef {
+            inner: Box::new(id_to_ast(tcx, *inner)?),
         },
-        crate::hir::TyKind::Vec(elem) => Type::Vec {
-            elem: Box::new(hir_to_ast(elem)?),
+        TyData::Vec(elem) => Type::Vec {
+            elem: Box::new(id_to_ast(tcx, *elem)?),
         },
-        crate::hir::TyKind::Func { .. } | crate::hir::TyKind::Range(_) | crate::hir::TyKind::Unknown => {
-            return None;
-        }
+        TyData::Func { .. }
+        | TyData::Range(_)
+        | TyData::Nullable(_)
+        | TyData::Param(_)
+        | TyData::Infer(_)
+        | TyData::Error => return None,
     };
     Some(kind)
 }

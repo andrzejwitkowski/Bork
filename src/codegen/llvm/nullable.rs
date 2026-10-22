@@ -7,20 +7,21 @@ use inkwell::IntPredicate;
 use crate::ast::BinOp;
 use crate::codegen_gate::{nullable_repr, NullableRepr};
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, HirExprKind, Prim, Ty, TyKind};
+use crate::hir::{HirExpr, HirExprKind, Prim};
+use crate::ty::{TyData, TyId};
 
 use super::context::Codegen;
 use super::emit_fn::FnEmitter;
 use super::not_yet_supported;
 
 impl<'ctx> Codegen<'ctx> {
-    pub fn const_null_value(&self, ty: &Ty) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if ty.is_managed_ref() {
+    pub fn const_null_value(&self, ty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if self.tcx.is_managed_ref(ty) {
             return Ok(self.ref_handle_type().const_zero().into());
         }
         let llvm_ty = self
             .nullable_storage_type(ty)
-            .ok_or_else(|| not_yet_supported(&format!("nullable type `{ty}`"), None))?;
+            .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.tcx.display(ty)), None))?;
         Ok(llvm_ty.const_zero())
     }
 }
@@ -28,11 +29,11 @@ impl<'ctx> Codegen<'ctx> {
 impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
     pub(super) fn emit_nullable_is_null(
         &mut self,
-        ty: &Ty,
+        ty: TyId,
         value: BasicValueEnum<'ctx>,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
         let cx = self.cx;
-        match nullable_repr(ty) {
+        match nullable_repr(&self.cx.tcx, ty) {
             Some(NullableRepr::Buffer) => {
                 let desc = value.into_struct_value();
                 let ptr = cx
@@ -57,7 +58,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                     .build_int_compare(IntPredicate::EQ, tag, zero, "opt.is_null")?)
             }
             None => Err(not_yet_supported(
-                &format!("nullable test for `{ty}`"),
+                &format!("nullable test for `{}`", self.cx.tcx.display(ty)),
                 None,
             )),
         }
@@ -65,11 +66,11 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     pub(super) fn emit_nullable_some(
         &mut self,
-        nullable_ty: &Ty,
+        nullable_ty: TyId,
         inner: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let cx = self.cx;
-        match nullable_repr(nullable_ty) {
+        match nullable_repr(&self.cx.tcx, nullable_ty) {
             Some(NullableRepr::Buffer) => Ok(inner),
             Some(NullableRepr::TaggedScalar) => {
                 let storage = cx
@@ -86,7 +87,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                     .into())
             }
             None => Err(not_yet_supported(
-                &format!("Some for `{nullable_ty}`"),
+                &format!("Some for `{}`", self.cx.tcx.display(nullable_ty)),
                 None,
             )),
         }
@@ -94,23 +95,23 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     pub(super) fn emit_nullable_unwrap(
         &mut self,
-        nullable_ty: &Ty,
+        nullable_ty: TyId,
         value: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let cx = self.cx;
-        match nullable_repr(nullable_ty) {
+        match nullable_repr(&self.cx.tcx, nullable_ty) {
             Some(NullableRepr::Buffer) => Ok(value),
             Some(NullableRepr::TaggedScalar) => Ok(cx
                 .builder
                 .build_extract_value(value.into_struct_value(), 1, "opt.val")
                 .expect("option payload")),
-            None => Err(not_yet_supported(&format!("unwrap `{nullable_ty}`"), None)),
+            None => Err(not_yet_supported(&format!("unwrap `{}`", self.cx.tcx.display(nullable_ty)), None)),
         }
     }
 
     pub(super) fn emit_nullable_expect_non_null(
         &mut self,
-        nullable_ty: &Ty,
+        nullable_ty: TyId,
         value: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let cx = self.cx;
@@ -133,11 +134,11 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         lhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if lhs.ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(lhs.ty_id) {
             return self.emit_ref_elvis(lhs_val, rhs, expr);
         }
-        let nullable_ty = &lhs.ty;
-        let result_ty = &expr.ty;
+        let nullable_ty = lhs.ty_id;
+        let result_ty = expr.ty_id;
         let is_null = self.emit_nullable_is_null(nullable_ty, lhs_val)?;
         let rhs_bb = self
             .cx
@@ -166,7 +167,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let llvm_ty = self
             .cx
             .basic_type(result_ty)
-            .ok_or_else(|| not_yet_supported(&format!("type `{result_ty}`"), expr.span))?;
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(result_ty)), expr.span))?;
         let phi = self
             .cx
             .builder
@@ -194,16 +195,16 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let result = if lhs_null && rhs_null {
             i1.const_int(eq as u64, false)
         } else if lhs_null {
-            let is_null = self.emit_nullable_is_null(&rhs.ty, rhs_val)?;
+            let is_null = self.emit_nullable_is_null(rhs.ty_id, rhs_val)?;
             self.eq_or_ne(eq, is_null)?
         } else if rhs_null {
-            let is_null = self.emit_nullable_is_null(&lhs.ty, lhs_val)?;
+            let is_null = self.emit_nullable_is_null(lhs.ty_id, lhs_val)?;
             self.eq_or_ne(eq, is_null)?
-        } else if lhs.ty.is_nullable() || rhs.ty.is_nullable() {
-            let ty = if lhs.ty.is_nullable() {
-                &lhs.ty
+        } else if self.cx.tcx.is_nullable(lhs.ty_id) || self.cx.tcx.is_nullable(rhs.ty_id) {
+            let ty = if self.cx.tcx.is_nullable(lhs.ty_id) {
+                lhs.ty_id
             } else {
-                &rhs.ty
+                rhs.ty_id
             };
             let l_null = self.emit_nullable_is_null(ty, lhs_val)?;
             let r_null = self.emit_nullable_is_null(ty, rhs_val)?;
@@ -213,14 +214,14 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                 cx.builder.build_not(r_null, "r.some")?,
                 "both_some",
             )?;
-            let payload_eq = match nullable_repr(ty) {
+            let payload_eq = match nullable_repr(&self.cx.tcx, ty) {
                 Some(NullableRepr::Buffer) => self.emit_buffer_desc_eq(lhs_val, rhs_val)?,
                 Some(NullableRepr::TaggedScalar) => {
                     self.emit_tagged_payload_eq(ty, lhs_val, rhs_val, expr.span)?
                 }
                 None => {
                     return Err(not_yet_supported(
-                        &format!("nullable equality for `{ty}`"),
+                        &format!("nullable equality for `{}`", self.cx.tcx.display(ty)),
                         expr.span,
                     ));
                 }
@@ -274,7 +275,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     fn emit_tagged_payload_eq(
         &mut self,
-        ty: &Ty,
+        ty: TyId,
         lhs_val: BasicValueEnum<'ctx>,
         rhs_val: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
@@ -287,10 +288,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .cx
             .builder
             .build_extract_value(rhs_val.into_struct_value(), 1, "r.v")?;
-        let inner = ty.with_nullable(false);
-        if matches!(inner.kind, TyKind::Prim(Prim::F32 | Prim::F64)) {
-            let l = self.value_as_float(l_val, &inner, span)?;
-            let r = self.value_as_float(r_val, &inner, span)?;
+        let inner = self.cx.tcx.base(ty);
+        if matches!(self.cx.tcx.data(inner), TyData::Prim(Prim::F32 | Prim::F64)) {
+            let l = self.value_as_float(l_val, inner, span)?;
+            let r = self.value_as_float(r_val, inner, span)?;
             return Ok(self.cx.builder.build_float_compare(
                 inkwell::FloatPredicate::OEQ,
                 l,
@@ -298,8 +299,8 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                 "feq",
             )?);
         }
-        let l = self.value_as_int(l_val, &inner, span)?;
-        let r = self.value_as_int(r_val, &inner, span)?;
+        let l = self.value_as_int(l_val, inner, span)?;
+        let r = self.value_as_int(r_val, inner, span)?;
         Ok(self
             .cx
             .builder
@@ -308,9 +309,9 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     pub(super) fn emit_safe_nullable_length(
         &mut self,
-        receiver_ty: &Ty,
+        receiver_ty: TyId,
         receiver_val: BasicValueEnum<'ctx>,
-        result_ty: &Ty,
+        result_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let is_null = self.emit_nullable_is_null(receiver_ty, receiver_val)?;
@@ -341,7 +342,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let llvm_ty = self
             .cx
             .basic_type(result_ty)
-            .ok_or_else(|| not_yet_supported(&format!("type `{result_ty}`"), span))?;
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(result_ty)), span))?;
         let phi = self
             .cx
             .builder
@@ -354,38 +355,52 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 #[cfg(test)]
 mod nullable_repr_tests {
     use crate::codegen_gate::{codegen_lowers_nullable, nullable_repr, NullableRepr};
-    use crate::hir::{Prim, Ty, TyKind};
+    use crate::hir::Prim;
+    use crate::ty::TyCtx;
+
+    fn ctx() -> TyCtx {
+        let program = crate::parse("class Point {\n    x: i32\n}\nfun main() {}\n").unwrap();
+        TyCtx::new(&crate::defs::DefTable::build(&program))
+    }
 
     #[test]
     fn string_optional_is_buffer() {
-        assert_eq!(nullable_repr(&Ty::string(true)), Some(NullableRepr::Buffer));
+        let mut c = ctx();
+        let ty = c.string(true);
+        assert_eq!(nullable_repr(&c, ty), Some(NullableRepr::Buffer));
     }
 
     #[test]
     fn i32_optional_is_tagged() {
-        assert_eq!(
-            nullable_repr(&Ty::i32().with_nullable(true)),
-            Some(NullableRepr::TaggedScalar)
-        );
+        let mut c = ctx();
+        let (i, ty) = (c.i32(), c.i32());
+        let ty = c.with_nullable(ty, true);
+        let _ = i;
+        assert_eq!(nullable_repr(&c, ty), Some(NullableRepr::TaggedScalar));
     }
 
     #[test]
     fn f32_optional_is_tagged() {
-        let ty = Ty::new(TyKind::Prim(Prim::F32), true);
-        assert_eq!(nullable_repr(&ty), Some(NullableRepr::TaggedScalar));
-        assert!(codegen_lowers_nullable(&ty));
+        let mut c = ctx();
+        let f32_ty = c.prim(Prim::F32);
+        let ty = c.with_nullable(f32_ty, true);
+        assert_eq!(nullable_repr(&c, ty), Some(NullableRepr::TaggedScalar));
+        assert!(codegen_lowers_nullable(&c, ty));
     }
 
     #[test]
     fn non_nullable_is_none() {
-        assert_eq!(nullable_repr(&Ty::i32()), None);
-        assert!(codegen_lowers_nullable(&Ty::i32()));
+        let mut c = ctx();
+        let ty = c.i32();
+        assert_eq!(nullable_repr(&c, ty), None);
+        assert!(codegen_lowers_nullable(&c, ty));
     }
 
     #[test]
     fn nullable_class_has_no_representation() {
-        let ty = Ty::new(TyKind::Named("Point".into()), true);
-        assert_eq!(nullable_repr(&ty), None);
-        assert!(!codegen_lowers_nullable(&ty));
+        let mut c = ctx();
+        let class = c.intern(&crate::hir::Ty::new(crate::hir::TyKind::Named("Point".into()), true)).unwrap();
+        assert_eq!(nullable_repr(&c, class), None);
+        assert!(!codegen_lowers_nullable(&c, class));
     }
 }

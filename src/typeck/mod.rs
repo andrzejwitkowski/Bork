@@ -17,17 +17,17 @@ pub(crate) use env::FunSig;
 use lower::lower_type;
 
 /// Types used by sema, keyed by the AST node of a declaration name or field assignment.
-pub type NodeTypes = HashMap<AstId, Ty>;
+pub type NodeTypes = HashMap<AstId, TyId>;
 
 /// What a bare member name or a method-call callee resolved to.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemberRef {
     /// Bare `name` inside a method, read or assigned through `this`.
-    Field { class: String, name: String, index: usize, ty: Ty },
+    Field { class: String, name: String, index: usize, ty: TyId },
     /// `recv.m(..)` / bare `m(..)` call, or a method declaration name.
     Method { class: String, name: String, signature: String },
     /// Global constant, at its declaration name and at each use.
-    Constant { name: String, ty: Ty, ty_id: TyId, value: String },
+    Constant { name: String, ty: TyId, value: String },
 }
 
 /// Member resolutions keyed by the AST node of a bare name, a `recv.m` callee, or a method name.
@@ -61,7 +61,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
-        members.insert(constant.id.numbered(), constant.member(name, &tcx));
+        members.insert(constant.id.numbered(), constant.member(name));
     }
     collect_method_sigs(program, &defs, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut node_tys = NodeTypes::new();

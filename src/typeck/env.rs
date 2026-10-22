@@ -139,7 +139,7 @@ impl<'a> Env<'a> {
                 class: self.defs.get(class).name.clone(),
                 name: name.to_string(),
                 index,
-                ty: self.tcx.to_ty(ty),
+                ty,
             },
         );
         Some(ty)

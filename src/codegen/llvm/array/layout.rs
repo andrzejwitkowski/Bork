@@ -3,7 +3,7 @@
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
 
 use crate::diag::Diagnostic;
-use crate::hir::Ty;
+use crate::ty::TyId;
 
 use super::super::emit_fn::FnEmitter;
 use super::super::not_yet_supported;
@@ -37,12 +37,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     pub(in crate::codegen::llvm) fn elem_storage(
         &self,
-        elem_ty: &Ty,
+        elem_ty: TyId,
     ) -> Result<(inkwell::types::BasicTypeEnum<'ctx>, usize, usize), Diagnostic> {
         let llvm = self
             .cx
             .basic_type(elem_ty)
-            .ok_or_else(|| not_yet_supported(&format!("array element `{elem_ty}`"), None))?;
+            .ok_or_else(|| not_yet_supported(&format!("array element `{}`", self.cx.tcx.display(elem_ty)), None))?;
         let (size, align) = array_elem_layout(self.cx, elem_ty)?;
         Ok((llvm, size, align))
     }
@@ -92,17 +92,18 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
 fn array_elem_layout(
     cx: &super::super::context::Codegen<'_>,
-    elem_ty: &Ty,
+    elem_ty: TyId,
 ) -> Result<(usize, usize), Diagnostic> {
-    if elem_ty.is_string() {
+    if cx.tcx.is_string(elem_ty) {
         return Ok((16, 8));
     }
-    if elem_ty.is_managed_ref() {
+    if cx.tcx.is_managed_ref(elem_ty) {
         return Ok(cx.ref_handle_layout());
     }
-    use crate::hir::{Prim, TyKind};
-    match &elem_ty.kind {
-        TyKind::Prim(prim) if !elem_ty.nullable => match prim {
+    use crate::hir::Prim;
+    use crate::ty::TyData;
+    match cx.tcx.data(elem_ty) {
+        TyData::Prim(prim) => match prim {
             Prim::I8 | Prim::U8 | Prim::Bool => Ok((1, 1)),
             Prim::I16 | Prim::U16 => Ok((2, 2)),
             Prim::I32 | Prim::U32 | Prim::F32 => Ok((4, 4)),
@@ -110,7 +111,7 @@ fn array_elem_layout(
             Prim::Unit => Err(not_yet_supported("array element `unit`", None)),
         },
         _ => Err(not_yet_supported(
-            &format!("array element `{elem_ty}`"),
+            &format!("array element `{}`", cx.tcx.display(elem_ty)),
             None,
         )),
     }

@@ -4,7 +4,8 @@ use inkwell::values::{BasicValueEnum, PointerValue};
 use inkwell::IntPredicate;
 
 use crate::diag::Diagnostic;
-use crate::hir::{Ty, VecOp};
+use crate::ty::TyId;
+use crate::hir::{VecOp};
 
 use super::super::emit_fn::FnEmitter;
 use super::{ARENA, BUF, CAP, LEN};
@@ -14,8 +15,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn emit_vec_op(
         &mut self,
         op: VecOp,
-        elem_ty: &Ty,
-        result_ty: &Ty,
+        elem_ty: TyId,
+        result_ty: TyId,
         ops: &[BasicValueEnum<'ctx>],
         span: Option<crate::span::Span>,
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
@@ -49,7 +50,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Ok(None)
             }
             VecOp::Clear => {
-                if elem_ty.is_managed_ref() {
+                if self.cx.tcx.is_managed_ref(elem_ty) {
                     let len = self.vec_load_word(header, LEN)?;
                     let buf = self.vec_load_ptr(header, BUF)?;
                     let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
@@ -69,8 +70,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn emit_vec_pop(
         &mut self,
         header: PointerValue<'ctx>,
-        elem_ty: &Ty,
-        result_ty: &Ty,
+        elem_ty: TyId,
+        result_ty: TyId,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let context = self.cx.context;
         let len = self.vec_load_word(header, LEN)?;
@@ -91,7 +92,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
         let buf = self.vec_load_ptr(header, BUF)?;
         let slot = self.vec_slot(buf, last, stride)?;
-        let popped = if elem_ty.is_managed_ref() {
+        let popped = if self.cx.tcx.is_managed_ref(elem_ty) {
             // The slot is past `len` now, so the handle moves out and the slot becomes `None`.
             self.move_ref(slot)?
         } else {

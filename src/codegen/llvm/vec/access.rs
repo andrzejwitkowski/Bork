@@ -4,7 +4,7 @@ use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use inkwell::AddressSpace;
 
 use crate::diag::Diagnostic;
-use crate::hir::Ty;
+use crate::ty::TyId;
 
 use super::super::emit_fn::FnEmitter;
 use super::super::not_yet_supported;
@@ -16,11 +16,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         slot: PointerValue<'ctx>,
         arena: PointerValue<'ctx>,
-        elem_ty: &Ty,
+        elem_ty: TyId,
         value: BasicValueEnum<'ctx>,
         fresh: bool,
     ) -> Result<(), Diagnostic> {
-        if elem_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(elem_ty) {
             if fresh {
                 self.cx
                     .builder
@@ -55,7 +55,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         receiver: BasicValueEnum<'ctx>,
         index: BasicValueEnum<'ctx>,
-        elem_ty: &Ty,
+        elem_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let header = receiver.into_pointer_value();
@@ -64,7 +64,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let buf = self.vec_load_ptr(header, BUF)?;
         let slot = self.vec_slot(buf, idx, stride)?;
         let loaded = self.cx.builder.build_load(llvm_elem, slot, "vec.get")?;
-        if elem_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(elem_ty) {
             self.clone_ref(loaded)
         } else {
             Ok(loaded)
@@ -75,13 +75,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn emit_vec_index_store(
         &mut self,
         slot_ptr: PointerValue<'ctx>,
-        vec_ty: &Ty,
+        vec_ty: TyId,
         index: &crate::hir::HirExpr,
         value: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {
-        let elem_ty = vec_ty
-            .vec_elem()
+        let elem_ty = self.cx.tcx.vec_elem(vec_ty)
             .ok_or_else(|| not_yet_supported("index assignment target", span))?;
         let header = self
             .cx
@@ -92,7 +91,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 "vec",
             )?
             .into_pointer_value();
-        let index = self.emit_int(index, &Ty::i32())?;
+        let index = self.emit_int(index, self.cx.i32_ty())?;
         self.vec_set(header, index.into(), elem_ty, value, span)
     }
 
@@ -100,7 +99,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         header: PointerValue<'ctx>,
         index: BasicValueEnum<'ctx>,
-        elem_ty: &Ty,
+        elem_ty: TyId,
         value: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {

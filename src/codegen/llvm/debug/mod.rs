@@ -94,8 +94,8 @@ impl<'ctx> DebugInfo<'ctx> {
         llvm: inkwell::values::FunctionValue<'ctx>,
     ) -> DIScope<'ctx> {
         let (line, _) = self.line_column(function.name_span);
-        let params: Vec<_> = function.params.iter().map(|p| self.ty(cx, &p.ty)).collect();
-        let result = (function.return_ty != Ty::unit()).then(|| self.ty(cx, &function.return_ty));
+        let params: Vec<_> = function.params.iter().map(|p| self.ty(cx, p.ty_id)).collect();
+        let result = (function.return_ty_id != cx.unit_ty()).then(|| self.ty(cx, function.return_ty_id));
         let sig = self
             .builder
             .create_subroutine_type(self.file, result, &params, DIFlags::PUBLIC);

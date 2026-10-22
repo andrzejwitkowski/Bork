@@ -110,6 +110,11 @@ impl TyCtx {
         }
     }
 
+    /// Mirrors `hir::Ty::record_name`.
+    pub fn record_name(&self, id: TyId) -> Option<&str> {
+        self.record_def(id).map(|def| self.class_name(def))
+    }
+
     pub fn class_def(&self, id: TyId) -> Option<DefId> {
         match self.data(id) {
             TyData::Class(def) => Some(*def),
@@ -198,6 +203,11 @@ impl TyCtx {
     /// Mirrors `hir::Ty::is_array_elem_supported`.
     pub fn is_array_elem_supported(&self, id: TyId) -> bool {
         self.is_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
+    }
+
+    /// The id of a primitive without needing `&mut`: `TyCtx::new` interns all of them.
+    pub fn prim_id(&self, prim: Prim) -> TyId {
+        self.ids[&TyData::Prim(prim)]
     }
 
     pub fn prim(&mut self, prim: Prim) -> TyId {

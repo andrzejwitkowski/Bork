@@ -51,7 +51,7 @@ pub fn check(source: &str) -> CheckResult {
     let typeck::Typeck { hir, node_tys, members, diagnostics: mut type_diagnostics, tcx } =
         typeck::check_with_members(&program);
     let (mut report, ownership_errors) =
-        crate::sema::analyze_with_members(&program, node_tys, members.clone());
+        crate::sema::analyze_with_members(&program, node_tys, members.clone(), &tcx);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 
@@ -61,13 +61,13 @@ pub fn check(source: &str) -> CheckResult {
         crate::hoist::annotate(&mut program);
         crate::hir::number_nodes(&mut program);
         for function in &program.functions {
-            crate::escape::check_function(function, &mut diagnostics);
+            crate::escape::check_function(function, &tcx, &mut diagnostics);
         }
         if diagnostics.is_empty() {
-            let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &report);
+            let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &tcx, &report);
             diagnostics.append(&mut plan_diagnostics);
             if diagnostics.is_empty() {
-                match crate::region_walk::stamp_codegen_push(&program, &mut report) {
+                match crate::region_walk::stamp_codegen_push(&program, &tcx, &mut report) {
                     Ok(()) => memory_plan = Some(plan),
                     Err(ice) => diagnostics.push(ice),
                 }

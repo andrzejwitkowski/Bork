@@ -11,7 +11,8 @@ use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, StructType};
 use inkwell::values::FunctionValue;
 use inkwell::{AddressSpace, OptimizationLevel};
 
-use crate::hir::{HirClass, Prim, Ty, TyKind};
+use crate::hir::{HirClass, Prim};
+use crate::ty::{TyCtx, TyData, TyId};
 use crate::memory::MemoryPlan;
 
 use crate::codegen_gate::{nullable_repr, NullableRepr};
@@ -21,10 +22,12 @@ pub struct Codegen<'ctx> {
     pub module: Module<'ctx>,
     pub builder: Builder<'ctx>,
     record_types: HashMap<String, StructType<'ctx>>,
-    record_fields: HashMap<String, Vec<Ty>>,
+    record_fields: HashMap<String, Vec<TyId>>,
     pub(super) target_data: TargetData,
     pub(super) debug: Option<super::debug::DebugInfo<'ctx>>,
     pub(super) classes: Vec<HirClass>,
+    /// The checked program's types; ids in the HIR resolve here.
+    pub(super) tcx: TyCtx,
     pub memory_plan: MemoryPlan,
 }
 
@@ -42,6 +45,7 @@ impl<'ctx> Codegen<'ctx> {
         context: &'ctx Context,
         name: &str,
         classes: &[HirClass],
+        tcx: &TyCtx,
         memory_plan: MemoryPlan,
     ) -> Result<Self, String> {
         let record_types = classes
@@ -58,7 +62,7 @@ impl<'ctx> Codegen<'ctx> {
             .map(|class| {
                 (
                     class.name.clone(),
-                    class.fields.iter().map(|field| field.ty.clone()).collect(),
+                    class.fields.iter().map(|field| field.ty_id.clone()).collect(),
                 )
             })
             .collect();
@@ -73,6 +77,7 @@ impl<'ctx> Codegen<'ctx> {
             memory_plan,
             debug: None,
             classes: classes.to_vec(),
+            tcx: tcx.clone(),
         };
         codegen.module.set_triple(&machine.get_triple());
         codegen
@@ -83,10 +88,10 @@ impl<'ctx> Codegen<'ctx> {
                 .fields
                 .iter()
                 .map(|field| {
-                    codegen.basic_type(&field.ty).ok_or_else(|| {
+                    codegen.basic_type(field.ty_id).ok_or_else(|| {
                         format!(
                             "record field `{}.{}` has unsupported type `{}`",
-                            class.name, field.name, field.ty
+                            class.name, field.name, codegen.tcx.display(field.ty_id)
                         )
                     })
                 })
@@ -100,30 +105,30 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
-    pub fn basic_type(&self, ty: &Ty) -> Option<BasicTypeEnum<'ctx>> {
-        if let Some(inner) = ty.ref_inner() {
+    pub fn basic_type(&self, ty: TyId) -> Option<BasicTypeEnum<'ctx>> {
+        if let Some(inner) = self.tcx.ref_inner(ty) {
             return self.basic_type(inner);
         }
-        if ty.is_managed_ref() {
+        if self.tcx.is_managed_ref(ty) {
             return Some(self.ref_handle_type().into());
         }
-        if ty.is_nullable() {
+        if self.tcx.is_nullable(ty) {
             return self.nullable_storage_type(ty);
         }
-        if ty.is_string() {
+        if self.tcx.is_string(ty) {
             return Some(self.buffer_descriptor_type().into());
         }
-        if ty.is_array() {
+        if self.tcx.is_array(ty) {
             return Some(self.buffer_descriptor_type().into());
         }
-        if ty.is_vec() {
+        if self.tcx.is_vec(ty) {
             // Pointer to the arena-resident header `{ buf, len, cap, arena }`.
             return Some(self.context.ptr_type(AddressSpace::default()).into());
         }
-        if matches!(ty.kind, TyKind::Named(_)) {
+        if self.tcx.class_def(ty).is_some() {
             return Some(self.object_handle_type().into());
         }
-        if let TyKind::Prim(prim) = ty.kind {
+        if let TyData::Prim(prim) = *self.tcx.data(ty) {
             return match prim {
                 Prim::F32 => Some(self.context.f32_type().into()),
                 Prim::F64 => Some(self.context.f64_type().into()),
@@ -133,12 +138,24 @@ impl<'ctx> Codegen<'ctx> {
         None
     }
 
+    pub(super) fn unit_ty(&self) -> TyId {
+        self.tcx.prim_id(Prim::Unit)
+    }
+
+    pub(super) fn i32_ty(&self) -> TyId {
+        self.tcx.prim_id(Prim::I32)
+    }
+
+    pub(super) fn bool_ty(&self) -> TyId {
+        self.tcx.prim_id(Prim::Bool)
+    }
+
     pub fn record_type(&self, name: &str) -> Option<StructType<'ctx>> {
         self.record_types.get(name).copied()
     }
 
-    pub fn record_field_type(&self, name: &str, index: usize) -> Option<&Ty> {
-        self.record_fields.get(name)?.get(index)
+    pub fn record_field_type(&self, name: &str, index: usize) -> Option<TyId> {
+        self.record_fields.get(name)?.get(index).copied()
     }
 
     /// Internal owning/borrowed object descriptor `{ arena_control, object }`.
@@ -178,12 +195,12 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     /// In-memory shape for `T?` (not `&T`).
-    pub fn nullable_storage_type(&self, ty: &Ty) -> Option<BasicTypeEnum<'ctx>> {
-        match nullable_repr(ty)? {
+    pub fn nullable_storage_type(&self, ty: TyId) -> Option<BasicTypeEnum<'ctx>> {
+        match nullable_repr(&self.tcx, ty)? {
             NullableRepr::Buffer => Some(self.buffer_descriptor_type().into()),
             NullableRepr::TaggedScalar => {
-                let inner = ty.with_nullable(false);
-                let value_ty = self.basic_type(&inner)?;
+                let inner = self.tcx.base(ty);
+                let value_ty = self.basic_type(inner)?;
                 let tag = self.context.bool_type();
                 Some(
                     self.context
@@ -206,13 +223,10 @@ impl<'ctx> Codegen<'ctx> {
             .struct_type(&[ptr.into(), self.context.i64_type().into()], false)
     }
 
-    pub fn int_type(&self, ty: &Ty) -> Option<IntType<'ctx>> {
-        let TyKind::Prim(prim) = ty.kind else {
+    pub fn int_type(&self, ty: TyId) -> Option<IntType<'ctx>> {
+        let TyData::Prim(prim) = *self.tcx.data(ty) else {
             return None;
         };
-        if ty.nullable {
-            return None;
-        }
         Some(match prim {
             Prim::I8 | Prim::U8 => self.context.i8_type(),
             Prim::I16 | Prim::U16 => self.context.i16_type(),
@@ -480,10 +494,10 @@ impl<'ctx> Codegen<'ctx> {
 }
 
 /// Whether integer ops on `ty` use unsigned semantics (`udiv`, `ult`, zero-extension).
-pub fn is_unsigned(ty: &Ty) -> bool {
+pub fn is_unsigned(tcx: &TyCtx, ty: TyId) -> bool {
     matches!(
-        ty.kind,
-        TyKind::Prim(Prim::U8 | Prim::U16 | Prim::U32 | Prim::U64 | Prim::Bool)
+        tcx.data(ty),
+        TyData::Prim(Prim::U8 | Prim::U16 | Prim::U32 | Prim::U64 | Prim::Bool)
     )
 }
 
@@ -521,7 +535,7 @@ mod tests {
     #[test]
     fn ref_handle_layout_matches_runtime() {
         let context = Context::create();
-        let cg = Codegen::new(&context, "layout", &[], MemoryPlan::default()).unwrap();
+        let cg = Codegen::new(&context, "layout", &[], &TyCtx::new(&Default::default()), MemoryPlan::default()).unwrap();
         let (size, align, offsets) = bork_runtime::REF_HANDLE_LAYOUT;
         assert_eq!(
             (cg.ref_handle_layout(), cg.ref_handle_offsets()),

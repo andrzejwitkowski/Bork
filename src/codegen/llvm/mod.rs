@@ -28,6 +28,7 @@ use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::HirProgram;
 use crate::memory::MemoryPlan;
 use crate::sema::ArenaReport;
+use crate::ty::TyCtx;
 use crate::span::Span;
 
 use arena::ArenaCalls;
@@ -37,26 +38,29 @@ use emit_fn::Callees;
 pub fn emit_module<'ctx>(
     context: &'ctx Context,
     hir: &HirProgram,
+    tcx: &TyCtx,
     report: &ArenaReport,
     memory_plan: MemoryPlan,
 ) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, report, memory_plan, None)
+    emit_module_impl(context, hir, tcx, report, memory_plan, None)
 }
 
 pub fn emit_module_with_debug<'ctx>(
     context: &'ctx Context,
     hir: &HirProgram,
+    tcx: &TyCtx,
     report: &ArenaReport,
     memory_plan: MemoryPlan,
     source: &str,
     path: &Path,
 ) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, report, memory_plan, Some((source, path)))
+    emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)))
 }
 
 fn emit_module_impl<'ctx>(
     context: &'ctx Context,
     hir: &HirProgram,
+    tcx: &TyCtx,
     report: &ArenaReport,
     memory_plan: MemoryPlan,
     source: Option<(&str, &Path)>,
@@ -68,7 +72,7 @@ fn emit_module_impl<'ctx>(
         ));
     }
 
-    let mut cx = Codegen::new(context, "bork", &hir.classes, memory_plan)
+    let mut cx = Codegen::new(context, "bork", &hir.classes, tcx, memory_plan)
         .map_err(|message| codegen_error(message, None))?;
     if let Some((source, path)) = source {
         cx.debug = Some(debug::DebugInfo::new(&cx, source, path));
@@ -188,6 +192,7 @@ mod tests {
         let module = emit_module(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
         )
@@ -204,6 +209,7 @@ mod tests {
         let module = emit_module_with_debug(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
             source,
@@ -243,6 +249,7 @@ mod tests {
         let ir = emit_module_with_debug(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
             source,
@@ -279,6 +286,7 @@ mod tests {
         let module = emit_module_with_debug(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
             source,
@@ -303,6 +311,7 @@ mod tests {
         let ir = emit_module_with_debug(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
             source,
@@ -331,6 +340,7 @@ mod tests {
         let ir = emit_module_with_debug(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
             source,
@@ -379,6 +389,7 @@ mod tests {
         let ir = emit_module_with_debug(
             &context,
             checked.hir.as_ref().unwrap(),
+            &checked.tcx,
             checked.report.as_ref().unwrap(),
             checked.memory_plan.unwrap(),
             source,
@@ -471,8 +482,8 @@ mod tests {
             let checked = check(source);
             assert!(checked.is_ok(), "{source:?}");
             let mut report = checked.report.unwrap();
-            stamp_codegen_push(checked.hir.as_ref().unwrap(), &mut report).unwrap();
-            let events = schedule(checked.hir.as_ref().unwrap(), &report).expect("schedule");
+            stamp_codegen_push(checked.hir.as_ref().unwrap(), &checked.tcx, &mut report).unwrap();
+            let events = schedule(checked.hir.as_ref().unwrap(), &checked.tcx, &report).expect("schedule");
             let scheduled_pushes = events
                 .iter()
                 .filter(|e| matches!(e, RegionEvent::Push { .. }))
