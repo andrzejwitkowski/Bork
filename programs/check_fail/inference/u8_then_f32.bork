@@ -1,0 +1,11 @@
+// diag: argument 1 to `takes_f32` has type u8, expected f32
+fun takes_u8(a: u8) {}
+fun takes_i64(a: i64) {}
+fun takes_f32(a: f32) {}
+fun takes_f64(a: f64) {}
+fun ret_u8(): u8 { return 1 }
+fun main() {
+    val x = 1
+    takes_u8(x)
+    takes_f32(x)
+}

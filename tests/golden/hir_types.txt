@@ -166,9 +166,49 @@ programs/check/conditionals/if_mismatch.bork::main() -> i32
 programs/check/conditionals/if_return_move_then_use.bork::take(var n: Node) -> Ref<Node>
 programs/check/conditionals/if_return_move_then_use.bork::run(flag: bool) -> i32
 programs/check/conditionals/nullable_eq.bork::main() -> i32
+programs/check/inference/annotated_unchanged.bork::takes_u8(a: u8) -> unit
+programs/check/inference/annotated_unchanged.bork::takes_i64(a: i64) -> unit
+programs/check/inference/annotated_unchanged.bork::takes_f32(a: f32) -> unit
+programs/check/inference/annotated_unchanged.bork::takes_f64(a: f64) -> unit
+programs/check/inference/annotated_unchanged.bork::ret_u8() -> u8
+programs/check/inference/annotated_unchanged.bork::main() -> unit
+programs/check/inference/defaults_to_f64.bork::takes_u8(a: u8) -> unit
+programs/check/inference/defaults_to_f64.bork::takes_i64(a: i64) -> unit
+programs/check/inference/defaults_to_f64.bork::takes_f32(a: f32) -> unit
+programs/check/inference/defaults_to_f64.bork::takes_f64(a: f64) -> unit
+programs/check/inference/defaults_to_f64.bork::ret_u8() -> u8
+programs/check/inference/defaults_to_f64.bork::main() -> unit
+programs/check/inference/defaults_to_i32.bork::take(a: i32) -> unit
+programs/check/inference/defaults_to_i32.bork::main() -> unit
+programs/check/inference/fixed_by_i64_arg.bork::takes_u8(a: u8) -> unit
+programs/check/inference/fixed_by_i64_arg.bork::takes_i64(a: i64) -> unit
+programs/check/inference/fixed_by_i64_arg.bork::takes_f32(a: f32) -> unit
+programs/check/inference/fixed_by_i64_arg.bork::takes_f64(a: f64) -> unit
+programs/check/inference/fixed_by_i64_arg.bork::ret_u8() -> u8
+programs/check/inference/fixed_by_i64_arg.bork::main() -> unit
+programs/check/inference/fixed_by_return.bork::f() -> i64
+programs/check/inference/fixed_by_return.bork::main() -> unit
+programs/check/inference/fixed_through_assignment.bork::takes_u8(a: u8) -> unit
+programs/check/inference/fixed_through_assignment.bork::takes_i64(a: i64) -> unit
+programs/check/inference/fixed_through_assignment.bork::takes_f32(a: f32) -> unit
+programs/check/inference/fixed_through_assignment.bork::takes_f64(a: f64) -> unit
+programs/check/inference/fixed_through_assignment.bork::ret_u8() -> u8
+programs/check/inference/fixed_through_assignment.bork::main() -> unit
 programs/check/inference/literal_fixed_by_use.bork::takes_u8(a: u8) -> unit
 programs/check/inference/literal_fixed_by_use.bork::takes_f32(a: f32) -> unit
 programs/check/inference/literal_fixed_by_use.bork::main() -> unit
+programs/check/inference/return_value_fixes_literal.bork::takes_u8(a: u8) -> unit
+programs/check/inference/return_value_fixes_literal.bork::takes_i64(a: i64) -> unit
+programs/check/inference/return_value_fixes_literal.bork::takes_f32(a: f32) -> unit
+programs/check/inference/return_value_fixes_literal.bork::takes_f64(a: f64) -> unit
+programs/check/inference/return_value_fixes_literal.bork::ret_u8() -> u8
+programs/check/inference/return_value_fixes_literal.bork::main() -> unit
+programs/check/inference/two_literals_share_type.bork::takes_u8(a: u8) -> unit
+programs/check/inference/two_literals_share_type.bork::takes_i64(a: i64) -> unit
+programs/check/inference/two_literals_share_type.bork::takes_f32(a: f32) -> unit
+programs/check/inference/two_literals_share_type.bork::takes_f64(a: f64) -> unit
+programs/check/inference/two_literals_share_type.bork::ret_u8() -> u8
+programs/check/inference/two_literals_share_type.bork::main() -> unit
 programs/check/loops/for_sum.bork::main() -> i32
 programs/check/loops/while_break_continue.bork::main() -> i32
 programs/check/managed_refs/chained_scope.bork::use(a: Ref<Node>) -> unit

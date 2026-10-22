@@ -119,7 +119,10 @@ pub(super) fn dispatch(
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
         Expr::None { span } => {
             let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
-                env.error("cannot infer type of `None`", Some(*span));
+                env.error(
+                    "cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`",
+                    Some(*span),
+                );
                 let unknown = env.tcx.error();
                 return env.expr_at(HirExprKind::None, unknown, *span);
             };
