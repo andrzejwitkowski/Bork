@@ -176,6 +176,25 @@ impl TyCtx {
         matches!(self.data(id), TyData::Prim(p) if p.is_integer())
     }
 
+    /// Mirrors `hir::Ty::deref_ty`: the target of a borrow, otherwise the type itself.
+    pub fn deref_ty(&self, id: TyId) -> TyId {
+        self.ref_inner(id).unwrap_or(id)
+    }
+
+    /// Mirrors `hir::Ty::owns_result`: a value allocated into its consumer's sink arena.
+    pub fn owns_result(&self, id: TyId) -> bool {
+        self.is_managed_ref(id) || self.record_def(id).is_some()
+    }
+
+    /// Mirrors `hir::Ty::uses_arena_storage`: payload bytes live in an arena (`String`, objects, `[T]`, `Vec`).
+    pub fn uses_arena_storage(&self, id: TyId) -> bool {
+        match self.data(self.base(id)) {
+            TyData::Ref(inner) => self.uses_arena_storage(*inner),
+            TyData::String | TyData::Class(_) | TyData::Array { .. } | TyData::Vec(_) => true,
+            _ => false,
+        }
+    }
+
     /// Mirrors `hir::Ty::is_array_elem_supported`.
     pub fn is_array_elem_supported(&self, id: TyId) -> bool {
         self.is_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
@@ -265,6 +284,9 @@ mod tests {
             assert_eq!(c.is_integer(id), ty.is_integer(), "{s}");
             assert_eq!(c.is_array_elem_supported(id), ty.is_array_elem_supported(), "{s}");
             assert_eq!(c.array_len(id), ty.array_len(), "{s}");
+            assert_eq!(c.owns_result(id), ty.owns_result(), "{s}");
+            assert_eq!(c.uses_arena_storage(id), ty.uses_arena_storage(), "{s}");
+            assert_eq!(c.to_ty(c.deref_ty(id)), ty.deref_ty().clone(), "{s}");
             let back = |o: Option<crate::ty::TyId>| o.map(|i| c.to_ty(i));
             assert_eq!(back(c.ref_inner(id)).as_ref(), ty.ref_inner(), "{s}");
             assert_eq!(back(c.managed_ref_inner(id)).as_ref(), ty.managed_ref_inner(), "{s}");

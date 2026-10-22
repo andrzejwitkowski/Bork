@@ -200,11 +200,11 @@ impl<'a> Env<'a> {
     }
 
     pub(super) fn expr(&self, kind: HirExprKind, ty: TyId) -> Checked {
-        Checked { hir: HirExpr::new(kind, self.tcx.to_ty(ty)), ty }
+        Checked { hir: HirExpr::new(kind, self.tcx.to_ty(ty), ty), ty }
     }
 
     pub(super) fn expr_at(&self, kind: HirExprKind, ty: TyId, span: Span) -> Checked {
-        Checked { hir: HirExpr::spanned(kind, self.tcx.to_ty(ty), span), ty }
+        Checked { hir: HirExpr::spanned(kind, self.tcx.to_ty(ty), ty, span), ty }
     }
 
     /// Lowers a written type, reporting problems at `span`.

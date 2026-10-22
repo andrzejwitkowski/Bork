@@ -164,6 +164,7 @@ fn check_conditional_binding(
         name: binding.name.clone(),
         value: value.hir,
         binding_ty: legacy,
+        binding_ty_id: binding_ty,
     }
 }
 

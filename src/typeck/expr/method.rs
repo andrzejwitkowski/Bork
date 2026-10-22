@@ -121,6 +121,7 @@ fn borrow(receiver: Checked, env: &mut Env<'_>) -> Checked {
                 expr: Box::new(receiver),
             },
             ty: env.tcx.to_ty(ty),
+            ty_id: ty,
             span,
         },
         ty,

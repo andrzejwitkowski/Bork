@@ -139,6 +139,7 @@ fn check_var_decl(
         kind,
         name: name.to_string(),
         ty: legacy,
+        ty_id: declared_ty,
         value: value.hir,
         alloc_in_binding: None,
     }

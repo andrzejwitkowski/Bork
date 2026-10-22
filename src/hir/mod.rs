@@ -10,12 +10,14 @@ pub use ty::{Prim, Ty, TyKind};
 
 use crate::ast;
 use crate::span::Span;
+use crate::ty::TyId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirConditionalBinding {
     pub name: crate::span::SpannedName,
     pub value: HirExpr,
     pub binding_ty: Ty,
+    pub binding_ty_id: TyId,
 }
 
 /// Non-empty presence header. See [`ast::ConditionalBindings`].
@@ -60,6 +62,7 @@ pub struct HirClass {
 pub struct HirClassField {
     pub name: String,
     pub ty: Ty,
+    pub ty_id: TyId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -68,6 +71,7 @@ pub struct HirFunction {
     pub name_span: Span,
     pub params: Vec<HirParam>,
     pub return_ty: Ty,
+    pub return_ty_id: TyId,
     pub body: HirBlock,
 }
 
@@ -76,6 +80,7 @@ pub struct HirParam {
     pub kind: ast::BindingKind,
     pub name: String,
     pub ty: Ty,
+    pub ty_id: TyId,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -96,6 +101,7 @@ pub enum HirStmt {
         kind: ast::BindingKind,
         name: String,
         ty: Ty,
+        ty_id: TyId,
         value: HirExpr,
         /// When set, owned payload for `value` is allocated in the named outer binding's arena.
         alloc_in_binding: Option<String>,
@@ -183,24 +189,27 @@ impl NodeId {
 pub struct HirExpr {
     pub id: NodeId,
     pub ty: Ty,
+    pub ty_id: TyId,
     pub span: Option<Span>,
     pub kind: HirExprKind,
 }
 
 impl HirExpr {
-    pub fn new(kind: HirExprKind, ty: Ty) -> Self {
+    pub fn new(kind: HirExprKind, ty: Ty, ty_id: TyId) -> Self {
         Self {
             id: NodeId::DUMMY,
             ty,
+            ty_id,
             span: None,
             kind,
         }
     }
 
-    pub fn spanned(kind: HirExprKind, ty: Ty, span: Span) -> Self {
+    pub fn spanned(kind: HirExprKind, ty: Ty, ty_id: TyId, span: Span) -> Self {
         Self {
             id: NodeId::DUMMY,
             ty,
+            ty_id,
             span: Some(span),
             kind,
         }
@@ -265,6 +274,7 @@ pub enum HirExprKind {
     /// `Vec<elem>()` / `Vec<elem>(cap)`; the expression type is `Vec<elem>`.
     VecNew {
         elem: Ty,
+        elem_id: TyId,
         cap: Option<Box<HirExpr>>,
     },
     /// Built-in method on a `Vec`; `receiver` is a borrow of the vector.

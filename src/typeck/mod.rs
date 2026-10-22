@@ -33,14 +33,21 @@ pub enum MemberRef {
 /// Member resolutions keyed by the AST node of a bare name, a `recv.m` callee, or a method name.
 pub type MemberResolutions = HashMap<AstId, MemberRef>;
 
+/// Everything typeck produces. `tcx` owns the ids in the HIR's `*_ty_id` fields and outlives typeck.
+pub struct Typeck {
+    pub hir: HirProgram,
+    pub node_tys: NodeTypes,
+    pub members: MemberResolutions,
+    pub diagnostics: Vec<Diagnostic>,
+    pub tcx: TyCtx,
+}
+
 pub fn check(program: &Program) -> (HirProgram, NodeTypes, Vec<Diagnostic>) {
-    let (hir, node_tys, _, diagnostics) = check_with_members(program);
+    let Typeck { hir, node_tys, diagnostics, .. } = check_with_members(program);
     (hir, node_tys, diagnostics)
 }
 
-pub fn check_with_members(
-    program: &Program,
-) -> (HirProgram, NodeTypes, MemberResolutions, Vec<Diagnostic>) {
+pub fn check_with_members(program: &Program) -> Typeck {
     let mut diagnostics = Vec::new();
     let defs = DefTable::build(program);
     let mut tcx = TyCtx::new(&defs);
@@ -100,19 +107,21 @@ pub fn check_with_members(
                 .map(|field| HirClassField {
                     name: field.name.clone(),
                     ty: tcx.to_ty(field.ty),
+                    ty_id: field.ty,
                 })
                 .collect(),
         })
         .collect();
-    (
-        HirProgram {
+    Typeck {
+        hir: HirProgram {
             classes: hir_classes,
             functions,
         },
         node_tys,
         members,
         diagnostics,
-    )
+        tcx,
+    }
 }
 
 fn build_classes(
@@ -306,6 +315,7 @@ fn check_function(
             kind: crate::ast::BindingKind::Val,
             name: "this".to_string(),
             ty: env.tcx.to_ty(this_ty),
+            ty_id: this_ty,
         });
     }
     params.extend(bind_params(function, param_tys, &mut env));
@@ -326,6 +336,7 @@ fn check_function(
         name_span: function.name_span,
         params,
         return_ty: tcx.to_ty(return_ty),
+        return_ty_id: return_ty,
         body,
     }
 }
@@ -352,6 +363,7 @@ fn bind_params(
                 kind: param.kind,
                 name: param.name.name.clone(),
                 ty: env.tcx.to_ty(ty),
+                ty_id: ty,
             }
         })
         .collect()

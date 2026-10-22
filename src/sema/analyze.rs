@@ -8,7 +8,7 @@ use crate::ast::{BindingKind, Function, Program, Type};
 
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
-    let (_, node_tys, members, _) = crate::typeck::check_with_members(program);
+    let crate::typeck::Typeck { node_tys, members, .. } = crate::typeck::check_with_members(program);
     analyze_with_members(program, node_tys, members)
 }
 
