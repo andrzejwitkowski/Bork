@@ -41,16 +41,17 @@ fn render() -> String {
         let source = fs::read_to_string(root().join(&rel)).unwrap();
         let result = check(&source);
         assert!(result.is_ok(), "{rel}: frontend rejected a passing sample: {:?}", result.diagnostics);
-        for f in &result.hir.expect("hir present when ok").functions {
+        let tcx = &result.tcx;
+        for f in &result.hir.as_ref().expect("hir present when ok").functions {
             let params: Vec<String> = f
                 .params
                 .iter()
                 .map(|p| {
                     let kind = if p.kind == BindingKind::Var { "var " } else { "" };
-                    format!("{kind}{}: {}", p.name, p.ty)
+                    format!("{kind}{}: {}", p.name, tcx.display(p.ty))
                 })
                 .collect();
-            out.push_str(&format!("{rel}::{}({}) -> {}\n", f.name, params.join(", "), f.return_ty));
+            out.push_str(&format!("{rel}::{}({}) -> {}\n", f.name, params.join(", "), tcx.display(f.return_ty)));
         }
     }
     out

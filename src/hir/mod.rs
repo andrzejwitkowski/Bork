@@ -6,7 +6,7 @@
 mod number;
 mod ty;
 pub use number::number_nodes;
-pub use ty::{Prim, Ty, TyKind};
+pub use ty::Prim;
 
 use crate::ast;
 use crate::span::Span;
@@ -16,8 +16,7 @@ use crate::ty::TyId;
 pub struct HirConditionalBinding {
     pub name: crate::span::SpannedName,
     pub value: HirExpr,
-    pub binding_ty: Ty,
-    pub binding_ty_id: TyId,
+    pub binding_ty: TyId,
 }
 
 /// Non-empty presence header. See [`ast::ConditionalBindings`].
@@ -61,8 +60,7 @@ pub struct HirClass {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirClassField {
     pub name: String,
-    pub ty: Ty,
-    pub ty_id: TyId,
+    pub ty: TyId,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,8 +68,7 @@ pub struct HirFunction {
     pub name: String,
     pub name_span: Span,
     pub params: Vec<HirParam>,
-    pub return_ty: Ty,
-    pub return_ty_id: TyId,
+    pub return_ty: TyId,
     pub body: HirBlock,
 }
 
@@ -79,8 +76,7 @@ pub struct HirFunction {
 pub struct HirParam {
     pub kind: ast::BindingKind,
     pub name: String,
-    pub ty: Ty,
-    pub ty_id: TyId,
+    pub ty: TyId,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -100,8 +96,7 @@ pub enum HirStmt {
     VarDecl {
         kind: ast::BindingKind,
         name: String,
-        ty: Ty,
-        ty_id: TyId,
+        ty: TyId,
         value: HirExpr,
         /// When set, owned payload for `value` is allocated in the named outer binding's arena.
         alloc_in_binding: Option<String>,
@@ -188,28 +183,25 @@ impl NodeId {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirExpr {
     pub id: NodeId,
-    pub ty: Ty,
-    pub ty_id: TyId,
+    pub ty: TyId,
     pub span: Option<Span>,
     pub kind: HirExprKind,
 }
 
 impl HirExpr {
-    pub fn new(kind: HirExprKind, ty: Ty, ty_id: TyId) -> Self {
+    pub fn new(kind: HirExprKind, ty: TyId) -> Self {
         Self {
             id: NodeId::DUMMY,
             ty,
-            ty_id,
             span: None,
             kind,
         }
     }
 
-    pub fn spanned(kind: HirExprKind, ty: Ty, ty_id: TyId, span: Span) -> Self {
+    pub fn spanned(kind: HirExprKind, ty: TyId, span: Span) -> Self {
         Self {
             id: NodeId::DUMMY,
             ty,
-            ty_id,
             span: Some(span),
             kind,
         }
@@ -273,8 +265,7 @@ pub enum HirExprKind {
     },
     /// `Vec<elem>()` / `Vec<elem>(cap)`; the expression type is `Vec<elem>`.
     VecNew {
-        elem: Ty,
-        elem_id: TyId,
+        elem: TyId,
         cap: Option<Box<HirExpr>>,
     },
     /// Built-in method on a `Vec`; `receiver` is a borrow of the vector.

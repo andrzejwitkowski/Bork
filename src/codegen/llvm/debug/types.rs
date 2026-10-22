@@ -204,7 +204,7 @@ impl<'ctx> DebugInfo<'ctx> {
         let fields = class
             .fields
             .iter()
-            .map(|f| (f.name.as_str(), self.ty(cx, f.ty_id)))
+            .map(|f| (f.name.as_str(), self.ty(cx, f.ty)))
             .collect();
         let result = self.structure(cx, &key, cx.record_type(name).unwrap(), fields);
         let alias = self.builder.create_typedef(

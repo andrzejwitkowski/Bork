@@ -1,6 +1,5 @@
-//! Id-level mirrors of the `hir::Ty` queries and constructors typeck uses. Each says which
-//! `hir::Ty` method it mirrors; the "kind" queries look through `T?` (as `hir::Ty` ignores the
-//! `nullable` flag there), the strict ones do not.
+//! Queries and constructors over `TyId`. The "kind" queries (`is_ref`, `array_elem`, ...) look
+//! through `T?`; the strict ones (`is_copy`, `is_array`, `is_text`, ...) do not.
 
 use super::{DefId, Prim, TyCtx, TyData, TyId};
 
@@ -17,7 +16,7 @@ impl TyCtx {
         matches!(self.data(id), TyData::Nullable(_))
     }
 
-    /// Mirrors `hir::Ty::with_nullable`; a type that cannot be nullable (`Error`) is unchanged.
+    /// a type that cannot be nullable (`Error`) is unchanged.
     pub fn with_nullable(&mut self, id: TyId, nullable: bool) -> TyId {
         let base = self.base(id);
         if nullable {
@@ -27,7 +26,7 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::supports_nullable`.
+    /// 
     pub fn supports_nullable(&self, id: TyId) -> bool {
         !matches!(
             self.data(self.base(id)),
@@ -35,7 +34,7 @@ impl TyCtx {
         )
     }
 
-    /// Mirrors `hir::Ty::is_unknown`.
+    /// 
     pub fn is_unknown(&self, id: TyId) -> bool {
         self.is_error(id)
     }
@@ -62,12 +61,12 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::is_string`.
+    /// 
     pub fn is_string(&self, id: TyId) -> bool {
         matches!(self.data(self.base(id)), TyData::String)
     }
 
-    /// Mirrors `hir::Ty::is_text`: non-nullable `String` or a borrow of one.
+    /// non-nullable `String` or a borrow of one.
     pub fn is_text(&self, id: TyId) -> bool {
         match self.data(id) {
             TyData::String => true,
@@ -76,7 +75,7 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::record_name`, as the class definition: an object or a borrow of one.
+    /// as the class definition: an object or a borrow of one.
     pub fn record_def(&self, id: TyId) -> Option<DefId> {
         match self.data(self.base(id)) {
             TyData::Class(def) => Some(*def),
@@ -85,7 +84,7 @@ impl TyCtx {
         }
     }
 
-    /// The receiver of a field access, as `hir::Ty` kinds see it (through `?`): whether it is a
+    /// The receiver of a field access, through `?`: whether it is a
     /// named type (`String` included) directly or behind one borrow / `Ref`, the class if it is
     /// not `String`, and whether it was reached through a `Ref`.
     pub fn field_receiver(&self, id: TyId) -> (bool, Option<DefId>, bool) {
@@ -110,7 +109,7 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::record_name`.
+    /// 
     pub fn record_name(&self, id: TyId) -> Option<&str> {
         self.record_def(id).map(|def| self.class_name(def))
     }
@@ -122,12 +121,12 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::is_array` (strict).
+    /// (strict).
     pub fn is_array(&self, id: TyId) -> bool {
         matches!(self.data(id), TyData::Array { .. })
     }
 
-    /// Mirrors `hir::Ty::array_elem`: through borrows and `?`.
+    /// through borrows and `?`.
     pub fn array_elem(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
             TyData::Array { elem, .. } => Some(*elem),
@@ -143,7 +142,7 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::vec_elem`: through borrows and `?`.
+    /// through borrows and `?`.
     pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
             TyData::Vec(elem) => Some(*elem),
@@ -171,27 +170,27 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::is_numeric` (strict).
+    /// (strict).
     pub fn is_numeric(&self, id: TyId) -> bool {
         matches!(self.data(id), TyData::Prim(p) if p.is_numeric())
     }
 
-    /// Mirrors `hir::Ty::is_integer` (strict).
+    /// (strict).
     pub fn is_integer(&self, id: TyId) -> bool {
         matches!(self.data(id), TyData::Prim(p) if p.is_integer())
     }
 
-    /// Mirrors `hir::Ty::deref_ty`: the target of a borrow, otherwise the type itself.
+    /// the target of a borrow, otherwise the type itself.
     pub fn deref_ty(&self, id: TyId) -> TyId {
         self.ref_inner(id).unwrap_or(id)
     }
 
-    /// Mirrors `hir::Ty::owns_result`: a value allocated into its consumer's sink arena.
+    /// a value allocated into its consumer's sink arena.
     pub fn owns_result(&self, id: TyId) -> bool {
         self.is_managed_ref(id) || self.record_def(id).is_some()
     }
 
-    /// Mirrors `hir::Ty::uses_arena_storage`: payload bytes live in an arena (`String`, objects, `[T]`, `Vec`).
+    /// payload bytes live in an arena (`String`, objects, `[T]`, `Vec`).
     pub fn uses_arena_storage(&self, id: TyId) -> bool {
         match self.data(self.base(id)) {
             TyData::Ref(inner) => self.uses_arena_storage(*inner),
@@ -200,7 +199,7 @@ impl TyCtx {
         }
     }
 
-    /// Mirrors `hir::Ty::is_array_elem_supported`.
+    /// 
     pub fn is_array_elem_supported(&self, id: TyId) -> bool {
         self.is_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
     }
@@ -268,61 +267,63 @@ impl TyCtx {
 
 #[cfg(test)]
 mod tests {
-    use crate::hir::{Prim, Ty, TyKind};
+    use crate::hir::Prim;
     use crate::ty::tests::{ctx, named, samples};
 
-    /// Every query agrees with the `hir::Ty` method it mirrors, over every sample shape.
     #[test]
-    fn queries_match_hir() {
+    fn kind_queries_look_through_nullable_and_strict_ones_do_not() {
         let mut c = ctx();
-        let mut all = samples();
-        all.push(Ty::new(TyKind::Func { params: vec![], ret: Box::new(Ty::i32()) }, true));
-        all.push(Ty::new(TyKind::Array { elem: Box::new(Ty::prim(Prim::U8)), len: 4 }, false));
-        for ty in all {
-            let id = c.intern(&ty).unwrap();
-            let s = ty.to_string();
-            assert_eq!(c.is_nullable(id), ty.nullable && ty.kind != TyKind::Unknown, "{s}");
-            assert_eq!(c.supports_nullable(id), ty.supports_nullable(), "{s}");
-            assert_eq!(c.is_unknown(id), ty.is_unknown(), "{s}");
-            assert_eq!(c.is_ref(id), ty.is_ref(), "{s}");
-            assert_eq!(c.is_managed_ref(id), ty.is_managed_ref(), "{s}");
-            assert_eq!(c.is_string(id), ty.is_string(), "{s}");
-            assert_eq!(c.is_text(id), ty.is_text(), "{s}");
-            assert_eq!(c.is_array(id), ty.is_array(), "{s}");
-            assert_eq!(c.is_vec(id), ty.is_vec(), "{s}");
-            assert_eq!(c.is_numeric(id), ty.is_numeric(), "{s}");
-            assert_eq!(c.is_integer(id), ty.is_integer(), "{s}");
-            assert_eq!(c.is_array_elem_supported(id), ty.is_array_elem_supported(), "{s}");
-            assert_eq!(c.array_len(id), ty.array_len(), "{s}");
-            assert_eq!(c.owns_result(id), ty.owns_result(), "{s}");
-            assert_eq!(c.uses_arena_storage(id), ty.uses_arena_storage(), "{s}");
-            assert_eq!(c.to_ty(c.deref_ty(id)), ty.deref_ty().clone(), "{s}");
-            let back = |o: Option<crate::ty::TyId>| o.map(|i| c.to_ty(i));
-            assert_eq!(back(c.ref_inner(id)).as_ref(), ty.ref_inner(), "{s}");
-            assert_eq!(back(c.managed_ref_inner(id)).as_ref(), ty.managed_ref_inner(), "{s}");
-            assert_eq!(back(c.array_elem(id)).as_ref(), ty.array_elem(), "{s}");
-            assert_eq!(back(c.vec_elem(id)).as_ref(), ty.vec_elem(), "{s}");
-            let record = c.record_def(id).map(|d| c.class_name(d).to_string());
-            assert_eq!(record.as_deref(), ty.record_name(), "{s}");
-        }
+        let point = named(&mut c, "Point");
+        let i = c.i32();
+        let (opt_i, opt_point) = (c.with_nullable(i, true), c.with_nullable(point, true));
+        let (string, opt_string) = (c.string(false), c.string(true));
+        let (arr, vec_ty) = (c.array(i, 4), c.vec_of(i));
+        let (ref_arr, ref_vec) = (c.ref_to(arr), c.ref_to(vec_ty));
+        let (ref_point, ref_string) = (c.ref_to(point), c.ref_to(string));
+        let managed = c.managed_ref(point);
+        assert!(c.is_string(opt_string) && !c.is_text(opt_string) && c.is_text(ref_string));
+        assert!(c.is_copy(i) && !c.is_copy(opt_i) && c.is_numeric(i) && !c.is_numeric(opt_i));
+        assert!(c.is_integer(i) && !c.is_integer(c.prim_id(Prim::F64)));
+        assert_eq!(c.record_name(opt_point), Some("Point"));
+        assert_eq!(c.record_name(ref_point), Some("Point"));
+        assert_eq!(c.record_name(string), None);
+        assert_eq!(c.record_name(managed), None);
+        assert!(c.owns_result(managed) && c.owns_result(ref_point) && !c.owns_result(string));
+        assert!(c.is_array(arr) && !c.is_array(ref_arr) && c.array_elem(ref_arr) == Some(i));
+        assert_eq!(c.array_len(arr), Some(4));
+        assert!(c.is_vec(vec_ty) && !c.is_vec(ref_vec) && c.vec_elem(ref_vec) == Some(i));
+        assert!(c.uses_arena_storage(string) && c.uses_arena_storage(ref_vec) && !c.uses_arena_storage(i));
+        assert!(!c.uses_arena_storage(managed));
+        assert_eq!(c.deref_ty(ref_point), point);
+        assert_eq!(c.deref_ty(point), point);
+        assert!(c.is_array_elem_supported(i) && c.is_array_elem_supported(managed));
+        assert!(c.is_array_elem_supported(string) && !c.is_array_elem_supported(opt_string));
+        assert!(c.supports_nullable(i) && !c.supports_nullable(ref_point) && !c.supports_nullable(vec_ty));
     }
 
     #[test]
-    fn with_nullable_matches_hir_and_constructors_agree_with_intern() {
+    fn field_receiver_sees_through_borrows_managed_refs_and_string() {
         let mut c = ctx();
-        for ty in samples().into_iter().filter(|t| t.kind != TyKind::Unknown) {
-            let id = c.intern(&ty).unwrap();
-            for flag in [true, false] {
-                let got = c.with_nullable(id, flag);
-                assert_eq!(c.to_ty(got), ty.with_nullable(flag), "{ty} {flag}");
-            }
+        let point = named(&mut c, "Point");
+        let (reference, managed, string) = (c.ref_to(point), c.managed_ref(point), c.string(false));
+        let def = c.class_def(point);
+        assert_eq!(c.field_receiver(point), (true, def, false));
+        assert_eq!(c.field_receiver(reference), (true, def, false));
+        assert_eq!(c.field_receiver(managed), (true, def, true));
+        assert_eq!(c.field_receiver(string), (true, None, false));
+        let i = c.i32();
+        assert_eq!(c.field_receiver(i), (false, None, false));
+    }
+
+    #[test]
+    fn with_nullable_toggles_and_leaves_error_alone() {
+        let mut c = ctx();
+        for id in samples(&mut c) {
+            let on = c.with_nullable(id, true);
+            assert!(c.is_nullable(on) || c.is_error(id));
+            assert_eq!(c.with_nullable(on, false), c.base(id), "{}", c.display(id));
+            assert_eq!(c.with_nullable(on, true), on);
         }
-        let point = c.intern(&named("Point")).unwrap();
-        let by_hand = c.ref_to(point);
-        assert_eq!(by_hand, c.intern(&Ty::new(TyKind::Ref(Box::new(named("Point"))), false)).unwrap());
-        let (i, s) = (c.i32(), c.string(true));
-        assert_eq!(i, c.intern(&Ty::i32()).unwrap());
-        assert_eq!(s, c.intern(&Ty::string(true)).unwrap());
         let unknown = c.error();
         assert_eq!(c.with_nullable(unknown, true), unknown);
     }

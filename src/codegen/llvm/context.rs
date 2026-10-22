@@ -62,7 +62,7 @@ impl<'ctx> Codegen<'ctx> {
             .map(|class| {
                 (
                     class.name.clone(),
-                    class.fields.iter().map(|field| field.ty_id.clone()).collect(),
+                    class.fields.iter().map(|field| field.ty.clone()).collect(),
                 )
             })
             .collect();
@@ -88,10 +88,10 @@ impl<'ctx> Codegen<'ctx> {
                 .fields
                 .iter()
                 .map(|field| {
-                    codegen.basic_type(field.ty_id).ok_or_else(|| {
+                    codegen.basic_type(field.ty).ok_or_else(|| {
                         format!(
                             "record field `{}.{}` has unsupported type `{}`",
-                            class.name, field.name, codegen.tcx.display(field.ty_id)
+                            class.name, field.name, codegen.tcx.display(field.ty)
                         )
                     })
                 })

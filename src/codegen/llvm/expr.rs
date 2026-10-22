@@ -23,7 +23,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 then_block,
                 else_block,
             } => {
-                self.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(self.cx.unit_ty(), expr.ty_id))?;
+                self.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(self.cx.unit_ty(), expr.ty))?;
                 Ok(self.walk.trailing.take())
             }
             plan => {
@@ -106,11 +106,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let value = self.require_value(expr)?;
         if !value.is_int_value() {
             return Err(not_yet_supported(
-                &format!("`{}` in this position", self.cx.tcx.display(expr.ty_id)),
+                &format!("`{}` in this position", self.cx.tcx.display(expr.ty)),
                 expr.span,
             ));
         }
-        self.cast(value.into_int_value(), expr.ty_id, ty, expr)
+        self.cast(value.into_int_value(), expr.ty, ty, expr)
     }
 
     /// Literal bytes live in a private constant; the descriptor borrows them.
@@ -160,8 +160,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             HirExprKind::Int { value } => {
                 let ty = self
                     .cx
-                    .int_type(expr.ty_id)
-                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty_id)), expr.span))?;
+                    .int_type(expr.ty)
+                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty)), expr.span))?;
                 Ok(Some(ty.const_int(*value as u64, true).into()))
             }
             HirExprKind::Bool { value } => Ok(Some(
@@ -174,13 +174,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             HirExprKind::Float { value } => {
                 let ty = self
                     .cx
-                    .basic_type(expr.ty_id)
-                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty_id)), expr.span))?
+                    .basic_type(expr.ty)
+                    .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty)), expr.span))?
                     .into_float_type();
                 Ok(Some(ty.const_float(*value).into()))
             }
             HirExprKind::Str { value } => Ok(Some(self.emit_str_literal(value)?.into())),
-            HirExprKind::None => self.cx.const_null_value(expr.ty_id).map(Some),
+            HirExprKind::None => self.cx.const_null_value(expr.ty).map(Some),
             HirExprKind::Ident { name, use_kind } => {
                 let slot = self
                     .lookup(name)
@@ -214,7 +214,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     Ok(Some(value))
                 }
             }
-            HirExprKind::Some(_) => self.emit_nullable_some(expr.ty_id, ops[0]).map(Some),
+            HirExprKind::Some(_) => self.emit_nullable_some(expr.ty, ops[0]).map(Some),
             HirExprKind::Unary { op, expr: inner } => match op {
                 crate::ast::UnaryOp::Borrow => Ok(Some(ops[0])),
                 crate::ast::UnaryOp::Not => {
@@ -223,7 +223,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     Ok(Some(self.cx.builder.build_xor(value, one, "not")?.into()))
                 }
                 crate::ast::UnaryOp::NotNullAssert => self
-                    .emit_nullable_expect_non_null(inner.ty_id, ops[0])
+                    .emit_nullable_expect_non_null(inner.ty, ops[0])
                     .map(Some),
             },
             HirExprKind::Binary { op, lhs, rhs } => match op {
@@ -233,10 +233,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     self.emit_logical_from_lhs(op, lhs_bool, rhs, expr)
                         .map(Some)
                 }
-                BinOp::Eq | BinOp::Ne if self.cx.tcx.is_managed_ref(lhs.ty_id) || self.cx.tcx.is_managed_ref(rhs.ty_id) => {
+                BinOp::Eq | BinOp::Ne if self.cx.tcx.is_managed_ref(lhs.ty) || self.cx.tcx.is_managed_ref(rhs.ty) => {
                     self.emit_ref_eq(ops[0], ops[1], *op == BinOp::Ne).map(Some)
                 }
-                BinOp::Eq | BinOp::Ne if self.cx.tcx.is_text(lhs.ty_id) && self.cx.tcx.is_text(rhs.ty_id) => {
+                BinOp::Eq | BinOp::Ne if self.cx.tcx.is_text(lhs.ty) && self.cx.tcx.is_text(rhs.ty) => {
                     self.emit_string_eq(ops[0], ops[1], *op == BinOp::Ne).map(Some)
                 }
                 BinOp::Eq | BinOp::Ne if is_nullable_equality(&self.cx.tcx, op, lhs, rhs) => self
@@ -251,29 +251,29 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 let elem_ty = self
                     .cx
                     .tcx
-                    .array_elem(expr.ty_id)
+                    .array_elem(expr.ty)
                     .ok_or_else(|| not_yet_supported("array literal type", expr.span))?;
                 Ok(Some(
-                    self.emit_array_lit_values(ops, elem_ty, expr.ty_id)?.into(),
+                    self.emit_array_lit_values(ops, elem_ty, expr.ty)?.into(),
                 ))
             }
-            HirExprKind::Index { receiver, .. } if self.cx.tcx.vec_elem(receiver.ty_id).is_some() => {
-                self.emit_vec_get(ops[0], ops[1], expr.ty_id, expr.span).map(Some)
+            HirExprKind::Index { receiver, .. } if self.cx.tcx.vec_elem(receiver.ty).is_some() => {
+                self.emit_vec_get(ops[0], ops[1], expr.ty, expr.span).map(Some)
             }
             HirExprKind::Index { .. } => self
-                .emit_index_load_values(ops[0], ops[1], expr.ty_id, expr.span)
+                .emit_index_load_values(ops[0], ops[1], expr.ty, expr.span)
                 .map(Some),
-            HirExprKind::VecNew { elem_id, .. } => self.emit_vec_new(*elem_id, ops.first().copied()).map(Some),
+            HirExprKind::VecNew { elem, .. } => self.emit_vec_new(*elem, ops.first().copied()).map(Some),
             HirExprKind::VecOp { op, receiver, .. } => {
                 let elem = self
                     .cx
                     .tcx
-                    .vec_elem(receiver.ty_id)
+                    .vec_elem(receiver.ty)
                     .ok_or_else(|| not_yet_supported("vector method receiver", expr.span))?;
-                self.emit_vec_op(*op, elem, expr.ty_id, ops, expr.span)
+                self.emit_vec_op(*op, elem, expr.ty, ops, expr.span)
             }
             HirExprKind::Slice { .. } => Ok(Some(
-                self.emit_slice_values(ops[0], ops[1], expr.ty_id, expr.span)?
+                self.emit_slice_values(ops[0], ops[1], expr.ty, expr.span)?
                     .into(),
             )),
             HirExprKind::Field {
@@ -285,9 +285,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 if name != "length" {
                     return Err(not_yet_supported("field access", expr.span));
                 }
-                if *safe && self.cx.tcx.is_nullable(receiver.ty_id) {
+                if *safe && self.cx.tcx.is_nullable(receiver.ty) {
                     return self
-                        .emit_safe_nullable_length(receiver.ty_id, ops[0], expr.ty_id, expr.span)
+                        .emit_safe_nullable_length(receiver.ty, ops[0], expr.ty, expr.span)
                         .map(Some);
                 }
                 Ok(Some(
@@ -305,7 +305,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 safe: false,
                 ..
             } => self
-                .emit_object_field(ops[0], class_name, *field_index, expr.ty_id, expr.span)
+                .emit_object_field(ops[0], class_name, *field_index, expr.ty, expr.span)
                 .map(Some),
             HirExprKind::ObjectField {
                 class_name,
@@ -317,7 +317,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     ops[0],
                     class_name,
                     *field_index,
-                    expr.ty_id,
+                    expr.ty,
                     expr.span,
                 )
                 .map(Some),
@@ -407,7 +407,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let mut args = abi.hidden_values(self.current_arena(), result_sink);
         for (value, param) in arg_values.iter().zip(&function.params) {
             args.push(
-                self.coerce_value_to_ty(*value, param.ty_id, expr.span)?
+                self.coerce_value_to_ty(*value, param.ty, expr.span)?
                     .into(),
             );
         }
@@ -568,8 +568,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
 fn is_nullable_equality(tcx: &crate::ty::TyCtx, op: &BinOp, lhs: &HirExpr, rhs: &HirExpr) -> bool {
     matches!(op, BinOp::Eq | BinOp::Ne)
-        && (tcx.is_nullable(lhs.ty_id)
-            || tcx.is_nullable(rhs.ty_id)
+        && (tcx.is_nullable(lhs.ty)
+            || tcx.is_nullable(rhs.ty)
             || matches!(lhs.kind, HirExprKind::None)
             || matches!(rhs.kind, HirExprKind::None))
 }

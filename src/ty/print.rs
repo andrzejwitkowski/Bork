@@ -1,5 +1,4 @@
-//! The one type printer. Text matches `hir::Ty`'s `Display` exactly (`(a, b)->r` without spaces,
-//! `?` as a plain suffix), so diagnostics read the same whichever representation they print.
+//! The one type printer. Diagnostics print `(a, b)->r` without spaces and `?` as a plain suffix.
 
 use std::fmt;
 
@@ -49,35 +48,46 @@ impl fmt::Display for TyPrinter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::hir::{Prim, Ty, TyKind};
+    use crate::hir::Prim;
     use crate::ty::tests::{ctx, named, samples};
     use crate::ty::{InferVar, ParamIdx};
 
     #[test]
-    fn matches_hir_display_for_every_shape() {
+    fn prints_every_sample_without_panicking() {
         let mut c = ctx();
-        let mut all = samples();
-        all.push(Ty::new(TyKind::Func { params: vec![], ret: Box::new(Ty::i32()) }, true));
-        for ty in all {
-            let id = c.intern(&ty).unwrap();
-            let want = if ty.kind == TyKind::Unknown { "<unknown>".to_string() } else { ty.to_string() };
-            assert_eq!(c.display(id).to_string(), want);
+        for id in samples(&mut c) {
+            assert!(!c.display(id).to_string().is_empty());
         }
     }
 
     #[test]
     fn prints_the_forms_diagnostics_use() {
         let mut c = ctx();
-        let mut show = |ty: Ty| {
-            let id = c.intern(&ty).unwrap();
-            c.display(id).to_string()
+        let (i32_ty, node) = (c.i32(), named(&mut c, "Node"));
+        let opt_i32 = c.with_nullable(i32_ty, true);
+        let managed = c.managed_ref(node);
+        let func = c.func(vec![i32_ty], i32_ty);
+        let nullable_func = {
+            let f = c.func(vec![], i32_ty);
+            c.with_nullable(f, true)
         };
-        assert_eq!(show(Ty::new(TyKind::Prim(Prim::I32), true)), "i32?");
-        assert_eq!(show(Ty::new(TyKind::ManagedRef(Box::new(named("Node"))), false)), "Ref<Node>");
-        assert_eq!(show(Ty::new(TyKind::Func { params: vec![Ty::i32()], ret: Box::new(Ty::i32()) }, false)), "(i32)->i32");
-        assert_eq!(show(Ty::new(TyKind::Func { params: vec![], ret: Box::new(Ty::i32()) }, true)), "()->i32?");
-        assert_eq!(show(Ty::new(TyKind::Array { elem: Box::new(Ty::i32()), len: 3 }, false)), "[i32; 3]");
+        let array = c.array(i32_ty, 3);
+        let (range, vec_ty, string) = (c.range(i32_ty), c.vec_of(i32_ty), c.string(true));
+        let reference = c.ref_to(node);
+        let unknown = c.error();
+        let _ = Prim::I32;
+        let shown = |c: &crate::ty::TyCtx, id| c.display(id).to_string();
+        assert_eq!(shown(&c, opt_i32), "i32?");
+        assert_eq!(shown(&c, managed), "Ref<Node>");
+        assert_eq!(shown(&c, func), "(i32)->i32");
+        assert_eq!(shown(&c, nullable_func), "()->i32?");
+        assert_eq!(shown(&c, array), "[i32; 3]");
+        assert_eq!(shown(&c, range), "Range<i32>");
+        assert_eq!(shown(&c, vec_ty), "Vec<i32>");
+        assert_eq!(shown(&c, string), "String?");
+        assert_eq!(shown(&c, reference), "&Node");
+        assert_eq!(shown(&c, unknown), "<unknown>");
         let (p, v) = (c.param(ParamIdx(0)), c.infer(InferVar(1)));
-        assert_eq!((c.display(p).to_string(), c.display(v).to_string()), ("T0".into(), "?1".into()));
+        assert_eq!((shown(&c, p), shown(&c, v)), ("T0".into(), "?1".into()));
     }
 }

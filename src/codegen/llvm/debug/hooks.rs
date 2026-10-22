@@ -1,6 +1,6 @@
 //! Calls that label persistent Ref slots and arenas in the debug runtime.
 use crate::ty::TyId;
-use crate::{codegen::llvm::context::Codegen, diag::Diagnostic, hir::Ty};
+use crate::{codegen::llvm::context::Codegen, diag::Diagnostic};
 use inkwell::{
     values::{IntValue, PointerValue},
     AddressSpace,

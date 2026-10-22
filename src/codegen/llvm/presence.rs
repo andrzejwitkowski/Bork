@@ -217,12 +217,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic()
             .expect("bork_ref_is_none returns bool")
             .into_int_value();
-        let mut split = self.open_presence("ref.elvis", is_absent, Some(expr.ty_id))?;
+        let mut split = self.open_presence("ref.elvis", is_absent, Some(expr.ty))?;
         self.end_present_arm(&mut split, Some(lhs))?;
         self.drop_ref_value(lhs)?;
-        let rhs_val = self.emit_skipped_as(rhs, expr.ty_id)?;
+        let rhs_val = self.emit_skipped_as(rhs, expr.ty)?;
         self.end_absent_arm(split, Some(rhs_val))?
-            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty_id)), expr.span))
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(expr.ty)), expr.span))
     }
 
 }

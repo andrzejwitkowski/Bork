@@ -324,7 +324,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .into_struct_value();
         self.declare_local(
             &binding.name.name,
-            binding.binding_ty_id,
+            binding.binding_ty,
             object_handle.into(),
             None,
         )?;
@@ -372,7 +372,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
                 .zip(emitter.llvm_fn.get_param_iter().skip(hidden))
                 .enumerate()
             {
-                emitter.declare_local(&param.name, param.ty_id, value, Some(index as u32 + 1))?;
+                emitter.declare_local(&param.name, param.ty, value, Some(index as u32 + 1))?;
             }
             emitter.debug_location(Some(emitter.function.name_span));
             Ok(())

@@ -91,7 +91,6 @@ pub fn check(source: &str) -> CheckResult {
 mod tests {
     use super::*;
     use crate::diag::Phase;
-    use crate::hir::Ty;
 
     fn hir_of(source: &str) -> HirProgram {
         let result = check(source);
@@ -166,18 +165,21 @@ fun add(val a: Int, var b: Int): Int {
     return a
 }
 "#;
-        let hir = hir_of(src);
+        let checked = check(src);
+        assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+        let (hir, tcx) = (checked.hir.expect("clean check produces HIR"), checked.tcx);
+        let i32_ty = tcx.prim_id(crate::hir::Prim::I32);
         assert_eq!(hir.functions.len(), 1);
         let f = &hir.functions[0];
         assert_eq!(f.name, "add");
-        assert_eq!(f.return_ty, Ty::i32());
+        assert_eq!(f.return_ty, i32_ty);
         assert_eq!(f.params.len(), 2);
         assert_eq!(f.params[0].name, "a");
         assert_eq!(f.params[0].kind, crate::ast::BindingKind::Val);
-        assert_eq!(f.params[0].ty, Ty::i32());
+        assert_eq!(f.params[0].ty, i32_ty);
         assert_eq!(f.params[1].name, "b");
         assert_eq!(f.params[1].kind, crate::ast::BindingKind::Var);
-        assert_eq!(f.params[1].ty, Ty::i32());
+        assert_eq!(f.params[1].ty, i32_ty);
         assert!(matches!(
             f.body.stmts.as_slice(),
             [crate::hir::HirStmt::Return { value: Some(_) }]

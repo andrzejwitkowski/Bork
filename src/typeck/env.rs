@@ -4,14 +4,14 @@ use crate::ast::BindingKind;
 use crate::constants::ConstantTable;
 use crate::defs::{DefId, DefTable};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirExpr, HirExprKind, Ty};
+use crate::hir::{HirExpr, HirExprKind};
 use crate::span::{AstId, Span};
 use crate::ty::{FnSigs, TyCtx, TyId, TyPrinter};
 
 use super::{MemberResolutions, NodeTypes};
 
-/// A checked expression: the legacy HIR node (`hir.ty` is the `hir::Ty` view that later passes
-/// read) together with its interned type, which is what typeck itself compares and queries.
+/// A checked expression: the HIR node together with its type, repeated so call sites can read
+/// `.ty` without reaching through `hir`.
 pub(super) struct Checked {
     pub(super) hir: HirExpr,
     pub(super) ty: TyId,
@@ -32,9 +32,6 @@ pub(super) struct Binding {
     /// Written `&T` in a type annotation or a `&T` parameter (not inferred `val b = &a`).
     pub(super) explicit_ref: bool,
 }
-
-/// Name-keyed signature in the legacy `hir::Ty` form, for `builtins::signatures`.
-pub(crate) type FunSig = crate::ty::FnSig<Ty>;
 
 #[derive(Clone, Debug)]
 pub(super) struct ClassFieldInfo {
@@ -195,11 +192,11 @@ impl<'a> Env<'a> {
     }
 
     pub(super) fn expr(&self, kind: HirExprKind, ty: TyId) -> Checked {
-        Checked { hir: HirExpr::new(kind, self.tcx.to_ty(ty), ty), ty }
+        Checked { hir: HirExpr::new(kind, ty), ty }
     }
 
     pub(super) fn expr_at(&self, kind: HirExprKind, ty: TyId, span: Span) -> Checked {
-        Checked { hir: HirExpr::spanned(kind, self.tcx.to_ty(ty), ty, span), ty }
+        Checked { hir: HirExpr::spanned(kind, ty, span), ty }
     }
 
     /// Lowers a written type, reporting problems at `span`.

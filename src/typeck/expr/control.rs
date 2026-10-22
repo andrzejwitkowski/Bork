@@ -152,7 +152,6 @@ fn check_conditional_binding(
             env.tcx.error()
         }
     };
-    let legacy = env.tcx.to_ty(binding_ty);
     env.node_tys.insert(binding.name.id.numbered(), binding_ty);
     env.bind(
         binding.name.name.clone(),
@@ -163,8 +162,7 @@ fn check_conditional_binding(
     HirConditionalBinding {
         name: binding.name.clone(),
         value: value.hir,
-        binding_ty: legacy,
-        binding_ty_id: binding_ty,
+        binding_ty,
     }
 }
 

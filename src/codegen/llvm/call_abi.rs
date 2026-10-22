@@ -20,7 +20,7 @@ impl CallAbi {
     pub(super) fn of(cx: &Codegen<'_>, function: &HirFunction) -> Self {
         if function.name == "main" {
             Self::Main
-        } else if returns_into_sink(cx, function.return_ty_id) {
+        } else if returns_into_sink(cx, function.return_ty) {
             Self::OwningReturn
         } else {
             Self::Callee

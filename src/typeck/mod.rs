@@ -8,12 +8,11 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::{Function, Program};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::defs::{DefId, DefTable};
-use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram, Ty};
+use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram};
 use crate::span::{AstId, Span};
 use crate::ty::{FnSig, FnSigs, TyCtx, TyId};
 
 use env::{ClassFieldInfo, ClassInfo, ClassTable, Env};
-pub(crate) use env::FunSig;
 use lower::lower_type;
 
 /// Types used by sema, keyed by the AST node of a declaration name or field assignment.
@@ -33,7 +32,7 @@ pub enum MemberRef {
 /// Member resolutions keyed by the AST node of a bare name, a `recv.m` callee, or a method name.
 pub type MemberResolutions = HashMap<AstId, MemberRef>;
 
-/// Everything typeck produces. `tcx` owns the ids in the HIR's `*_ty_id` fields and outlives typeck.
+/// Everything typeck produces. `tcx` owns the ids in the HIR's `TyId` fields and outlives typeck.
 pub struct Typeck {
     pub hir: HirProgram,
     pub node_tys: NodeTypes,
@@ -106,8 +105,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
                 .iter()
                 .map(|field| HirClassField {
                     name: field.name.clone(),
-                    ty: tcx.to_ty(field.ty),
-                    ty_id: field.ty,
+                    ty: field.ty,
                 })
                 .collect(),
         })
@@ -311,8 +309,7 @@ fn check_function(
         params.push(HirParam {
             kind: crate::ast::BindingKind::Val,
             name: "this".to_string(),
-            ty: env.tcx.to_ty(this_ty),
-            ty_id: this_ty,
+            ty: this_ty,
         });
     }
     params.extend(bind_params(function, param_tys, &mut env));
@@ -332,8 +329,7 @@ fn check_function(
         name,
         name_span: function.name_span,
         params,
-        return_ty: tcx.to_ty(return_ty),
-        return_ty_id: return_ty,
+        return_ty,
         body,
     }
 }
@@ -359,8 +355,7 @@ fn bind_params(
             HirParam {
                 kind: param.kind,
                 name: param.name.name.clone(),
-                ty: env.tcx.to_ty(ty),
-                ty_id: ty,
+                ty,
             }
         })
         .collect()

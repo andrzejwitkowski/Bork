@@ -105,8 +105,8 @@ impl<'h> Escape<'h, '_> {
                     value = self.place(expr, sink);
                     if sink.is_none()
                         && value == self.depth
-                        && self.tcx.uses_arena_storage(expr.ty_id)
-                        && !self.tcx.owns_result(expr.ty_id)
+                        && self.tcx.uses_arena_storage(expr.ty)
+                        && !self.tcx.owns_result(expr.ty)
                     {
                         reject(
                             self.diagnostics,
@@ -131,7 +131,7 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                if self.tcx.is_ref(value.ty_id) {
+                if self.tcx.is_ref(value.ty) {
                     reject(
                         self.diagnostics,
                         "returning a reference is not supported",
@@ -139,7 +139,7 @@ impl<'h> Escape<'h, '_> {
                     );
                     return;
                 }
-                if !self.tcx.uses_arena_storage(value.ty_id) {
+                if !self.tcx.uses_arena_storage(value.ty) {
                     return;
                 }
                 if self.place(value, Some(0)) > 0 {
@@ -148,7 +148,7 @@ impl<'h> Escape<'h, '_> {
                         &format!(
                             "returning a `{value_ty}` whose bytes live in an inner region is not \
                              supported: that arena is freed before the value is returned",
-                            value_ty = self.tcx.display(value.ty_id)
+                            value_ty = self.tcx.display(value.ty)
                         ),
                         value.span,
                     );
@@ -192,7 +192,7 @@ impl<'h> Escape<'h, '_> {
                     }
                 }
                 let outlives = value_depth > depth;
-                if outlives && self.tcx.uses_arena_storage(value.ty_id) {
+                if outlives && self.tcx.uses_arena_storage(value.ty) {
                     reject(
                         self.diagnostics,
                         &format!(
@@ -219,7 +219,7 @@ impl<'h> Escape<'h, '_> {
     }
 
     fn check_return_string_form(&mut self, expr: &'h HirExpr) {
-        if self.tcx.is_string(expr.ty_id) && self.is_fresh_string(expr) {
+        if self.tcx.is_string(expr.ty) && self.is_fresh_string(expr) {
             reject(
                 self.diagnostics,
                 "returning the result of `concat` or `stringFromUtf8` is not supported yet: \
@@ -303,7 +303,7 @@ impl<'h> Escape<'h, '_> {
             HirExprKind::Ident {
                 use_kind: UseKind::Move | UseKind::Promote,
                 ..
-            } if self.tcx.is_string(expr.ty_id)
+            } if self.tcx.is_string(expr.ty)
         )
     }
 
@@ -341,7 +341,7 @@ impl<'h> Escape<'h, '_> {
                 for arg in args {
                     self.place(arg, None);
                 }
-                if !self.tcx.uses_arena_storage(expr.ty_id) {
+                if !self.tcx.uses_arena_storage(expr.ty) {
                     self.place(receiver, None);
                     return 0;
                 }
@@ -349,7 +349,7 @@ impl<'h> Escape<'h, '_> {
             }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
-                if !self.tcx.uses_arena_storage(expr.ty_id) {
+                if !self.tcx.uses_arena_storage(expr.ty) {
                     self.place(receiver, None);
                     return 0;
                 }
@@ -362,7 +362,7 @@ impl<'h> Escape<'h, '_> {
                 depth
             }
             HirExprKind::Ident { name, use_kind } => {
-                if self.tcx.uses_arena_storage(expr.ty_id)
+                if self.tcx.uses_arena_storage(expr.ty)
                     && matches!(*use_kind, UseKind::Move | UseKind::Promote)
                 {
                     match sink {
@@ -385,14 +385,14 @@ impl<'h> Escape<'h, '_> {
                     HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
                 );
                 self.place(callee, None);
-                if self.tcx.is_string(expr.ty_id) && concat {
+                if self.tcx.is_string(expr.ty) && concat {
                     for arg in args {
                         self.place(arg, None);
                     }
                     sink.unwrap_or(self.depth)
                 } else {
                     let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
-                    if self.tcx.uses_arena_storage(expr.ty_id) {
+                    if self.tcx.uses_arena_storage(expr.ty) {
                         deepest
                     } else {
                         0
@@ -431,7 +431,7 @@ impl<'h> Escape<'h, '_> {
                 ..
             } => {
                 self.place(&bindings.head.value, None);
-                if self.tcx.is_ref(expr.ty_id) {
+                if self.tcx.is_ref(expr.ty) {
                     reject(
                         self.diagnostics,
                         "a presence guard reference cannot escape its scope",
@@ -444,7 +444,7 @@ impl<'h> Escape<'h, '_> {
                 let none_depth = none_block
                     .as_ref()
                     .map_or(0, |block| self.region(block, true, Some(result_depth)));
-                if self.tcx.uses_arena_storage(expr.ty_id) {
+                if self.tcx.uses_arena_storage(expr.ty) {
                     result_depth
                 } else {
                     some_depth.max(none_depth)

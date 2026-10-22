@@ -31,10 +31,10 @@ pub fn declare_function<'ctx>(
     let mut params = CallAbi::of(cx, function).hidden_types(cx);
     for param in &function.params {
         params.push(
-            cx.basic_type(param.ty_id)
+            cx.basic_type(param.ty)
                 .map(BasicMetadataTypeEnum::from)
                 .ok_or_else(|| {
-                    not_yet_supported(&format!("parameter type `{}`", cx.tcx.display(param.ty_id)), None)
+                    not_yet_supported(&format!("parameter type `{}`", cx.tcx.display(param.ty)), None)
                 })?,
         );
     }
@@ -43,9 +43,9 @@ pub fn declare_function<'ctx>(
         if !params.is_empty() {
             return Err(not_yet_supported("parameters on `main`", None));
         }
-        if function.return_ty_id != cx.i32_ty() && function.return_ty_id != cx.unit_ty() {
+        if function.return_ty != cx.i32_ty() && function.return_ty != cx.unit_ty() {
             return Err(not_yet_supported(
-                &format!("`main` returning `{}`", cx.tcx.display(function.return_ty_id)),
+                &format!("`main` returning `{}`", cx.tcx.display(function.return_ty)),
                 None,
             ));
         }
@@ -53,12 +53,12 @@ pub fn declare_function<'ctx>(
         return Ok(cx.module.add_function("main", fn_type, None));
     }
 
-    let fn_type = if function.return_ty_id == cx.unit_ty() {
+    let fn_type = if function.return_ty == cx.unit_ty() {
         cx.context.void_type().fn_type(&params, false)
     } else {
-        cx.basic_type(function.return_ty_id)
+        cx.basic_type(function.return_ty)
             .ok_or_else(|| {
-                not_yet_supported(&format!("return type `{}`", cx.tcx.display(function.return_ty_id)), None)
+                not_yet_supported(&format!("return type `{}`", cx.tcx.display(function.return_ty)), None)
             })?
             .fn_type(&params, false)
     };
@@ -279,7 +279,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             )),
             HirStmt::VarDecl {
                 name,
-                ty_id: ty,
+                ty,
                 value,
                 alloc_in_binding,
                 ..
@@ -333,9 +333,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let receiver_value = self.value_from_walk(receiver, || {
             not_yet_supported("field receiver", receiver.span)
         })?;
-        let class_name = self.cx.tcx.record_name(receiver.ty_id).ok_or_else(|| {
+        let class_name = self.cx.tcx.record_name(receiver.ty).ok_or_else(|| {
             not_yet_supported(
-                &format!("field assignment on `{}`", self.cx.tcx.display(receiver.ty_id)),
+                &format!("field assignment on `{}`", self.cx.tcx.display(receiver.ty)),
                 receiver.span,
             )
         })?;
@@ -594,7 +594,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     fn emit_return(&mut self, value: Option<&HirExpr>) -> Result<(), Diagnostic> {
         let statement_span = self.statement_span;
-        let return_ty = &self.function.return_ty_id;
+        let return_ty = &self.function.return_ty;
         let value = match value {
             Some(value) if *return_ty != self.cx.unit_ty() => Some(self.value_from_walk(value, || {
                 not_yet_supported("return value missing", value.span)
@@ -626,7 +626,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     /// Typeck guarantees non-`unit` functions return on every path, so falling off their end
     /// is unreachable.
     fn build_fallthrough(&self) -> Result<(), Diagnostic> {
-        if self.function.return_ty_id == self.cx.unit_ty() {
+        if self.function.return_ty == self.cx.unit_ty() {
             self.build_unit_return()?;
         } else {
             self.cx.builder.build_unreachable()?;
@@ -698,7 +698,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let Some(sink) = self.result_sink else {
             return Ok(value);
         };
-        let ty = self.function.return_ty_id.clone();
+        let ty = self.function.return_ty.clone();
         self.materialize_owned_value(value, ty, sink)
     }
 

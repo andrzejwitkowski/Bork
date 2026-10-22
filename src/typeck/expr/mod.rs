@@ -306,8 +306,7 @@ fn check_managed_ref(
         return Checked {
             hir: HirExpr {
                 id: crate::hir::NodeId::DUMMY,
-                ty: env.tcx.to_ty(expected),
-                ty_id: expected,
+                ty: expected,
                 span,
                 kind: HirExprKind::RefCreate(Box::new(source.hir)),
             },

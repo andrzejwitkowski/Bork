@@ -134,11 +134,11 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         lhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if self.cx.tcx.is_managed_ref(lhs.ty_id) {
+        if self.cx.tcx.is_managed_ref(lhs.ty) {
             return self.emit_ref_elvis(lhs_val, rhs, expr);
         }
-        let nullable_ty = lhs.ty_id;
-        let result_ty = expr.ty_id;
+        let nullable_ty = lhs.ty;
+        let result_ty = expr.ty;
         let is_null = self.emit_nullable_is_null(nullable_ty, lhs_val)?;
         let rhs_bb = self
             .cx
@@ -195,16 +195,16 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let result = if lhs_null && rhs_null {
             i1.const_int(eq as u64, false)
         } else if lhs_null {
-            let is_null = self.emit_nullable_is_null(rhs.ty_id, rhs_val)?;
+            let is_null = self.emit_nullable_is_null(rhs.ty, rhs_val)?;
             self.eq_or_ne(eq, is_null)?
         } else if rhs_null {
-            let is_null = self.emit_nullable_is_null(lhs.ty_id, lhs_val)?;
+            let is_null = self.emit_nullable_is_null(lhs.ty, lhs_val)?;
             self.eq_or_ne(eq, is_null)?
-        } else if self.cx.tcx.is_nullable(lhs.ty_id) || self.cx.tcx.is_nullable(rhs.ty_id) {
-            let ty = if self.cx.tcx.is_nullable(lhs.ty_id) {
-                lhs.ty_id
+        } else if self.cx.tcx.is_nullable(lhs.ty) || self.cx.tcx.is_nullable(rhs.ty) {
+            let ty = if self.cx.tcx.is_nullable(lhs.ty) {
+                lhs.ty
             } else {
-                rhs.ty_id
+                rhs.ty
             };
             let l_null = self.emit_nullable_is_null(ty, lhs_val)?;
             let r_null = self.emit_nullable_is_null(ty, rhs_val)?;
@@ -399,7 +399,9 @@ mod nullable_repr_tests {
     #[test]
     fn nullable_class_has_no_representation() {
         let mut c = ctx();
-        let class = c.intern(&crate::hir::Ty::new(crate::hir::TyKind::Named("Point".into()), true)).unwrap();
+        let defs = crate::defs::DefTable::build(&crate::parse("class Point {\n    x: i32\n}\nfun main() {}\n").unwrap());
+        let point = c.class(defs.lookup_class("Point").unwrap());
+        let class = c.with_nullable(point, true);
         assert_eq!(nullable_repr(&c, class), None);
         assert!(!codegen_lowers_nullable(&c, class));
     }

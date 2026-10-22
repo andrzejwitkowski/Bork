@@ -1,6 +1,6 @@
 //! Source locations, lexical scopes and local variable declarations.
 use crate::ty::TyId;
-use crate::{codegen::llvm::emit_fn::FnEmitter, diag::Diagnostic, hir::Ty, span::Span};
+use crate::{codegen::llvm::emit_fn::FnEmitter, diag::Diagnostic, span::Span};
 use inkwell::{
     debug_info::{AsDIScope, DIFlags, DIFlagsConstants, DIScope},
     values::{AsValueRef, PointerValue},

@@ -160,18 +160,18 @@ and be stable under renaming and module moves.
 - Names as identity (today's `Named(String)`): breaks with modules, generics and shadowing.
 - Pointer identity into an arena: couples type lifetime to allocation and blocks serialization/debug tooling.
 
-**Implementation (#32).** `src/ty` holds `TyId`, `TyData` and the `TyCtx` hash-consing interner, with an
-`intern(&hir::Ty)` / `to_ty(TyId)` bridge so passes migrate one at a time. `T?` is `Nullable(TyId)` (#33; `T??` is rejected, `Error?` is `Error`), `Error` replaces `Unknown`,
-`Param(ParamIdx)` / `Infer(InferVar)` are `u32` newtypes with no HIR form (`to_ty` panics), `String` is its own variant (it has no `DefId`), and interning a class name the `DefTable`
-does not know is an error, not a panic. Ids are only comparable within one `TyCtx`.
+**Implementation (#32).** `src/ty` holds `TyId`, `TyData` and the `TyCtx` hash-consing interner, and the
+constructors and queries every pass uses. `T?` is `Nullable(TyId)` (#33; `T??` is rejected, `Error?` is `Error`), `Error` replaces `Unknown`,
+`Param(ParamIdx)` / `Infer(InferVar)` are `u32` newtypes for generics (Phase 3), `String` is its own variant (it has no `DefId`), and a class is `Class(DefId)`. Ids are only comparable within one `TyCtx`.
 
 **Folding, printing, signatures (#34).** `TypeVisitor`/`TypeFolder`, `subst` (`Param(i)` to `args[i]`; an
 instantiation that would make `T??` is an error, `Error?` stays `Error`), `normalize` (identity today: ids from
-`TyCtx` are already canonical), `TyCtx::display` (same text as `hir::Ty`'s `Display`, so `(i32)->i32` without
-spaces) and `FnSig<T>`. Typeck (#36) checks in `TyId`/`DefId`: signatures are `FnSigs` keyed by `DefId`, `ClassTable` is keyed by class `DefId`, and `lower_type` interns through `TyCtx`. `FunSig` (`FnSig<hir::Ty>`) survives only as the legacy form of `builtins::signatures`.
+`TyCtx` are already canonical), `TyCtx::display` (`(i32)->i32` without spaces) and `FnSig<T>`. Typeck (#36) checks in `TyId`/`DefId`: signatures are `FnSigs` keyed by `DefId`, `ClassTable` is keyed by class `DefId`, and `lower_type` interns through `TyCtx`. `builtins::signatures` builds `FnSig<TyId>` directly.
 
-**Consequences.** Typeck was migrated in #36 and hands later passes the legacy `hir::Ty` view through `TyCtx::to_ty` (`HirExpr.ty`, `NodeTypes`, `MemberRef`), which sema/codegen/LSP keep reading until #37; the golden HIR-type snapshot
-(`tests/golden/hir_types.txt`) must keep printing names, not ids.
+**Consequences.** Typeck (#36) and every consumer (#37: sema, escape, memory, region_walk, codegen gate and the
+LLVM backend, builtins, constants, the LSP) use `TyId` through the `TyCtx` that `frontend::CheckResult` keeps; the
+legacy `hir::Ty` tree is gone (`hir::Prim` stays). The golden HIR-type snapshot
+(`tests/golden/hir_types.txt`) prints names via `TyCtx::display`, not ids.
 
 **Depends on.** #31, #32, #33, #35, #36, #37.
 

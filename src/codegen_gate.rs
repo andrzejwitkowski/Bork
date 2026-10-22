@@ -76,10 +76,10 @@ fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) 
 }
 
 fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    if !codegen_lowers_nullable(tcx, expr.ty_id) {
+    if !codegen_lowers_nullable(tcx, expr.ty) {
         reject(
             diagnostics,
-            &format!("nullable type `{}` is not supported by codegen", tcx.display(expr.ty_id)),
+            &format!("nullable type `{}` is not supported by codegen", tcx.display(expr.ty)),
             expr.span,
         );
     }
@@ -92,7 +92,7 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             use_kind: UseKind::Move | UseKind::Promote,
             ..
         } => {
-            if tcx.record_def(expr.ty_id).is_some() {
+            if tcx.record_def(expr.ty).is_some() {
                 reject(
                     diagnostics,
                     "moving class objects is not supported by codegen yet",
@@ -100,7 +100,7 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 );
             }
             if tcx
-                .array_elem(expr.ty_id)
+                .array_elem(expr.ty)
                 .is_some_and(|elem| tcx.is_managed_ref(elem))
             {
                 reject(
@@ -230,11 +230,11 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             safe,
             ..
         } => {
-            let inner = tcx.base(receiver.ty_id);
+            let inner = tcx.base(receiver.ty);
             let length_ok = name == "length"
-                && (tcx.uses_arena_storage(receiver.ty_id)
+                && (tcx.uses_arena_storage(receiver.ty)
                     || (*safe
-                        && tcx.is_nullable(receiver.ty_id)
+                        && tcx.is_nullable(receiver.ty)
                         && (tcx.is_string(inner) || tcx.is_array(inner))));
             if !length_ok {
                 reject(

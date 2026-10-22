@@ -60,14 +60,14 @@ fn block_may_allocate_sink(tcx: &TyCtx, block: &HirBlock) -> bool {
 fn stmt_may_allocate_sink(tcx: &TyCtx, stmt: &HirStmt) -> bool {
     match stmt {
         HirStmt::VarDecl {
-            ty_id,
+            ty,
             value,
             alloc_in_binding,
             ..
         } => {
-            tcx.is_managed_ref(*ty_id)
+            tcx.is_managed_ref(*ty)
                 || (alloc_in_binding.is_none()
-                    && tcx.uses_arena_storage(*ty_id)
+                    && tcx.uses_arena_storage(*ty)
                     && expr_may_allocate_sink(tcx, value))
         }
         HirStmt::Assign { target, value } => {
@@ -93,7 +93,7 @@ fn expr_may_allocate_sink(tcx: &TyCtx, expr: &HirExpr) -> bool {
         HirExprKind::VecOp { args, .. } => args.iter().any(|x| expr_may_allocate_sink(tcx, x)),
         HirExprKind::Ident { use_kind, .. } => {
             matches!(*use_kind, crate::hir::UseKind::Move | crate::hir::UseKind::Promote)
-                && tcx.uses_arena_storage(expr.ty_id)
+                && tcx.uses_arena_storage(expr.ty)
         }
         HirExprKind::Call { callee, args, .. } => {
             let HirExprKind::Ident { name, .. } = &callee.kind else {
@@ -638,7 +638,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             then_block,
             else_block,
         } => {
-            visitor.if_expr(driver, cond, then_block, else_block.as_ref(), expr.ty_id)?;
+            visitor.if_expr(driver, cond, then_block, else_block.as_ref(), expr.ty)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::ArrayLit { elements } => {
@@ -695,7 +695,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             some_block,
             none_block,
         } => {
-            visitor.presence_match(driver, bindings, some_block, none_block.as_ref(), expr.ty_id)?;
+            visitor.presence_match(driver, bindings, some_block, none_block.as_ref(), expr.ty)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Binary { op, lhs, rhs, .. } => {

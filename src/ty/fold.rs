@@ -106,7 +106,7 @@ pub fn normalize(ctx: &mut TyCtx, id: TyId) -> TyId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hir::{Prim, Ty, TyKind};
+    use crate::hir::Prim;
     use crate::ty::tests::{ctx, samples};
     use crate::ty::ParamIdx;
 
@@ -115,21 +115,21 @@ mod tests {
     }
 
     fn int(ctx: &mut TyCtx) -> TyId {
-        ctx.intern(&Ty::i32()).unwrap()
+        ctx.i32()
     }
 
     #[test]
     fn subst_reaches_through_array_func_ref_and_nullable() {
         let mut c = ctx();
         let (t, u, i) = (p(&mut c, 0), p(&mut c, 1), int(&mut c));
-        let b = c.intern(&Ty::prim(Prim::Bool)).unwrap();
+        let b = c.prim(Prim::Bool);
         let arr = c.add(TyData::Array { elem: t, len: 3 });
         let func = c.add(TyData::Func { params: vec![t, u], ret: t });
         let r = c.add(TyData::Ref(t));
         let m = c.add(TyData::ManagedRef(t));
         let opt = c.nullable(t).unwrap();
         let vec_opt = c.add(TyData::Vec(opt));
-        let text = |c: &TyCtx, id| c.to_ty(id).to_string();
+        let text = |c: &TyCtx, id| c.display(id).to_string();
         for (ty, want) in [
             (arr, "[i32; 3]"),
             (func, "(i32, bool)->i32"),
@@ -178,10 +178,10 @@ mod tests {
     #[test]
     fn identity_fold_and_normalize_keep_every_sample() {
         let mut c = ctx();
-        for ty in samples() {
-            let id = c.intern(&ty).unwrap();
-            assert_eq!(Normalize.fold(&mut c, id), Ok(id), "{ty}");
-            assert_eq!(normalize(&mut c, id), id, "{ty}");
+        for id in samples(&mut c) {
+            let shown = c.display(id).to_string();
+            assert_eq!(Normalize.fold(&mut c, id), Ok(id), "{shown}");
+            assert_eq!(normalize(&mut c, id), id, "{shown}");
         }
     }
 
@@ -196,14 +196,11 @@ mod tests {
         }
         let mut c = ctx();
         // (i32, [i32; 2]?) -> &i32 : func, i32, nullable, array, i32, ref, i32
-        let ty = Ty::new(
-            TyKind::Func {
-                params: vec![Ty::i32(), Ty::new(TyKind::Array { elem: Box::new(Ty::i32()), len: 2 }, true)],
-                ret: Box::new(Ty::new(TyKind::Ref(Box::new(Ty::i32())), false)),
-            },
-            false,
-        );
-        let id = c.intern(&ty).unwrap();
+        let i32_ty = c.i32();
+        let array = c.array(i32_ty, 2);
+        let opt_array = c.with_nullable(array, true);
+        let ret = c.ref_to(i32_ty);
+        let id = c.func(vec![i32_ty, opt_array], ret);
         let mut count = Count(0);
         count.visit(&c, id);
         assert_eq!(count.0, 7);

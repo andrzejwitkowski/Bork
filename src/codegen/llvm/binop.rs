@@ -83,13 +83,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         if matches!(
-            self.cx.tcx.data(expr.ty_id),
+            self.cx.tcx.data(expr.ty),
             crate::ty::TyData::Prim(Prim::F32 | Prim::F64)
         ) {
             return self.combine_float_binary_values(op, lhs_val, rhs_val, expr);
         }
         if let Some(predicate) = comparison(op) {
-            let operand_ty = self.wider(lhs.ty_id, rhs.ty_id);
+            let operand_ty = self.wider(lhs.ty, rhs.ty);
             let l = self.value_as_int(lhs_val, operand_ty, expr.span)?;
             let r = self.value_as_int(rhs_val, operand_ty, expr.span)?;
             let unsigned = is_unsigned(&self.cx.tcx, operand_ty);
@@ -100,19 +100,19 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .build_int_compare(predicate, l, r, "cmp")?
                 .into());
         }
-        let l = self.value_as_int(lhs_val, expr.ty_id, expr.span)?;
-        let r = self.value_as_int(rhs_val, expr.ty_id, expr.span)?;
+        let l = self.value_as_int(lhs_val, expr.ty, expr.span)?;
+        let r = self.value_as_int(rhs_val, expr.ty, expr.span)?;
         let builder = &self.cx.builder;
         Ok(match op {
             BinOp::Add => builder.build_int_add(l, r, "add")?,
             BinOp::Sub => builder.build_int_sub(l, r, "sub")?,
             BinOp::Mul => builder.build_int_mul(l, r, "mul")?,
-            BinOp::Div if is_unsigned(&self.cx.tcx, expr.ty_id) => {
-                self.guard_int_div(l, r, expr.ty_id)?;
+            BinOp::Div if is_unsigned(&self.cx.tcx, expr.ty) => {
+                self.guard_int_div(l, r, expr.ty)?;
                 builder.build_int_unsigned_div(l, r, "div")?
             }
             BinOp::Div => {
-                self.guard_int_div(l, r, expr.ty_id)?;
+                self.guard_int_div(l, r, expr.ty)?;
                 builder.build_int_signed_div(l, r, "div")?
             }
             _ => return Err(not_yet_supported("this binary operator", expr.span)),
@@ -150,8 +150,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let l = self.value_as_float(lhs_val, expr.ty_id, expr.span)?;
-        let r = self.value_as_float(rhs_val, expr.ty_id, expr.span)?;
+        let l = self.value_as_float(lhs_val, expr.ty, expr.span)?;
+        let r = self.value_as_float(rhs_val, expr.ty, expr.span)?;
         let builder = &self.cx.builder;
         Ok(match op {
             BinOp::Add => builder.build_float_add(l, r, "fadd")?.into(),

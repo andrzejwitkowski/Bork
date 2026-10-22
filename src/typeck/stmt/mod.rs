@@ -132,14 +132,12 @@ fn check_var_decl(
         );
     }
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
-    let legacy = env.tcx.to_ty(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
     HirStmt::VarDecl {
         kind,
         name: name.to_string(),
-        ty: legacy,
-        ty_id: declared_ty,
+        ty: declared_ty,
         value: value.hir,
         alloc_in_binding: None,
     }

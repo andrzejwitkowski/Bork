@@ -140,7 +140,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             )?;
             arena
         } else if let Some(sink) = self.result_sink.filter(|_| {
-            self.cx.tcx.record_name(self.function.return_ty_id) == Some(class_name)
+            self.cx.tcx.record_name(self.function.return_ty) == Some(class_name)
         }) {
             sink
         } else {
@@ -190,7 +190,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     self.cx
                         .builder
                         .build_struct_gep(record, object, index as u32, "field")?;
-                if self.cx.tcx.is_managed_ref(field.ty_id) {
+                if self.cx.tcx.is_managed_ref(field.ty) {
                     self.cx
                         .builder
                         .build_store(slot, self.cx.ref_handle_type().const_zero())?;
@@ -213,12 +213,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         arena,
                         slot,
                         &format!("{class_name}.{field_name}"),
-                        field.ty_id,
+                        field.ty,
                         self.cx.context.i64_type().const_zero(),
                         self.cx.context.i64_type().const_all_ones(),
                     )?;
                 } else {
-                    let value = self.materialize_owned_value(*value, field.ty_id, arena)?;
+                    let value = self.materialize_owned_value(*value, field.ty, arena)?;
                     self.cx.builder.build_store(slot, value)?;
                     let field_name = &self
                         .cx
@@ -230,7 +230,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         .name;
                     self.debug_label_ref_array(
                         value,
-                        field.ty_id,
+                        field.ty,
                         &format!("{class_name}.{field_name}"),
                     )?;
                 }
@@ -309,10 +309,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         });
         self.alloc_sink = previous;
         let stored = stored?;
-        if self.cx.tcx.is_managed_ref(value.ty_id) {
+        if self.cx.tcx.is_managed_ref(value.ty) {
             self.store_ref(slot, owner, stored)?;
         } else {
-            let stored = self.materialize_owned_value(stored, value.ty_id, owner)?;
+            let stored = self.materialize_owned_value(stored, value.ty, owner)?;
             self.cx.builder.build_store(slot, stored)?;
             let field_name = &self
                 .cx
@@ -322,7 +322,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .unwrap()
                 .fields[field_index]
                 .name;
-            self.debug_label_ref_array(stored, value.ty_id, &format!("{class_name}.{field_name}"))?;
+            self.debug_label_ref_array(stored, value.ty, &format!("{class_name}.{field_name}"))?;
         }
         Ok(())
     }
