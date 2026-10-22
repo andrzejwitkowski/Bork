@@ -9,9 +9,9 @@ use inkwell::values::{BasicValue, BasicValueEnum, IntValue, PointerValue, Struct
 
 use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
+use crate::ty::TyId;
 use crate::hir::{
-    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirFunction, HirStmt, Ty,
-};
+    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirFunction, HirStmt, };
 use crate::region_walk::{
     region_enter, region_exit, ArenaCursor, RegionVisitor, WalkDriver, WalkError,
 };
@@ -25,14 +25,14 @@ fn map_emit_err(result: Result<(), Diagnostic>) -> Result<(), WalkError> {
     result.map_err(WalkError::from_diagnostic)
 }
 
-pub(super) enum IfKind<'a> {
+pub(super) enum IfKind {
     Unit,
-    Value(&'a Ty),
+    Value(TyId),
 }
 
-impl IfKind<'_> {
-    pub(super) fn from_ty(ty: &Ty) -> IfKind<'_> {
-        if *ty == Ty::unit() {
+impl IfKind {
+    pub(super) fn from_ty(unit: TyId, ty: TyId) -> IfKind {
+        if ty == unit {
             IfKind::Unit
         } else {
             IfKind::Value(ty)
@@ -45,10 +45,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         &mut self,
         site: RegionSite,
         block: &HirBlock,
-        value_ty: Option<&Ty>,
+        value_ty: Option<TyId>,
     ) -> Result<Option<BasicValueEnum<'ctx>>, WalkError> {
         let previous = self.alloc_sink;
-        if value_ty.is_some_and(|ty| ty.owns_result()) {
+        if value_ty.is_some_and(|ty| self.cx.tcx.owns_result(ty)) {
             self.alloc_sink = Some(self.sink_arena());
         }
         let ptr = self.codegen_driver_ptr();
@@ -68,7 +68,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         cond: &HirExpr,
         then_block: &HirBlock,
         else_block: Option<&HirBlock>,
-        kind: IfKind<'_>,
+        kind: IfKind,
     ) -> Result<(), Diagnostic> {
         let (value_ty, llvm_ty) = match kind {
             IfKind::Unit => (None, None),
@@ -148,10 +148,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         bindings: &HirConditionalBindings,
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
-        result_ty: &Ty,
+        result_ty: TyId,
     ) -> Result<(), Diagnostic> {
         let stack_depth = self.walk.eval_stack.len();
-        let value_ty = (*result_ty != Ty::unit()).then_some(result_ty);
+        let value_ty = (result_ty != self.cx.unit_ty()).then_some(result_ty);
         let result_sink = self.sink_arena();
         let previous = self.alloc_sink;
         // The head source is evaluated in the enclosing arena, as with single-binding syntax.
@@ -165,7 +165,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         // Tail sources are evaluated inside the presence region (as in sema), so their
         // allocations use that region's arena; only the arm's values go to the result sink.
         self.emit_chained_guards(driver, &bindings.tail, outer_depth, split.absent_target())?;
-        if result_ty.owns_result() {
+        if self.cx.tcx.owns_result(result_ty) {
             self.alloc_sink = Some(result_sink);
         }
         let branch_value = self.emit_presence_arm(
@@ -209,8 +209,8 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         driver: &mut WalkDriver<'_, C>,
         site: RegionSite,
         block: &HirBlock,
-        value_ty: Option<&Ty>,
-        result_ty: &Ty,
+        value_ty: Option<TyId>,
+        result_ty: TyId,
         result_sink: PointerValue<'ctx>,
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let (body, _) = crate::hir::peel_blocks(block);
@@ -324,7 +324,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .into_struct_value();
         self.declare_local(
             &binding.name.name,
-            &binding.binding_ty,
+            binding.binding_ty,
             object_handle.into(),
             None,
         )?;
@@ -364,7 +364,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
                 .map_err(schedule_error)?;
             emitter.check_arena()?;
             emitter.function_arena = emitter.regions.sink_mut().current();
-            let hidden = super::call_abi::CallAbi::of(emitter.function).hidden_len();
+            let hidden = super::call_abi::CallAbi::of(emitter.cx, emitter.function).hidden_len();
             for (index, (param, value)) in emitter
                 .function
                 .params
@@ -372,7 +372,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
                 .zip(emitter.llvm_fn.get_param_iter().skip(hidden))
                 .enumerate()
             {
-                emitter.declare_local(&param.name, &param.ty, value, Some(index as u32 + 1))?;
+                emitter.declare_local(&param.name, param.ty, value, Some(index as u32 + 1))?;
             }
             emitter.debug_location(Some(emitter.function.name_span));
             Ok(())
@@ -484,7 +484,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         &mut self,
         driver: &mut WalkDriver<'_, C>,
         expr: &HirExpr,
-        ty: &Ty,
+        ty: TyId,
     ) -> Result<(), WalkError> {
         self.ensure_open_block();
         driver.walk_expr(self, expr)?;
@@ -527,12 +527,12 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         cond: &HirExpr,
         then_block: &HirBlock,
         else_block: Option<&HirBlock>,
-        result_ty: &Ty,
+        result_ty: TyId,
     ) -> Result<(), WalkError> {
         self.pin_walk_driver(driver, |emitter| {
             emitter.walk_step(|e| {
                 let depth = e.walk.eval_stack.len();
-                e.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(result_ty))?;
+                e.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(e.cx.unit_ty(), result_ty))?;
                 e.walk.eval_stack.truncate(depth);
                 if let Some(value) = e.walk.trailing {
                     e.walk.eval_stack.push(value);
@@ -550,7 +550,7 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         bindings: &HirConditionalBindings,
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
-        result_ty: &Ty,
+        result_ty: TyId,
     ) -> Result<(), WalkError> {
         map_emit_err(
             self.emit_presence_with_driver(driver, bindings, some_block, none_block, result_ty),
@@ -565,7 +565,7 @@ pub fn emit_function_body<'report, 'a, 'ctx>(
 ) -> Result<(), Diagnostic> {
     let root_index = emitter.regions.function_index();
     if let Err(walk) =
-        crate::region_walk::walk_function_readonly(function, root_index, roots, emitter)
+        crate::region_walk::walk_function_readonly(function, &emitter.cx.tcx, root_index, roots, emitter)
     {
         return Err(super::resolve_walk_failure(walk));
     }

@@ -3,7 +3,8 @@ use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, Prim, Ty};
+use crate::ty::TyId;
+use crate::hir::{HirExpr, Prim};
 
 use super::context::is_unsigned;
 use super::emit_fn::FnEmitter;
@@ -13,35 +14,35 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn cast(
         &self,
         value: IntValue<'ctx>,
-        from: &Ty,
-        to: &Ty,
+        from: TyId,
+        to: TyId,
         expr: &HirExpr,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
         let target = self
             .cx
             .int_type(to)
-            .ok_or_else(|| not_yet_supported(&format!("type `{to}`"), expr.span))?;
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(to)), expr.span))?;
         if value.get_type() == target {
             return Ok(value);
         }
         Ok(self
             .cx
             .builder
-            .build_int_cast_sign_flag(value, target, !is_unsigned(from), "cast")?)
+            .build_int_cast_sign_flag(value, target, !is_unsigned(&self.cx.tcx, from), "cast")?)
     }
 
     fn guard_int_div(
         &mut self,
         l: IntValue<'ctx>,
         r: IntValue<'ctx>,
-        ty: &Ty,
+        ty: TyId,
     ) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let builder = &cx.builder;
         let int_ty = l.get_type();
         let zero = int_ty.const_int(0, false);
         let div_by_zero = builder.build_int_compare(IntPredicate::EQ, r, zero, "div0")?;
-        let illegal = if is_unsigned(ty) {
+        let illegal = if is_unsigned(&self.cx.tcx, ty) {
             div_by_zero
         } else {
             let bits = int_ty.get_bit_width();
@@ -63,8 +64,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     /// Comparison operands are converted to whichever side has more bits.
-    fn wider<'t>(&self, lhs: &'t Ty, rhs: &'t Ty) -> &'t Ty {
-        let width = |ty: &Ty| self.cx.int_type(ty).map_or(0, |ty| ty.get_bit_width());
+    fn wider<'t>(&self, lhs: TyId, rhs: TyId) -> TyId {
+        let width = |ty: TyId| self.cx.int_type(ty).map_or(0, |ty| ty.get_bit_width());
         if width(rhs) > width(lhs) {
             rhs
         } else {
@@ -82,16 +83,16 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         if matches!(
-            expr.ty.kind,
-            crate::hir::TyKind::Prim(Prim::F32 | Prim::F64)
+            self.cx.tcx.data(expr.ty),
+            crate::ty::TyData::Prim(Prim::F32 | Prim::F64)
         ) {
             return self.combine_float_binary_values(op, lhs_val, rhs_val, expr);
         }
         if let Some(predicate) = comparison(op) {
-            let operand_ty = self.wider(&lhs.ty, &rhs.ty);
-            let l = self.value_as_int(lhs_val, &operand_ty, expr.span)?;
-            let r = self.value_as_int(rhs_val, &operand_ty, expr.span)?;
-            let unsigned = is_unsigned(&operand_ty);
+            let operand_ty = self.wider(lhs.ty, rhs.ty);
+            let l = self.value_as_int(lhs_val, operand_ty, expr.span)?;
+            let r = self.value_as_int(rhs_val, operand_ty, expr.span)?;
+            let unsigned = is_unsigned(&self.cx.tcx, operand_ty);
             let predicate = if unsigned { predicate.1 } else { predicate.0 };
             return Ok(self
                 .cx
@@ -99,19 +100,19 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .build_int_compare(predicate, l, r, "cmp")?
                 .into());
         }
-        let l = self.value_as_int(lhs_val, &expr.ty, expr.span)?;
-        let r = self.value_as_int(rhs_val, &expr.ty, expr.span)?;
+        let l = self.value_as_int(lhs_val, expr.ty, expr.span)?;
+        let r = self.value_as_int(rhs_val, expr.ty, expr.span)?;
         let builder = &self.cx.builder;
         Ok(match op {
             BinOp::Add => builder.build_int_add(l, r, "add")?,
             BinOp::Sub => builder.build_int_sub(l, r, "sub")?,
             BinOp::Mul => builder.build_int_mul(l, r, "mul")?,
-            BinOp::Div if is_unsigned(&expr.ty) => {
-                self.guard_int_div(l, r, &expr.ty)?;
+            BinOp::Div if is_unsigned(&self.cx.tcx, expr.ty) => {
+                self.guard_int_div(l, r, expr.ty)?;
                 builder.build_int_unsigned_div(l, r, "div")?
             }
             BinOp::Div => {
-                self.guard_int_div(l, r, &expr.ty)?;
+                self.guard_int_div(l, r, expr.ty)?;
                 builder.build_int_signed_div(l, r, "div")?
             }
             _ => return Err(not_yet_supported("this binary operator", expr.span)),
@@ -122,7 +123,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn value_as_int(
         &mut self,
         value: BasicValueEnum<'ctx>,
-        ty: &Ty,
+        ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
         if !value.is_int_value() {
@@ -132,14 +133,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let target = self
             .cx
             .int_type(ty)
-            .ok_or_else(|| not_yet_supported(&format!("type `{ty}`"), span))?;
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(ty)), span))?;
         if int.get_type() == target {
             return Ok(int);
         }
         Ok(self
             .cx
             .builder
-            .build_int_cast_sign_flag(int, target, !is_unsigned(ty), "cast")?)
+            .build_int_cast_sign_flag(int, target, !is_unsigned(&self.cx.tcx, ty), "cast")?)
     }
 
     fn combine_float_binary_values(
@@ -149,8 +150,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let l = self.value_as_float(lhs_val, &expr.ty, expr.span)?;
-        let r = self.value_as_float(rhs_val, &expr.ty, expr.span)?;
+        let l = self.value_as_float(lhs_val, expr.ty, expr.span)?;
+        let r = self.value_as_float(rhs_val, expr.ty, expr.span)?;
         let builder = &self.cx.builder;
         Ok(match op {
             BinOp::Add => builder.build_float_add(l, r, "fadd")?.into(),
@@ -182,13 +183,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn value_as_float(
         &mut self,
         value: BasicValueEnum<'ctx>,
-        ty: &Ty,
+        ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<inkwell::values::FloatValue<'ctx>, Diagnostic> {
         let target = self
             .cx
             .basic_type(ty)
-            .ok_or_else(|| not_yet_supported(&format!("type `{ty}`"), span))?
+            .ok_or_else(|| not_yet_supported(&format!("type `{}`", self.cx.tcx.display(ty)), span))?
             .into_float_type();
         if !value.is_float_value() {
             return Err(not_yet_supported("float operand", span));

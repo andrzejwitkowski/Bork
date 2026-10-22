@@ -4,7 +4,7 @@ use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use inkwell::{AddressSpace, IntPredicate};
 
 use crate::diag::Diagnostic;
-use crate::hir::Ty;
+use crate::ty::TyId;
 
 use super::super::emit_fn::FnEmitter;
 use super::{ARENA, BUF, CAP, HEADER_ALIGN, HEADER_SIZE, LEN};
@@ -14,7 +14,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn vec_alloc(
         &mut self,
         arena: PointerValue<'ctx>,
-        elem_ty: &Ty,
+        elem_ty: TyId,
         cap: Option<IntValue<'ctx>>,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
         let header = self.arena_alloc(arena, self.word(HEADER_SIZE), HEADER_ALIGN)?;
@@ -47,7 +47,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.builder.build_unconditional_branch(done)?;
             self.cx.builder.position_at_end(done);
         }
-        if elem_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(elem_ty) {
             // One drop per vector: the buffer moves on growth, so slot addresses cannot be registered.
             let drop_fn = self
                 .cx
@@ -66,7 +66,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     /// `Vec<T>()` / `Vec<T>(cap)`; `cap` is the `i32` value of the optional argument.
     pub(in crate::codegen::llvm) fn emit_vec_new(
         &mut self,
-        elem_ty: &Ty,
+        elem_ty: TyId,
         cap: Option<BasicValueEnum<'ctx>>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let arena = self.sink_arena();

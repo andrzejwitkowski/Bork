@@ -150,7 +150,7 @@ pub(super) fn finish_call(
 
     for (index, (argument, &expected)) in checked_args.iter().zip(regular_params).enumerate() {
         let matches_builtin_overload =
-            (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(&argument.hir.ty))
+            (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(env.tcx, argument.ty))
             || (crate::builtins::is_concat(&name)
                 && env.tcx.is_string(argument.ty)
                 && !env.tcx.is_nullable(argument.ty));

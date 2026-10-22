@@ -1,16 +1,16 @@
-use super::{diags_of, hir_of};
-use crate::hir::{HirExprKind, HirStmt, TyKind};
+use super::{checked_of, diags_of, hir_of};
+use crate::hir::{HirExprKind, HirStmt};
 
 #[test]
 fn method_lowers_to_function_with_this_param() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         "class Point {\n    x: i32\n    y: i32\n    fun sum(): i32 {\n        return this.x + this.y\n    }\n}\nfun main(): i32 {\n    return 0\n}",
     );
     let names: Vec<_> = hir.functions.iter().map(|f| f.name.as_str()).collect();
     assert_eq!(names, ["main", "Point.sum"]);
     let method = &hir.functions[1];
     assert_eq!(method.params[0].name, "this");
-    assert!(matches!(&method.params[0].ty.kind, TyKind::Ref(inner) if inner.record_name() == Some("Point")));
+    assert_eq!(tcx.display(method.params[0].ty).to_string(), "&Point");
     let HirStmt::Return { value: Some(value) } = &method.body.stmts[0] else {
         panic!("expected return");
     };
@@ -66,7 +66,7 @@ fn call_in_return(hir: &crate::hir::HirProgram, function: &str) -> HirExpr {
 
 #[test]
 fn receiver_call_lowers_to_qualified_call_with_borrowed_receiver() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         "class P {\n    x: i32\n    fun add(k: i32): i32 {\n        return this.x + k\n    }\n}\nfun main(): i32 {\n    val p = P(1)\n    return p.add(2)\n}",
     );
     let call = call_in_return(&hir, "main");
@@ -74,7 +74,7 @@ fn receiver_call_lowers_to_qualified_call_with_borrowed_receiver() {
     assert!(matches!(&callee.kind, HirExprKind::Ident { name, .. } if name == "P.add"));
     assert_eq!(args.len(), 2);
     assert!(matches!(&args[0].kind, HirExprKind::Unary { op: UnaryOp::Borrow, .. }));
-    assert!(args[0].ty.is_ref());
+    assert!(tcx.is_ref(args[0].ty));
 }
 
 #[test]

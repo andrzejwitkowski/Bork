@@ -279,7 +279,7 @@ fn constant_use(
         env.error(format!("cannot move or promote constant `{name}`"), Some(span));
     }
     env.members.insert(id.numbered(), constant.member(name));
-    let ty = env.id(&constant.ty);
+    let ty = constant.ty;
     env.expr_at(constant.value.clone(), ty, span)
 }
 
@@ -306,7 +306,7 @@ fn check_managed_ref(
         return Checked {
             hir: HirExpr {
                 id: crate::hir::NodeId::DUMMY,
-                ty: env.tcx.to_ty(expected),
+                ty: expected,
                 span,
                 kind: HirExprKind::RefCreate(Box::new(source.hir)),
             },

@@ -82,7 +82,7 @@ pub(super) struct Analyzer {
     pub(super) fun_param_tys: HashMap<String, Vec<crate::ast::Type>>,
     pub(super) classes: HashMap<String, crate::ast::Class>,
     /// Declaration and field assignment types from typeck, keyed by AST node.
-    pub(super) node_tys: HashMap<crate::span::AstId, crate::hir::Ty>,
+    pub(super) node_tys: HashMap<crate::span::AstId, Ty>,
     /// Outer names banned from moves while inside each enclosing `for`.
     pub(super) loop_move_ban: Vec<HashSet<String>>,
     /// Member resolutions from typeck (bare fields, method calls).

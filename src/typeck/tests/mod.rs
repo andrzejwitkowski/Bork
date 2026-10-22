@@ -1,6 +1,7 @@
 use crate::diag::{Diagnostic, Phase};
 use crate::frontend::check;
-use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, Prim, Ty, UseKind};
+use crate::hir::{HirExpr, HirExprKind, HirProgram, HirStmt, UseKind};
+use crate::ty::{TyCtx, TyId};
 
 mod closures;
 mod constants;
@@ -16,6 +17,18 @@ fn hir_of(source: &str) -> HirProgram {
     let result = check(source);
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     result.hir.expect("clean check produces HIR")
+}
+
+/// Typed HIR plus the context that owns its types.
+fn checked_of(source: &str) -> (HirProgram, TyCtx) {
+    let result = check(source);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    (result.hir.expect("clean check produces HIR"), result.tcx)
+}
+
+/// A type as diagnostics print it.
+fn shown(tcx: &TyCtx, ty: TyId) -> String {
+    tcx.display(ty).to_string()
 }
 
 /// Diagnostics for a source that must not check cleanly.
@@ -162,7 +175,7 @@ fun main(): i32 {
     return a
 }
 "#;
-    let hir = hir_of(src);
+    let (hir, tcx) = checked_of(src);
     let HirStmt::For { name, iter, body } = &hir.functions[0].body.stmts[1] else {
         panic!(
             "expected a for loop, got {:?}",
@@ -170,7 +183,7 @@ fun main(): i32 {
         );
     };
     assert_eq!(name, "i");
-    assert_eq!(iter.ty, Ty::range(Ty::i32()));
+    assert_eq!(shown(&tcx, iter.ty), "Range<i32>");
     assert!(matches!(body.stmts.as_slice(), [HirStmt::Assign { .. }]));
 }
 
@@ -283,17 +296,17 @@ fun main(): i32 {
     return x
 }
 "#;
-    let hir = hir_of(src);
+    let (hir, tcx) = checked_of(src);
     let stmts = &hir.functions[0].body.stmts;
     let HirStmt::VarDecl { value, .. } = &stmts[0] else {
         panic!("expected a var declaration, got {:?}", stmts[0]);
     };
-    assert_eq!(value.ty, Ty::i32());
+    assert_eq!(shown(&tcx, value.ty), "i32");
 
     let HirStmt::Return { value: Some(value) } = &stmts[1] else {
         panic!("expected a return, got {:?}", stmts[1]);
     };
-    assert_eq!(value.ty, Ty::i32());
+    assert_eq!(shown(&tcx, value.ty), "i32");
     let span = value.span.expect("identifiers carry their source span");
     assert_eq!(&src[span.start..span.end], "x");
 }
@@ -349,10 +362,10 @@ fun main(n: i32): i32 {
     return picked
 }
 "#;
-    let hir = hir_of(src);
+    let (hir, tcx) = checked_of(src);
     assert!(matches!(
         &hir.functions[0].body.stmts[0],
-        HirStmt::VarDecl { ty, .. } if *ty == Ty::i32()
+        HirStmt::VarDecl { ty, .. } if shown(&tcx, *ty) == "i32"
     ));
 }
 
@@ -363,11 +376,11 @@ fun main(): i64 {
     return 1
 }
 "#;
-    let hir = hir_of(src);
+    let (hir, tcx) = checked_of(src);
     let HirStmt::Return { value: Some(value) } = &hir.functions[0].body.stmts[0] else {
         panic!("expected a return");
     };
-    assert_eq!(value.ty, Ty::prim(Prim::I64));
+    assert_eq!(shown(&tcx, value.ty), "i64");
 }
 
 #[test]
@@ -377,11 +390,11 @@ fun main(): i64 {
     return 1 + 2
 }
 "#;
-    let hir = hir_of(src);
+    let (hir, tcx) = checked_of(src);
     let HirStmt::Return { value: Some(value) } = &hir.functions[0].body.stmts[0] else {
         panic!("expected a return");
     };
-    assert_eq!(value.ty, Ty::prim(Prim::I64));
+    assert_eq!(shown(&tcx, value.ty), "i64");
 }
 
 #[test]
@@ -605,7 +618,7 @@ fun main(): i32 {
 
 #[test]
 fn class_construction_and_field_typecheck() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Point {
     x: i32
@@ -625,19 +638,19 @@ fun main(): i32 {
             ty,
             value: HirExpr { kind: HirExprKind::ObjectConstruct { .. }, .. },
             ..
-        } if !ty.is_copy()
+        } if !tcx.is_copy(*ty)
     ));
 }
 
 #[test]
 fn class_string_field_typechecks() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Label { text: String }
 fun main(): i32 { return Label("hello").text.length }
 "#,
     );
-    assert_eq!(hir.classes[0].fields[0].ty, Ty::string(false));
+    assert_eq!(shown(&tcx, hir.classes[0].fields[0].ty), "String");
 }
 
 #[test]
@@ -666,7 +679,7 @@ fn class_name_conflicts_with_builtin_type() {
 
 #[test]
 fn class_forward_reference_typechecks() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Outer { inner: Inner }
 class Inner { n: i32 }
@@ -677,7 +690,7 @@ fun main(): i32 {
 "#,
     );
     assert_eq!(hir.classes.len(), 2);
-    assert_eq!(hir.classes[0].fields[0].ty.to_string(), "Inner");
+    assert_eq!(shown(&tcx, hir.classes[0].fields[0].ty), "Inner");
 }
 
 #[test]
@@ -729,7 +742,7 @@ fun main(): i32 {
 
 #[test]
 fn class_nullable_field_allowed() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Box { n: i32? }
 fun main(): i32 {
@@ -738,12 +751,12 @@ fun main(): i32 {
 }
 "#,
     );
-    assert_eq!(hir.classes[0].fields[0].ty, Ty::i32().with_nullable(true));
+    assert_eq!(shown(&tcx, hir.classes[0].fields[0].ty), "i32?");
 }
 
 #[test]
 fn class_nullable_field_assign_ok() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Box { n: i32? }
 fun main(): i32 {
@@ -753,7 +766,7 @@ fun main(): i32 {
 }
 "#,
     );
-    assert_eq!(hir.classes[0].fields[0].ty, Ty::i32().with_nullable(true));
+    assert_eq!(shown(&tcx, hir.classes[0].fields[0].ty), "i32?");
     assert!(matches!(
         &hir.functions[0].body.stmts[1],
         HirStmt::Assign {

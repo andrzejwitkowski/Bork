@@ -8,16 +8,17 @@ use crate::ast::{BindingKind, Function, Program, Type};
 
 /// Analyze `program` for arena hierarchy and Copy/Move ownership.
 pub fn analyze(program: &Program) -> (ArenaReport, Vec<SemaError>) {
-    let (_, node_tys, members, _) = crate::typeck::check_with_members(program);
-    analyze_with_members(program, node_tys, members)
+    let crate::typeck::Typeck { node_tys, members, tcx, .. } = crate::typeck::check_with_members(program);
+    analyze_with_members(program, node_tys, members, &tcx)
 }
 
 /// Same as [`analyze`], but reuses `node_tys` from an earlier `typeck::check` (avoids duplicate work).
 pub fn analyze_with_node_tys(
     program: &Program,
     node_tys: crate::typeck::NodeTypes,
+    tcx: &crate::ty::TyCtx,
 ) -> (ArenaReport, Vec<SemaError>) {
-    analyze_with_members(program, node_tys, Default::default())
+    analyze_with_members(program, node_tys, Default::default(), tcx)
 }
 
 /// Same as [`analyze_with_node_tys`], plus typeck's member resolutions for methods.
@@ -25,9 +26,13 @@ pub fn analyze_with_members(
     program: &Program,
     node_tys: crate::typeck::NodeTypes,
     members: crate::typeck::MemberResolutions,
+    tcx: &crate::ty::TyCtx,
 ) -> (ArenaReport, Vec<SemaError>) {
     let mut az = Analyzer::new();
-    az.node_tys = node_tys;
+    az.node_tys = node_tys
+        .into_iter()
+        .map(|(node, ty)| (node, super::walk::ty_from_id(tcx, ty)))
+        .collect();
     az.members = members;
     az.classes = program
         .classes

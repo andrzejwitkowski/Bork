@@ -8,43 +8,49 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::{Function, Program};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::defs::{DefId, DefTable};
-use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram, Ty};
+use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram};
 use crate::span::{AstId, Span};
 use crate::ty::{FnSig, FnSigs, TyCtx, TyId};
 
 use env::{ClassFieldInfo, ClassInfo, ClassTable, Env};
-pub(crate) use env::FunSig;
 use lower::lower_type;
 
 /// Types used by sema, keyed by the AST node of a declaration name or field assignment.
-pub type NodeTypes = HashMap<AstId, Ty>;
+pub type NodeTypes = HashMap<AstId, TyId>;
 
 /// What a bare member name or a method-call callee resolved to.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MemberRef {
     /// Bare `name` inside a method, read or assigned through `this`.
-    Field { class: String, name: String, index: usize, ty: Ty },
+    Field { class: String, name: String, index: usize, ty: TyId },
     /// `recv.m(..)` / bare `m(..)` call, or a method declaration name.
     Method { class: String, name: String, signature: String },
     /// Global constant, at its declaration name and at each use.
-    Constant { name: String, ty: Ty, value: String },
+    Constant { name: String, ty: TyId, value: String },
 }
 
 /// Member resolutions keyed by the AST node of a bare name, a `recv.m` callee, or a method name.
 pub type MemberResolutions = HashMap<AstId, MemberRef>;
 
+/// Everything typeck produces. `tcx` owns the ids in the HIR's `TyId` fields and outlives typeck.
+pub struct Typeck {
+    pub hir: HirProgram,
+    pub node_tys: NodeTypes,
+    pub members: MemberResolutions,
+    pub diagnostics: Vec<Diagnostic>,
+    pub tcx: TyCtx,
+}
+
 pub fn check(program: &Program) -> (HirProgram, NodeTypes, Vec<Diagnostic>) {
-    let (hir, node_tys, _, diagnostics) = check_with_members(program);
+    let Typeck { hir, node_tys, diagnostics, .. } = check_with_members(program);
     (hir, node_tys, diagnostics)
 }
 
-pub fn check_with_members(
-    program: &Program,
-) -> (HirProgram, NodeTypes, MemberResolutions, Vec<Diagnostic>) {
+pub fn check_with_members(program: &Program) -> Typeck {
     let mut diagnostics = Vec::new();
     let defs = DefTable::build(program);
     let mut tcx = TyCtx::new(&defs);
-    let constants = crate::constants::collect_into(program, &defs, &mut diagnostics);
+    let constants = crate::constants::collect_into(program, &defs, &mut tcx, &mut diagnostics);
     for index in 0..program.functions.len() {
         diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
     }
@@ -99,20 +105,21 @@ pub fn check_with_members(
                 .iter()
                 .map(|field| HirClassField {
                     name: field.name.clone(),
-                    ty: tcx.to_ty(field.ty),
+                    ty: field.ty,
                 })
                 .collect(),
         })
         .collect();
-    (
-        HirProgram {
+    Typeck {
+        hir: HirProgram {
             classes: hir_classes,
             functions,
         },
         node_tys,
         members,
         diagnostics,
-    )
+        tcx,
+    }
 }
 
 fn build_classes(
@@ -199,12 +206,9 @@ fn collect_fun_sigs(
         let id = defs.lookup_fn(&function.name).expect("every function is registered");
         fun_sigs.insert(id, FnSig::new(params, ret));
     }
-    for (name, sig) in crate::builtins::signatures() {
-        let intern = |tcx: &mut TyCtx, ty: &Ty| tcx.intern(ty).expect("builtin signatures name no classes");
-        let params = sig.params.iter().map(|ty| intern(tcx, ty)).collect();
-        let ret = intern(tcx, &sig.ret);
-        let id = defs.lookup_intrinsic(&name).expect("every builtin is registered");
-        fun_sigs.insert(id, FnSig::new(params, ret));
+    for (name, sig) in crate::builtins::signatures(tcx) {
+        let id = defs.lookup_intrinsic(name).expect("every builtin is registered");
+        fun_sigs.insert(id, sig);
     }
     for index in 0..program.classes.len() {
         diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| c == crate::defs::Clash::ClassFn));
@@ -305,7 +309,7 @@ fn check_function(
         params.push(HirParam {
             kind: crate::ast::BindingKind::Val,
             name: "this".to_string(),
-            ty: env.tcx.to_ty(this_ty),
+            ty: this_ty,
         });
     }
     params.extend(bind_params(function, param_tys, &mut env));
@@ -325,7 +329,7 @@ fn check_function(
         name,
         name_span: function.name_span,
         params,
-        return_ty: tcx.to_ty(return_ty),
+        return_ty,
         body,
     }
 }
@@ -351,7 +355,7 @@ fn bind_params(
             HirParam {
                 kind: param.kind,
                 name: param.name.name.clone(),
-                ty: env.tcx.to_ty(ty),
+                ty,
             }
         })
         .collect()

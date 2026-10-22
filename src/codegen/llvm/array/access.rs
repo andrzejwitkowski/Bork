@@ -3,7 +3,8 @@
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
 
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, Ty};
+use crate::ty::TyId;
+use crate::hir::{HirExpr};
 
 use super::super::emit_fn::FnEmitter;
 use super::super::not_yet_supported;
@@ -14,7 +15,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         receiver: BasicValueEnum<'ctx>,
         index: BasicValueEnum<'ctx>,
-        elem_ty: &Ty,
+        elem_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let desc = receiver.into_struct_value();
@@ -28,7 +29,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
         let ptr = self.elem_ptr_at(base, idx, stride)?;
         let loaded = builder_load(self, llvm_elem, ptr)?;
-        if elem_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(elem_ty) {
             self.clone_ref(loaded)
         } else {
             Ok(loaded)
@@ -38,32 +39,31 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn emit_index_store(
         &mut self,
         array_ptr: PointerValue<'ctx>,
-        array_ty: &Ty,
+        array_ty: TyId,
         index: &HirExpr,
         value: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<(), Diagnostic> {
-        if array_ty.vec_elem().is_some() {
+        if self.cx.tcx.vec_elem(array_ty).is_some() {
             return self.emit_vec_index_store(array_ptr, array_ty, index, value, span);
         }
-        let elem_ty = array_ty
-            .array_elem()
+        let elem_ty = self.cx.tcx.array_elem(array_ty)
             .ok_or_else(|| not_yet_supported("index assignment target", span))?;
         let llvm_ty = self
             .cx
             .basic_type(array_ty)
-            .ok_or_else(|| not_yet_supported(&format!("array `{array_ty}`"), span))?;
+            .ok_or_else(|| not_yet_supported(&format!("array `{}`", self.cx.tcx.display(array_ty)), span))?;
         let desc = self
             .cx
             .builder
             .build_load(llvm_ty, array_ptr, "arr")?
             .into_struct_value();
-        let idx = self.emit_int(index, &Ty::i32())?;
+        let idx = self.emit_int(index, self.cx.i32_ty())?;
         let (base, len) = self.descriptor_parts(desc)?;
         self.guard_index(idx, len, span)?;
         let (_, stride, _) = self.elem_storage(elem_ty)?;
         let elem_ptr = self.elem_ptr_at(base, idx, stride)?;
-        if elem_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(elem_ty) {
             let arena = self.sink_arena();
             self.store_ref(elem_ptr, arena, value)?;
         } else {
@@ -91,7 +91,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         receiver: BasicValueEnum<'ctx>,
         lo: BasicValueEnum<'ctx>,
-        result_ty: &Ty,
+        result_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let desc = receiver.into_struct_value();
@@ -101,8 +101,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.context.i32_type(),
             "lo",
         )?;
-        let elem_ty = result_ty
-            .array_elem()
+        let elem_ty = self.cx.tcx.array_elem(result_ty)
             .ok_or_else(|| not_yet_supported("slice result type", span))?;
         let (_, stride, _) = self.elem_storage(elem_ty)?;
         let lo64 = self
@@ -119,8 +118,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .builder
                 .build_gep(self.cx.context.i8_type(), base, &[offset], "slice.base")?
         };
-        let new_len = result_ty
-            .array_len()
+        let new_len = self.cx.tcx.array_len(result_ty)
             .ok_or_else(|| not_yet_supported("slice length is not part of the type", span))?;
         Ok(self.descriptor(
             new_base,

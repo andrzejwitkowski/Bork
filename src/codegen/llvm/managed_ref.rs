@@ -2,7 +2,8 @@ use inkwell::types::BasicType;
 use inkwell::values::{BasicValueEnum, PointerValue, StructValue};
 
 use crate::diag::Diagnostic;
-use crate::hir::{HirExpr, Ty};
+use crate::ty::TyId;
+use crate::hir::{HirExpr};
 use crate::memory::{ArenaClass, LifetimeDomain};
 
 use super::emit_fn::FnEmitter;
@@ -44,28 +45,28 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn materialize_owned_value(
         &mut self,
         value: BasicValueEnum<'ctx>,
-        field_ty: &Ty,
+        field_ty: TyId,
         owner: PointerValue<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if field_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(field_ty) {
             return self.rehome_ref(owner, value);
         }
-        if field_ty.is_vec() {
+        if self.cx.tcx.is_vec(field_ty) {
             let previous = self.alloc_sink;
             self.alloc_sink = Some(owner);
             let copied = self.copy_vec_into_arena(value.into_pointer_value(), field_ty);
             self.alloc_sink = previous;
             return copied.map(Into::into);
         }
-        let inner = field_ty.with_nullable(false);
-        if !inner.is_string() && !inner.is_array() {
+        let inner = self.cx.tcx.base(field_ty);
+        if !self.cx.tcx.is_string(inner) && !self.cx.tcx.is_array(inner) {
             return Ok(value);
         }
 
-        if field_ty.is_nullable() {
+        if self.cx.tcx.is_nullable(field_ty) {
             let is_null = self.emit_nullable_is_null(field_ty, value)?;
             let mut split = self.open_presence("owned", is_null, Some(field_ty))?;
-            let copied = self.materialize_owned_value(value, &inner, owner)?;
+            let copied = self.materialize_owned_value(value, inner, owner)?;
             self.end_present_arm(&mut split, Some(copied))?;
             let absent = self.cx.const_null_value(field_ty)?;
             return self
@@ -75,7 +76,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
         let previous = self.alloc_sink;
         self.alloc_sink = Some(owner);
-        let result = if field_ty.is_array() {
+        let result = if self.cx.tcx.is_array(field_ty) {
             self.copy_array_into_arena(value.into_struct_value(), field_ty)
                 .map(Into::into)
         } else {
@@ -139,7 +140,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             )?;
             arena
         } else if let Some(sink) = self.result_sink.filter(|_| {
-            matches!(&self.function.return_ty.kind, crate::hir::TyKind::Named(name) if name == class_name)
+            self.cx.tcx.record_name(self.function.return_ty) == Some(class_name)
         }) {
             sink
         } else {
@@ -189,7 +190,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     self.cx
                         .builder
                         .build_struct_gep(record, object, index as u32, "field")?;
-                if field.ty.is_managed_ref() {
+                if self.cx.tcx.is_managed_ref(field.ty) {
                     self.cx
                         .builder
                         .build_store(slot, self.cx.ref_handle_type().const_zero())?;
@@ -212,12 +213,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         arena,
                         slot,
                         &format!("{class_name}.{field_name}"),
-                        &field.ty,
+                        field.ty,
                         self.cx.context.i64_type().const_zero(),
                         self.cx.context.i64_type().const_all_ones(),
                     )?;
                 } else {
-                    let value = self.materialize_owned_value(*value, &field.ty, arena)?;
+                    let value = self.materialize_owned_value(*value, field.ty, arena)?;
                     self.cx.builder.build_store(slot, value)?;
                     let field_name = &self
                         .cx
@@ -229,7 +230,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         .name;
                     self.debug_label_ref_array(
                         value,
-                        &field.ty,
+                        field.ty,
                         &format!("{class_name}.{field_name}"),
                     )?;
                 }
@@ -276,7 +277,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         receiver: BasicValueEnum<'ctx>,
         class_name: &str,
         field_index: usize,
-        result_ty: &Ty,
+        result_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let object = self.object_pointer(receiver.into_struct_value())?;
@@ -308,10 +309,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         });
         self.alloc_sink = previous;
         let stored = stored?;
-        if value.ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(value.ty) {
             self.store_ref(slot, owner, stored)?;
         } else {
-            let stored = self.materialize_owned_value(stored, &value.ty, owner)?;
+            let stored = self.materialize_owned_value(stored, value.ty, owner)?;
             self.cx.builder.build_store(slot, stored)?;
             let field_name = &self
                 .cx
@@ -321,7 +322,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .unwrap()
                 .fields[field_index]
                 .name;
-            self.debug_label_ref_array(stored, &value.ty, &format!("{class_name}.{field_name}"))?;
+            self.debug_label_ref_array(stored, value.ty, &format!("{class_name}.{field_name}"))?;
         }
         Ok(())
     }
@@ -331,7 +332,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         object: PointerValue<'ctx>,
         class_name: &str,
         field_index: usize,
-        result_ty: &Ty,
+        result_ty: TyId,
         span: Option<crate::span::Span>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let record = self
@@ -345,9 +346,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let ty = self
             .cx
             .basic_type(result_ty)
-            .ok_or_else(|| not_yet_supported(&format!("field type `{result_ty}`"), span))?;
+            .ok_or_else(|| not_yet_supported(&format!("field type `{}`", self.cx.tcx.display(result_ty)), span))?;
         let loaded = self.cx.builder.build_load(ty, slot, "field")?;
-        if result_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(result_ty) {
             return self.clone_ref(loaded);
         }
         Ok(loaded)

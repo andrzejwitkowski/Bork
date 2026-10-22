@@ -53,7 +53,7 @@ pub fn build_with_options(
         .as_ref()
         .expect("clean check produces arenas");
 
-    let gate_diagnostics = gate(hir);
+    let gate_diagnostics = gate(hir, &checked.tcx);
     if !gate_diagnostics.is_empty() {
         return Err(BuildError::Diagnostics(gate_diagnostics));
     }
@@ -70,13 +70,14 @@ pub fn build_with_options(
         llvm::emit_module_with_debug(
             &context,
             hir,
+            &checked.tcx,
             report,
             memory_plan.clone(),
             source.text,
             source.path,
         )
     } else {
-        llvm::emit_module(&context, hir, report, memory_plan.clone())
+        llvm::emit_module(&context, hir, &checked.tcx, report, memory_plan.clone())
     }
     .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))?;
 

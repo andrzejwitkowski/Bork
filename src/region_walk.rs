@@ -7,8 +7,9 @@
 use crate::ast::BinOp;
 use crate::hir::{
     peel_blocks, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
-    HirFunction, HirProgram, HirStmt, Ty,
+    HirFunction, HirProgram, HirStmt,
 };
+use crate::ty::{TyCtx, TyId};
 use crate::sema::ArenaNode;
 
 mod stamp;
@@ -45,18 +46,18 @@ impl RegionSite {
 }
 
 /// Whether codegen should `arena_push` for a report child with this label and peeled HIR body.
-pub fn codegen_push_for_region(label: &str, peeled_body: &HirBlock) -> bool {
+pub fn codegen_push_for_region(tcx: &TyCtx, label: &str, peeled_body: &HirBlock) -> bool {
     if label.starts_with("Closure") {
         return false;
     }
-    block_may_allocate_sink(peeled_body)
+    block_may_allocate_sink(tcx, peeled_body)
 }
 
-fn block_may_allocate_sink(block: &HirBlock) -> bool {
-    block.stmts.iter().any(stmt_may_allocate_sink)
+fn block_may_allocate_sink(tcx: &TyCtx, block: &HirBlock) -> bool {
+    block.stmts.iter().any(|x| stmt_may_allocate_sink(tcx, x))
 }
 
-fn stmt_may_allocate_sink(stmt: &HirStmt) -> bool {
+fn stmt_may_allocate_sink(tcx: &TyCtx, stmt: &HirStmt) -> bool {
     match stmt {
         HirStmt::VarDecl {
             ty,
@@ -64,76 +65,76 @@ fn stmt_may_allocate_sink(stmt: &HirStmt) -> bool {
             alloc_in_binding,
             ..
         } => {
-            ty.is_managed_ref()
+            tcx.is_managed_ref(*ty)
                 || (alloc_in_binding.is_none()
-                    && ty.uses_arena_storage()
-                    && expr_may_allocate_sink(value))
+                    && tcx.uses_arena_storage(*ty)
+                    && expr_may_allocate_sink(tcx, value))
         }
         HirStmt::Assign { target, value } => {
-            target.receiver().is_some_and(expr_may_allocate_sink)
-                || target.index().is_some_and(expr_may_allocate_sink)
-                || expr_may_allocate_sink(value)
+            target.receiver().is_some_and(|x| expr_may_allocate_sink(tcx, x))
+                || target.index().is_some_and(|x| expr_may_allocate_sink(tcx, x))
+                || expr_may_allocate_sink(tcx, value)
         }
-        HirStmt::Return { value } => value.as_ref().is_some_and(expr_may_allocate_sink),
-        HirStmt::Expr(value) => expr_may_allocate_sink(value),
-        HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => block_may_allocate_sink(body),
-        HirStmt::For { body, .. } | HirStmt::While { body, .. } => block_may_allocate_sink(body),
+        HirStmt::Return { value } => value.as_ref().is_some_and(|x| expr_may_allocate_sink(tcx, x)),
+        HirStmt::Expr(value) => expr_may_allocate_sink(tcx, value),
+        HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => block_may_allocate_sink(tcx, body),
+        HirStmt::For { body, .. } | HirStmt::While { body, .. } => block_may_allocate_sink(tcx, body),
         HirStmt::Break { .. } | HirStmt::Continue { .. } => false,
     }
 }
 
-fn expr_may_allocate_sink(expr: &HirExpr) -> bool {
+fn expr_may_allocate_sink(tcx: &TyCtx, expr: &HirExpr) -> bool {
     match &expr.kind {
         HirExprKind::Bool { .. }
         | HirExprKind::Int { .. }
         | HirExprKind::Float { .. } => false,
         HirExprKind::Str { .. } | HirExprKind::ArrayLit { .. } | HirExprKind::VecNew { .. } => true,
         // The header and buffer live in the vector's own arena, not the current sink.
-        HirExprKind::VecOp { args, .. } => args.iter().any(expr_may_allocate_sink),
+        HirExprKind::VecOp { args, .. } => args.iter().any(|x| expr_may_allocate_sink(tcx, x)),
         HirExprKind::Ident { use_kind, .. } => {
             matches!(*use_kind, crate::hir::UseKind::Move | crate::hir::UseKind::Promote)
-                && expr.ty.uses_arena_storage()
+                && tcx.uses_arena_storage(expr.ty)
         }
         HirExprKind::Call { callee, args, .. } => {
             let HirExprKind::Ident { name, .. } = &callee.kind else {
-                return args.iter().any(expr_may_allocate_sink);
+                return args.iter().any(|x| expr_may_allocate_sink(tcx, x));
             };
-            crate::builtins::is_string_alloc(name) || args.iter().any(expr_may_allocate_sink)
+            crate::builtins::is_string_alloc(name) || args.iter().any(|x| expr_may_allocate_sink(tcx, x))
         }
         HirExprKind::Binary { op, rhs, .. } if *op == crate::ast::BinOp::Elvis => {
-            expr_may_allocate_sink(rhs)
+            expr_may_allocate_sink(tcx, rhs)
         }
         HirExprKind::If {
             then_block,
             else_block,
             ..
         } => {
-            block_may_allocate_sink(then_block)
-                || else_block.as_ref().is_some_and(block_may_allocate_sink)
+            block_may_allocate_sink(tcx, then_block)
+                || else_block.as_ref().is_some_and(|x| block_may_allocate_sink(tcx, x))
         }
-        HirExprKind::Unary { expr, .. } => expr_may_allocate_sink(expr),
+        HirExprKind::Unary { expr, .. } => expr_may_allocate_sink(tcx, expr),
         HirExprKind::Binary { lhs, rhs, .. } => {
-            expr_may_allocate_sink(lhs) || expr_may_allocate_sink(rhs)
+            expr_may_allocate_sink(tcx, lhs) || expr_may_allocate_sink(tcx, rhs)
         }
         HirExprKind::Index { receiver, .. } | HirExprKind::Slice { receiver, .. } => {
-            expr_may_allocate_sink(receiver)
+            expr_may_allocate_sink(tcx, receiver)
         }
         HirExprKind::Field { receiver, .. } => {
-            expr_may_allocate_sink(receiver)
+            expr_may_allocate_sink(tcx, receiver)
         }
         HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => {
-            expr_may_allocate_sink(inner)
+            expr_may_allocate_sink(tcx, inner)
         }
         HirExprKind::ObjectConstruct { .. } => true,
-        HirExprKind::ObjectField { receiver, .. } => expr_may_allocate_sink(receiver),
+        HirExprKind::ObjectField { receiver, .. } => expr_may_allocate_sink(tcx, receiver),
         HirExprKind::PresenceMatch {
             bindings,
             some_block,
             none_block,
         } => {
-            bindings.iter().any(|b| expr_may_allocate_sink(&b.value))
-                || block_may_allocate_sink(some_block)
-                || none_block.as_ref().is_some_and(block_may_allocate_sink)
+            bindings.iter().any(|b| expr_may_allocate_sink(tcx, &b.value))
+                || block_may_allocate_sink(tcx, some_block)
+                || none_block.as_ref().is_some_and(|x| block_may_allocate_sink(tcx, x))
         }
         HirExprKind::None => false,
     }
@@ -298,6 +299,7 @@ impl<'a> ArenaCursor for RegionWalkRef<'a> {
 /// Entry point for nested `walk_*` calls from a custom `RegionVisitor` hook.
 pub struct WalkDriver<'c, C: ArenaCursor> {
     pub(crate) cursor: &'c mut C,
+    pub(crate) tcx: &'c TyCtx,
 }
 
 impl<'c, C: ArenaCursor> WalkDriver<'c, C> {
@@ -305,7 +307,7 @@ impl<'c, C: ArenaCursor> WalkDriver<'c, C> {
         &mut self,
         visitor: &mut V,
         block: &HirBlock,
-        value_ty: Option<&Ty>,
+        value_ty: Option<TyId>,
     ) -> Result<(), WalkError> {
         visitor.walk_block(self, block, value_ty)
     }
@@ -394,7 +396,7 @@ pub trait RegionVisitor {
         &mut self,
         driver: &mut WalkDriver<'_, C>,
         block: &HirBlock,
-        value_ty: Option<&Ty>,
+        value_ty: Option<TyId>,
     ) -> Result<(), WalkError>
     where
         Self: Sized,
@@ -437,7 +439,7 @@ pub trait RegionVisitor {
         cond: &HirExpr,
         then_block: &HirBlock,
         else_block: Option<&HirBlock>,
-        _result_ty: &Ty,
+        _result_ty: TyId,
     ) -> Result<(), WalkError>
     where
         Self: Sized,
@@ -462,7 +464,7 @@ pub trait RegionVisitor {
         bindings: &HirConditionalBindings,
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
-        _result_ty: &Ty,
+        _result_ty: TyId,
     ) -> Result<(), WalkError>
     where
         Self: Sized,
@@ -500,7 +502,7 @@ pub trait RegionVisitor {
         &mut self,
         _driver: &mut WalkDriver<'_, C>,
         _expr: &HirExpr,
-        _ty: &Ty,
+        _ty: TyId,
     ) -> Result<(), WalkError> {
         Ok(())
     }
@@ -510,7 +512,7 @@ fn default_walk_block<C: ArenaCursor, V: RegionVisitor>(
     visitor: &mut V,
     driver: &mut WalkDriver<'_, C>,
     block: &HirBlock,
-    value_ty: Option<&Ty>,
+    value_ty: Option<TyId>,
 ) -> Result<(), WalkError> {
     if value_ty.is_none() {
         for (index, stmt) in block.stmts.iter().enumerate() {
@@ -589,7 +591,7 @@ pub(crate) fn region_enter<C: ArenaCursor, V: RegionVisitor>(
     if visitor.touch_codegen_push() {
         let child = driver.cursor.last_child_mut();
         child.codegen_push = site == RegionSite::PresenceSome
-            || codegen_push_for_region(&child.label, peeled);
+            || codegen_push_for_region(driver.tcx, &child.label, peeled);
     }
     let child_ref = driver.cursor.last_child();
     visitor.enter_region(site, child_ref, body)?;
@@ -636,7 +638,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             then_block,
             else_block,
         } => {
-            visitor.if_expr(driver, cond, then_block, else_block.as_ref(), &expr.ty)?;
+            visitor.if_expr(driver, cond, then_block, else_block.as_ref(), expr.ty)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::ArrayLit { elements } => {
@@ -693,7 +695,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             some_block,
             none_block,
         } => {
-            visitor.presence_match(driver, bindings, some_block, none_block.as_ref(), &expr.ty)?;
+            visitor.presence_match(driver, bindings, some_block, none_block.as_ref(), expr.ty)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Binary { op, lhs, rhs, .. } => {
@@ -737,6 +739,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
 
 fn walk_one_function<C, V>(
     function: &HirFunction,
+    tcx: &TyCtx,
     cursor: &mut C,
     visitor: &mut V,
 ) -> Result<(), WalkError>
@@ -747,7 +750,7 @@ where
     let root = cursor.parent();
     visitor.begin_function_body(&function.name, root, &function.body)?;
     let (body, _) = peel_blocks(&function.body);
-    let mut driver = WalkDriver { cursor };
+    let mut driver = WalkDriver { cursor, tcx };
     visitor.walk_block(&mut driver, body, None)?;
     cursor.assert_children_done()?;
     visitor.end_function_body()?;
@@ -777,6 +780,7 @@ fn check_roots(program: &HirProgram, roots: &[ArenaNode]) -> Result<(), WalkErro
 
 pub fn walk_program<V: RegionVisitor>(
     program: &HirProgram,
+    tcx: &TyCtx,
     roots: &mut [ArenaNode],
     visitor: &mut V,
 ) -> Result<(), WalkError> {
@@ -791,7 +795,7 @@ pub fn walk_program<V: RegionVisitor>(
             path: Vec::new(),
             next_child: 0,
         };
-        walk_one_function(function, &mut cursor, visitor)
+        walk_one_function(function, tcx, &mut cursor, visitor)
             .map_err(|e| e.in_function(&function.name))?;
     }
     Ok(())
@@ -799,6 +803,7 @@ pub fn walk_program<V: RegionVisitor>(
 
 pub fn walk_program_readonly<V: RegionVisitor>(
     program: &HirProgram,
+    tcx: &TyCtx,
     roots: &[ArenaNode],
     visitor: &mut V,
 ) -> Result<(), WalkError> {
@@ -813,7 +818,7 @@ pub fn walk_program_readonly<V: RegionVisitor>(
             path: Vec::new(),
             next_child: 0,
         };
-        walk_one_function(function, &mut cursor, visitor)
+        walk_one_function(function, tcx, &mut cursor, visitor)
             .map_err(|e| e.in_function(&function.name))?;
     }
     Ok(())
@@ -822,6 +827,7 @@ pub fn walk_program_readonly<V: RegionVisitor>(
 /// Walk a single function's body in lockstep with `roots[root_index]`.
 pub fn walk_function_readonly<V: RegionVisitor>(
     function: &HirFunction,
+    tcx: &TyCtx,
     root_index: usize,
     roots: &[ArenaNode],
     visitor: &mut V,
@@ -835,7 +841,7 @@ pub fn walk_function_readonly<V: RegionVisitor>(
         path: Vec::new(),
         next_child: 0,
     };
-    walk_one_function(function, &mut cursor, visitor)
+    walk_one_function(function, tcx, &mut cursor, visitor)
 }
 
 pub use stamp::stamp_codegen_push;
@@ -851,7 +857,7 @@ mod tests {
         assert!(result.is_ok());
         let mut report = result.report.unwrap();
         let mut visitor = StampVisitor;
-        walk_program(result.hir.as_ref().unwrap(), &mut report.roots, &mut visitor).unwrap();
+        walk_program(result.hir.as_ref().unwrap(), &result.tcx, &mut report.roots, &mut visitor).unwrap();
     }
 
     #[test]
@@ -859,7 +865,7 @@ mod tests {
         let result = check("fun main() {\n    val y = 2\n    { val x = 1 }\n}");
         assert!(result.is_ok());
         let mut report = result.report.unwrap();
-        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report).unwrap();
+        stamp_codegen_push(result.hir.as_ref().unwrap(), &result.tcx, &mut report).unwrap();
         assert!(!report.roots[0].children[0].codegen_push);
     }
 
@@ -870,8 +876,8 @@ mod tests {
         let hir = result.hir.as_ref().unwrap();
         let mut report = result.report.unwrap();
         report.roots.reverse();
-        let stamp = stamp_codegen_push(hir, &mut report).unwrap_err();
-        let (_, plan) = crate::memory::plan(hir, &report);
+        let stamp = stamp_codegen_push(hir, &result.tcx, &mut report).unwrap_err();
+        let (_, plan) = crate::memory::plan(hir, &result.tcx, &report);
         assert_eq!(plan, vec![stamp.clone()]);
         assert!(stamp.message.starts_with("internal compiler error"), "{}", stamp.message);
         assert!(stamp.message.contains("`a`") && stamp.message.contains("`fun main`"), "{}", stamp.message);
@@ -883,7 +889,7 @@ mod tests {
         let result = check(source);
         assert!(result.is_ok());
         let mut report = result.report.unwrap();
-        stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report).unwrap();
+        stamp_codegen_push(result.hir.as_ref().unwrap(), &result.tcx, &mut report).unwrap();
     }
 
     #[cfg(feature = "codegen")]
@@ -918,9 +924,9 @@ mod tests {
                 let result = check(source);
                 assert!(result.is_ok(), "{source:?}");
                 let mut report = result.report.unwrap();
-                stamp_codegen_push(result.hir.as_ref().unwrap(), &mut report).unwrap();
+                stamp_codegen_push(result.hir.as_ref().unwrap(), &result.tcx, &mut report).unwrap();
                 let hir = result.hir.as_ref().unwrap();
-                let events = schedule(hir, &report).expect("schedule");
+                let events = schedule(hir, &result.tcx, &report).expect("schedule");
                 for event in events {
                     if let RegionEvent::Push { arena } = event {
                         let node = node_by_id(&report, arena).expect("push for unknown arena");

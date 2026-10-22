@@ -91,7 +91,7 @@ impl DefTable {
             .iter()
             .filter(|f| !crate::builtins::is_intrinsic(&f.name))
             .map(|f| f.name.clone())
-            .chain(crate::builtins::signatures().map(|(name, _)| name))
+            .chain(crate::builtins::signature_names().map(String::from))
             .collect();
         for class in &program.classes {
             let span = class.fields.first().map(|field| field.name.span);

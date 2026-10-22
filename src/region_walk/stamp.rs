@@ -44,7 +44,8 @@ impl RegionVisitor for StampVisitor {
 
 pub fn stamp_codegen_push(
     program: &HirProgram,
+    tcx: &crate::ty::TyCtx,
     report: &mut crate::sema::ArenaReport,
 ) -> Result<(), crate::diag::Diagnostic> {
-    walk_program(program, &mut report.roots, &mut StampVisitor).map_err(WalkError::ice_diagnostic)
+    walk_program(program, tcx, &mut report.roots, &mut StampVisitor).map_err(WalkError::ice_diagnostic)
 }

@@ -4,13 +4,14 @@ use std::collections::HashMap;
 
 use crate::ast::{Expr, Program, Type};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirExprKind, Prim, Ty, TyKind};
+use crate::hir::{HirExprKind, Prim};
 use crate::span::Span;
+use crate::ty::{TyCtx, TyData, TyId};
 
 /// A validated constant: its declared type and the literal every use lowers to.
 #[derive(Debug, Clone)]
 pub struct Constant {
-    pub ty: Ty,
+    pub ty: TyId,
     pub value: HirExprKind,
     pub span: Span,
     pub id: crate::span::AstId,
@@ -27,7 +28,7 @@ impl Constant {
         };
         crate::typeck::MemberRef::Constant {
             name: name.to_string(),
-            ty: self.ty.clone(),
+            ty: self.ty,
             value,
         }
     }
@@ -35,15 +36,10 @@ impl Constant {
 
 pub type ConstantTable = HashMap<String, Constant>;
 
-pub fn collect(program: &Program) -> (ConstantTable, Vec<Diagnostic>) {
-    let mut diagnostics = Vec::new();
-    let table = collect_into(program, &crate::defs::DefTable::build(program), &mut diagnostics);
-    (table, diagnostics)
-}
-
 pub(crate) fn collect_into(
     program: &Program,
     defs: &crate::defs::DefTable,
+    tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ConstantTable {
     let mut table = ConstantTable::new();
@@ -60,7 +56,7 @@ pub(crate) fn collect_into(
             diagnostics.push(error(format!("duplicate constant `{name}`"), span));
             continue;
         }
-        match literal(&decl.ty, &decl.value, decl.value_span) {
+        match literal(&decl.ty, &decl.value, decl.value_span, tcx) {
             Ok((ty, value)) => {
                 table.insert(name.clone(), Constant { ty, value, span, id: decl.name.id });
             }
@@ -70,19 +66,19 @@ pub(crate) fn collect_into(
     table
 }
 
-fn literal(ty: &Type, value: &Expr, span: Span) -> Result<(Ty, HirExprKind), Diagnostic> {
-    let ty = constant_type(ty, span)?;
-    let value = literal_value(&ty, value, span)?;
+fn literal(ty: &Type, value: &Expr, span: Span, tcx: &mut TyCtx) -> Result<(TyId, HirExprKind), Diagnostic> {
+    let ty = constant_type(ty, span, tcx)?;
+    let value = literal_value(ty, value, span, tcx)?;
     Ok((ty, value))
 }
 
-fn constant_type(ty: &Type, span: Span) -> Result<Ty, Diagnostic> {
+fn constant_type(ty: &Type, span: Span, tcx: &mut TyCtx) -> Result<TyId, Diagnostic> {
     Ok(match ty {
         Type::Primitive {
             name,
             nullable: false,
         } => match Prim::from_name(name) {
-            Some(prim) if prim != Prim::Unit => Ty::prim(prim),
+            Some(prim) if prim != Prim::Unit => tcx.prim(prim),
             _ => {
                 return Err(error(
                     format!("constant type `{name}` is not supported"),
@@ -93,7 +89,7 @@ fn constant_type(ty: &Type, span: Span) -> Result<Ty, Diagnostic> {
         Type::Named {
             name,
             nullable: false,
-        } if name == "String" => Ty::string(false),
+        } if name == "String" => tcx.string(false),
         other => {
             return Err(error(
                 format!("constant type `{other}` is not supported; use a number, bool or String"),
@@ -103,17 +99,18 @@ fn constant_type(ty: &Type, span: Span) -> Result<Ty, Diagnostic> {
     })
 }
 
-fn literal_value(ty: &Ty, value: &Expr, span: Span) -> Result<HirExprKind, Diagnostic> {
-    let mismatch = || error(format!("constant initializer is not a {ty} literal"), span);
-    let prim = match &ty.kind {
-        TyKind::Prim(prim) => Some(*prim),
+fn literal_value(ty: TyId, value: &Expr, span: Span, tcx: &TyCtx) -> Result<HirExprKind, Diagnostic> {
+    let shown = tcx.display(ty);
+    let mismatch = || error(format!("constant initializer is not a {shown} literal"), span);
+    let prim = match tcx.data(ty) {
+        TyData::Prim(prim) => Some(*prim),
         _ => None,
     };
     Ok(match (value, prim) {
         (Expr::Int(v), Some(prim)) if prim.is_integer() => {
             if !fits(*v, prim) {
                 return Err(error(
-                    format!("integer literal {v} is out of range for {ty}"),
+                    format!("integer literal {v} is out of range for {shown}"),
                     span,
                 ));
             }
@@ -121,7 +118,7 @@ fn literal_value(ty: &Ty, value: &Expr, span: Span) -> Result<HirExprKind, Diagn
         }
         (Expr::Float(v), Some(Prim::F32)) if (*v as f32).is_infinite() => {
             return Err(error(
-                format!("float literal {v} is out of range for {ty}"),
+                format!("float literal {v} is out of range for {shown}"),
                 span,
             ));
         }

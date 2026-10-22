@@ -40,8 +40,7 @@ pub(super) fn check_vec_new(
         Box::new(cap.hir)
     });
     let ty = env.tcx.vec_of(elem_ty);
-    let elem = env.tcx.to_ty(elem_ty);
-    env.expr_at(HirExprKind::VecNew { elem, cap }, ty, span)
+    env.expr_at(HirExprKind::VecNew { elem: elem_ty, cap }, ty, span)
 }
 
 /// `receiver.method(args)` on a `Vec<elem>`; `borrowed` is the already-borrowed receiver.

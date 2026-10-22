@@ -1,5 +1,6 @@
 //! Source locations, lexical scopes and local variable declarations.
-use crate::{codegen::llvm::emit_fn::FnEmitter, diag::Diagnostic, hir::Ty, span::Span};
+use crate::ty::TyId;
+use crate::{codegen::llvm::emit_fn::FnEmitter, diag::Diagnostic, span::Span};
 use inkwell::{
     debug_info::{AsDIScope, DIFlags, DIFlagsConstants, DIScope},
     values::{AsValueRef, PointerValue},
@@ -87,7 +88,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn debug_local(
         &self,
         name: &str,
-        ty: &Ty,
+        ty: TyId,
         ptr: PointerValue<'ctx>,
         home: PointerValue<'ctx>,
         argument: Option<u32>,
@@ -133,7 +134,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 self.cx.builder.get_insert_block().unwrap().as_mut_ptr(),
             );
         }
-        if ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(ty) {
             self.cx.debug_label_slot(
                 home,
                 ptr,

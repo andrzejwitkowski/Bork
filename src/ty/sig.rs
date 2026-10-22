@@ -1,5 +1,5 @@
-//! Function signatures. `FnSig<TyId>` is the interned form keyed by `DefId`; typeck keeps one per
-//! definition. `FnSig<hir::Ty>` (`FunSig`) remains only as the legacy form of `builtins::signatures`.
+//! Function signatures. `FnSig<TyId>` is the interned form keyed by `DefId`; typeck and
+//! `builtins::signatures` build one per definition.
 
 use std::collections::HashMap;
 
@@ -27,25 +27,19 @@ pub type FnSigs = HashMap<DefId, FnSig<super::TyId>>;
 mod tests {
     use super::*;
     use crate::defs::DefTable;
+    use crate::hir::Prim;
 
     #[test]
-    fn signatures_are_keyed_by_def_id_and_round_trip() {
+    fn signatures_are_keyed_by_def_id() {
         let program = crate::parse("fun add(a: i32, b: i32): i64 {\n return 1\n}\nfun main() {}\n").unwrap();
         let defs = DefTable::build(&program);
         let mut c = crate::ty::TyCtx::new(&defs);
+        let (i32_ty, i64_ty) = (c.i32(), c.prim(Prim::I64));
         let mut sigs = FnSigs::new();
-        for (i, f) in program.functions.iter().enumerate() {
-            let params = f
-                .params
-                .iter()
-                .map(|p| c.intern(&crate::hir::Ty::from_ast(&p.ty)).unwrap())
-                .collect();
-            let ret = c.intern(&crate::hir::Ty::from_ast(&f.return_type)).unwrap();
-            sigs.insert(defs.fn_id(i), FnSig::new(params, ret));
-        }
+        sigs.insert(defs.fn_id(0), FnSig::new(vec![i32_ty, i32_ty], i64_ty));
         let add = &sigs[&defs.lookup_fn("add").unwrap()];
         assert_eq!(add.params.len(), 2);
-        assert_eq!(c.to_ty(add.ret).to_string(), "i64");
+        assert_eq!(c.display(add.ret).to_string(), "i64");
         assert!(add.generics.is_empty());
     }
 }

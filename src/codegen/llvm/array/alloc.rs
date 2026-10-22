@@ -4,7 +4,7 @@ use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
 use inkwell::IntPredicate;
 
 use crate::diag::Diagnostic;
-use crate::hir::Ty;
+use crate::ty::TyId;
 
 use super::super::emit_fn::FnEmitter;
 use super::super::codegen_error;
@@ -38,8 +38,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn emit_array_lit_values(
         &mut self,
         values: &[BasicValueEnum<'ctx>],
-        elem_ty: &Ty,
-        _array_ty: &Ty,
+        elem_ty: TyId,
+        _array_ty: TyId,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let count = values.len();
         let (_, stride, align) = self.elem_storage(elem_ty)?;
@@ -55,7 +55,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let base = self.arena_alloc(arena, byte_len, align)?;
         for (index, value) in values.iter().enumerate() {
             let slot = self.elem_ptr(base, index, stride)?;
-            if elem_ty.is_managed_ref() {
+            if self.cx.tcx.is_managed_ref(elem_ty) {
                 self.store_fresh_ref(slot, arena, *value)?;
                 self.cx.debug_label_slot(
                     arena,
@@ -75,9 +75,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn copy_array_into_arena(
         &mut self,
         source: StructValue<'ctx>,
-        array_ty: &Ty,
+        array_ty: TyId,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
-        let elem_ty = array_ty.array_elem().expect("array type");
+        let elem_ty = self.cx.tcx.array_elem(array_ty).expect("array type");
         let (base, len) = self.descriptor_parts(source)?;
         let count = len;
         let (llvm_elem, stride, align) = self.elem_storage(elem_ty)?;
@@ -88,7 +88,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let dst_base = self.arena_alloc(arena, byte_len, align)?;
-        if elem_ty.is_string() || elem_ty.is_managed_ref() {
+        if self.cx.tcx.is_string(elem_ty) || self.cx.tcx.is_managed_ref(elem_ty) {
             let zero = self.cx.context.i64_type().const_int(0, false);
             let one = self.cx.context.i64_type().const_int(1, false);
             let entry = self.cx.builder.get_insert_block().expect("positioned");
@@ -120,7 +120,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), stride)?;
             let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), stride)?;
             let loaded = builder_load(self, llvm_elem, src_slot)?;
-            if elem_ty.is_string() {
+            if self.cx.tcx.is_string(elem_ty) {
                 let copied = self.copy_into_arena(loaded.into_struct_value())?;
                 self.cx.builder.build_store(dst_slot, copied)?;
             } else {

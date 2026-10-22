@@ -1,5 +1,5 @@
-use super::{diags_of, hir_of};
-use crate::hir::{HirExprKind, HirStmt, Prim, Ty};
+use super::{checked_of, diags_of, hir_of, shown};
+use crate::hir::{HirExprKind, HirStmt};
 
 fn first_error(src: &str) -> String {
     diags_of(src)[0].message.clone()
@@ -27,18 +27,18 @@ fun use_all(): String {
     return RESPONSE
 }
 "#;
-    let hir = hir_of(src);
+    let (hir, tcx) = checked_of(src);
     let port = hir.functions.iter().find(|f| f.name == "port").unwrap();
     let HirStmt::Return { value: Some(value) } = &port.body.stmts[0] else {
         panic!()
     };
     assert_eq!(value.kind, HirExprKind::Int { value: 8080 });
-    assert_eq!(value.ty, Ty::i32());
+    assert_eq!(shown(&tcx, value.ty), "i32");
     let all = hir.functions.iter().find(|f| f.name == "use_all").unwrap();
     let HirStmt::VarDecl { value, .. } = &all.body.stmts[0] else {
         panic!("{:?}", all.body.stmts[0])
     };
-    assert_eq!(value.ty, Ty::prim(Prim::U8));
+    assert_eq!(shown(&tcx, value.ty), "u8");
 }
 
 #[test]

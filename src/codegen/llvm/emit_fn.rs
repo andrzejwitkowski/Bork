@@ -9,7 +9,8 @@ use inkwell::IntPredicate;
 use crate::ast::BinOp;
 use crate::codegen::regions::{RegionEmitter, RegionSite};
 use crate::diag::Diagnostic;
-use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt, Ty};
+use crate::ty::TyId;
+use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirFunction, HirStmt};
 use crate::region_walk::{RegionWalkRef, WalkDriver};
 
 use super::arena::ArenaCalls;
@@ -27,13 +28,13 @@ pub fn declare_function<'ctx>(
     cx: &Codegen<'ctx>,
     function: &HirFunction,
 ) -> Result<FunctionValue<'ctx>, Diagnostic> {
-    let mut params = CallAbi::of(function).hidden_types(cx);
+    let mut params = CallAbi::of(cx, function).hidden_types(cx);
     for param in &function.params {
         params.push(
-            cx.basic_type(&param.ty)
+            cx.basic_type(param.ty)
                 .map(BasicMetadataTypeEnum::from)
                 .ok_or_else(|| {
-                    not_yet_supported(&format!("parameter type `{}`", param.ty), None)
+                    not_yet_supported(&format!("parameter type `{}`", cx.tcx.display(param.ty)), None)
                 })?,
         );
     }
@@ -42,9 +43,9 @@ pub fn declare_function<'ctx>(
         if !params.is_empty() {
             return Err(not_yet_supported("parameters on `main`", None));
         }
-        if function.return_ty != Ty::i32() && function.return_ty != Ty::unit() {
+        if function.return_ty != cx.i32_ty() && function.return_ty != cx.unit_ty() {
             return Err(not_yet_supported(
-                &format!("`main` returning `{}`", function.return_ty),
+                &format!("`main` returning `{}`", cx.tcx.display(function.return_ty)),
                 None,
             ));
         }
@@ -52,12 +53,12 @@ pub fn declare_function<'ctx>(
         return Ok(cx.module.add_function("main", fn_type, None));
     }
 
-    let fn_type = if function.return_ty == Ty::unit() {
+    let fn_type = if function.return_ty == cx.unit_ty() {
         cx.context.void_type().fn_type(&params, false)
     } else {
-        cx.basic_type(&function.return_ty)
+        cx.basic_type(function.return_ty)
             .ok_or_else(|| {
-                not_yet_supported(&format!("return type `{}`", function.return_ty), None)
+                not_yet_supported(&format!("return type `{}`", cx.tcx.display(function.return_ty)), None)
             })?
             .fn_type(&params, false)
     };
@@ -100,7 +101,7 @@ pub fn emit_function<'report, 'a, 'ctx>(
         let scope = debug.function(cx, function, llvm_fn);
         emitter.debug_enter_scope(Some(scope))?;
     }
-    let abi = CallAbi::of(function);
+    let abi = CallAbi::of(cx, function);
     if abi.hidden_len() > 0 {
         let parent = llvm_fn
             .get_nth_param(0)
@@ -127,7 +128,7 @@ pub fn emit_function<'report, 'a, 'ctx>(
 
 pub(super) struct Slot<'ctx> {
     pub ptr: PointerValue<'ctx>,
-    pub ty: Ty,
+    pub ty: TyId,
     pub home_arena: PointerValue<'ctx>,
 }
 
@@ -298,7 +299,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 })?;
                 self.alloc_sink = prev;
                 self.statement_span = statement_span;
-                self.declare_local(name, ty, value, None)
+                self.declare_local(name, *ty, value, None)
             }
             HirStmt::Assign { target, value } => match target {
                 HirAssignTarget::Field {
@@ -332,9 +333,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let receiver_value = self.value_from_walk(receiver, || {
             not_yet_supported("field receiver", receiver.span)
         })?;
-        let class_name = receiver.ty.record_name().ok_or_else(|| {
+        let class_name = self.cx.tcx.record_name(receiver.ty).ok_or_else(|| {
             not_yet_supported(
-                &format!("field assignment on `{}`", receiver.ty),
+                &format!("field assignment on `{}`", self.cx.tcx.display(receiver.ty)),
                 receiver.span,
             )
         })?;
@@ -343,11 +344,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     fn emit_name_assign(&mut self, name: &str, value: &HirExpr) -> Result<(), Diagnostic> {
         let (ptr, home, slot_ty, stored) = self.evaluate_assigned_value(name, value)?;
-        if slot_ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(slot_ty) {
             self.store_ref(ptr, home, stored)?;
         } else {
             self.cx.builder.build_store(ptr, stored)?;
-            self.debug_label_ref_array(stored, &slot_ty, name)?;
+            self.debug_label_ref_array(stored, slot_ty, name)?;
         }
         Ok(())
     }
@@ -359,7 +360,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         value: &HirExpr,
     ) -> Result<(), Diagnostic> {
         let (ptr, _, slot_ty, stored) = self.evaluate_assigned_value(name, value)?;
-        self.emit_index_store(ptr, &slot_ty, index, stored, value.span)
+        self.emit_index_store(ptr, slot_ty, index, stored, value.span)
     }
 
     /// Evaluate `value` in the home arena of local `name`.
@@ -371,7 +372,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         (
             PointerValue<'ctx>,
             PointerValue<'ctx>,
-            Ty,
+            TyId,
             BasicValueEnum<'ctx>,
         ),
         Diagnostic,
@@ -379,7 +380,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let slot = self
             .lookup(name)
             .ok_or_else(|| not_yet_supported(&format!("assignment to `{name}`"), value.span))?;
-        let (ptr, home, slot_ty) = (slot.ptr, slot.home_arena, slot.ty.clone());
+        let (ptr, home, slot_ty) = (slot.ptr, slot.home_arena, slot.ty);
         let prev = self.alloc_sink;
         self.alloc_sink = Some(home);
         let stored = self.value_from_walk(value, || {
@@ -444,10 +445,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         else {
             return Err(not_yet_supported("this `for` iterator", iter.span));
         };
-        let index_ty = Ty::i32();
-        let start = self.emit_int(lhs, &index_ty)?;
-        let end = self.emit_int(rhs, &index_ty)?;
-        self.declare_local(name, &index_ty, start.into(), None)?;
+        let index_ty = self.cx.i32_ty();
+        let start = self.emit_int(lhs, index_ty)?;
+        let end = self.emit_int(rhs, index_ty)?;
+        self.declare_local(name, index_ty, start.into(), None)?;
         let index = self.lookup(name).expect("loop index was just declared").ptr;
 
         let ptr = self.codegen_driver_ptr();
@@ -595,7 +596,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let statement_span = self.statement_span;
         let return_ty = &self.function.return_ty;
         let value = match value {
-            Some(value) if *return_ty != Ty::unit() => Some(self.value_from_walk(value, || {
+            Some(value) if *return_ty != self.cx.unit_ty() => Some(self.value_from_walk(value, || {
                 not_yet_supported("return value missing", value.span)
             })?),
             Some(value) => {
@@ -625,7 +626,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     /// Typeck guarantees non-`unit` functions return on every path, so falling off their end
     /// is unreachable.
     fn build_fallthrough(&self) -> Result<(), Diagnostic> {
-        if self.function.return_ty == Ty::unit() {
+        if self.function.return_ty == self.cx.unit_ty() {
             self.build_unit_return()?;
         } else {
             self.cx.builder.build_unreachable()?;
@@ -646,7 +647,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn declare_local(
         &mut self,
         name: &str,
-        ty: &Ty,
+        ty: TyId,
         value: BasicValueEnum<'ctx>,
         argument: Option<u32>,
     ) -> Result<(), Diagnostic> {
@@ -656,17 +657,17 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let llvm_ty = self
             .cx
             .basic_type(ty)
-            .ok_or_else(|| not_yet_supported(&format!("local of type `{ty}`"), None))?;
+            .ok_or_else(|| not_yet_supported(&format!("local of type `{}`", self.cx.tcx.display(ty)), None))?;
         let ptr = self.entry_alloca(llvm_ty, name)?;
         self.cx.builder.build_store(ptr, value)?;
-        let home_arena = if ty.is_managed_ref() {
+        let home_arena = if self.cx.tcx.is_managed_ref(ty) {
             self.current_arena()
-        } else if matches!(&ty.kind, crate::hir::TyKind::Named(name) if name != "String") {
+        } else if self.cx.tcx.class_def(ty).is_some() {
             self.cx
                 .builder
                 .build_extract_value(value.into_struct_value(), 0, "object.arena")?
                 .into_pointer_value()
-        } else if ty.uses_arena_storage() {
+        } else if self.cx.tcx.uses_arena_storage(ty) {
             self.sink_arena()
         } else {
             self.function_arena
@@ -680,7 +681,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 home_arena,
             },
         );
-        if ty.is_managed_ref() {
+        if self.cx.tcx.is_managed_ref(ty) {
             self.register_ref_drop(home_arena, ptr)?;
         }
         self.debug_local(name, ty, ptr, home_arena, argument)?;
@@ -698,7 +699,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             return Ok(value);
         };
         let ty = self.function.return_ty.clone();
-        self.materialize_owned_value(value, &ty, sink)
+        self.materialize_owned_value(value, ty, sink)
     }
 
     /// Allocas go at the top of the entry block so each slot is allocated once per call.

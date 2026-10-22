@@ -4,6 +4,7 @@ use crate::diag::{self, Diagnostic};
 use crate::hir::HirProgram;
 use crate::memory::MemoryPlan;
 use crate::sema::ArenaReport;
+use crate::ty::TyCtx;
 use crate::typeck;
 
 /// Outcome of one frontend run over a source string.
@@ -18,6 +19,8 @@ pub struct CheckResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Member names resolved by typeck (bare fields, method calls, method declarations).
     pub members: crate::typeck::MemberResolutions,
+    /// Owns the type ids carried by `hir`; empty when the source failed to parse.
+    pub tcx: TyCtx,
     /// Every numbered AST node with its span; the LSP resolves a position to an `AstId` with it.
     pub node_index: Vec<(crate::span::Span, crate::span::AstId)>,
 }
@@ -39,14 +42,16 @@ pub fn check(source: &str) -> CheckResult {
                 memory_plan: None,
                 diagnostics: vec![diag::from_parse(source, &err)],
                 members: Default::default(),
+                tcx: TyCtx::new(&Default::default()),
                 node_index: Vec::new(),
             }
         }
     };
 
-    let (hir, node_tys, members, mut type_diagnostics) = typeck::check_with_members(&program);
+    let typeck::Typeck { hir, node_tys, members, diagnostics: mut type_diagnostics, tcx } =
+        typeck::check_with_members(&program);
     let (mut report, ownership_errors) =
-        crate::sema::analyze_with_members(&program, node_tys, members.clone());
+        crate::sema::analyze_with_members(&program, node_tys, members.clone(), &tcx);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 
@@ -56,13 +61,13 @@ pub fn check(source: &str) -> CheckResult {
         crate::hoist::annotate(&mut program);
         crate::hir::number_nodes(&mut program);
         for function in &program.functions {
-            crate::escape::check_function(function, &mut diagnostics);
+            crate::escape::check_function(function, &tcx, &mut diagnostics);
         }
         if diagnostics.is_empty() {
-            let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &report);
+            let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &tcx, &report);
             diagnostics.append(&mut plan_diagnostics);
             if diagnostics.is_empty() {
-                match crate::region_walk::stamp_codegen_push(&program, &mut report) {
+                match crate::region_walk::stamp_codegen_push(&program, &tcx, &mut report) {
                     Ok(()) => memory_plan = Some(plan),
                     Err(ice) => diagnostics.push(ice),
                 }
@@ -77,6 +82,7 @@ pub fn check(source: &str) -> CheckResult {
         memory_plan,
         diagnostics,
         members,
+        tcx,
         node_index,
     }
 }
@@ -85,7 +91,6 @@ pub fn check(source: &str) -> CheckResult {
 mod tests {
     use super::*;
     use crate::diag::Phase;
-    use crate::hir::Ty;
 
     fn hir_of(source: &str) -> HirProgram {
         let result = check(source);
@@ -160,18 +165,21 @@ fun add(val a: Int, var b: Int): Int {
     return a
 }
 "#;
-        let hir = hir_of(src);
+        let checked = check(src);
+        assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+        let (hir, tcx) = (checked.hir.expect("clean check produces HIR"), checked.tcx);
+        let i32_ty = tcx.prim_id(crate::hir::Prim::I32);
         assert_eq!(hir.functions.len(), 1);
         let f = &hir.functions[0];
         assert_eq!(f.name, "add");
-        assert_eq!(f.return_ty, Ty::i32());
+        assert_eq!(f.return_ty, i32_ty);
         assert_eq!(f.params.len(), 2);
         assert_eq!(f.params[0].name, "a");
         assert_eq!(f.params[0].kind, crate::ast::BindingKind::Val);
-        assert_eq!(f.params[0].ty, Ty::i32());
+        assert_eq!(f.params[0].ty, i32_ty);
         assert_eq!(f.params[1].name, "b");
         assert_eq!(f.params[1].kind, crate::ast::BindingKind::Var);
-        assert_eq!(f.params[1].ty, Ty::i32());
+        assert_eq!(f.params[1].ty, i32_ty);
         assert!(matches!(
             f.body.stmts.as_slice(),
             [crate::hir::HirStmt::Return { value: Some(_) }]

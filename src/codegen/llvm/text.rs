@@ -131,7 +131,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         builder.build_unconditional_branch(done)?;
 
         builder.position_at_end(done);
-        let none = cx.const_null_value(&expr.ty)?.into_struct_value();
+        let none = cx.const_null_value(expr.ty)?.into_struct_value();
         let phi = builder.build_phi(cx.string_type(), "utf8.result")?;
         phi.add_incoming(&[(&none, entry), (&copied, copy)]);
         Ok(phi.as_basic_value())

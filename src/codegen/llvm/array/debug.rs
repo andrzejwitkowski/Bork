@@ -4,7 +4,7 @@ use inkwell::values::BasicValueEnum;
 use inkwell::IntPredicate;
 
 use crate::diag::Diagnostic;
-use crate::hir::Ty;
+use crate::ty::TyId;
 
 use super::super::emit_fn::FnEmitter;
 
@@ -12,13 +12,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(in crate::codegen::llvm) fn debug_label_ref_array(
         &mut self,
         value: BasicValueEnum<'ctx>,
-        ty: &Ty,
+        ty: TyId,
         label: &str,
     ) -> Result<(), Diagnostic> {
-        let Some(elem) = ty.array_elem().filter(|elem| elem.is_managed_ref()) else {
+        let Some(elem) = self.cx.tcx.array_elem(ty).filter(|&elem| self.cx.tcx.is_managed_ref(elem)) else {
             return Ok(());
         };
-        if self.cx.debug.is_none() || ty.is_ref() {
+        if self.cx.debug.is_none() || self.cx.tcx.is_ref(ty) {
             return Ok(());
         }
         let (base, len) = self.descriptor_parts(value.into_struct_value())?;

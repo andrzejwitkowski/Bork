@@ -1,10 +1,10 @@
-use crate::hir::{HirAssignTarget, HirExprKind, HirStmt, TyKind};
+use crate::hir::{HirAssignTarget, HirExprKind, HirStmt};
 
-use super::{diags_of, hir_of};
+use super::{checked_of, diags_of, hir_of};
 
 #[test]
 fn records_construct_and_coerce_objects_into_ref_fields() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Node {
     name: String
@@ -28,10 +28,7 @@ fun main() {
     );
 
     assert_eq!(hir.classes.len(), 1);
-    assert!(matches!(
-        hir.classes[0].fields[1].ty.kind,
-        TyKind::ManagedRef(_)
-    ));
+    assert!(tcx.is_managed_ref(hir.classes[0].fields[1].ty));
     assert!(matches!(
         &hir.functions[0].body.stmts[0],
         HirStmt::VarDecl {
@@ -63,7 +60,7 @@ fun main() {
 
 #[test]
 fn mutually_recursive_ref_fields_typecheck() {
-    let hir = hir_of(
+    let (hir, tcx) = checked_of(
         r#"
 class Parent { child: Ref<Child> }
 class Child { parent: Ref<Parent> }
@@ -75,10 +72,7 @@ fun main() {
 "#,
     );
     assert_eq!(hir.classes.len(), 2);
-    assert!(hir.classes.iter().all(|class| matches!(
-        class.fields[0].ty.kind,
-        TyKind::ManagedRef(_)
-    )));
+    assert!(hir.classes.iter().all(|class| tcx.is_managed_ref(class.fields[0].ty)));
 }
 
 #[test]

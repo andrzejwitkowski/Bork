@@ -396,13 +396,13 @@ fn walk_err(err: WalkError) -> ScheduleError {
 }
 
 /// Static region schedule for `hir`: each site's events once, with a single `Reset` per loop latch.
-pub fn schedule(hir: &HirProgram, report: &ArenaReport) -> Result<Vec<RegionEvent>, ScheduleError> {
+pub fn schedule(hir: &HirProgram, tcx: &crate::ty::TyCtx, report: &ArenaReport) -> Result<Vec<RegionEvent>, ScheduleError> {
     let mut emitter = RegionEmitter::for_schedule(report.roots.len(), Vec::new());
     {
         let mut visitor = ScheduleVisitor {
             emitter: &mut emitter,
         };
-        region_walk::walk_program_readonly(hir, &report.roots, &mut visitor)
+        region_walk::walk_program_readonly(hir, tcx, &report.roots, &mut visitor)
             .map_err(walk_err)?;
     }
     emitter.finish()
@@ -417,7 +417,7 @@ mod tests {
         let result = check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         let report = result.report.unwrap();
-        let events = schedule(result.hir.as_ref().unwrap(), &report).expect("schedule");
+        let events = schedule(result.hir.as_ref().unwrap(), &result.tcx, &report).expect("schedule");
         (events, report)
     }
 
@@ -554,7 +554,7 @@ fun main() {
         let result = check("fun main() {\n    val y = 2\n    { val x = 1 }\n}");
         let mut report = result.report.unwrap();
         report.roots[0].children.clear();
-        let err = schedule(result.hir.as_ref().unwrap(), &report).unwrap_err();
+        let err = schedule(result.hir.as_ref().unwrap(), &result.tcx, &report).unwrap_err();
         assert!(err.message.contains("Block"), "{err}");
     }
 }

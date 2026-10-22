@@ -1,9 +1,7 @@
 //! DWARF types matching the target ABI, including recursive class payloads.
 use super::DebugInfo;
-use crate::{
-    codegen::llvm::context::Codegen,
-    hir::{Prim, Ty, TyKind},
-};
+use crate::ty::{TyData, TyId};
+use crate::{codegen::llvm::context::Codegen, hir::Prim};
 use inkwell::{
     debug_info::{AsDIScope, DIFlags, DIFlagsConstants, DIType},
     types::{BasicTypeEnum, StructType},
@@ -70,11 +68,11 @@ impl<'ctx> DebugInfo<'ctx> {
             .as_type()
     }
 
-    pub fn ty(&self, cx: &Codegen<'ctx>, ty: &Ty) -> DIType<'ctx> {
-        if let Some(inner) = ty.ref_inner() {
+    pub fn ty(&self, cx: &Codegen<'ctx>, ty: TyId) -> DIType<'ctx> {
+        if let Some(inner) = cx.tcx.ref_inner(ty) {
             return self.ty(cx, inner);
         }
-        let key = ty.to_string();
+        let key = cx.tcx.display(ty).to_string();
         if let Some(found) = self.types.borrow().get(&key) {
             return *found;
         }
@@ -89,11 +87,11 @@ impl<'ctx> DebugInfo<'ctx> {
                 .unwrap()
                 .as_type()
         };
-        let result = if ty.is_managed_ref() {
-            let target = ty.managed_ref_inner().expect("Ref inner");
+        let result = if cx.tcx.is_managed_ref(ty) {
+            let target = cx.tcx.managed_ref_inner(ty).expect("Ref inner");
             let object = self.pointer(
                 cx,
-                self.payload(cx, target.record_name().expect("Ref record")),
+                self.payload(cx, cx.tcx.record_name(target).expect("Ref record")),
             );
             let control = self
                 .builder
@@ -111,29 +109,22 @@ impl<'ctx> DebugInfo<'ctx> {
                 cx.ref_handle_type(),
                 vec![("control", control), ("object", object), ("kind", u8_ty())],
             )
-        } else if ty.is_nullable() && !ty.with_nullable(false).is_array() && !ty.is_string() {
-            let inner = ty.with_nullable(false);
+        } else if cx.tcx.is_nullable(ty) && !cx.tcx.is_array(cx.tcx.base(ty)) && !cx.tcx.is_string(ty) {
+            let inner = cx.tcx.base(ty);
             let llvm = cx.basic_type(ty).unwrap().into_struct_type();
-            let bool_ty = self.ty(
-                cx,
-                &Ty {
-                    kind: TyKind::Prim(Prim::Bool),
-                    nullable: false,
-                },
-            );
+            let bool_ty = self.ty(cx, cx.bool_ty());
             self.structure(
                 cx,
                 &key,
                 llvm,
-                vec![("present", bool_ty), ("value", self.ty(cx, &inner))],
+                vec![("present", bool_ty), ("value", self.ty(cx, inner))],
             )
-        } else if ty.is_string()
-            || ty.is_array()
-            || (ty.is_nullable()
-                && (ty.with_nullable(false).is_array() || ty.with_nullable(false).is_string()))
+        } else if cx.tcx.is_string(ty)
+            || cx.tcx.is_array(ty)
+            || (cx.tcx.is_nullable(ty)
+                && (cx.tcx.is_array(cx.tcx.base(ty)) || cx.tcx.is_string(cx.tcx.base(ty))))
         {
-            let element = ty
-                .array_elem()
+            let element = cx.tcx.array_elem(ty)
                 .map(|t| self.ty(cx, t))
                 .unwrap_or_else(u8_ty);
             let data = self.pointer(cx, element);
@@ -148,7 +139,8 @@ impl<'ctx> DebugInfo<'ctx> {
                 cx.buffer_descriptor_type(),
                 vec![("data", data), ("length", length)],
             )
-        } else if let TyKind::Named(name) = &ty.kind {
+        } else if let Some(class) = cx.tcx.class_def(ty) {
+            let name = cx.tcx.class_name(class);
             let object = self.pointer(cx, self.payload(cx, name));
             let arena = self
                 .builder
@@ -172,10 +164,10 @@ impl<'ctx> DebugInfo<'ctx> {
                 BasicTypeEnum::IntType(i) => i.get_bit_width() as u64,
                 _ => cx.target_data.get_abi_size(&t) * 8,
             });
-            let encoding = match ty.kind {
-                TyKind::Prim(Prim::F32 | Prim::F64) => 0x04,
-                TyKind::Prim(Prim::Bool) => 0x02,
-                TyKind::Prim(Prim::U8 | Prim::U16 | Prim::U32 | Prim::U64) => 0x07,
+            let encoding = match cx.tcx.data(ty) {
+                TyData::Prim(Prim::F32 | Prim::F64) => 0x04,
+                TyData::Prim(Prim::Bool) => 0x02,
+                TyData::Prim(Prim::U8 | Prim::U16 | Prim::U32 | Prim::U64) => 0x07,
                 _ => 0x05,
             };
             self.builder
@@ -212,7 +204,7 @@ impl<'ctx> DebugInfo<'ctx> {
         let fields = class
             .fields
             .iter()
-            .map(|f| (f.name.as_str(), self.ty(cx, &f.ty)))
+            .map(|f| (f.name.as_str(), self.ty(cx, f.ty)))
             .collect();
         let result = self.structure(cx, &key, cx.record_type(name).unwrap(), fields);
         let alias = self.builder.create_typedef(
