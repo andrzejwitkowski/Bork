@@ -7,8 +7,10 @@ use std::collections::{HashMap, HashSet};
 
 use crate::ast::{Function, Program};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram, Ty, TyKind};
+use crate::defs::{DefId, DefTable};
+use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram, Ty};
 use crate::span::{AstId, Span};
+use crate::ty::{FnSig, FnSigs, TyCtx, TyId};
 
 use env::{ClassFieldInfo, ClassInfo, ClassTable, Env};
 pub(crate) use env::FunSig;
@@ -40,35 +42,42 @@ pub fn check_with_members(
     program: &Program,
 ) -> (HirProgram, NodeTypes, MemberResolutions, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
-    let defs = crate::defs::DefTable::build(program);
+    let defs = DefTable::build(program);
+    let mut tcx = TyCtx::new(&defs);
     let constants = crate::constants::collect_into(program, &defs, &mut diagnostics);
     for index in 0..program.functions.len() {
         diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
     }
 
-    let mut classes = build_classes(program, &defs, &mut diagnostics);
-    validate_owned_layouts(&classes, &mut diagnostics);
-    let mut fun_sigs = collect_fun_sigs(program, &defs, &classes, &mut diagnostics);
+    let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
+    validate_owned_layouts(&classes, &tcx, &mut diagnostics);
+    let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
         members.insert(constant.id.numbered(), constant.member(name));
     }
-    collect_method_sigs(program, &defs, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
+    collect_method_sigs(program, &defs, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut node_tys = NodeTypes::new();
     let mut functions: Vec<HirFunction> = program
         .functions
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| {
-            check_function(function, None, &fun_sigs, &classes, &constants, &mut diagnostics, &mut node_tys, &mut members)
+            check_function(
+                function, None, &defs, &mut tcx, &fun_sigs, &classes, &constants, &mut diagnostics, &mut node_tys,
+                &mut members,
+            )
         })
         .collect();
     // Same order as sema roots: top-level functions, then methods class by class.
     for class in &program.classes {
+        let owner = defs.lookup_class(&class.name).expect("every class is registered");
         for method in &class.methods {
             functions.push(check_function(
                 method,
-                Some(&class.name),
+                Some(owner),
+                &defs,
+                &mut tcx,
                 &fun_sigs,
                 &classes,
                 &constants,
@@ -82,7 +91,7 @@ pub fn check_with_members(
     let hir_classes = program
         .classes
         .iter()
-        .filter_map(|class| classes.get(&class.name))
+        .filter_map(|class| classes.get(&defs.lookup_class(&class.name)?))
         .map(|class| HirClass {
             name: class.name.clone(),
             fields: class
@@ -90,7 +99,7 @@ pub fn check_with_members(
                 .iter()
                 .map(|field| HirClassField {
                     name: field.name.clone(),
-                    ty: field.ty.clone(),
+                    ty: tcx.to_ty(field.ty),
                 })
                 .collect(),
         })
@@ -108,7 +117,8 @@ pub fn check_with_members(
 
 fn build_classes(
     program: &Program,
-    defs: &crate::defs::DefTable,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ClassTable {
     let mut classes = ClassTable::new();
@@ -117,21 +127,19 @@ fn build_classes(
         diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| {
             matches!(c, Clash::ClassBuiltinType | Clash::ClassDuplicate)
         }));
-        if classes.contains_key(&class.name) {
-            continue;
-        }
-        classes.insert(
-            class.name.clone(),
-            ClassInfo {
-                name: class.name.clone(),
-                fields: Vec::new(),
-                methods: HashMap::new(),
-            },
-        );
+        // A duplicate name keeps the first declaration.
+        let id = defs.lookup_class(&class.name).expect("every class is registered");
+        classes.entry(id).or_insert_with(|| ClassInfo {
+            id,
+            name: class.name.clone(),
+            fields: Vec::new(),
+            methods: HashMap::new(),
+        });
     }
     let mut filled = HashSet::new();
     for class in &program.classes {
-        if !filled.insert(class.name.as_str()) {
+        let id = defs.lookup_class(&class.name).expect("every class is registered");
+        if !filled.insert(id) {
             continue;
         }
         let mut field_names = HashSet::new();
@@ -157,12 +165,12 @@ fn build_classes(
                 }
                 ClassFieldInfo {
                     name: field.name.name.clone(),
-                    ty: lower_type(&field.ty, &classes, diagnostics, Some(field.name.span)),
+                    ty: lower_type(&field.ty, defs, tcx, diagnostics, Some(field.name.span)),
                     span: field.name.span,
                 }
             })
             .collect();
-        if let Some(info) = classes.get_mut(&class.name) {
+        if let Some(info) = classes.get_mut(&id) {
             info.fields = fields;
         }
     }
@@ -171,41 +179,46 @@ fn build_classes(
 
 fn collect_fun_sigs(
     program: &Program,
-    defs: &crate::defs::DefTable,
-    classes: &ClassTable,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
-) -> HashMap<String, FunSig> {
-    let mut fun_sigs: HashMap<_, _> = program
+) -> FnSigs {
+    let mut fun_sigs = FnSigs::new();
+    for function in program
         .functions
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
-        .map(|function| {
-            (
-                function.name.clone(),
-                FunSig::new(
-                    function
-                        .params
-                        .iter()
-                        .map(|param| lower_type(&param.ty, classes, diagnostics, Some(param.name.span)))
-                        .collect(),
-                    lower_type(&function.return_type, classes, diagnostics, Some(function.name_span)),
-                ),
-            )
-        })
-        .collect();
-    fun_sigs.extend(crate::builtins::signatures());
+    {
+        let params = function
+            .params
+            .iter()
+            .map(|param| lower_type(&param.ty, defs, tcx, diagnostics, Some(param.name.span)))
+            .collect();
+        let ret = lower_type(&function.return_type, defs, tcx, diagnostics, Some(function.name_span));
+        // Redeclared names share one id; the last declaration wins.
+        let id = defs.lookup_fn(&function.name).expect("every function is registered");
+        fun_sigs.insert(id, FnSig::new(params, ret));
+    }
+    for (name, sig) in crate::builtins::signatures() {
+        let intern = |tcx: &mut TyCtx, ty: &Ty| tcx.intern(ty).expect("builtin signatures name no classes");
+        let params = sig.params.iter().map(|ty| intern(tcx, ty)).collect();
+        let ret = intern(tcx, &sig.ret);
+        let id = defs.lookup_intrinsic(&name).expect("every builtin is registered");
+        fun_sigs.insert(id, FnSig::new(params, ret));
+    }
     for index in 0..program.classes.len() {
         diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| c == crate::defs::Clash::ClassFn));
     }
     fun_sigs
 }
 
-/// Registers each method as `C.m` with a leading `this: &C` parameter.
+/// Registers each method with a leading `this: &C` parameter.
 fn collect_method_sigs(
     program: &Program,
-    defs: &crate::defs::DefTable,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
     classes: &mut ClassTable,
-    fun_sigs: &mut HashMap<String, FunSig>,
+    fun_sigs: &mut FnSigs,
     members: &mut MemberResolutions,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -213,33 +226,36 @@ fn collect_method_sigs(
         for (method_index, method) in class.methods.iter().enumerate() {
             let method_id = defs.method_id(class_index, method_index);
             diagnostics.extend(defs.diagnostics(method_id, |_| true));
-            let qualified = format!("{}.{}", class.name, method.name);
-            if fun_sigs.contains_key(&qualified) {
+            let owner = defs.get(method_id).owner.expect("a method has an owner class");
+            // A duplicate method resolves to the first declaration, which already has a signature.
+            let key = defs.lookup_method(owner, &method.name).expect("every method is registered");
+            if fun_sigs.contains_key(&key) {
                 continue;
             }
-            let params: Vec<Ty> = method
+            let params: Vec<TyId> = method
                 .params
                 .iter()
-                .map(|param| lower_type(&param.ty, classes, diagnostics, Some(param.name.span)))
+                .map(|param| lower_type(&param.ty, defs, tcx, diagnostics, Some(param.name.span)))
                 .collect();
-            let return_ty = lower_type(&method.return_type, classes, diagnostics, Some(method.name_span));
+            let return_ty = lower_type(&method.return_type, defs, tcx, diagnostics, Some(method.name_span));
             let shown_params: Vec<String> = method
                 .params
                 .iter()
                 .zip(&params)
-                .map(|(param, ty)| format!("{}: {ty}", param.name.name))
+                .map(|(param, ty)| format!("{}: {}", param.name.name, tcx.display(*ty)))
                 .collect();
-            let signature = format!("fun {qualified}({}): {return_ty}", shown_params.join(", "));
-            let this_ty = Ty::new(
-                TyKind::Ref(Box::new(Ty::new(TyKind::Named(class.name.clone()), false))),
-                false,
+            let signature = format!(
+                "fun {}.{}({}): {}",
+                class.name,
+                method.name,
+                shown_params.join(", "),
+                tcx.display(return_ty)
             );
-            fun_sigs.insert(
-                qualified,
-                FunSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty),
-            );
-            if let Some(info) = classes.get_mut(&class.name) {
-                info.methods.insert(method.name.clone(), signature.clone());
+            let class_ty = tcx.class(owner);
+            let this_ty = tcx.ref_to(class_ty);
+            fun_sigs.insert(key, FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty));
+            if let Some(info) = classes.get_mut(&owner) {
+                info.methods.insert(key, signature.clone());
             }
             members.insert(
                 method.id.numbered(),
@@ -253,62 +269,70 @@ fn collect_method_sigs(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_function(
     function: &Function,
-    owner: Option<&str>,
-    fun_sigs: &HashMap<String, FunSig>,
+    owner: Option<DefId>,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
+    fun_sigs: &FnSigs,
     classes: &ClassTable,
     constants: &crate::constants::ConstantTable,
     diagnostics: &mut Vec<Diagnostic>,
     node_tys: &mut NodeTypes,
     members: &mut MemberResolutions,
 ) -> HirFunction {
-    let mut env = Env::new(fun_sigs, classes, constants);
-    env.self_class = owner.map(str::to_string);
-    let name = match owner {
-        Some(class) => format!("{class}.{}", function.name),
-        None => function.name.clone(),
-    };
-    let signature = env
-        .fun_sigs
-        .get(&name)
+    let def = match owner {
+        Some(class) => defs.lookup_method(class, &function.name),
+        None => defs.lookup_fn(&function.name),
+    }
+    .expect("every function and method is registered");
+    let signature = fun_sigs
+        .get(&def)
         .cloned()
         .expect("signature was collected for every function");
+    let name = match owner {
+        Some(class) => format!("{}.{}", defs.get(class).name, function.name),
+        None => function.name.clone(),
+    };
+    let mut env = Env::new(defs, tcx, fun_sigs, classes, constants);
+    env.self_class = owner;
     let mut param_tys = signature.params;
     let mut params = Vec::new();
     if owner.is_some() {
         let this_ty = param_tys.remove(0);
-        env.bind("this".to_string(), crate::ast::BindingKind::Val, this_ty.clone(), true);
+        env.bind("this".to_string(), crate::ast::BindingKind::Val, this_ty, true);
         params.push(HirParam {
             kind: crate::ast::BindingKind::Val,
             name: "this".to_string(),
-            ty: this_ty,
+            ty: env.tcx.to_ty(this_ty),
         });
     }
     params.extend(bind_params(function, param_tys, &mut env));
     let return_ty = signature.ret;
-    let body = stmt::check_block(&function.body, &return_ty, &mut env, false);
-    if return_ty != Ty::unit() && !stmt::block_always_returns(&body) {
+    let body = stmt::check_block(&function.body, return_ty, &mut env, false);
+    let unit = env.tcx.unit();
+    if return_ty != unit && !stmt::block_always_returns(&body) {
         env.error(
-            format!("function must return a value of type {return_ty} on all paths"),
+            format!("function must return a value of type {} on all paths", env.show(return_ty)),
             None,
         );
     }
     diagnostics.append(&mut env.diagnostics);
-    node_tys.extend(env.node_tys);
-    members.extend(env.members);
+    node_tys.extend(std::mem::take(&mut env.node_tys));
+    members.extend(std::mem::take(&mut env.members));
     HirFunction {
         name,
         name_span: function.name_span,
         params,
-        return_ty,
+        return_ty: tcx.to_ty(return_ty),
         body,
     }
 }
 
 fn bind_params(
     function: &Function,
-    param_tys: Vec<Ty>,
+    param_tys: Vec<TyId>,
     env: &mut Env<'_>,
 ) -> Vec<HirParam> {
     function
@@ -316,22 +340,18 @@ fn bind_params(
         .iter()
         .zip(param_tys)
         .map(|(param, ty)| {
-            if ty.is_ref() && param.kind == crate::ast::BindingKind::Var {
+            let is_ref = env.tcx.is_ref(ty);
+            if is_ref && param.kind == crate::ast::BindingKind::Var {
                 env.error(
                     "reference parameter must be `val`",
                     Some(param.name.span),
                 );
             }
-            env.bind(
-                param.name.name.clone(),
-                param.kind,
-                ty.clone(),
-                ty.is_ref(),
-            );
+            env.bind(param.name.name.clone(), param.kind, ty, is_ref);
             HirParam {
                 kind: param.kind,
                 name: param.name.name.clone(),
-                ty,
+                ty: env.tcx.to_ty(ty),
             }
         })
         .collect()
@@ -346,36 +366,38 @@ fn type_error(message: impl Into<String>, span: Option<Span>) -> Diagnostic {
     }
 }
 
-fn validate_owned_layouts(classes: &ClassTable, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_owned_layouts(classes: &ClassTable, tcx: &TyCtx, diagnostics: &mut Vec<Diagnostic>) {
+    /// The class a field holds by value: itself, or as the element of an array.
+    fn held_class(ty: TyId, tcx: &TyCtx) -> Option<DefId> {
+        match tcx.data(tcx.base(ty)) {
+            crate::ty::TyData::Class(def) => Some(*def),
+            crate::ty::TyData::Array { elem, .. } => tcx.class_def(tcx.base(*elem)),
+            _ => None,
+        }
+    }
+
     fn visits(
-        origin: &str,
-        current: &str,
+        origin: DefId,
+        current: DefId,
         classes: &ClassTable,
-        seen: &mut HashSet<String>,
+        tcx: &TyCtx,
+        seen: &mut HashSet<DefId>,
     ) -> bool {
-        if !seen.insert(current.to_string()) {
+        if !seen.insert(current) {
             return false;
         }
-        let Some(class) = classes.get(current) else {
+        let Some(class) = classes.get(&current) else {
             return false;
         };
         class.fields.iter().any(|field| {
-            let target = match &field.ty.kind {
-                TyKind::Named(name) if name != "String" => Some(name.as_str()),
-                TyKind::Array { elem, .. } => match &elem.kind {
-                    TyKind::Named(name) if name != "String" => Some(name.as_str()),
-                    _ => None,
-                },
-                _ => None,
-            };
-            target.is_some_and(|target| {
-                target == origin || visits(origin, target, classes, &mut seen.clone())
+            held_class(field.ty, tcx).is_some_and(|target| {
+                target == origin || visits(origin, target, classes, tcx, &mut seen.clone())
             })
         })
     }
 
     for class in classes.values() {
-        if visits(&class.name, &class.name, classes, &mut HashSet::new()) {
+        if visits(class.id, class.id, classes, tcx, &mut HashSet::new()) {
             diagnostics.push(type_error(
                 format!(
                     "class `{}` has a recursive by-value layout; use `Ref<{}>`",

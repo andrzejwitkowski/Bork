@@ -1,99 +1,102 @@
-//! AST type → HIR `Ty` lowering.
+//! AST type → interned `TyId` lowering.
 
 use crate::ast::Type;
+use crate::defs::DefTable;
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{Ty, TyKind};
+use crate::hir::Prim;
 use crate::span::Span;
-
-use super::env::ClassTable;
+use crate::ty::{TyCtx, TyData, TyId};
 
 pub(crate) fn lower_type(
     ty: &Type,
-    classes: &ClassTable,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
-) -> Ty {
+) -> TyId {
     match ty {
         Type::Array { nullable, .. } if *nullable => {
             push_err(diagnostics, "nullable array types `[T]?` are not supported", span);
-            Ty::unknown()
+            tcx.error()
         }
-        Type::Array { elem, len, .. } => Ty::new(
-            TyKind::Array {
-                elem: Box::new(lower_type(elem, classes, diagnostics, span)),
-                len: *len,
-            },
-            false,
-        ),
-        Type::Named { name, nullable } if name == "String" => Ty::string(*nullable),
-        Type::Named { name, nullable } if classes.contains_key(name) => {
-            Ty::new(TyKind::Named(name.clone()), *nullable)
+        Type::Array { elem, len, .. } => {
+            let elem = lower_type(elem, defs, tcx, diagnostics, span);
+            tcx.array(elem, *len)
+        }
+        Type::Named { name, nullable } if name == "String" => tcx.string(*nullable),
+        Type::Named { name, nullable } if defs.lookup_class(name).is_some() => {
+            let class = tcx.class(defs.lookup_class(name).expect("checked by the guard"));
+            tcx.with_nullable(class, *nullable)
         }
         Type::Named { name, .. } => {
             push_err(diagnostics, format!("unknown named type `{name}`"), span);
-            Ty::unknown()
+            tcx.error()
         }
         Type::ManagedRef { inner } => {
-            let inner_ty = lower_type(inner, classes, diagnostics, span);
-            let is_class = matches!(&inner_ty.kind, TyKind::Named(name) if classes.contains_key(name))
-                && !inner_ty.nullable;
-            if !inner_ty.is_unknown() && !is_class {
+            let inner_ty = lower_type(inner, defs, tcx, diagnostics, span);
+            let is_class = matches!(tcx.data(inner_ty), TyData::Class(_));
+            if !tcx.is_unknown(inner_ty) && !is_class {
                 push_err(
                     diagnostics,
-                    format!("managed Ref target must be a non-nullable class, got `{inner_ty}`"),
+                    format!("managed Ref target must be a non-nullable class, got `{}`", tcx.display(inner_ty)),
                     span,
                 );
             }
-            if inner_ty.is_managed_ref() {
+            if tcx.is_managed_ref(inner_ty) {
                 push_err(
                     diagnostics,
                     "nested `Ref<Ref<T>>` is not supported in the first implementation",
                     span,
                 );
             }
-            Ty::new(TyKind::ManagedRef(Box::new(inner_ty)), false)
+            tcx.managed_ref(inner_ty)
         }
         Type::Vec { elem } => {
-            let elem_ty = lower_type(elem, classes, diagnostics, span);
-            if !elem_ty.is_unknown() && !elem_ty.is_array_elem_supported() {
+            let elem_ty = lower_type(elem, defs, tcx, diagnostics, span);
+            if !tcx.is_unknown(elem_ty) && !tcx.is_array_elem_supported(elem_ty) {
                 push_err(
                     diagnostics,
                     format!(
-                        "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{elem_ty}`"
+                        "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{}`",
+                        tcx.display(elem_ty)
                     ),
                     span,
                 );
             }
-            Ty::new(TyKind::Vec(Box::new(elem_ty)), false)
+            tcx.vec_of(elem_ty)
         }
         Type::Func {
             params,
             ret,
             nullable,
-        } => Ty::new(
-            TyKind::Func {
-                params: params
-                    .iter()
-                    .map(|param| lower_type(param, classes, diagnostics, span))
-                    .collect(),
-                ret: Box::new(lower_type(ret, classes, diagnostics, span)),
-            },
-            *nullable,
-        ),
-        Type::Ref { inner, nullable } => {
-            lower_ref(inner, *nullable, classes, diagnostics, span)
+        } => {
+            let params = params
+                .iter()
+                .map(|param| lower_type(param, defs, tcx, diagnostics, span))
+                .collect();
+            let ret = lower_type(ret, defs, tcx, diagnostics, span);
+            let func = tcx.func(params, ret);
+            tcx.with_nullable(func, *nullable)
         }
-        _ => Ty::from_ast(ty),
+        Type::Ref { inner, nullable } => lower_ref(inner, *nullable, defs, tcx, diagnostics, span),
+        Type::Primitive { name, nullable } => match Prim::from_name(name) {
+            Some(prim) => {
+                let ty = tcx.prim(prim);
+                tcx.with_nullable(ty, *nullable)
+            }
+            None => tcx.error(),
+        },
     }
 }
 
 fn lower_ref(
     inner: &Type,
     nullable: bool,
-    classes: &ClassTable,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
-) -> Ty {
+) -> TyId {
     if nullable {
         push_err(
             diagnostics,
@@ -101,15 +104,15 @@ fn lower_ref(
             span,
         );
     }
-    let inner_ty = lower_type(inner, classes, diagnostics, span);
-    if !inner_ty.is_unknown() && inner_ty.is_copy() {
+    let inner_ty = lower_type(inner, defs, tcx, diagnostics, span);
+    if !tcx.is_unknown(inner_ty) && tcx.is_copy(inner_ty) {
         push_err(
             diagnostics,
-            format!("cannot borrow Copy type `{inner_ty}`"),
+            format!("cannot borrow Copy type `{}`", tcx.display(inner_ty)),
             span,
         );
     }
-    Ty::new(TyKind::Ref(Box::new(inner_ty)), false)
+    tcx.ref_to(inner_ty)
 }
 
 fn push_err(diagnostics: &mut Vec<Diagnostic>, message: impl Into<String>, span: Option<Span>) {

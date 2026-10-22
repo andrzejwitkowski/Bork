@@ -1,8 +1,9 @@
 use crate::ast::{Closure, Expr};
-use crate::hir::{HirExpr, HirExprKind, Ty, TyKind};
+use crate::hir::{HirExprKind, HirExpr};
 use crate::span::Span;
+use crate::ty::TyId;
 
-use super::super::env::{ClassInfo, Env};
+use super::super::env::{Checked, ClassInfo, Env};
 use super::check;
 
 pub(super) fn check_construct(
@@ -10,9 +11,9 @@ pub(super) fn check_construct(
     span: Span,
     args: &[Expr],
     trailing: Option<&Closure>,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     if trailing.is_some() {
         env.error("record constructors do not accept trailing closures", Some(span));
     }
@@ -28,40 +29,44 @@ pub(super) fn check_construct(
         );
     }
 
-    let mut values = Vec::with_capacity(class.fields.len());
+    let mut values: Vec<HirExpr> = Vec::with_capacity(class.fields.len());
     for (index, field) in class.fields.iter().enumerate() {
         if let Some(arg) = args.get(index) {
-            let value = check(arg, Some(&field.ty), return_ty, env);
-            if !value.ty.is_unknown() && value.ty != field.ty {
+            let value = check(arg, Some(field.ty), return_ty, env);
+            if !env.tcx.is_unknown(value.ty) && value.ty != field.ty {
                 env.error(
                     format!(
                         "constructor field `{}` has type {}, expected {}",
-                        field.name, value.ty, field.ty
+                        field.name,
+                        env.show(value.ty),
+                        env.show(field.ty)
                     ),
                     value.span.or(Some(field.span)),
                 );
             }
-            values.push(value);
-        } else if field.ty.is_managed_ref() {
-            values.push(HirExpr::spanned(HirExprKind::None, field.ty.clone(), field.span));
+            values.push(value.hir);
+        } else if env.tcx.is_managed_ref(field.ty) {
+            values.push(env.expr_at(HirExprKind::None, field.ty, field.span).hir);
         } else {
             env.error(
                 format!("missing constructor argument for field `{}`", field.name),
                 Some(field.span),
             );
-            values.push(HirExpr::spanned(HirExprKind::None, Ty::unknown(), field.span));
+            let unknown = env.tcx.error();
+            values.push(env.expr_at(HirExprKind::None, unknown, field.span).hir);
         }
     }
     for extra in args.iter().skip(class.fields.len()) {
         let _ = check(extra, None, return_ty, env);
     }
 
-    HirExpr::spanned(
+    let ty = env.tcx.class(class.id);
+    env.expr_at(
         HirExprKind::ObjectConstruct {
-            class_name: class.name.clone(),
+            class_name: class.name,
             fields: values,
         },
-        Ty::new(TyKind::Named(class.name), false),
+        ty,
         span,
     )
 }

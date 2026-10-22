@@ -1,8 +1,9 @@
 use crate::ast::{BinOp, Expr};
-use crate::hir::{HirExpr, HirExprKind, Ty};
+use crate::hir::HirExprKind;
 use crate::span::Span;
+use crate::ty::TyId;
 
-use super::super::env::Env;
+use super::super::env::{Checked, Env};
 use super::check;
 
 pub(super) fn check_binary(
@@ -10,13 +11,13 @@ pub(super) fn check_binary(
     lhs: &Expr,
     rhs: &Expr,
     expr_span: Span,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     let outer_numeric = match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
-            expected.filter(|ty| ty.is_numeric())
+            expected.filter(|&ty| env.tcx.is_numeric(ty))
         }
         _ => None,
     };
@@ -28,89 +29,108 @@ pub(super) fn check_binary(
 
     let (lhs, rhs) = if guide_from_rhs {
         let rhs = check(rhs, None, return_ty, env);
-        let peer = (!rhs.ty.is_unknown()).then_some(rhs.ty.clone());
-        let lhs = check(lhs, peer.as_ref(), return_ty, env);
+        let peer = (!env.tcx.is_unknown(rhs.ty)).then_some(rhs.ty);
+        let lhs = check(lhs, peer, return_ty, env);
         (lhs, rhs)
     } else {
         let lhs = check(lhs, outer_numeric, return_ty, env);
         // Text needs no literal hint, and `s == &t` must not demand `rhs: String`.
-        let hintless = *op == BinOp::RangeTo || (matches!(op, BinOp::Eq | BinOp::Ne) && lhs.ty.is_text());
-        let peer = (!lhs.ty.is_unknown() && !hintless).then_some(lhs.ty.clone());
-        let rhs_expected = outer_numeric.or(peer.as_ref());
+        let hintless = *op == BinOp::RangeTo
+            || (matches!(op, BinOp::Eq | BinOp::Ne) && env.tcx.is_text(lhs.ty));
+        let peer = (!env.tcx.is_unknown(lhs.ty) && !hintless).then_some(lhs.ty);
+        let rhs_expected = outer_numeric.or(peer);
         let rhs = check(rhs, rhs_expected, return_ty, env);
         (lhs, rhs)
     };
 
     let span = lhs.span.or(rhs.span);
-    let (lhs_ty, rhs_ty) = (&lhs.ty, &rhs.ty);
-    let poisoned = lhs_ty.is_unknown() || rhs_ty.is_unknown();
+    let (lhs_ty, rhs_ty) = (lhs.ty, rhs.ty);
+    let poisoned = env.tcx.is_unknown(lhs_ty) || env.tcx.is_unknown(rhs_ty);
+    let (bool_ty, i32_ty) = (env.tcx.bool(), env.tcx.i32());
 
     let result_ty = match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
             if poisoned {
-                Ty::unknown()
+                env.tcx.error()
             } else {
-                if lhs_ty != rhs_ty || !lhs_ty.is_numeric() {
+                if lhs_ty != rhs_ty || !env.tcx.is_numeric(lhs_ty) {
                     env.error(
                         format!(
                             "arithmetic operands must have the same numeric type, got \
-                             {lhs_ty} and {rhs_ty}"
+                             {} and {}",
+                            env.show(lhs_ty),
+                            env.show(rhs_ty)
                         ),
                         span,
                     );
                 }
-                lhs_ty.clone()
+                lhs_ty
             }
         }
         BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-            if !poisoned && !(lhs_ty == rhs_ty && lhs_ty.is_numeric()) {
+            if !poisoned && !(lhs_ty == rhs_ty && env.tcx.is_numeric(lhs_ty)) {
                 env.error(
                     format!(
                         "ordered comparison operands must have the same non-nullable \
-                         numeric type, got {lhs_ty} and {rhs_ty}"
+                         numeric type, got {} and {}",
+                        env.show(lhs_ty),
+                        env.show(rhs_ty)
                     ),
                     span,
                 );
             }
-            Ty::bool()
+            bool_ty
         }
         BinOp::Eq | BinOp::Ne => {
-            if !poisoned && lhs_ty != rhs_ty && !(lhs_ty.is_text() && rhs_ty.is_text()) {
-                env.error(
-                    format!("equality operands must have the same type, got {lhs_ty} and {rhs_ty}"),
-                    span,
-                );
-            }
-            Ty::bool()
-        }
-        BinOp::And | BinOp::Or => {
-            if !poisoned && (*lhs_ty != Ty::bool() || *rhs_ty != Ty::bool()) {
+            if !poisoned
+                && lhs_ty != rhs_ty
+                && !(env.tcx.is_text(lhs_ty) && env.tcx.is_text(rhs_ty))
+            {
                 env.error(
                     format!(
-                        "logical operands must have type bool, got {lhs_ty} and {rhs_ty}"
+                        "equality operands must have the same type, got {} and {}",
+                        env.show(lhs_ty),
+                        env.show(rhs_ty)
                     ),
                     span,
                 );
             }
-            Ty::bool()
+            bool_ty
         }
-        BinOp::RangeTo => {
-            if !poisoned && (*lhs_ty != Ty::i32() || *rhs_ty != Ty::i32()) {
+        BinOp::And | BinOp::Or => {
+            if !poisoned && (lhs_ty != bool_ty || rhs_ty != bool_ty) {
                 env.error(
-                    format!("range bounds must have type i32, got {lhs_ty} and {rhs_ty}"),
+                    format!(
+                        "logical operands must have type bool, got {} and {}",
+                        env.show(lhs_ty),
+                        env.show(rhs_ty)
+                    ),
                     span,
                 );
             }
-            Ty::range(Ty::i32())
+            bool_ty
+        }
+        BinOp::RangeTo => {
+            if !poisoned && (lhs_ty != i32_ty || rhs_ty != i32_ty) {
+                env.error(
+                    format!(
+                        "range bounds must have type i32, got {} and {}",
+                        env.show(lhs_ty),
+                        env.show(rhs_ty)
+                    ),
+                    span,
+                );
+            }
+            env.tcx.range(i32_ty)
         }
         BinOp::Elvis => unreachable!("Elvis is handled before other binary operators"),
     };
 
-    HirExpr::spanned(
+    env.expr_at(
         HirExprKind::Binary {
             op: op.clone(),
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
+            lhs: Box::new(lhs.hir),
+            rhs: Box::new(rhs.hir),
         },
         result_ty,
         expr_span,
@@ -122,71 +142,73 @@ pub(super) fn check_elvis(
     lhs: &Expr,
     rhs: &Expr,
     expr_span: Span,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     let expected_lhs = expected
-        .filter(|ty| ty.supports_nullable())
-        .map(|ty| ty.with_nullable(true));
-    let lhs = check(lhs, expected_lhs.as_ref(), return_ty, env);
-    if lhs.ty.is_managed_ref() {
-        let result_ty = lhs.ty.clone();
-        let rhs = check(rhs, Some(&result_ty), return_ty, env);
-        if !result_ty.is_unknown() && !rhs.ty.is_unknown() && rhs.ty != result_ty {
+        .filter(|&ty| env.tcx.supports_nullable(ty))
+        .map(|ty| env.tcx.with_nullable(ty, true));
+    let lhs = check(lhs, expected_lhs, return_ty, env);
+    if env.tcx.is_managed_ref(lhs.ty) {
+        let result_ty = lhs.ty;
+        let rhs = check(rhs, Some(result_ty), return_ty, env);
+        if !env.tcx.is_unknown(result_ty) && !env.tcx.is_unknown(rhs.ty) && rhs.ty != result_ty {
             env.error(
                 format!(
-                    "right operand of `?:` has type {}, expected {result_ty}",
-                    rhs.ty
+                    "right operand of `?:` has type {}, expected {}",
+                    env.show(rhs.ty),
+                    env.show(result_ty)
                 ),
                 Some(expr_span),
             );
         }
-        return HirExpr::spanned(
+        return env.expr_at(
             HirExprKind::Binary {
                 op: op.clone(),
-                lhs: Box::new(lhs),
-                rhs: Box::new(rhs),
+                lhs: Box::new(lhs.hir),
+                rhs: Box::new(rhs.hir),
             },
             result_ty,
             expr_span,
         );
     }
 
-    let result_ty = if lhs.ty.supports_nullable() {
-        if !lhs.ty.is_nullable() {
+    let result_ty = if env.tcx.supports_nullable(lhs.ty) {
+        if !env.tcx.is_nullable(lhs.ty) {
             env.error(
-                format!("left operand of `?:` must be nullable, got {}", lhs.ty),
+                format!("left operand of `?:` must be nullable, got {}", env.show(lhs.ty)),
                 Some(expr_span),
             );
         }
-        lhs.ty.with_nullable(false)
+        env.tcx.with_nullable(lhs.ty, false)
     } else {
-        if !lhs.ty.is_unknown() {
+        if !env.tcx.is_unknown(lhs.ty) {
             env.error(
-                format!("left operand of `?:` cannot have type {}", lhs.ty),
+                format!("left operand of `?:` cannot have type {}", env.show(lhs.ty)),
                 Some(expr_span),
             );
         }
-        Ty::unknown()
+        env.tcx.error()
     };
 
-    let rhs = check(rhs, Some(&result_ty), return_ty, env);
-    if !result_ty.is_unknown() && !rhs.ty.is_unknown() && rhs.ty != result_ty {
+    let rhs = check(rhs, Some(result_ty), return_ty, env);
+    if !env.tcx.is_unknown(result_ty) && !env.tcx.is_unknown(rhs.ty) && rhs.ty != result_ty {
         env.error(
             format!(
-                "right operand of `?:` has type {}, expected {result_ty}",
-                rhs.ty
+                "right operand of `?:` has type {}, expected {}",
+                env.show(rhs.ty),
+                env.show(result_ty)
             ),
             Some(expr_span),
         );
     }
 
-    HirExpr::spanned(
+    env.expr_at(
         HirExprKind::Binary {
             op: op.clone(),
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
+            lhs: Box::new(lhs.hir),
+            rhs: Box::new(rhs.hir),
         },
         result_ty,
         expr_span,

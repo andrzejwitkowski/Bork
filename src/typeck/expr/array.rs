@@ -1,8 +1,9 @@
 use crate::ast::Expr;
-use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
+use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::Span;
+use crate::ty::TyId;
 
-use super::super::env::Env;
+use super::super::env::{Checked, Env};
 use super::check;
 
 fn const_i32(expr: &HirExpr) -> Option<i32> {
@@ -27,54 +28,56 @@ fn slice_bounds(lo: &HirExpr, hi: &HirExpr) -> Option<(i32, i32, u32)> {
 pub(super) fn check_array_lit(
     elements: &[Expr],
     span: Span,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
-    let expected_len = expected.and_then(|ty| ty.array_len());
+) -> Checked {
+    let expected_len = expected.and_then(|ty| env.tcx.array_len(ty));
     let elem_hint = expected
-        .and_then(|ty| ty.array_elem())
-        .cloned()
-        .filter(|ty| ty.is_array_elem_supported());
-    let mut inferred = elem_hint.clone();
+        .and_then(|ty| env.tcx.array_elem(ty))
+        .filter(|&ty| env.tcx.is_array_elem_supported(ty));
+    let mut inferred = elem_hint;
     let mut checked = Vec::with_capacity(elements.len());
     for element in elements {
-        let hir = check(element, inferred.as_ref(), return_ty, env);
-        if hir.ty.is_unknown() {
+        let hir = check(element, inferred, return_ty, env);
+        if env.tcx.is_unknown(hir.ty) {
             checked.push(hir);
             continue;
         }
-        if !hir.ty.is_array_elem_supported() {
+        if !env.tcx.is_array_elem_supported(hir.ty) {
             env.error(
-                format!("array element type `{}` is not supported", hir.ty),
+                format!("array element type `{}` is not supported", env.show(hir.ty)),
                 hir.span.or(Some(span)),
             );
         }
-        if let Some(ref elem) = inferred {
-            if !hir.ty.is_unknown() && &hir.ty != elem {
+        if let Some(elem) = inferred {
+            if !env.tcx.is_unknown(hir.ty) && hir.ty != elem {
                 env.error(
                     format!(
                         "array elements must have the same type, got {} and {}",
-                        elem,
-                        hir.ty
+                        env.show(elem),
+                        env.show(hir.ty)
                     ),
                     hir.span.or(Some(span)),
                 );
             }
         } else {
-            inferred = Some(hir.ty.clone());
+            inferred = Some(hir.ty);
         }
         checked.push(hir);
     }
-    let elem_ty = inferred.unwrap_or_else(|| {
-        if elements.is_empty() {
-            env.error(
-                "empty array literal requires an explicit type, e.g. `val a: [i32; 0] = []`",
-                Some(span),
-            );
+    let elem_ty = match inferred {
+        Some(ty) => ty,
+        None => {
+            if elements.is_empty() {
+                env.error(
+                    "empty array literal requires an explicit type, e.g. `val a: [i32; 0] = []`",
+                    Some(span),
+                );
+            }
+            env.tcx.error()
         }
-        Ty::unknown()
-    });
+    };
     let count = checked.len();
     if let Some(n) = expected_len {
         if n as usize != count {
@@ -88,9 +91,10 @@ pub(super) fn check_array_lit(
         env.error("array literal is too large", Some(span));
     }
     let len = count as u32;
-    HirExpr::spanned(
-        HirExprKind::ArrayLit { elements: checked },
-        Ty::array(elem_ty, len),
+    let ty = env.tcx.array(elem_ty, len);
+    env.expr_at(
+        HirExprKind::ArrayLit { elements: checked.into_iter().map(|e| e.hir).collect() },
+        ty,
         span,
     )
 }
@@ -99,46 +103,46 @@ pub(super) fn check_index(
     receiver: &Expr,
     index: &Expr,
     span: Span,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     let receiver_hir = check(receiver, None, return_ty, env);
-    let index_hir = check(index, Some(&Ty::i32()), return_ty, env);
-    let elem_ty = if receiver_hir.ty.is_text() {
-        Ty::prim(crate::hir::Prim::U8)
-    } else if receiver_hir.ty.array_elem().is_some() || receiver_hir.ty.vec_elem().is_some() {
-        receiver_hir
-            .ty
-            .array_elem()
-            .or_else(|| receiver_hir.ty.vec_elem())
-            .cloned()
-            .unwrap_or(Ty::unknown())
-    } else if !receiver_hir.ty.is_unknown() {
-        env.error(
-            format!("indexing requires an array type, got {}", receiver_hir.ty),
-            Some(span),
-        );
-        Ty::unknown()
+    let i32_ty = env.tcx.i32();
+    let index_hir = check(index, Some(i32_ty), return_ty, env);
+    let elem_ty = if env.tcx.is_text(receiver_hir.ty) {
+        env.tcx.prim(crate::hir::Prim::U8)
+    } else if let Some(elem) = env
+        .tcx
+        .array_elem(receiver_hir.ty)
+        .or_else(|| env.tcx.vec_elem(receiver_hir.ty))
+    {
+        elem
     } else {
-        Ty::unknown()
+        if !env.tcx.is_unknown(receiver_hir.ty) {
+            env.error(
+                format!("indexing requires an array type, got {}", env.show(receiver_hir.ty)),
+                Some(span),
+            );
+        }
+        env.tcx.error()
     };
-    if !index_hir.ty.is_unknown() && index_hir.ty != Ty::i32() {
+    if !env.tcx.is_unknown(index_hir.ty) && index_hir.ty != i32_ty {
         env.error(
-            format!("array index must be `i32`, got {}", index_hir.ty),
+            format!("array index must be `i32`, got {}", env.show(index_hir.ty)),
             index_hir.span.or(Some(span)),
         );
     }
-    let use_kind = if elem_ty.is_unknown() {
+    let use_kind = if env.tcx.is_unknown(elem_ty) {
         UseKind::Local
-    } else if elem_ty.is_copy() {
+    } else if env.tcx.is_copy(elem_ty) {
         UseKind::Copy
     } else {
         UseKind::Shared
     };
-    HirExpr::spanned(
+    env.expr_at(
         HirExprKind::Index {
-            receiver: Box::new(receiver_hir),
-            index: Box::new(index_hir),
+            receiver: Box::new(receiver_hir.hir),
+            index: Box::new(index_hir.hir),
             use_kind,
         },
         elem_ty,
@@ -151,37 +155,38 @@ pub(super) fn check_slice(
     lo: &Expr,
     hi: &Expr,
     span: Span,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     let receiver = check(receiver, None, return_ty, env);
-    let lo = check(lo, Some(&Ty::i32()), return_ty, env);
-    let hi = check(hi, Some(&Ty::i32()), return_ty, env);
-    if !receiver.ty.is_array() && !receiver.ty.is_unknown() {
+    let i32_ty = env.tcx.i32();
+    let lo = check(lo, Some(i32_ty), return_ty, env);
+    let hi = check(hi, Some(i32_ty), return_ty, env);
+    if !env.tcx.is_array(receiver.ty) && !env.tcx.is_unknown(receiver.ty) {
         env.error(
-            format!("slicing requires an array type, got {}", receiver.ty),
+            format!("slicing requires an array type, got {}", env.show(receiver.ty)),
             Some(span),
         );
     }
     for (bound, label) in [(&lo, "lo"), (&hi, "hi")] {
-        if !bound.ty.is_unknown() && bound.ty != Ty::i32() {
+        if !env.tcx.is_unknown(bound.ty) && bound.ty != i32_ty {
             env.error(
-                format!("slice bound `{label}` must be `i32`, got {}", bound.ty),
+                format!("slice bound `{label}` must be `i32`, got {}", env.show(bound.ty)),
                 bound.span.or(Some(span)),
             );
         }
     }
-    let array_ty = match (receiver.ty.array_elem().cloned(), slice_bounds(&lo, &hi)) {
+    let array_ty = match (env.tcx.array_elem(receiver.ty), slice_bounds(&lo, &hi)) {
         (Some(elem), Some((lo_v, hi_v, len))) => {
-            if let Some(max) = receiver.ty.array_len() {
+            if let Some(max) = env.tcx.array_len(receiver.ty) {
                 if hi_v > max as i32 {
                     env.error(
-                        format!("slice [{lo_v}..{hi_v}] is out of bounds for `[{elem}; {max}]`"),
+                        format!("slice [{lo_v}..{hi_v}] is out of bounds for `[{}; {max}]`", env.show(elem)),
                         Some(span),
                     );
                 }
             }
-            Ty::array(elem, len)
+            env.tcx.array(elem, len)
         }
         (Some(_), None) => {
             let msg = if const_i32(&lo).is_some() && const_i32(&hi).is_some() {
@@ -190,15 +195,15 @@ pub(super) fn check_slice(
                 "slice bounds must be integer literals so the result type is `[T; N]`"
             };
             env.error(msg, Some(span));
-            Ty::unknown()
+            env.tcx.error()
         }
-        _ => Ty::unknown(),
+        _ => env.tcx.error(),
     };
-    HirExpr::spanned(
+    env.expr_at(
         HirExprKind::Slice {
-            receiver: Box::new(receiver),
-            lo: Box::new(lo),
-            hi: Box::new(hi),
+            receiver: Box::new(receiver.hir),
+            lo: Box::new(lo.hir),
+            hi: Box::new(hi.hir),
         },
         array_ty,
         span,
