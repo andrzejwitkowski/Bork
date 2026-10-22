@@ -1,0 +1,7 @@
+// diag: cannot infer type parameter `T` of `make`; specify it explicitly
+fun make<T>(): T {
+    return make()
+}
+fun main() {
+    make()
+}

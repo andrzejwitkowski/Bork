@@ -1,0 +1,5 @@
+// diag: `f` is not generic; it takes no explicit type arguments
+fun f(a: i32) {}
+fun main() {
+    f::<i32>(1)
+}

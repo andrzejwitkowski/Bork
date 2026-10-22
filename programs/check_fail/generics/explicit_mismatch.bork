@@ -1,0 +1,7 @@
+// diag: argument 1 to `id` has type String, expected i64
+fun id<T>(x: T): T {
+    return x
+}
+fun main() {
+    id::<i64>("s")
+}

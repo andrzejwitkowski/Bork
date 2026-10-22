@@ -1,22 +1,28 @@
 use crate::ast::UnaryOp;
-use crate::ast::{BindingKind, Closure, Expr};
+use crate::ast::{BindingKind, Closure, Expr, Type};
 use crate::hir::{HirExpr, HirExprKind, Prim, UseKind};
 use crate::span::Span;
-use crate::ty::{TyCtx, TyId};
+use crate::infer::VarKind;
+use crate::ty::{FnSig, TyCtx, TyId};
 
-use super::super::env::{Checked, Env};
+use super::super::env::{Checked, Env, PendingParam};
 use super::{dispatch, synthesize};
 use super::control::check_value_block_in_current_scope;
 use super::object::check_construct;
 
 /// Formal parameter types of a callee, or `None` when the callee is not callable.
-fn callee_signature(callee: &Expr, env: &mut Env<'_>) -> Option<(String, Span, Vec<TyId>, TyId)> {
+fn callee_signature(
+    callee: &Expr,
+    type_args: &[Type],
+    env: &mut Env<'_>,
+) -> Option<(String, Span, Vec<TyId>, TyId)> {
     let Expr::Ident { name, span, .. } = callee else {
         env.error("only named functions can be called", None);
         return None;
     };
     if let Some(signature) = env.fun_sig(name).cloned() {
-        return Some((name.clone(), *span, signature.params, signature.ret));
+        let (params, ret) = instantiate(name, *span, &signature, type_args, env)?;
+        return Some((name.clone(), *span, params, ret));
     }
     match env.binding(name).map(|binding| binding.ty) {
         Some(ty) => {
@@ -38,13 +44,65 @@ fn callee_signature(callee: &Expr, env: &mut Env<'_>) -> Option<(String, Span, V
     }
 }
 
+/// The signature of a call to `sig`: its type parameters replaced by the explicit `type_args`, or
+/// by fresh variables that the arguments and the expected type fix. `None` when `type_args` are
+/// unusable (already reported).
+fn instantiate(
+    name: &str,
+    span: Span,
+    sig: &FnSig<TyId>,
+    type_args: &[Type],
+    env: &mut Env<'_>,
+) -> Option<(Vec<TyId>, TyId)> {
+    if sig.generics.is_empty() {
+        return Some((sig.params.clone(), sig.ret));
+    }
+    let args: Vec<TyId> = if type_args.is_empty() {
+        sig.generic_names
+            .iter()
+            .map(|param| {
+                let var = env.infcx.new_var(env.tcx, VarKind::General);
+                env.pending.push(PendingParam { var, span, callee: name.to_string(), param: param.clone() });
+                var
+            })
+            .collect()
+    } else if type_args.len() != sig.generics.len() {
+        let want = sig.generics.len();
+        let plural = if want == 1 { "" } else { "s" };
+        env.error(
+            format!("`{name}` expects {want} type argument{plural}, got {}", type_args.len()),
+            Some(span),
+        );
+        return None;
+    } else {
+        type_args.iter().map(|ty| env.lower(ty, Some(span))).collect()
+    };
+    let params: Result<Vec<_>, _> = sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, &args)).collect();
+    match (params, crate::ty::subst(env.tcx, sig.ret, &args)) {
+        (Ok(params), Ok(ret)) => Some((params, ret)),
+        _ => {
+            env.error(format!("type arguments of `{name}` would make a nullable of a nullable"), Some(span));
+            None
+        }
+    }
+}
+
 pub(super) fn check_call(
     callee: &Expr,
+    type_args: &[Type],
     args: &[Expr],
     trailing: Option<&Closure>,
+    expected: Option<TyId>,
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    if !type_args.is_empty() && !is_generic_fn(callee, env) {
+        let (name, span) = match callee {
+            Expr::Ident { name, span, .. } => (name.as_str(), Some(*span)),
+            _ => ("callee", None),
+        };
+        env.error(format!("`{name}` is not generic; it takes no explicit type arguments"), span);
+    }
     if let Expr::Field {
         receiver,
         name,
@@ -84,7 +142,7 @@ pub(super) fn check_call(
             return check_string_from_utf8(name, args, *span, trailing, return_ty, env);
         }
     }
-    let Some((name, span, params, call_return_ty)) = callee_signature(callee, env) else {
+    let Some((name, span, params, call_return_ty)) = callee_signature(callee, type_args, env) else {
         let unknown = env.tcx.error();
         let checked_callee = match callee {
             Expr::Ident { name, span, .. } => env.expr_at(
@@ -111,7 +169,22 @@ pub(super) fn check_call(
         );
     };
 
+    // The expected type fixes the type parameters before the arguments are read. It is a hint, so a
+    // failed unification leaves everything as it was and the caller reports the mismatch.
+    if let Some(expected) = expected.filter(|_| is_generic_fn(callee, env)) {
+        env.same(call_return_ty, expected);
+    }
     finish_call(name, span, params, call_return_ty, None, args, trailing, return_ty, env)
+}
+
+/// Whether `callee` names a user function with type parameters (not shadowed by a method or class).
+fn is_generic_fn(callee: &Expr, env: &Env<'_>) -> bool {
+    let Expr::Ident { name, .. } = callee else {
+        return false;
+    };
+    env.implicit_method(name).is_none()
+        && env.class_named(name).is_none()
+        && env.fun_sig(name).is_some_and(|sig| !sig.generics.is_empty())
 }
 
 /// Checks explicit `args` against `params` (after the receiver, if any) and builds the call.

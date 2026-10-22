@@ -13,7 +13,7 @@ use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram};
 use crate::span::{AstId, Span};
 use crate::ty::{FnSig, FnSigs, TyCtx, TyId};
 
-use env::{ClassFieldInfo, ClassInfo, ClassTable, Env};
+use env::{ClassFieldInfo, ClassInfo, ClassTable, Env, PendingParam};
 use lower::lower_type;
 
 /// Types used by sema, keyed by the AST node of a declaration name or field assignment.
@@ -212,6 +212,7 @@ fn collect_fun_sigs(
         let id = defs.lookup_fn(&function.name).expect("every function is registered");
         let mut sig = FnSig::new(params, ret);
         sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
+        sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
         fun_sigs.insert(id, sig);
     }
     for (name, sig) in crate::builtins::signatures(tcx) {
@@ -268,6 +269,7 @@ fn collect_method_sigs(
             let this_ty = tcx.ref_to(class_ty);
             let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty);
             sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
+            sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
             fun_sigs.insert(key, sig);
             if let Some(info) = classes.get_mut(&owner) {
                 info.methods.insert(key, signature.clone());
@@ -317,11 +319,14 @@ fn check_function(
         .cloned()
         .chain(function.generics.iter().map(|param| param.name.name.clone()))
         .collect();
-    if !generics.is_empty() {
+    // Methods stay declaration-only; top-level generic functions are checked with `T` opaque.
+    if owner.is_some() && !generics.is_empty() {
         return generics::declaration_only(function, owner.is_some(), name, generics, signature, tcx, diagnostics);
     }
+    tcx.set_param_names(generics.clone());
     let mut env = Env::new(defs, tcx, fun_sigs, classes, constants);
     env.self_class = owner;
+    env.tparams = generics::scope(&[], &function.generics);
     let mut param_tys = signature.params;
     let mut params = Vec::new();
     if owner.is_some() {
@@ -345,15 +350,22 @@ fn check_function(
     }
     // Defaulting happens once, here; after it no literal variable remains.
     env.infcx.default_literals(env.tcx);
+    report_uninferred(&mut env);
     let mut body = body;
-    let (infcx, tcx) = (&env.infcx, &mut *env.tcx);
-    let mut settle = |ty: TyId| {
-        let ty = infcx.resolve(tcx, ty).unwrap_or(ty);
-        debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
-        ty
+    let (infcx, tcx, errors) = (&env.infcx, &mut *env.tcx, &mut env.diagnostics);
+    let mut settle = |ty: TyId| match infcx.resolve(tcx, ty) {
+        Ok(ty) => {
+            debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
+            ty
+        }
+        Err(_) => {
+            errors.push(type_error("a type argument would make a nullable of a nullable", None));
+            tcx.error()
+        }
     };
     crate::hir::resolve_types(&mut body, &mut settle);
     env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
+    env.tcx.set_param_names(Vec::new());
     diagnostics.append(&mut env.diagnostics);
     node_tys.extend(std::mem::take(&mut env.node_tys));
     members.extend(std::mem::take(&mut env.members));
@@ -364,6 +376,26 @@ fn check_function(
         params,
         return_ty,
         body,
+    }
+}
+
+/// A type parameter instantiated at a call and fixed by nothing is an error, and is then poisoned
+/// so its dependents report nothing further.
+fn report_uninferred(env: &mut Env<'_>) {
+    for pending in std::mem::take(&mut env.pending) {
+        let ty = env.infcx.resolve_shallow(env.tcx, pending.var);
+        if !matches!(env.tcx.data(ty), crate::ty::TyData::Infer(_)) {
+            continue;
+        }
+        let PendingParam { span, callee, param, .. } = pending;
+        env.error(
+            format!(
+                "cannot infer type parameter `{param}` of `{callee}`; specify it explicitly, e.g. `{callee}::<..>(..)`"
+            ),
+            Some(span),
+        );
+        let unknown = env.tcx.error();
+        let _ = env.infcx.unify(env.tcx, ty, unknown);
     }
 }
 

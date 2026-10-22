@@ -1,0 +1,7 @@
+fun id<T>(x: T): T {
+    return x
+}
+fun main() {
+    val a = id::<i64>(1)
+    val b: i64 = id(2)
+}

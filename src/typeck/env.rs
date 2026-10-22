@@ -72,6 +72,18 @@ pub(super) struct Env<'a> {
     pub(super) members: MemberResolutions,
     /// Literal variables of this function body; defaulted and resolved once at its end.
     pub(super) infcx: InferCtxt,
+    /// Type parameters of the function being checked, for written types in its body.
+    pub(super) tparams: Vec<(String, crate::ty::ParamIdx)>,
+    /// Type parameters instantiated at calls; any still unbound at the end of the body are errors.
+    pub(super) pending: Vec<PendingParam>,
+}
+
+/// One type parameter of a generic callee, instantiated with a fresh variable at a call.
+pub(super) struct PendingParam {
+    pub(super) var: TyId,
+    pub(super) span: Span,
+    pub(super) callee: String,
+    pub(super) param: String,
 }
 
 impl<'a> Env<'a> {
@@ -95,6 +107,8 @@ impl<'a> Env<'a> {
             self_class: None,
             members: MemberResolutions::new(),
             infcx: InferCtxt::new(),
+            tparams: Vec::new(),
+            pending: Vec::new(),
         }
     }
 
@@ -199,7 +213,8 @@ impl<'a> Env<'a> {
             ty = match (self.infcx.value_of(var), self.infcx.kind_of(var)) {
                 (Some(bound), _) => bound,
                 (None, crate::infer::VarKind::Float) => self.tcx.prim_id(crate::hir::Prim::F64),
-                (None, _) => self.tcx.prim_id(crate::hir::Prim::I32),
+                (None, crate::infer::VarKind::Int) => self.tcx.prim_id(crate::hir::Prim::I32),
+                (None, crate::infer::VarKind::General) => return self.tcx.display(ty),
             };
         }
         self.tcx.display(ty)
@@ -215,7 +230,7 @@ impl<'a> Env<'a> {
 
     /// Lowers a written type, reporting problems at `span`.
     pub(super) fn lower(&mut self, ty: &crate::ast::Type, span: Option<Span>) -> TyId {
-        super::lower_type(ty, self.defs, &[], self.tcx, &mut self.diagnostics, span)
+        super::lower_type(ty, self.defs, &self.tparams, self.tcx, &mut self.diagnostics, span)
     }
 
     pub(super) fn enter_scope(&mut self) {
@@ -241,10 +256,27 @@ impl<'a> Env<'a> {
         matches!(self.tcx.data(ty), crate::ty::TyData::Infer(v) if self.infcx.kind_of(*v) == kind)
     }
 
-    /// Numeric, counting an unbound literal variable.
+    /// Numeric, counting an unbound literal variable (but not an unbound general one).
     pub(super) fn is_numeric(&mut self, ty: TyId) -> bool {
         let ty = self.settle(ty);
-        matches!(self.tcx.data(ty), crate::ty::TyData::Infer(_)) || self.tcx.is_numeric(ty)
+        match self.tcx.data(ty) {
+            crate::ty::TyData::Infer(var) => self.infcx.kind_of(*var) != crate::infer::VarKind::General,
+            _ => self.tcx.is_numeric(ty),
+        }
+    }
+
+    /// Whether `ty` is a type parameter of the function being checked.
+    pub(super) fn is_param(&self, ty: TyId) -> bool {
+        matches!(self.tcx.data(ty), crate::ty::TyData::Param(_))
+    }
+
+    /// Explains why an operation fails on a type parameter; empty for other types.
+    pub(super) fn bounds_hint(&self, types: &[TyId]) -> &'static str {
+        if types.iter().any(|&ty| self.is_param(ty)) {
+            "; a type parameter has no bounds yet, so operators and members need a bound (not supported yet)"
+        } else {
+            ""
+        }
     }
 
     /// The one place a type mismatch is reported: `{what} has type X, expected Y`. Unknown

@@ -1,0 +1,7 @@
+// diag: `id` expects 1 type argument, got 2
+fun id<T>(x: T): T {
+    return x
+}
+fun main() {
+    id::<i32, i32>(1)
+}

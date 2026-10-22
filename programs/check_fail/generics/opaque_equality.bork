@@ -1,0 +1,5 @@
+// diag: a type parameter has no bounds yet
+fun same<T>(a: T, b: T): bool {
+    return a == b
+}
+fun main() {}

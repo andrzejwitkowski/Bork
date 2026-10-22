@@ -43,7 +43,7 @@ pub enum TyData {
     Range(TyId),
     /// `T?`; the inner type is never `Nullable` or `Error`.
     Nullable(TyId),
-    /// A generic parameter (Phase 3); never reaches HIR.
+    /// A generic parameter, opaque inside its own item; reaches HIR only in generic functions.
     Param(ParamIdx),
     /// An inference variable, local to one body; never reaches HIR.
     Infer(InferVar),
@@ -72,15 +72,21 @@ pub struct TyCtx {
     types: Vec<TyData>,
     ids: HashMap<TyData, TyId>,
     class_names: HashMap<DefId, String>,
+    /// Names of the type parameters of the item being checked, so messages say `T`, not `T0`.
+    param_names: Vec<String>,
 }
 
 impl TyCtx {
+    pub fn set_param_names(&mut self, names: Vec<String>) {
+        self.param_names = names;
+    }
+
     /// A context that resolves class names through a snapshot of `defs`.
     pub fn new(defs: &DefTable) -> TyCtx {
         let class_ids: HashMap<String, DefId> =
             defs.classes().map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

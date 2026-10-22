@@ -1,0 +1,9 @@
+fun id<T>(x: T): T {
+    return x
+}
+fun twice<T>(x: T): T {
+    return id(id(x))
+}
+fun main() {
+    val a = twice(1)
+}

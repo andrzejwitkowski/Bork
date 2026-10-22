@@ -1,0 +1,10 @@
+fun first<A, B>(a: A, b: B): A {
+    return a
+}
+fun second<A, B>(a: A, b: B): B {
+    return b
+}
+fun main() {
+    val x = first(1, "s")
+    val y = second(1, "s")
+}

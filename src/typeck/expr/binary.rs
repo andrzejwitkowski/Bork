@@ -57,9 +57,10 @@ pub(super) fn check_binary(
                     env.error(
                         format!(
                             "arithmetic operands must have the same numeric type, got \
-                             {} and {}",
+                             {} and {}{}",
                             env.show(lhs_ty),
-                            env.show(rhs_ty)
+                            env.show(rhs_ty),
+                            env.bounds_hint(&[lhs_ty, rhs_ty])
                         ),
                         span,
                     );
@@ -72,9 +73,10 @@ pub(super) fn check_binary(
                 env.error(
                     format!(
                         "ordered comparison operands must have the same non-nullable \
-                         numeric type, got {} and {}",
+                         numeric type, got {} and {}{}",
                         env.show(lhs_ty),
-                        env.show(rhs_ty)
+                        env.show(rhs_ty),
+                        env.bounds_hint(&[lhs_ty, rhs_ty])
                     ),
                     span,
                 );
@@ -82,15 +84,17 @@ pub(super) fn check_binary(
             bool_ty
         }
         BinOp::Eq | BinOp::Ne => {
+            let opaque = env.is_param(lhs_ty) || env.is_param(rhs_ty);
             if !poisoned
-                && !env.same(lhs_ty, rhs_ty)
-                && !(env.tcx.is_text(lhs_ty) && env.tcx.is_text(rhs_ty))
+                && (opaque
+                    || (!env.same(lhs_ty, rhs_ty) && !(env.tcx.is_text(lhs_ty) && env.tcx.is_text(rhs_ty))))
             {
                 env.error(
                     format!(
-                        "equality operands must have the same type, got {} and {}",
+                        "equality operands must have the same type, got {} and {}{}",
                         env.show(lhs_ty),
-                        env.show(rhs_ty)
+                        env.show(rhs_ty),
+                        env.bounds_hint(&[lhs_ty, rhs_ty])
                     ),
                     span,
                 );
