@@ -1,5 +1,4 @@
-use crate::hir::{Prim, Ty, TyKind};
-use crate::typeck::FunSig;
+use crate::ty::{FnSig, TyCtx, TyData, TyId};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Builtin {
@@ -71,34 +70,48 @@ pub(crate) fn is_intrinsic(name: &str) -> bool {
     resolve(name).is_some()
 }
 
-pub(crate) fn supports_print_arg(ty: &Ty) -> bool {
-    !ty.nullable
-        && (matches!(&ty.kind, TyKind::Prim(Prim::I32 | Prim::I64))
-            || matches!(&ty.kind, TyKind::Named(name) if name == "String"))
+pub(crate) fn supports_print_arg(tcx: &TyCtx, ty: TyId) -> bool {
+    matches!(
+        tcx.data(ty),
+        TyData::Prim(crate::hir::Prim::I32 | crate::hir::Prim::I64) | TyData::String
+    )
 }
 
-pub(crate) fn signatures() -> [(String, FunSig); 3] {
-    [Builtin::Print, Builtin::Println, Builtin::Concat].map(|builtin| {
-        let (name, params, return_ty) = builtin.sig();
-        (name.to_string(), FunSig::new(params, return_ty))
+/// Builtins with a fixed signature, in declaration order.
+const SIGNATURE_BUILTINS: [Builtin; 3] = [Builtin::Print, Builtin::Println, Builtin::Concat];
+
+pub(crate) fn signature_names() -> [&'static str; 3] {
+    SIGNATURE_BUILTINS.map(|builtin| builtin.name())
+}
+
+pub(crate) fn signatures(tcx: &mut TyCtx) -> [(&'static str, FnSig<TyId>); 3] {
+    SIGNATURE_BUILTINS.map(|builtin| {
+        let (name, params, return_ty) = builtin.sig(tcx);
+        (name, FnSig::new(params, return_ty))
     })
 }
 
 impl Builtin {
-    fn sig(self) -> (&'static str, Vec<Ty>, Ty) {
+    fn name(self) -> &'static str {
         match self {
-            Builtin::Print => ("print", vec![Ty::i32()], Ty::unit()),
-            Builtin::Println => ("println", vec![Ty::i32()], Ty::unit()),
+            Builtin::Print => "print",
+            Builtin::Println => "println",
+            Builtin::Concat => "concat",
+            Builtin::StringFromUtf8 => "stringFromUtf8",
+            Builtin::StrongCount => "strongCount",
+            Builtin::WeakCount => "weakCount",
+        }
+    }
+
+    fn sig(self, tcx: &mut TyCtx) -> (&'static str, Vec<TyId>, TyId) {
+        let name = self.name();
+        match self {
+            Builtin::Print | Builtin::Println => (name, vec![tcx.i32()], tcx.unit()),
             // Typeck checks `stringFromUtf8` itself: its buffer parameter is any `&[u8; N]`.
-            Builtin::StringFromUtf8 => ("stringFromUtf8", Vec::new(), Ty::string(true)),
+            Builtin::StringFromUtf8 => (name, Vec::new(), tcx.string(true)),
             // Typeck checks the counters itself: the argument is any `Ref<T>`.
-            Builtin::StrongCount => ("strongCount", Vec::new(), Ty::i32()),
-            Builtin::WeakCount => ("weakCount", Vec::new(), Ty::i32()),
-            Builtin::Concat => (
-                "concat",
-                vec![Ty::string(false), Ty::string(false)],
-                Ty::string(false),
-            ),
+            Builtin::StrongCount | Builtin::WeakCount => (name, Vec::new(), tcx.i32()),
+            Builtin::Concat => (name, vec![tcx.string(false), tcx.string(false)], tcx.string(false)),
         }
     }
 }

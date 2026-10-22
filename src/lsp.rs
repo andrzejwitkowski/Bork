@@ -307,7 +307,7 @@ fn member_hover(
                 format!("field `{name}` of `{class}` (via `this`)\nType: `{ty}`")
             }
             MemberRef::Method { signature, .. } => format!("`{signature}`"),
-            MemberRef::Constant { name, ty, value } => {
+            MemberRef::Constant { name, ty, value, .. } => {
                 format!("const `{name}`\nType: `{ty}`\nValue: `{value}`")
             }
         })

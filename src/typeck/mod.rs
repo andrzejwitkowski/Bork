@@ -27,7 +27,7 @@ pub enum MemberRef {
     /// `recv.m(..)` / bare `m(..)` call, or a method declaration name.
     Method { class: String, name: String, signature: String },
     /// Global constant, at its declaration name and at each use.
-    Constant { name: String, ty: Ty, value: String },
+    Constant { name: String, ty: Ty, ty_id: TyId, value: String },
 }
 
 /// Member resolutions keyed by the AST node of a bare name, a `recv.m` callee, or a method name.
@@ -51,7 +51,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let mut diagnostics = Vec::new();
     let defs = DefTable::build(program);
     let mut tcx = TyCtx::new(&defs);
-    let constants = crate::constants::collect_into(program, &defs, &mut diagnostics);
+    let constants = crate::constants::collect_into(program, &defs, &mut tcx, &mut diagnostics);
     for index in 0..program.functions.len() {
         diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
     }
@@ -61,7 +61,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
-        members.insert(constant.id.numbered(), constant.member(name));
+        members.insert(constant.id.numbered(), constant.member(name, &tcx));
     }
     collect_method_sigs(program, &defs, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut node_tys = NodeTypes::new();
@@ -208,12 +208,9 @@ fn collect_fun_sigs(
         let id = defs.lookup_fn(&function.name).expect("every function is registered");
         fun_sigs.insert(id, FnSig::new(params, ret));
     }
-    for (name, sig) in crate::builtins::signatures() {
-        let intern = |tcx: &mut TyCtx, ty: &Ty| tcx.intern(ty).expect("builtin signatures name no classes");
-        let params = sig.params.iter().map(|ty| intern(tcx, ty)).collect();
-        let ret = intern(tcx, &sig.ret);
-        let id = defs.lookup_intrinsic(&name).expect("every builtin is registered");
-        fun_sigs.insert(id, FnSig::new(params, ret));
+    for (name, sig) in crate::builtins::signatures(tcx) {
+        let id = defs.lookup_intrinsic(name).expect("every builtin is registered");
+        fun_sigs.insert(id, sig);
     }
     for index in 0..program.classes.len() {
         diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| c == crate::defs::Clash::ClassFn));

@@ -194,11 +194,6 @@ impl<'a> Env<'a> {
         self.tcx.display(ty)
     }
 
-    /// Interns a legacy type; one naming no known class becomes the error type.
-    pub(super) fn id(&mut self, ty: &Ty) -> TyId {
-        self.tcx.intern(ty).unwrap_or_else(|_| self.tcx.error())
-    }
-
     pub(super) fn expr(&self, kind: HirExprKind, ty: TyId) -> Checked {
         Checked { hir: HirExpr::new(kind, self.tcx.to_ty(ty), ty), ty }
     }
