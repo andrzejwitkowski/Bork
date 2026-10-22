@@ -328,7 +328,8 @@ fn check_function(
         let mut tys = signature.params.into_iter();
         let mut params = Vec::new();
         if owner.is_some() {
-            params.push(HirParam { kind: crate::ast::BindingKind::Val, name: "this".to_string(), ty: tys.next().expect("methods have `this`") });
+            let ty = tys.next().expect("methods have `this`");
+            params.push(HirParam { kind: crate::ast::BindingKind::Val, name: "this".to_string(), ty });
         }
         params.extend(function.params.iter().zip(tys).map(|(param, ty)| HirParam {
             kind: param.kind,

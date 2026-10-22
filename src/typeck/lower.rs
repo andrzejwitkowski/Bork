@@ -52,9 +52,8 @@ pub(crate) fn lower_type(
         }
         Type::Vec { elem } => {
             let elem_ty = lower_type(elem, defs, scope, tcx, diagnostics, span);
-            if !tcx.is_unknown(elem_ty) && !tcx.is_array_elem_supported(elem_ty)
-                && !matches!(tcx.data(elem_ty), TyData::Param(_))
-            {
+            let is_param = matches!(tcx.data(elem_ty), TyData::Param(_));
+            if !tcx.is_unknown(elem_ty) && !is_param && !tcx.is_array_elem_supported(elem_ty) {
                 push_err(
                     diagnostics,
                     format!(
