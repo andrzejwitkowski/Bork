@@ -218,7 +218,11 @@ pub(super) fn dispatch(
             trailing,
         } => {
             if !type_args.is_empty() {
-                env.error("explicit type arguments `::<..>` are not supported yet", None);
+                let span = match callee.as_ref() {
+                    Expr::Ident { span, .. } => Some(*span),
+                    _ => None,
+                };
+                env.error("explicit type arguments `::<..>` are not supported yet", span);
             }
             check_call(callee, args, trailing.as_ref(), return_ty, env)
         }
