@@ -2,8 +2,8 @@
 //!
 //! **Equality is id equality**, and ids are only comparable within the `TyCtx` that made them.
 //! The context is owned by the compilation session; it is plain `Vec`/`HashMap`, never arena
-//! memory. Nothing outside this module uses it yet: passes keep `hir::Ty` and migrate through
-//! the `intern` / `to_ty` bridge (#36, #37).
+//! memory. Typeck works in `TyId` (#36); later passes still read `hir::Ty` through the
+//! `to_ty` bridge until they migrate (#37).
 //!
 //! Choices that differ from a naive mirror of `hir::TyKind`:
 //! - `T?` is a constructor, `TyData::Nullable`, not a flag. `T??` is rejected (`TyCtx::nullable`).

@@ -85,20 +85,28 @@ impl TyCtx {
         }
     }
 
-    /// The class behind an object, a borrow of one or a `Ref` to one (the receiver of a field
-    /// access), and whether it was reached through a `Ref`.
-    pub fn field_receiver(&self, id: TyId) -> (Option<DefId>, bool) {
-        match self.data(id) {
-            TyData::Class(def) => (Some(*def), false),
-            TyData::Ref(inner) => match self.data(*inner) {
-                TyData::Class(def) => (Some(*def), false),
-                _ => (None, false),
-            },
-            TyData::ManagedRef(inner) => match self.data(*inner) {
-                TyData::Class(def) => (Some(*def), true),
-                _ => (None, true),
-            },
-            _ => (None, false),
+    /// The receiver of a field access, as `hir::Ty` kinds see it (through `?`): whether it is a
+    /// named type (`String` included) directly or behind one borrow / `Ref`, the class if it is
+    /// not `String`, and whether it was reached through a `Ref`.
+    pub fn field_receiver(&self, id: TyId) -> (bool, Option<DefId>, bool) {
+        let named = |inner: TyId| match self.data(self.base(inner)) {
+            TyData::Class(def) => (true, Some(*def)),
+            TyData::String => (true, None),
+            _ => (false, None),
+        };
+        match self.data(self.base(id)) {
+            TyData::Ref(inner) => {
+                let (named, class) = named(*inner);
+                (named, class, false)
+            }
+            TyData::ManagedRef(inner) => {
+                let (named, class) = named(*inner);
+                (named, class, true)
+            }
+            _ => {
+                let (named, class) = named(id);
+                (named, class, false)
+            }
         }
     }
 

@@ -2,11 +2,11 @@ use std::collections::HashSet;
 
 use crate::ast::{BindingKind, Block, ConditionalBinding, ConditionalBindings, Expr, Stmt};
 use crate::hir::{
-    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind, HirStmt, Ty,
-    TyKind,
+    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExprKind, HirStmt,
 };
+use crate::ty::TyId;
 
-use super::super::env::Env;
+use super::super::env::{Checked, Env};
 use super::super::stmt;
 use super::check;
 
@@ -14,14 +14,15 @@ pub(super) fn check_if(
     cond: &Expr,
     then_block: &Block,
     else_block: Option<&Block>,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
-    let cond = check(cond, Some(&Ty::bool()), return_ty, env);
-    if !cond.ty.is_unknown() && cond.ty != Ty::bool() {
+) -> Checked {
+    let bool_ty = env.tcx.bool();
+    let cond = check(cond, Some(bool_ty), return_ty, env);
+    if !env.tcx.is_unknown(cond.ty) && cond.ty != bool_ty {
         env.error(
-            format!("if condition has type {}, expected bool", cond.ty),
+            format!("if condition has type {}, expected bool", env.show(cond.ty)),
             cond.span,
         );
     }
@@ -31,15 +32,19 @@ pub(super) fn check_if(
     let result_ty = match (&else_block, expected) {
         (Some((_, else_ty)), _) if *else_ty == then_ty => then_ty,
         (Some((_, else_ty)), Some(_)) => {
-            if !else_ty.is_unknown() && !then_ty.is_unknown() {
+            if !env.tcx.is_unknown(*else_ty) && !env.tcx.is_unknown(then_ty) {
                 env.error(
-                    format!("else branch has type {else_ty}, expected {then_ty}"),
+                    format!(
+                        "else branch has type {}, expected {}",
+                        env.show(*else_ty),
+                        env.show(then_ty)
+                    ),
                     None,
                 );
             }
             then_ty
         }
-        (Some(_), None) => Ty::unit(),
+        (Some(_), None) => env.tcx.unit(),
         (None, Some(_)) => {
             env.error(
                 "value-producing if expression requires an else branch",
@@ -47,12 +52,12 @@ pub(super) fn check_if(
             );
             then_ty
         }
-        (None, None) => Ty::unit(),
+        (None, None) => env.tcx.unit(),
     };
 
-    HirExpr::new(
+    env.expr(
         HirExprKind::If {
-            cond: Box::new(cond),
+            cond: Box::new(cond.hir),
             then_block,
             else_block: else_block.map(|(block, _)| block),
         },
@@ -64,10 +69,10 @@ pub(super) fn check_presence(
     bindings: &ConditionalBindings,
     some_block: &Block,
     none_block: Option<&Block>,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     env.enter_scope();
     let mut names = HashSet::new();
     let head = check_conditional_binding(&bindings.head, &mut names, return_ty, env);
@@ -85,15 +90,19 @@ pub(super) fn check_presence(
     let result_ty = match (&none_block, expected) {
         (Some((_, none_ty)), _) if *none_ty == some_ty => some_ty,
         (Some((_, none_ty)), Some(_)) => {
-            if !none_ty.is_unknown() && !some_ty.is_unknown() {
+            if !env.tcx.is_unknown(*none_ty) && !env.tcx.is_unknown(some_ty) {
                 env.error(
-                    format!("None branch has type {none_ty}, expected {some_ty}"),
+                    format!(
+                        "None branch has type {}, expected {}",
+                        env.show(*none_ty),
+                        env.show(some_ty)
+                    ),
                     Some(binding_span),
                 );
             }
             some_ty
         }
-        (Some(_), None) => Ty::unit(),
+        (Some(_), None) => env.tcx.unit(),
         (None, Some(_)) => {
             env.error(
                 "value-producing `if val` requires an else branch",
@@ -101,10 +110,10 @@ pub(super) fn check_presence(
             );
             some_ty
         }
-        (None, None) => Ty::unit(),
+        (None, None) => env.tcx.unit(),
     };
 
-    HirExpr::spanned(
+    env.expr_at(
         HirExprKind::PresenceMatch {
             bindings: HirConditionalBindings {
                 head: Box::new(head),
@@ -121,7 +130,7 @@ pub(super) fn check_presence(
 fn check_conditional_binding(
     binding: &ConditionalBinding,
     names: &mut HashSet<String>,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirConditionalBinding {
     if !names.insert(binding.name.name.clone()) {
@@ -131,38 +140,39 @@ fn check_conditional_binding(
         );
     }
     let value = check(&binding.value, None, return_ty, env);
-    let binding_ty = match value.ty.managed_ref_inner() {
-        Some(target) => Ty::new(TyKind::Ref(Box::new(target.clone())), false),
+    let binding_ty = match env.tcx.managed_ref_inner(value.ty) {
+        Some(target) => env.tcx.ref_to(target),
         None => {
-            if !value.ty.is_unknown() {
+            if !env.tcx.is_unknown(value.ty) {
                 env.error(
-                    format!("presence matching requires Ref<T>, got {}", value.ty),
+                    format!("presence matching requires Ref<T>, got {}", env.show(value.ty)),
                     Some(binding.value_span),
                 );
             }
-            Ty::unknown()
+            env.tcx.error()
         }
     };
-    env.node_tys.insert(binding.name.id.numbered(), binding_ty.clone());
+    let legacy = env.tcx.to_ty(binding_ty);
+    env.node_tys.insert(binding.name.id.numbered(), legacy.clone());
     env.bind(
         binding.name.name.clone(),
         BindingKind::Val,
-        binding_ty.clone(),
+        binding_ty,
         true,
     );
     HirConditionalBinding {
         name: binding.name.clone(),
-        value,
-        binding_ty,
+        value: value.hir,
+        binding_ty: legacy,
     }
 }
 
 fn check_value_block(
     block: &Block,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> (HirBlock, Ty) {
+) -> (HirBlock, TyId) {
     env.enter_scope();
     let result = check_value_block_in_current_scope(block, expected, return_ty, env);
     env.exit_scope();
@@ -171,12 +181,13 @@ fn check_value_block(
 
 pub(super) fn check_value_block_in_current_scope(
     block: &Block,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> (HirBlock, Ty) {
+) -> (HirBlock, TyId) {
     let Some((last, prefix)) = block.stmts.split_last() else {
-        return (HirBlock { stmts: Vec::new(), span: block.span, statement_spans: Vec::new() }, Ty::unit());
+        let unit = env.tcx.unit();
+        return (HirBlock { stmts: Vec::new(), span: block.span, statement_spans: Vec::new() }, unit);
     };
 
     let mut stmts = prefix
@@ -186,13 +197,13 @@ pub(super) fn check_value_block_in_current_scope(
     let result_ty = match last {
         Stmt::Expr(value) => {
             let value = check(value, expected, return_ty, env);
-            let ty = value.ty.clone();
-            stmts.push(HirStmt::Expr(value));
+            let ty = value.ty;
+            stmts.push(HirStmt::Expr(value.hir));
             ty
         }
         statement => {
             stmts.push(stmt::check(statement, return_ty, env));
-            Ty::unit()
+            env.tcx.unit()
         }
     };
     (HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone() }, result_ty)

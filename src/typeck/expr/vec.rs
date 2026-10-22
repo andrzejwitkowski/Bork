@@ -1,10 +1,11 @@
 //! Built-in `Vec<T>`: construction and methods.
 
 use crate::ast::{BindingKind, Expr, Type};
-use crate::hir::{HirExpr, HirExprKind, Ty, TyKind, VecOp};
+use crate::hir::{HirExpr, HirExprKind, VecOp};
 use crate::span::Span;
+use crate::ty::TyId;
 
-use super::super::env::Env;
+use super::super::env::{Checked, Env};
 use super::super::MemberRef;
 use super::check;
 
@@ -13,45 +14,49 @@ pub(super) fn check_vec_new(
     elem: &Type,
     cap: Option<&Expr>,
     span: Span,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     // Lower the whole `Vec<T>` type so the element rule is enforced in one place.
-    let lowered = super::super::lower_type(
+    let lowered = env.lower(
         &Type::Vec {
             elem: Box::new(elem.clone()),
         },
-        env.classes,
-        &mut env.diagnostics,
         Some(span),
     );
-    let elem_ty = lowered.vec_elem().cloned().unwrap_or_else(Ty::unknown);
+    let elem_ty = match env.tcx.vec_elem(lowered) {
+        Some(elem) => elem,
+        None => env.tcx.error(),
+    };
+    let i32_ty = env.tcx.i32();
     let cap = cap.map(|cap| {
-        let cap = check(cap, Some(&Ty::i32()), return_ty, env);
-        if !cap.ty.is_unknown() && cap.ty != Ty::i32() {
+        let cap = check(cap, Some(i32_ty), return_ty, env);
+        if !env.tcx.is_unknown(cap.ty) && cap.ty != i32_ty {
             env.error(
-                format!("`Vec` capacity must be `i32`, got {}", cap.ty),
+                format!("`Vec` capacity must be `i32`, got {}", env.show(cap.ty)),
                 cap.span.or(Some(span)),
             );
         }
-        Box::new(cap)
+        Box::new(cap.hir)
     });
-    let ty = Ty::new(TyKind::Vec(Box::new(elem_ty.clone())), false);
-    HirExpr::spanned(HirExprKind::VecNew { elem: elem_ty, cap }, ty, span)
+    let ty = env.tcx.vec_of(elem_ty);
+    let elem = env.tcx.to_ty(elem_ty);
+    env.expr_at(HirExprKind::VecNew { elem, cap }, ty, span)
 }
 
 /// `receiver.method(args)` on a `Vec<elem>`; `borrowed` is the already-borrowed receiver.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn check_vec_method(
     receiver: &Expr,
-    borrowed: HirExpr,
-    elem: Ty,
+    borrowed: Checked,
+    elem: TyId,
     method: &str,
     span: Span,
     id: crate::span::AstId,
     args: &[Expr],
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     let Some(op) = VecOp::from_name(method) else {
         env.error(format!("`Vec` has no method `{method}`"), Some(span));
         return super::method::poisoned(args, span, return_ty, env);
@@ -64,17 +69,18 @@ pub(super) fn check_vec_method(
         MemberRef::Method {
             class: "Vec".to_string(),
             name: method.to_string(),
-            signature: format!("Vec<{elem}>.{method}"),
+            signature: format!("Vec<{}>.{method}", env.show(elem)),
         },
     );
-    let (params, result): (Vec<Ty>, Ty) = match op {
-        VecOp::Push => (vec![elem], Ty::unit()),
-        VecOp::Pop if elem.is_managed_ref() => (vec![], elem),
-        VecOp::Pop => (vec![], elem.with_nullable(true)),
-        VecOp::Get => (vec![Ty::i32()], elem),
-        VecOp::Set => (vec![Ty::i32(), elem], Ty::unit()),
-        VecOp::Len | VecOp::Capacity => (vec![], Ty::i32()),
-        VecOp::Clear => (vec![], Ty::unit()),
+    let (i32_ty, unit) = (env.tcx.i32(), env.tcx.unit());
+    let (params, result): (Vec<TyId>, TyId) = match op {
+        VecOp::Push => (vec![elem], unit),
+        VecOp::Pop if env.tcx.is_managed_ref(elem) => (vec![], elem),
+        VecOp::Pop => (vec![], env.tcx.with_nullable(elem, true)),
+        VecOp::Get => (vec![i32_ty], elem),
+        VecOp::Set => (vec![i32_ty, elem], unit),
+        VecOp::Len | VecOp::Capacity => (vec![], i32_ty),
+        VecOp::Clear => (vec![], unit),
     };
     if args.len() != params.len() {
         env.error(
@@ -86,21 +92,25 @@ pub(super) fn check_vec_method(
     let checked: Vec<HirExpr> = args
         .iter()
         .zip(&params)
-        .map(|(arg, param)| {
+        .map(|(arg, &param)| {
             let arg = check(arg, Some(param), return_ty, env);
-            if !arg.ty.is_unknown() && &arg.ty != param {
+            if !env.tcx.is_unknown(arg.ty) && arg.ty != param {
                 env.error(
-                    format!("`Vec.{method}` argument has type {}, expected {param}", arg.ty),
+                    format!(
+                        "`Vec.{method}` argument has type {}, expected {}",
+                        env.show(arg.ty),
+                        env.show(param)
+                    ),
                     arg.span.or(Some(span)),
                 );
             }
-            arg
+            arg.hir
         })
         .collect();
-    HirExpr::spanned(
+    env.expr_at(
         HirExprKind::VecOp {
             op,
-            receiver: Box::new(borrowed),
+            receiver: Box::new(borrowed.hir),
             args: checked,
         },
         result,
@@ -125,7 +135,7 @@ fn reject_immutable(receiver: &Expr, env: &mut Env<'_>, span: Span) {
     let Some(binding) = env.binding(name) else {
         return;
     };
-    if binding.kind == BindingKind::Val && !binding.ty.is_ref() && !binding.ty.is_managed_ref() {
+    if binding.kind == BindingKind::Val && !env.tcx.is_ref(binding.ty) && !env.tcx.is_managed_ref(binding.ty) {
         let via = if std::ptr::eq(root, receiver) { "" } else { " (through a field)" };
         env.error(format!("cannot mutate immutable `val` binding `{name}`{via}"), Some(span));
     }

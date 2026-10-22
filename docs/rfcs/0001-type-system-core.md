@@ -168,9 +168,9 @@ does not know is an error, not a panic. Ids are only comparable within one `TyCt
 **Folding, printing, signatures (#34).** `TypeVisitor`/`TypeFolder`, `subst` (`Param(i)` to `args[i]`; an
 instantiation that would make `T??` is an error, `Error?` stays `Error`), `normalize` (identity today: ids from
 `TyCtx` are already canonical), `TyCtx::display` (same text as `hir::Ty`'s `Display`, so `(i32)->i32` without
-spaces) and `FnSig<T>`. Typeck's `FunSig` is now `FnSig<hir::Ty>`, still name-keyed until #36.
+spaces) and `FnSig<T>`. Typeck (#36) checks in `TyId`/`DefId`: signatures are `FnSigs` keyed by `DefId`, `ClassTable` is keyed by class `DefId`, and `lower_type` interns through `TyCtx`. `FunSig` (`FnSig<hir::Ty>`) survives only as the legacy form of `builtins::signatures`.
 
-**Consequences.** Typeck is migrated in #36; the golden HIR-type snapshot
+**Consequences.** Typeck was migrated in #36 and hands later passes the legacy `hir::Ty` view through `TyCtx::to_ty` (`HirExpr.ty`, `NodeTypes`, `MemberRef`), which sema/codegen/LSP keep reading until #37; the golden HIR-type snapshot
 (`tests/golden/hir_types.txt`) must keep printing names, not ids.
 
 **Depends on.** #31, #32, #33, #35, #36, #37.

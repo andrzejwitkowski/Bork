@@ -11,10 +11,11 @@ mod object;
 mod vec;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
-use crate::hir::{HirExpr, HirExprKind, Ty, UseKind};
+use crate::hir::{HirExpr, HirExprKind, Prim, UseKind};
 use crate::span::{AstId, Span};
+use crate::ty::TyId;
 
-use super::env::Env;
+use super::env::{Checked, Env};
 
 use array::{check_array_lit, check_index, check_slice};
 
@@ -24,31 +25,34 @@ use control::{check_if, check_presence};
 use field::check_field;
 
 /// Check always yields an expression: a failed check is reported once and
-/// poisoned with `TyKind::Unknown`, which suppresses follow-on mismatches.
+/// poisoned with the error type, which suppresses follow-on mismatches.
 pub(super) fn check(
     expr: &Expr,
-    expected: Option<&Ty>,
-    return_ty: &Ty,
+    expected: Option<TyId>,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
-    if let Some(expected) = expected.filter(|ty| ty.is_managed_ref()) {
+) -> Checked {
+    if let Some(expected) = expected.filter(|&ty| env.tcx.is_managed_ref(ty)) {
         return check_managed_ref(expr, expected, return_ty, env);
     }
     match expr {
         Expr::Int(value) => {
-            let ty = expected
-                .filter(|ty| ty.is_integer())
-                .cloned()
-                .unwrap_or_else(Ty::i32);
-            HirExpr::new(HirExprKind::Int { value: *value }, ty)
+            let ty = match expected.filter(|&ty| env.tcx.is_integer(ty)) {
+                Some(ty) => ty,
+                None => env.tcx.i32(),
+            };
+            env.expr(HirExprKind::Int { value: *value }, ty)
         }
-        Expr::Bool(value) => HirExpr::new(HirExprKind::Bool { value: *value }, Ty::bool()),
+        Expr::Bool(value) => {
+            let ty = env.tcx.bool();
+            env.expr(HirExprKind::Bool { value: *value }, ty)
+        }
         Expr::Float(value) => {
-            let ty = expected
-                .filter(|ty| ty.is_numeric() && !ty.is_integer())
-                .cloned()
-                .unwrap_or_else(|| Ty::prim(crate::hir::Prim::F64));
-            HirExpr::new(HirExprKind::Float { value: *value }, ty)
+            let ty = match expected.filter(|&ty| env.tcx.is_numeric(ty) && !env.tcx.is_integer(ty)) {
+                Some(ty) => ty,
+                None => env.tcx.prim(Prim::F64),
+            };
+            env.expr(HirExprKind::Float { value: *value }, ty)
         }
         Expr::ArrayLit { elements, span } => {
             check_array_lit(elements, *span, expected, return_ty, env)
@@ -65,12 +69,10 @@ pub(super) fn check(
             span,
         } => check_slice(receiver, lo, hi, *span, return_ty, env),
         Expr::VecNew { elem, cap, span } => vec::check_vec_new(elem, cap.as_deref(), *span, return_ty, env),
-        Expr::Str(value) => HirExpr::new(
-            HirExprKind::Str {
-                value: value.clone(),
-            },
-            Ty::string(false),
-        ),
+        Expr::Str(value) => {
+            let ty = env.tcx.string(false);
+            env.expr(HirExprKind::Str { value: value.clone() }, ty)
+        }
         Expr::Ident { name, span, id } => method::implicit_field(name, *span, *id, return_ty, env)
             .unwrap_or_else(|| check_ident(name, *span, *id, UseKind::Local, env)),
         Expr::Unary {
@@ -83,35 +85,37 @@ pub(super) fn check(
             }
             _ => {
                 env.error("`&` borrows a name", Some(*span));
-                HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span)
+                let unknown = env.tcx.error();
+                env.expr_at(HirExprKind::None, unknown, *span)
             }
         },
         Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
         Expr::None { span } => {
-            let Some(ty) = expected.filter(|ty| ty.is_presence_capable()) else {
+            let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
                 env.error("cannot infer type of `None`", Some(*span));
-                return HirExpr::spanned(HirExprKind::None, Ty::unknown(), *span);
+                let unknown = env.tcx.error();
+                return env.expr_at(HirExprKind::None, unknown, *span);
             };
-            HirExpr::spanned(HirExprKind::None, ty.clone(), *span)
+            env.expr_at(HirExprKind::None, ty, *span)
         }
         Expr::Some { expr: inner, span } => {
             let expected_inner = expected
-                .filter(|ty| ty.is_nullable())
-                .map(|ty| ty.with_nullable(false));
-            let inner = check(inner, expected_inner.as_ref(), return_ty, env);
-            let ty = if inner.ty.supports_nullable() {
-                inner.ty.with_nullable(true)
+                .filter(|&ty| env.tcx.is_nullable(ty))
+                .map(|ty| env.tcx.with_nullable(ty, false));
+            let inner = check(inner, expected_inner, return_ty, env);
+            let ty = if env.tcx.supports_nullable(inner.ty) {
+                env.tcx.with_nullable(inner.ty, true)
             } else {
-                if !inner.ty.is_unknown() {
+                if !env.tcx.is_unknown(inner.ty) {
                     env.error(
-                        format!("`Some` value cannot have type {}", inner.ty),
+                        format!("`Some` value cannot have type {}", env.show(inner.ty)),
                         Some(*span),
                     );
                 }
-                Ty::unknown()
+                env.tcx.error()
             };
-            HirExpr::spanned(HirExprKind::Some(Box::new(inner)), ty, *span)
+            env.expr_at(HirExprKind::Some(Box::new(inner.hir)), ty, *span)
         }
         Expr::Binary { op, lhs, rhs, span } => {
             if *op == BinOp::Elvis {
@@ -125,19 +129,20 @@ pub(super) fn check(
             expr,
             span,
         } => {
-            let operand = check(expr, Some(&Ty::bool()), return_ty, env);
-            if !operand.ty.is_unknown() && operand.ty != Ty::bool() {
+            let bool_ty = env.tcx.bool();
+            let operand = check(expr, Some(bool_ty), return_ty, env);
+            if !env.tcx.is_unknown(operand.ty) && operand.ty != bool_ty {
                 env.error(
-                    format!("operand of `!` must have type bool, got {}", operand.ty),
+                    format!("operand of `!` must have type bool, got {}", env.show(operand.ty)),
                     operand.span.or(Some(*span)),
                 );
             }
-            HirExpr::spanned(
+            env.expr_at(
                 HirExprKind::Unary {
                     op: UnaryOp::Not,
-                    expr: Box::new(operand),
+                    expr: Box::new(operand.hir),
                 },
-                Ty::bool(),
+                bool_ty,
                 *span,
             )
         }
@@ -147,24 +152,24 @@ pub(super) fn check(
             span,
         } => {
             let expected_operand = expected
-                .filter(|ty| ty.supports_nullable())
-                .map(|ty| ty.with_nullable(true));
-            let operand = check(expr, expected_operand.as_ref(), return_ty, env);
-            let result_ty = if operand.ty.is_nullable() {
-                operand.ty.with_nullable(false)
+                .filter(|&ty| env.tcx.supports_nullable(ty))
+                .map(|ty| env.tcx.with_nullable(ty, true));
+            let operand = check(expr, expected_operand, return_ty, env);
+            let result_ty = if env.tcx.is_nullable(operand.ty) {
+                env.tcx.with_nullable(operand.ty, false)
             } else {
-                if !operand.ty.is_unknown() {
+                if !env.tcx.is_unknown(operand.ty) {
                     env.error(
-                        format!("operand of `!!` must be nullable, got {}", operand.ty),
+                        format!("operand of `!!` must be nullable, got {}", env.show(operand.ty)),
                         Some(*span),
                     );
                 }
-                Ty::unknown()
+                env.tcx.error()
             };
-            HirExpr::spanned(
+            env.expr_at(
                 HirExprKind::Unary {
                     op: UnaryOp::NotNullAssert,
-                    expr: Box::new(operand),
+                    expr: Box::new(operand.hir),
                 },
                 result_ty,
                 *span,
@@ -209,18 +214,16 @@ pub(super) fn check(
     }
 }
 
-pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind, env: &mut Env<'_>) -> HirExpr {
+pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind, env: &mut Env<'_>) -> Checked {
+    let ident = |use_kind| HirExprKind::Ident {
+        name: name.to_string(),
+        use_kind,
+    };
     if name == "this" {
         if env.self_class.is_none() {
             env.error("`this` is only available inside a class method", Some(span));
-            return HirExpr::spanned(
-                HirExprKind::Ident {
-                    name: name.to_string(),
-                    use_kind: requested,
-                },
-                Ty::unknown(),
-                span,
-            );
+            let unknown = env.tcx.error();
+            return env.expr_at(ident(requested), unknown, span);
         }
         if matches!(requested, UseKind::Move | UseKind::Promote) {
             env.error("cannot move `this`; it is a borrow", Some(span));
@@ -233,54 +236,34 @@ pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind,
         _ => None,
     };
     if let Some(ty) = field_message.and_then(|message| env.reject_bare_field(name, span, id, &message)) {
-        return HirExpr::spanned(
-            HirExprKind::Ident {
-                name: name.to_string(),
-                use_kind: requested,
-            },
-            ty,
-            span,
-        );
+        return env.expr_at(ident(requested), ty, span);
     }
     let Some(binding) = env.binding(name) else {
         if let Some(constant) = env.constants.get(name) {
             return constant_use(name, constant, span, id, requested, env);
         }
         env.error(format!("unknown binding `{name}`"), Some(span));
-        return HirExpr::spanned(
-            HirExprKind::Ident {
-                name: name.to_string(),
-                use_kind: requested,
-            },
-            Ty::unknown(),
-            span,
-        );
+        let unknown = env.tcx.error();
+        return env.expr_at(ident(requested), unknown, span);
     };
-    let ty = binding.ty.clone();
-    let use_kind = if requested == UseKind::Move && ty.is_managed_ref() {
+    let ty = binding.ty;
+    let use_kind = if requested == UseKind::Move && env.tcx.is_managed_ref(ty) {
         UseKind::RefMove
     } else if requested == UseKind::Move
         || requested == UseKind::Promote
         || requested == UseKind::Borrow
     {
         requested
-    } else if ty.is_managed_ref() {
+    } else if env.tcx.is_managed_ref(ty) {
         UseKind::RefCopy
-    } else if ty.is_copy() {
+    } else if env.tcx.is_copy(ty) {
         UseKind::Copy
     } else if binding.kind == BindingKind::Val {
         UseKind::Shared
     } else {
         UseKind::Local
     };
-    HirExpr::spanned(
-        HirExprKind::Ident {
-            name: name.to_string(),
-            use_kind,
-        },
-        ty,
-        span,
-    )
+    env.expr_at(ident(use_kind), ty, span)
 }
 
 /// A constant read lowers to its literal; `move`/`promote` are not meaningful on a constant.
@@ -291,41 +274,43 @@ fn constant_use(
     id: AstId,
     requested: UseKind,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     if matches!(requested, UseKind::Move | UseKind::Promote) {
         env.error(format!("cannot move or promote constant `{name}`"), Some(span));
     }
     env.members.insert(id.numbered(), constant.member(name));
-    HirExpr::spanned(constant.value.clone(), constant.ty.clone(), span)
+    let ty = env.id(&constant.ty);
+    env.expr_at(constant.value.clone(), ty, span)
 }
 
 fn check_managed_ref(
     expr: &Expr,
-    expected: &Ty,
-    return_ty: &Ty,
+    expected: TyId,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     if let Expr::None { span } = expr {
-        return HirExpr::spanned(HirExprKind::None, expected.clone(), *span);
+        return env.expr_at(HirExprKind::None, expected, *span);
     }
 
+    let expected_inner = env.tcx.managed_ref_inner(expected);
     let source = match expr {
-        Expr::Some { expr, .. } => check(expr, expected.managed_ref_inner(), return_ty, env),
+        Expr::Some { expr, .. } => check(expr, expected_inner, return_ty, env),
         other => check(other, None, return_ty, env),
     };
-    if source.ty == *expected {
+    if source.ty == expected {
         return source;
     }
-    if expected
-        .managed_ref_inner()
-        .is_some_and(|inner| *inner == source.ty)
-    {
+    if expected_inner == Some(source.ty) {
         let span = source.span;
-        return HirExpr {
-            id: crate::hir::NodeId::DUMMY,
-            ty: expected.clone(),
-            span,
-            kind: HirExprKind::RefCreate(Box::new(source)),
+        return Checked {
+            hir: HirExpr {
+                id: crate::hir::NodeId::DUMMY,
+                ty: env.tcx.to_ty(expected),
+                span,
+                kind: HirExprKind::RefCreate(Box::new(source.hir)),
+            },
+            ty: expected,
         };
     }
     source

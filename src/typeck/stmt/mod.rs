@@ -1,14 +1,15 @@
 mod assign;
 
 use crate::ast::{BindingKind, Block, Stmt};
-use crate::hir::{HirBlock, HirStmt, Ty, TyKind};
+use crate::hir::{HirBlock, HirStmt};
+use crate::ty::TyId;
 
 use super::env::Env;
 use super::expr;
 
 pub(super) fn check_block(
     block: &Block,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
     nested: bool,
 ) -> HirBlock {
@@ -58,7 +59,7 @@ fn expr_always_returns(expr: &crate::hir::HirExpr) -> bool {
     }
 }
 
-pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
+pub(super) fn check(stmt: &Stmt, return_ty: TyId, env: &mut Env<'_>) -> HirStmt {
     match stmt {
         Stmt::Block(block) => HirStmt::Block(check_block(block, return_ty, env, true)),
         Stmt::VarDecl {
@@ -71,7 +72,7 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
         } => check_var_decl(*kind, name, *name_span, *id, ty.as_ref(), value, return_ty, env),
         Stmt::Assign { target, value } => assign::check(target, value, return_ty, env),
         Stmt::Return(value) => check_return(value.as_ref(), return_ty, env),
-        Stmt::Expr(value) => HirStmt::Expr(expr::check(value, None, return_ty, env)),
+        Stmt::Expr(value) => HirStmt::Expr(expr::check(value, None, return_ty, env).hir),
         Stmt::For { name, iter, body } => check_for(&name.name, iter, body, return_ty, env),
         Stmt::While { cond, body } => check_while(cond, body, return_ty, env),
         Stmt::Break { span } => {
@@ -106,64 +107,72 @@ fn check_var_decl(
     id: crate::span::AstId,
     ty: Option<&crate::ast::Type>,
     value: &crate::ast::Expr,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let declared_ty = ty.map(|ty| {
-        super::lower_type(ty, env.classes, &mut env.diagnostics, Some(name_span))
-    });
-    let value = expr::check(value, declared_ty.as_ref(), return_ty, env);
+    let declared_ty = ty.map(|ty| env.lower(ty, Some(name_span)));
+    let value = expr::check(value, declared_ty, return_ty, env);
     // Bind whatever type we can settle on, even after a bad initializer,
     // so later uses of `name` are not reported as unknown bindings.
-    let declared_ty = declared_ty.unwrap_or_else(|| value.ty.clone());
-    if declared_ty.is_ref() && kind == BindingKind::Var {
+    let declared_ty = declared_ty.unwrap_or(value.ty);
+    if env.tcx.is_ref(declared_ty) && kind == BindingKind::Var {
         env.error(
             format!("cannot bind `var` `{name}` to a reference type; use `val`"),
             Some(name_span),
         );
     }
-    if !value.ty.is_unknown() && !declared_ty.is_unknown() && declared_ty != value.ty {
+    if !env.tcx.is_unknown(value.ty) && !env.tcx.is_unknown(declared_ty) && declared_ty != value.ty {
         env.error(
             format!(
-                "initializer for `{name}` has type {}, expected {declared_ty}",
-                value.ty
+                "initializer for `{name}` has type {}, expected {}",
+                env.show(value.ty),
+                env.show(declared_ty)
             ),
             Some(name_span),
         );
     }
-    let explicit_ref = ty.is_some() && declared_ty.is_ref();
-    env.node_tys.insert(id.numbered(), declared_ty.clone());
-    env.bind(name.to_string(), kind, declared_ty.clone(), explicit_ref);
+    let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
+    let legacy = env.tcx.to_ty(declared_ty);
+    env.node_tys.insert(id.numbered(), legacy.clone());
+    env.bind(name.to_string(), kind, declared_ty, explicit_ref);
     HirStmt::VarDecl {
         kind,
         name: name.to_string(),
-        ty: declared_ty,
-        value,
+        ty: legacy,
+        value: value.hir,
         alloc_in_binding: None,
     }
 }
 
 fn check_return(
     value: Option<&crate::ast::Expr>,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirStmt {
     let checked = match value {
         Some(value) => {
             let value = expr::check(value, Some(return_ty), return_ty, env);
-            if !value.ty.is_unknown() && &value.ty != return_ty {
+            if !env.tcx.is_unknown(value.ty) && value.ty != return_ty {
                 env.error(
-                    format!("return value has type {}, expected {return_ty}", value.ty),
+                    format!(
+                        "return value has type {}, expected {}",
+                        env.show(value.ty),
+                        env.show(return_ty)
+                    ),
                     value.span,
                 );
             }
-            Some(value)
+            Some(value.hir)
         }
         None => {
-            let unit = Ty::unit();
-            if &unit != return_ty {
+            let unit = env.tcx.unit();
+            if unit != return_ty {
                 env.error(
-                    format!("empty return has type {unit}, expected {return_ty}"),
+                    format!(
+                        "empty return has type {}, expected {}",
+                        env.show(unit),
+                        env.show(return_ty)
+                    ),
                     None,
                 );
             }
@@ -177,37 +186,37 @@ fn check_for(
     name: &str,
     iter: &crate::ast::Expr,
     body: &Block,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirStmt {
     let iter = expr::check(iter, None, return_ty, env);
-    let elem = match &iter.ty.kind {
-        TyKind::Range(elem) => Some((**elem).clone()),
-        _ => {
-            if !iter.ty.is_unknown() {
+    let elem = match env.tcx.range_elem(iter.ty) {
+        Some(elem) => Some(elem),
+        None => {
+            if !env.tcx.is_unknown(iter.ty) {
                 env.error("for-loop iterator must be a range", None);
             }
             None
         }
     };
-    if elem.as_ref().is_some_and(|elem| elem != &Ty::i32()) {
+    let i32_ty = env.tcx.i32();
+    if elem.is_some_and(|elem| elem != i32_ty) {
         env.error("for-loop range elements must have type i32", None);
     }
 
     env.loop_depth += 1;
     env.enter_scope();
-    env.bind(
-        name.to_string(),
-        BindingKind::Val,
-        elem.unwrap_or_else(Ty::unknown),
-        false,
-    );
+    let elem = match elem {
+        Some(elem) => elem,
+        None => env.tcx.error(),
+    };
+    env.bind(name.to_string(), BindingKind::Val, elem, false);
     let body = check_block(body, return_ty, env, false);
     env.exit_scope();
     env.loop_depth -= 1;
     HirStmt::For {
         name: name.to_string(),
-        iter,
+        iter: iter.hir,
         body,
     }
 }
@@ -215,18 +224,19 @@ fn check_for(
 fn check_while(
     cond: &crate::ast::Expr,
     body: &Block,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let cond = expr::check(cond, Some(&Ty::bool()), return_ty, env);
-    if !cond.ty.is_unknown() && cond.ty != Ty::bool() {
+    let bool_ty = env.tcx.bool();
+    let cond = expr::check(cond, Some(bool_ty), return_ty, env);
+    if !env.tcx.is_unknown(cond.ty) && cond.ty != bool_ty {
         env.error(
-            format!("while condition has type {}, expected bool", cond.ty),
+            format!("while condition has type {}, expected bool", env.show(cond.ty)),
             cond.span,
         );
     }
     env.loop_depth += 1;
     let body = check_block(body, return_ty, env, true);
     env.loop_depth -= 1;
-    HirStmt::While { cond, body }
+    HirStmt::While { cond: cond.hir, body }
 }

@@ -1,5 +1,5 @@
-//! Function signatures. `FnSig<TyId>` is the interned form keyed by `DefId`; typeck still uses
-//! `FnSig<hir::Ty>` (as `FunSig`) keyed by name until it migrates (#36).
+//! Function signatures. `FnSig<TyId>` is the interned form keyed by `DefId`; typeck keeps one per
+//! definition. `FnSig<hir::Ty>` (`FunSig`) remains only as the legacy form of `builtins::signatures`.
 
 use std::collections::HashMap;
 

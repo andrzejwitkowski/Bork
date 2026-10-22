@@ -1,15 +1,17 @@
 //! Method calls: `recv.m(args)` and bare `m(args)` inside a method.
 
 use crate::ast::{Closure, Expr, UnaryOp};
-use crate::hir::{HirExpr, HirExprKind, Ty, TyKind, UseKind};
+use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::{AstId, Span};
+use crate::ty::TyId;
 
-use super::super::env::Env;
+use super::super::env::{Checked, Env};
 use super::super::MemberRef;
 use super::call::finish_call;
 use super::check;
 
 /// `receiver.method(args)`; the receiver is borrowed for the call.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn check_method_call(
     receiver: &Expr,
     method: &str,
@@ -18,9 +20,9 @@ pub(super) fn check_method_call(
     id: AstId,
     args: &[Expr],
     trailing: Option<&Closure>,
-    return_ty: &Ty,
+    return_ty: TyId,
     env: &mut Env<'_>,
-) -> HirExpr {
+) -> Checked {
     if !is_place(receiver) {
         env.error(
             "method receiver must be a named value; bind it to a `val` first",
@@ -29,49 +31,51 @@ pub(super) fn check_method_call(
         return poisoned(args, span, return_ty, env);
     }
     let checked = check(receiver, None, return_ty, env);
-    if checked.ty.is_unknown() {
+    if env.tcx.is_unknown(checked.ty) {
         return poisoned(args, span, return_ty, env);
     }
-    if checked.ty.is_managed_ref() {
+    if env.tcx.is_managed_ref(checked.ty) {
         env.error("method call on managed Ref requires `if val` or `when`", Some(span));
         return poisoned(args, span, return_ty, env);
     }
-    if checked.ty.is_nullable() || safe {
+    if env.tcx.is_nullable(checked.ty) || safe {
         env.error("method call on a nullable receiver", Some(span));
         return poisoned(args, span, return_ty, env);
     }
-    if let Some(elem) = checked.ty.vec_elem().cloned() {
-        let borrowed = borrow(checked);
+    if let Some(elem) = env.tcx.vec_elem(checked.ty) {
+        let borrowed = borrow(checked, env);
         return super::vec::check_vec_method(
             receiver, borrowed, elem, method, span, id, args, return_ty, env,
         );
     }
-    let Some(class) = checked.ty.record_name().map(str::to_string) else {
+    let Some(class) = env.tcx.record_def(checked.ty) else {
         env.error("only named functions can be called", Some(span));
         return poisoned(args, span, return_ty, env);
     };
-    let qualified = format!("{class}.{method}");
+    let class_name = env.tcx.class_name(class).to_string();
+    let method_def = env.defs.lookup_method(class, method);
     let (Some(sig), Some(signature)) = (
-        env.fun_sig(&qualified).cloned(),
-        env.class(&class).and_then(|info| info.methods.get(method).cloned()),
+        method_def.and_then(|def| env.fun_sigs.get(&def)).cloned(),
+        method_def.and_then(|def| env.class(class)?.methods.get(&def).cloned()),
     ) else {
-        env.error(format!("class `{class}` has no method `{method}`"), Some(span));
+        env.error(format!("class `{class_name}` has no method `{method}`"), Some(span));
         return poisoned(args, span, return_ty, env);
     };
     env.members.insert(
         id.numbered(),
         MemberRef::Method {
-            class,
+            class: class_name.clone(),
             name: method.to_string(),
             signature,
         },
     );
+    let receiver = borrow(checked, env);
     finish_call(
-        qualified,
+        format!("{class_name}.{method}"),
         span,
         sig.params,
         sig.ret,
-        Some(borrow(checked)),
+        Some(receiver),
         args,
         trailing,
         return_ty,
@@ -92,43 +96,47 @@ fn is_place(expr: &Expr) -> bool {
     }
 }
 
-fn borrow(receiver: HirExpr) -> HirExpr {
-    let ty = if receiver.ty.is_ref() {
-        receiver.ty.clone()
+fn borrow(receiver: Checked, env: &mut Env<'_>) -> Checked {
+    let ty = if env.tcx.is_ref(receiver.ty) {
+        receiver.ty
     } else {
-        Ty::new(TyKind::Ref(Box::new(receiver.ty.clone())), false)
+        env.tcx.ref_to(receiver.ty)
     };
-    let span = receiver.span;
-    let receiver = match receiver.kind {
+    let span = receiver.hir.span;
+    let receiver = match receiver.hir.kind {
         HirExprKind::Ident { name, .. } => HirExpr {
             kind: HirExprKind::Ident {
                 name,
                 use_kind: UseKind::Borrow,
             },
-            ..receiver
+            ..receiver.hir
         },
-        _ => receiver,
+        _ => receiver.hir,
     };
-    HirExpr {
-        id: crate::hir::NodeId::DUMMY,
-        kind: HirExprKind::Unary {
-            op: UnaryOp::Borrow,
-            expr: Box::new(receiver),
+    Checked {
+        hir: HirExpr {
+            id: crate::hir::NodeId::DUMMY,
+            kind: HirExprKind::Unary {
+                op: UnaryOp::Borrow,
+                expr: Box::new(receiver),
+            },
+            ty: env.tcx.to_ty(ty),
+            span,
         },
         ty,
-        span,
     }
 }
 
-pub(super) fn poisoned(args: &[Expr], span: Span, return_ty: &Ty, env: &mut Env<'_>) -> HirExpr {
+pub(super) fn poisoned(args: &[Expr], span: Span, return_ty: TyId, env: &mut Env<'_>) -> Checked {
     for arg in args {
         check(arg, None, return_ty, env);
     }
-    HirExpr::spanned(HirExprKind::None, Ty::unknown(), span)
+    let unknown = env.tcx.error();
+    env.expr_at(HirExprKind::None, unknown, span)
 }
 
 /// Bare `name` inside a method that names a field of the enclosing class: `this.name`.
-pub(super) fn implicit_field(name: &str, span: Span, id: AstId, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirExpr> {
+pub(super) fn implicit_field(name: &str, span: Span, id: AstId, return_ty: TyId, env: &mut Env<'_>) -> Option<Checked> {
     env.resolve_bare_field(name, id)?;
     let this = Expr::Ident {
         name: "this".to_string(),
