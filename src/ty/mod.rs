@@ -14,6 +14,7 @@
 
 mod fold;
 mod print;
+mod query;
 mod sig;
 
 use std::collections::HashMap;
