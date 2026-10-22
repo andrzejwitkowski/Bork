@@ -11,7 +11,7 @@ mod walk;
 #[cfg(test)]
 mod tests;
 
-pub use analyze::{analyze, analyze_with_members, analyze_with_span_tys};
+pub use analyze::{analyze, analyze_with_members, analyze_with_node_tys};
 pub use report::{ArenaNode, ArenaReport, BindingInfo, Ownership, SemaError};
 
 pub use crate::ast::peel_blocks;

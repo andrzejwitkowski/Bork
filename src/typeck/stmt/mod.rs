@@ -65,9 +65,10 @@ pub(super) fn check(stmt: &Stmt, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
             kind,
             name,
             name_span,
+            id,
             ty,
             value,
-        } => check_var_decl(*kind, name, *name_span, ty.as_ref(), value, return_ty, env),
+        } => check_var_decl(*kind, name, *name_span, *id, ty.as_ref(), value, return_ty, env),
         Stmt::Assign { target, value } => assign::check(target, value, return_ty, env),
         Stmt::Return(value) => check_return(value.as_ref(), return_ty, env),
         Stmt::Expr(value) => HirStmt::Expr(expr::check(value, None, return_ty, env)),
@@ -102,6 +103,7 @@ fn check_var_decl(
     kind: BindingKind,
     name: &str,
     name_span: crate::span::Span,
+    id: crate::span::AstId,
     ty: Option<&crate::ast::Type>,
     value: &crate::ast::Expr,
     return_ty: &Ty,
@@ -130,7 +132,7 @@ fn check_var_decl(
         );
     }
     let explicit_ref = ty.is_some() && declared_ty.is_ref();
-    env.span_tys.insert(name_span, declared_ty.clone());
+    env.node_tys.insert(id.numbered(), declared_ty.clone());
     env.bind(name.to_string(), kind, declared_ty.clone(), explicit_ref);
     HirStmt::VarDecl {
         kind,

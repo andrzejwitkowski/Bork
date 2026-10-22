@@ -2,7 +2,7 @@
 
 use crate::ast::{Closure, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Ty, TyKind, UseKind};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 
 use super::super::env::Env;
 use super::super::MemberRef;
@@ -15,6 +15,7 @@ pub(super) fn check_method_call(
     method: &str,
     safe: bool,
     span: Span,
+    id: AstId,
     args: &[Expr],
     trailing: Option<&Closure>,
     return_ty: &Ty,
@@ -42,7 +43,7 @@ pub(super) fn check_method_call(
     if let Some(elem) = checked.ty.vec_elem().cloned() {
         let borrowed = borrow(checked);
         return super::vec::check_vec_method(
-            receiver, borrowed, elem, method, span, args, return_ty, env,
+            receiver, borrowed, elem, method, span, id, args, return_ty, env,
         );
     }
     let Some(class) = checked.ty.record_name().map(str::to_string) else {
@@ -58,7 +59,7 @@ pub(super) fn check_method_call(
         return poisoned(args, span, return_ty, env);
     };
     env.members.insert(
-        span,
+        id.numbered(),
         MemberRef::Method {
             class,
             name: method.to_string(),
@@ -127,11 +128,12 @@ pub(super) fn poisoned(args: &[Expr], span: Span, return_ty: &Ty, env: &mut Env<
 }
 
 /// Bare `name` inside a method that names a field of the enclosing class: `this.name`.
-pub(super) fn implicit_field(name: &str, span: Span, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirExpr> {
-    env.resolve_bare_field(name, span)?;
+pub(super) fn implicit_field(name: &str, span: Span, id: AstId, return_ty: &Ty, env: &mut Env<'_>) -> Option<HirExpr> {
+    env.resolve_bare_field(name, id)?;
     let this = Expr::Ident {
         name: "this".to_string(),
         span,
+        id,
     };
     Some(super::field::check_field(&this, name, false, span, return_ty, env))
 }

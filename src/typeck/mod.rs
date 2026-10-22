@@ -8,14 +8,14 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::{Function, Program};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram, Ty, TyKind};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 
 use env::{ClassFieldInfo, ClassInfo, ClassTable, Env};
 pub(crate) use env::FunSig;
 use lower::lower_type;
 
-/// Types used by sema, keyed by declaration names and field assignment spans.
-pub type SpanTypes = HashMap<Span, Ty>;
+/// Types used by sema, keyed by the AST node of a declaration name or field assignment.
+pub type NodeTypes = HashMap<AstId, Ty>;
 
 /// What a bare member name or a method-call callee resolved to.
 #[derive(Debug, Clone, PartialEq)]
@@ -28,17 +28,17 @@ pub enum MemberRef {
     Constant { name: String, ty: Ty, value: String },
 }
 
-/// Member resolutions keyed by the span of a bare name, a `recv.m` callee, or a method name.
-pub type MemberResolutions = HashMap<Span, MemberRef>;
+/// Member resolutions keyed by the AST node of a bare name, a `recv.m` callee, or a method name.
+pub type MemberResolutions = HashMap<AstId, MemberRef>;
 
-pub fn check(program: &Program) -> (HirProgram, SpanTypes, Vec<Diagnostic>) {
-    let (hir, span_tys, _, diagnostics) = check_with_members(program);
-    (hir, span_tys, diagnostics)
+pub fn check(program: &Program) -> (HirProgram, NodeTypes, Vec<Diagnostic>) {
+    let (hir, node_tys, _, diagnostics) = check_with_members(program);
+    (hir, node_tys, diagnostics)
 }
 
 pub fn check_with_members(
     program: &Program,
-) -> (HirProgram, SpanTypes, MemberResolutions, Vec<Diagnostic>) {
+) -> (HirProgram, NodeTypes, MemberResolutions, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     let defs = crate::defs::DefTable::build(program);
     let constants = crate::constants::collect_into(program, &defs, &mut diagnostics);
@@ -51,16 +51,16 @@ pub fn check_with_members(
     let mut fun_sigs = collect_fun_sigs(program, &defs, &classes, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
-        members.insert(constant.span, constant.member(name));
+        members.insert(constant.id.numbered(), constant.member(name));
     }
     collect_method_sigs(program, &defs, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
-    let mut span_tys = SpanTypes::new();
+    let mut node_tys = NodeTypes::new();
     let mut functions: Vec<HirFunction> = program
         .functions
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| {
-            check_function(function, None, &fun_sigs, &classes, &constants, &mut diagnostics, &mut span_tys, &mut members)
+            check_function(function, None, &fun_sigs, &classes, &constants, &mut diagnostics, &mut node_tys, &mut members)
         })
         .collect();
     // Same order as sema roots: top-level functions, then methods class by class.
@@ -73,7 +73,7 @@ pub fn check_with_members(
                 &classes,
                 &constants,
                 &mut diagnostics,
-                &mut span_tys,
+                &mut node_tys,
                 &mut members,
             ));
         }
@@ -100,7 +100,7 @@ pub fn check_with_members(
             classes: hir_classes,
             functions,
         },
-        span_tys,
+        node_tys,
         members,
         diagnostics,
     )
@@ -242,7 +242,7 @@ fn collect_method_sigs(
                 info.methods.insert(method.name.clone(), signature.clone());
             }
             members.insert(
-                method.name_span,
+                method.id.numbered(),
                 MemberRef::Method {
                     class: class.name.clone(),
                     name: method.name.clone(),
@@ -260,7 +260,7 @@ fn check_function(
     classes: &ClassTable,
     constants: &crate::constants::ConstantTable,
     diagnostics: &mut Vec<Diagnostic>,
-    span_tys: &mut SpanTypes,
+    node_tys: &mut NodeTypes,
     members: &mut MemberResolutions,
 ) -> HirFunction {
     let mut env = Env::new(fun_sigs, classes, constants);
@@ -295,7 +295,7 @@ fn check_function(
         );
     }
     diagnostics.append(&mut env.diagnostics);
-    span_tys.extend(env.span_tys);
+    node_tys.extend(env.node_tys);
     members.extend(env.members);
     HirFunction {
         name,

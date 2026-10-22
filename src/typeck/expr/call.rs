@@ -10,7 +10,7 @@ use super::object::check_construct;
 
 /// Formal parameter types of a callee, or `None` when the callee is not callable.
 fn callee_signature(callee: &Expr, env: &mut Env<'_>) -> Option<(String, Span, Vec<Ty>, Ty)> {
-    let Expr::Ident { name, span } = callee else {
+    let Expr::Ident { name, span, .. } = callee else {
         env.error("only named functions can be called", None);
         return None;
     };
@@ -50,41 +50,43 @@ pub(super) fn check_call(
         name,
         safe,
         span,
+        id,
     } = callee
     {
         return super::method::check_method_call(
-            receiver, name, *safe, *span, args, trailing, return_ty, env,
+            receiver, name, *safe, *span, *id, args, trailing, return_ty, env,
         );
     }
-    if let Expr::Ident { name, span } = callee {
+    if let Expr::Ident { name, span, id } = callee {
         if env.implicit_method(name).is_some() {
             let this = Expr::Ident {
                 name: "this".to_string(),
                 span: *span,
+                id: *id,
             };
             return super::method::check_method_call(
-                &this, name, false, *span, args, trailing, return_ty, env,
+                &this, name, false, *span, *id, args, trailing, return_ty, env,
             );
         }
     }
-    if let Expr::Ident { name, span } = callee {
+    if let Expr::Ident { name, span, .. } = callee {
         if let Some(class) = env.class(name).cloned() {
             return check_construct(class, *span, args, trailing, return_ty, env);
         }
     }
-    if let Expr::Ident { name, span } = callee {
+    if let Expr::Ident { name, span, .. } = callee {
         if crate::builtins::is_ref_count(name) {
             return check_ref_count(name, args, *span, trailing, return_ty, env);
         }
     }
-    if let Expr::Ident { name, span } = callee {
+    if let Expr::Ident { name, span, .. } = callee {
         if crate::builtins::resolve(name) == Some(crate::builtins::Builtin::StringFromUtf8) {
             return check_string_from_utf8(name, args, *span, trailing, return_ty, env);
         }
     }
     let Some((name, span, params, call_return_ty)) = callee_signature(callee, env) else {
         let checked_callee = match callee {
-            Expr::Ident { name, span } => HirExpr::spanned(
+            Expr::Ident { name, span, .. } => HirExpr::spanned(
                 HirExprKind::Ident {
                     name: name.clone(),
                     use_kind: UseKind::Local,

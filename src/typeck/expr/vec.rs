@@ -47,6 +47,7 @@ pub(super) fn check_vec_method(
     elem: Ty,
     method: &str,
     span: Span,
+    id: crate::span::AstId,
     args: &[Expr],
     return_ty: &Ty,
     env: &mut Env<'_>,
@@ -59,7 +60,7 @@ pub(super) fn check_vec_method(
         reject_immutable(receiver, env, span);
     }
     env.members.insert(
-        span,
+        id.numbered(),
         MemberRef::Method {
             class: "Vec".to_string(),
             name: method.to_string(),

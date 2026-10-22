@@ -155,6 +155,7 @@ pub struct Analysis {
     report: Option<ArenaReport>,
     diagnostics: Vec<LspDiagnostic>,
     members: crate::typeck::MemberResolutions,
+    node_index: Vec<(crate::span::Span, crate::span::AstId)>,
 }
 
 impl Analysis {
@@ -183,6 +184,7 @@ pub fn analyze_source(source: &str) -> Analysis {
         report: result.report,
         diagnostics,
         members: result.members,
+        node_index: result.node_index,
     }
 }
 
@@ -269,7 +271,7 @@ pub fn hover(analysis: &Analysis, source: &str, position: Position) -> Option<St
     analysis
         .report()
         .and_then(|report| hover_for_analysis(report, source, position))
-        .or_else(|| member_hover(&analysis.members, source, position))
+        .or_else(|| member_hover(analysis, source, position))
         .or_else(|| builtin_hover(source, position))
 }
 
@@ -279,7 +281,7 @@ fn builtin_hover(source: &str, position: Position) -> Option<String> {
 }
 
 fn member_hover(
-    members: &crate::typeck::MemberResolutions,
+    analysis: &Analysis,
     source: &str,
     position: Position,
 ) -> Option<String> {
@@ -287,8 +289,10 @@ fn member_hover(
     let map = SourceMap::new(source);
     let word = map.word_at(position)?;
     let offset = map.position_to_offset(position)?;
-    members
+    analysis
+        .node_index
         .iter()
+        .filter_map(|(span, id)| Some((span, analysis.members.get(id)?)))
         .filter(|(span, member)| {
             span_contains(**span, offset)
                 && match member {

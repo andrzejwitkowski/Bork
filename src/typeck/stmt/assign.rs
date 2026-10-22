@@ -1,25 +1,26 @@
 use crate::ast::{AssignTarget, BindingKind, Expr};
 use crate::hir::{HirAssignTarget, HirStmt, Ty};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 
 use super::super::env::Env;
 use super::super::expr;
 
 pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: &Ty, env: &mut Env<'_>) -> HirStmt {
     match target {
-        AssignTarget::Name { name, name_span } => {
+        AssignTarget::Name { name, name_span, id } => {
             if name == "this" {
                 env.error("cannot assign to `this`", Some(*name_span));
                 return HirStmt::Expr(expr::check(value, None, return_ty, env));
             }
-            if env.resolve_bare_field(name, *name_span).is_some() {
+            if env.resolve_bare_field(name, *id).is_some() {
                 let this = Expr::Ident {
                     name: "this".to_string(),
                     span: *name_span,
+                    id: *id,
                 };
-                return check_receiver_field(&this, name, *name_span, value, return_ty, env);
+                return check_receiver_field(&this, name, *name_span, *id, value, return_ty, env);
             }
-            let bound = assign_binding(env, name, *name_span, false);
+            let bound = assign_binding(env, name, *name_span, *id, false);
             let value = expr::check(value, bound.as_ref(), return_ty, env);
             reject_type_mismatch(
                 env,
@@ -36,26 +37,29 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: &Ty, env: &m
         AssignTarget::Index {
             name,
             name_span,
+            id,
             index,
             ..
-        } => check_index_assign(name, *name_span, index, value, return_ty, env),
+        } => check_index_assign(name, *name_span, *id, index, value, return_ty, env),
         AssignTarget::Field {
             receiver,
             name,
             span,
-        } => check_receiver_field(receiver, name, *span, value, return_ty, env),
+            id,
+        } => check_receiver_field(receiver, name, *span, *id, value, return_ty, env),
     }
 }
 
 fn check_index_assign(
     name: &str,
     name_span: Span,
+    id: AstId,
     index: &Expr,
     value: &Expr,
     return_ty: &Ty,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let bound = assign_binding(env, name, name_span, true);
+    let bound = assign_binding(env, name, name_span, id, true);
     let elem = bound
         .as_ref()
         .and_then(|ty| ty.array_elem().or_else(|| ty.vec_elem()).cloned());
@@ -96,6 +100,7 @@ fn check_receiver_field(
     receiver: &Expr,
     field: &str,
     field_span: Span,
+    field_id: AstId,
     value: &Expr,
     return_ty: &Ty,
     env: &mut Env<'_>,
@@ -129,7 +134,7 @@ fn check_receiver_field(
         let value = expr::check(value, None, return_ty, env);
         return HirStmt::Expr(value);
     };
-    env.span_tys.insert(field_span, field_ty.clone());
+    env.node_tys.insert(field_id.numbered(), field_ty.clone());
     let value = expr::check(value, Some(&field_ty), return_ty, env);
     reject_type_mismatch(
         env,
@@ -152,6 +157,7 @@ fn assign_binding(
     env: &mut Env<'_>,
     name: &str,
     span: Span,
+    id: AstId,
     index_assign: bool,
 ) -> Option<Ty> {
     let binding = env.binding(name).cloned();
@@ -162,7 +168,7 @@ fn assign_binding(
     if binding.is_none() {
         let field = index_assign
             && env
-                .reject_bare_field(name, span, &format!("cannot index-assign field `{name}` through `this`"))
+                .reject_bare_field(name, span, id, &format!("cannot index-assign field `{name}` through `this`"))
                 .is_some();
         if !field {
             env.error(format!("unknown binding `{name}`"), Some(span));

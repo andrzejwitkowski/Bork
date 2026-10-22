@@ -3,7 +3,6 @@
 use crate::diag::{self, Diagnostic};
 use crate::hir::HirProgram;
 use crate::memory::MemoryPlan;
-use crate::parse;
 use crate::sema::ArenaReport;
 use crate::typeck;
 
@@ -19,6 +18,8 @@ pub struct CheckResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Member names resolved by typeck (bare fields, method calls, method declarations).
     pub members: crate::typeck::MemberResolutions,
+    /// Every numbered AST node with its span; the LSP resolves a position to an `AstId` with it.
+    pub node_index: Vec<(crate::span::Span, crate::span::AstId)>,
 }
 
 impl CheckResult {
@@ -29,8 +30,8 @@ impl CheckResult {
 
 /// Parse, analyze ownership, and lower program to typed HIR.
 pub fn check(source: &str) -> CheckResult {
-    let program = match parse(source) {
-        Ok(program) => program,
+    let (program, node_index) = match crate::parse_indexed(source) {
+        Ok(parsed) => parsed,
         Err(err) => {
             return CheckResult {
                 report: None,
@@ -38,13 +39,14 @@ pub fn check(source: &str) -> CheckResult {
                 memory_plan: None,
                 diagnostics: vec![diag::from_parse(source, &err)],
                 members: Default::default(),
+                node_index: Vec::new(),
             }
         }
     };
 
-    let (hir, span_tys, members, mut type_diagnostics) = typeck::check_with_members(&program);
+    let (hir, node_tys, members, mut type_diagnostics) = typeck::check_with_members(&program);
     let (mut report, ownership_errors) =
-        crate::sema::analyze_with_members(&program, span_tys, members.clone());
+        crate::sema::analyze_with_members(&program, node_tys, members.clone());
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 
@@ -75,6 +77,7 @@ pub fn check(source: &str) -> CheckResult {
         memory_plan,
         diagnostics,
         members,
+        node_index,
     }
 }
 

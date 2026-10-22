@@ -3,7 +3,7 @@ use crate::ast::{
     ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type,
     UnaryOp,
 };
-use crate::span::{Span, SpannedName};
+use crate::span::{AstId, Span, SpannedName};
 use lalrpop_util::ParseError;
 
 grammar;
@@ -125,6 +125,7 @@ Function: Function = {
         Function {
             name: name.name,
             name_span: name.span,
+            id: AstId::DUMMY,
             params: params.unwrap_or_default(),
             return_type: ret,
             body,
@@ -251,23 +252,26 @@ Stmt: Stmt = {
         kind,
         name: name.name,
         name_span: name.span,
+        id: AstId::DUMMY,
         ty,
         value,
     },
     <lhs:Expr> "=" <value:Expr> =>? {
         match lhs {
-            Expr::Ident { name, span } => Ok(Stmt::Assign {
+            Expr::Ident { name, span, .. } => Ok(Stmt::Assign {
                 target: AssignTarget::Name {
                     name,
                     name_span: span,
+                    id: AstId::DUMMY,
                 },
                 value,
             }),
             Expr::Index { receiver, index, .. } => match *receiver {
-                Expr::Ident { name, span } => Ok(Stmt::Assign {
+                Expr::Ident { name, span, .. } => Ok(Stmt::Assign {
                     target: AssignTarget::Index {
                         name,
                         name_span: span,
+                        id: AstId::DUMMY,
                         index: *index,
                         borrowed: false,
                     },
@@ -278,10 +282,11 @@ Stmt: Stmt = {
                     expr,
                     ..
                 } => match *expr {
-                    Expr::Ident { name, span } => Ok(Stmt::Assign {
+                    Expr::Ident { name, span, .. } => Ok(Stmt::Assign {
                         target: AssignTarget::Index {
                             name,
                             name_span: span,
+                            id: AstId::DUMMY,
                             index: *index,
                             borrowed: true,
                         },
@@ -300,11 +305,13 @@ Stmt: Stmt = {
                 name,
                 safe: false,
                 span,
+                ..
             } => Ok(Stmt::Assign {
                 target: AssignTarget::Field {
                     receiver: *receiver,
                     name,
                     span,
+                    id: AstId::DUMMY,
                 },
                 value,
             }),
@@ -414,6 +421,7 @@ ExprSuffix: Expr = {
         name,
         safe,
         span: Span::new(start, end),
+        id: AstId::DUMMY,
     },
     <start:@L> <expr:ExprSuffix> "!!" <end:@R> => Expr::Unary {
         op: UnaryOp::NotNullAssert,
@@ -476,22 +484,27 @@ Atom: Expr = {
     "move" <id:SpannedIdent> => Expr::Move {
         name: id.name,
         span: id.span,
+        id: AstId::DUMMY,
     },
     "promote" <id:SpannedIdent> => Expr::Promote {
         name: id.name,
         span: id.span,
+        id: AstId::DUMMY,
     },
     "move" <start:@L> "this" <end:@R> => Expr::Move {
         name: "this".to_string(),
         span: Span::new(start, end),
+        id: AstId::DUMMY,
     },
     <start:@L> "this" <end:@R> => Expr::Ident {
         name: "this".to_string(),
         span: Span::new(start, end),
+        id: AstId::DUMMY,
     },
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,
         span: id.span,
+        id: AstId::DUMMY,
     },
     "(" <e:Expr> ")" => e,
     <e:IfExpr> => e,
@@ -559,16 +572,19 @@ PresenceOperand: Expr = {
     <id:SpannedIdent> => Expr::Ident {
         name: id.name,
         span: id.span,
+        id: AstId::DUMMY,
     },
     <start:@L> "this" <end:@R> => Expr::Ident {
         name: "this".to_string(),
         span: Span::new(start, end),
+        id: AstId::DUMMY,
     },
     <start:@L> <receiver:PresenceOperand> <safe:FieldOp> <name:Ident> <end:@R> => Expr::Field {
         receiver: Box::new(receiver),
         name,
         safe,
         span: Span::new(start, end),
+        id: AstId::DUMMY,
     },
     "(" <expr:Expr> ")" => expr,
 };
