@@ -4,7 +4,7 @@ use crate::span::Span;
 use crate::ty::TyId;
 
 use super::super::env::{Checked, ClassInfo, Env};
-use super::check;
+use super::{check, synthesize};
 
 pub(super) fn check_construct(
     class: ClassInfo,
@@ -32,18 +32,9 @@ pub(super) fn check_construct(
     let mut values: Vec<HirExpr> = Vec::with_capacity(class.fields.len());
     for (index, field) in class.fields.iter().enumerate() {
         if let Some(arg) = args.get(index) {
-            let value = check(arg, Some(field.ty), return_ty, env);
-            if !env.tcx.is_unknown(value.ty) && value.ty != field.ty {
-                env.error(
-                    format!(
-                        "constructor field `{}` has type {}, expected {}",
-                        field.name,
-                        env.show(value.ty),
-                        env.show(field.ty)
-                    ),
-                    value.span.or(Some(field.span)),
-                );
-            }
+            let value = check(arg, field.ty, return_ty, env);
+            let what = format!("constructor field `{}`", field.name);
+            env.mismatch(&what, value.ty, field.ty, value.span.or(Some(field.span)));
             values.push(value.hir);
         } else if env.tcx.is_managed_ref(field.ty) {
             values.push(env.expr_at(HirExprKind::None, field.ty, field.span).hir);
@@ -57,7 +48,7 @@ pub(super) fn check_construct(
         }
     }
     for extra in args.iter().skip(class.fields.len()) {
-        let _ = check(extra, None, return_ty, env);
+        let _ = synthesize(extra, return_ty, env);
     }
 
     let ty = env.tcx.class(class.id);

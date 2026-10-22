@@ -11,7 +11,7 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: TyId, env: &
         AssignTarget::Name { name, name_span, id } => {
             if name == "this" {
                 env.error("cannot assign to `this`", Some(*name_span));
-                return HirStmt::Expr(expr::check(value, None, return_ty, env).hir);
+                return HirStmt::Expr(expr::synthesize(value, return_ty, env).hir);
             }
             if env.resolve_bare_field(name, *id).is_some() {
                 let this = Expr::Ident {
@@ -22,14 +22,10 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: TyId, env: &
                 return check_receiver_field(&this, name, *name_span, *id, value, return_ty, env);
             }
             let bound = assign_binding(env, name, *name_span, *id, false);
-            let value = expr::check(value, bound, return_ty, env);
-            reject_type_mismatch(
-                env,
-                &format!("assignment to `{name}`"),
-                value.ty,
-                bound,
-                Some(*name_span),
-            );
+            let value = expr::dispatch(value, bound, return_ty, env);
+            if let Some(bound) = bound {
+                env.mismatch(&format!("assignment to `{name}`"), value.ty, bound, Some(*name_span));
+            }
             HirStmt::Assign {
                 target: HirAssignTarget::Name { name: name.clone() },
                 value: value.hir,
@@ -71,21 +67,12 @@ fn check_index_assign(
         );
     }
     let i32_ty = env.tcx.i32();
-    let index = expr::check(index, Some(i32_ty), return_ty, env);
-    if !env.tcx.is_unknown(index.ty) && index.ty != i32_ty {
-        env.error(
-            format!("array index has type {}, expected i32", env.show(index.ty)),
-            index.span.or(Some(name_span)),
-        );
+    let index = expr::check(index, i32_ty, return_ty, env);
+    env.mismatch("array index", index.ty, i32_ty, index.span.or(Some(name_span)));
+    let value = expr::dispatch(value, elem, return_ty, env);
+    if let Some(elem) = elem {
+        env.mismatch(&format!("assignment to `{name}` element"), value.ty, elem, Some(name_span));
     }
-    let value = expr::check(value, elem, return_ty, env);
-    reject_type_mismatch(
-        env,
-        &format!("assignment to `{name}` element"),
-        value.ty,
-        elem,
-        Some(name_span),
-    );
     HirStmt::Assign {
         target: HirAssignTarget::Index {
             name: name.to_string(),
@@ -104,13 +91,13 @@ fn check_receiver_field(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirStmt {
-    let receiver = expr::check(receiver, None, return_ty, env);
+    let receiver = expr::synthesize(receiver, return_ty, env);
     if env.tcx.is_managed_ref(receiver.ty) {
         env.error(
             "managed Ref must be unwrapped before assigning one of its fields",
             Some(field_span),
         );
-        let value = expr::check(value, None, return_ty, env);
+        let value = expr::synthesize(value, return_ty, env);
         return HirStmt::Expr(value.hir);
     }
     let resolved = env.tcx.record_def(receiver.ty).and_then(|class| {
@@ -130,18 +117,12 @@ fn check_receiver_field(
                 Some(field_span),
             );
         }
-        let value = expr::check(value, None, return_ty, env);
+        let value = expr::synthesize(value, return_ty, env);
         return HirStmt::Expr(value.hir);
     };
     env.node_tys.insert(field_id.numbered(), field_ty);
-    let value = expr::check(value, Some(field_ty), return_ty, env);
-    reject_type_mismatch(
-        env,
-        &format!("assignment to field `{field}`"),
-        value.ty,
-        Some(field_ty),
-        Some(field_span),
-    );
+    let value = expr::check(value, field_ty, return_ty, env);
+    env.mismatch(&format!("assignment to field `{field}`"), value.ty, field_ty, Some(field_span));
     HirStmt::Assign {
         target: HirAssignTarget::Field {
             receiver: receiver.hir,
@@ -203,22 +184,4 @@ fn assign_binding(
         }
     }
     binding.map(|b| b.ty)
-}
-
-fn reject_type_mismatch(
-    env: &mut Env<'_>,
-    what: &str,
-    got: TyId,
-    expected: Option<TyId>,
-    span: Option<Span>,
-) {
-    let Some(expected) = expected else {
-        return;
-    };
-    if !env.tcx.is_unknown(got) && !env.tcx.is_unknown(expected) && got != expected {
-        env.error(
-            format!("{what} has type {}, expected {}", env.show(got), env.show(expected)),
-            span,
-        );
-    }
 }

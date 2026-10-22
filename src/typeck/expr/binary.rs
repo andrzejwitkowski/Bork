@@ -4,7 +4,7 @@ use crate::span::Span;
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
-use super::check;
+use super::{check, dispatch, synthesize};
 
 pub(super) fn check_binary(
     op: &BinOp,
@@ -28,18 +28,18 @@ pub(super) fn check_binary(
         && *op != BinOp::RangeTo;
 
     let (lhs, rhs) = if guide_from_rhs {
-        let rhs = check(rhs, None, return_ty, env);
+        let rhs = synthesize(rhs, return_ty, env);
         let peer = (!env.tcx.is_unknown(rhs.ty)).then_some(rhs.ty);
-        let lhs = check(lhs, peer, return_ty, env);
+        let lhs = dispatch(lhs, peer, return_ty, env);
         (lhs, rhs)
     } else {
-        let lhs = check(lhs, outer_numeric, return_ty, env);
+        let lhs = dispatch(lhs, outer_numeric, return_ty, env);
         // Text needs no literal hint, and `s == &t` must not demand `rhs: String`.
         let hintless = *op == BinOp::RangeTo
             || (matches!(op, BinOp::Eq | BinOp::Ne) && env.tcx.is_text(lhs.ty));
         let peer = (!env.tcx.is_unknown(lhs.ty) && !hintless).then_some(lhs.ty);
         let rhs_expected = outer_numeric.or(peer);
-        let rhs = check(rhs, rhs_expected, return_ty, env);
+        let rhs = dispatch(rhs, rhs_expected, return_ty, env);
         (lhs, rhs)
     };
 
@@ -149,20 +149,11 @@ pub(super) fn check_elvis(
     let expected_lhs = expected
         .filter(|&ty| env.tcx.supports_nullable(ty))
         .map(|ty| env.tcx.with_nullable(ty, true));
-    let lhs = check(lhs, expected_lhs, return_ty, env);
+    let lhs = dispatch(lhs, expected_lhs, return_ty, env);
     if env.tcx.is_managed_ref(lhs.ty) {
         let result_ty = lhs.ty;
-        let rhs = check(rhs, Some(result_ty), return_ty, env);
-        if !env.tcx.is_unknown(result_ty) && !env.tcx.is_unknown(rhs.ty) && rhs.ty != result_ty {
-            env.error(
-                format!(
-                    "right operand of `?:` has type {}, expected {}",
-                    env.show(rhs.ty),
-                    env.show(result_ty)
-                ),
-                Some(expr_span),
-            );
-        }
+        let rhs = check(rhs, result_ty, return_ty, env);
+        env.mismatch("right operand of `?:`", rhs.ty, result_ty, Some(expr_span));
         return env.expr_at(
             HirExprKind::Binary {
                 op: op.clone(),
@@ -192,17 +183,8 @@ pub(super) fn check_elvis(
         env.tcx.error()
     };
 
-    let rhs = check(rhs, Some(result_ty), return_ty, env);
-    if !env.tcx.is_unknown(result_ty) && !env.tcx.is_unknown(rhs.ty) && rhs.ty != result_ty {
-        env.error(
-            format!(
-                "right operand of `?:` has type {}, expected {}",
-                env.show(rhs.ty),
-                env.show(result_ty)
-            ),
-            Some(expr_span),
-        );
-    }
+    let rhs = check(rhs, result_ty, return_ty, env);
+    env.mismatch("right operand of `?:`", rhs.ty, result_ty, Some(expr_span));
 
     env.expr_at(
         HirExprKind::Binary {

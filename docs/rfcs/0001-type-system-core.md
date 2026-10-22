@@ -152,6 +152,12 @@ body; unresolved ones are an error (#41), not a silent `Unknown`.
 
 **Depends on.** #38, #39, #40, #41.
 
+**Implementation (#39).** `typeck::expr` exposes `synthesize(expr)` and `check(expr, expected)`; the
+mode of every `Expr` kind is listed in the module doc of `src/typeck/expr/mod.rs`. A synthesized
+expression met with an expected type is compared by its caller through `Env::mismatch`, the single
+place that words `X has type A, expected B`. Accepted programs are unchanged; `src/infer` is wired in
+by #40.
+
 ## 6. Identity: `DefId` / `TyId` in a side interner
 
 **Decision.** Definitions are identified by `DefId` (an index into a definition table) and types by `TyId`

@@ -4,7 +4,7 @@ use crate::span::Span;
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
-use super::check;
+use super::synthesize;
 
 fn require_nullable_access(receiver_ty: TyId, safe: bool, span: Span, env: &mut Env<'_>) {
     let nullable = env.tcx.is_nullable(receiver_ty);
@@ -27,7 +27,7 @@ pub(super) fn check_field(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let receiver = check(receiver, None, return_ty, env);
+    let receiver = synthesize(receiver, return_ty, env);
     let inner = {
         let deref = env.tcx.ref_inner(receiver.ty).unwrap_or(receiver.ty);
         env.tcx.with_nullable(deref, false)

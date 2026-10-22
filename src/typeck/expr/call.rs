@@ -5,7 +5,7 @@ use crate::span::Span;
 use crate::ty::{TyCtx, TyId};
 
 use super::super::env::{Checked, Env};
-use super::check;
+use super::{dispatch, synthesize};
 use super::control::check_value_block_in_current_scope;
 use super::object::check_construct;
 
@@ -95,11 +95,11 @@ pub(super) fn check_call(
                 unknown,
                 *span,
             ),
-            other => check(other, None, return_ty, env),
+            other => synthesize(other, return_ty, env),
         };
         let args = args
             .iter()
-            .map(|arg| check(arg, None, return_ty, env).hir)
+            .map(|arg| synthesize(arg, return_ty, env).hir)
             .collect();
         return env.expr(
             HirExprKind::Call {
@@ -134,7 +134,7 @@ pub(super) fn finish_call(
     let checked_args: Vec<_> = args
         .iter()
         .enumerate()
-        .map(|(index, arg)| check(arg, regular_params.get(index).copied(), return_ty, env))
+        .map(|(index, arg)| dispatch(arg, regular_params.get(index).copied(), return_ty, env))
         .collect();
 
     if checked_args.len() != regular_params.len() {
@@ -193,15 +193,7 @@ pub(super) fn finish_call(
             && !matches_builtin_overload
             && !arg_matches_param(env.tcx, argument.ty, expected)
         {
-            env.error(
-                format!(
-                    "argument {} to `{name}` has type {}, expected {}",
-                    index + 1,
-                    env.show(argument.ty),
-                    env.show(expected)
-                ),
-                argument.span,
-            );
+            env.mismatch(&format!("argument {} to `{name}`", index + 1), argument.ty, expected, argument.span);
         }
     }
 
@@ -317,16 +309,7 @@ fn check_trailing_closure(
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
     env.exit_scope();
 
-    if !env.tcx.is_unknown(body_ty) && body_ty != closure_ret {
-        env.error(
-            format!(
-                "trailing closure body has type {}, expected {}",
-                env.show(body_ty),
-                env.show(closure_ret)
-            ),
-            None,
-        );
-    }
+    env.mismatch("trailing closure body", body_ty, closure_ret, None);
 }
 
 fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {
@@ -360,7 +343,7 @@ fn check_builtin_call(
     let checked: Vec<_> = args
         .iter()
         .enumerate()
-        .map(|(index, arg)| check(arg, expected(index), return_ty, env))
+        .map(|(index, arg)| dispatch(arg, expected(index), return_ty, env))
         .collect();
     if checked.len() != arity {
         let noun = if arity == 1 { "argument" } else { "arguments" };

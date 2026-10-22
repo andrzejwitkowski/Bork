@@ -212,6 +212,17 @@ impl<'a> Env<'a> {
         self.scopes.pop();
     }
 
+    /// The one place a type mismatch is reported: `{what} has type X, expected Y`. Unknown
+    /// (already reported) types never cascade. Returns whether a diagnostic was emitted.
+    pub(super) fn mismatch(&mut self, what: &str, found: TyId, expected: TyId, span: Option<Span>) -> bool {
+        if self.tcx.is_unknown(found) || self.tcx.is_unknown(expected) || found == expected {
+            return false;
+        }
+        let message = format!("{what} has type {}, expected {}", self.show(found), self.show(expected));
+        self.error(message, span);
+        true
+    }
+
     pub(super) fn error(&mut self, message: impl Into<String>, span: Option<Span>) {
         self.diagnostics.push(Diagnostic {
             phase: Phase::Type,

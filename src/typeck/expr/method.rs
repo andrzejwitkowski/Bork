@@ -8,7 +8,7 @@ use crate::ty::TyId;
 use super::super::env::{Checked, Env};
 use super::super::MemberRef;
 use super::call::finish_call;
-use super::check;
+use super::synthesize;
 
 /// `receiver.method(args)`; the receiver is borrowed for the call.
 #[allow(clippy::too_many_arguments)]
@@ -30,7 +30,7 @@ pub(super) fn check_method_call(
         );
         return poisoned(args, span, return_ty, env);
     }
-    let checked = check(receiver, None, return_ty, env);
+    let checked = synthesize(receiver, return_ty, env);
     if env.tcx.is_unknown(checked.ty) {
         return poisoned(args, span, return_ty, env);
     }
@@ -129,7 +129,7 @@ fn borrow(receiver: Checked, env: &mut Env<'_>) -> Checked {
 
 pub(super) fn poisoned(args: &[Expr], span: Span, return_ty: TyId, env: &mut Env<'_>) -> Checked {
     for arg in args {
-        check(arg, None, return_ty, env);
+        synthesize(arg, return_ty, env);
     }
     let unknown = env.tcx.error();
     env.expr_at(HirExprKind::None, unknown, span)
