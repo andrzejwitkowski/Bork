@@ -101,12 +101,7 @@ fn lower_named(
     span: Option<Span>,
 ) -> TyId {
     if let Some(&(_, idx)) = scope.iter().find(|(param, _)| param == name) {
-        if !args.is_empty() {
-            push_err(diagnostics, format!("type parameter `{name}` takes no type arguments"), span);
-            return tcx.error();
-        }
-        let param = tcx.param(idx);
-        return tcx.with_nullable(param, nullable);
+        return lower_param(name, idx, args, nullable, tcx, diagnostics, span);
     }
     // Lowered for their own errors (unknown names); instantiation itself is #44.
     for arg in args {
@@ -119,16 +114,46 @@ fn lower_named(
         }
         return tcx.string(nullable);
     }
+    lower_class(name, args.len(), nullable, defs, tcx, diagnostics, span)
+}
+
+fn lower_param(
+    name: &str,
+    idx: ParamIdx,
+    args: &[Type],
+    nullable: bool,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+    span: Option<Span>,
+) -> TyId {
+    if !args.is_empty() {
+        push_err(diagnostics, format!("type parameter `{name}` takes no type arguments"), span);
+        return tcx.error();
+    }
+    let param = tcx.param(idx);
+    tcx.with_nullable(param, nullable)
+}
+
+/// A class name with `given` type arguments; only non-generic classes can be used until #44.
+fn lower_class(
+    name: &str,
+    given: usize,
+    nullable: bool,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+    span: Option<Span>,
+) -> TyId {
     let Some(class) = defs.lookup_class(name) else {
         push_err(diagnostics, format!("unknown named type `{name}`"), span);
         return tcx.error();
     };
     let arity = defs.get(class).arity;
-    if args.len() != arity {
+    if given != arity {
         let message = match arity {
             0 => format!("`{name}` takes no type arguments"),
-            1 => format!("`{name}` expects 1 type argument, got {}", args.len()),
-            _ => format!("`{name}` expects {arity} type arguments, got {}", args.len()),
+            1 => format!("`{name}` expects 1 type argument, got {given}"),
+            _ => format!("`{name}` expects {arity} type arguments, got {given}"),
         };
         push_err(diagnostics, message, span);
         return tcx.error();

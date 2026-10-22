@@ -82,3 +82,11 @@ fn type_arguments_on_a_plain_class_and_turbofish_are_rejected() {
     let (_, m) = run("fun f(a: i32) {}\nfun main() {\n    f::<i32>(1)\n}\n");
     has(&m, "explicit type arguments");
 }
+
+#[test]
+fn reference_parameters_of_generic_items_must_be_val() {
+    let (_, m) = run("fun f<T>(var x: &T) {}\nfun main() {}\n");
+    has(&m, "reference parameter must be `val`");
+    let (_, m) = run("class B<T> {\n    v: T\n    fun m(var x: &T) {}\n}\nfun main() {}\n");
+    has(&m, "reference parameter must be `val`");
+}

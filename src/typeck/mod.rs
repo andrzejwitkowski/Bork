@@ -318,32 +318,7 @@ fn check_function(
         .chain(function.generics.iter().map(|param| param.name.name.clone()))
         .collect();
     if !generics.is_empty() {
-        // Bodies see `Param` types only once #44 can check them; HIR keeps the declaration.
-        diagnostics.push(Diagnostic {
-            phase: Phase::Type,
-            severity: Severity::Error,
-            message: format!("the body of generic `{name}` is not checked yet; generic items are declaration-only"),
-            span: Some(function.name_span),
-        });
-        let mut tys = signature.params.into_iter();
-        let mut params = Vec::new();
-        if owner.is_some() {
-            let ty = tys.next().expect("methods have `this`");
-            params.push(HirParam { kind: crate::ast::BindingKind::Val, name: "this".to_string(), ty });
-        }
-        params.extend(function.params.iter().zip(tys).map(|(param, ty)| HirParam {
-            kind: param.kind,
-            name: param.name.name.clone(),
-            ty,
-        }));
-        return HirFunction {
-            name,
-            generics,
-            name_span: function.name_span,
-            params,
-            return_ty: signature.ret,
-            body: Default::default(),
-        };
+        return generics::declaration_only(function, owner.is_some(), name, generics, signature, tcx, diagnostics);
     }
     let mut env = Env::new(defs, tcx, fun_sigs, classes, constants);
     env.self_class = owner;
@@ -403,12 +378,7 @@ fn bind_params(
         .zip(param_tys)
         .map(|(param, ty)| {
             let is_ref = env.tcx.is_ref(ty);
-            if is_ref && param.kind == crate::ast::BindingKind::Var {
-                env.error(
-                    "reference parameter must be `val`",
-                    Some(param.name.span),
-                );
-            }
+            check_ref_param_kind(param, is_ref, &mut env.diagnostics);
             env.bind(param.name.name.clone(), param.kind, ty, is_ref);
             HirParam {
                 kind: param.kind,
@@ -417,6 +387,13 @@ fn bind_params(
             }
         })
         .collect()
+}
+
+/// A reference parameter must be `val`.
+fn check_ref_param_kind(param: &crate::ast::Param, is_ref: bool, diagnostics: &mut Vec<Diagnostic>) {
+    if is_ref && param.kind == crate::ast::BindingKind::Var {
+        diagnostics.push(type_error("reference parameter must be `val`", Some(param.name.span)));
+    }
 }
 
 fn type_error(message: impl Into<String>, span: Option<Span>) -> Diagnostic {
