@@ -326,7 +326,11 @@ fn check_function(
     env.infcx.default_literals(env.tcx);
     let mut body = body;
     let (infcx, tcx) = (&env.infcx, &mut *env.tcx);
-    let mut settle = |ty: TyId| infcx.resolve(tcx, ty).unwrap_or(ty);
+    let mut settle = |ty: TyId| {
+        let ty = infcx.resolve(tcx, ty).unwrap_or(ty);
+        debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
+        ty
+    };
     crate::hir::resolve_types(&mut body, &mut settle);
     env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
     diagnostics.append(&mut env.diagnostics);
@@ -422,3 +426,17 @@ fn validate_owned_layouts(classes: &ClassTable, tcx: &TyCtx, diagnostics: &mut V
 
 #[cfg(test)]
 mod tests;
+
+/// Whether `ty` still contains an inference variable.
+fn has_infer(tcx: &TyCtx, ty: TyId) -> bool {
+    struct Find(bool);
+    impl crate::ty::TypeVisitor for Find {
+        fn visit(&mut self, ctx: &TyCtx, id: TyId) {
+            self.0 |= matches!(ctx.data(id), crate::ty::TyData::Infer(_));
+            crate::ty::walk(self, ctx, id);
+        }
+    }
+    let mut find = Find(false);
+    crate::ty::TypeVisitor::visit(&mut find, tcx, ty);
+    find.0
+}

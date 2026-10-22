@@ -1,0 +1,4 @@
+// diag: cannot infer type of `None`; add a type annotation
+fun main() {
+    val v = None
+}

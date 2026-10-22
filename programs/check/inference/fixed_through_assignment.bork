@@ -1,0 +1,10 @@
+fun takes_u8(a: u8) {}
+fun takes_i64(a: i64) {}
+fun takes_f32(a: f32) {}
+fun takes_f64(a: f64) {}
+fun ret_u8(): u8 { return 1 }
+fun main() {
+    var n = 0
+    n = n + 1
+    takes_u8(n)
+}

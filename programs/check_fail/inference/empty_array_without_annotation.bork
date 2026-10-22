@@ -1,0 +1,4 @@
+// diag: empty array literal requires an explicit type, e.g.
+fun main() {
+    val a = []
+}

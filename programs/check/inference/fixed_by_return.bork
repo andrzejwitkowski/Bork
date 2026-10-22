@@ -1,0 +1,7 @@
+fun f(): i64 {
+    val x = 1
+    return x
+}
+fun main() {
+    val y = f()
+}

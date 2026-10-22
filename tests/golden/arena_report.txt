@@ -1334,6 +1334,71 @@ Arenas
     ├── name [Local]
     ├── IfThen
     └── IfElse
+== programs/check/inference/annotated_unchanged.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── x [Local]
+== programs/check/inference/defaults_to_f64.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── x [Local]
+== programs/check/inference/defaults_to_i32.bork
+Arenas
+├── fun take
+│   └── a [Local]
+└── fun main
+    ├── x [Local]
+    └── y [Local]
+== programs/check/inference/fixed_by_i64_arg.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── x [Local]
+== programs/check/inference/fixed_by_return.bork
+Arenas
+├── fun f
+│   └── x [Local]
+└── fun main
+    └── y [Local]
+== programs/check/inference/fixed_through_assignment.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── n [Local]
 == programs/check/inference/literal_fixed_by_use.bork
 Arenas
 ├── fun takes_u8
@@ -1343,6 +1408,33 @@ Arenas
 └── fun main
     ├── x [Local]
     └── f [Local]
+== programs/check/inference/return_value_fixes_literal.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── x [Local]
+== programs/check/inference/two_literals_share_type.bork
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    ├── a [Local]
+    └── b [Local]
 == programs/check/loops/for_sum.bork
 Arenas
 └── fun main
@@ -1483,6 +1575,55 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/inference/arith_mixed_literal_types.bork
+Type Error [263..264] arithmetic operands must have the same numeric type, got u8 and i64
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    ├── x [Local]
+    ├── y [Local]
+    └── z [Local]
+== programs/check_fail/inference/empty_array_without_annotation.bork
+Type Error [86..88] empty array literal requires an explicit type, e.g. `val a: [i32; 0] = []`
+Arenas
+└── fun main
+    └── a [Local]
+== programs/check_fail/inference/float_literal_as_int.bork
+Type Error [230..231] argument 1 to `takes_u8` has type f64, expected u8
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── x [Local]
+== programs/check_fail/inference/int_literal_as_float.bork
+Type Error [231..232] argument 1 to `takes_f64` has type i32, expected f64
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun main
+    └── x [Local]
 == programs/check_fail/inference/literal_conflicting_uses.bork
 Type Error [166..167] argument 1 to `takes_i64` has type u8, expected i64
 Arenas
@@ -1490,6 +1631,39 @@ Arenas
 │   └── a [Local]
 ├── fun takes_i64
 │   └── a [Local]
+└── fun main
+    └── x [Local]
+== programs/check_fail/inference/literal_vs_return_type.bork
+Type Error [232..233] return value has type u8, expected i64
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
+└── fun f
+    └── x [Local]
+== programs/check_fail/inference/none_without_annotation.bork
+Type Error [85..89] cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`
+Arenas
+└── fun main
+    └── v [Local]
+== programs/check_fail/inference/u8_then_f32.bork
+Type Error [246..247] argument 1 to `takes_f32` has type u8, expected f32
+Arenas
+├── fun takes_u8
+│   └── a [Local]
+├── fun takes_i64
+│   └── a [Local]
+├── fun takes_f32
+│   └── a [Local]
+├── fun takes_f64
+│   └── a [Local]
+├── fun ret_u8
 └── fun main
     └── x [Local]
 == programs/check_fail/loops/break_outside_loop.bork

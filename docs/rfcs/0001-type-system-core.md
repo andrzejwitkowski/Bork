@@ -234,3 +234,5 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 - [ ] Downstream issues are linked to the sections they depend on (see PR description).
 
 **Implementation (#40).** An unannotated `val`/`var` whose initializer is a bare literal gets an Int/Float inference variable (`Env::infcx`, one per function body). `Env::same`/`Env::mismatch` unify; `check_function` defaults the remaining variables once (`InferCtxt::default_literals`) and rewrites all HIR types with `hir::resolve_types`. `None`, `[]` and arithmetic results are not variables yet.
+
+**Implementation (#41).** Typeck asserts (debug) that no inference variable survives into HIR types. `None` without an annotation reports a fix hint. General variables for `None`/`[]` are deferred: only literal variables exist, and they always default, so the "unresolved variable" error cannot fire yet.

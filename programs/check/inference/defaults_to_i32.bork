@@ -1,0 +1,6 @@
+fun take(a: i32) {}
+fun main() {
+    val x = 1
+    val y = x + 2
+    take(y)
+}
