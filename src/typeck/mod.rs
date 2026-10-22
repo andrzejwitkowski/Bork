@@ -322,6 +322,13 @@ fn check_function(
             None,
         );
     }
+    // Defaulting happens once, here; after it no literal variable remains.
+    env.infcx.default_literals(env.tcx);
+    let mut body = body;
+    let (infcx, tcx) = (&env.infcx, &mut *env.tcx);
+    let mut settle = |ty: TyId| infcx.resolve(tcx, ty).unwrap_or(ty);
+    crate::hir::resolve_types(&mut body, &mut settle);
+    env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
     diagnostics.append(&mut env.diagnostics);
     node_tys.extend(std::mem::take(&mut env.node_tys));
     members.extend(std::mem::take(&mut env.members));

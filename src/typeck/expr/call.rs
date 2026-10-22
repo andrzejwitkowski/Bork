@@ -416,7 +416,7 @@ fn check_string_from_utf8(
             );
         }
         for argument in [start, count] {
-            if !env.tcx.is_unknown(argument.ty) && argument.ty != i32_ty {
+            if !env.tcx.is_unknown(argument.ty) && !env.same(argument.ty, i32_ty) {
                 env.error(
                     format!(
                         "`{name}` offsets and counts must be `i32`, got {}",

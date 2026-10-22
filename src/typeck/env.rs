@@ -5,6 +5,7 @@ use crate::constants::ConstantTable;
 use crate::defs::{DefId, DefTable};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{HirExpr, HirExprKind};
+use crate::infer::InferCtxt;
 use crate::span::{AstId, Span};
 use crate::ty::{FnSigs, TyCtx, TyId, TyPrinter};
 
@@ -67,6 +68,8 @@ pub(super) struct Env<'a> {
     pub(super) self_class: Option<DefId>,
     /// Member names resolved by typeck, for sema and LSP.
     pub(super) members: MemberResolutions,
+    /// Literal variables of this function body; defaulted and resolved once at its end.
+    pub(super) infcx: InferCtxt,
 }
 
 impl<'a> Env<'a> {
@@ -89,6 +92,7 @@ impl<'a> Env<'a> {
             loop_depth: 0,
             self_class: None,
             members: MemberResolutions::new(),
+            infcx: InferCtxt::new(),
         }
     }
 
@@ -187,7 +191,15 @@ impl<'a> Env<'a> {
     }
 
     /// Message text of a type.
-    pub(super) fn show(&self, ty: TyId) -> TyPrinter<'_> {
+    pub(super) fn show(&self, mut ty: TyId) -> TyPrinter<'_> {
+        // An unbound literal variable reads as the type it will default to.
+        while let crate::ty::TyData::Infer(var) = *self.tcx.data(ty) {
+            ty = match (self.infcx.value_of(var), self.infcx.kind_of(var)) {
+                (Some(bound), _) => bound,
+                (None, crate::infer::VarKind::Float) => self.tcx.prim_id(crate::hir::Prim::F64),
+                (None, _) => self.tcx.prim_id(crate::hir::Prim::I32),
+            };
+        }
         self.tcx.display(ty)
     }
 
@@ -212,12 +224,34 @@ impl<'a> Env<'a> {
         self.scopes.pop();
     }
 
+    /// Whether two types are equal, binding literal variables to make them so.
+    pub(super) fn same(&mut self, a: TyId, b: TyId) -> bool {
+        a == b || self.infcx.unify(self.tcx, a, b).is_ok()
+    }
+
+    /// `ty` with bound literal variables replaced (shallow).
+    pub(super) fn settle(&mut self, ty: TyId) -> TyId {
+        self.infcx.resolve_shallow(self.tcx, ty)
+    }
+
+    /// Whether `ty` is an unbound variable of `kind`.
+    pub(super) fn is_literal_var(&self, ty: TyId, kind: crate::infer::VarKind) -> bool {
+        matches!(self.tcx.data(ty), crate::ty::TyData::Infer(v) if self.infcx.kind_of(*v) == kind)
+    }
+
+    /// Numeric, counting an unbound literal variable.
+    pub(super) fn is_numeric(&mut self, ty: TyId) -> bool {
+        let ty = self.settle(ty);
+        matches!(self.tcx.data(ty), crate::ty::TyData::Infer(_)) || self.tcx.is_numeric(ty)
+    }
+
     /// The one place a type mismatch is reported: `{what} has type X, expected Y`. Unknown
     /// (already reported) types never cascade. Returns whether a diagnostic was emitted.
     pub(super) fn mismatch(&mut self, what: &str, found: TyId, expected: TyId, span: Option<Span>) -> bool {
-        if self.tcx.is_unknown(found) || self.tcx.is_unknown(expected) || found == expected {
+        if self.tcx.is_unknown(found) || self.tcx.is_unknown(expected) || self.same(found, expected) {
             return false;
         }
+        let (found, expected) = (self.settle(found), self.settle(expected));
         let message = format!("{what} has type {}, expected {}", self.show(found), self.show(expected));
         self.error(message, span);
         true

@@ -4,8 +4,10 @@
 //! `sema::ArenaReport`; codegen should read region identity from there.
 
 mod number;
+mod resolve;
 mod ty;
 pub use number::number_nodes;
+pub use resolve::resolve_types;
 pub use ty::Prim;
 
 use crate::ast;

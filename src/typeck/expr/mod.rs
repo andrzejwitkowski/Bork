@@ -22,6 +22,7 @@ mod vec;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, Prim, UseKind};
+use crate::infer::VarKind;
 use crate::span::{AstId, Span};
 use crate::ty::TyId;
 
@@ -57,9 +58,10 @@ pub(super) fn dispatch(
     if let Some(expected) = expected.filter(|&ty| env.tcx.is_managed_ref(ty)) {
         return check_managed_ref(expr, expected, return_ty, env);
     }
+    let expected = expected.map(|ty| env.settle(ty));
     match expr {
         Expr::Int(value) => {
-            let ty = match expected.filter(|&ty| env.tcx.is_integer(ty)) {
+            let ty = match expected.filter(|&ty| env.tcx.is_integer(ty) || env.is_literal_var(ty, VarKind::Int)) {
                 Some(ty) => ty,
                 None => env.tcx.i32(),
             };
@@ -70,7 +72,9 @@ pub(super) fn dispatch(
             env.expr(HirExprKind::Bool { value: *value }, ty)
         }
         Expr::Float(value) => {
-            let ty = match expected.filter(|&ty| env.tcx.is_numeric(ty) && !env.tcx.is_integer(ty)) {
+            let ty = match expected.filter(|&ty| {
+                (env.tcx.is_numeric(ty) && !env.tcx.is_integer(ty)) || env.is_literal_var(ty, VarKind::Float)
+            }) {
                 Some(ty) => ty,
                 None => env.tcx.prim(Prim::F64),
             };
@@ -153,7 +157,7 @@ pub(super) fn dispatch(
         } => {
             let bool_ty = env.tcx.bool();
             let operand = check(expr, bool_ty, return_ty, env);
-            if !env.tcx.is_unknown(operand.ty) && operand.ty != bool_ty {
+            if !env.tcx.is_unknown(operand.ty) && !env.same(operand.ty, bool_ty) {
                 env.error(
                     format!("operand of `!` must have type bool, got {}", env.show(operand.ty)),
                     operand.span.or(Some(*span)),
@@ -268,7 +272,8 @@ pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind,
         let unknown = env.tcx.error();
         return env.expr_at(ident(requested), unknown, span);
     };
-    let ty = binding.ty;
+    let (binding_ty, binding_kind) = (binding.ty, binding.kind);
+    let ty = env.settle(binding_ty);
     let use_kind = if requested == UseKind::Move && env.tcx.is_managed_ref(ty) {
         UseKind::RefMove
     } else if requested == UseKind::Move
@@ -278,9 +283,9 @@ pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind,
         requested
     } else if env.tcx.is_managed_ref(ty) {
         UseKind::RefCopy
-    } else if env.tcx.is_copy(ty) {
+    } else if env.tcx.is_copy(ty) || env.is_literal_var(ty, VarKind::Int) || env.is_literal_var(ty, VarKind::Float) {
         UseKind::Copy
-    } else if binding.kind == BindingKind::Val {
+    } else if binding_kind == BindingKind::Val {
         UseKind::Shared
     } else {
         UseKind::Local

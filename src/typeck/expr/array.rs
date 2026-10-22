@@ -51,7 +51,7 @@ pub(super) fn check_array_lit(
             );
         }
         if let Some(elem) = inferred {
-            if !env.tcx.is_unknown(hir.ty) && hir.ty != elem {
+            if !env.tcx.is_unknown(hir.ty) && !env.same(hir.ty, elem) {
                 env.error(
                     format!(
                         "array elements must have the same type, got {} and {}",
@@ -126,7 +126,7 @@ pub(super) fn check_index(
         }
         env.tcx.error()
     };
-    if !env.tcx.is_unknown(index_hir.ty) && index_hir.ty != i32_ty {
+    if !env.tcx.is_unknown(index_hir.ty) && !env.same(index_hir.ty, i32_ty) {
         env.error(
             format!("array index must be `i32`, got {}", env.show(index_hir.ty)),
             index_hir.span.or(Some(span)),
@@ -169,7 +169,7 @@ pub(super) fn check_slice(
         );
     }
     for (bound, label) in [(&lo, "lo"), (&hi, "hi")] {
-        if !env.tcx.is_unknown(bound.ty) && bound.ty != i32_ty {
+        if !env.tcx.is_unknown(bound.ty) && !env.same(bound.ty, i32_ty) {
             env.error(
                 format!("slice bound `{label}` must be `i32`, got {}", env.show(bound.ty)),
                 bound.span.or(Some(span)),
