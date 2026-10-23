@@ -3,11 +3,12 @@
 use crate::ast::{Closure, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::{AstId, Span};
-use crate::ty::TyId;
+use crate::defs::DefId;
+use crate::ty::{FnSig, TyId};
 
 use super::super::env::{Checked, Env};
 use super::super::MemberRef;
-use super::call::finish_call;
+use super::call::{finish_call, fresh_params, subst_sig};
 use super::synthesize;
 
 /// `receiver.method(args)`; the receiver is borrowed for the call.
@@ -70,22 +71,42 @@ pub(super) fn check_method_call(
             signature,
         },
     );
-    if !sig.generics.is_empty() {
-        env.error(format!("calling the generic method `{class_name}.{method}` is not supported yet"), Some(span));
+    let name = format!("{class_name}.{method}");
+    let Some((params, ret)) = instantiate_method(&name, class, &sig, &checked, span, env) else {
         return poisoned(args, span, return_ty, env);
-    }
+    };
     let receiver = borrow(checked, env);
     finish_call(
-        format!("{class_name}.{method}"),
+        name,
         span,
-        sig.params,
-        sig.ret,
+        params,
+        ret,
         Some(receiver),
         args,
         trailing,
         return_ty,
         env,
     )
+}
+
+/// The signature of a call to the method `sig` of `class`: the receiver fixes the class parameters
+/// (they come first in `sig.generics`), and the method's own parameters are fresh variables that
+/// the arguments and the expected type fix. `None` when the instantiation is unusable (reported).
+fn instantiate_method(
+    name: &str,
+    class: DefId,
+    sig: &FnSig<TyId>,
+    receiver: &Checked,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<(Vec<TyId>, TyId)> {
+    if sig.generics.is_empty() {
+        return Some((sig.params.clone(), sig.ret));
+    }
+    let class_arity = env.class(class).map_or(0, |info| info.generics.len());
+    let mut args = env.tcx.class_args(receiver.ty).map(|(_, args)| args.to_vec()).unwrap_or_default();
+    args.extend(fresh_params(&sig.generic_names[class_arity..], name, span, env));
+    subst_sig(name, span, sig, &args, env)
 }
 
 /// `name(.field)*` — something that has an address the method can borrow.

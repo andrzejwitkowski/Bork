@@ -109,8 +109,10 @@ programs/check/conditionals/if_mismatch.bork: hits=10 hash=46900b87c1a0cced
 programs/check/conditionals/if_return_move_then_use.bork: hits=25 hash=c87367bad3285e18
 programs/check/conditionals/nullable_eq.bork: hits=8 hash=205e1f814db703b5
 programs/check/generics/explicit_args.bork: hits=4 hash=91802693aefd43c9
+programs/check/generics/generic_class.bork: hits=31 hash=4a01baf605dfd4ff
 programs/check/generics/generic_in_generic.bork: hits=5 hash=d3cda0a95860b63c
 programs/check/generics/identity.bork: hits=7 hash=c56f4c56d511d8e9
+programs/check/generics/node_ref.bork: hits=0 hash=cbf29ce484222325
 programs/check/generics/pair.bork: hits=8 hash=10a1cf1a4a471404
 programs/check/inference/annotated_unchanged.bork: hits=6 hash=05c98d39c9474c55
 programs/check/inference/defaults_to_f64.bork: hits=6 hash=eab1cbdb5cecf420
@@ -140,9 +142,13 @@ programs/check_fail/conditionals/if_one_path_move_then_use.bork: hits=20 hash=82
 programs/check_fail/constants/assign.bork: hits=1 hash=35354576bc4b80d7
 programs/check_fail/constants/range.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/cannot_infer.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/generics/constructor_cannot_infer.bork: hits=1 hash=c93764347d643c61
 programs/check_fail/generics/duplicate_param.bork: hits=1 hash=bff2cadd23a850b2
 programs/check_fail/generics/explicit_arity.bork: hits=2 hash=40ce237ff4201653
 programs/check_fail/generics/explicit_mismatch.bork: hits=2 hash=4bd04b88e6d9e96b
+programs/check_fail/generics/generic_cycle.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/generics/generic_mutual_cycle.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/generics/instantiation_cycle.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/opaque_add.bork: hits=3 hash=1a70dc74ade3e4b3
 programs/check_fail/generics/opaque_equality.bork: hits=4 hash=3a0bc1f1fbbe81d4
 programs/check_fail/generics/shadowed_class_param.bork: hits=2 hash=d32e1e199f73c3bb

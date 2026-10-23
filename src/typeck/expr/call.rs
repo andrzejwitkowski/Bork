@@ -44,6 +44,18 @@ fn callee_signature(
     }
 }
 
+/// A fresh variable per type parameter `names` of `callee`; reported if nothing fixes it.
+pub(super) fn fresh_params(names: &[String], callee: &str, span: Span, env: &mut Env<'_>) -> Vec<TyId> {
+    names
+        .iter()
+        .map(|param| {
+            let var = env.infcx.new_var(env.tcx, VarKind::General);
+            env.pending.push(PendingParam { var, span, callee: callee.to_string(), param: param.clone() });
+            var
+        })
+        .collect()
+}
+
 /// The signature of a call to `sig`: its type parameters replaced by the explicit `type_args`, or
 /// by fresh variables that the arguments and the expected type fix. `None` when `type_args` are
 /// unusable (already reported).
@@ -58,14 +70,7 @@ fn instantiate(
         return Some((sig.params.clone(), sig.ret));
     }
     let args: Vec<TyId> = if type_args.is_empty() {
-        sig.generic_names
-            .iter()
-            .map(|param| {
-                let var = env.infcx.new_var(env.tcx, VarKind::General);
-                env.pending.push(PendingParam { var, span, callee: name.to_string(), param: param.clone() });
-                var
-            })
-            .collect()
+        fresh_params(&sig.generic_names, name, span, env)
     } else if type_args.len() != sig.generics.len() {
         let want = sig.generics.len();
         let plural = if want == 1 { "" } else { "s" };
@@ -77,8 +82,19 @@ fn instantiate(
     } else {
         type_args.iter().map(|ty| env.lower(ty, Some(span))).collect()
     };
-    let params: Result<Vec<_>, _> = sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, &args)).collect();
-    match (params, crate::ty::subst(env.tcx, sig.ret, &args)) {
+    subst_sig(name, span, sig, &args, env)
+}
+
+/// `sig` with its type parameters replaced by `args`; `None` (reported) when that makes `T??`.
+pub(super) fn subst_sig(
+    name: &str,
+    span: Span,
+    sig: &FnSig<TyId>,
+    args: &[TyId],
+    env: &mut Env<'_>,
+) -> Option<(Vec<TyId>, TyId)> {
+    let params: Result<Vec<_>, _> = sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, args)).collect();
+    match (params, crate::ty::subst(env.tcx, sig.ret, args)) {
         (Ok(params), Ok(ret)) => Some((params, ret)),
         _ => {
             env.error(format!("type arguments of `{name}` would make a nullable of a nullable"), Some(span));
@@ -98,6 +114,12 @@ pub(super) fn check_call(
 ) -> Checked {
     if !type_args.is_empty() && !is_generic_fn(callee, env) {
         match callee {
+            Expr::Ident { name, span, .. } if env.class_named(name).is_some_and(|c| !c.generics.is_empty()) => {
+                env.error(
+                    format!("explicit type arguments on the constructor `{name}` are not supported yet; annotate the binding instead"),
+                    Some(*span),
+                );
+            }
             Expr::Ident { name, span, .. } => {
                 env.error(format!("`{name}` is not generic; it takes no explicit type arguments"), Some(*span));
             }
@@ -130,7 +152,7 @@ pub(super) fn check_call(
     }
     if let Expr::Ident { name, span, .. } = callee {
         if let Some(class) = env.class_named(name).cloned() {
-            return check_construct(class, *span, args, trailing, return_ty, env);
+            return check_construct(class, *span, args, trailing, expected, return_ty, env);
         }
     }
     if let Expr::Ident { name, span, .. } = callee {

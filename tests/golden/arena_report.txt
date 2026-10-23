@@ -1341,6 +1341,20 @@ Arenas
 └── fun main
     ├── a [Local]
     └── b [Local]
+== programs/check/generics/generic_class.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   ├── x [Local]
+│   ├── s [Local]
+│   ├── f [Local]
+│   ├── w [Local]
+│   └── q [Local]
+├── fun Pair.first
+│   └── this [Borrow ← call site]
+└── fun Pair.with
+    ├── this [Borrow ← call site]
+    └── c [Local]
 == programs/check/generics/generic_in_generic.bork
 Arenas
 ├── fun id
@@ -1358,6 +1372,9 @@ Arenas
     ├── b [Local]
     ├── p [Local]
     └── c [Local]
+== programs/check/generics/node_ref.bork
+Arenas
+└── fun main
 == programs/check/generics/pair.bork
 Arenas
 ├── fun first
@@ -1566,8 +1583,8 @@ Arenas
 └── fun main
     └── a [Local]
 == programs/check_fail/classes/owned_layout_cycle.bork
-Type Error [45..46] class `A` has a recursive by-value layout; use `Ref<A>`
-Type Error [62..63] class `B` has a recursive by-value layout; use `Ref<B>`
+Type Error [45..46] class `A` has a recursive by-value layout (A -> B -> A); use `Ref<..>` for the recursive field
+Type Error [62..63] class `B` has a recursive by-value layout (B -> A -> B); use `Ref<..>` for the recursive field
 Arenas
 └── fun main
 == programs/check_fail/classes/ref_dot.bork
@@ -1615,6 +1632,11 @@ Type Error [130..134] cannot infer type parameter `T` of `make`; specify it expl
 Arenas
 ├── fun make
 └── fun main
+== programs/check_fail/generics/constructor_cannot_infer.bork
+Type Error [130..136] cannot infer type parameter `T` of `Holder`; annotate the binding with its type to fix it
+Arenas
+└── fun main
+    └── h [Local]
 == programs/check_fail/generics/duplicate_param.bork
 Type Error [47..48] duplicate type parameter `T`
 Arenas
@@ -1633,6 +1655,19 @@ Arenas
 ├── fun id
 │   └── x [Local]
 └── fun main
+== programs/check_fail/generics/generic_cycle.bork
+Type Error [94..95] class `Bad<T>` has a recursive by-value layout (Bad<T> -> Bad<T>); use `Ref<..>` for the recursive field
+Arenas
+└── fun main
+== programs/check_fail/generics/generic_mutual_cycle.bork
+Type Error [47..48] class `A<T>` has a recursive by-value layout (A<T> -> B<T> -> A<T>); use `Ref<..>` for the recursive field
+Type Error [74..75] class `B<T>` has a recursive by-value layout (B<T> -> A<T> -> B<T>); use `Ref<..>` for the recursive field
+Arenas
+└── fun main
+== programs/check_fail/generics/instantiation_cycle.bork
+Type Error [110..111] class `A` has a recursive by-value layout (A -> Box<A> -> A); use `Ref<..>` for the recursive field
+Arenas
+└── fun main
 == programs/check_fail/generics/opaque_add.bork
 Type Error [154..155] arithmetic operands must have the same numeric type, got T and T; a type parameter has no bounds yet, so operators and members need a bound (not supported yet)
 Arenas
@@ -1647,8 +1682,6 @@ Arenas
 │   └── b [Local]
 └── fun main
 == programs/check_fail/generics/shadowed_class_param.bork
-Type Error [56..57] generic class `Box` is declaration-only; its use is not supported yet
-Type Error [78..79] the body of generic `Box.m` is not checked yet; generic items are declaration-only
 Type Error [80..81] type parameter `T` shadows the class type parameter `T`
 Arenas
 ├── fun main
@@ -1674,7 +1707,6 @@ Arenas
 │   └── x [Local]
 └── fun main
 == programs/check_fail/generics/wrong_arity.bork
-Type Error [56..57] generic class `Box` is declaration-only; its use is not supported yet
 Type Error [78..79] `Box` expects 1 type argument, got 2
 Arenas
 ├── fun f

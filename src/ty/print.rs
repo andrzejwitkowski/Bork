@@ -21,7 +21,14 @@ impl fmt::Display for TyPrinter<'_> {
         match self.ctx.data(self.id) {
             TyData::Prim(prim) => write!(f, "{prim}"),
             TyData::String => f.write_str("String"),
-            TyData::Class(def) => f.write_str(&self.ctx.class_names[def]),
+            TyData::Class(def, args) => {
+                f.write_str(&self.ctx.class_names[def])?;
+                if args.is_empty() {
+                    return Ok(());
+                }
+                let shown: Vec<String> = args.iter().map(|&arg| show(arg).to_string()).collect();
+                write!(f, "<{}>", shown.join(", "))
+            }
             TyData::Array { elem, len } => write!(f, "[{}; {len}]", show(*elem)),
             TyData::Func { params, ret } => {
                 f.write_str("(")?;

@@ -1,5 +1,4 @@
-//! Generic declarations (#43): scopes, validation, and `Param` types in HIR. Bodies and
-//! instantiation are #44, so every generic item still ends with a diagnostic.
+//! Generic declarations (#43), generic functions (#44) and generic classes and methods (#45).
 use crate::ast::BindingKind;
 use crate::frontend;
 use crate::ty::{ParamIdx, TyData};
@@ -18,8 +17,7 @@ fn has(messages: &[String], needle: &str) {
 #[test]
 fn generic_class_fields_and_methods_use_param_types() {
     let src = "class Box<T> {\n    v: T\n    fun get(): T { return v }\n    fun swap<U>(u: U): U { return u }\n}\nfun main() {}\n";
-    let (t, messages) = run(src);
-    has(&messages, "generic class `Box` is declaration-only");
+    let t = clean(src);
     let class = &t.hir.classes[0];
     assert_eq!(class.generics, ["T"]);
     assert_eq!(*t.tcx.data(class.fields[0].ty), TyData::Param(ParamIdx(0)));
@@ -43,7 +41,6 @@ fn declaration_errors_are_reported() {
         ("class P {\n    n: i32\n}\nfun f(x: P<i32>) {}\nfun main() {}\n", "`P` takes no type arguments"),
         ("class B<T> {\n    v: T\n}\nfun f(x: B) {}\nfun main() {}\n", "`B` expects 1 type argument, got 0"),
         ("class B<T> {\n    v: T\n}\nfun f(x: B<i32, i32>) {}\nfun main() {}\n", "`B` expects 1 type argument, got 2"),
-        ("class B<T> {\n    v: T\n}\nfun f(x: B<i32>) {}\nfun main() {}\n", "instantiating generic types is not supported yet"),
     ] {
         let (_, messages) = run(src);
         has(&messages, needle);
@@ -185,7 +182,89 @@ fn generic_functions_do_not_pass_the_codegen_gate() {
 }
 
 #[test]
-fn generic_methods_stay_declaration_only() {
-    let (_, m) = run("class C {\n    n: i32\n    fun m<T>(x: T): T { return x }\n}\nfun main() {}\n");
-    has(&m, "body of generic `C.m` is not checked yet");
+fn generic_classes_do_not_pass_the_codegen_gate() {
+    let typeck = clean("class Box<T> {\n    v: T\n}\nfun main() {}\n");
+    let gate = crate::codegen_gate::gate(&typeck.hir, &typeck.tcx);
+    assert!(gate.iter().any(|d| d.message.contains("generic class `Box` is not compiled yet")), "{gate:?}");
+}
+
+const PAIR: &str = "class Pair<A, B> {\n    a: A\n    b: B\n    fun first(): A { return a }\n    fun with<C>(c: C): C { return c }\n}\n";
+
+#[test]
+fn constructor_infers_class_arguments() {
+    let src = format!("{PAIR}fun main() {{\n    val p = Pair(1, \"a\")\n}}\n");
+    assert_eq!(main_decl_ty(&src, 0), "Pair<i32, String>");
+}
+
+#[test]
+fn expected_type_fixes_class_arguments() {
+    let src = format!("{PAIR}fun main() {{\n    val p: Pair<i64, String> = Pair(1, \"a\")\n}}\n");
+    assert_eq!(main_decl_ty(&src, 0), "Pair<i64, String>");
+}
+
+#[test]
+fn field_and_method_types_are_substituted() {
+    let src = format!(
+        "{PAIR}fun main() {{\n    val p = Pair(1, \"a\")\n    val x = p.a\n    val s = p.b\n    val f = p.first()\n    val w = p.with(true)\n}}\n"
+    );
+    assert_eq!(main_decl_ty(&src, 1), "i32");
+    assert_eq!(main_decl_ty(&src, 2), "String");
+    assert_eq!(main_decl_ty(&src, 3), "i32");
+    assert_eq!(main_decl_ty(&src, 4), "bool");
+}
+
+#[test]
+fn mismatched_class_arguments_are_rejected() {
+    let src = format!("{PAIR}fun main() {{\n    val p: Pair<String, String> = Pair(1, \"a\")\n}}\n");
+    let (_, m) = run(&src);
+    has(&m, "constructor field `a`");
+}
+
+#[test]
+fn nullable_of_nullable_class_arguments_are_reported() {
+    let holder = "class Holder<T> {\n    v: T?\n}\n";
+    let (_, m) = run(&format!("{holder}fun f(h: Holder<i32?>) {{\n    val x = h.v\n}}\nfun main() {{}}\n"));
+    has(&m, "would make a nullable of a nullable");
+    let (_, m) = run(&format!("{holder}fun f(h: &Holder<i32?>) {{\n    h.v = None\n}}\nfun main() {{}}\n"));
+    has(&m, "would make a nullable of a nullable");
+    let (_, m) = run(&format!("{holder}fun main() {{\n    val h: Holder<i32?> = Holder(None)\n}}\n"));
+    has(&m, "would make a nullable of a nullable");
+}
+
+#[test]
+fn unknown_class_argument_absorbs_the_whole_type() {
+    let (_, m) = run("class Box<T> {\n    v: T\n}\nfun f(x: Box<Unknown>) {\n    val y = x.v\n}\nfun main() {}\n");
+    assert_eq!(m.len(), 1, "{m:?}");
+    has(&m, "unknown named type `Unknown`");
+}
+
+#[test]
+fn constructor_with_unfixed_parameter_cannot_infer() {
+    let (_, m) = run("class Holder<T> {\n    v: T?\n}\nfun main() {\n    val h = Holder(None)\n}\n");
+    has(&m, "cannot infer type parameter `T` of `Holder`");
+}
+
+#[test]
+fn recursion_through_ref_is_allowed() {
+    clean("class Node<T> {\n    v: T\n    next: Ref<Node<T>>\n}\nfun main() {}\n");
+}
+
+#[test]
+fn by_value_recursion_reports_the_cycle_path() {
+    let (_, m) = run("class Bad<T> {\n    b: Bad<T>\n}\nfun main() {}\n");
+    has(&m, "class `Bad<T>` has a recursive by-value layout (Bad<T> -> Bad<T>)");
+    let (_, m) = run("class A<T> {\n    b: B<T>\n}\nclass B<T> {\n    a: A<T>\n}\nfun main() {}\n");
+    has(&m, "A<T> -> B<T> -> A<T>");
+}
+
+#[test]
+fn recursion_through_a_generic_instantiation_is_found() {
+    let (_, m) = run("class Box<T> {\n    v: T\n}\nclass A {\n    b: Box<A>\n}\nfun main() {}\n");
+    has(&m, "class `A` has a recursive by-value layout (A -> Box<A> -> A)");
+}
+
+#[test]
+fn expanding_generic_recursion_terminates() {
+    let (_, m) = run("class N<T> {\n    x: N<N<T>>\n}\nfun main() {}\n");
+    has(&m, "recursive by-value layout");
 }

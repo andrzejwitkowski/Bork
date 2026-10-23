@@ -9,7 +9,7 @@
 //! - `Error` marks a type that already has a diagnostic; `Error?` is `Error` (an error absorbs, no
 //!   cascade), so an unknown type stays unknown when made nullable. `Param` and `Infer` are for generics (Phase 3).
 //! - `String` is its own variant, not a class: it has no `DefId`.
-//! - `Named(name)` becomes `Class(DefId)`; a name that is not a class cannot be interned.
+//! - `Named(name)` becomes `Class(DefId, args)`; a name that is not a class cannot be interned.
 
 mod fold;
 mod print;
@@ -34,7 +34,8 @@ pub struct TyId(u32);
 pub enum TyData {
     Prim(Prim),
     String,
-    Class(DefId),
+    /// A class with its type arguments (empty for a non-generic class).
+    Class(DefId, Vec<TyId>),
     Array { elem: TyId, len: u32 },
     Func { params: Vec<TyId>, ret: TyId },
     Ref(TyId),
@@ -43,7 +44,7 @@ pub enum TyData {
     Range(TyId),
     /// `T?`; the inner type is never `Nullable` or `Error`.
     Nullable(TyId),
-    /// A generic parameter, opaque inside its own item; reaches HIR only in generic functions.
+    /// A generic parameter, opaque inside its own item; reaches HIR only in generic items.
     Param(ParamIdx),
     /// An inference variable, local to one body; never reaches HIR.
     Infer(InferVar),
@@ -113,6 +114,11 @@ impl TyCtx {
         }
     }
 
+    /// `Param(0)..Param(arity)`: the arguments that make a generic item refer to itself.
+    pub fn identity_args(&mut self, arity: usize) -> Vec<TyId> {
+        (0..arity as u32).map(|i| self.param(ParamIdx(i))).collect()
+    }
+
     pub fn param(&mut self, param: ParamIdx) -> TyId {
         self.add(TyData::Param(param))
     }
@@ -157,7 +163,7 @@ mod tests {
 
     pub(super) fn named(c: &mut TyCtx, name: &str) -> TyId {
         let def = c.class_names.iter().find(|(_, n)| n.as_str() == name).map(|(d, _)| *d).unwrap();
-        c.class(def)
+        c.class(def, Vec::new())
     }
 
     const PRIMS: [Prim; 12] = [

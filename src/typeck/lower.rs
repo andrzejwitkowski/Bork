@@ -33,7 +33,7 @@ pub(crate) fn lower_type(
         Type::ManagedRef { inner } => {
             let inner_ty = lower_type(inner, defs, scope, tcx, diagnostics, span);
             // A parameter may turn out to be a class; checked at instantiation.
-            let is_class = matches!(tcx.data(inner_ty), TyData::Class(_) | TyData::Param(_));
+            let is_class = matches!(tcx.data(inner_ty), TyData::Class(..) | TyData::Param(_));
             if !tcx.is_unknown(inner_ty) && !is_class {
                 push_err(
                     diagnostics,
@@ -103,10 +103,7 @@ fn lower_named(
     if let Some(&(_, idx)) = scope.iter().find(|(param, _)| param == name) {
         return lower_param(name, idx, args, nullable, tcx, diagnostics, span);
     }
-    // Lowered for their own errors (unknown names); instantiation itself is #44.
-    for arg in args {
-        lower_type(arg, defs, scope, tcx, diagnostics, span);
-    }
+    let lowered: Vec<TyId> = args.iter().map(|arg| lower_type(arg, defs, scope, tcx, diagnostics, span)).collect();
     if name == "String" {
         if !args.is_empty() {
             push_err(diagnostics, "`String` takes no type arguments", span);
@@ -114,7 +111,7 @@ fn lower_named(
         }
         return tcx.string(nullable);
     }
-    lower_class(name, args.len(), nullable, defs, tcx, diagnostics, span)
+    lower_class(name, lowered, nullable, defs, tcx, diagnostics, span)
 }
 
 fn lower_param(
@@ -134,10 +131,10 @@ fn lower_param(
     tcx.with_nullable(param, nullable)
 }
 
-/// A class name with `given` type arguments; only non-generic classes can be used until #44.
+/// A class name applied to the lowered type arguments `args`.
 fn lower_class(
     name: &str,
-    given: usize,
+    args: Vec<TyId>,
     nullable: bool,
     defs: &DefTable,
     tcx: &mut TyCtx,
@@ -149,6 +146,7 @@ fn lower_class(
         return tcx.error();
     };
     let arity = defs.get(class).arity;
+    let given = args.len();
     if given != arity {
         let message = match arity {
             0 => format!("`{name}` takes no type arguments"),
@@ -158,11 +156,11 @@ fn lower_class(
         push_err(diagnostics, message, span);
         return tcx.error();
     }
-    if arity > 0 {
-        push_err(diagnostics, "instantiating generic types is not supported yet (#44)", span);
+    // An argument that already has a diagnostic must not leave a `Class(_, [Error])` behind.
+    if args.iter().any(|&arg| tcx.is_error(arg)) {
         return tcx.error();
     }
-    let class = tcx.class(class);
+    let class = tcx.class(class, args);
     tcx.with_nullable(class, nullable)
 }
 

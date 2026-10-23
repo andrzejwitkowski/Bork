@@ -96,20 +96,21 @@ pub(super) fn check_field(
         );
     };
 
-    let result_ty = if env.tcx.is_ref(receiver.ty) && env.tcx.record_def(field.ty).is_some() {
-        env.tcx.ref_to(field.ty)
-    } else if through_managed_ref && safe && !env.tcx.is_managed_ref(field.ty) {
-        if env.tcx.supports_nullable(field.ty) {
-            env.tcx.with_nullable(field.ty, true)
+    let field_ty = env.member_ty(receiver.ty, field.ty);
+    let result_ty = if env.tcx.is_ref(receiver.ty) && env.tcx.record_def(field_ty).is_some() {
+        env.tcx.ref_to(field_ty)
+    } else if through_managed_ref && safe && !env.tcx.is_managed_ref(field_ty) {
+        if env.tcx.supports_nullable(field_ty) {
+            env.tcx.with_nullable(field_ty, true)
         } else {
             env.error(
-                format!("safe field result `{}` cannot be represented as optional", env.show(field.ty)),
+                format!("safe field result `{}` cannot be represented as optional", env.show(field_ty)),
                 Some(span),
             );
             env.tcx.error()
         }
     } else {
-        field.ty
+        field_ty
     };
     let class_name = env.tcx.class_name(class).to_string();
     env.expr_at(

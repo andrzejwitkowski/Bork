@@ -61,7 +61,7 @@ fn var_var_links_share_a_later_binding() {
 fn structural_cases_unify_inner_types() {
     let mut f = Fx::new();
     let (i32_ty, bool_ty) = (f.t.i32(), f.t.bool());
-    let point = f.t.class(f.defs.lookup_class("Point").unwrap());
+    let point = f.t.class(f.defs.lookup_class("Point").unwrap(), Vec::new());
     type Make = fn(&mut TyCtx, TyId) -> TyId;
     let makers: [(&str, Make); 6] = [
         ("[{}; 3]", |t, x| t.array(x, 3)),
