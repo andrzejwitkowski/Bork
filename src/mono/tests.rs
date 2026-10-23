@@ -122,3 +122,14 @@ fn class_arguments_inside_a_plain_class_are_emitted() {
     let classes: Vec<&str> = m.hir.classes.iter().map(|c| c.name.as_str()).collect();
     assert!(classes.contains(&"Pair<i32,i32>") && classes.contains(&"Holder"), "{classes:?}");
 }
+
+#[test]
+fn doubling_polymorphic_recursion_is_rejected_with_a_bounded_message() {
+    let src = "class Two<A, B> {\n    a: A\n    b: B\n}\nfun f<T>(x: T) {\n    f(Two(x, x))\n}\nfun main() {\n    f(1)\n}\n";
+    let started = std::time::Instant::now();
+    let (result, _) = run(src);
+    let diagnostics = result.expect_err("doubling recursion must be rejected");
+    assert!(diagnostics.iter().any(|d| d.message.contains("polymorphic recursion")), "{diagnostics:?}");
+    assert!(diagnostics.iter().all(|d| d.message.len() < 500), "message is not bounded");
+    assert!(started.elapsed().as_secs() < 5, "took {:?}", started.elapsed());
+}

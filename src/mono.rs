@@ -20,6 +20,11 @@ use crate::ty::{subst, TyCtx, TyData, TyId};
 /// `f<T>` calling `f<Vec<T>>` grows without bound, so it hits this instead of looping.
 const MAX_TYPE_DEPTH: usize = 32;
 
+/// Largest type argument, counted as printed (a shared child counts each time it is used). Depth
+/// alone is not enough: `f<T>` calling `f<Pair<T, T>>` doubles the printed size per level, so a type
+/// of depth 32 would print as billions of names.
+const MAX_TYPE_SIZE: usize = 4096;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instance {
     /// Mangled name, e.g. `id<i32>`; a non-generic function keeps its own name.
@@ -61,9 +66,20 @@ fn depth(tcx: &TyCtx, ty: TyId, memo: &mut HashMap<TyId, usize>) -> usize {
     deepest + 1
 }
 
-fn too_deep(tcx: &TyCtx, args: &[TyId]) -> Option<TyId> {
-    let mut memo = HashMap::new();
-    args.iter().copied().find(|&arg| depth(tcx, arg, &mut memo) > MAX_TYPE_DEPTH)
+/// Printed size of `ty`, saturating; memoised like [`depth`].
+fn size(tcx: &TyCtx, ty: TyId, memo: &mut HashMap<TyId, usize>) -> usize {
+    if let Some(&known) = memo.get(&ty) {
+        return known;
+    }
+    let total = tcx.data(ty).children().into_iter().fold(1usize, |acc, child| acc.saturating_add(size(tcx, child, memo)));
+    memo.insert(ty, total);
+    total
+}
+
+/// Whether an argument is too deep or too big to instantiate with (and to mangle).
+fn too_big(tcx: &TyCtx, args: &[TyId]) -> bool {
+    let (mut depths, mut sizes) = (HashMap::new(), HashMap::new());
+    args.iter().any(|&arg| depth(tcx, arg, &mut depths) > MAX_TYPE_DEPTH || size(tcx, arg, &mut sizes) > MAX_TYPE_SIZE)
 }
 
 /// One-way match of the generic `pattern` against the concrete `actual`, binding `Param(i)` to
@@ -122,12 +138,8 @@ impl<'a> Collector<'a> {
     /// The instance of function `origin` with `args`, queued the first time it is seen.
     fn intern(&mut self, tcx: &TyCtx, origin: usize, args: Vec<TyId>, span: Option<Span>) -> Option<String> {
         let function = &self.hir.functions[origin];
-        if let Some(ty) = too_deep(tcx, &args) {
-            let message = format!(
-                "polymorphic recursion: `{}` is instantiated with ever-growing types (`{}`)",
-                function.name,
-                tcx.display(ty)
-            );
+        if too_big(tcx, &args) {
+            let message = format!("polymorphic recursion: `{}` is instantiated with ever-growing types", function.name);
             self.diagnostics.push(error(message, span));
             return None;
         }
@@ -193,7 +205,7 @@ impl<'a> Collector<'a> {
 }
 
 fn rename_class(tcx: &TyCtx, ty: TyId, class_name: &mut String) {
-    if let Some((def, args)) = tcx.class_args(ty) {
+    if let Some((def, args)) = tcx.class_args(ty).filter(|(_, args)| !too_big(tcx, args)) {
         *class_name = mangle(tcx.class_name(def), tcx, args);
     }
 }
@@ -265,8 +277,8 @@ pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> 
     }
     while let Some(ty) = pending.pop() {
         let TyData::Class(def, args) = tcx.data(ty).clone() else { continue };
-        if let Some(arg) = too_deep(tcx, &args) {
-            let message = format!("class `{}` is instantiated with ever-growing types (`{}`)", tcx.class_name(def), tcx.display(arg));
+        if too_big(tcx, &args) {
+            let message = format!("class `{}` is instantiated with ever-growing types", tcx.class_name(def));
             collector.diagnostics.push(error(message, None));
             continue;
         }
