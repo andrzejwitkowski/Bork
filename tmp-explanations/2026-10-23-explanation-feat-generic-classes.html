@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: klasy generyczne i walidacja rekurencyjnego layoutu (#45)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Klasy generyczne w type checkerze Bork</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/generic-classes</code> (PR #136, ticket #45): 31 plików, +371/−152 linii względem <code>main</code>.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<!-- ============================ TŁO ============================ -->
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: klasa generyczna i rozmiar obiektu (można pominąć)</summary>
+<p><b>Klasa generyczna</b> to klasa z parametrem typu, który wypełnia się przy użyciu:</p>
+<pre>class Pair&lt;A, B&gt; {
+    a: A
+    b: B
+}</pre>
+<p><code>Pair&lt;i32, String&gt;</code> to para liczby i napisu, a <code>Pair&lt;bool, bool&gt;</code> to para wartości logicznych. Są to <em>różne typy</em> zbudowane z jednej definicji.</p>
+<p>W językach, które trzymają obiekty „w środku" innych obiektów (<em>by-value</em>), pojawia się problem rozmiaru. Klasa <code>class Bad { b: Bad }</code> zawierałaby samą siebie, która zawierałaby samą siebie, i tak w nieskończoność, więc nie ma skończonego rozmiaru. Rozwiązaniem jest pośrednictwo: pole typu <code>Ref&lt;Bad&gt;</code> trzyma tylko <em>uchwyt</em> o stałym rozmiarze, więc rekurencja przez <code>Ref</code> jest dozwolona. Tak powstają listy i drzewa.</p>
+</details>
+
+<h3>Stan przed zmianą</h3>
+<p>Poprzednie PR-y zbudowały większość fundamentów generyków. Parser rozumie <code>class Box&lt;T&gt;</code> (#42). Deklaracje są walidowane (#43). Funkcje generyczne są sprawdzane z nieprzezroczystym <code>T</code> i wywoływane przez wnioskowanie typów (#44, zmergowane jako <code>6f185f6</code>). Klasy były jednak dalej „declaration-only": definicja <code>class Pair&lt;A,B&gt;</code> przechodziła, ale każde jej użycie dawało błąd.</p>
+<p>Powód był prosty. Typ klasy w <code>TyData</code> to było <code>Class(DefId)</code>, czyli tylko tożsamość definicji. Nie było gdzie zapisać, że chodzi o <code>Pair&lt;i32, String&gt;</code>, a nie o <code>Pair&lt;bool, bool&gt;</code>. Walidator layoutu (<code>validate_owned_layouts</code>) umiał wykryć cykl tylko między <em>niegenerycznymi</em> klasami, bo śledził same <code>DefId</code>.</p>
+
+<!-- ============================ INTUICJA ============================ -->
+<h2 id="intuicja">2. Intuicja</h2>
+<p>Cała zmiana wynika z jednego ruchu: typ klasy dostaje argumenty. Reszta to konsekwencje, które trzeba pokazać w czterech miejscach.</p>
+
+<h3>Ruch pierwszy: <code>Class(DefId)</code> staje się <code>Class(DefId, Vec&lt;TyId&gt;)</code></h3>
+<table class="st">
+  <tr><th>Zapis w kodzie</th><th>Przed</th><th>Po</th></tr>
+  <tr><td><code>Point</code> (zwykła klasa)</td><td><code>Class(Point)</code></td><td><code>Class(Point, [])</code></td></tr>
+  <tr><td><code>Pair&lt;i32, String&gt;</code></td><td>(nie do wyrażenia)</td><td><code>Class(Pair, [i32, String])</code></td></tr>
+  <tr><td><code>Pair&lt;bool, bool&gt;</code></td><td>(nie do wyrażenia)</td><td><code>Class(Pair, [bool, bool])</code> <span class="tag ok">inny typ</span></td></tr>
+</table>
+<p>Typy są <em>internowane</em>: każdy kształt dostaje jeden identyfikator <code>TyId</code>, więc porównanie typów to porównanie liczb. Dodanie argumentów do kształtu automatycznie rozróżnia <code>Pair&lt;i32,String&gt;</code> od <code>Pair&lt;bool,bool&gt;</code>, bez żadnego dodatkowego kodu porównującego.</p>
+
+<h3>Ruch drugi: pola i metody są napisane na <code>Param</code>, a podstawiane przy użyciu</h3>
+<p>Definicja klasy mówi, że pole <code>a</code> ma typ <code>A</code>, czyli <code>Param(0)</code>. Dopiero gdy mamy konkretnego odbiorcę typu <code>Pair&lt;i32, String&gt;</code>, podstawiamy za <code>Param(0)</code> typ <code>i32</code> i dostajemy typ pola <code>i32</code>.</p>
+
+<div class="flow">
+  <div class="box"><h4>Definicja</h4><code>class Pair&lt;A, B&gt;</code><code>a: Param(0)</code><code>b: Param(1)</code></div>
+  <div class="arrow">+</div>
+  <div class="box"><h4>Odbiorca</h4><code>p: Pair&lt;i32, String&gt;</code><code>args = [i32, String]</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>Wynik</h4><code>p.a : i32</code><code>p.b : String</code></div>
+</div>
+
+<p>Ten sam mechanizm (<code>subst</code>, który istniał od #34) działa dla pól, przypisań do pól i sygnatur metod. Nowy jest tylko jeden wspólny helper, <code>Env::member_ty</code>.</p>
+
+<h3>Ruch trzeci: konstruktor wnioskuje argumenty</h3>
+<p>Wywołanie <code>Pair(1, "a")</code> nie podaje <code>A</code> ani <code>B</code>. Checker postępuje tak samo jak przy funkcjach generycznych w #44: tworzy świeże zmienne inferencji, wstawia je za parametry i pozwala argumentom je ustalić.</p>
+
+<div class="flow">
+  <div class="box"><h4>1. Świeże zmienne</h4><code>Pair&lt;?0, ?1&gt;</code><code>pola: a: ?0, b: ?1</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>2. Argumenty</h4><code>1 ~ ?0</code> (Int)<code>"a" ~ ?1</code> (String)</div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>3. Domyślne literały</h4><code>?0 := i32</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>Wynik</h4><code>Pair&lt;i32, String&gt;</code></div>
+</div>
+
+<p>Typ oczekiwany też pomaga. W <code>val q: Pair&lt;i64, String&gt; = Pair(1, "b")</code> checker najpierw unifikuje <code>Pair&lt;?0,?1&gt;</code> z <code>Pair&lt;i64,String&gt;</code>, więc literał <code>1</code> od razu jest <code>i64</code>. To wymagało nowej reguły w unifikacji: dwa typy klas unifikują się, gdy mają ten sam <code>DefId</code> i ich argumenty unifikują się parami.</p>
+
+<h3>Ruch czwarty: walidator layoutu patrzy na instancje, nie na definicje</h3>
+<p>Samo śledzenie <code>DefId</code> nie wystarcza. Weźmy:</p>
+<pre>class Box&lt;T&gt; { v: T }
+class A { b: Box&lt;A&gt; }</pre>
+<p>Żadna z tych klas osobno nie zawiera siebie. Razem tak: <code>A</code> zawiera <code>Box&lt;A&gt;</code>, a ten zawiera pole <code>v</code> typu <code>T = A</code>. Cykl jest widoczny dopiero po podstawieniu. Dlatego walidator przechodzi po <em>instancjach</em>:</p>
+
+<div class="flow">
+  <div class="box"><h4>A</h4><code>b: Box&lt;A&gt;</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>Box&lt;A&gt;</h4><code>v: T</code><code>T := A, więc v: A</code></div>
+  <div class="arrow">→</div>
+  <div class="box err"><h4>wracamy do A</h4><code>A -&gt; Box&lt;A&gt; -&gt; A</code></div>
+</div>
+
+<div class="callout"><b class="t">Dlaczego <code>Ref</code> jest wyjątkiem</b>
+Walidator nie wchodzi w typ <code>ManagedRef</code>. Pole <code>next: Ref&lt;Node&lt;T&gt;&gt;</code> nigdy nie jest ścieżką „przez wartość", więc <code>class Node&lt;T&gt; { v: T; next: Ref&lt;Node&lt;T&gt;&gt; }</code> jest poprawna. Ta zasada nie wymagała zmiany, bo opiera się na tym, że <code>held</code> zwraca tylko <code>Class</code> i tablice klas.</div>
+
+<div class="callout warn"><b class="t">Pułapka: typy, które się rozrastają</b>
+<code>class N&lt;T&gt; { x: N&lt;N&lt;T&gt;&gt; }</code> nie powtarza żadnego typu: <code>N&lt;T&gt;</code>, potem <code>N&lt;N&lt;T&gt;&gt;</code>, potem <code>N&lt;N&lt;N&lt;T&gt;&gt;&gt;</code>… Zbiór „już odwiedzone" nigdy się nie zatrzyma, więc walidator ma limit głębokości 32 i po jego przekroczeniu uznaje klasę za cykliczną.</div>
+
+<h3>Czego ten PR nie robi</h3>
+<ul>
+  <li><b>Nie generuje kodu.</b> <code>codegen_gate</code> odrzuca klasy generyczne tak samo jak funkcje: „not compiled yet (monomorphization)".</li>
+  <li><b>Nie ma jawnych argumentów przy konstruktorze.</b> <code>Pair::&lt;i32,String&gt;(..)</code> daje czytelny błąd, a typ ustala się adnotacją przy wiązaniu.</li>
+  <li><b>Nie ma ograniczeń (bounds).</b> Operatory i porównania na <code>T</code> nadal są zabronione, jak w #44.</li>
+</ul>
+
+<!-- ============================ KOD ============================ -->
+<h2 id="kod">3. Kod krok po kroku</h2>
+
+<h3>3.1 Typ z argumentami (<code>src/ty/*</code>)</h3>
+<ul>
+  <li><code>ty/mod.rs</code>: wariant <code>Class(DefId, Vec&lt;TyId&gt;)</code>.</li>
+  <li><code>ty/query.rs</code>: <code>TyCtx::class(def, args)</code> oraz nowe <code>class_args(ty)</code>, które zwraca klasę i jej argumenty przez <code>Ref</code>, <code>ManagedRef</code> i <code>?</code>. Zapytania zwracające samo <code>DefId</code> (<code>record_def</code>, <code>class_def</code>) zostały bez zmian.</li>
+  <li><code>ty/fold.rs</code>: argumenty trafiają do <code>children()</code> i dostają własną gałąź w <code>super_fold</code> (wcześniej <code>Class</code> był liściem). Przez to <code>subst</code>, rozwiązywanie zmiennych i <code>has_infer</code> widzą argumenty bez dodatkowego kodu.</li>
+  <li><code>ty/print.rs</code>: drukuje <code>Pair&lt;i32, String&gt;</code>, tak jak <code>Vec&lt;..&gt;</code>.</li>
+  <li><code>infer/unify.rs</code>: nowa reguła dla dwóch klas.</li>
+</ul>
+<pre><span class="add">+ (TyData::Class(da, xa), TyData::Class(db, xb)) =&gt; {
++     if da != db || xa.len() != xb.len() {
++         return Err(mismatch);
++     }
++     for (x, y) in xa.into_iter().zip(xb) {
++         self.unify_inner(tcx, x, y)?;
++     }
++     Ok(())
++ }</span></pre>
+
+<div class="callout warn"><b class="t">Dlaczego <code>fold.rs</code> jest krytyczny</b>
+Gdyby <code>Class</code> został liściem w <code>super_fold</code>, zmienne inferencji ukryte w <code>Pair&lt;?0, ?1&gt;</code> nigdy by się nie rozwiązały i trafiłyby do HIR, a to jest naruszenie niezmiennika „żadna zmienna inferencji nie dociera do HIR" z #41.</div>
+
+<h3>3.2 Lowering i deklaracje (<code>lower.rs</code>, <code>generics.rs</code>, <code>mod.rs</code>)</h3>
+<ul>
+  <li><code>lower.rs</code>: <code>lower_named</code> teraz zamienia argumenty typu na <code>TyId</code> i przekazuje je do <code>lower_class</code>. Błąd „instantiating generic types is not supported yet (#44)" zniknął. Sprawdzanie arności zostało.</li>
+  <li><code>generics.rs</code>: usunięto diagnostykę „generic class is declaration-only" oraz całą funkcję <code>declaration_only</code> (ok. 40 linii), bo nikt jej już nie woła.</li>
+  <li><code>mod.rs / collect_method_sigs</code>: parametr <code>this</code> metody ma teraz typ <code>&amp;Pair&lt;Param(0), Param(1)&gt;</code>, czyli klasę z <em>identycznościowymi</em> argumentami.</li>
+  <li><code>mod.rs / check_function</code>: wczesny powrót dla metod generycznych zniknął. Zakres parametrów w ciele metody to teraz <code>klasa ++ metoda</code>, w tej kolejności, zgodnie z numeracją w sygnaturze. Wcześniej brano tylko własne parametry funkcji.</li>
+</ul>
+
+<h3>3.3 Konstruktor (<code>expr/object.rs</code>, <code>expr/call.rs</code>)</h3>
+<pre><span class="add">+ let type_args = fresh_params(&amp;class.generics, &amp;class.name, span, env);
++ let ty = env.tcx.class(class.id, type_args.clone());
++ if let Some(expected) = expected { env.same(ty, expected); }   <span class="cm">// tylko podpowiedź</span>
+  ...
++ let field_ty = subst(env.tcx, field.ty, &amp;type_args)...;
+  let value = check(arg, <span class="del">field.ty</span> <span class="add">field_ty</span>, return_ty, env);</pre>
+<p><code>fresh_params</code> to wyciągnięta z <code>instantiate</code> (z #44) pętla tworząca zmienną <code>General</code> i wpis <code>PendingParam</code>. Dzięki temu konstruktor, funkcja i metoda używają jednego kodu, a niewywnioskowany parametr zgłasza ten sam błąd „cannot infer type parameter".</p>
+<p>Podpowiedź w tym błędzie zależy od callee. Dla funkcji brzmi „specify it explicitly, e.g. <code>f::&lt;..&gt;(..)</code>", a dla konstruktora i metody „annotate the binding with its type to fix it", bo tam turbofisha nie ma. <code>check_call</code> dodatkowo zgłasza osobny komunikat, gdy ktoś poda jawne argumenty konstruktora generycznej klasy.</p>
+
+<h3>3.4 Pola i metody (<code>field.rs</code>, <code>assign.rs</code>, <code>method.rs</code>, <code>env.rs</code>)</h3>
+<ul>
+  <li><code>Env::member_ty(receiver, member)</code> pobiera argumenty klasy odbiorcy i robi <code>subst</code>. Używają go odczyt pola, przypisanie do pola i (pośrednio) metody.</li>
+  <li><code>method.rs</code>: zamiast błędu „calling the generic method … is not supported yet" budowana jest lista <code>argumenty_klasy ++ świeże_zmienne_metody</code>. Argumenty klasy pochodzą z odbiorcy, a świeże zmienne tylko dla własnych parametrów metody (<code>sig.generic_names[class_arity..]</code>). Dzięki temu <code>p.with(true)</code> daje <code>bool</code>.</li>
+</ul>
+
+<h3>3.5 Walidacja layoutu (<code>mod.rs</code>)</h3>
+<pre><span class="cm">// dla każdej klasy: origin = Class(def, [Param(0..n)])  — definicja z parametrami jako liśćmi</span>
+fn find_cycle(origin, current, classes, tcx, done, path) -&gt; bool {
+    if path.len() &gt; MAX_DEPTH { return true; }
+    if !done.insert(current) { return false; }          <span class="cm">// klucz: TyId instancji, nie DefId</span>
+    let Class(def, args) = tcx.data(current).clone() else { return false };
+    for field in &amp;classes[&amp;def].fields {
+        let field_ty = subst(tcx, field.ty, &amp;args)?;     <span class="cm">// podstaw argumenty instancji</span>
+        let Some(target) = held(field_ty, tcx) else { continue };
+        path.push(target);
+        if target == origin || find_cycle(origin, target, ...) { return true; }
+        path.pop();
+    }
+    false
+}</pre>
+<p>Trzy różnice względem starej wersji: zbiór <code>done</code> jest kluczowany przez <code>TyId</code> (instancję), pola są podstawiane przed zejściem głębiej, a ścieżka jest zapamiętywana. Komunikat ma postać <code>class `Bad&lt;T&gt;` has a recursive by-value layout (Bad&lt;T&gt; -&gt; Bad&lt;T&gt;); use `Ref&lt;..&gt;` for the recursive field</code>. Na czas formatowania komunikatu nazwy parametrów są ustawiane przez <code>set_param_names</code>, żeby widać było <code>T</code>, a nie <code>T0</code>.</p>
+<p>Klasy są sprawdzane w kolejności alfabetycznej po nazwie, żeby wynik (i pliki złote) był deterministyczny. Cykl wzajemny <code>A ↔ B</code> jest nadal zgłaszany dla obu klas, każda ze swoją ścieżką.</p>
+
+<h3>3.6 Brama kodegenu (<code>codegen_gate.rs</code>)</h3>
+<p>Pętla po <code>hir.classes</code> z niepustymi <code>generics</code> zgłasza „generic class `X` is not compiled yet (monomorphization)". Bez niej klasa generyczna dotarłaby do LLVM, który nie zna <code>Param</code>.</p>
+
+<h3>3.7 Testy i dokumentacja</h3>
+<ul>
+  <li><code>src/typeck/tests/generics.rs</code>: trzy testy „declaration-only" przepisano, dodano m.in. wnioskowanie konstruktora, typ oczekiwany, podstawianie pól i metod, niedopasowane argumenty, <code>Ref&lt;Node&lt;T&gt;&gt;</code>, ścieżkę cyklu (też wzajemnego i przez instancję), rozrastającą się rekurencję i bramę kodegenu.</li>
+  <li><code>programs/check/generics/</code>: <code>generic_class.bork</code>, <code>node_ref.bork</code>. <code>programs/check_fail/generics/</code>: <code>generic_cycle</code>, <code>generic_mutual_cycle</code>, <code>instantiation_cycle</code>, <code>constructor_cannot_infer</code>.</li>
+  <li>Pliki złote (<code>tests/golden/*</code>) przegenerowano. Zmieniły się też stare fixtury, bo komunikat o cyklu ma teraz ścieżkę, a „declaration-only" zniknęło.</li>
+  <li><code>docs/language.md</code> i RFC 0001 opisują nowe zachowanie.</li>
+</ul>
+
+<!-- ============================ QUIZ ============================ -->
+<h2 id="quiz">4. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="2">
+  <p>1. Dlaczego do <code>TyData::Class</code> dodano listę argumentów, zamiast trzymać argumenty obok, np. w osobnej tabeli?</p>
+  <button>Bo tabela nie mogłaby przechowywać typów generycznych.</button>
+  <button>Bo bez tego nie dałoby się wydrukować nazwy klasy.</button>
+  <button>Bo typy są internowane: dopiero gdy argumenty są częścią kształtu, <code>Pair&lt;i32,String&gt;</code> i <code>Pair&lt;bool,bool&gt;</code> dostają różne <code>TyId</code>, a porównanie typów zostaje porównaniem liczb.</button>
+  <button>Bo parser wymaga, żeby każdy wariant <code>TyData</code> miał listę.</button>
+  <div class="fb">Gdyby argumenty były poza typem, dwa różne typy miałyby ten sam <code>TyId</code> i trzeba by wszędzie porównywać dodatkową strukturę. Drukowanie nie było problemem (nazwy klas są w osobnej mapie), a parser nie ma tu nic do rzeczy.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>2. W <code>super_fold</code> zabrakło przypadkiem gałęzi dla <code>Class(def, args)</code>, więc klasa została „liściem". Co by się stało dla <code>val p = Pair(1, "a")</code>?</p>
+  <button>Kompilator odrzuciłby program komunikatem o niedopasowanych typach.</button>
+  <button>Zmienne inferencji w <code>Pair&lt;?0, ?1&gt;</code> nie zostałyby rozwiązane i wyciekłyby do HIR, łamiąc niezmiennik „żadna zmienna nie dociera do HIR".</button>
+  <button>Nic, bo argumenty i tak są ustalane przez konstruktor.</button>
+  <button>Parser zgłosiłby błąd składni.</button>
+  <div class="fb"><code>super_fold</code> jest podstawą m.in. <code>subst</code> i rozwiązywania zmiennych. Bez zejścia do argumentów zmienne zostają niezastąpione. Dlatego plan wymieniał ten plik jako krytyczny.</div>
+</div>
+
+<div class="q" data-correct="0">
+  <p>3. Dlaczego <code>class A { b: Box&lt;A&gt; }</code> z <code>class Box&lt;T&gt; { v: T }</code> jest odrzucane, skoro żadna z klas osobno nie zawiera siebie?</p>
+  <button>Bo walidator podstawia argumenty instancji do typów pól: <code>Box&lt;A&gt;</code> ma pole <code>v: A</code>, więc wracamy do <code>A</code> (<code>A -&gt; Box&lt;A&gt; -&gt; A</code>).</button>
+  <button>Bo <code>Box</code> nie może być użyte jako typ pola.</button>
+  <button>Bo każde użycie klasy generycznej jako pola jest zabronione.</button>
+  <button>Bo walidator porównuje tylko nazwy klas.</button>
+  <div class="fb">Stary walidator śledził same <code>DefId</code>-y i takiego cyklu by nie zauważył. Nowy chodzi po instancjach i robi <code>subst</code> na polach przed zejściem głębiej.</div>
+</div>
+
+<div class="q" data-correct="3">
+  <p>4. Po co walidator ma limit głębokości (32), skoro zbiór odwiedzonych typów <code>done</code> już chroni przed pętlą?</p>
+  <button>Żeby przyspieszyć kompilację dużych programów.</button>
+  <button>Żeby ograniczyć długość komunikatu błędu.</button>
+  <button>Bo <code>Ref</code> też trzeba przechodzić.</button>
+  <button>Bo w <code>class N&lt;T&gt; { x: N&lt;N&lt;T&gt;&gt; }</code> każde zejście daje <em>nowy</em> typ (<code>N&lt;N&lt;T&gt;&gt;</code>, <code>N&lt;N&lt;N&lt;T&gt;&gt;&gt;</code>, …), więc <code>done</code> nigdy się nie powtórzy i rekurencja byłaby nieskończona.</button>
+  <div class="fb"><code>done</code> łapie cykle, które wracają do tego samego typu. Rozrastające się instancje nigdy do niego nie wracają, więc potrzebny jest limit. Po jego przekroczeniu klasa jest uznana za cykliczną. <code>Ref</code> jest pomijany celowo.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>5. Metoda <code>fun with&lt;C&gt;(c: C): C</code> w <code>class Pair&lt;A, B&gt;</code> jest wołana jako <code>p.with(true)</code>, gdzie <code>p: Pair&lt;i32, String&gt;</code>. Skąd checker bierze wartości parametrów <code>A</code>, <code>B</code> i <code>C</code>?</p>
+  <button>Wszystkie trzy są świeżymi zmiennymi inferencji.</button>
+  <button><code>A</code> i <code>B</code> z argumentów klasy odbiorcy (<code>i32</code>, <code>String</code>), a <code>C</code> jest świeżą zmienną, którą ustala argument <code>true</code>.</button>
+  <button>Wszystkie trzy muszą być podane jawnie przez turbofish.</button>
+  <button><code>A</code> i <code>B</code> z argumentów, a <code>C</code> zawsze <code>i32</code> jako domyślny.</button>
+  <div class="fb">Sygnatura metody ma parametry „klasa najpierw, potem metoda". Odbiorca wypełnia prefiks (<code>class_args</code>), a dla reszty (<code>sig.generic_names[class_arity..]</code>) powstają świeże zmienne. Zmienna <code>General</code> nie ma typu domyślnego, a argument <code>true</code> ustala <code>C = bool</code>.</div>
+</div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
