@@ -1009,3 +1009,22 @@ fn string_from_utf8_bad_ranges_abort() {
         assert_eq!(run.status.signal(), Some(libc_sigabrt()), "{label}: bad range must abort, got {:?}", run.status);
     }
 }
+
+#[test]
+fn builds_generic_function_class_and_method_instances() {
+    let run = build_and_run(
+        "builds_generic_function_class_and_method_instances",
+        "class Pair<A, B> {\n    a: A\n    b: B\n    fun first(): A {\n        return a\n    }\n}\n\
+         fun id<T>(x: T): T {\n    return x\n}\n\
+         fun main() {\n    val p = Pair(id(1), id(\"s\"))\n    val q = Pair(\"t\", 2)\n    \
+         println(p.first())\n    println(p.b)\n    println(q.first())\n    println(q.b)\n}\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "1\ns\nt\n2\n");
+}
+
+#[test]
+fn a_generic_program_without_main_is_rejected() {
+    let (output, _) = bork_build(&scratch_dir("generic_without_main"), "fun id<T>(x: T): T {\n    return x\n}\n");
+    assert_eq!(output.status.code(), Some(1));
+}

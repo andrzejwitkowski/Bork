@@ -175,17 +175,14 @@ fn nullable_of_nullable_instantiation_is_an_error() {
 }
 
 #[test]
-fn generic_functions_do_not_pass_the_codegen_gate() {
-    let typeck = clean("fun id<T>(x: T): T { return x }\nfun main() {}\n");
-    let gate = crate::codegen_gate::gate(&typeck.hir, &typeck.tcx);
-    assert!(gate.iter().any(|d| d.message.contains("generic function `id` is not compiled yet")), "{gate:?}");
-}
-
-#[test]
-fn generic_classes_do_not_pass_the_codegen_gate() {
-    let typeck = clean("class Box<T> {\n    v: T\n}\nfun main() {}\n");
-    let gate = crate::codegen_gate::gate(&typeck.hir, &typeck.tcx);
-    assert!(gate.iter().any(|d| d.message.contains("generic class `Box` is not compiled yet")), "{gate:?}");
+fn the_codegen_gate_accepts_a_program_once_it_is_monomorphized() {
+    let src = "fun id<T>(x: T): T { return x }\nclass Box<T> {\n    v: T\n}\nfun main() {\n    val a = id(1)\n    val b = Box(2)\n}\n";
+    let mut checked = frontend::check(src);
+    assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+    let (hir, report) = (checked.hir.take().unwrap(), checked.report.take().unwrap());
+    let mono = crate::mono::monomorphize(&hir, &mut checked.tcx, &report).unwrap();
+    let gate = crate::codegen_gate::gate(&mono.hir, &checked.tcx);
+    assert!(gate.is_empty(), "{gate:?}");
 }
 
 const PAIR: &str = "class Pair<A, B> {\n    a: A\n    b: B\n    fun first(): A { return a }\n    fun with<C>(c: C): C { return c }\n}\n";
@@ -267,4 +264,19 @@ fn recursion_through_a_generic_instantiation_is_found() {
 fn expanding_generic_recursion_terminates() {
     let (_, m) = run("class N<T> {\n    x: N<N<T>>\n}\nfun main() {}\n");
     has(&m, "recursive by-value layout");
+}
+
+#[test]
+fn builtin_overloads_see_through_a_bound_class_argument() {
+    let src = format!("{PAIR}fun main() {{\n    val p = Pair(1, \"abc\")\n    println(p.a)\n    println(p.b)\n    println(concat(p.b, p.b))\n}}\n");
+    clean(&src);
+}
+
+#[test]
+fn a_generic_object_is_accepted_where_a_ref_to_it_is_expected() {
+    let node = "class Node<T> {\n    value: T\n    next: Ref<Node<T>>\n}\n";
+    clean(&format!("{node}fun main() {{\n    val tail = Node(1, None)\n    val head = Node(2, tail)\n}}\n"));
+    clean(&format!("{node}fun main() {{\n    val tail = Node(1, None)\n    val r: Ref<Node<i32>> = tail\n}}\n"));
+    let (_, m) = run(&format!("{node}fun main() {{\n    val tail = Node(\"s\", None)\n    val head = Node(2, tail)\n}}\n"));
+    assert!(!m.is_empty(), "Node<String> must not become a Ref<Node<i32>>");
 }

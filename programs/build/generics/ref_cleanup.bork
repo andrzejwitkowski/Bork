@@ -1,0 +1,17 @@
+// exit: 0
+// The generic counterpart of `managed_refs/count_of_last_reference`: once the inner scope that owns a
+// `Box<i32>` ends, the arena is gone, so the weak Ref left in `r` reports a count of 0 and reading it
+// must not touch freed memory.
+class Box<T> {
+    value: T
+}
+
+fun main(): i32 {
+    var r: Ref<Box<i32>> = None
+    {
+        val n = Box(1)
+        val keep: Ref<Box<i32>> = n
+        r = keep
+    }
+    return weakCount(move r)
+}

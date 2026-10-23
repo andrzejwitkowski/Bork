@@ -245,11 +245,14 @@ pub(super) fn finish_call(
     }
 
     for (index, (argument, &expected)) in checked_args.iter().zip(regular_params).enumerate() {
+        // An argument typed by a bound inference variable (`p.b` of a generic `Pair<A, B>`) must be
+        // looked at through its binding to match a builtin overload.
+        let argument_ty = env.settle(argument.ty);
         let matches_builtin_overload =
-            (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(env.tcx, argument.ty))
+            (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(env.tcx, argument_ty))
             || (crate::builtins::is_concat(&name)
-                && env.tcx.is_string(argument.ty)
-                && !env.tcx.is_nullable(argument.ty));
+                && env.tcx.is_string(argument_ty)
+                && !env.tcx.is_nullable(argument_ty));
         if env.tcx.is_ref(expected)
             && !matches!(
                 &argument.kind,

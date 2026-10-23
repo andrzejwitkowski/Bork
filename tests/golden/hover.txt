@@ -28,6 +28,10 @@ programs/build/conditionals/nullable_safe_length.bork: hits=20 hash=5077f40b1d40
 programs/build/conditionals/value_if.bork: hits=10 hash=f3bdbdb152d6498d
 programs/build/constants/method_and_shadow.bork: hits=31 hash=20826e92aa946d23
 programs/build/constants/string_and_scalars.bork: hits=67 hash=d9e0b218cd1383d7
+programs/build/generics/identity.bork: hits=35 hash=0e2b0c1547885102
+programs/build/generics/list_node.bork: hits=183 hash=84200d48feaacbec
+programs/build/generics/pair.bork: hits=73 hash=06514e8abdb60be3
+programs/build/generics/ref_cleanup.bork: hits=21 hash=dcd51565feff87dc
 programs/build/loops/for_nested.bork: hits=17 hash=88627a0b66c3c541
 programs/build/loops/for_sum.bork: hits=17 hash=8cd0d14cac15ce74
 programs/build/loops/while_accumulate.bork: hits=12 hash=59464f89826f5e7e

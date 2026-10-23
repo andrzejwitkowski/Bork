@@ -140,7 +140,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             )?;
             arena
         } else if let Some(sink) = self.result_sink.filter(|_| {
-            self.cx.tcx.record_name(self.function.return_ty) == Some(class_name)
+            crate::mono::class_instance_name(&self.cx.tcx, self.function.return_ty).as_deref() == Some(class_name)
         }) {
             sink
         } else {

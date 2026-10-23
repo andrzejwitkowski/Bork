@@ -193,6 +193,46 @@ Arenas
     └── IfThen
         ├── a [Shared ← fun main]
         └── b [Shared ← fun main]
+== programs/build/generics/identity.bork
+Arenas
+├── fun id
+│   └── x [Local]
+└── fun main
+    ├── n [Local]
+    ├── s [Local]
+    ├── p [Local]
+    └── q [Local]
+== programs/build/generics/list_node.bork
+Arenas
+└── fun main
+    ├── tail [Local]
+    ├── mid [Local]
+    ├── head [Local]
+    ├── extra [Local]
+    ├── head_ref [Local]
+    └── IfValSome
+        ├── second [Borrow ← presence guard]
+        └── IfValSome
+            ├── third [Borrow ← presence guard]
+            └── IfValSome
+                └── fourth [Borrow ← presence guard]
+== programs/build/generics/pair.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   └── q [Local]
+├── fun Pair.first
+│   └── this [Borrow ← call site]
+└── fun Pair.with
+    ├── this [Borrow ← call site]
+    └── c [Local]
+== programs/build/generics/ref_cleanup.bork
+Arenas
+└── fun main
+    ├── r [Moved ← fun main]
+    └── Block
+        ├── n [Local]
+        └── keep [Local]
 == programs/build/loops/for_nested.bork
 Arenas
 └── fun main

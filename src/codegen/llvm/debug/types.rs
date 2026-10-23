@@ -91,7 +91,7 @@ impl<'ctx> DebugInfo<'ctx> {
             let target = cx.tcx.managed_ref_inner(ty).expect("Ref inner");
             let object = self.pointer(
                 cx,
-                self.payload(cx, cx.tcx.record_name(target).expect("Ref record")),
+                self.payload(cx, &crate::mono::class_instance_name(&cx.tcx, target).expect("Ref record")),
             );
             let control = self
                 .builder
@@ -139,9 +139,9 @@ impl<'ctx> DebugInfo<'ctx> {
                 cx.buffer_descriptor_type(),
                 vec![("data", data), ("length", length)],
             )
-        } else if let Some(class) = cx.tcx.class_def(ty) {
-            let name = cx.tcx.class_name(class);
-            let object = self.pointer(cx, self.payload(cx, name));
+        } else if cx.tcx.class_def(ty).is_some() {
+            let name = crate::mono::class_instance_name(&cx.tcx, ty).expect("class record");
+            let object = self.pointer(cx, self.payload(cx, &name));
             let arena = self
                 .builder
                 .create_basic_type(

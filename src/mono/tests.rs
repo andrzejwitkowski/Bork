@@ -133,3 +133,21 @@ fn doubling_polymorphic_recursion_is_rejected_with_a_bounded_message() {
     assert!(diagnostics.iter().all(|d| d.message.len() < 500), "message is not bounded");
     assert!(started.elapsed().as_secs() < 5, "took {:?}", started.elapsed());
 }
+
+#[test]
+fn class_instance_name_reaches_as_far_as_record_name() {
+    let src = format!("{PAIR}fun main() {{\n    val p = Pair(1, \"a\")\n    val r: Ref<Pair<i32, String>> = p\n}}\n");
+    let mut checked = check(&src);
+    let (hir, report) = (checked.hir.take().unwrap(), checked.report.take().unwrap());
+    let main = hir.functions.iter().find(|f| f.name == "main").unwrap();
+    let decl_ty = |index: usize| match &main.body.stmts[index] {
+        crate::hir::HirStmt::VarDecl { ty, .. } => *ty,
+        other => panic!("expected a declaration, got {other:?}"),
+    };
+    let (object, managed) = (decl_ty(0), decl_ty(1));
+    let _ = monomorphize(&hir, &mut checked.tcx, &report).unwrap();
+    let tcx = &checked.tcx;
+    assert_eq!(class_instance_name(tcx, object).as_deref(), Some("Pair<i32,String>"));
+    assert_eq!(class_instance_name(tcx, managed), None, "a managed Ref has no record name");
+    assert_eq!(tcx.record_name(managed), None);
+}

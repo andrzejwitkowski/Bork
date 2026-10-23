@@ -53,16 +53,18 @@ pub fn build_with_options(
         .as_ref()
         .expect("clean check produces arenas");
 
-    let gate_diagnostics = gate(hir, &checked.tcx);
+    // Codegen only sees concrete code: generic functions and classes are specialised first, and the
+    // report and memory plan must come from the same `Mono` as the HIR (node ids are renumbered).
+    let mut tcx = checked.tcx.clone();
+    let mono = crate::mono::monomorphize(hir, &mut tcx, report).map_err(BuildError::Diagnostics)?;
+    let (hir, report, memory_plan) = (&mono.hir, &mono.report, &mono.memory_plan);
+
+    let gate_diagnostics = gate(hir, &tcx);
     if !gate_diagnostics.is_empty() {
         return Err(BuildError::Diagnostics(gate_diagnostics));
     }
 
     let context = Context::create();
-    let memory_plan = checked
-        .memory_plan
-        .as_ref()
-        .expect("clean check produces memory plan");
     let module = if options.debug {
         let source = source.ok_or_else(|| {
             BuildError::Toolchain("debug builds require source path and text".into())
@@ -70,14 +72,14 @@ pub fn build_with_options(
         llvm::emit_module_with_debug(
             &context,
             hir,
-            &checked.tcx,
+            &tcx,
             report,
             memory_plan.clone(),
             source.text,
             source.path,
         )
     } else {
-        llvm::emit_module(&context, hir, &checked.tcx, report, memory_plan.clone())
+        llvm::emit_module(&context, hir, &tcx, report, memory_plan.clone())
     }
     .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))?;
 
