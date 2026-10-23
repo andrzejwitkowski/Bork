@@ -3,11 +3,12 @@
 use crate::ast::{Closure, Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::{AstId, Span};
-use crate::ty::TyId;
+use crate::defs::DefId;
+use crate::ty::{FnSig, TyId};
 
 use super::super::env::{Checked, Env};
 use super::super::MemberRef;
-use super::call::finish_call;
+use super::call::{finish_call, fresh_params, subst_sig};
 use super::synthesize;
 
 /// `receiver.method(args)`; the receiver is borrowed for the call.
@@ -70,26 +71,13 @@ pub(super) fn check_method_call(
             signature,
         },
     );
-    // The receiver fixes the class parameters (they come first in `sig.generics`); the method's own
-    // parameters are fresh variables that the arguments and the expected type fix.
-    let (mut params, mut ret) = (sig.params.clone(), sig.ret);
-    if !sig.generics.is_empty() {
-        let class_arity = env.class(class).map_or(0, |info| info.generics.len());
-        let mut type_args = env.tcx.class_args(checked.ty).map(|(_, args)| args.to_vec()).unwrap_or_default();
-        type_args.extend(super::call::fresh_params(&sig.generic_names[class_arity..], &format!("{class_name}.{method}"), span, env));
-        let substituted: Result<Vec<_>, _> =
-            sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, &type_args)).collect();
-        match (substituted, crate::ty::subst(env.tcx, sig.ret, &type_args)) {
-            (Ok(p), Ok(r)) => (params, ret) = (p, r),
-            _ => {
-                env.error(format!("type arguments of `{class_name}.{method}` would make a nullable of a nullable"), Some(span));
-                return poisoned(args, span, return_ty, env);
-            }
-        }
-    }
+    let name = format!("{class_name}.{method}");
+    let Some((params, ret)) = instantiate_method(&name, class, &sig, &checked, span, env) else {
+        return poisoned(args, span, return_ty, env);
+    };
     let receiver = borrow(checked, env);
     finish_call(
-        format!("{class_name}.{method}"),
+        name,
         span,
         params,
         ret,
@@ -99,6 +87,26 @@ pub(super) fn check_method_call(
         return_ty,
         env,
     )
+}
+
+/// The signature of a call to the method `sig` of `class`: the receiver fixes the class parameters
+/// (they come first in `sig.generics`), and the method's own parameters are fresh variables that
+/// the arguments and the expected type fix. `None` when the instantiation is unusable (reported).
+fn instantiate_method(
+    name: &str,
+    class: DefId,
+    sig: &FnSig<TyId>,
+    receiver: &Checked,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<(Vec<TyId>, TyId)> {
+    if sig.generics.is_empty() {
+        return Some((sig.params.clone(), sig.ret));
+    }
+    let class_arity = env.class(class).map_or(0, |info| info.generics.len());
+    let mut args = env.tcx.class_args(receiver.ty).map(|(_, args)| args.to_vec()).unwrap_or_default();
+    args.extend(fresh_params(&sig.generic_names[class_arity..], name, span, env));
+    subst_sig(name, span, sig, &args, env)
 }
 
 /// `name(.field)*` — something that has an address the method can borrow.

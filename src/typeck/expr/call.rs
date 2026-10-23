@@ -82,8 +82,19 @@ fn instantiate(
     } else {
         type_args.iter().map(|ty| env.lower(ty, Some(span))).collect()
     };
-    let params: Result<Vec<_>, _> = sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, &args)).collect();
-    match (params, crate::ty::subst(env.tcx, sig.ret, &args)) {
+    subst_sig(name, span, sig, &args, env)
+}
+
+/// `sig` with its type parameters replaced by `args`; `None` (reported) when that makes `T??`.
+pub(super) fn subst_sig(
+    name: &str,
+    span: Span,
+    sig: &FnSig<TyId>,
+    args: &[TyId],
+    env: &mut Env<'_>,
+) -> Option<(Vec<TyId>, TyId)> {
+    let params: Result<Vec<_>, _> = sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, args)).collect();
+    match (params, crate::ty::subst(env.tcx, sig.ret, args)) {
         (Ok(params), Ok(ret)) => Some((params, ret)),
         _ => {
             env.error(format!("type arguments of `{name}` would make a nullable of a nullable"), Some(span));
