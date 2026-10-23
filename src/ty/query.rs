@@ -223,6 +223,39 @@ impl TyCtx {
         self.is_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
     }
 
+    /// Whether `Ref<inner>` is a valid type (the parameter case is the caller's to exempt).
+    pub fn managed_ref_target_ok(&self, inner: TyId) -> bool {
+        matches!(self.data(inner), TyData::Class(..))
+    }
+
+    /// The message for an invalid `Ref<inner>` target.
+    pub fn managed_ref_target_message(&self, inner: TyId) -> String {
+        format!("managed Ref target must be a non-nullable class, got `{}`", self.display(inner))
+    }
+
+    /// The message for an invalid `Vec<elem>` element.
+    pub fn vec_elem_message(&self, elem: TyId) -> String {
+        format!(
+            "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{}`",
+            self.display(elem)
+        )
+    }
+
+    /// The first rule a concrete type breaks, for instances of generic code: `lower_type` checks
+    /// these on written types, but exempts a type parameter ("checked at instantiation"), so the
+    /// instantiated type has to be checked again once the parameter is known.
+    pub fn ill_formed(&self, id: TyId) -> Option<String> {
+        match self.data(id) {
+            TyData::ManagedRef(inner) if !self.is_unknown(*inner) && !self.managed_ref_target_ok(*inner) => {
+                Some(self.managed_ref_target_message(*inner))
+            }
+            TyData::Vec(elem) if !self.is_unknown(*elem) && !self.is_array_elem_supported(*elem) => {
+                Some(self.vec_elem_message(*elem))
+            }
+            data => data.children().into_iter().find_map(|child| self.ill_formed(child)),
+        }
+    }
+
     /// The id of a primitive without needing `&mut`: `TyCtx::new` interns all of them.
     pub fn prim_id(&self, prim: Prim) -> TyId {
         self.ids[&TyData::Prim(prim)]

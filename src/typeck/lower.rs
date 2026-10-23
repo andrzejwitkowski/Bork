@@ -33,13 +33,9 @@ pub(crate) fn lower_type(
         Type::ManagedRef { inner } => {
             let inner_ty = lower_type(inner, defs, scope, tcx, diagnostics, span);
             // A parameter may turn out to be a class; checked at instantiation.
-            let is_class = matches!(tcx.data(inner_ty), TyData::Class(..) | TyData::Param(_));
+            let is_class = tcx.managed_ref_target_ok(inner_ty) || matches!(tcx.data(inner_ty), TyData::Param(_));
             if !tcx.is_unknown(inner_ty) && !is_class {
-                push_err(
-                    diagnostics,
-                    format!("managed Ref target must be a non-nullable class, got `{}`", tcx.display(inner_ty)),
-                    span,
-                );
+                push_err(diagnostics, tcx.managed_ref_target_message(inner_ty), span);
             }
             if tcx.is_managed_ref(inner_ty) {
                 push_err(
@@ -54,14 +50,7 @@ pub(crate) fn lower_type(
             let elem_ty = lower_type(elem, defs, scope, tcx, diagnostics, span);
             let is_param = matches!(tcx.data(elem_ty), TyData::Param(_));
             if !tcx.is_unknown(elem_ty) && !is_param && !tcx.is_array_elem_supported(elem_ty) {
-                push_err(
-                    diagnostics,
-                    format!(
-                        "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{}`",
-                        tcx.display(elem_ty)
-                    ),
-                    span,
-                );
+                push_err(diagnostics, tcx.vec_elem_message(elem_ty), span);
             }
             tcx.vec_of(elem_ty)
         }

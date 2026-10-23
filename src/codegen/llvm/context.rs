@@ -154,6 +154,19 @@ impl<'ctx> Codegen<'ctx> {
         self.record_types.get(name).copied()
     }
 
+    /// The `HirClass` laid out under `name` (a plain class name or a mono instance name).
+    pub fn class_by_name(&self, name: &str) -> Option<&HirClass> {
+        self.classes.iter().find(|class| class.name == name)
+    }
+
+    /// Name of field `index` of class `name`; a missing class is a diagnostic, not a panic.
+    pub fn class_field_name(&self, name: &str, index: usize) -> Result<&str, crate::diag::Diagnostic> {
+        self.class_by_name(name)
+            .and_then(|class| class.fields.get(index))
+            .map(|field| field.name.as_str())
+            .ok_or_else(|| super::not_yet_supported(&format!("record `{name}`"), None))
+    }
+
     pub fn record_field_type(&self, name: &str, index: usize) -> Option<TyId> {
         self.record_fields.get(name)?.get(index).copied()
     }

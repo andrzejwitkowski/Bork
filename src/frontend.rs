@@ -31,6 +31,11 @@ impl CheckResult {
     }
 }
 
+fn has_generics(hir: &crate::hir::HirProgram) -> bool {
+    hir.functions.iter().any(|function| !function.generics.is_empty())
+        || hir.classes.iter().any(|class| !class.generics.is_empty())
+}
+
 /// Parse, analyze ownership, and lower program to typed HIR.
 pub fn check(source: &str) -> CheckResult {
     let (program, node_index) = match crate::parse_indexed(source) {
@@ -55,6 +60,12 @@ pub fn check(source: &str) -> CheckResult {
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 
+    // Instances of generic code are checked here too, so `check` and the LSP agree with `build`.
+    // It runs on a copy of the type context (specialising interns new types), and the HIR that
+    // hover and the LSP read stays the generic one.
+    if diagnostics.is_empty() && has_generics(&hir) {
+        diagnostics.extend(crate::mono::check_instances(&hir, &mut tcx.clone()));
+    }
     let mut hir = diagnostics.is_empty().then_some(hir);
     let mut memory_plan = None;
     if let Some(mut program) = hir {

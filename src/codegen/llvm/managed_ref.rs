@@ -200,15 +200,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         &[arena.into(), slot.into()],
                         "",
                     )?;
-                    let field_name = self
-                        .cx
-                        .classes
-                        .iter()
-                        .find(|c| c.name == class_name)
-                        .unwrap()
-                        .fields[index]
-                        .name
-                        .clone();
+                    let field_name = self.cx.class_field_name(class_name, index)?.to_string();
                     self.cx.debug_label_slot(
                         arena,
                         slot,
@@ -220,14 +212,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 } else {
                     let value = self.materialize_owned_value(*value, field.ty, arena)?;
                     self.cx.builder.build_store(slot, value)?;
-                    let field_name = &self
-                        .cx
-                        .classes
-                        .iter()
-                        .find(|c| c.name == class_name)
-                        .unwrap()
-                        .fields[index]
-                        .name;
+                    let field_name = self.cx.class_field_name(class_name, index)?;
                     self.debug_label_ref_array(
                         value,
                         field.ty,
@@ -314,14 +299,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         } else {
             let stored = self.materialize_owned_value(stored, value.ty, owner)?;
             self.cx.builder.build_store(slot, stored)?;
-            let field_name = &self
-                .cx
-                .classes
-                .iter()
-                .find(|c| c.name == class_name)
-                .unwrap()
-                .fields[field_index]
-                .name;
+            let field_name = self.cx.class_field_name(class_name, field_index)?;
             self.debug_label_ref_array(stored, value.ty, &format!("{class_name}.{field_name}"))?;
         }
         Ok(())
