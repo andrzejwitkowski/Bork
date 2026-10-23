@@ -36,6 +36,10 @@ pub fn codegen_lowers_nullable(tcx: &TyCtx, ty: TyId) -> bool {
 pub fn gate(hir: &HirProgram, tcx: &TyCtx) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for function in &hir.functions {
+        if !function.generics.is_empty() {
+            let message = format!("generic function `{}` is not compiled yet (monomorphization)", function.name);
+            reject(&mut diagnostics, &message, Some(function.name_span));
+        }
         gate_block(tcx, &function.body, &mut diagnostics);
     }
     diagnostics

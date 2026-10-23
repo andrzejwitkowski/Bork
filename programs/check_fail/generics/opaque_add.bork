@@ -1,0 +1,6 @@
+// diag: arithmetic operands must have the same numeric type, got T and T
+// diag: a type parameter has no bounds yet
+fun double<T>(x: T): T {
+    return x + x
+}
+fun main() {}

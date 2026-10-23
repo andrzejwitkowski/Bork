@@ -72,6 +72,7 @@ programs/build/vec/with_capacity.bork: 1645..1649 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1669..1673 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1693..1697 Node Dynamic Program
 programs/check/conditionals/if_return_move_then_use.bork: 133..137 Node Dynamic Program
+programs/check/generics/identity.bork: 126..131 Point Dynamic Program
 programs/check/managed_refs/chained_val_both_return_move.bork: 135..139 Node Dynamic Program
 programs/check/managed_refs/chained_val_else_moves_owner.bork: 130..134 Node Dynamic Program
 programs/check/methods/trailing_closure.bork: 127..128 P Dynamic Program

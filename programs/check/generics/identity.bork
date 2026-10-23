@@ -1,0 +1,12 @@
+fun id<T>(x: T): T {
+    return x
+}
+class Point {
+    x: i32
+}
+fun main() {
+    val a = id(1)
+    val b = id("s")
+    val p = Point(1)
+    val c = id(p)
+}

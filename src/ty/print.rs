@@ -39,7 +39,10 @@ impl fmt::Display for TyPrinter<'_> {
             TyData::Range(t) => write!(f, "Range<{}>", show(*t)),
             TyData::Nullable(t) => write!(f, "{}?", show(*t)),
             // No source syntax yet; chosen so they cannot be mistaken for a written type.
-            TyData::Param(idx) => write!(f, "T{}", idx.0),
+            TyData::Param(idx) => match self.ctx.param_names.get(idx.0 as usize) {
+                Some(name) => f.write_str(name),
+                None => write!(f, "T{}", idx.0),
+            },
             TyData::Infer(var) => write!(f, "?{}", var.0),
             TyData::Error => f.write_str("<unknown>"),
         }

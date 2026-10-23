@@ -240,3 +240,5 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 **Implementation (#42).** Syntax only: `Function`/`Class` carry `generics`, `Type::Named` carries `args`, `Expr::Call` carries `type_args`. Expression-position arguments use turbofish (`::<`) to avoid the `a < b > (c)` ambiguity. Typeck reports generic syntax as unsupported.
 
 **Implementation (#43).** `lower_type` takes a type-parameter scope; `FnSig.generics`, `HirFunction.generics` and `HirClass.generics` hold parameter names (`Param(i)` indexes them, owner class first). Declarations are validated in `typeck/generics.rs`. Unused parameters are not reported. Generic bodies and instantiation are #44.
+
+**Implementation (#44).** Top-level generic functions are checked with `Param` opaque (`Env::tparams`); calls instantiate `FnSig` through `subst` with General variables (or explicit `::<..>` arguments), recorded in `Env::pending` and reported when still unbound at the end of the body. `codegen_gate` rejects generic functions until monomorphization.

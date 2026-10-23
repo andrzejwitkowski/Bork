@@ -76,7 +76,11 @@ pub(super) fn check_field(
     let Some((class, field_index, field)) = field else {
         if !env.tcx.is_unknown(receiver.ty) {
             env.error(
-                format!("unknown field `{name}` on type {}", env.show(receiver.ty)),
+                format!(
+                    "unknown field `{name}` on type {}{}",
+                    env.show(receiver.ty),
+                    env.bounds_hint(&[receiver.ty])
+                ),
                 Some(span),
             );
         }

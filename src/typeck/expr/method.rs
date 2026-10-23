@@ -49,7 +49,8 @@ pub(super) fn check_method_call(
         );
     }
     let Some(class) = env.tcx.record_def(checked.ty) else {
-        env.error("only named functions can be called", Some(span));
+        let hint = env.bounds_hint(&[checked.ty]);
+        env.error(format!("only named functions can be called{hint}"), Some(span));
         return poisoned(args, span, return_ty, env);
     };
     let class_name = env.tcx.class_name(class).to_string();
@@ -69,6 +70,10 @@ pub(super) fn check_method_call(
             signature,
         },
     );
+    if !sig.generics.is_empty() {
+        env.error(format!("calling the generic method `{class_name}.{method}` is not supported yet"), Some(span));
+        return poisoned(args, span, return_ty, env);
+    }
     let receiver = borrow(checked, env);
     finish_call(
         format!("{class_name}.{method}"),

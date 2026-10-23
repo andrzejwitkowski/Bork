@@ -8,15 +8,16 @@ use crate::defs::DefId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnSig<T> {
-    /// Type parameters this signature is generic over (none until Phase 3 syntax).
+    /// Type parameters this signature is generic over, with their source names.
     pub generics: Vec<ParamIdx>,
+    pub generic_names: Vec<String>,
     pub params: Vec<T>,
     pub ret: T,
 }
 
 impl<T> FnSig<T> {
     pub fn new(params: Vec<T>, ret: T) -> FnSig<T> {
-        FnSig { generics: Vec::new(), params, ret }
+        FnSig { generics: Vec::new(), generic_names: Vec::new(), params, ret }
     }
 }
 
