@@ -17,6 +17,7 @@ pub mod hir;
 pub mod infer;
 mod layout;
 pub mod memory;
+pub mod mono;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 pub mod sema;
