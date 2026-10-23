@@ -7,7 +7,7 @@ mod number;
 mod resolve;
 mod ty;
 pub use number::number_nodes;
-pub use resolve::resolve_types;
+pub use resolve::{resolve_types, rewrite};
 pub use ty::Prim;
 
 use crate::ast;
