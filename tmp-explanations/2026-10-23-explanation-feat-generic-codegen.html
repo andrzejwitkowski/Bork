@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: kompilacja monomorfizowanych generyków (#48)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Od HIR do natywnego pliku: kompilujemy monomorfizowane generyki</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/generic-codegen</code> (PR #143, ticket #48): 22 pliki, +273/−39 linii. Samej logiki jest niewiele (ok. 80 linii w <code>src/</code>); reszta to cztery programy integracyjne, testy, pliki złote i dokumentacja.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: skąd bierze się natywny plik wykonywalny (można pominąć)</summary>
+<p>Kompilator Bork działa jak taśma produkcyjna. Parser zamienia tekst na drzewo składni, <em>typeck</em> sprawdza typy i produkuje HIR (pośrednią reprezentację z typami), kolejne przejścia sprawdzają własność i planują pamięć, a na końcu <em>codegen</em> zamienia HIR na kod maszynowy za pomocą biblioteki LLVM i linkuje go w program.</p>
+<p>Codegen potrzebuje <b>konkretnych</b> typów: musi wiedzieć, ile bajtów zajmuje wartość i jak wygląda obiekt w pamięci. Dlatego funkcja generyczna <code>id&lt;T&gt;</code> nie może pójść do LLVM wprost; trzeba z niej zrobić gotowe wersje, <code>id&lt;i32&gt;</code>, <code>id&lt;String&gt;</code> i tak dalej. To robi monomorfizacja.</p>
+</details>
+
+<h3>Stan przed zmianą</h3>
+<p>Po #47 istnieje <code>mono::monomorphize</code>: z generycznego HIR robi konkretny, w którym funkcje i klasy mają nazwy instancji (<code>Pair.first&lt;i32,String&gt;</code>, <code>Pair&lt;i32,String&gt;</code>) i nie ma już żadnych parametrów typu. Nikt jednak z tego wyniku nie korzystał. <code>bork build</code> wciąż przepuszczał przez <em>bramkę</em> (<code>codegen_gate</code>) oryginalny, generyczny HIR, a bramka odrzucała każdą funkcję i klasę generyczną komunikatem „not compiled yet". Ticket #48 domyka pętlę: kompilator ma generyki naprawdę skompilować i udowodnić to programami, które się uruchamiają.</p>
+
+<h2 id="intuicja">2. Intuicja</h2>
+
+<h3>Podmiana wejścia kodegenu</h3>
+<p>Zmiana architektoniczna jest prosta: między sprawdzeniem programu a emisją LLVM wstawiamy monomorfizację i od tej chwili <b>wszystko dalej widzi tylko wynik mono</b>.</p>
+
+<div class="flow">
+  <div class="box"><h4>Przed</h4><code>check</code><code>gate(HIR generyczny)</code><code>LLVM</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>Po</h4><code>check</code><code>monomorphize</code><code>gate(HIR konkretny)</code><code>LLVM</code></div>
+</div>
+
+<p>Wynik mono to nie tylko HIR. Zawiera też raport z analizy własności i plan pamięci, a ponieważ mono <em>renumeruje</em> identyfikatory węzłów, wszystkie trzy elementy muszą pochodzić z tego samego wywołania. Pomieszanie planu z oryginalnego sprawdzenia z nowym HIR skończyłoby się panikami przy wyszukiwaniu alokacji.</p>
+
+<div class="callout"><b class="t">Bramka po monomorfizacji</b>
+Skoro generyków już nie ma, dwie pętle odrzucające je w <code>codegen_gate</code> zostają po prostu usunięte. Pozostałe reguły (np. zakaz przenoszenia obiektu klasy) zostają i działają teraz na instancjach, więc <code>id&lt;Point&gt;</code> też je napotka.</div>
+
+<h3>Rozbieżność nazw: <code>Pair</code> kontra <code>Pair&lt;i32,String&gt;</code></h3>
+<p>Mono nazywa klasę-instancję <code>Pair&lt;i32,String&gt;</code> i tak samo przemianowuje <code>ObjectConstruct</code> oraz <code>ObjectField</code> w ciałach funkcji. Układy pamięci w kodegenie są kluczowane właśnie tą nazwą. Ale cztery miejsca w kodegenie nie czytają nazwy z HIR, tylko <em>wyprowadzają ją z typu</em> wyrażenia, a typ klasy to nadal <code>Class(def, args)</code> z nazwą bazową <code>Pair</code>.</p>
+
+<table class="st">
+  <tr><th>Skąd nazwa</th><th>Wynik</th><th>Czy układ się znajdzie?</th></tr>
+  <tr><td><code>ObjectField.class_name</code> (przemianowane przez mono)</td><td><code>Pair&lt;i32,String&gt;</code></td><td><span class="tag ok">tak</span></td></tr>
+  <tr><td><code>tcx.record_name(typ)</code> (wyprowadzone z typu)</td><td><code>Pair</code></td><td><span class="tag bad">nie, błąd „record Pair is not supported"</span></td></tr>
+  <tr><td><code>class_instance_name(typ)</code> (nowe)</td><td><code>Pair&lt;i32,String&gt;</code></td><td><span class="tag ok">tak</span></td></tr>
+</table>
+
+<p>Rozwiązanie: jedna funkcja <code>mono::class_instance_name</code>, która liczy nazwę <em>tym samym</em> <code>mangle</code>, którego używa mono. Dzięki wspólnemu kodowi dwie strony nie mogą się rozjechać.</p>
+
+<div class="callout warn"><b class="t">Pułapka zasięgu: jak daleko sięga nazwa</b>
+Stary <code>record_name</code> zatrzymywał się na obiekcie i pożyczce, ale <b>nie</b> przechodził przez zarządzany <code>Ref&lt;Foo&gt;</code>. Pierwsza wersja <code>class_instance_name</code> przechodziła, bo korzysta z <code>class_args</code>. W miejscu wyboru areny funkcja zwracająca <code>Ref&lt;Foo&gt;</code> zaczęłaby alokować do niewłaściwej areny. Wychwyciło to review, nie testy. Teraz funkcja najpierw sprawdza <code>record_def</code>, więc sięga dokładnie tak daleko jak <code>record_name</code>.</div>
+
+<h3>Dwie luki checkera, które ujawniły programy</h3>
+<p>Ticket wymagał programów uruchamiających generyki, a ich pisanie odsłoniło dwa błędy z #45, których testy typeck nie widziały.</p>
+<ul>
+  <li><b><code>println(p.b)</code>.</b> Pole <code>b</code> klasy <code>Pair&lt;A, B&gt;</code> ma w momencie sprawdzania typ będący <em>zmienną inferencji</em> związaną z <code>String</code>. Dopasowanie przeciążeń wbudowanych (<code>print</code> przyjmuje <code>i32</code>, <code>i64</code> lub <code>String</code>) porównywało surowy typ, a nie jego wartość, więc odrzucało argument. Poprawka: najpierw <code>settle</code> (podstaw wiązanie), potem sprawdzenie.</li>
+  <li><b><code>Node(2, tail)</code> dla pola <code>Ref&lt;Node&lt;T&gt;&gt;</code>.</b> Reguła „obiekt klasy staje się <code>Ref</code>" sprawdzała <code>expected_inner == Some(source.ty)</code>, czyli równość <code>TyId</code>. Dla <code>Node&lt;?0&gt;</code> i <code>Node&lt;?1&gt;</code> identyfikatory są różne, choć typy się unifikują. Poprawka: gdy źródło jest obiektem klasy, unifikujemy z celem.</li>
+</ul>
+
+<div class="flow">
+  <div class="box err"><h4>Przed</h4><code>Node&lt;?0&gt;</code><code>vs</code><code>Ref&lt;Node&lt;?1&gt;&gt;</code><code>różne TyId, błąd</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>Po</h4><code>unify(Node&lt;?1&gt;, Node&lt;?0&gt;)</code><code>?0 = ?1 = i32</code><code>RefCreate, OK</code></div>
+</div>
+
+<p>Negatywny test pilnuje, że unifikacja nie jest zbyt hojna: <code>Node&lt;String&gt;</code> nie może zamienić się w <code>Ref&lt;Node&lt;i32&gt;&gt;</code>.</p>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+
+<h3>3.1 Podłączenie mono (<code>src/codegen/mod.rs</code>)</h3>
+<pre><span class="add">+ let mut tcx = checked.tcx.clone();
++ let mono = crate::mono::monomorphize(hir, &amp;mut tcx, report).map_err(BuildError::Diagnostics)?;
++ let (hir, report, memory_plan) = (&amp;mono.hir, &amp;mono.report, &amp;mono.memory_plan);</span>
+
+  let gate_diagnostics = gate(hir, <span class="del">&amp;checked.tcx</span><span class="add">&amp;tcx</span>);
+  ...
+  llvm::emit_module(&amp;context, hir, <span class="del">&amp;checked.tcx</span><span class="add">&amp;tcx</span>, report, memory_plan.clone())</pre>
+<p>Kontekst typów jest <em>klonowany</em>, bo mono dodaje typy (podstawienia tworzą nowe) i bierze go przez <code>&amp;mut</code>, a <code>build</code> dostaje tylko <code>&amp;CheckResult</code>. Dalej używa się już wyłącznie zmutowanej kopii. Pozostałe ścieżki, czyli <code>bork check</code> i LSP, nie zmieniają się.</p>
+
+<h3>3.2 Nazwa instancji klasy (<code>src/mono.rs</code>)</h3>
+<pre><span class="add">+ pub(crate) fn class_instance_name(tcx: &amp;TyCtx, ty: TyId) -&gt; Option&lt;String&gt; {
++     tcx.record_def(ty)?;                       <span class="cm">// sięga tak daleko jak record_name</span>
++     let (def, args) = tcx.class_args(ty)?;
++     Some(mangle(tcx.class_name(def), tcx, args))
++ }</span></pre>
+<p>Ta sama funkcja <code>mangle</code> służy mono do nazywania instancji i kodegenowi do ich wyszukiwania. Dla zwykłej klasy bez argumentów zwraca samo <code>Point</code>, więc niegeneryczne programy nie zmieniają zachowania.</p>
+
+<h3>3.3 Cztery miejsca w kodegenie</h3>
+<ul>
+  <li><code>emit_fn.rs</code>: przypisanie do pola (<code>tail.next = extra</code>) wyszukuje układ po nazwie wyprowadzonej z typu odbiorcy.</li>
+  <li><code>managed_ref.rs</code>: wybór areny wynikowej, gdy tworzony obiekt jest klasą zwracaną przez funkcję.</li>
+  <li><code>debug/types.rs</code> (dwa miejsca): typ <code>Ref</code> i typ obiektu w informacjach debugowych. Bez poprawki <code>bork build -g</code> kończył się paniką <code>unwrap()</code> na <code>None</code>.</li>
+</ul>
+<p>We wszystkich czterech <code>record_name(typ)</code> lub <code>class_name(def)</code> zastąpiono <code>class_instance_name(typ)</code>.</p>
+
+<div class="callout"><b class="t">Dlaczego nie trzeba tworzyć glue per instancja</b>
+Ticket wspominał o „drop/ref glue per instance". W tym kodzie nie ma funkcji sprzątających na klasę: zwolnienie jest rejestrowane przez wywołania runtime dla konkretnego slotu wartości (<code>bork_arena_register_ref_drop</code>). Jedynym artefaktem na klasę jest typ struktury LLVM, a ten powstaje raz dla każdej pozycji w <code>hir.classes</code>, w tym dla instancji. Sprawdza to program <code>ref_cleanup</code>.</div>
+
+<h3>3.4 Poprawki checkera</h3>
+<pre>let argument_ty = env.settle(argument.ty);                       <span class="cm">// call.rs: przeciążenia print/concat</span>
+
+let source_ty = env.settle(source.ty);                           <span class="cm">// expr/mod.rs: obiekt kontra Ref</span>
+let is_target_object = env.tcx.class_def(source_ty).is_some()
+    &amp;&amp; expected_inner.is_some_and(|inner| inner == source_ty || env.same(inner, source_ty));</pre>
+<p><code>env.same</code> unifikuje, a nieudana unifikacja cofa się do migawki, więc próba dopasowania nie zostawia po sobie częściowych wiązań.</p>
+
+<h3>3.5 Programy integracyjne (<code>programs/build/generics/</code>)</h3>
+<ul>
+  <li><b><code>identity</code></b>: <code>id&lt;T&gt;</code> dla <code>i32</code>, <code>String</code> i klasy.</li>
+  <li><b><code>pair</code></b>: <code>Pair&lt;A, B&gt;</code> dwukrotnie zinstancjowane, metoda <code>first</code> oraz metoda generyczna <code>with&lt;C&gt;</code>.</li>
+  <li><b><code>list_node</code></b>: <code>Node&lt;T&gt;</code> powiązane przez <code>Ref&lt;Node&lt;T&gt;&gt;</code>, przypisanie do pola, <code>strongCount</code> i <code>weakCount</code>. Oczekiwane liczniki ustalono, uruchamiając identyczny program z klasą niegeneryczną.</li>
+  <li><b><code>ref_cleanup</code></b>: generyczny odpowiednik <code>count_of_last_reference</code>: po końcu zakresu słaby <code>Ref</code> raportuje 0.</li>
+</ul>
+<p>Test korpusu buduje każdy z nich zwyczajnie i z <code>-g</code>, i porównuje stdout oraz kod wyjścia z dyrektywami <code>// stdout:</code> i <code>// exit:</code>. Dodatkowo w <code>tests/build.rs</code> są dwa testy inline, w tym odrzucenie generycznego programu bez <code>main</code>.</p>
+
+<div class="callout warn"><b class="t">Zmiany zachowania, o których warto wiedzieć</b>
+Mono zbiera kod tylko osiągalny z <code>main</code>. Nieużywane funkcje niegeneryczne nie są więc już kompilowane ani bramkowane, a LSP nadal bramkuje HIR sprzed mono, więc zniknęło też jego ostrzeżenie „not compiled yet". Środowisko do uruchomienia testów z LLVM wymagało obejść poza repo (<code>libz3</code>, <code>llvm-config-23</code> w PATH, <code>clang</code> jako <code>cc</code>).</div>
+
+<h2 id="quiz">4. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="1">
+  <p>1. Dlaczego raport z analizy własności i plan pamięci muszą pochodzić z tego samego wywołania <code>monomorphize</code> co HIR przekazywany do kodegenu?</p>
+  <button>Bo LLVM wymaga, żeby wszystkie trzy pliki miały ten sam rozmiar.</button>
+  <button>Bo mono renumeruje identyfikatory węzłów i klonuje korzenie raportu pod nazwami instancji, więc plan z oryginalnego sprawdzenia nie pasowałby do nowego HIR (wyszukiwanie alokacji by się wywróciło).</button>
+  <button>Bo plan pamięci jest tworzony dopiero po emisji.</button>
+  <button>Bo raport zawiera nazwy plików źródłowych.</button>
+  <div class="fb"><code>memory_plan.allocation_at(id)</code> szuka po identyfikatorze wyrażenia. Po <code>number_nodes</code> w mono identyfikatory są inne niż w oryginale, a korzenie raportu mają etykiety <code>fun id&lt;i32&gt;</code> zamiast <code>fun id</code>.</div>
+</div>
+
+<div class="q" data-correct="2">
+  <p>2. Mono przemianowało klasę na <code>Pair&lt;i32,String&gt;</code>, a <code>ObjectField</code> w HIR też niesie tę nazwę. Dlaczego mimo to trzeba było poprawić cztery miejsca w kodegenie?</p>
+  <button>Bo miejsca te używały starej wersji LLVM.</button>
+  <button>Bo nazwy w HIR są nieprawidłowe i trzeba je poprawiać ręcznie.</button>
+  <button>Bo te miejsca nie czytały nazwy z HIR, tylko wyprowadzały ją z typu wyrażenia (<code>record_name</code>), a ten zwraca nazwę bazową <code>Pair</code>, której w układach nie ma.</button>
+  <button>Bo układy są kluczowane przez <code>DefId</code>, a nie przez nazwę.</button>
+  <div class="fb">Układy są kluczowane nazwą z <code>HirClass</code>. Miejsca czytające nazwę z <code>ObjectField</code> czy <code>ObjectConstruct</code> działały od razu. Awarie dotyczyły tylko tych, które liczyły nazwę z typu: przypisania do pola, wyboru areny i dwóch miejsc w informacjach debugowych.</div>
+</div>
+
+<div class="q" data-correct="0">
+  <p>3. Review wykryło, że pierwsza wersja <code>class_instance_name</code> zmieniała zachowanie dla <code>Ref&lt;Foo&gt;</code>. Na czym polegał błąd?</p>
+  <button>Funkcja przechodziła przez zarządzany <code>Ref</code>, a stary <code>record_name</code> nie. Wybór areny dla funkcji zwracającej <code>Ref&lt;Foo&gt;</code> trafiłby więc na ścieżkę obiektu zamiast na sink.</button>
+  <button>Funkcja zwracała pustą nazwę dla klas generycznych.</button>
+  <button>Funkcja nie obsługiwała klas bez argumentów.</button>
+  <button>Funkcja była zbyt wolna dla dużych programów.</button>
+  <div class="fb">Poprawka to jedna linia: <code>tcx.record_def(ty)?</code> na początku, więc funkcja sięga dokładnie tak daleko jak <code>record_name</code>. Test <code>class_instance_name_reaches_as_far_as_record_name</code> pilnuje tej granicy.</div>
+</div>
+
+<div class="q" data-correct="3">
+  <p>4. Dlaczego reguła „obiekt klasy staje się <code>Ref</code>" w <code>check_managed_ref</code> przestała porównywać <code>TyId</code>, a zaczęła unifikować?</p>
+  <button>Bo porównywanie liczb jest wolniejsze niż unifikacja.</button>
+  <button>Bo unifikacja jest bezpieczniejsza dla typów prostych.</button>
+  <button>Bo każdy typ musi przejść przez unifikację przed emisją.</button>
+  <button>Bo argumenty klasy mogą być jeszcze zmiennymi inferencji: <code>Node&lt;?0&gt;</code> i <code>Node&lt;?1&gt;</code> mają różne <code>TyId</code>, choć da się je uzgodnić do tego samego typu. Test negatywny pilnuje, że <code>Node&lt;String&gt;</code> nie pasuje do <code>Ref&lt;Node&lt;i32&gt;&gt;</code>.</button>
+  <div class="fb">Dla typów całkowicie znanych porównanie <code>TyId</code> wystarczało, dlatego problem pojawił się dopiero przy generykach. Nieudana unifikacja cofa się do migawki, więc próba nie zostawia częściowych wiązań.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>5. Ticket wspominał o „drop/ref glue per instance", a PR nie dodaje żadnego takiego kodu. Dlaczego to jest poprawne?</p>
+  <button>Bo glue zostanie dodane w następnym tickecie.</button>
+  <button>Bo w tym kodzie nie ma glue na klasę: zwolnienie jest rejestrowane wywołaniami runtime dla konkretnego slotu wartości, a jedynym artefaktem na klasę jest typ struktury LLVM, który powstaje raz dla każdej klasy w <code>hir.classes</code>, także dla instancji. Pokrywa to program <code>ref_cleanup</code>.</button>
+  <button>Bo instancje generyczne nigdy nie zawierają referencji.</button>
+  <button>Bo LLVM generuje glue automatycznie dla każdej struktury.</button>
+  <div class="fb">Założenie z ticketu było trafne w ogólnym przypadku, ale w tym kodzie glue per klasa nie istnieje. Zamiast dopisywać martwy kod, dodano program, który sprawdza deterministyczne sprzątanie (słaby <code>Ref</code> po końcu zakresu daje 0).</div>
+</div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
