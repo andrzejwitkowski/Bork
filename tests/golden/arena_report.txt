@@ -1738,6 +1738,24 @@ Arenas
 │   ├── a [Local]
 │   └── b [Local]
 └── fun main
+== programs/check_fail/generics/phantom_parameter.bork
+Type Error [132..133] type parameter `T` of `f` is not determined by its signature, which monomorphization does not support yet
+Arenas
+├── fun f
+└── fun main
+== programs/check_fail/generics/polymorphic_recursion.bork
+Type Error [128..129] polymorphic recursion: `f` is instantiated with ever-growing types
+Arenas
+├── fun f
+│   └── x [Moved ← fun f]
+└── fun main
+== programs/check_fail/generics/ref_of_non_class.bork
+Type Error [135..136] `g<i32>`: managed Ref target must be a non-nullable class, got `i32`
+Arenas
+├── fun g
+│   └── x [Local]
+└── fun main
+    └── r [Local]
 == programs/check_fail/generics/return_moved.bork
 Ownership Error [80..81] returning a moved or promoted `String` is not supported yet: use `return s` for parameters and locals, or return a string literal (a type parameter is judged as its strictest instance, `String`)
 Arenas
@@ -1776,6 +1794,13 @@ Arenas
 │   ├── x [Moved ← fun f]
 │   ├── y [Local]
 │   └── z [Local]
+└── fun main
+== programs/check_fail/generics/vec_of_class.bork
+Type Error [131..132] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
+Arenas
+├── fun f
+│   ├── x [Local]
+│   └── v [Local]
 └── fun main
 == programs/check_fail/generics/wrong_arity.bork
 Type Error [78..79] `Box` expects 1 type argument, got 2

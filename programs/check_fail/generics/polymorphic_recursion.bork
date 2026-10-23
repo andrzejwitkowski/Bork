@@ -1,0 +1,10 @@
+// diag: polymorphic recursion: `f` is instantiated with ever-growing types
+class Box2<T> {
+    v: T
+}
+fun f<T>(var x: T) {
+    f(Box2(move x))
+}
+fun main() {
+    f(1)
+}

@@ -1028,3 +1028,14 @@ fn a_generic_program_without_main_is_rejected() {
     let (output, _) = bork_build(&scratch_dir("generic_without_main"), "fun id<T>(x: T): T {\n    return x\n}\n");
     assert_eq!(output.status.code(), Some(1));
 }
+
+#[test]
+fn build_rejects_an_instance_that_makes_an_ill_formed_type() {
+    let (output, binary) = bork_build(
+        &scratch_dir("ill_formed_instance"),
+        "fun g<T>(x: T): Ref<T> {\n    return None\n}\nfun main() {\n    val r = g(1)\n}\n",
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!binary.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("managed Ref target"));
+}

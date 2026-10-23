@@ -1,0 +1,7 @@
+// diag: `g<i32>`: managed Ref target must be a non-nullable class
+fun g<T>(x: T): Ref<T> {
+    return None
+}
+fun main() {
+    val r = g(1)
+}

@@ -130,6 +130,8 @@ struct Collector<'a> {
     keys: HashMap<(usize, Vec<TyId>), usize>,
     instances: Vec<Instance>,
     origins: Vec<usize>,
+    /// Where each instance was first called from, for diagnostics about its types.
+    spans: Vec<Option<Span>>,
     queue: VecDeque<usize>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -150,6 +152,7 @@ impl<'a> Collector<'a> {
         let name = mangle(&function.name, tcx, &key.1);
         self.instances.push(Instance { name: name.clone(), origin: function.name.clone(), args: key.1.clone() });
         self.origins.push(origin);
+        self.spans.push(span);
         self.queue.push_back(self.instances.len() - 1);
         self.keys.insert(key, self.instances.len() - 1);
         Some(name)
@@ -224,22 +227,37 @@ pub(crate) fn class_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
-    let mut collector = Collector::new(hir);
-    if let Some(&main) = collector.by_name.get("main") {
-        collector.request_instance(tcx, main, Vec::new(), None);
-    }
-    let mut functions = collector.specialize_reachable_functions(tcx);
-    let classes = collector.instantiate_classes(tcx, &mut functions);
-    if !collector.diagnostics.is_empty() {
-        return Err(collector.diagnostics);
-    }
-
+    let (collector, functions, classes) = collect_instances(hir, tcx)?;
     let mut report = collector.report_per_instance(report);
     let mut program = HirProgram { classes, functions };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter survived monomorphization");
     hir::number_nodes(&mut program);
     let memory_plan = plan_instances(&program, tcx, &mut report)?;
     Ok(Mono { hir: program, report, memory_plan, instances: collector.instances })
+}
+
+/// The user-facing half of monomorphization: collects every instance reachable from `main` and the
+/// class instances they use, and reports what cannot be specialised (an instance that makes an
+/// ill-formed type, a parameter no signature determines, polymorphic recursion, `T??`).
+/// `bork check` runs just this, so it agrees with `bork build` without the planning passes.
+pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
+    collect_instances(hir, tcx).err().unwrap_or_default()
+}
+
+type Collected<'a> = (Collector<'a>, Vec<HirFunction>, Vec<HirClass>);
+
+fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collected<'a>, Vec<Diagnostic>> {
+    let mut collector = Collector::new(hir);
+    if let Some(&main) = collector.by_name.get("main") {
+        collector.request_instance(tcx, main, Vec::new(), None);
+    }
+    let mut functions = collector.specialize_reachable_functions(tcx);
+    let classes = collector.instantiate_classes(tcx, &mut functions);
+    if collector.diagnostics.is_empty() {
+        Ok((collector, functions, classes))
+    } else {
+        Err(collector.diagnostics)
+    }
 }
 
 /// The sema report was built from the generic program, so it must line up with its functions.
@@ -263,6 +281,7 @@ impl<'a> Collector<'a> {
             keys: HashMap::new(),
             instances: Vec::new(),
             origins: Vec::new(),
+            spans: Vec::new(),
             queue: VecDeque::new(),
             diagnostics: Vec::new(),
         }
@@ -286,20 +305,33 @@ impl<'a> Collector<'a> {
         function.name = instance.name;
         function.generics = Vec::new();
         if !instance.args.is_empty() {
-            self.substitute_type_arguments(tcx, &mut function, &instance.args);
+            self.substitute_type_arguments(tcx, &mut function, &instance.args, self.spans[index]);
         }
         hir::rewrite(&mut function.body, &mut |ty| ty, &mut |e| self.retarget_expr(tcx, e));
         function
     }
 
     /// Replaces `Param(i)` by `args[i]` in the signature and every type of the body.
-    fn substitute_type_arguments(&mut self, tcx: &mut TyCtx, function: &mut HirFunction, args: &[TyId]) {
-        let mut nested_nullable = false;
+    /// The instantiated types are checked too: `lower_type` lets a parameter through
+    /// (`Ref<T>`, `Vec<T>`), so `T = i32` would otherwise reach codegen as `Ref<i32>`.
+    fn substitute_type_arguments(
+        &mut self,
+        tcx: &mut TyCtx,
+        function: &mut HirFunction,
+        args: &[TyId],
+        call_span: Option<Span>,
+    ) {
+        let (mut nested_nullable, mut ill_formed) = (false, Vec::<String>::new());
+        let mut checked = HashSet::new();
         let mut substitute = |ty: TyId| {
-            subst(tcx, ty, args).unwrap_or_else(|_| {
+            let ty = subst(tcx, ty, args).unwrap_or_else(|_| {
                 nested_nullable = true;
                 tcx.error()
-            })
+            });
+            if checked.insert(ty) {
+                ill_formed.extend(tcx.ill_formed(ty).filter(|rule| !ill_formed.contains(rule)));
+            }
+            ty
         };
         function.params.iter_mut().for_each(|param| param.ty = substitute(param.ty));
         function.return_ty = substitute(function.return_ty);
@@ -307,6 +339,10 @@ impl<'a> Collector<'a> {
         if nested_nullable {
             let message = format!("type arguments of `{}` would make a nullable of a nullable", function.name);
             self.diagnostics.push(error(message, Some(function.name_span)));
+        }
+        for rule in ill_formed {
+            let span = call_span.or(Some(function.name_span));
+            self.diagnostics.push(error(format!("`{}`: {rule}", function.name), span));
         }
     }
 
@@ -360,6 +396,10 @@ impl<'a> Collector<'a> {
                 self.diagnostics.push(error(message, None));
                 tcx.error()
             });
+            if let Some(rule) = tcx.ill_formed(field_ty) {
+                let message = format!("field `{}` of `{}`: {rule}", field.name, tcx.display(ty));
+                self.diagnostics.push(error(message, None));
+            }
             class_instances(tcx, field_ty, seen, pending);
             fields.push(HirClassField { name: field.name.clone(), ty: field_ty });
         }

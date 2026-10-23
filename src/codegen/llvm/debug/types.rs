@@ -196,17 +196,22 @@ impl<'ctx> DebugInfo<'ctx> {
         if let Some(found) = self.types.borrow().get(&key) {
             return *found;
         }
+        // A class without a layout cannot be described; an opaque type keeps `-g` working.
+        let (Some(class), Some(record)) = (cx.class_by_name(name), cx.record_type(name)) else {
+            let opaque = self.builder.create_basic_type(&key, 8, 0x07, DIFlags::PUBLIC).unwrap().as_type();
+            self.types.borrow_mut().insert(key, opaque);
+            return opaque;
+        };
         let placeholder = unsafe { self.builder.create_placeholder_derived_type(cx.context) };
         self.types
             .borrow_mut()
             .insert(key.clone(), placeholder.as_type());
-        let class = cx.classes.iter().find(|c| c.name == name).unwrap();
         let fields = class
             .fields
             .iter()
             .map(|f| (f.name.as_str(), self.ty(cx, f.ty)))
             .collect();
-        let result = self.structure(cx, &key, cx.record_type(name).unwrap(), fields);
+        let result = self.structure(cx, &key, record, fields);
         let alias = self.builder.create_typedef(
             result,
             &key,

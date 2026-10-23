@@ -1,0 +1,7 @@
+// diag: type parameter `T` of `f` is not determined by its signature
+fun f<T>(): i32 {
+    return 1
+}
+fun main(): i32 {
+    return f::<i32>()
+}

@@ -43,7 +43,10 @@ struct Case {
     body: &'static str,
     /// Whether the pre-mono check is expected to accept the generic body.
     accepted: bool,
-    /// Instances that fail for a type-level reason, not an ownership one (issue #138).
+    /// Instances that fail for a type-level reason, not an ownership one. Such an instance is now
+    /// rejected when the generic function is *called* with it (`src/mono/tests.rs`,
+    /// `programs/check_fail/generics/{ref_of_non_class,vec_of_class}.bork`), but this test
+    /// substitutes `T` textually into a body nobody calls, so those instances stay skipped here.
     skip: &'static [&'static str],
 }
 
@@ -62,7 +65,7 @@ const CASES: &[Case] = &[
     case("branches", "fun f<T>(x: T, c: bool): T {\n    if (c) {\n        return x\n    }\n    return x\n}", true),
     case("local_copy_of_val", "fun f<T>(x: T) {\n    val y = x\n}", true),
     case("move_into_local", "fun f<T>(var x: T) {\n    var y = move x\n}", true),
-    // `Ref<T>` is only valid for a class `T` (issue #138).
+    // `Ref<T>` is only valid for a class `T`.
     Case {
         name: "nested_ref",
         body: "fun f<T>(var x: Ref<T>) {\n    val y = move x\n}",
@@ -71,7 +74,7 @@ const CASES: &[Case] = &[
     },
     case("method", "class W {\n    n: i32\n    fun m<T>(x: T): T {\n        return x\n    }\n}", true),
     case("literal_t_is_not_a_type", "fun f<T>(x: T) {\n    val s = \"T\"\n}", true),
-    // typeck accepts `Vec<T>` but not `Vec<P>` (issue #138).
+    // `Vec<T>` is accepted for a parameter `T`, but not `Vec<P>` for a class `P`.
     Case {
         name: "move_into_vec",
         body: "fun f<T>(var x: T) {\n    var v = Vec<T>()\n    v.push(move x)\n}",

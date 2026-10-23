@@ -157,12 +157,16 @@ programs/check_fail/generics/generic_mutual_cycle.bork: hits=0 hash=cbf29ce48422
 programs/check_fail/generics/instantiation_cycle.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/opaque_add.bork: hits=3 hash=1a70dc74ade3e4b3
 programs/check_fail/generics/opaque_equality.bork: hits=4 hash=3a0bc1f1fbbe81d4
+programs/check_fail/generics/phantom_parameter.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/generics/polymorphic_recursion.bork: hits=1 hash=ad0952c317d7ec9b
+programs/check_fail/generics/ref_of_non_class.bork: hits=2 hash=792ff4bd33080373
 programs/check_fail/generics/return_moved.bork: hits=1 hash=f4fbef299bf05878
 programs/check_fail/generics/shadowed_class_param.bork: hits=2 hash=d32e1e199f73c3bb
 programs/check_fail/generics/turbofish_non_generic.bork: hits=1 hash=cc1e71e115d51a4e
 programs/check_fail/generics/type_args_on_non_generic.bork: hits=1 hash=24b3a4e249179b12
 programs/check_fail/generics/unknown_param.bork: hits=1 hash=74385c3ffc5486c8
 programs/check_fail/generics/use_after_move.bork: hits=3 hash=f0b1d1879dddd1d5
+programs/check_fail/generics/vec_of_class.bork: hits=2 hash=05911c042ade927f
 programs/check_fail/generics/wrong_arity.bork: hits=1 hash=19f81c5076eb4749
 programs/check_fail/inference/arith_mixed_literal_types.bork: hits=10 hash=820fdc0df021c5df
 programs/check_fail/inference/empty_array_without_annotation.bork: hits=1 hash=705dedf45e598b4e

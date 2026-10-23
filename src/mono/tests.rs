@@ -10,6 +10,15 @@ fn run(src: &str) -> (Result<Mono, Vec<Diagnostic>>, TyCtx) {
     (result, checked.tcx)
 }
 
+/// The diagnostics `bork check` reports for a program whose instances cannot be built. Both
+/// `check` and `monomorphize` go through `collect_instances`, so this covers `bork build` too.
+fn rejected(src: &str) -> Vec<Diagnostic> {
+    let checked = check(src);
+    assert!(!checked.diagnostics.is_empty(), "expected the program to be rejected");
+    assert!(checked.hir.is_none(), "a rejected program has no HIR");
+    checked.diagnostics
+}
+
 fn mono(src: &str) -> Mono {
     run(src).0.unwrap_or_else(|d| panic!("{d:?}"))
 }
@@ -91,15 +100,13 @@ fn output_has_one_report_root_per_function_and_unique_node_ids() {
 #[test]
 fn polymorphic_recursion_is_rejected() {
     let src = "class Box<T> {\n    v: T\n}\nfun f<T>(var x: T) {\n    f(Box(move x))\n}\nfun main() {\n    f(1)\n}\n";
-    let (result, _) = run(src);
-    let diagnostics = result.expect_err("polymorphic recursion must be rejected");
+    let diagnostics = rejected(src);
     assert!(diagnostics.iter().any(|d| d.message.contains("polymorphic recursion")), "{diagnostics:?}");
 }
 
 #[test]
 fn a_parameter_missing_from_the_signature_is_reported() {
-    let (result, _) = run("fun f<T>(): i32 {\n    return 1\n}\nfun main() {\n    f::<i32>()\n}\n");
-    let diagnostics = result.expect_err("an undeterminable parameter must be reported");
+    let diagnostics = rejected("fun f<T>(): i32 {\n    return 1\n}\nfun main() {\n    f::<i32>()\n}\n");
     assert!(diagnostics.iter().any(|d| d.message.contains("not determined by its signature")), "{diagnostics:?}");
 }
 
@@ -127,8 +134,7 @@ fn class_arguments_inside_a_plain_class_are_emitted() {
 fn doubling_polymorphic_recursion_is_rejected_with_a_bounded_message() {
     let src = "class Two<A, B> {\n    a: A\n    b: B\n}\nfun f<T>(x: T) {\n    f(Two(x, x))\n}\nfun main() {\n    f(1)\n}\n";
     let started = std::time::Instant::now();
-    let (result, _) = run(src);
-    let diagnostics = result.expect_err("doubling recursion must be rejected");
+    let diagnostics = rejected(src);
     assert!(diagnostics.iter().any(|d| d.message.contains("polymorphic recursion")), "{diagnostics:?}");
     assert!(diagnostics.iter().all(|d| d.message.len() < 500), "message is not bounded");
     assert!(started.elapsed().as_secs() < 5, "took {:?}", started.elapsed());
@@ -150,4 +156,44 @@ fn class_instance_name_reaches_as_far_as_record_name() {
     assert_eq!(class_instance_name(tcx, object).as_deref(), Some("Pair<i32,String>"));
     assert_eq!(class_instance_name(tcx, managed), None, "a managed Ref has no record name");
     assert_eq!(tcx.record_name(managed), None);
+}
+
+#[test]
+fn an_instance_that_makes_ref_of_a_non_class_is_rejected() {
+    let src = "fun g<T>(x: T): Ref<T> {\n    return None\n}\nfun main() {\n    val r = g(1)\n}\n";
+    let diagnostics = rejected(src);
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("g<i32>") && d.message.contains("managed Ref target")),
+        "{diagnostics:?}"
+    );
+    assert!(diagnostics.iter().all(|d| d.span.is_some()), "{diagnostics:?}");
+}
+
+#[test]
+fn an_instance_that_makes_vec_of_a_class_is_rejected() {
+    let src = "class P {\n    n: i32\n}\nfun f<T>(x: T) {\n    var v = Vec<T>()\n}\nfun main() {\n    f(P(1))\n}\n";
+    let diagnostics = rejected(src);
+    assert!(diagnostics.iter().any(|d| d.message.contains("`Vec` element")), "{diagnostics:?}");
+}
+
+#[test]
+fn a_class_instance_with_an_ill_formed_field_is_rejected() {
+    let src = "class Cell<T> {\n    next: Ref<T>\n}\nfun main() {\n    val c: Cell<i32> = Cell(None)\n}\n";
+    let diagnostics = rejected(src);
+    assert!(diagnostics.iter().any(|d| d.message.contains("managed Ref target")), "{diagnostics:?}");
+}
+
+#[test]
+fn well_formed_ref_and_vec_instances_are_still_accepted() {
+    let src = "class P {\n    n: i32\n}\nfun g<T>(x: T): Ref<T> {\n    return None\n}\nfun f<T>(x: T) {\n    var v = Vec<T>()\n}\nfun main() {\n    val r = g(P(1))\n    f(1)\n    f(\"s\")\n}\n";
+    let m = mono(src);
+    assert!(names(&m).contains(&"g<P>") && names(&m).contains(&"f<i32>") && names(&m).contains(&"f<String>"));
+}
+
+#[test]
+fn every_ill_formed_type_of_one_instance_is_reported() {
+    let src = "class P {\n    n: i32\n}\nfun f<A, B>(a: A, b: B): Ref<A> {\n    var v = Vec<B>()\n    return None\n}\nfun main() {\n    val r = f(1, P(1))\n}\n";
+    let diagnostics = rejected(src);
+    let in_instance = |needle: &str| diagnostics.iter().filter(|d| d.message.contains("f<i32,P>") && d.message.contains(needle)).count();
+    assert_eq!((in_instance("managed Ref target"), in_instance("`Vec` element")), (1, 1), "{diagnostics:?}");
 }
