@@ -265,7 +265,7 @@ fn collect_method_sigs(
                 shown_params.join(", "),
                 tcx.display(return_ty)
             );
-            let identity: Vec<TyId> = (0..class.generics.len() as u32).map(|i| tcx.param(crate::ty::ParamIdx(i))).collect();
+            let identity = tcx.identity_args(class.generics.len());
             let class_ty = tcx.class(owner, identity);
             let this_ty = tcx.ref_to(class_ty);
             let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty);
@@ -492,7 +492,7 @@ fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &m
     ordered.sort_by(|a, b| a.name.cmp(&b.name));
     for class in ordered {
         // The definition itself, its parameters standing for unknown leaf types.
-        let identity: Vec<TyId> = (0..class.generics.len() as u32).map(|i| tcx.param(crate::ty::ParamIdx(i))).collect();
+        let identity = tcx.identity_args(class.generics.len());
         let origin = tcx.class(class.id, identity);
         let mut path = vec![origin];
         if find_cycle(origin, origin, classes, tcx, &mut HashSet::new(), &mut path) {
@@ -501,7 +501,7 @@ fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &m
             diagnostics.push(type_error(
                 format!(
                     "class `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
-                    tcx.display(origin).to_string(),
+                    tcx.display(origin),
                     shown.join(" -> ")
                 ),
                 class.fields.first().map(|field| field.span),

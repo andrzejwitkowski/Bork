@@ -114,6 +114,11 @@ impl TyCtx {
         }
     }
 
+    /// `Param(0)..Param(arity)`: the arguments that make a generic item refer to itself.
+    pub fn identity_args(&mut self, arity: usize) -> Vec<TyId> {
+        (0..arity as u32).map(|i| self.param(ParamIdx(i))).collect()
+    }
+
     pub fn param(&mut self, param: ParamIdx) -> TyId {
         self.add(TyData::Param(param))
     }
