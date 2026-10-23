@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: monomorfizacja, kolektor instancji (#47)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Monomorfizacja: z jednej funkcji generycznej robimy wiele konkretnych</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/mono-collector</code> (PR #141, ticket #47): 10 plików, +638/−41 linii. Rdzeń to nowy <code>src/mono.rs</code> (ok. 350 linii) i niewielka zmiana walkera w <code>src/hir/resolve.rs</code>.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: czym jest monomorfizacja (można pominąć)</summary>
+<p>Funkcja generyczna <code>id&lt;T&gt;(x: T): T</code> jest <em>przepisem</em>, a nie gotową funkcją: procesor nie wie, ile bajtów ma <code>T</code>. Monomorfizacja (mono) zamienia przepis na gotowe wersje: dla każdego typu, z którym funkcję faktycznie wywołano, powstaje osobna kopia z podstawionym typem, np. <code>id&lt;i32&gt;</code> i <code>id&lt;String&gt;</code>. Ten sam pomysł stosuje Rust i C++.</p>
+<p>Zaletą jest szybki kod (brak dynamicznego rozstrzygania typów), a ceną większy program i konieczność ustalenia, <em>które</em> kopie są potrzebne.</p>
+</details>
+
+<h3>Stan przed zmianą</h3>
+<p>Po #44–#46 kompilator umie sprawdzić typy i własność generycznego kodu, ale nie umie go <em>wykonać</em>. <code>codegen_gate</code> odrzuca każdą funkcję i klasę generyczną, bo cały potok (<code>frontend.rs</code>) pracuje na jednym HIR, w którym wciąż siedzą parametry typu (<code>TyData::Param</code>). Ticket #47 dodaje brakujący etap: z generycznego HIR robi konkretny, bez żadnego <code>Param</code>. Generowanie LLVM z tego wyniku to osobny ticket (TS-P3-07).</p>
+
+<h2 id="intuicja">2. Intuicja</h2>
+
+<h3>Idea: lista robocza od <code>main</code></h3>
+<p>Nie chcemy kopii wszystkiego, tylko tego, co program rzeczywiście używa. Zaczynamy od <code>main</code>. Przeglądamy jego ciało; za każdym razem, gdy trafiamy na wywołanie funkcji, ustalamy <em>z jakimi argumentami typu</em> je wywołano i dopisujemy taką instancję do kolejki. Potem bierzemy z kolejki następną instancję i robimy to samo, aż kolejka się opróżni.</p>
+
+<div class="flow">
+  <div class="box"><h4>1. Kolejka</h4><code>main</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>2. Ciało main</h4><code>id(1)</code><code>id("s")</code><code>id(2)</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>3. Instancje</h4><code>id&lt;i32&gt;</code><code>id&lt;String&gt;</code><code>(id(2) to ta sama co id(1))</code></div>
+</div>
+
+<p>Instancja jest identyfikowana przez parę <b>(funkcja, lista argumentów typu)</b>. Ponieważ typy są <em>internowane</em> (równy kształt oznacza ten sam <code>TyId</code>), dwa wywołania z <code>i32</code> trafiają na tę samą instancję bez żadnego dodatkowego porównywania.</p>
+
+<h3>Kluczowy problem: skąd wiemy, że <code>T = i32</code>?</h3>
+<p>Typeck w trakcie sprawdzania wywołania <code>id(1)</code> wyliczył, że <code>T = i32</code>, ale tę informację <b>wyrzucił</b>: HIR jej nie przechowuje. Zostało jednak coś równie dobrego: typ samego callee. Wywołanie <code>id(1)</code> ma w HIR callee o typie <code>(i32) -&gt; i32</code>, czyli sygnaturę po podstawieniu. Mamy też oryginalną sygnaturę <code>(T) -&gt; T</code>. Wystarczy je <em>dopasować</em>.</p>
+
+<table class="st">
+  <tr><th>Sygnatura generyczna</th><th>Typ callee w wywołaniu</th><th>Wynik dopasowania</th></tr>
+  <tr><td><code>(T) -&gt; T</code></td><td><code>(i32) -&gt; i32</code></td><td><code>T = i32</code></td></tr>
+  <tr><td><code>(A, B) -&gt; A</code></td><td><code>(i32, String) -&gt; i32</code></td><td><code>A = i32, B = String</code></td></tr>
+  <tr><td><code>(&amp;Pair&lt;A, B&gt;) -&gt; A</code> (metoda)</td><td><code>(&amp;Pair&lt;bool, bool&gt;) -&gt; bool</code></td><td><code>A = bool, B = bool</code></td></tr>
+  <tr><td><code>(T) -&gt; T</code></td><td><code>(i32) -&gt; String</code></td><td><span class="tag bad">konflikt: T ma dwa typy</span></td></tr>
+</table>
+
+<div class="callout warn"><b class="t">Luka tej metody</b>
+Jeśli parametr typu nie występuje w żadnym parametrze ani w typie zwracanym (<code>fun f&lt;T&gt;(): i32</code>, wywołane jako <code>f::&lt;i32&gt;()</code>), to nic nie da się dopasować. Takie przypadki zgłaszamy jako błąd ("not determined by its signature"), zamiast zgadywać.</div>
+
+<h3>Co robi instancja z ciałem funkcji</h3>
+<p>Instancja to <em>klon</em> generycznej funkcji, w którym każdy typ przeszedł przez <code>subst</code> (zamiana <code>Param(i)</code> na <code>args[i]</code>), a nazwy wywoływanych funkcji zamieniono na nazwy instancji. Z <code>twice&lt;T&gt;</code>, które woła <code>id(id(x))</code>, powstaje <code>twice&lt;i32&gt;</code> wołające <code>id&lt;i32&gt;</code>. Metody i klasy działają tak samo: <code>p.first()</code> na <code>Pair&lt;i32, String&gt;</code> daje <code>Pair.first&lt;i32,String&gt;</code>, a sama klasa wchodzi do wyniku jako <code>Pair&lt;i32,String&gt;</code> z podstawionymi polami.</p>
+
+<h3>Rekurencja polimorficzna</h3>
+<p>Co, jeśli funkcja woła samą siebie z coraz większym typem?</p>
+<pre>fun f&lt;T&gt;(var x: T) {
+    f(Box(move x))     <span class="cm">// f&lt;i32&gt; woła f&lt;Box&lt;i32&gt;&gt; woła f&lt;Box&lt;Box&lt;i32&gt;&gt;&gt; ...</span>
+}</pre>
+<p>Instancji byłoby nieskończenie wiele, więc lista robocza nigdy by się nie skończyła. Rozwiązanie jest proste: gdy argument typu jest zagnieżdżony głębiej niż 32 poziomy, kończymy z diagnostyką "polymorphic recursion". To jedyny błąd dla użytkownika, jaki może powstać już po mono.</p>
+
+<div class="callout"><b class="t">Pułapka wydajności: typy to grafy, nie drzewa</b>
+Typ <code>Pair&lt;T, T&gt;</code> ma dwa razy to samo dziecko. Przy rekurencji, która podwaja typ w każdym kroku, naiwne liczenie głębokości odwiedzałoby 2<sup>32</sup> węzły, zanim doszłoby do limitu. Dlatego <code>depth</code> pamięta wyniki dla już policzonych <code>TyId</code> (memoizacja).</div>
+
+<h3>Po sklonowaniu: raporty i numery węzłów</h3>
+<p>Dalsze etapy (escape, plan pamięci, <code>region_walk</code>) wymagają, żeby raport z analizy własności miał <b>dokładnie jeden korzeń na funkcję, w tej samej kolejności</b>. Dlatego dla każdej instancji klonujemy korzeń jej generycznego oryginału i zmieniamy etykietę na nazwę instancji. Skopiowane ciała mają te same <code>NodeId</code>, więc po złożeniu całego programu numerujemy je od nowa (<code>number_nodes</code>); dzięki temu id są unikalne w całym wyniku. Dopiero wtedy uruchamiamy escape i plan pamięci, już na konkretnych typach.</p>
+
+<div class="callout warn"><b class="t">Czego ten PR nie robi</b>
+Nie podłącza mono do <code>frontend::check</code> ani do <code>bork build</code>; generyki są nadal odrzucane przez bramkę, dopóki TS-P3-07 nie wygeneruje z wyniku kodu. Wynik zawiera tylko to, co osiągalne z <code>main</code>, więc nieużywane funkcje niegeneryczne są w nim pominięte.</div>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+
+<h3>3.1 Walker z callbackiem (<code>src/hir/resolve.rs</code>)</h3>
+<p>Istniejący walker przepisywał typy w ciele funkcji (do podmiany zmiennych inferencji). Dostał drugi callback wywoływany <em>po</em> przetworzeniu dzieci każdego wyrażenia, więc w chwili odwiedzenia wywołania typ callee jest już ostateczny.</p>
+<pre><span class="add">+ pub fn rewrite(body, f: &amp;mut impl FnMut(TyId) -&gt; TyId, on_expr: &amp;mut impl FnMut(&amp;mut HirExpr)) {
++     block(body, f, on_expr);
++ }</span>
+  pub fn resolve_types(body, f) {
+<span class="del">-     block(body, f);</span>
+<span class="add">+     rewrite(body, f, &amp;mut |_| {});</span>
+  }</pre>
+
+<h3>3.2 Dopasowanie typów (<code>bind</code>)</h3>
+<pre>fn bind(tcx, pattern: TyId, actual: TyId, out: &amp;mut [Option&lt;TyId&gt;]) -&gt; bool {
+    if !tcx.has_param(pattern) { return pattern == actual; }    <span class="cm">// brak parametrów: muszą być równe</span>
+    match (tcx.data(pattern), tcx.data(actual)) {
+        (Param(idx), _) =&gt; <span class="cm">/* zapisz out[idx] = actual, albo sprawdź zgodność z poprzednim */</span>,
+        (Class(d1, a1), Class(d2, a2)) =&gt; d1 == d2 &amp;&amp; wszystkie argumenty pasują,
+        <span class="cm">/* Array, Func, Ref, ManagedRef, Vec, Range, Nullable: schodzimy w dzieci */</span>
+        _ =&gt; false,
+    }
+}</pre>
+<p>Jeśli ten sam parametr trafi na dwa różne typy, dopasowanie się nie udaje. Zwracana wartość <code>Vec&lt;Option&lt;TyId&gt;&gt;</code> mówi też, które parametry zostały nieustalone (luka opisana wyżej).</p>
+
+<h3>3.3 Kolektor (<code>Collector</code>)</h3>
+<ul>
+  <li><b><code>intern</code></b>: sprawdza głębokość argumentów, szuka klucza <code>(indeks funkcji, argumenty)</code> w mapie, a przy pierwszym spotkaniu tworzy <code>Instance</code>, nadaje nazwę (<code>id&lt;i32&gt;</code>) i dokłada do kolejki.</li>
+  <li><b><code>call_args</code></b>: dla niegenerycznego callee zwraca pustą listę; dla generycznego dopasowuje parametry i typ zwracany do typu callee i zgłasza błąd, gdy coś zostanie nieustalone.</li>
+  <li><b><code>visit</code></b>: dla wywołania, którego callee jest identyfikatorem funkcji użytkownika, podmienia nazwę na nazwę instancji. Dla <code>ObjectConstruct</code> i <code>ObjectField</code> podmienia nazwę klasy na nazwę jej instancji.</li>
+</ul>
+<p>Nazwy to wydruk typu bez spacji (<code>Pair.first&lt;i32,String&gt;</code>). Znak <code>&lt;</code> nie może wystąpić w identyfikatorze użytkownika, więc nazwa instancji nie zderzy się z żadną zwykłą funkcją.</p>
+
+<h3>3.4 Pętla główna (<code>monomorphize</code>)</h3>
+<ol>
+  <li>Sprawdza, że raport ma tyle korzeni co funkcji (inaczej błąd zamiast paniki).</li>
+  <li>Zasiewa kolejkę funkcją <code>main</code>.</li>
+  <li>Dla każdej instancji: klonuje oryginał, podstawia argumenty w parametrach, typie zwracanym i ciele (<code>resolve_types</code> z <code>subst</code>; nieudane podstawienie <code>T??</code> to diagnostyka), potem <code>rewrite</code> z <code>visit</code> przepisuje wywołania.</li>
+  <li>Zbiera instancje klas z typów funkcji oraz z pól klas niegenerycznych i dla każdej buduje <code>HirClass</code> z podstawionymi polami. Zbiór <code>seen</code> chroni przed powtórzeniami, a limit głębokości przed nieskończonym rozrostem.</li>
+  <li>Składa raport (sklonowane i przemianowane korzenie), numeruje węzły, uruchamia escape, <code>memory::plan</code> i <code>stamp_codegen_push</code>.</li>
+</ol>
+<p>W kompilacji debug <code>debug_assert!(no_params_left(..))</code> sprawdza, że żaden typ w wyniku nie zawiera <code>Param</code>.</p>
+
+<h3>3.5 Testy i snapshot</h3>
+<ul>
+  <li><code>src/mono/tests.rs</code> (11 testów): dwie różne instancje <code>id</code>, brak instancji dla nieużywanych generyków, <code>twice</code> woła <code>id</code>, wzajemna rekurencja <code>ping</code>/<code>pong</code> kończy się, metody i klasy na dwóch zestawach argumentów, unikalność <code>NodeId</code>, odrzucenie rekurencji polimorficznej i parametru spoza sygnatury, brak <code>Param</code> w wyniku, klasa w polu klasy zwykłej.</li>
+  <li><code>tests/mono_instances_golden.rs</code> + <code>tests/golden/mono_instances.txt</code>: lista instancji i klas dla 7 programów generycznych z korpusu. Odświeżanie: <code>BORK_BLESS=1</code>.</li>
+</ul>
+
+<h2 id="quiz">4. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="2">
+  <p>1. HIR nie zapamiętuje argumentów typu wywołań. Jak mono ustala, że w <code>id(1)</code> parametr <code>T</code> to <code>i32</code>?</p>
+  <button>Uruchamia ponownie wnioskowanie typów dla każdego wywołania.</button>
+  <button>Czyta je z tabeli zapisanej przez typeck obok HIR.</button>
+  <button>Dopasowuje generyczną sygnaturę <code>(T) -&gt; T</code> do typu callee <code>(i32) -&gt; i32</code>, który typeck już rozwiązał.</button>
+  <button>Zakłada, że każdy parametr to <code>i32</code>, dopóki kompilator nie zgłosi błędu.</button>
+  <div class="fb">Typ callee w HIR jest sygnaturą po podstawieniu, więc jednostronne dopasowanie wzorca (<code>bind</code>) odtwarza argumenty. Żadnej dodatkowej tabeli nie ma, a typeck nie jest uruchamiany ponownie.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>2. Dla jakiego programu dopasowanie argumentów nie zadziała i mono zgłosi błąd?</p>
+  <button>Gdy funkcja jest wywołana z dwoma różnymi typami.</button>
+  <button>Gdy parametr typu nie występuje w żadnym parametrze ani w typie zwracanym, np. <code>fun f&lt;T&gt;(): i32</code> z <code>f::&lt;i32&gt;()</code>.</button>
+  <button>Gdy funkcja generyczna woła inną funkcję generyczną.</button>
+  <button>Gdy argumentem typu jest klasa.</button>
+  <div class="fb">Dwa różne typy dają po prostu dwie instancje, a wołanie innych generyków i klasy w argumentach działają (są w testach). Bez wystąpienia w sygnaturze nie ma czego dopasować.</div>
+</div>
+
+<div class="q" data-correct="0">
+  <p>3. Dlaczego rekurencja polimorficzna jest wykrywana limitem głębokości typu, a nie np. limitem liczby instancji?</p>
+  <button>Bo każde kolejne wywołanie dodaje poziom zagnieżdżenia (<code>Box&lt;Box&lt;...&gt;&gt;</code>), więc głębokość argumentu rośnie bez końca i szybko przekracza limit, a zwykła rekurencja generyczna jej nie zwiększa.</button>
+  <button>Bo liczba instancji jest zawsze skończona.</button>
+  <button>Bo głębokość jest tańsza niż liczenie instancji.</button>
+  <button>Bo kompilator nie zna liczby funkcji w programie.</button>
+  <div class="fb">Zwykła rekurencja, np. <code>f&lt;i32&gt;</code> wołające <code>f&lt;i32&gt;</code>, ma tę samą instancję i się nie rozrasta. Dopiero ciągłe powiększanie typu daje nieskończenie wiele instancji, a głębokość to właśnie wykrywa.</div>
+</div>
+
+<div class="q" data-correct="3">
+  <p>4. Po co <code>depth</code> pamięta wyniki dla już policzonych typów?</p>
+  <button>Żeby wynik był taki sam przy każdym uruchomieniu.</button>
+  <button>Żeby oszczędzić pamięć.</button>
+  <button>Bo typy są drzewami o jednym dziecku.</button>
+  <button>Bo typy są internowanymi grafami: <code>Pair&lt;T, T&gt;</code> ma to samo dziecko dwa razy, więc bez pamięci podręcznej głębokość typu podwajającego się w każdym kroku wymagałaby wykładniczo wielu odwiedzin.</button>
+  <div class="fb">Przy rekurencji, która podwaja typ, naiwne liczenie odwiedzałoby rzędu 2<sup>n</sup> węzłów, zanim dojdzie do limitu 32. Memoizacja po <code>TyId</code> sprowadza to do liczby różnych typów.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>5. Dlaczego dla każdej instancji trzeba sklonować i przemianować korzeń raportu z analizy własności, a po złożeniu programu wywołać <code>number_nodes</code>?</p>
+  <button>Żeby raport zajmował mniej miejsca.</button>
+  <button>Bo <code>region_walk</code> wymaga jednego korzenia na funkcję w tej samej kolejności i z etykietą <code>fun nazwa</code>, a sklonowane ciała mają zduplikowane <code>NodeId</code>, które muszą być unikalne w całym programie.</button>
+  <button>Bo bez tego instancje nie miałyby nazw.</button>
+  <button>Bo kompilator LLVM tego wymaga.</button>
+  <div class="fb">Raport powstał z AST przed mono, więc ma korzeń na funkcję generyczną. <code>check_roots</code> porównuje liczbę i etykiety, więc bez przemianowania plan pamięci zakończyłby się błędem. LLVM nie jest tu jeszcze używany (to TS-P3-07).</div>
+</div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
