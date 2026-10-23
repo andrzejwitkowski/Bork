@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: funkcje generyczne w type checkerze (#44)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  /* diagram family 1: flow of boxes with example data */
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  /* diagram family 2: table of variable states */
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  /* quiz */
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Funkcje generyczne w type checkerze Bork</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/generic-functions</code>: commity <code>8bf736f</code> (#44) i <code>864bdaa</code> (refaktor komunikatu błędu). Zakres liczony względem <code>origin/main</code>: 29 plików, +489/−77 linii.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<div class="callout warn"><b class="t">Uwaga o zakresie</b>
+Lokalny <code>main</code> jest mocno nieaktualny: <code>git diff main...HEAD</code> pokazuje 140 plików i ~9000 linii, bo obejmuje wiele już zmergowanych PR-ów (#31–#43). Prawdziwa różnica względem <code>origin/main</code> to tylko to, co opisuję niżej.
+</div>
+
+<!-- ============================ TŁO ============================ -->
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: czym są typy generyczne i inferencja (można pominąć)</summary>
+<p><b>Funkcja generyczna</b> to funkcja napisana raz dla wielu typów. Zamiast osobno pisać <code>idI32(x: i32)</code> i <code>idString(x: String)</code>, piszemy:</p>
+<pre>fun id&lt;T&gt;(x: T): T {
+    return x
+}</pre>
+<p><code>T</code> to <em>parametr typu</em>: zmienna, której wartością jest typ. Przy wywołaniu <code>id(1)</code> kompilator ustala, że <code>T = i32</code>, a przy <code>id("s")</code>, że <code>T = String</code>.</p>
+<p>Są dwa sposoby sprawdzania takiej funkcji. Pierwszy to <em>szablon</em> (jak w C++): ciało sprawdzamy dopiero po podstawieniu konkretnego typu, osobno dla każdego użycia. Drugi to <em>sprawdzenie raz</em> (jak w Rust czy Javie): ciało sprawdzamy jeden raz, traktując <code>T</code> jako nieznany, <em>nieprzezroczysty</em> typ. Bork wybiera drugi, więc w ciele funkcji nie wolno zrobić z <code>T</code> niczego, co zakładałoby coś o jego naturze (dodać dwóch <code>T</code>, odwołać się do pola).</p>
+<p><b>Inferencja</b> to zgadywanie typów, których programista nie napisał. Technicznie: dla nieznanego typu tworzymy <em>zmienną inferencji</em> (<code>?0</code>), a potem <em>unifikujemy</em> ją z tym, co z kodu wynika. Na koniec każda zmienna powinna mieć wartość.</p>
+</details>
+
+<h3>Co już było w Bork przed tą zmianą</h3>
+<p>Type checker Bork (katalog <code>src/typeck</code>) pracuje na interningowanych typach <code>TyId</code>, opisanych przez <code>TyData</code>. Warianty istotne tutaj to <code>Param(ParamIdx)</code> (parametr typu) i <code>Infer(InferVar)</code> (zmienna inferencji). Do tej pory zmienne inferencji służyły tylko do literałów: <code>1</code> dostaje zmienną rodzaju <code>Int</code>, a <code>1.5</code> rodzaju <code>Float</code>. Na końcu ciała funkcji <code>default_literals</code> zamienia niezwiązane zmienne na <code>i32</code> i <code>f64</code>.</p>
+<p>Poprzednie PR-y budowały grunt pod generyki:</p>
+<ul>
+  <li><b>#42</b>: parser rozumie <code>fun f&lt;T&gt;</code>, <code>Box&lt;i32&gt;</code> i turbofish <code>f::&lt;i32&gt;(x)</code>.</li>
+  <li><b>#43</b>: deklaracje generyczne są walidowane (duplikaty, cienie, arność) i trafiają do HIR jako typy <code>Param</code>, ale <b>ciała nie były sprawdzane</b>. Funkcja z <code>&lt;T&gt;</code> szła przez <code>generics::declaration_only</code>.</li>
+  <li><b>#38–#41</b>: <code>InferCtxt</code> z unifikacją, bidirectional <code>synthesize</code>/<code>check</code> i zasada „żadna zmienna nie dociera do HIR".</li>
+</ul>
+<p>Efekt: parser i walidator znały generyki, ale każdy program z generyczną funkcją był odrzucany z komunikatem „not supported yet". Ten branch zdejmuje to ograniczenie dla <b>funkcji najwyższego poziomu</b>.</p>
+
+<!-- ============================ INTUICJA ============================ -->
+<h2 id="intuicja">2. Intuicja</h2>
+<p>Zmiana składa się z dwóch ruchów, które odpowiadają dwóm stronom każdej funkcji generycznej: jej <em>ciału</em> i jej <em>wywołaniom</em>.</p>
+
+<h3>Ruch pierwszy: ciało sprawdzamy raz, z nieprzezroczystym <code>T</code></h3>
+<p>Wewnątrz <code>fun id&lt;T&gt;(x: T): T</code> typ <code>T</code> to <code>Param(0)</code>. Wartość tego typu można przekazać dalej, zwrócić albo zapisać, bo do tego nie trzeba wiedzieć, czym jest <code>T</code>. Nie można jej natomiast dodać, porównać przez <code>==</code> ani odczytać jej pola, bo nie wiemy, czy <code>T</code> to liczba. Bork nie ma jeszcze <em>ograniczeń</em> (bounds, jak <code>T: Add</code>), więc komunikat błędu mówi to wprost:</p>
+<pre>fun double&lt;T&gt;(x: T): T {
+    return x + x
+}
+<span class="cm">// arithmetic operands must have the same numeric type, got T and T;
+// a type parameter has no bounds yet, so operators and members need a bound (not supported yet)</span></pre>
+
+<h3>Ruch drugi: wywołanie podstawia świeże zmienne za parametry</h3>
+<p>Przy <code>id(1)</code> checker bierze sygnaturę <code>(x: T) → T</code> i zastępuje każde <code>T</code> świeżą zmienną inferencji <code>?0</code>. Powstaje sygnatura tego jednego wywołania: <code>(x: ?0) → ?0</code>. Argumenty, typ oczekiwany albo jawny turbofish ustalają potem, czym jest <code>?0</code>.</p>
+
+<div class="flow">
+  <div class="box"><h4>1. Sygnatura</h4><code>id&lt;T&gt;(x: T): T</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>2. Świeża zmienna</h4><code>T ↦ ?0 (General)</code><code>(x: ?0): ?0</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>3. Argument <code>1</code></h4><code>?0 ~ ?int</code><code>?0 staje się Int</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>4. Koniec ciała</h4><code>default_literals</code><code>?0 := i32</code></div>
+</div>
+
+<p>Skąd bierze się wartość zmiennej? Trzy możliwe źródła, w kolejności, w jakiej działają:</p>
+<table class="st">
+  <tr><th>Źródło</th><th>Przykład</th><th>Rezultat</th></tr>
+  <tr><td>jawne argumenty (turbofish)</td><td><code>id::&lt;i64&gt;(1)</code></td><td>nie powstaje zmienna; <code>T := i64</code>, a literał <code>1</code> musi pasować do <code>i64</code></td></tr>
+  <tr><td>typ oczekiwany (podpowiedź)</td><td><code>val b: i64 = id(2)</code></td><td>zwracany <code>?0</code> unifikowany z <code>i64</code> <em>przed</em> czytaniem argumentów</td></tr>
+  <tr><td>argumenty</td><td><code>id("s")</code></td><td><code>?0 := String</code></td></tr>
+  <tr><td>nic</td><td><code>make()</code> dla <code>make&lt;T&gt;(): T</code></td><td><span class="tag bad">błąd</span> <code>cannot infer type parameter `T` of `make`</code></td></tr>
+</table>
+
+<div class="callout"><b class="t">Nowy rodzaj zmiennej: General</b>
+Zmienne literałowe (<code>Int</code>, <code>Float</code>) mają domyślny typ, więc nigdy nie zostają „puste". Zmienna parametru typu nie ma żadnego domyślnego typu, więc dostała nowy rodzaj <code>VarKind::General</code>. Jeśli <code>General</code> zunifikuje się z <code>Int</code>, wynikiem jest <code>Int</code> (reguła w <code>src/infer/unify.rs:65</code>). Dlatego <code>id(1)</code> kończy jako <code>i32</code>.</div>
+
+<h3>Co z błędami „nie da się wywnioskować"?</h3>
+<p>Po domyślnym uzupełnieniu literałów checker przegląda listę „oczekujących" parametrów (<code>Env::pending</code>). Jeśli któraś zmienna nadal jest niezwiązana, zgłasza błąd i od razu <em>zatruwa</em> ją typem <code>Error</code>. Dzięki temu zależne od niej wyrażenia nie sypią kaskadą kolejnych komunikatów.</p>
+
+<h3>Czego ten branch celowo nie robi</h3>
+<ul>
+  <li><b>Nie generuje kodu.</b> Bez monomorfizacji nie ma jak skompilować <code>id</code>. <code>codegen_gate</code> odrzuca więc generyczne funkcje przy <code>bork build</code>, ale <code>check</code> je akceptuje.</li>
+  <li><b>Nie obsługuje generycznych metod i klas.</b> Zostają „declaration-only". Wywołanie generycznej metody daje błąd „not supported yet".</li>
+  <li><b>Nie ma ograniczeń (bounds).</b> Dlatego operatory na <code>T</code> są zakazane.</li>
+</ul>
+
+<!-- ============================ KOD ============================ -->
+<h2 id="kod">3. Kod krok po kroku</h2>
+<p>Zmiany grupuję według roli, a nie według plików. Idę od fundamentów (jak typ <code>T</code> jest reprezentowany i drukowany) do tego, co widać z zewnątrz (wywołania i komunikaty).</p>
+
+<h3>3.1 Reprezentacja: nazwy parametrów i rodzaj zmiennej</h3>
+<p><b><code>src/ty/mod.rs</code>, <code>src/ty/print.rs</code>, <code>src/ty/sig.rs</code></b></p>
+<ul>
+  <li><code>TyCtx</code> dostał pole <code>param_names</code> i metodę <code>set_param_names</code>. Dzięki temu <code>TyPrinter</code> drukuje <code>Param(0)</code> jako <code>T</code>, a nie <code>T0</code>. Poza funkcją generyczną lista jest pusta, więc zachowuje się jak dawniej.</li>
+  <li><code>FnSig</code> dostał <code>generic_names</code>, bo przy wywołaniu potrzebujemy nazw parametrów do komunikatów (<code>cannot infer type parameter `T`</code>).</li>
+  <li>Komentarz przy <code>TyData::Param</code> przestał twierdzić, że parametr „nigdy nie trafia do HIR". Teraz trafia, ale tylko w funkcjach generycznych.</li>
+</ul>
+<pre>pub struct FnSig&lt;T&gt; {
+    pub generics: Vec&lt;ParamIdx&gt;,
+    <span class="add">+ pub generic_names: Vec&lt;String&gt;,</span>
+    pub params: Vec&lt;T&gt;,
+    pub ret: T,
+}</pre>
+
+<h3>3.2 Włączenie sprawdzania ciała</h3>
+<p><b><code>src/typeck/mod.rs</code></b>, funkcja <code>check_function</code>:</p>
+<pre><span class="del">- if !generics.is_empty() {</span>
+<span class="add">+ // Methods stay declaration-only; top-level generic functions are checked with `T` opaque.</span>
+<span class="add">+ if owner.is_some() &amp;&amp; !generics.is_empty() {</span>
+      return generics::declaration_only(...);
+  }
+<span class="add">+ tcx.set_param_names(generics.clone());</span>
+  let mut env = Env::new(...);
+<span class="add">+ env.tparams = generics::scope(&amp;[], &amp;function.generics);</span></pre>
+<p>To jest sedno: wcześniej każda funkcja z <code>&lt;T&gt;</code> wychodziła tu wcześnie jako „tylko deklaracja". Teraz wychodzą tak tylko <em>metody</em>. Funkcje najwyższego poziomu przechodzą pełną ścieżkę. <code>env.tparams</code> mapuje nazwę <code>T</code> na <code>ParamIdx</code>, więc <code>Env::lower</code> potrafi zamienić napisany w ciele typ <code>T</code> (np. <code>val y: T = x</code>) na <code>Param</code>. Wcześniej przekazywało tu puste <code>&amp;[]</code>.</p>
+<p>Na końcu funkcji <code>set_param_names(Vec::new())</code> sprząta, żeby nazwy nie wyciekły do następnej funkcji. <code>collect_fun_sigs</code> i <code>collect_method_sigs</code> wypełniają nowe <code>generic_names</code>.</p>
+
+<h3>3.3 Instancjacja wywołania</h3>
+<p><b><code>src/typeck/expr/call.rs</code></b>, nowa funkcja <code>instantiate</code>. Ma trzy gałęzie:</p>
+<pre>let args: Vec&lt;TyId&gt; = if type_args.is_empty() {
+    <span class="cm">// brak turbofisha: świeża zmienna General na każdy parametr + wpis do env.pending</span>
+    sig.generic_names.iter().map(|param| { ... }).collect()
+} else if type_args.len() != sig.generics.len() {
+    <span class="cm">// "`id` expects 1 type argument, got 2"</span>
+    return None;
+} else {
+    <span class="cm">// turbofish: zamień napisane typy na TyId</span>
+    type_args.iter().map(|ty| env.lower(ty, Some(span))).collect()
+};
+<span class="cm">// podstaw args za Param w parametrach i w typie zwracanym</span>
+let params = sig.params.iter().map(|&amp;ty| subst(env.tcx, ty, &amp;args))...</pre>
+<p>Funkcja <code>subst</code> istniała od #34. Może się nie powieść, gdy podstawienie dałoby <code>T??</code> (np. <code>T := i32?</code> w miejscu, gdzie sygnatura ma już <code>T?</code>). Ten przypadek daje osobny błąd „would make a nullable of a nullable".</p>
+<p><code>callee_signature</code> przyjmuje teraz <code>type_args</code> i woła <code>instantiate</code>. W <code>check_call</code> dochodzą dwie rzeczy:</p>
+<ul>
+  <li><b>Podpowiedź z typu oczekiwanego.</b> Dla generycznej funkcji wykonujemy <code>env.same(call_return_ty, expected)</code> <em>przed</em> sprawdzeniem argumentów. To tylko podpowiedź: nieudana unifikacja nic nie zmienia, a rozbieżność zgłosi wołający. Dlatego <code>dispatch</code> przekazuje teraz <code>expected</code> do <code>check_call</code>.</li>
+  <li><b>Walidacja turbofisha.</b> <code>f::&lt;i32&gt;(1)</code> dla niegenerycznego <code>f</code> daje „`f` is not generic; it takes no explicit type arguments". Pomocnicza <code>is_generic_fn</code> sprawdza, że nazwa to rzeczywiście funkcja użytkownika, a nie metoda ani klasa, które mogłyby ją zasłaniać.</li>
+</ul>
+<p>Ta walidacja zastąpiła stary blok w <code>expr/mod.rs</code>, który odrzucał <em>każdy</em> turbofish komunikatem „not supported yet". Dlatego w <code>dispatch</code> ubyło 10 linii.</p>
+
+<h3>3.4 Koniec ciała: zmienne bez wartości</h3>
+<p><b><code>src/typeck/env.rs</code></b> definiuje <code>PendingParam { var, span, callee, param }</code>. <b><code>src/typeck/mod.rs</code></b> dodaje <code>report_uninferred</code>, wołane zaraz po <code>default_literals</code>:</p>
+<pre>for pending in std::mem::take(&amp;mut env.pending) {
+    let ty = env.infcx.resolve_shallow(env.tcx, pending.var);
+    if !matches!(env.tcx.data(ty), TyData::Infer(_)) { continue; }   <span class="cm">// ustalone: OK</span>
+    env.error("cannot infer type parameter `{param}` of `{callee}`; specify it explicitly, ...", span);
+    <span class="cm">// zatruj, żeby zależne wyrażenia milczały</span>
+    let _ = env.infcx.unify(env.tcx, ty, env.tcx.error());
+}</pre>
+<p>Zmieniło się też <code>settle</code> w <code>check_function</code>. Stary kod robił <code>unwrap_or(ty)</code> przy rozwiązywaniu zmiennej. Nowy obsługuje błąd (nullable nullable'a) i raportuje go, zamiast po cichu go ignorować.</p>
+
+<h3>3.5 Skutki uboczne nowego rodzaju zmiennej</h3>
+<p><b><code>src/typeck/env.rs</code></b>:</p>
+<ul>
+  <li><code>show</code> (używane w komunikatach) dla niezwiązanej zmiennej <code>General</code> drukuje samą zmienną, zamiast zgadywać <code>i32</code>. Wcześniej każda niezwiązana zmienna szła do <code>i32</code>.</li>
+  <li><code>is_numeric</code> przestało traktować każdą niezwiązaną zmienną jak liczbę. Teraz <code>General</code> nie jest numeryczna. Bez tego <code>x + y</code> na jeszcze nieustalonym typie przechodziłoby bez błędu.</li>
+</ul>
+
+<h3>3.6 Nieprzezroczyste <code>T</code> i podpowiedź o ograniczeniach</h3>
+<p>Dwie nowe metody w <code>Env</code>: <code>is_param</code> oraz <code>bounds_hint</code>, która zwraca dopisek „; a type parameter has no bounds yet, ..." tylko wtedy, gdy któryś z typów w błędzie jest parametrem. Dopisek doklejają: arytmetyka i porównania (<code>binary.rs</code>), nieznane pole (<code>field.rs</code>) oraz wywołanie metody na <code>T</code> (<code>method.rs</code>).</p>
+<p>Najciekawsza jest równość w <code>binary.rs</code>. Dotąd <code>a == b</code> przechodziło dla dwóch wartości tego samego typu. Dla <code>T == T</code> to samo sprawdzenie by przeszło, więc dodano flagę <code>opaque</code>, która wymusza błąd:</p>
+<pre>let opaque = env.is_param(lhs_ty) || env.is_param(rhs_ty);
+if !poisoned &amp;&amp; (opaque || (!same(...) &amp;&amp; !(both text))) { <span class="cm">/* błąd */</span> }</pre>
+<p>Komunikat nadal mówi „must have the same type, got T and T", co brzmi dziwnie, ale dopisek o ograniczeniach wyjaśnia, o co chodzi.</p>
+
+<h3>3.7 Granice zakresu</h3>
+<ul>
+  <li><b><code>src/codegen_gate.rs</code></b>: generyczna funkcja daje błąd „is not compiled yet (monomorphization)".</li>
+  <li><b><code>expr/method.rs</code></b>: wywołanie generycznej metody daje „calling the generic method `C.m` is not supported yet" i zatruwa wynik.</li>
+</ul>
+
+<h3>3.8 Refaktor (commit 864bdaa)</h3>
+<p>Komunikat o turbofishu na „nie-funkcji" miał wcześniej sztuczną nazwę „callee" i brak spanu. Teraz dla callee innego niż identyfikator (np. wynik wyrażenia) dostajemy komunikat „only generic functions take explicit type arguments", a nazwany callee zachowuje się jak wcześniej. Zmiana kosmetyczna: 6 dodanych i 5 usuniętych linii.</p>
+
+<h3>3.9 Testy i dokumentacja</h3>
+<ul>
+  <li><b><code>programs/check/generics/</code></b> (4 programy, które mają się sprawdzić): <code>identity</code>, <code>pair</code>, <code>generic_in_generic</code> (<code>id(id(x))</code>) i <code>explicit_args</code>.</li>
+  <li><b><code>programs/check_fail/generics/</code></b> (6 nowych programów, z oczekiwaną diagnostyką w komentarzu <code>// diag:</code>): <code>cannot_infer</code>, <code>explicit_arity</code>, <code>explicit_mismatch</code>, <code>opaque_add</code>, <code>opaque_equality</code> i <code>turbofish_non_generic</code>. Usunięto <code>generic_function.bork</code>, który sprawdzał dawne „not supported yet".</li>
+  <li><code>src/typeck/tests/generics.rs</code> (+149 linii) i pliki złote <code>tests/golden/*</code> (arena_report, hir_types, hover, memory_plan) obejmują nowe programy.</li>
+  <li><code>docs/language.md</code> i <code>docs/rfcs/0001-type-system-core.md</code> dostały po akapicie o tym, co teraz działa.</li>
+</ul>
+
+<div class="callout warn"><b class="t">Do sprawdzenia przy review</b>
+Komunikat dla <code>T == T</code> brzmi „must have the same type, got T and T", co samo w sobie mówi coś nieprawdziwego. Zrozumiały jest dopiero z dopiskiem o ograniczeniach. To spójne z testem <code>opaque_equality</code>, który sprawdza tylko fragment „a type parameter has no bounds yet".</div>
+
+<!-- ============================ QUIZ ============================ -->
+<h2 id="quiz">4. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="1">
+  <p>1. Dlaczego <code>fun double&lt;T&gt;(x: T): T { return x + x }</code> jest odrzucane już przy samym sprawdzaniu ciała?</p>
+  <button>Bo kompilator nie umie jeszcze sprawdzać ciał funkcji generycznych.</button>
+  <button>Bo <code>T</code> jest w ciele nieprzezroczysty, a bez ograniczeń (bounds) nie wiadomo, czy da się go dodawać.</button>
+  <button>Bo dodawanie jest dozwolone tylko dla typów <code>i32</code>.</button>
+  <button>Bo funkcja nie została wywołana z konkretnym typem.</button>
+  <div class="fb">Ciało sprawdzane jest <em>raz</em>, z <code>T</code> jako <code>Param</code>. Ten branch właśnie włączył to sprawdzanie (pierwsza odpowiedź opisuje stan sprzed zmiany). Brak wywołania nie ma znaczenia, a dodawanie działa dla wszystkich liczb, nie tylko <code>i32</code>.</div>
+</div>
+
+<div class="q" data-correct="2">
+  <p>2. Co dzieje się z parametrem <code>T</code> w sygnaturze <code>id&lt;T&gt;(x: T): T</code>, gdy napiszemy <code>id("s")</code> bez turbofisha?</p>
+  <button>Checker kopiuje ciało <code>id</code> i sprawdza je z <code>T = String</code>.</button>
+  <button>Checker od razu przypisuje <code>T = String</code> na podstawie literału.</button>
+  <button>Checker podstawia za <code>T</code> świeżą zmienną inferencji rodzaju <code>General</code>, a argument ustala jej wartość.</button>
+  <button>Checker zgłasza błąd, bo turbofish jest obowiązkowy.</button>
+  <div class="fb">Zmienna powstaje w <code>instantiate</code>, a unifikacja z argumentem robi resztę. Kopiowanie ciała to model szablonów (C++), którego Bork nie używa. Turbofish jest opcjonalny, gdy da się wnioskować.</div>
+</div>
+
+<div class="q" data-correct="0">
+  <p>3. Po co wołane jest <code>env.same(call_return_ty, expected)</code> przed sprawdzeniem argumentów w <code>val b: i64 = id(2)</code>?</p>
+  <button>Żeby <code>T</code> zostało ustalone jako <code>i64</code> z typu oczekiwanego, zanim literał <code>2</code> zdąży dostać domyślny typ.</button>
+  <button>Żeby wymusić błąd, jeśli typ oczekiwany jest inny niż <code>i32</code>.</button>
+  <button>Żeby uniknąć wywołania <code>subst</code>.</button>
+  <button>Żeby pominąć sprawdzanie argumentów.</button>
+  <div class="fb">To podpowiedź (hint). Nieudana unifikacja nic nie zmienia, a rozbieżność typów zgłosi wołający. Argumenty nadal są sprawdzane.</div>
+</div>
+
+<div class="q" data-correct="3">
+  <p>4. Program: <code>fun make&lt;T&gt;(): T { return make() }</code> oraz <code>fun main() { make() }</code>. Dlaczego wywołanie w <code>main</code> jest błędem?</p>
+  <button>Bo rekurencja jest zabroniona.</button>
+  <button>Bo <code>main</code> nie może wołać funkcji generycznych.</button>
+  <button>Bo brakuje średnika.</button>
+  <button>Bo nic (ani argument, ani typ oczekiwany, ani turbofish) nie ustala <code>T</code>, więc po końcu ciała zmienna zostaje niezwiązana.</button>
+  <div class="fb">Zmienna wpada do <code>env.pending</code>, a <code>report_uninferred</code> po <code>default_literals</code> znajduje ją wciąż niezwiązaną. Komunikat podpowiada <code>make::&lt;..&gt;()</code>. Zmienna <code>General</code> nie ma typu domyślnego, w przeciwieństwie do literałów.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>5. Co zrobi <code>bork build</code> dla poprawnego programu z funkcją <code>id&lt;T&gt;</code>?</p>
+  <button>Skompiluje go, tworząc osobną wersję <code>id</code> dla każdego użytego typu.</button>
+  <button>Odrzuci go w <code>codegen_gate</code> z komunikatem o braku monomorfizacji, mimo że sprawdzanie typów przeszło.</button>
+  <button>Skompiluje <code>id</code> raz, z typem <code>T</code> jako wskaźnikiem.</button>
+  <button>Odrzuci go w type checkerze tak samo jak przed tą zmianą.</button>
+  <div class="fb">Ten branch dodaje tylko sprawdzanie typów. Generowanie kodu (monomorfizacja) to osobna, przyszła praca, więc <code>codegen_gate</code> blokuje takie funkcje. Przed zmianą odrzucał je sam checker, teraz robi to dopiero gate.</div>
+</div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
