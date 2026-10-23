@@ -423,6 +423,14 @@ Examples:
 - After typecheck, `frontend::check` runs `escape::place` (same rules as codegen `alloc_sink` for strings). Diagnostics use phase **Ownership** (LSP sees them without `codegen`).
 - Rejects, among others: assigning a string built in an inner region to an outer `var` without sink/hoist/promote, `if` branches that yield a moved string as the `if` value, returning a `String` from an inner region, and `return move` / `return concat(…)` until return-arena codegen exists.
 
+### Generic bodies (pre-mono)
+
+A generic function is checked for ownership once, before it is specialised, with each type parameter opaque (`Param`). Here `T` means a Bork type parameter, unlike the placeholder `T` in the borrow sections above.
+
+- An opaque value is **move-only**: never Copy, so `val y = move x` followed by another use of `x` is rejected like any other use after move. `&T` borrows are allowed within a region.
+- Facts that need a concrete type (layout, drop, handle clone, whether the bytes sit in an arena) are **deferred to monomorphization**. Until then `escape` assumes the most restrictive instance, `String`: `return move x` and an inner-region value returned or assigned outward are rejected for `T` exactly as they are for `String`.
+- Consequence: a body accepted pre-mono is accepted for every instantiation. This is conservative, so some bodies that would be fine for `i32` are rejected. `tests/generic_ownership.rs` checks it for `i32`, `String`, a class and `Ref<Class>`; generic code still does not compile (`codegen_gate`).
+
 ## Managed `Ref<T>` and dynamic arenas
 
 The full reference guide, including all `RefKind` cases and Mermaid diagrams,

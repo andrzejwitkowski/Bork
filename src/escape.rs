@@ -19,7 +19,7 @@ use crate::hir::{
     HirFunction, HirStmt, UseKind,
 };
 use crate::span::Span;
-use crate::ty::TyCtx;
+use crate::ty::{TyCtx, TyId};
 
 pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec<Diagnostic>) {
     let params = function
@@ -105,13 +105,16 @@ impl<'h> Escape<'h, '_> {
                     value = self.place(expr, sink);
                     if sink.is_none()
                         && value == self.depth
-                        && self.tcx.uses_arena_storage(expr.ty)
+                        && self.maybe_arena(expr.ty)
                         && !self.tcx.owns_result(expr.ty)
                     {
+                        let note = self.param_note(expr.ty);
                         reject(
                             self.diagnostics,
-                            "a `String` moved inside an `if` branch cannot be its value: \
-                             the branch's arena is freed when the branch ends",
+                            &format!(
+                                "a `String` moved inside an `if` branch cannot be its value: \
+                                 the branch's arena is freed when the branch ends{note}"
+                            ),
                             expr.span,
                         );
                     }
@@ -139,16 +142,21 @@ impl<'h> Escape<'h, '_> {
                     );
                     return;
                 }
-                if !self.tcx.uses_arena_storage(value.ty) {
+                if !self.maybe_arena(value.ty) {
                     return;
                 }
                 if self.place(value, Some(0)) > 0 {
+                    let note = self.param_note(value.ty);
                     reject(
                         self.diagnostics,
                         &format!(
                             "returning a `{value_ty}` whose bytes live in an inner region is not \
-                             supported: that arena is freed before the value is returned",
-                            value_ty = self.tcx.display(value.ty)
+                             supported: that arena is freed before the value is returned{note}",
+                            value_ty = if self.tcx.has_param(value.ty) {
+                                "generic value".to_string()
+                            } else {
+                                self.tcx.display(value.ty).to_string()
+                            }
                         ),
                         value.span,
                     );
@@ -192,12 +200,13 @@ impl<'h> Escape<'h, '_> {
                     }
                 }
                 let outlives = value_depth > depth;
-                if outlives && self.tcx.uses_arena_storage(value.ty) {
+                if outlives && self.maybe_arena(value.ty) {
+                    let note = self.param_note(value.ty);
                     reject(
                         self.diagnostics,
                         &format!(
                             "assigning a value whose bytes live in an inner region to `{name}` \
-                             is not supported: that arena is freed before `{name}` goes out of scope"
+                             is not supported: that arena is freed before `{name}` goes out of scope{note}"
                         ),
                         value.span,
                     );
@@ -229,10 +238,13 @@ impl<'h> Escape<'h, '_> {
             return;
         }
         if self.is_moved_or_promoted_string(expr) {
+            let note = self.param_note(expr.ty);
             reject(
                 self.diagnostics,
-                "returning a moved or promoted `String` is not supported yet: use \
-                 `return s` for parameters and locals, or return a string literal",
+                &format!(
+                    "returning a moved or promoted `String` is not supported yet: use \
+                     `return s` for parameters and locals, or return a string literal{note}"
+                ),
                 expr.span,
             );
             return;
@@ -303,8 +315,24 @@ impl<'h> Escape<'h, '_> {
             HirExprKind::Ident {
                 use_kind: UseKind::Move | UseKind::Promote,
                 ..
-            } if self.tcx.is_string(expr.ty)
+            } if self.tcx.is_string(expr.ty) || self.tcx.is_param(expr.ty)
         )
+    }
+
+    /// Appended to a `String`-worded rejection when `ty` involves an opaque type parameter.
+    fn param_note(&self, ty: TyId) -> &'static str {
+        if self.tcx.has_param(ty) {
+            " (a type parameter is judged as its strictest instance, `String`)"
+        } else {
+            ""
+        }
+    }
+
+    /// Whether a value of `ty` may live in an arena. An opaque `T` is judged as its most
+    /// restrictive instantiation (`String`), so a generic body accepted here stays accepted for
+    /// every instance (RFC 0002 section 4).
+    fn maybe_arena(&self, ty: TyId) -> bool {
+        self.tcx.uses_arena_storage(ty) || self.tcx.has_param(ty)
     }
 
     /// Depth of the arena that holds `expr`'s string bytes.
@@ -341,7 +369,7 @@ impl<'h> Escape<'h, '_> {
                 for arg in args {
                     self.place(arg, None);
                 }
-                if !self.tcx.uses_arena_storage(expr.ty) {
+                if !self.maybe_arena(expr.ty) {
                     self.place(receiver, None);
                     return 0;
                 }
@@ -349,7 +377,7 @@ impl<'h> Escape<'h, '_> {
             }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
-                if !self.tcx.uses_arena_storage(expr.ty) {
+                if !self.maybe_arena(expr.ty) {
                     self.place(receiver, None);
                     return 0;
                 }
@@ -362,7 +390,7 @@ impl<'h> Escape<'h, '_> {
                 depth
             }
             HirExprKind::Ident { name, use_kind } => {
-                if self.tcx.uses_arena_storage(expr.ty)
+                if self.maybe_arena(expr.ty)
                     && matches!(*use_kind, UseKind::Move | UseKind::Promote)
                 {
                     match sink {
@@ -392,7 +420,7 @@ impl<'h> Escape<'h, '_> {
                     sink.unwrap_or(self.depth)
                 } else {
                     let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
-                    if self.tcx.uses_arena_storage(expr.ty) {
+                    if self.maybe_arena(expr.ty) {
                         deepest
                     } else {
                         0
@@ -444,7 +472,7 @@ impl<'h> Escape<'h, '_> {
                 let none_depth = none_block
                     .as_ref()
                     .map_or(0, |block| self.region(block, true, Some(result_depth)));
-                if self.tcx.uses_arena_storage(expr.ty) {
+                if self.maybe_arena(expr.ty) {
                     result_depth
                 } else {
                     some_depth.max(none_depth)

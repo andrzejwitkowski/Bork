@@ -34,6 +34,25 @@ impl TyCtx {
         )
     }
 
+    /// Whether `id` mentions an opaque type parameter anywhere (`Ref<T>`, `Vec<T>`, `T?`, ...).
+    pub fn has_param(&self, id: TyId) -> bool {
+        struct Find(bool);
+        impl crate::ty::TypeVisitor for Find {
+            fn visit(&mut self, ctx: &TyCtx, id: TyId) {
+                self.0 |= matches!(ctx.data(id), TyData::Param(_));
+                crate::ty::walk(self, ctx, id);
+            }
+        }
+        let mut find = Find(false);
+        crate::ty::TypeVisitor::visit(&mut find, self, id);
+        find.0
+    }
+
+    /// An opaque type parameter (through `?`): any concrete type may stand for it after mono.
+    pub fn is_param(&self, id: TyId) -> bool {
+        matches!(self.data(self.base(id)), TyData::Param(_))
+    }
+
     /// 
     pub fn is_unknown(&self, id: TyId) -> bool {
         self.is_error(id)

@@ -177,6 +177,9 @@ programs/check/generics/generic_in_generic.bork::main() -> unit
 programs/check/generics/identity.bork::id(x: T0) -> T0
 programs/check/generics/identity.bork::main() -> unit
 programs/check/generics/node_ref.bork::main() -> unit
+programs/check/generics/ownership_ok.bork::id(x: T0) -> T0
+programs/check/generics/ownership_ok.bork::swap(a: T0, b: T1) -> Holder2<T1, T0>
+programs/check/generics/ownership_ok.bork::main() -> unit
 programs/check/generics/pair.bork::first(a: T0, b: T1) -> T0
 programs/check/generics/pair.bork::second(a: T0, b: T1) -> T1
 programs/check/generics/pair.bork::main() -> unit

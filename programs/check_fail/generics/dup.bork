@@ -1,0 +1,9 @@
+// diag: already moved
+class Pair2<T> {
+    a: T
+    b: T
+}
+fun dup<T>(var x: T): Pair2<T> {
+    return Pair2(move x, move x)
+}
+fun main() {}
