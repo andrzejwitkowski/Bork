@@ -236,7 +236,14 @@ impl<'a> Env<'a> {
     /// A class member type seen through `receiver`: the class parameters replaced by its arguments.
     pub(super) fn member_ty(&mut self, receiver: TyId, member: TyId) -> TyId {
         let args = self.tcx.class_args(receiver).map(|(_, args)| args.to_vec()).unwrap_or_default();
-        crate::ty::subst(self.tcx, member, &args).unwrap_or_else(|_| self.tcx.error())
+        if args.is_empty() {
+            return member;
+        }
+        crate::ty::subst(self.tcx, member, &args).unwrap_or_else(|_| {
+            let shown = self.show(receiver);
+            self.error(format!("type arguments of `{shown}` would make a nullable of a nullable"), None);
+            self.tcx.error()
+        })
     }
 
     pub(super) fn enter_scope(&mut self) {

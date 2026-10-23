@@ -156,6 +156,10 @@ fn lower_class(
         push_err(diagnostics, message, span);
         return tcx.error();
     }
+    // An argument that already has a diagnostic must not leave a `Class(_, [Error])` behind.
+    if args.iter().any(|&arg| tcx.is_error(arg)) {
+        return tcx.error();
+    }
     let class = tcx.class(class, args);
     tcx.with_nullable(class, nullable)
 }

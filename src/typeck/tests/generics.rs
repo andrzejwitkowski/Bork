@@ -217,7 +217,25 @@ fn field_and_method_types_are_substituted() {
 fn mismatched_class_arguments_are_rejected() {
     let src = format!("{PAIR}fun main() {{\n    val p: Pair<String, String> = Pair(1, \"a\")\n}}\n");
     let (_, m) = run(&src);
-    assert!(!m.is_empty(), "expected a mismatch");
+    has(&m, "constructor field `a`");
+}
+
+#[test]
+fn nullable_of_nullable_class_arguments_are_reported() {
+    let holder = "class Holder<T> {\n    v: T?\n}\n";
+    let (_, m) = run(&format!("{holder}fun f(h: Holder<i32?>) {{\n    val x = h.v\n}}\nfun main() {{}}\n"));
+    has(&m, "would make a nullable of a nullable");
+    let (_, m) = run(&format!("{holder}fun f(h: &Holder<i32?>) {{\n    h.v = None\n}}\nfun main() {{}}\n"));
+    has(&m, "would make a nullable of a nullable");
+    let (_, m) = run(&format!("{holder}fun main() {{\n    val h: Holder<i32?> = Holder(None)\n}}\n"));
+    has(&m, "would make a nullable of a nullable");
+}
+
+#[test]
+fn unknown_class_argument_absorbs_the_whole_type() {
+    let (_, m) = run("class Box<T> {\n    v: T\n}\nfun f(x: Box<Unknown>) {\n    val y = x.v\n}\nfun main() {}\n");
+    assert_eq!(m.len(), 1, "{m:?}");
+    has(&m, "unknown named type `Unknown`");
 }
 
 #[test]

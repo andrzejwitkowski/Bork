@@ -41,7 +41,14 @@ pub(super) fn check_construct(
 
     let mut values: Vec<HirExpr> = Vec::with_capacity(class.fields.len());
     for (index, field) in class.fields.iter().enumerate() {
-        let field_ty = crate::ty::subst(env.tcx, field.ty, &type_args).unwrap_or_else(|_| env.tcx.error());
+        let field_ty = if type_args.is_empty() {
+            field.ty
+        } else {
+            crate::ty::subst(env.tcx, field.ty, &type_args).unwrap_or_else(|_| {
+                env.error(format!("type arguments of `{}` would make a nullable of a nullable", class.name), Some(span));
+                env.tcx.error()
+            })
+        };
         if let Some(arg) = args.get(index) {
             let value = check(arg, field_ty, return_ty, env);
             let what = format!("constructor field `{}`", field.name);
