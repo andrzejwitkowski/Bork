@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: konserwatywna kontrola własności ciał generycznych (#46)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Własność w ciałach generycznych: sprawdzamy raz, zakładamy najgorsze</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/generic-ownership</code> (PR #139, ticket #46): 14 plików, +291/−18 linii względem <code>main</code>. Rdzeń to ok. 80 linii w <code>src/escape.rs</code> i <code>src/ty/query.rs</code>, reszta to testy, fixtury, pliki złote i dokumentacja.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<!-- ============================ TŁO ============================ -->
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: własność, przeniesienie i areny (można pominąć)</summary>
+<p>W Bork wartość nie-skalarna (np. <code>String</code> albo obiekt klasy) ma <em>jednego właściciela</em>. Zapis <code>val y = move x</code> <b>przenosi</b> wartość z <code>x</code> do <code>y</code>, a po przeniesieniu <code>x</code> nie wolno już użyć. To właśnie błąd „użycia po przeniesieniu". Liczby (<code>i32</code>) są <em>kopiowane</em>, więc tej reguły nie dotyczą.</p>
+<p>Bajty napisów i obiektów żyją w <b>arenach</b>: blokach pamięci związanych z zasięgiem (regionem). Gdy region się kończy, jego arena jest zwalniana. Stąd drugi rodzaj błędu: wartość, której bajty leżą w wewnętrznym regionie, nie może „uciec" na zewnątrz (zostać zwrócona ani przypisana do zmiennej z zewnątrz), bo jej pamięć zniknie. Za tę kontrolę odpowiada moduł <code>escape</code>.</p>
+<p><b>Monomorfizacja (mono)</b> to zamiana funkcji generycznej na zwykłe wersje dla konkretnych typów: z <code>id&lt;T&gt;</code> powstają <code>id&lt;String&gt;</code>, <code>id&lt;i32&gt;</code> itd. W Bork jej jeszcze nie ma, więc generyczny kod jest tylko sprawdzany, a nie kompilowany.</p>
+</details>
+
+<h3>Stan przed zmianą</h3>
+<p>Po #44 i #45 funkcje, klasy i metody generyczne są sprawdzane pod względem <em>typów</em> z nieprzezroczystym parametrem <code>T</code> (<code>TyData::Param</code>), ale <code>codegen_gate</code> nie wpuszcza ich do generowania kodu. Moduły własności (sema, escape, memory) nie pomijają ciał generycznych, więc już teraz się na nich uruchamiają. Pytanie z ticketu #46 brzmi: czy to, co one robią z <code>T</code>, jest <em>bezpieczne</em>?</p>
+<p>Kontrakt jest zapisany w RFC 0002 (sekcja 4): nieprzezroczyste <code>T</code> jest <b>move-only</b> (nigdy Copy), a ciało zaakceptowane przed mono <b>nie może stać się niepoprawne dla żadnej instancji</b> (INV-10). Fakty wymagające konkretnego typu (układ w pamięci, drop, to czy bajty siedzą w arenie) są odkładane na etap mono.</p>
+
+<!-- ============================ INTUICJA ============================ -->
+<h2 id="intuicja">2. Intuicja</h2>
+
+<h3>Dobra wiadomość: sema już działało</h3>
+<p>Sondowanie pokazało, że zasada „<code>T</code> jest move-only" była już spełniona, tylko przypadkiem. Sema czyta typy z AST, a nazwany typ <code>T</code> nie jest nigdy Copy. Zmienne lokalne typu <code>T</code> trafiają do <code>Ty::Unknown</code>, co też nie jest Copy. Dlatego <code>val a = move x; val b = move x</code> jest odrzucane dla <code>T</code> tak samo jak dla <code>String</code>. Ta część PR to więc tylko fixtury, które to utrwalają.</p>
+
+<h3>Zła wiadomość: luka w <code>escape</code></h3>
+<p>Moduł <code>escape</code> pyta o typ wartości: <code>uses_arena_storage(ty)</code>, czyli „czy bajty leżą w arenie?". Dla <code>String</code> i klas odpowiedź to „tak". Dla <code>Param</code> było „nie", więc <code>escape</code> traktował <code>T</code> jak niewinny skalar i pomijał swoje reguły.</p>
+<pre>fun id&lt;T&gt;(var x: T): T {
+    return move x        <span class="cm">// przed zmianą: przechodziło dla T</span>
+}</pre>
+<p>Dla <code>String</code> ta sama linia jest odrzucana („returning a moved or promoted <code>String</code> is not supported yet"). Po monomorfizacji <code>id&lt;String&gt;</code> by się więc nie skompilowało, mimo że generyczna wersja została zaakceptowana. To dokładnie złamanie INV-10.</p>
+
+<div class="flow">
+  <div class="box"><h4>Przed mono</h4><code>id&lt;T&gt;</code><code>return move x</code><code><span class="tag ok">zaakceptowane</span></code></div>
+  <div class="arrow">→</div>
+  <div class="box err"><h4>Po mono, T = String</h4><code>id&lt;String&gt;</code><code>return move x</code><code><span class="tag bad">odrzucone</span></code></div>
+</div>
+
+<h3>Rozwiązanie: oceniaj <code>T</code> jak jego najostrzejszą instancję</h3>
+<p>Nie wiemy, czym będzie <code>T</code>, więc zakładamy najgorszy przypadek dla tych reguł: <code>String</code> (bajty w arenie, brak Copy). Jeśli ciało przechodzi przy takim założeniu, przejdzie też dla <code>i32</code>, klasy i <code>Ref&lt;Klasa&gt;</code>, bo te nie są od niego bardziej restrykcyjne.</p>
+
+<table class="st">
+  <tr><th>Instancja <code>T</code></th><th>Kopiowalny?</th><th>Bajty w arenie?</th><th>Czy <code>T</code> jest co najmniej tak ostry?</th></tr>
+  <tr><td><code>i32</code></td><td>tak</td><td>nie</td><td><span class="tag ok">tak, T jest ostrzejszy</span></td></tr>
+  <tr><td><code>String</code></td><td>nie</td><td>tak</td><td><span class="tag ok">T = ten sam rygor</span></td></tr>
+  <tr><td>klasa <code>P</code></td><td>nie</td><td>tak</td><td><span class="tag ok">tak</span></td></tr>
+  <tr><td><code>Ref&lt;P&gt;</code></td><td>nie</td><td>uchwyt, nie bajty</td><td><span class="tag ok">tak</span></td></tr>
+</table>
+<p>Cena jest oczywista: to podejście <b>konserwatywne</b>. Ciało, które byłoby poprawne dla <code>i32</code>, ale łamie reguły dla <code>String</code>, zostanie odrzucone, bo generyczne <code>T</code> nie zna swojej instancji. Pełna precyzja wymaga ograniczeń (bounds), które są poza zakresem (TS-P6-01).</p>
+
+<div class="callout"><b class="t">Dlaczego „top-level T" nie wystarczy</b>
+Wartość typu <code>Ref&lt;T&gt;</code> albo <code>Vec&lt;T&gt;</code> też zależy od nieznanego <code>T</code>. Dlatego decyzję „czy to może być w arenie" podejmuje <code>has_param</code>, które szuka <code>Param</code> w <em>całym</em> typie, a nie tylko na wierzchu. Natomiast reguła „zwracanie przeniesionego napisu" dotyczy tylko wartości, która sama jest <code>T</code> (<code>is_param</code>), bo tylko wtedy może być napisem.</div>
+
+<h3>Skąd wiemy, że to działa? Test różnicowy</h3>
+<p>Bez monomorfizacji nie da się sprawdzić „po mono" w kompilatorze, więc test robi to <em>tekstowo</em>: bierze generyczne ciało, podstawia za <code>T</code> kolejno <code>i32</code>, <code>String</code>, <code>P</code> i <code>Ref&lt;P&gt;</code> i sprawdza każdą wersję zwykłym frontendem. Reguła: <b>jeśli wersja generyczna jest zaakceptowana, wszystkie cztery instancje też muszą być</b>. Dodatkowo, jeśli generyczna jest odrzucona, to przynajmniej jedna instancja musi być odrzucona (odrzucenie nie może być bezpodstawne).</p>
+
+<div class="callout warn"><b class="t">Znaleziona przy okazji luka (poza zakresem): #138</b>
+Test ujawnił, że typeck akceptuje <code>Vec&lt;T&gt;</code> i <code>Ref&lt;T&gt;</code> przed mono, choć <code>Vec&lt;P&gt;</code> (klasa) i <code>Ref&lt;i32&gt;</code> są błędami <em>typów</em>, a nie własności. Te przypadki są w teście jawnie pominięte (<code>skip</code>), a sprawa jest opisana w zgłoszeniu #138.</div>
+
+<!-- ============================ KOD ============================ -->
+<h2 id="kod">3. Kod krok po kroku</h2>
+
+<h3>3.1 Dwa zapytania o typ (<code>src/ty/query.rs</code>)</h3>
+<pre><span class="add">+ /// Whether `id` mentions an opaque type parameter anywhere (`Ref&lt;T&gt;`, `Vec&lt;T&gt;`, `T?`, ...).
++ pub fn has_param(&amp;self, id: TyId) -&gt; bool { ...visitor szukający TyData::Param... }
++
++ /// An opaque type parameter (through `?`): any concrete type may stand for it after mono.
++ pub fn is_param(&amp;self, id: TyId) -&gt; bool {
++     matches!(self.data(self.base(id)), TyData::Param(_))
++ }</span></pre>
+<p><code>has_param</code> używa istniejącego <code>TypeVisitor</code>/<code>walk</code> z <code>ty/fold.rs</code>, więc schodzi w argumenty klas (dzięki #45), tablice, <code>Vec</code>, <code>Ref</code> i nullable. <code>is_param</code> sprawdza tylko wierzch (po zdjęciu <code>?</code>).</p>
+
+<h3>3.2 Rdzeń: <code>maybe_arena</code> (<code>src/escape.rs</code>)</h3>
+<pre><span class="add">+ /// Whether a value of `ty` may live in an arena. An opaque `T` is judged as its most
++ /// restrictive instantiation (`String`), so a generic body accepted here stays accepted for
++ /// every instance (RFC 0002 section 4).
++ fn maybe_arena(&amp;self, ty: TyId) -&gt; bool {
++     self.tcx.uses_arena_storage(ty) || self.tcx.has_param(ty)
++ }</span></pre>
+<p>Wszystkie osiem dotychczasowych wywołań <code>self.tcx.uses_arena_storage(...)</code> w tym pliku zamieniono na <code>self.maybe_arena(...)</code>. To jedyna zmiana logiki: gdzie <code>escape</code> pytał „czy to w arenie?", teraz dla <code>T</code> dostaje „możliwe, że tak". Dotyczy to zwracania z wewnętrznego regionu, przypisań na zewnątrz, wartości gałęzi <code>if</code>, indeksowania i operacji na wektorach.</p>
+<p>Druga zmiana: predykat „przeniesiony lub awansowany napis" przy zwracaniu.</p>
+<pre>HirExprKind::Ident { use_kind: UseKind::Move | UseKind::Promote, .. }
+    if self.tcx.is_string(expr.ty) <span class="add">|| self.tcx.is_param(expr.ty)</span></pre>
+<p>Zwróć uwagę, że tu użyto <code>is_param</code>, a nie <code>has_param</code>: sama wartość musi być <code>T</code>, żeby mogła okazać się <code>String</code>.</p>
+
+<h3>3.3 Czytelne komunikaty (<code>param_note</code>)</h3>
+<p>Komunikaty <code>escape</code> mówią o <code>String</code>, więc użytkownik generycznej funkcji mógłby się zdziwić. Jeden helper dopisuje wyjaśnienie, gdy typ zawiera parametr:</p>
+<pre>fn param_note(&amp;self, ty: TyId) -&gt; &amp;'static str {
+    if self.tcx.has_param(ty) {
+        " (a type parameter is judged as its strictest instance, `String`)"
+    } else { "" }
+}</pre>
+<p>Notatka trafia do czterech komunikatów: wartość gałęzi <code>if</code>, zwracanie z wewnętrznego regionu, przypisanie na zewnątrz i zwracanie przeniesionego napisu. W komunikacie o zwracaniu nazwa typu <code>T0</code> (nazwy parametrów są już wtedy zresetowane) została zastąpiona słowami „generic value". Komunikaty dla zwykłych typów nie zmieniły się ani o znak.</p>
+
+<h3>3.4 Test różnicowy (<code>tests/generic_ownership.rs</code>)</h3>
+<ul>
+  <li><b><code>instantiate</code></b> podstawia <code>T</code> jako identyfikator (nie wewnątrz dłuższych nazw jak <code>Tree</code> ani w literałach napisowych) i usuwa <code>&lt;T&gt;</code> z deklaracji <code>fun</code>, także metod.</li>
+  <li><b><code>CASES</code></b> to lista przypadków z flagą „oczekiwana akceptacja" i opcjonalną listą pominiętych instancji. Przypadki zaakceptowane: tożsamość, wywołanie przez inną funkcję, gałęzie, kopia <code>val</code>, przeniesienie do zmiennej, zagnieżdżone <code>Ref&lt;T&gt;</code>, metoda generyczna. Przypadki odrzucone: <code>return move x</code>, to samo w gałęzi, przypisanie z wewnętrznego regionu, wartość <code>if</code> z <code>move</code>, podwójne przeniesienie.</li>
+  <li>Dwa testy: „zaakceptowane generyczne ⇒ zaakceptowane dla każdej instancji" oraz „odrzucone generyczne ⇒ odrzucone dla jakiejś instancji".</li>
+</ul>
+
+<h3>3.5 Fixtury, pliki złote i dokumentacja</h3>
+<ul>
+  <li><code>programs/check_fail/generics/</code>: <code>use_after_move</code>, <code>dup</code> (przykład 2 z RFC), <code>return_moved</code>; <code>programs/check/generics/ownership_ok.bork</code> (przykład 1 z RFC i zamiana pary).</li>
+  <li>Pliki złote zmieniły się tylko o dodane fixtury: 39 linii dodanych, zero zmienionych, więc istniejące wyniki <code>escape</code> pozostały bez zmian.</li>
+  <li><code>docs/memory-model.md</code>: nowa sekcja „Generic bodies (pre-mono)". RFC 0001 dostało notatkę „Implementation (#46)". W RFC 0002 INV-10 przestało być „n/a".</li>
+</ul>
+
+<div class="callout warn"><b class="t">Czego ten PR nie robi</b>
+Nie dodaje <code>debug_assert</code> w kompilatorze: bez monomorfizacji nie ma gdzie go podpiąć, więc gwarancja „po mono" jest tak mocna, jak tekstowa instancjacja w teście. Wewnątrzkompilatorowe sprawdzenie każdej instancji czeka na #47. Nie obsługuje też ograniczeń (bounds), więc wynik jest konserwatywny.</div>
+
+<!-- ============================ QUIZ ============================ -->
+<h2 id="quiz">4. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="1">
+  <p>1. Dlaczego <code>fun id&lt;T&gt;(var x: T): T { return move x }</code> przechodziło przed tą zmianą, choć <code>id&lt;String&gt;</code> jest odrzucane?</p>
+  <button>Bo sema nie sprawdza ciał generycznych.</button>
+  <button>Bo <code>escape</code> pytał, czy bajty wartości leżą w arenie, a dla <code>Param</code> odpowiedź brzmiała „nie", więc reguły dla napisów nie działały.</button>
+  <button>Bo <code>move</code> jest dozwolone tylko dla typów generycznych.</button>
+  <button>Bo typeck nie rozpoznawał <code>T</code> jako typu.</button>
+  <div class="fb">Sema działało poprawnie (T jest move-only). Luka była w <code>escape</code>: <code>uses_arena_storage</code> jest fałszem dla <code>Param</code>, więc <code>T</code> był traktowany jak niewinny skalar.</div>
+</div>
+
+<div class="q" data-correct="2">
+  <p>2. Dlaczego rozwiązaniem jest ocena <code>T</code> jak <code>String</code>, a nie jak <code>i32</code>?</p>
+  <button>Bo <code>String</code> jest najczęstszym typem w programach.</button>
+  <button>Bo <code>i32</code> nie ma żadnych reguł własności.</button>
+  <button>Bo <code>String</code> podlega najostrzejszym regułom (brak Copy, bajty w arenie), więc ciało przyjęte przy takim założeniu przejdzie też dla łagodniejszych instancji.</button>
+  <button>Bo kompilator nie umie sprawdzać liczb.</button>
+  <div class="fb">Chodzi o gwarancję „zaakceptowane przed mono ⇒ zaakceptowane dla każdej instancji". Wystarczy założyć najgorszy przypadek. Ceną jest konserwatyzm: niektóre ciała poprawne dla <code>i32</code> zostaną odrzucone.</div>
+</div>
+
+<div class="q" data-correct="0">
+  <p>3. Po co dwa zapytania, <code>has_param</code> i <code>is_param</code>, skoro oba szukają parametru typu?</p>
+  <button><code>has_param</code> przeszukuje cały typ (np. <code>Ref&lt;T&gt;</code>) i służy do decyzji „czy to może być w arenie", a <code>is_param</code> sprawdza tylko wierzch i służy do reguły dla przeniesionego napisu, który musi sam być <code>T</code>.</button>
+  <button>Pierwsze jest szybsze, drugie dokładniejsze.</button>
+  <button>Jedno jest dla funkcji, a drugie dla klas.</button>
+  <button>Nie ma między nimi różnicy, to duplikat.</button>
+  <div class="fb">Wartość typu <code>Ref&lt;T&gt;</code> zależy od <code>T</code>, więc musi być traktowana ostrożnie (<code>has_param</code>). Ale „przeniesiony lub awansowany napis" to wartość, która jest <em>sama</em> napisem, więc musi być wprost <code>T</code> (<code>is_param</code>).</div>
+</div>
+
+<div class="q" data-correct="3">
+  <p>4. Test różnicowy pomija <code>Vec&lt;T&gt;</code> dla <code>P</code> i <code>Ref&lt;T&gt;</code> dla <code>i32</code>. Dlaczego to jest uczciwe, a nie ukrywanie problemu?</p>
+  <button>Bo te przypadki nie mają znaczenia.</button>
+  <button>Bo zostaną naprawione automatycznie przez mono.</button>
+  <button>Bo test nie umie ich uruchomić.</button>
+  <button>Bo to rozbieżność na poziomie <em>typów</em>, nie własności, poza zakresem #46. Jest jawnie oznaczona w polu <code>skip</code> i opisana w zgłoszeniu #138.</button>
+  <div class="fb">Typeck akceptuje <code>Vec&lt;T&gt;</code> i <code>Ref&lt;T&gt;</code> przed mono, mimo że <code>Vec&lt;P&gt;</code> i <code>Ref&lt;i32&gt;</code> są nieprawidłowymi typami. To osobny problem. Pominięcie jest widoczne w kodzie testu, a nie ukryte.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <p>5. Na jakiej podstawie PR twierdzi, że ciało przyjęte przed mono przejdzie po mono, skoro monomorfizacji w kompilatorze nie ma?</p>
+  <button>Na dowodzie formalnym dołączonym do RFC.</button>
+  <button>Na teście, który podstawia tekstowo <code>i32</code>, <code>String</code>, klasę i <code>Ref&lt;Klasa&gt;</code> i sprawdza każdą instancję zwykłym frontendem. Wewnątrzkompilatorowe sprawdzenie czeka na #47.</button>
+  <button>Na <code>debug_assert</code> uruchamianym przy każdej kompilacji.</button>
+  <button>Na tym, że <code>codegen_gate</code> blokuje generyki.</button>
+  <div class="fb">Dowodu formalnego nie ma, a <code>debug_assert</code> nie został dodany, bo nie ma gdzie go podpiąć. Gate blokuje generowanie kodu, ale nie dowodzi niczego o własności. Gwarancja jest więc tak mocna, jak ten harness.</div>
+</div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
