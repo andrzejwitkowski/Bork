@@ -1375,6 +1375,17 @@ Arenas
 == programs/check/generics/node_ref.bork
 Arenas
 └── fun main
+== programs/check/generics/ownership_ok.bork
+Arenas
+├── fun id
+│   └── x [Local]
+├── fun swap
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── c [Local]
 == programs/check/generics/pair.bork
 Arenas
 ├── fun first
@@ -1637,6 +1648,12 @@ Type Error [130..136] cannot infer type parameter `T` of `Holder`; annotate the 
 Arenas
 └── fun main
     └── h [Local]
+== programs/check_fail/generics/dup.bork
+Ownership Error [123..124] cannot move `x`: already moved from fun dup
+Arenas
+├── fun dup
+│   └── x [Moved ← fun dup]
+└── fun main
 == programs/check_fail/generics/duplicate_param.bork
 Type Error [47..48] duplicate type parameter `T`
 Arenas
@@ -1681,6 +1698,12 @@ Arenas
 │   ├── a [Local]
 │   └── b [Local]
 └── fun main
+== programs/check_fail/generics/return_moved.bork
+Ownership Error [80..81] returning a moved or promoted `String` is not supported yet: use `return s` for parameters and locals, or return a string literal (a type parameter is judged as its strictest instance, `String`)
+Arenas
+├── fun id
+│   └── x [Moved ← fun id]
+└── fun main
 == programs/check_fail/generics/shadowed_class_param.bork
 Type Error [80..81] type parameter `T` shadows the class type parameter `T`
 Arenas
@@ -1705,6 +1728,14 @@ Type Error [41..42] unknown named type `U`
 Arenas
 ├── fun f
 │   └── x [Local]
+└── fun main
+== programs/check_fail/generics/use_after_move.bork
+Ownership Error [80..81] cannot move `x`: already moved from fun f
+Arenas
+├── fun f
+│   ├── x [Moved ← fun f]
+│   ├── y [Local]
+│   └── z [Local]
 └── fun main
 == programs/check_fail/generics/wrong_arity.bork
 Type Error [78..79] `Box` expects 1 type argument, got 2

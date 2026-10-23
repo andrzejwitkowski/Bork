@@ -143,7 +143,7 @@ Each invariant has a number and, where it can be checked, a check site. Tests an
 | INV-7 | Every record allocation has an allocation site in the memory plan. | memory -> codegen | Planner error (`memory.rs:133`), `managed_ref.rs:93`. |
 | INV-8 | HIR given to codegen has passed `codegen_gate::gate`. | gate -> codegen | Enforced by call order in `codegen/mod.rs`. |
 | INV-9 | The LLVM `Ref` handle struct has the layout of the runtime `RefHandle`. | codegen / runtime | Two hand-written definitions (`llvm/context.rs:151`, `crates/bork_runtime/src/refs.rs:12`); `ref_handle_layout_matches_runtime` asserts size, alignment and offsets (#76). |
-| INV-10 | A generic body accepted pre-mono passes ownership for every instance. Checkable: debug builds re-run the ownership check per instance and assert acceptance. | mono | n/a until #46/#47. |
+| INV-10 | A generic body accepted pre-mono passes ownership for every instance. Checkable: debug builds re-run the ownership check per instance and assert acceptance. | mono | Pre-mono side checked since #46 by `tests/generic_ownership.rs`, which substitutes `i32`, `String`, a class and `Ref<Class>` textually; the in-compiler per-instance re-check waits for #47. |
 | INV-11 | Arena and sink are open inside emitted function bodies. | codegen | Asserted ad hoc (`emit_fn.rs:107,114,186,236`, `llvm/arena.rs:68`). |
 
 ### Principles

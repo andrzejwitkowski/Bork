@@ -1,0 +1,15 @@
+fun id<T>(x: T): T {
+    return x
+}
+fun swap<A, B>(a: A, b: B): Holder2<B, A> {
+    return Holder2(b, a)
+}
+class Holder2<A, B> {
+    a: A
+    b: B
+}
+fun main() {
+    val a = id(1)
+    val b = id("s")
+    val c = swap(1, "s")
+}

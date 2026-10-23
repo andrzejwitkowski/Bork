@@ -1,0 +1,6 @@
+// diag: already moved
+fun f<T>(var x: T) {
+    val y = move x
+    val z = move x
+}
+fun main() {}

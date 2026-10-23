@@ -1,0 +1,5 @@
+// diag: returning a moved or promoted
+fun id<T>(var x: T): T {
+    return move x
+}
+fun main() {}

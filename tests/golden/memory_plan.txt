@@ -75,6 +75,7 @@ programs/check/conditionals/if_return_move_then_use.bork: 133..137 Node Dynamic 
 programs/check/generics/generic_class.bork: 158..162 Pair Dynamic Program
 programs/check/generics/generic_class.bork: 281..285 Pair Lexical LexicalScope(0)
 programs/check/generics/identity.bork: 126..131 Point Dynamic Program
+programs/check/generics/ownership_ok.bork: 91..98 Holder2 Lexical LexicalScope(1)
 programs/check/managed_refs/chained_val_both_return_move.bork: 135..139 Node Dynamic Program
 programs/check/managed_refs/chained_val_else_moves_owner.bork: 130..134 Node Dynamic Program
 programs/check/methods/trailing_closure.bork: 127..128 P Dynamic Program
