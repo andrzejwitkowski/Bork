@@ -18,166 +18,139 @@ pub(crate) fn lower_type(
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
 ) -> TyId {
-    match ty {
-        Type::Array { nullable, .. } if *nullable => {
-            push_err(diagnostics, "nullable array types `[T]?` are not supported", span);
-            tcx.error()
-        }
-        Type::Array { elem, len, .. } => {
-            let elem = lower_type(elem, defs, scope, tcx, diagnostics, span);
-            tcx.array(elem, *len)
-        }
-        Type::Named { name, args, nullable } => {
-            lower_named(name, args, *nullable, defs, scope, tcx, diagnostics, span)
-        }
-        Type::ManagedRef { inner } => {
-            let inner_ty = lower_type(inner, defs, scope, tcx, diagnostics, span);
-            // A parameter may turn out to be a class; checked at instantiation.
-            let is_class = tcx.managed_ref_target_ok(inner_ty) || matches!(tcx.data(inner_ty), TyData::Param(_));
-            if !tcx.is_unknown(inner_ty) && !is_class {
-                push_err(diagnostics, tcx.managed_ref_target_message(inner_ty), span);
-            }
-            if tcx.is_managed_ref(inner_ty) {
-                push_err(
-                    diagnostics,
-                    "nested `Ref<Ref<T>>` is not supported in the first implementation",
-                    span,
-                );
-            }
-            tcx.managed_ref(inner_ty)
-        }
-        Type::Vec { elem } => {
-            let elem_ty = lower_type(elem, defs, scope, tcx, diagnostics, span);
-            let is_param = matches!(tcx.data(elem_ty), TyData::Param(_));
-            if !tcx.is_unknown(elem_ty) && !is_param && !tcx.is_array_elem_supported(elem_ty) {
-                push_err(diagnostics, tcx.vec_elem_message(elem_ty), span);
-            }
-            tcx.vec_of(elem_ty)
-        }
-        Type::Func {
-            params,
-            ret,
-            nullable,
-        } => {
-            let params = params
-                .iter()
-                .map(|param| lower_type(param, defs, scope, tcx, diagnostics, span))
-                .collect();
-            let ret = lower_type(ret, defs, scope, tcx, diagnostics, span);
-            let func = tcx.func(params, ret);
-            tcx.with_nullable(func, *nullable)
-        }
-        Type::Ref { inner, nullable } => lower_ref(inner, *nullable, defs, scope, tcx, diagnostics, span),
-        Type::Primitive { name, nullable } => match Prim::from_name(name) {
-            Some(prim) => {
-                let ty = tcx.prim(prim);
-                tcx.with_nullable(ty, *nullable)
-            }
-            None => tcx.error(),
-        },
-    }
+    LowerCx { defs, scope, tcx, diagnostics, span }.lower(ty)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn lower_named(
-    name: &str,
-    args: &[Type],
-    nullable: bool,
-    defs: &DefTable,
-    scope: &Scope,
-    tcx: &mut TyCtx,
-    diagnostics: &mut Vec<Diagnostic>,
+/// What lowering one written type reads and reports to: the definitions and type parameters in
+/// scope, the type interner, the diagnostics, and the span every problem is reported at.
+struct LowerCx<'a> {
+    defs: &'a DefTable,
+    scope: &'a Scope,
+    tcx: &'a mut TyCtx,
+    diagnostics: &'a mut Vec<Diagnostic>,
     span: Option<Span>,
-) -> TyId {
-    if let Some(&(_, idx)) = scope.iter().find(|(param, _)| param == name) {
-        return lower_param(name, idx, args, nullable, tcx, diagnostics, span);
+}
+
+impl LowerCx<'_> {
+    fn error(&mut self, message: impl Into<String>) {
+        push_err(self.diagnostics, message, self.span);
     }
-    let lowered: Vec<TyId> = args.iter().map(|arg| lower_type(arg, defs, scope, tcx, diagnostics, span)).collect();
-    if name == "String" {
+
+    fn lower(&mut self, ty: &Type) -> TyId {
+        match ty {
+            Type::Array { nullable, .. } if *nullable => {
+                self.error("nullable array types `[T]?` are not supported");
+                self.tcx.error()
+            }
+            Type::Array { elem, len, .. } => {
+                let elem = self.lower(elem);
+                self.tcx.array(elem, *len)
+            }
+            Type::Named { name, args, nullable } => self.lower_named(name, args, *nullable),
+            Type::ManagedRef { inner } => self.lower_managed_ref(inner),
+            Type::Vec { elem } => self.lower_vec(elem),
+            Type::Func { params, ret, nullable } => {
+                let params = params.iter().map(|param| self.lower(param)).collect();
+                let ret = self.lower(ret);
+                let func = self.tcx.func(params, ret);
+                self.tcx.with_nullable(func, *nullable)
+            }
+            Type::Ref { inner, nullable } => self.lower_ref(inner, *nullable),
+            Type::Primitive { name, nullable } => match Prim::from_name(name) {
+                Some(prim) => {
+                    let ty = self.tcx.prim(prim);
+                    self.tcx.with_nullable(ty, *nullable)
+                }
+                None => self.tcx.error(),
+            },
+        }
+    }
+
+    fn lower_managed_ref(&mut self, inner: &Type) -> TyId {
+        let inner_ty = self.lower(inner);
+        // A parameter may turn out to be a class; checked at instantiation.
+        let is_class =
+            self.tcx.managed_ref_target_ok(inner_ty) || matches!(self.tcx.data(inner_ty), TyData::Param(_));
+        if !self.tcx.is_unknown(inner_ty) && !is_class {
+            let message = self.tcx.managed_ref_target_message(inner_ty);
+            self.error(message);
+        }
+        if self.tcx.is_managed_ref(inner_ty) {
+            self.error("nested `Ref<Ref<T>>` is not supported in the first implementation");
+        }
+        self.tcx.managed_ref(inner_ty)
+    }
+
+    fn lower_vec(&mut self, elem: &Type) -> TyId {
+        let elem_ty = self.lower(elem);
+        let is_param = matches!(self.tcx.data(elem_ty), TyData::Param(_));
+        if !self.tcx.is_unknown(elem_ty) && !is_param && !self.tcx.is_array_elem_supported(elem_ty) {
+            let message = self.tcx.vec_elem_message(elem_ty);
+            self.error(message);
+        }
+        self.tcx.vec_of(elem_ty)
+    }
+
+    fn lower_named(&mut self, name: &str, args: &[Type], nullable: bool) -> TyId {
+        if let Some(&(_, idx)) = self.scope.iter().find(|(param, _)| param == name) {
+            return self.lower_param(name, idx, args, nullable);
+        }
+        let lowered: Vec<TyId> = args.iter().map(|arg| self.lower(arg)).collect();
+        if name == "String" {
+            if !args.is_empty() {
+                self.error("`String` takes no type arguments");
+                return self.tcx.error();
+            }
+            return self.tcx.string(nullable);
+        }
+        self.lower_class(name, lowered, nullable)
+    }
+
+    fn lower_param(&mut self, name: &str, idx: ParamIdx, args: &[Type], nullable: bool) -> TyId {
         if !args.is_empty() {
-            push_err(diagnostics, "`String` takes no type arguments", span);
-            return tcx.error();
+            self.error(format!("type parameter `{name}` takes no type arguments"));
+            return self.tcx.error();
         }
-        return tcx.string(nullable);
+        let param = self.tcx.param(idx);
+        self.tcx.with_nullable(param, nullable)
     }
-    lower_class(name, lowered, nullable, defs, tcx, diagnostics, span)
-}
 
-fn lower_param(
-    name: &str,
-    idx: ParamIdx,
-    args: &[Type],
-    nullable: bool,
-    tcx: &mut TyCtx,
-    diagnostics: &mut Vec<Diagnostic>,
-    span: Option<Span>,
-) -> TyId {
-    if !args.is_empty() {
-        push_err(diagnostics, format!("type parameter `{name}` takes no type arguments"), span);
-        return tcx.error();
-    }
-    let param = tcx.param(idx);
-    tcx.with_nullable(param, nullable)
-}
-
-/// A class name applied to the lowered type arguments `args`.
-fn lower_class(
-    name: &str,
-    args: Vec<TyId>,
-    nullable: bool,
-    defs: &DefTable,
-    tcx: &mut TyCtx,
-    diagnostics: &mut Vec<Diagnostic>,
-    span: Option<Span>,
-) -> TyId {
-    let Some(class) = defs.lookup_class(name) else {
-        push_err(diagnostics, format!("unknown named type `{name}`"), span);
-        return tcx.error();
-    };
-    let arity = defs.get(class).arity;
-    let given = args.len();
-    if given != arity {
-        let message = match arity {
-            0 => format!("`{name}` takes no type arguments"),
-            1 => format!("`{name}` expects 1 type argument, got {given}"),
-            _ => format!("`{name}` expects {arity} type arguments, got {given}"),
+    /// A class name applied to the lowered type arguments `args`.
+    fn lower_class(&mut self, name: &str, args: Vec<TyId>, nullable: bool) -> TyId {
+        let Some(class) = self.defs.lookup_class(name) else {
+            self.error(format!("unknown named type `{name}`"));
+            return self.tcx.error();
         };
-        push_err(diagnostics, message, span);
-        return tcx.error();
+        let arity = self.defs.get(class).arity;
+        let given = args.len();
+        if given != arity {
+            let message = match arity {
+                0 => format!("`{name}` takes no type arguments"),
+                1 => format!("`{name}` expects 1 type argument, got {given}"),
+                _ => format!("`{name}` expects {arity} type arguments, got {given}"),
+            };
+            self.error(message);
+            return self.tcx.error();
+        }
+        // An argument that already has a diagnostic must not leave a `Class(_, [Error])` behind.
+        if args.iter().any(|&arg| self.tcx.is_error(arg)) {
+            return self.tcx.error();
+        }
+        let class = self.tcx.class(class, args);
+        self.tcx.with_nullable(class, nullable)
     }
-    // An argument that already has a diagnostic must not leave a `Class(_, [Error])` behind.
-    if args.iter().any(|&arg| tcx.is_error(arg)) {
-        return tcx.error();
-    }
-    let class = tcx.class(class, args);
-    tcx.with_nullable(class, nullable)
-}
 
-fn lower_ref(
-    inner: &Type,
-    nullable: bool,
-    defs: &DefTable,
-    scope: &Scope,
-    tcx: &mut TyCtx,
-    diagnostics: &mut Vec<Diagnostic>,
-    span: Option<Span>,
-) -> TyId {
-    if nullable {
-        push_err(
-            diagnostics,
-            "nullable reference types `&T?` are not supported",
-            span,
-        );
+    fn lower_ref(&mut self, inner: &Type, nullable: bool) -> TyId {
+        if nullable {
+            self.error("nullable reference types `&T?` are not supported");
+        }
+        let inner_ty = self.lower(inner);
+        if !self.tcx.is_unknown(inner_ty) && self.tcx.is_copy(inner_ty) {
+            let message = format!("cannot borrow Copy type `{}`", self.tcx.display(inner_ty));
+            self.error(message);
+        }
+        self.tcx.ref_to(inner_ty)
     }
-    let inner_ty = lower_type(inner, defs, scope, tcx, diagnostics, span);
-    if !tcx.is_unknown(inner_ty) && tcx.is_copy(inner_ty) {
-        push_err(
-            diagnostics,
-            format!("cannot borrow Copy type `{}`", tcx.display(inner_ty)),
-            span,
-        );
-    }
-    tcx.ref_to(inner_ty)
 }
 
 fn push_err(diagnostics: &mut Vec<Diagnostic>, message: impl Into<String>, span: Option<Span>) {
