@@ -1,5 +1,4 @@
 //! Generic declarations (#43), generic functions (#44) and generic classes and methods (#45).
-use crate::ast::BindingKind;
 use crate::frontend;
 use crate::ty::{ParamIdx, TyData};
 

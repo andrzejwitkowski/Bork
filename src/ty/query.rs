@@ -26,7 +26,6 @@ impl TyCtx {
         }
     }
 
-    /// 
     pub fn supports_nullable(&self, id: TyId) -> bool {
         !matches!(
             self.data(self.base(id)),
@@ -53,7 +52,6 @@ impl TyCtx {
         matches!(self.data(self.base(id)), TyData::Param(_))
     }
 
-    /// 
     pub fn is_unknown(&self, id: TyId) -> bool {
         self.is_error(id)
     }
@@ -80,7 +78,6 @@ impl TyCtx {
         }
     }
 
-    /// 
     pub fn is_string(&self, id: TyId) -> bool {
         matches!(self.data(self.base(id)), TyData::String)
     }
@@ -128,7 +125,6 @@ impl TyCtx {
         }
     }
 
-    /// 
     pub fn record_name(&self, id: TyId) -> Option<&str> {
         self.record_def(id).map(|def| self.class_name(def))
     }
@@ -218,7 +214,6 @@ impl TyCtx {
         }
     }
 
-    /// 
     pub fn is_array_elem_supported(&self, id: TyId) -> bool {
         self.is_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
     }

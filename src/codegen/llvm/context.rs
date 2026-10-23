@@ -62,7 +62,7 @@ impl<'ctx> Codegen<'ctx> {
             .map(|class| {
                 (
                     class.name.clone(),
-                    class.fields.iter().map(|field| field.ty.clone()).collect(),
+                    class.fields.iter().map(|field| field.ty).collect(),
                 )
             })
             .collect();

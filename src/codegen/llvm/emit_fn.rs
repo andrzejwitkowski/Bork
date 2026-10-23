@@ -227,7 +227,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Self::codegen_driver_mut(self.walk.driver_ptr())
             .walk_expr(self, expr)
             .map_err(region_walk_codegen_error)?;
-        self.walk.trailing.take().ok_or_else(|| missing())
+        self.walk.trailing.take().ok_or_else(missing)
     }
 
     pub fn current_arena(&mut self) -> PointerValue<'ctx> {
@@ -490,7 +490,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (peeled, _) = crate::hir::peel_blocks(body);
         driver
             .walk_block(self, peeled, None)
-            .map_err(|err| region_walk_codegen_error(err))?;
+            .map_err(region_walk_codegen_error)?;
         self.debug_exit_scope()?;
         self.scopes.pop();
         if !cx.current_block_terminated() {
@@ -569,7 +569,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (peeled, _) = crate::hir::peel_blocks(body);
         driver
             .walk_block(self, peeled, None)
-            .map_err(|err| region_walk_codegen_error(err))?;
+            .map_err(region_walk_codegen_error)?;
         self.debug_exit_scope()?;
         self.scopes.pop();
         if !cx.current_block_terminated() {
@@ -677,7 +677,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             name.to_owned(),
             Slot {
                 ptr,
-                ty: ty.clone(),
+                ty,
                 home_arena,
             },
         );
@@ -698,7 +698,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let Some(sink) = self.result_sink else {
             return Ok(value);
         };
-        let ty = self.function.return_ty.clone();
+        let ty = self.function.return_ty;
         self.materialize_owned_value(value, ty, sink)
     }
 
