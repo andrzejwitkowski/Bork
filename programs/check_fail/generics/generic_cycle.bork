@@ -1,0 +1,5 @@
+// diag: class `Bad<T>` has a recursive by-value layout (Bad<T> -> Bad<T>)
+class Bad<T> {
+    b: Bad<T>
+}
+fun main() {}

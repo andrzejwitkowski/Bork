@@ -965,7 +965,11 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
     let kind = match tcx.data(tcx.base(id)) {
         TyData::Prim(prim) => Type::from_ident(prim.as_str(), nullable),
         TyData::String => Type::Named { name: "String".into(), args: Vec::new(), nullable },
-        TyData::Class(def) => Type::Named { name: tcx.class_name(*def).to_string(), args: Vec::new(), nullable },
+        TyData::Class(def, args) => Type::Named {
+            name: tcx.class_name(*def).to_string(),
+            args: args.iter().map(|&arg| id_to_ast(tcx, arg)).collect::<Option<_>>()?,
+            nullable,
+        },
         TyData::Array { elem, len } => Type::Array {
             elem: Box::new(id_to_ast(tcx, *elem)?),
             len: *len,

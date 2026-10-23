@@ -400,7 +400,7 @@ mod nullable_repr_tests {
     fn nullable_class_has_no_representation() {
         let mut c = ctx();
         let defs = crate::defs::DefTable::build(&crate::parse("class Point {\n    x: i32\n}\nfun main() {}\n").unwrap());
-        let point = c.class(defs.lookup_class("Point").unwrap());
+        let point = c.class(defs.lookup_class("Point").unwrap(), Vec::new());
         let class = c.with_nullable(point, true);
         assert_eq!(nullable_repr(&c, class), None);
         assert!(!codegen_lowers_nullable(&c, class));

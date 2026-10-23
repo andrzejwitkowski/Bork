@@ -110,6 +110,7 @@ fn check_receiver_field(
                 .map(|(field_index, info)| (field_index, info.ty))
         })
     });
+    let resolved = resolved.map(|(index, ty)| (index, env.member_ty(receiver.ty, ty)));
     let Some((field_index, field_ty)) = resolved else {
         if !env.tcx.is_unknown(receiver.ty) {
             env.error(

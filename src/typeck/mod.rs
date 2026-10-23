@@ -58,7 +58,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
 
     generics::validate(program, &defs, &mut diagnostics);
     let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
-    validate_owned_layouts(&classes, &tcx, &mut diagnostics);
+    validate_owned_layouts(&classes, &mut tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
@@ -265,7 +265,8 @@ fn collect_method_sigs(
                 shown_params.join(", "),
                 tcx.display(return_ty)
             );
-            let class_ty = tcx.class(owner);
+            let identity: Vec<TyId> = (0..class.generics.len() as u32).map(|i| tcx.param(crate::ty::ParamIdx(i))).collect();
+            let class_ty = tcx.class(owner, identity);
             let this_ty = tcx.ref_to(class_ty);
             let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty);
             sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
@@ -319,14 +320,11 @@ fn check_function(
         .cloned()
         .chain(function.generics.iter().map(|param| param.name.name.clone()))
         .collect();
-    // Methods stay declaration-only; top-level generic functions are checked with `T` opaque.
-    if owner.is_some() && !generics.is_empty() {
-        return generics::declaration_only(function, owner.is_some(), name, generics, signature, tcx, diagnostics);
-    }
     tcx.set_param_names(generics.clone());
     let mut env = Env::new(defs, tcx, fun_sigs, classes, constants);
     env.self_class = owner;
-    env.tparams = generics::scope(&[], &function.generics);
+    // The owner class's parameters come first, as in the method signature.
+    env.tparams = generics.iter().enumerate().map(|(i, name)| (name.clone(), crate::ty::ParamIdx(i as u32))).collect();
     let mut param_tys = signature.params;
     let mut params = Vec::new();
     if owner.is_some() {
@@ -388,12 +386,13 @@ fn report_uninferred(env: &mut Env<'_>) {
             continue;
         }
         let PendingParam { span, callee, param, .. } = pending;
-        env.error(
-            format!(
-                "cannot infer type parameter `{param}` of `{callee}`; specify it explicitly, e.g. `{callee}::<..>(..)`"
-            ),
-            Some(span),
-        );
+        // Only functions take explicit type arguments; constructors and methods are fixed by annotation.
+        let hint = if env.fun_sig(&callee).is_some() {
+            format!("specify it explicitly, e.g. `{callee}::<..>(..)`")
+        } else {
+            "annotate the binding with its type to fix it".to_string()
+        };
+        env.error(format!("cannot infer type parameter `{param}` of `{callee}`; {hint}"), Some(span));
         let unknown = env.tcx.error();
         let _ = env.infcx.unify(env.tcx, ty, unknown);
     }
@@ -437,45 +436,77 @@ fn type_error(message: impl Into<String>, span: Option<Span>) -> Diagnostic {
     }
 }
 
-fn validate_owned_layouts(classes: &ClassTable, tcx: &TyCtx, diagnostics: &mut Vec<Diagnostic>) {
-    /// The class a field holds by value: itself, or as the element of an array.
-    fn held_class(ty: TyId, tcx: &TyCtx) -> Option<DefId> {
-        match tcx.data(tcx.base(ty)) {
-            crate::ty::TyData::Class(def) => Some(*def),
-            crate::ty::TyData::Array { elem, .. } => tcx.class_def(tcx.base(*elem)),
+fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &mut Vec<Diagnostic>) {
+    /// Expanding generics (`class N<T> { x: N<N<T>> }`) never repeat a type, so the walk is capped.
+    const MAX_DEPTH: usize = 32;
+
+    /// The classes a field type holds by value: itself, or as the element of an array.
+    fn held(ty: TyId, tcx: &TyCtx) -> Option<TyId> {
+        let ty = tcx.base(ty);
+        match tcx.data(ty) {
+            crate::ty::TyData::Class(..) => Some(ty),
+            crate::ty::TyData::Array { elem, .. } => Some(tcx.base(*elem)).filter(|e| tcx.class_def(*e).is_some()),
             _ => None,
         }
     }
 
-    fn visits(
-        origin: DefId,
-        current: DefId,
+    /// The by-value path from `current` back to `origin`, if there is one. `done` holds the types
+    /// already explored without reaching `origin`.
+    fn find_cycle(
+        origin: TyId,
+        current: TyId,
         classes: &ClassTable,
-        tcx: &TyCtx,
-        seen: &mut HashSet<DefId>,
+        tcx: &mut TyCtx,
+        done: &mut HashSet<TyId>,
+        path: &mut Vec<TyId>,
     ) -> bool {
-        if !seen.insert(current) {
+        if path.len() > MAX_DEPTH {
+            return true;
+        }
+        if !done.insert(current) {
             return false;
         }
-        let Some(class) = classes.get(&current) else {
+        let crate::ty::TyData::Class(def, args) = tcx.data(current).clone() else {
             return false;
         };
-        class.fields.iter().any(|field| {
-            held_class(field.ty, tcx).is_some_and(|target| {
-                target == origin || visits(origin, target, classes, tcx, &mut seen.clone())
-            })
-        })
+        let Some(class) = classes.get(&def) else {
+            return false;
+        };
+        for field in &class.fields {
+            let Ok(field_ty) = crate::ty::subst(tcx, field.ty, &args) else {
+                continue;
+            };
+            let Some(target) = held(field_ty, tcx) else {
+                continue;
+            };
+            path.push(target);
+            if target == origin || find_cycle(origin, target, classes, tcx, done, path) {
+                return true;
+            }
+            path.pop();
+        }
+        false
     }
 
-    for class in classes.values() {
-        if visits(class.id, class.id, classes, tcx, &mut HashSet::new()) {
+    let mut ordered: Vec<&ClassInfo> = classes.values().collect();
+    ordered.sort_by(|a, b| a.name.cmp(&b.name));
+    for class in ordered {
+        // The definition itself, its parameters standing for unknown leaf types.
+        let identity: Vec<TyId> = (0..class.generics.len() as u32).map(|i| tcx.param(crate::ty::ParamIdx(i))).collect();
+        let origin = tcx.class(class.id, identity);
+        let mut path = vec![origin];
+        if find_cycle(origin, origin, classes, tcx, &mut HashSet::new(), &mut path) {
+            tcx.set_param_names(class.generics.clone());
+            let shown: Vec<String> = path.iter().take(MAX_DEPTH).map(|&ty| tcx.display(ty).to_string()).collect();
             diagnostics.push(type_error(
                 format!(
-                    "class `{}` has a recursive by-value layout; use `Ref<{}>`",
-                    class.name, class.name
+                    "class `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
+                    tcx.display(origin).to_string(),
+                    shown.join(" -> ")
                 ),
                 class.fields.first().map(|field| field.span),
             ));
+            tcx.set_param_names(Vec::new());
         }
     }
 }

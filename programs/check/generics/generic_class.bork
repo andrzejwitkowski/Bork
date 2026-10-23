@@ -1,0 +1,18 @@
+class Pair<A, B> {
+    a: A
+    b: B
+    fun first(): A {
+        return a
+    }
+    fun with<C>(c: C): C {
+        return c
+    }
+}
+fun main() {
+    val p = Pair(1, "a")
+    val x = p.a
+    val s = p.b
+    val f = p.first()
+    val w = p.with(true)
+    val q: Pair<i64, String> = Pair(1, "b")
+}

@@ -78,7 +78,7 @@ impl TyCtx {
     /// as the class definition: an object or a borrow of one.
     pub fn record_def(&self, id: TyId) -> Option<DefId> {
         match self.data(self.base(id)) {
-            TyData::Class(def) => Some(*def),
+            TyData::Class(def, _) => Some(*def),
             TyData::Ref(inner) => self.record_def(*inner),
             _ => None,
         }
@@ -89,7 +89,7 @@ impl TyCtx {
     /// not `String`, and whether it was reached through a `Ref`.
     pub fn field_receiver(&self, id: TyId) -> (bool, Option<DefId>, bool) {
         let named = |inner: TyId| match self.data(self.base(inner)) {
-            TyData::Class(def) => (true, Some(*def)),
+            TyData::Class(def, _) => (true, Some(*def)),
             TyData::String => (true, None),
             _ => (false, None),
         };
@@ -116,7 +116,7 @@ impl TyCtx {
 
     pub fn class_def(&self, id: TyId) -> Option<DefId> {
         match self.data(id) {
-            TyData::Class(def) => Some(*def),
+            TyData::Class(def, _) => Some(*def),
             _ => None,
         }
     }
@@ -194,7 +194,7 @@ impl TyCtx {
     pub fn uses_arena_storage(&self, id: TyId) -> bool {
         match self.data(self.base(id)) {
             TyData::Ref(inner) => self.uses_arena_storage(*inner),
-            TyData::String | TyData::Class(_) | TyData::Array { .. } | TyData::Vec(_) => true,
+            TyData::String | TyData::Class(..) | TyData::Array { .. } | TyData::Vec(_) => true,
             _ => false,
         }
     }
@@ -231,8 +231,17 @@ impl TyCtx {
         self.with_nullable(string, nullable)
     }
 
-    pub fn class(&mut self, def: DefId) -> TyId {
-        self.add(TyData::Class(def))
+    pub fn class(&mut self, def: DefId, args: Vec<TyId>) -> TyId {
+        self.add(TyData::Class(def, args))
+    }
+
+    /// The class and type arguments of an object or a borrow of one (through `?`).
+    pub fn class_args(&self, id: TyId) -> Option<(DefId, &[TyId])> {
+        match self.data(self.base(id)) {
+            TyData::Class(def, args) => Some((*def, args)),
+            TyData::Ref(inner) | TyData::ManagedRef(inner) => self.class_args(*inner),
+            _ => None,
+        }
     }
 
     pub fn array(&mut self, elem: TyId, len: u32) -> TyId {

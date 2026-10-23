@@ -1,0 +1,7 @@
+// diag: cannot infer type parameter `T` of `Holder`; annotate the binding
+class Holder<T> {
+    v: T?
+}
+fun main() {
+    val h = Holder(None)
+}

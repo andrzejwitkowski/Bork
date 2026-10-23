@@ -1,0 +1,5 @@
+class Node<T> {
+    v: T
+    next: Ref<Node<T>>
+}
+fun main() {}

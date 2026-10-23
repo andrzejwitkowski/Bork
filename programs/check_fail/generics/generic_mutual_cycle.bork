@@ -1,0 +1,8 @@
+// diag: A<T> -> B<T> -> A<T>
+class A<T> {
+    b: B<T>
+}
+class B<T> {
+    a: A<T>
+}
+fun main() {}

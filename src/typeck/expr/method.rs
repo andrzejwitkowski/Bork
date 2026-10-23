@@ -70,16 +70,29 @@ pub(super) fn check_method_call(
             signature,
         },
     );
+    // The receiver fixes the class parameters (they come first in `sig.generics`); the method's own
+    // parameters are fresh variables that the arguments and the expected type fix.
+    let (mut params, mut ret) = (sig.params.clone(), sig.ret);
     if !sig.generics.is_empty() {
-        env.error(format!("calling the generic method `{class_name}.{method}` is not supported yet"), Some(span));
-        return poisoned(args, span, return_ty, env);
+        let class_arity = env.class(class).map_or(0, |info| info.generics.len());
+        let mut type_args = env.tcx.class_args(checked.ty).map(|(_, args)| args.to_vec()).unwrap_or_default();
+        type_args.extend(super::call::fresh_params(&sig.generic_names[class_arity..], &format!("{class_name}.{method}"), span, env));
+        let substituted: Result<Vec<_>, _> =
+            sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, &type_args)).collect();
+        match (substituted, crate::ty::subst(env.tcx, sig.ret, &type_args)) {
+            (Ok(p), Ok(r)) => (params, ret) = (p, r),
+            _ => {
+                env.error(format!("type arguments of `{class_name}.{method}` would make a nullable of a nullable"), Some(span));
+                return poisoned(args, span, return_ty, env);
+            }
+        }
     }
     let receiver = borrow(checked, env);
     finish_call(
         format!("{class_name}.{method}"),
         span,
-        sig.params,
-        sig.ret,
+        params,
+        ret,
         Some(receiver),
         args,
         trailing,

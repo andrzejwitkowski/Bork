@@ -1,0 +1,8 @@
+// diag: class `A` has a recursive by-value layout (A -> Box<A> -> A)
+class Box<T> {
+    v: T
+}
+class A {
+    b: Box<A>
+}
+fun main() {}

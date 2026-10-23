@@ -45,6 +45,15 @@ impl InferCtxt {
                 }
                 self.unify_inner(tcx, ra, rb)
             }
+            (TyData::Class(da, xa), TyData::Class(db, xb)) => {
+                if da != db || xa.len() != xb.len() {
+                    return Err(mismatch);
+                }
+                for (x, y) in xa.into_iter().zip(xb) {
+                    self.unify_inner(tcx, x, y)?;
+                }
+                Ok(())
+            }
             (TyData::Ref(x), TyData::Ref(y))
             | (TyData::ManagedRef(x), TyData::ManagedRef(y))
             | (TyData::Vec(x), TyData::Vec(y))
