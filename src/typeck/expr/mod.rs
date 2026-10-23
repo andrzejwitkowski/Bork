@@ -332,7 +332,12 @@ fn check_managed_ref(
     if source.ty == expected {
         return source;
     }
-    if expected_inner == Some(source.ty) {
+    // An object of the target class becomes a `Ref`; the class arguments may still be inference
+    // variables (`Node(1, None)` for a `Ref<Node<?>>` field), so unify instead of comparing ids.
+    let source_ty = env.settle(source.ty);
+    let is_target_object = env.tcx.class_def(source_ty).is_some()
+        && expected_inner.is_some_and(|inner| inner == source_ty || env.same(inner, source_ty));
+    if is_target_object {
         let span = source.span;
         return Checked {
             hir: HirExpr {

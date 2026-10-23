@@ -1,0 +1,24 @@
+// exit: 0
+// stdout: 1\nabc\n1\n5\n2\n
+// `Pair<A, B>` is instantiated twice, and its method `first` once per instance.
+class Pair<A, B> {
+    a: A
+    b: B
+    fun first(): A {
+        return a
+    }
+    fun with<C>(c: C): C {
+        return c
+    }
+}
+
+fun main(): i32 {
+    val p = Pair(1, "abc")
+    val q = Pair(2, true)
+    println(p.a)
+    println(p.b)
+    println(p.first())
+    println(q.with(5))
+    println(q.first())
+    return 0
+}

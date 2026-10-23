@@ -1,0 +1,31 @@
+// exit: 0
+// stdout: 10\n20\n30\n40\n2\n0\n
+// A generic list node linked through `Ref<Node<T>>`, instantiated for `i32`. The counters match the
+// same program written with a plain `Node` class: `head` and `head_ref` both hold the node (2), and
+// nobody holds it weakly (0). `tail.next = extra` assigns a field of a generic class instance.
+class Node<T> {
+    value: T
+    next: Ref<Node<T>>
+}
+
+fun main(): i32 {
+    val tail = Node(30, None)
+    val mid = Node(20, tail)
+    val head = Node(10, mid)
+    val extra = Node(40, None)
+    tail.next = extra
+    val head_ref: Ref<Node<i32>> = head
+    println(head.value)
+    if val second = head.next {
+        println(second.value)
+        if val third = second.next {
+            println(third.value)
+            if val fourth = third.next {
+                println(fourth.value)
+            }
+        }
+    }
+    println(strongCount(head_ref))
+    println(weakCount(head_ref))
+    return 0
+}

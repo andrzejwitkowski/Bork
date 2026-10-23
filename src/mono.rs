@@ -210,6 +210,15 @@ fn retarget_class(tcx: &TyCtx, ty: TyId, class_name: &mut String) {
     }
 }
 
+/// `TyCtx::record_name` for an instance: the name mono gives the `HirClass` of the object `ty` is,
+/// or a borrow of (`Pair<i32,String>`, or just `Point` for a plain class). It reaches exactly as far
+/// as `record_name`, so a managed `Ref<Foo>` has none. Codegen looks layouts up by it.
+pub(crate) fn class_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
+    tcx.record_def(ty)?;
+    let (def, args) = tcx.class_args(ty)?;
+    Some(mangle(tcx.class_name(def), tcx, args))
+}
+
 /// Specialises the program reachable from `main`. `report` is the sema output for `hir`
 /// (one root per function, same order), and planning diagnostics come back as errors.
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {

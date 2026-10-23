@@ -8,6 +8,14 @@ programs/build/classes/safe_ref_field.bork: 92..97 Point Dynamic LexicalScope(0)
 programs/build/classes/string_field.bork: 65..70 Label Lexical LexicalScope(0)
 programs/build/classes/walkthrough_point.bork: 147..152 Point Dynamic Program
 programs/build/constants/method_and_shadow.bork: 194..201 Counter Dynamic Program
+programs/build/generics/identity.bork: 271..276 Point Dynamic Program
+programs/build/generics/list_node.bork: 431..435 Node Dynamic Program
+programs/build/generics/list_node.bork: 460..464 Node Dynamic Program
+programs/build/generics/list_node.bork: 490..494 Node Dynamic Program
+programs/build/generics/list_node.bork: 520..524 Node Dynamic Program
+programs/build/generics/pair.bork: 285..289 Pair Dynamic Program
+programs/build/generics/pair.bork: 312..316 Pair Dynamic Program
+programs/build/generics/ref_cleanup.bork: 352..355 Box Dynamic Program
 programs/build/managed_refs/cache_manager_graph.bork: 380..392 CacheManager Dynamic LexicalScope(1)
 programs/build/managed_refs/cache_manager_graph.bork: 424..428 Node Dynamic Program
 programs/build/managed_refs/cache_manager_graph.bork: 468..472 Node Dynamic Program

@@ -333,13 +333,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let receiver_value = self.value_from_walk(receiver, || {
             not_yet_supported("field receiver", receiver.span)
         })?;
-        let class_name = self.cx.tcx.record_name(receiver.ty).ok_or_else(|| {
+        let class_name = crate::mono::class_instance_name(&self.cx.tcx, receiver.ty).ok_or_else(|| {
             not_yet_supported(
                 &format!("field assignment on `{}`", self.cx.tcx.display(receiver.ty)),
                 receiver.span,
             )
         })?;
-        self.emit_object_field_store(receiver_value, class_name, field_index, value)
+        self.emit_object_field_store(receiver_value, &class_name, field_index, value)
     }
 
     fn emit_name_assign(&mut self, name: &str, value: &HirExpr) -> Result<(), Diagnostic> {
