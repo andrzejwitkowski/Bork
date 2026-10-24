@@ -7,6 +7,17 @@ use super::super::env::{Checked, ClassInfo, EnumInfo, Env};
 use super::call::fresh_params;
 use super::{check, synthesize};
 
+/// A declared field type with the owner's type parameters replaced by `type_args`.
+fn instantiate_field(ty: TyId, type_args: &[TyId], owner: &str, span: Span, env: &mut Env<'_>) -> TyId {
+    if type_args.is_empty() {
+        return ty;
+    }
+    crate::ty::subst(env.tcx, ty, type_args).unwrap_or_else(|_| {
+        env.error(format!("type arguments of `{owner}` would make a nullable of a nullable"), Some(span));
+        env.tcx.error()
+    })
+}
+
 pub(super) fn check_construct(
     class: ClassInfo,
     span: Span,
@@ -41,14 +52,7 @@ pub(super) fn check_construct(
 
     let mut values: Vec<HirExpr> = Vec::with_capacity(class.fields.len());
     for (index, field) in class.fields.iter().enumerate() {
-        let field_ty = if type_args.is_empty() {
-            field.ty
-        } else {
-            crate::ty::subst(env.tcx, field.ty, &type_args).unwrap_or_else(|_| {
-                env.error(format!("type arguments of `{}` would make a nullable of a nullable", class.name), Some(span));
-                env.tcx.error()
-            })
-        };
+        let field_ty = instantiate_field(field.ty, &type_args, &class.name, span, env);
         if let Some(arg) = args.get(index) {
             let value = check(arg, field_ty, return_ty, env);
             let what = format!("constructor field `{}`", field.name);
@@ -81,9 +85,9 @@ pub(super) fn check_construct(
 
 /// The enum `receiver` names when it is a bare identifier that no local binding shadows, so
 /// `E.V` is a variant path rather than a field access.
-pub(super) fn variant_path(receiver: &Expr, env: &Env<'_>) -> Option<EnumInfo> {
+pub(super) fn variant_path(receiver: &Expr, safe: bool, env: &Env<'_>) -> Option<EnumInfo> {
     let Expr::Ident { name, .. } = receiver else { return None };
-    if env.binding(name).is_some() {
+    if safe || env.binding(name).is_some() {
         return None;
     }
     env.enum_named(name).cloned()
@@ -122,6 +126,11 @@ pub(super) fn check_variant(
             ),
             Some(span),
         );
+        for arg in args {
+            let _ = synthesize(arg, return_ty, env);
+        }
+        let unknown = env.tcx.error();
+        return env.expr_at(HirExprKind::None, unknown, span);
     }
 
     let type_args = fresh_params(&e.generics, &e.name, span, env);
@@ -132,23 +141,12 @@ pub(super) fn check_variant(
 
     let mut values: Vec<HirExpr> = Vec::with_capacity(info.fields.len());
     for (field, arg) in info.fields.iter().zip(args) {
-        let field_ty = if type_args.is_empty() {
-            field.ty
-        } else {
-            crate::ty::subst(env.tcx, field.ty, &type_args).unwrap_or_else(|_| {
-                env.error(format!("type arguments of `{}` would make a nullable of a nullable", e.name), Some(span));
-                env.tcx.error()
-            })
-        };
+        let field_ty = instantiate_field(field.ty, &type_args, &e.name, span, env);
         let value = check(arg, field_ty, return_ty, env);
         let what = format!("field `{}` of variant `{}.{variant}`", field.name, e.name);
         env.mismatch(&what, value.ty, field_ty, value.span.or(Some(field.span)));
         values.push(value.hir);
     }
-    for extra in args.iter().skip(info.fields.len()) {
-        let _ = synthesize(extra, return_ty, env);
-    }
-
     env.expr_at(
         HirExprKind::EnumConstruct { enum_name: e.name, variant: variant.to_string(), fields: values },
         ty,

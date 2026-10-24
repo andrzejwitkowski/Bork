@@ -56,3 +56,27 @@ fn enums_are_rejected_by_the_codegen_gate() {
     let diagnostics = crate::codegen_gate::gate(&hir, &result.tcx);
     assert!(diagnostics.iter().any(|d| d.message.contains("enums are not supported by codegen yet")), "{diagnostics:?}");
 }
+
+#[test]
+fn enum_types_in_signatures_and_fields_are_rejected_by_the_gate() {
+    for src in [
+        "enum E { A }\nfun f(e: E) {}\nfun main() {}\n",
+        "enum E { A }\nclass C { e: Ref<E> }\nfun main() {}\n",
+    ] {
+        let result = crate::frontend::check(src);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        let diagnostics = crate::codegen_gate::gate(&result.hir.unwrap(), &result.tcx);
+        assert!(!diagnostics.is_empty(), "{src}");
+    }
+}
+
+#[test]
+fn variant_paths_ignore_safe_access_and_reject_explicit_type_args() {
+    has("enum E { A(x: i32) }\nfun main() {\n    val e = E?.A(1)\n}\n", "unknown binding `E`");
+    has("enum T<U> { L }\nfun main() {\n    val t: T<i32> = T.L::<i32>()\n}\n", "explicit type arguments on enum variants");
+}
+
+#[test]
+fn arity_mismatch_is_one_error_and_no_partial_node() {
+    assert_eq!(messages("enum E { A(x: i32, y: i32) }\nfun main() {\n    val e = E.A(1)\n}\n").len(), 1);
+}

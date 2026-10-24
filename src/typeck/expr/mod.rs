@@ -119,7 +119,7 @@ pub(super) fn dispatch(
             safe,
             span,
             ..
-        } => match object::variant_path(receiver, env) {
+        } => match object::variant_path(receiver, *safe, env) {
             Some(e) => object::check_variant(e, name, *span, &[], None, expected, return_ty, env),
             None => check_field(receiver, name, *safe, *span, return_ty, env),
         },

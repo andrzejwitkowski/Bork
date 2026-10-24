@@ -36,9 +36,23 @@ pub fn codegen_lowers_nullable(tcx: &TyCtx, ty: TyId) -> bool {
 pub fn gate(hir: &HirProgram, tcx: &TyCtx) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for function in &hir.functions {
+        let signature = function.params.iter().map(|param| param.ty).chain([function.return_ty]);
+        if signature.into_iter().any(|ty| mentions_enum(tcx, ty)) {
+            reject(&mut diagnostics, "enums are not supported by codegen yet", Some(function.name_span));
+        }
         gate_block(tcx, &function.body, &mut diagnostics);
     }
+    for field in hir.classes.iter().flat_map(|class| &class.fields) {
+        if mentions_enum(tcx, field.ty) {
+            reject(&mut diagnostics, "enums are not supported by codegen yet", None);
+        }
+    }
     diagnostics
+}
+
+/// Whether `ty` is or contains an enum (until #52 gives enums a layout).
+fn mentions_enum(tcx: &TyCtx, ty: TyId) -> bool {
+    matches!(tcx.data(ty), crate::ty::TyData::Enum(..)) || tcx.data(ty).children().into_iter().any(|child| mentions_enum(tcx, child))
 }
 
 fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
@@ -76,6 +90,9 @@ fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) 
 }
 
 fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
+    if mentions_enum(tcx, expr.ty) && !matches!(expr.kind, HirExprKind::EnumConstruct { .. }) {
+        reject(diagnostics, "enums are not supported by codegen yet", expr.span);
+    }
     if !codegen_lowers_nullable(tcx, expr.ty) {
         reject(
             diagnostics,
