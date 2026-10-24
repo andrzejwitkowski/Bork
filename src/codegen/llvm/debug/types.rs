@@ -143,7 +143,7 @@ impl<'ctx> DebugInfo<'ctx> {
         )
     }
 
-    /// `T?` for a scalar or object `T`: a presence flag and the value.
+    /// `T?` for a scalar or object `T` (its LLVM type is a struct): a presence flag and the value.
     fn nullable_di(&self, cx: &Codegen<'ctx>, ty: TyId, key: &str) -> DIType<'ctx> {
         let inner = cx.tcx.base(ty);
         let llvm = cx.basic_type(ty).unwrap().into_struct_type();
@@ -155,7 +155,7 @@ impl<'ctx> DebugInfo<'ctx> {
     fn buffer_di(&self, cx: &Codegen<'ctx>, ty: TyId, key: &str) -> DIType<'ctx> {
         let element = cx.tcx.array_elem(ty).map(|t| self.ty(cx, t)).unwrap_or_else(|| self.u8_di());
         let data = self.pointer(cx, element);
-        let length = self.builder.create_basic_type("usize", 64, 0x07, DIFlags::PUBLIC).unwrap().as_type();
+        let length = self.usize_di(cx);
         self.structure(
             cx,
             key,

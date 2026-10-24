@@ -140,170 +140,170 @@ fn walk_var_decl(
     node: &mut ArenaNode,
     shadows: &mut Vec<Shadow>,
 ) {
-        let inferred = az
-            .node_tys
-            .get(id)
-            .cloned()
-            .unwrap_or(Ty::Unknown);
-        let sink = TransferSink::Binding {
-            dest: *kind,
-            arena_id: node.id,
-            arena_label: node.label.clone(),
-        };
-        walk_typed(
-            az,
-            value,
-            node,
-            Some(&sink),
-            true,
-            inferred.as_option().as_ref(),
+    let inferred = az
+        .node_tys
+        .get(id)
+        .cloned()
+        .unwrap_or(Ty::Unknown);
+    let sink = TransferSink::Binding {
+        dest: *kind,
+        arena_id: node.id,
+        arena_label: node.label.clone(),
+    };
+    walk_typed(
+        az,
+        value,
+        node,
+        Some(&sink),
+        true,
+        inferred.as_option().as_ref(),
+    );
+    let view =
+        is_view_init(az, value) || matches!(&inferred, Ty::Known(ty) if ty.is_reference());
+    if view && *kind == BindingKind::Var {
+        az.error(
+            format!("cannot bind `var` `{name}` to a borrow; use `val`"),
+            Some(name.clone()),
+            Some(*name_span),
         );
-        let view =
-            is_view_init(az, value) || matches!(&inferred, Ty::Known(ty) if ty.is_reference());
-        if view && *kind == BindingKind::Var {
-            az.error(
-                format!("cannot bind `var` `{name}` to a borrow; use `val`"),
-                Some(name.clone()),
-                Some(*name_span),
-            );
-        }
-        shadows.push(bind_with(
-            az,
-            name,
-            node.id,
-            &node.label,
-            inferred.clone(),
-            *kind,
-            if view {
-                BindingOrigin::View
-            } else {
-                BindingOrigin::Declared
-            },
-        ));
-        node.bindings.push(BindingInfo {
-            name: name.clone(),
-            ownership: Ownership::Local,
-            ty: inferred.as_option(),
-            span: Some(*name_span),
-        });
+    }
+    shadows.push(bind_with(
+        az,
+        name,
+        node.id,
+        &node.label,
+        inferred.clone(),
+        *kind,
+        if view {
+            BindingOrigin::View
+        } else {
+            BindingOrigin::Declared
+        },
+    ));
+    node.bindings.push(BindingInfo {
+        name: name.clone(),
+        ownership: Ownership::Local,
+        ty: inferred.as_option(),
+        span: Some(*name_span),
+    });
 }
 
 fn walk_assign(az: &mut Analyzer, target: &AssignTarget, value: &Expr, node: &mut ArenaNode) {
-        // Bare field inside a method: same path as `this.field = value`.
-        let this = "this".to_string();
-        let bare_field =
-            matches!(target, AssignTarget::Name { id, .. } if az.is_bare_field(*id));
-        let (name, name_span, index, borrowed) = match target {
-            AssignTarget::Name { name_span, .. } if bare_field => {
-                (&this, name_span, None, false)
-            }
-            AssignTarget::Name { name, name_span, .. } => (name, name_span, None, false),
-            AssignTarget::Index {
-                name,
-                name_span,
-                index,
-                borrowed,
-                ..
-            } => (name, name_span, Some(index), *borrowed),
-            AssignTarget::Field {
-                receiver: crate::ast::Expr::Ident { name, span, id },
-                ..
-            } if !az.is_bare_field(*id) => {
-                (name, span, None, false)
-            }
-            AssignTarget::Field { receiver, id, .. } => {
-                let target_ty = az.node_tys.get(id).cloned();
-                walk(az, receiver, node, None, true);
-                walk_typed(
-                    az,
-                    value,
-                    node,
-                    None,
-                    true,
-                    target_ty.and_then(|ty| ty.as_option()).as_ref(),
-                );
-                return;
-            }
-        };
-        let dest = az.env.get(name).cloned();
-        let dest_ty = dest.as_ref().and_then(|binding| binding.ty.as_option());
-        let target_ty = match (target, dest_ty) {
-            (AssignTarget::Name { id, .. }, _) if bare_field => az
-                .node_tys
-                .get(id)
-                .cloned()
-                .and_then(|ty| ty.as_option()),
-            (AssignTarget::Name { .. }, ty) => ty,
-            (AssignTarget::Index { .. }, Some(ty)) => {
-                let ty = match ty {
-                    Type::Ref { inner, .. } => *inner,
-                    ty => ty,
-                };
-                match ty {
-                    Type::Array { elem, .. } => Some(*elem),
-                    _ => None,
-                }
-            }
-            (AssignTarget::Field { id, .. }, _) => az
-                .node_tys
-                .get(id)
-                .cloned()
-                .and_then(|ty| ty.as_option()),
-            _ => None,
-        };
-        let assign_up = dest.as_ref().is_some_and(|b| {
-            !b.moved
-                && matches!(b.kind, BindingKind::Var)
-                && b.arena_id < node.id
-        });
-        if borrowed {
-            note_borrow(az, name, Some(*name_span), node, None);
-        } else if !assign_up {
-            note_use(az, name, Some(*name_span), node);
+    // Bare field inside a method: same path as `this.field = value`.
+    let this = "this".to_string();
+    let bare_field =
+        matches!(target, AssignTarget::Name { id, .. } if az.is_bare_field(*id));
+    let (name, name_span, index, borrowed) = match target {
+        AssignTarget::Name { name_span, .. } if bare_field => {
+            (&this, name_span, None, false)
         }
-        if let Some(index) = index {
-            walk(az, index, node, None, true);
+        AssignTarget::Name { name, name_span, .. } => (name, name_span, None, false),
+        AssignTarget::Index {
+            name,
+            name_span,
+            index,
+            borrowed,
+            ..
+        } => (name, name_span, Some(index), *borrowed),
+        AssignTarget::Field {
+            receiver: crate::ast::Expr::Ident { name, span, id },
+            ..
+        } if !az.is_bare_field(*id) => {
+            (name, span, None, false)
         }
-        let (arena_id, arena_label) = if let Some(b) = dest {
-            (b.arena_id, b.arena_label.clone())
-        } else {
-            (node.id, node.label.clone())
-        };
-        let sink = TransferSink::Binding {
-            dest: BindingKind::Var,
-            arena_id,
-            arena_label,
-        };
-        walk_typed(az, value, node, Some(&sink), true, target_ty.as_ref());
+        AssignTarget::Field { receiver, id, .. } => {
+            let target_ty = az.node_tys.get(id).cloned();
+            walk(az, receiver, node, None, true);
+            walk_typed(
+                az,
+                value,
+                node,
+                None,
+                true,
+                target_ty.and_then(|ty| ty.as_option()).as_ref(),
+            );
+            return;
+        }
+    };
+    let dest = az.env.get(name).cloned();
+    let dest_ty = dest.as_ref().and_then(|binding| binding.ty.as_option());
+    let target_ty = match (target, dest_ty) {
+        (AssignTarget::Name { id, .. }, _) if bare_field => az
+            .node_tys
+            .get(id)
+            .cloned()
+            .and_then(|ty| ty.as_option()),
+        (AssignTarget::Name { .. }, ty) => ty,
+        (AssignTarget::Index { .. }, Some(ty)) => {
+            let ty = match ty {
+                Type::Ref { inner, .. } => *inner,
+                ty => ty,
+            };
+            match ty {
+                Type::Array { elem, .. } => Some(*elem),
+                _ => None,
+            }
+        }
+        (AssignTarget::Field { id, .. }, _) => az
+            .node_tys
+            .get(id)
+            .cloned()
+            .and_then(|ty| ty.as_option()),
+        _ => None,
+    };
+    let assign_up = dest.as_ref().is_some_and(|b| {
+        !b.moved
+            && matches!(b.kind, BindingKind::Var)
+            && b.arena_id < node.id
+    });
+    if borrowed {
+        note_borrow(az, name, Some(*name_span), node, None);
+    } else if !assign_up {
+        note_use(az, name, Some(*name_span), node);
+    }
+    if let Some(index) = index {
+        walk(az, index, node, None, true);
+    }
+    let (arena_id, arena_label) = if let Some(b) = dest {
+        (b.arena_id, b.arena_label.clone())
+    } else {
+        (node.id, node.label.clone())
+    };
+    let sink = TransferSink::Binding {
+        dest: BindingKind::Var,
+        arena_id,
+        arena_label,
+    };
+    walk_typed(az, value, node, Some(&sink), true, target_ty.as_ref());
 }
 
 fn walk_for(az: &mut Analyzer, name: &SpannedName, iter: &Expr, body: &Block, node: &mut ArenaNode) {
-        walk(az, iter, node, None, true);
-        az.loop_move_ban
-            .push(az.env.keys().cloned().collect());
-        let params = [RegionParam {
-            name: name.name.clone(),
-            ty: Ty::Known(Type::from_ident("Int", false)),
-            kind: BindingKind::Val,
-            span: Some(name.span),
-            borrow_from: super::region::REF_PARAM_BORROW_FROM,
-        }];
-        node.children.push(open_ordinary(
-            az,
-            &format!("ForLoop ({})", name.name),
-            body,
-            &params,
-            None,
-        ));
-        az.loop_move_ban.pop();
+    walk(az, iter, node, None, true);
+    az.loop_move_ban
+        .push(az.env.keys().cloned().collect());
+    let params = [RegionParam {
+        name: name.name.clone(),
+        ty: Ty::Known(Type::from_ident("Int", false)),
+        kind: BindingKind::Val,
+        span: Some(name.span),
+        borrow_from: super::region::REF_PARAM_BORROW_FROM,
+    }];
+    node.children.push(open_ordinary(
+        az,
+        &format!("ForLoop ({})", name.name),
+        body,
+        &params,
+        None,
+    ));
+    az.loop_move_ban.pop();
 }
 
 fn walk_while(az: &mut Analyzer, cond: &Expr, body: &Block, node: &mut ArenaNode) {
-        walk(az, cond, node, None, true);
-        az.loop_move_ban
-            .push(az.env.keys().cloned().collect());
-        node.children.push(open_ordinary(az, "WhileLoop", body, &[], None));
-        az.loop_move_ban.pop();
+    walk(az, cond, node, None, true);
+    az.loop_move_ban
+        .push(az.env.keys().cloned().collect());
+    node.children.push(open_ordinary(az, "WhileLoop", body, &[], None));
+    az.loop_move_ban.pop();
 }
 
 fn walk_typed(
@@ -399,36 +399,36 @@ fn walk(
 }
 
 fn walk_ident(az: &mut Analyzer, name: &String, span: &Span, id: &AstId, node: &mut ArenaNode, transfer: Option<&TransferSink>) {
-        if az.is_bare_field(*id) {
-            // Bare field inside a method: a read through the `this` borrow.
-            note_use(az, "this", Some(*span), node);
-            return;
+    if az.is_bare_field(*id) {
+        // Bare field inside a method: a read through the `this` borrow.
+        note_use(az, "this", Some(*span), node);
+        return;
+    }
+    if matches!(transfer, Some(TransferSink::ManagedRef)) {
+        if az
+            .env
+            .get(name)
+            .is_some_and(|binding| binding.ty.is_managed_ref())
+        {
+            note_use(az, name, Some(*span), node);
+        } else {
+            note_borrow(az, name, Some(*span), node, transfer);
         }
-        if matches!(transfer, Some(TransferSink::ManagedRef)) {
-            if az
-                .env
-                .get(name)
-                .is_some_and(|binding| binding.ty.is_managed_ref())
-            {
-                note_use(az, name, Some(*span), node);
-            } else {
-                note_borrow(az, name, Some(*span), node, transfer);
-            }
+        return;
+    }
+    if let Some(sink) = transfer {
+        let Some(binding) = az.env.get(name) else {
+            note_use(az, name, Some(*span), node);
             return;
-        }
-        if let Some(sink) = transfer {
-            let Some(binding) = az.env.get(name) else {
-                note_use(az, name, Some(*span), node);
-                return;
-            };
-            if let Some(message) = bare_ident_move_message(binding, name, sink) {
-                az.error(message, Some(name.clone()), Some(*span));
-            } else {
-                note_use(az, name, Some(*span), node);
-            }
+        };
+        if let Some(message) = bare_ident_move_message(binding, name, sink) {
+            az.error(message, Some(name.clone()), Some(*span));
         } else {
             note_use(az, name, Some(*span), node);
         }
+    } else {
+        note_use(az, name, Some(*span), node);
+    }
 }
 
 fn walk_unary(
@@ -440,23 +440,23 @@ fn walk_unary(
     transfer: Option<&TransferSink>,
     record_borrow: bool,
 ) {
-        if *op == UnaryOp::Borrow {
-            if record_borrow {
-                match inner {
-                    Expr::Ident { name, span: name_span, .. } => {
-                        note_borrow(az, name, Some(*name_span), node, transfer);
-                    }
-                    _ => {
-                        az.error("`&` borrows a name", None, Some(*span));
-                        walk(az, inner, node, None, true);
-                    }
+    if *op == UnaryOp::Borrow {
+        if record_borrow {
+            match inner {
+                Expr::Ident { name, span: name_span, .. } => {
+                    note_borrow(az, name, Some(*name_span), node, transfer);
                 }
-            } else {
-                walk(az, inner, node, None, true);
+                _ => {
+                    az.error("`&` borrows a name", None, Some(*span));
+                    walk(az, inner, node, None, true);
+                }
             }
         } else {
-            walk(az, inner, node, transfer, record_borrow);
+            walk(az, inner, node, None, true);
         }
+    } else {
+        walk(az, inner, node, transfer, record_borrow);
+    }
 }
 
 fn walk_call(
@@ -467,83 +467,83 @@ fn walk_call(
     node: &mut ArenaNode,
     record_borrow: bool,
 ) {
-        let (formals, param_tys) = if let Some((receiver, qualified)) = method_call(az, callee) {
-            walk_receiver(az, &receiver, node);
-            (
-                az.fun_sigs.get(&qualified).map(|f| f[1..].to_vec()),
-                az.fun_param_tys.get(&qualified).map(|p| p[1..].to_vec()),
-            )
-        } else {
-            walk(az, callee, node, None, record_borrow);
-            match callee {
-                Expr::Ident { name, .. } => {
-                    if let Some(class) = az.classes.get(name) {
-                        (
-                            None,
-                            Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
-                        )
-                    } else {
-                        (
-                            az.fun_sigs.get(name).cloned(),
-                            az.fun_param_tys.get(name).cloned(),
-                        )
-                    }
+    let (formals, param_tys) = if let Some((receiver, qualified)) = method_call(az, callee) {
+        walk_receiver(az, &receiver, node);
+        (
+            az.fun_sigs.get(&qualified).map(|f| f[1..].to_vec()),
+            az.fun_param_tys.get(&qualified).map(|p| p[1..].to_vec()),
+        )
+    } else {
+        walk(az, callee, node, None, record_borrow);
+        match callee {
+            Expr::Ident { name, .. } => {
+                if let Some(class) = az.classes.get(name) {
+                    (
+                        None,
+                        Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
+                    )
+                } else {
+                    (
+                        az.fun_sigs.get(name).cloned(),
+                        az.fun_param_tys.get(name).cloned(),
+                    )
                 }
-                _ => (None, None),
             }
-        };
-        for (i, a) in args.iter().enumerate() {
-            let builtin_borrow = matches!(callee, Expr::Ident { name, .. }
-                if crate::builtins::is_borrowed_arg(name, i));
-            let arg_record_borrow = builtin_borrow
-                || param_tys
-                .as_ref()
-                .and_then(|params| params.get(i))
-                .is_some_and(|ty| ty.is_reference());
-            let arg_transfer = formals
-                .as_ref()
-                .and_then(|f| f.get(i).copied())
-                .map(|formal| TransferSink::CallArg { formal })
-                .or_else(|| {
-                    builtin_borrow.then_some(TransferSink::CallArg {
-                        formal: BindingKind::Val,
-                    })
-                });
-            let expected = param_tys.as_ref().and_then(|params| params.get(i));
-            walk_typed(
-                az,
-                a,
-                node,
-                arg_transfer.as_ref(),
-                arg_record_borrow,
-                expected,
-            );
+            _ => (None, None),
         }
-        if let Some(c) = trailing {
-            let params: Vec<RegionParam> = c
-                .params
-                .iter()
-                .map(|p| RegionParam {
-                    name: p.name.clone(),
-                    ty: Ty::Unknown,
-                    kind: BindingKind::Val,
-                    span: Some(p.span),
-                    borrow_from: super::region::REF_PARAM_BORROW_FROM,
+    };
+    for (i, a) in args.iter().enumerate() {
+        let builtin_borrow = matches!(callee, Expr::Ident { name, .. }
+            if crate::builtins::is_borrowed_arg(name, i));
+        let arg_record_borrow = builtin_borrow
+            || param_tys
+            .as_ref()
+            .and_then(|params| params.get(i))
+            .is_some_and(|ty| ty.is_reference());
+        let arg_transfer = formals
+            .as_ref()
+            .and_then(|f| f.get(i).copied())
+            .map(|formal| TransferSink::CallArg { formal })
+            .or_else(|| {
+                builtin_borrow.then_some(TransferSink::CallArg {
+                    formal: BindingKind::Val,
                 })
-                .collect();
-            if c.is_move {
-                node.children.push(open_move(
-                    az,
-                    "Closure",
-                    &c.body,
-                    c.captures.as_deref(),
-                    &params,
-                ));
-            } else {
-                node.children
-                    .push(open_ordinary(az, "Closure", &c.body, &params, None));
-            }
+            });
+        let expected = param_tys.as_ref().and_then(|params| params.get(i));
+        walk_typed(
+            az,
+            a,
+            node,
+            arg_transfer.as_ref(),
+            arg_record_borrow,
+            expected,
+        );
+    }
+    if let Some(c) = trailing {
+        let params: Vec<RegionParam> = c
+            .params
+            .iter()
+            .map(|p| RegionParam {
+                name: p.name.clone(),
+                ty: Ty::Unknown,
+                kind: BindingKind::Val,
+                span: Some(p.span),
+                borrow_from: super::region::REF_PARAM_BORROW_FROM,
+            })
+            .collect();
+        if c.is_move {
+            node.children.push(open_move(
+                az,
+                "Closure",
+                &c.body,
+                c.captures.as_deref(),
+                &params,
+            ));
+        } else {
+            node.children
+                .push(open_ordinary(az, "Closure", &c.body, &params, None));
         }
+    }
 }
 
 fn apply_expr_promote(

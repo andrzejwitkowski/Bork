@@ -20,22 +20,22 @@ pub(super) fn walk_if(
     transfer: Option<&TransferSink>,
     record_borrow: bool,
 ) {
-        walk(az, cond, node, None, record_borrow);
-        let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
-        let before_moved = moved_names(&az.env);
-        node.children
-            .push(open_ordinary(az, "IfThen", then_block, &[], tail_transfer));
-        let then_end = branch_end(az, then_block, &[]);
-        restore_moved_flags(&mut az.env, &before_moved);
-        let else_end = else_arm_end(
-            az,
-            node,
-            else_block,
-            "IfElse",
-            tail_transfer,
-            before_moved,
-        );
-        join_branch_moves(&mut az.env, &[then_end, else_end]);
+    walk(az, cond, node, None, record_borrow);
+    let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    let before_moved = moved_names(&az.env);
+    node.children
+        .push(open_ordinary(az, "IfThen", then_block, &[], tail_transfer));
+    let then_end = branch_end(az, then_block, &[]);
+    restore_moved_flags(&mut az.env, &before_moved);
+    let else_end = else_arm_end(
+        az,
+        node,
+        else_block,
+        "IfElse",
+        tail_transfer,
+        before_moved,
+    );
+    join_branch_moves(&mut az.env, &[then_end, else_end]);
 }
 
 pub(super) fn walk_if_val(
@@ -47,30 +47,30 @@ pub(super) fn walk_if_val(
     transfer: Option<&TransferSink>,
     record_borrow: bool,
 ) {
-        walk(az, &bindings.head.value, node, None, record_borrow);
-        let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
-        let (body, compacted) = peel_blocks(then_block);
-        let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
-        bind_presence_guard(az, &mut frame, &bindings.head);
-        for binding in &bindings.tail {
-            walk(az, &binding.value, &mut frame.node, None, record_borrow);
-            bind_presence_guard(az, &mut frame, binding);
-        }
-        // The else path sees the header's moves but not the body's.
-        let header_moved = outer_moved_names(az, &frame.shadows);
-        walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
-        let then_end = branch_end(az, then_block, &frame.shadows);
-        node.children.push(frame.finish(az));
-        restore_moved_flags(&mut az.env, &header_moved);
-        let else_end = else_arm_end(
-            az,
-            node,
-            else_block,
-            "IfValNone",
-            tail_transfer,
-            header_moved,
-        );
-        join_branch_moves(&mut az.env, &[then_end, else_end]);
+    walk(az, &bindings.head.value, node, None, record_borrow);
+    let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    let (body, compacted) = peel_blocks(then_block);
+    let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
+    bind_presence_guard(az, &mut frame, &bindings.head);
+    for binding in &bindings.tail {
+        walk(az, &binding.value, &mut frame.node, None, record_borrow);
+        bind_presence_guard(az, &mut frame, binding);
+    }
+    // The else path sees the header's moves but not the body's.
+    let header_moved = outer_moved_names(az, &frame.shadows);
+    walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
+    let then_end = branch_end(az, then_block, &frame.shadows);
+    node.children.push(frame.finish(az));
+    restore_moved_flags(&mut az.env, &header_moved);
+    let else_end = else_arm_end(
+        az,
+        node,
+        else_block,
+        "IfValNone",
+        tail_transfer,
+        header_moved,
+    );
+    join_branch_moves(&mut az.env, &[then_end, else_end]);
 }
 
 /// True when control never falls out of `block` (ends in `return`/`break`/`continue`, or in a
