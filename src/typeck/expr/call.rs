@@ -131,7 +131,8 @@ pub(super) fn check_call(
             if !type_args.is_empty() {
                 env.error("explicit type arguments on enum variants are not supported yet; annotate the binding instead", Some(*span));
             }
-            return super::object::check_variant(e, name, *span, args, trailing, expected, return_ty, env);
+            let site = CallSite { span: *span, args, trailing, return_ty };
+            return super::object::check_variant(e, name, site, expected, env);
         }
     }
     if let Expr::Field {

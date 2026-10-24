@@ -4,7 +4,7 @@ use crate::span::Span;
 use crate::ty::TyId;
 
 use super::super::env::{Checked, ClassInfo, EnumInfo, Env};
-use super::call::fresh_params;
+use super::call::{fresh_params, CallSite};
 use super::{check, synthesize};
 
 /// A declared field type with the owner's type parameters replaced by `type_args`.
@@ -97,13 +97,11 @@ pub(super) fn variant_path(receiver: &Expr, safe: bool, env: &Env<'_>) -> Option
 pub(super) fn check_variant(
     e: EnumInfo,
     variant: &str,
-    span: Span,
-    args: &[Expr],
-    trailing: Option<&Closure>,
+    site: CallSite<'_>,
     expected: Option<TyId>,
-    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    let CallSite { span, args, trailing, return_ty } = site;
     let Some(info) = e.variants.iter().find(|v| v.name == variant) else {
         env.error(format!("enum `{}` has no variant `{variant}`", e.name), Some(span));
         for arg in args {
