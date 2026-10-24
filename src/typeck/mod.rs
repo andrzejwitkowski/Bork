@@ -126,6 +126,12 @@ fn build_classes(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ClassTable {
     let mut classes = ClassTable::new();
+    for (index, e) in program.enums.iter().enumerate() {
+        diagnostics.extend(defs.diagnostics(defs.enum_id(index), |_| true));
+        for variant in 0..e.variants.len() {
+            diagnostics.extend(defs.diagnostics(defs.variant_id(index, variant), |_| true));
+        }
+    }
     for (index, class) in program.classes.iter().enumerate() {
         use crate::defs::Clash;
         diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| {

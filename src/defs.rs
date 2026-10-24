@@ -16,6 +16,8 @@ pub struct DefId(u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DefKind {
     Class,
+    Enum,
+    Variant,
     Fn,
     Method,
     Const,
@@ -31,11 +33,15 @@ pub enum Clash {
     ConstBuiltin,
     ConstFn,
     ConstClass,
+    ConstEnum,
     /// A class named like a primitive or `String`.
     ClassBuiltinType,
     ClassDuplicate,
     /// A class named like a function (including `print`/`println`/`concat`).
     ClassFn,
+    /// An enum named like a class, another enum, a primitive, `String` or a function.
+    EnumConflict,
+    VariantDuplicate,
     MethodFieldName,
     MethodDuplicate,
 }
@@ -58,6 +64,8 @@ pub struct Def {
 pub struct DefTable {
     defs: Vec<Def>,
     classes: HashMap<String, DefId>,
+    enums: HashMap<String, DefId>,
+    variants: HashMap<(DefId, String), DefId>,
     fns: HashMap<String, DefId>,
     consts: HashMap<String, DefId>,
     methods: HashMap<(DefId, String), DefId>,
@@ -66,6 +74,8 @@ pub struct DefTable {
     const_ids: Vec<DefId>,
     fn_ids: Vec<DefId>,
     class_ids: Vec<DefId>,
+    enum_ids: Vec<DefId>,
+    variant_ids: Vec<Vec<DefId>>,
     method_ids: Vec<Vec<DefId>>,
 }
 
@@ -117,6 +127,34 @@ impl DefTable {
             table.class_ids.push(id);
         }
 
+        for e in &program.enums {
+            let name = &e.name.name;
+            let id = table.add(DefKind::Enum, name, None, Some(e.name.span));
+            // Classes are registered after enums, so look at the program rather than `table.classes`.
+            let conflict = name == "String"
+                || !matches!(Type::from_ident(name, false), Type::Named { .. })
+                || table.enums.contains_key(name)
+                || program.classes.iter().any(|c| c.name == *name)
+                || fn_names.contains(name);
+            if conflict {
+                table.defs[id.0 as usize].clashes.push(Clash::EnumConflict);
+            } else {
+                table.enums.insert(name.clone(), id);
+            }
+            table.defs[id.0 as usize].arity = e.generics.len();
+            table.enum_ids.push(id);
+            let mut ids = Vec::new();
+            for variant in &e.variants {
+                let vid = table.add(DefKind::Variant, &variant.name.name, Some(id), Some(variant.name.span));
+                // A rejected enum keeps its variants out of the table, so one mistake is one error.
+                if !conflict && table.variants.insert((id, variant.name.name.clone()), vid).is_some() {
+                    table.defs[vid.0 as usize].clashes.push(Clash::VariantDuplicate);
+                }
+                ids.push(vid);
+            }
+            table.variant_ids.push(ids);
+        }
+
         let mut qualified = HashSet::new();
         for class in &program.classes {
             let owner = table.classes[&class.name];
@@ -147,6 +185,8 @@ impl DefTable {
                 Some(Clash::ConstFn)
             } else if program.classes.iter().any(|c| c.name == *name) {
                 Some(Clash::ConstClass)
+            } else if program.enums.iter().any(|e| e.name.name == *name) {
+                Some(Clash::ConstEnum)
             } else {
                 None
             };
@@ -165,6 +205,22 @@ impl DefTable {
 
     pub fn get(&self, id: DefId) -> &Def {
         &self.defs[id.0 as usize]
+    }
+
+    pub fn lookup_enum(&self, name: &str) -> Option<DefId> {
+        self.enums.get(name).copied()
+    }
+
+    pub fn lookup_variant(&self, owner: DefId, name: &str) -> Option<DefId> {
+        self.variants.get(&(owner, name.to_string())).copied()
+    }
+
+    pub fn enum_id(&self, index: usize) -> DefId {
+        self.enum_ids[index]
+    }
+
+    pub fn variant_id(&self, enum_index: usize, variant_index: usize) -> DefId {
+        self.variant_ids[enum_index][variant_index]
     }
 
     /// The first class declared with this name.
@@ -233,9 +289,15 @@ impl DefTable {
             Clash::ConstBuiltin => format!("constant `{name}` conflicts with a builtin function"),
             Clash::ConstFn => format!("constant `{name}` conflicts with a function"),
             Clash::ConstClass => format!("constant `{name}` conflicts with a class"),
+            Clash::ConstEnum => format!("constant `{name}` conflicts with an enum"),
             Clash::ClassBuiltinType => format!("class `{name}` conflicts with a builtin type name"),
             Clash::ClassDuplicate => format!("duplicate class `{name}`"),
             Clash::ClassFn => format!("class `{name}` conflicts with another type or function"),
+            Clash::EnumConflict => format!("enum `{name}` conflicts with another type or function"),
+            Clash::VariantDuplicate => {
+                let owner = def.owner.map(|owner| self.get(owner).name.as_str()).unwrap_or("?");
+                format!("duplicate variant `{name}` in enum `{owner}`")
+            }
             Clash::MethodFieldName | Clash::MethodDuplicate => {
                 let class = def.owner.map(|owner| self.get(owner).name.as_str()).unwrap_or("?");
                 if clash == Clash::MethodFieldName {

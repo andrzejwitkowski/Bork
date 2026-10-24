@@ -1,5 +1,5 @@
 use crate::ast::{
-    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, ClassField, ClassMember, Closure,
+    unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, Enum, Variant, ClassField, ClassMember, Closure,
     ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type, TypeParam,
     UnaryOp,
 };
@@ -16,6 +16,7 @@ match {
     r"([ \t\r\f]*(//[^\n\r]*)?\n)+" => "NL",
     "if" => "if",
     "class" => "class",
+    "enum" => "enum",
     "const" => "const",
     "this" => "this",
     "when" => "when",
@@ -71,6 +72,7 @@ ItemList: Vec<Item> = {
 Item: Item = {
     <constant:ConstDecl> => Item::Const(constant),
     <class:ClassDecl> => Item::Class(class),
+    <e:EnumDecl> => Item::Enum(e),
     <f:Function> => Item::Fun(f),
 };
 
@@ -86,6 +88,42 @@ ConstDecl: ConstDecl = {
 ClassDecl: Class = {
     "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
         Class::from_members(name, generics.unwrap_or_default(), members)
+    },
+};
+
+EnumDecl: Enum = {
+    "enum" <name:SpannedIdent> <generics:TypeParams?> "{" <variants:EnumBody> "}" => Enum {
+        name,
+        generics: generics.unwrap_or_default(),
+        variants,
+    },
+};
+
+EnumBody: Vec<Variant> = {
+    => vec![],
+    "NL" => vec![],
+    <items:EnumVariants> EnumSep? => items,
+    "NL" <items:EnumVariants> EnumSep? => items,
+};
+
+EnumVariants: Vec<Variant> = {
+    <variant:EnumVariant> => vec![variant],
+    <mut items:EnumVariants> EnumSep <variant:EnumVariant> => {
+        items.push(variant);
+        items
+    },
+};
+
+EnumSep: () = {
+    "," => (),
+    "," "NL" => (),
+    "NL" => (),
+};
+
+EnumVariant: Variant = {
+    <name:SpannedIdent> <fields:("(" <Comma<ClassFieldDecl>> ")")?> => Variant {
+        name,
+        fields: fields.unwrap_or_default(),
     },
 };
 

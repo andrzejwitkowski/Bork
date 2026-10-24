@@ -135,7 +135,7 @@ count = count + 1
 
 These are lexer tokens, so they cannot name a binding, parameter, field, function, class or constant:
 
-- declarations: `class`, `const`, `fun`, `val`, `var`, `this`
+- declarations: `class`, `enum`, `const`, `fun`, `val`, `var`, `this`
 - control flow: `if`, `else`, `when`, `for`, `in`, `while`, `break`, `continue`, `return`
 - values: `true`, `false`, `Some`, `None`
 - ownership: `move`, `promote`
