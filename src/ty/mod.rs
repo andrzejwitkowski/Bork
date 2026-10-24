@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn enum_arguments_are_visible_to_walks_and_substitution() {
-        let program = crate::parse("enum Opt<T> {\n None2\n Has(v: T)\n}\nfun main() {}\n").unwrap();
+        let program = crate::parse("enum Opt<T> {\n Empty\n Has(v: T)\n}\nfun main() {}\n").unwrap();
         let mut ctx = TyCtx::new(&DefTable::build(&program));
         let def = ctx.class_names.keys().copied().next().unwrap();
         let (param, i32_ty) = (ctx.param(ParamIdx(0)), ctx.i32());
@@ -298,5 +298,6 @@ mod tests {
         assert_eq!(ctx.enum_args(concrete), Some((def, &[i32_ty][..])));
         assert_eq!(ctx.record_def(concrete), None);
         assert_eq!(ctx.display(concrete).to_string(), "Opt<i32>");
+        assert_eq!(crate::ty::fold::subst(&mut ctx, generic, &[i32_ty]), Ok(concrete));
     }
 }
