@@ -712,20 +712,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             args,
             has_trailing_closure,
         } => {
-            if !matches!(callee.kind, HirExprKind::Ident { .. }) {
-                walk_expr(driver, visitor, callee)?;
-            }
-            for arg in args {
-                walk_expr(driver, visitor, arg)?;
-            }
-            if *has_trailing_closure {
-                driver.cursor.take_child(RegionSite::Closure)?;
-                if visitor.touch_codegen_push() {
-                    driver.cursor.last_child_mut().codegen_push = false;
-                }
-                let child_ref = driver.cursor.last_child();
-                visitor.skip_closure(child_ref)?;
-            }
+            walk_call(driver, visitor, callee, args, *has_trailing_closure)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::Int { .. }
@@ -735,6 +722,32 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
         | HirExprKind::Ident { .. }
         | HirExprKind::None => visitor.after_expr(driver, expr),
     }
+}
+
+/// A call walks its callee (unless it is a plain name) and arguments; a trailing closure is a
+/// region of its own that the walk steps over.
+fn walk_call<C: ArenaCursor, V: RegionVisitor>(
+    driver: &mut WalkDriver<'_, C>,
+    visitor: &mut V,
+    callee: &HirExpr,
+    args: &[HirExpr],
+    has_trailing_closure: bool,
+) -> Result<(), WalkError> {
+    if !matches!(callee.kind, HirExprKind::Ident { .. }) {
+        walk_expr(driver, visitor, callee)?;
+    }
+    for arg in args {
+        walk_expr(driver, visitor, arg)?;
+    }
+    if has_trailing_closure {
+        driver.cursor.take_child(RegionSite::Closure)?;
+        if visitor.touch_codegen_push() {
+            driver.cursor.last_child_mut().codegen_push = false;
+        }
+        let child_ref = driver.cursor.last_child();
+        visitor.skip_closure(child_ref)?;
+    }
+    Ok(())
 }
 
 fn walk_one_function<C, V>(

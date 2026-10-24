@@ -91,25 +91,7 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         HirExprKind::Ident {
             use_kind: UseKind::Move | UseKind::Promote,
             ..
-        } => {
-            if tcx.record_def(expr.ty).is_some() {
-                reject(
-                    diagnostics,
-                    "moving class objects is not supported by codegen yet",
-                    expr.span,
-                );
-            }
-            if tcx
-                .array_elem(expr.ty)
-                .is_some_and(|elem| tcx.is_managed_ref(elem))
-            {
-                reject(
-                    diagnostics,
-                    "moving an array of managed Ref is not supported by codegen yet",
-                    expr.span,
-                );
-            }
-        }
+        } => gate_move(tcx, expr, diagnostics),
         HirExprKind::Ident { .. } => {}
         HirExprKind::ArrayLit { elements } => {
             for element in elements {
@@ -141,29 +123,7 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             gate_expr(tcx, hi, diagnostics);
         }
         HirExprKind::Binary { op, lhs, rhs } => {
-            if !matches!(
-                op,
-                BinOp::Add
-                    | BinOp::Sub
-                    | BinOp::Mul
-                    | BinOp::Div
-                    | BinOp::Gt
-                    | BinOp::Lt
-                    | BinOp::Ge
-                    | BinOp::Le
-                    | BinOp::Eq
-                    | BinOp::Ne
-                    | BinOp::And
-                    | BinOp::Or
-                    | BinOp::Elvis
-                    | BinOp::RangeTo
-            ) {
-                reject(
-                    diagnostics,
-                    "this binary operator is not supported by codegen",
-                    expr.span,
-                );
-            }
+            gate_binary_op(op, expr.span, diagnostics);
             gate_expr(tcx, lhs, diagnostics);
             gate_expr(tcx, rhs, diagnostics);
         }
@@ -230,21 +190,64 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             safe,
             ..
         } => {
-            let inner = tcx.base(receiver.ty);
-            let length_ok = name == "length"
-                && (tcx.uses_arena_storage(receiver.ty)
-                    || (*safe
-                        && tcx.is_nullable(receiver.ty)
-                        && (tcx.is_string(inner) || tcx.is_array(inner))));
-            if !length_ok {
-                reject(
-                    diagnostics,
-                    "field access is not supported by codegen",
-                    expr.span.or(receiver.span),
-                );
-            }
+            gate_field(tcx, expr, receiver, name, *safe, diagnostics);
             gate_expr(tcx, receiver, diagnostics);
         }
+    }
+}
+
+/// Moving a class object or an array of managed `Ref` is not lowered yet.
+fn gate_move(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
+    if tcx.record_def(expr.ty).is_some() {
+        reject(diagnostics, "moving class objects is not supported by codegen yet", expr.span);
+    }
+    if tcx.array_elem(expr.ty).is_some_and(|elem| tcx.is_managed_ref(elem)) {
+        reject(
+            diagnostics,
+            "moving an array of managed Ref is not supported by codegen yet",
+            expr.span,
+        );
+    }
+}
+
+fn gate_binary_op(op: &BinOp, span: Option<Span>, diagnostics: &mut Vec<Diagnostic>) {
+    let supported = matches!(
+        op,
+        BinOp::Add
+            | BinOp::Sub
+            | BinOp::Mul
+            | BinOp::Div
+            | BinOp::Gt
+            | BinOp::Lt
+            | BinOp::Ge
+            | BinOp::Le
+            | BinOp::Eq
+            | BinOp::Ne
+            | BinOp::And
+            | BinOp::Or
+            | BinOp::Elvis
+            | BinOp::RangeTo
+    );
+    if !supported {
+        reject(diagnostics, "this binary operator is not supported by codegen", span);
+    }
+}
+
+/// Only `.length` of a string or array (also through `?.`) is a field access codegen lowers.
+fn gate_field(
+    tcx: &TyCtx,
+    expr: &HirExpr,
+    receiver: &HirExpr,
+    name: &str,
+    safe: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let inner = tcx.base(receiver.ty);
+    let length_ok = name == "length"
+        && (tcx.uses_arena_storage(receiver.ty)
+            || (safe && tcx.is_nullable(receiver.ty) && (tcx.is_string(inner) || tcx.is_array(inner))));
+    if !length_ok {
+        reject(diagnostics, "field access is not supported by codegen", expr.span.or(receiver.span));
     }
 }
 
