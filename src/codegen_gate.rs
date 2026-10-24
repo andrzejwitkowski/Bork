@@ -162,6 +162,12 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow,
             expr: inner,
         } => gate_expr(tcx, inner, diagnostics),
+        HirExprKind::EnumConstruct { fields, .. } => {
+            reject(diagnostics, "enums are not supported by codegen yet", expr.span);
+            for field in fields {
+                gate_expr(tcx, field, diagnostics);
+            }
+        }
         HirExprKind::ObjectConstruct { fields, .. } => {
             for field in fields {
                 gate_expr(tcx, field, diagnostics);

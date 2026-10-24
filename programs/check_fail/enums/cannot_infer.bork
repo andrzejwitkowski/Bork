@@ -1,0 +1,5 @@
+// diag: cannot infer type parameter `T` of `Tree`
+enum Tree<T> { Leaf, Node(l: Ref<Tree<T>>, v: T) }
+fun main() {
+    val t = Tree.Leaf
+}

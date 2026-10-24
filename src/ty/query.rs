@@ -220,12 +220,12 @@ impl TyCtx {
 
     /// Whether `Ref<inner>` is a valid type (the parameter case is the caller's to exempt).
     pub fn managed_ref_target_ok(&self, inner: TyId) -> bool {
-        matches!(self.data(inner), TyData::Class(..))
+        matches!(self.data(inner), TyData::Class(..) | TyData::Enum(..))
     }
 
     /// The message for an invalid `Ref<inner>` target.
     pub fn managed_ref_target_message(&self, inner: TyId) -> String {
-        format!("managed Ref target must be a non-nullable class, got `{}`", self.display(inner))
+        format!("managed Ref target must be a non-nullable class or enum, got `{}`", self.display(inner))
     }
 
     /// The message for an invalid `Vec<elem>` element.

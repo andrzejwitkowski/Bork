@@ -3,7 +3,7 @@ use crate::hir::{HirExprKind, HirExpr};
 use crate::span::Span;
 use crate::ty::TyId;
 
-use super::super::env::{Checked, ClassInfo, Env};
+use super::super::env::{Checked, ClassInfo, EnumInfo, Env};
 use super::call::fresh_params;
 use super::{check, synthesize};
 
@@ -74,6 +74,83 @@ pub(super) fn check_construct(
             class_name: class.name,
             fields: values,
         },
+        ty,
+        span,
+    )
+}
+
+/// The enum `receiver` names when it is a bare identifier that no local binding shadows, so
+/// `E.V` is a variant path rather than a field access.
+pub(super) fn variant_path(receiver: &Expr, env: &Env<'_>) -> Option<EnumInfo> {
+    let Expr::Ident { name, .. } = receiver else { return None };
+    if env.binding(name).is_some() {
+        return None;
+    }
+    env.enum_named(name).cloned()
+}
+
+/// `E.V(args)` or a bare `E.V`: every payload field takes exactly one argument.
+pub(super) fn check_variant(
+    e: EnumInfo,
+    variant: &str,
+    span: Span,
+    args: &[Expr],
+    trailing: Option<&Closure>,
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> Checked {
+    let Some(info) = e.variants.iter().find(|v| v.name == variant) else {
+        env.error(format!("enum `{}` has no variant `{variant}`", e.name), Some(span));
+        for arg in args {
+            let _ = synthesize(arg, return_ty, env);
+        }
+        let unknown = env.tcx.error();
+        return env.expr_at(HirExprKind::None, unknown, span);
+    };
+    if trailing.is_some() {
+        env.error("enum variants do not accept trailing closures", Some(span));
+    }
+    if args.len() != info.fields.len() {
+        let hint = if args.is_empty() && !info.fields.is_empty() { format!(" (write `{}.{variant}(..)`)", e.name) } else { String::new() };
+        env.error(
+            format!(
+                "variant `{}.{variant}` takes {} argument(s), got {}{hint}",
+                e.name,
+                info.fields.len(),
+                args.len()
+            ),
+            Some(span),
+        );
+    }
+
+    let type_args = fresh_params(&e.generics, &e.name, span, env);
+    let ty = env.tcx.enum_ty(e.id, type_args.clone());
+    if let Some(expected) = expected {
+        env.same(ty, expected);
+    }
+
+    let mut values: Vec<HirExpr> = Vec::with_capacity(info.fields.len());
+    for (field, arg) in info.fields.iter().zip(args) {
+        let field_ty = if type_args.is_empty() {
+            field.ty
+        } else {
+            crate::ty::subst(env.tcx, field.ty, &type_args).unwrap_or_else(|_| {
+                env.error(format!("type arguments of `{}` would make a nullable of a nullable", e.name), Some(span));
+                env.tcx.error()
+            })
+        };
+        let value = check(arg, field_ty, return_ty, env);
+        let what = format!("field `{}` of variant `{}.{variant}`", field.name, e.name);
+        env.mismatch(&what, value.ty, field_ty, value.span.or(Some(field.span)));
+        values.push(value.hir);
+    }
+    for extra in args.iter().skip(info.fields.len()) {
+        let _ = synthesize(extra, return_ty, env);
+    }
+
+    env.expr_at(
+        HirExprKind::EnumConstruct { enum_name: e.name, variant: variant.to_string(), fields: values },
         ty,
         span,
     )

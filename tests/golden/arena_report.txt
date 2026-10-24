@@ -1374,6 +1374,18 @@ Arenas
     ├── name [Local]
     ├── IfThen
     └── IfElse
+== programs/check/enums/generic_tree.bork
+Arenas
+└── fun main
+    ├── leaf [Local]
+    ├── n [Local]
+    └── m [Local]
+== programs/check/enums/shape.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── c [Local]
 == programs/check/generics/explicit_args.bork
 Arenas
 ├── fun id
@@ -1678,6 +1690,39 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/enums/cannot_infer.bork
+Type Error [127..136] cannot infer type parameter `T` of `Tree`; annotate the binding with its type to fix it
+Arenas
+└── fun main
+    └── t [Local]
+== programs/check_fail/enums/class_name_clash.bork
+Type Error [86..89] enum `Foo` conflicts with another type or function
+Arenas
+└── fun main
+== programs/check_fail/enums/generic_mismatch.bork
+Type Error [115..116] field `v` of variant `Tree.Node` has type i32, expected String
+Arenas
+└── fun main
+    └── t [Local]
+== programs/check_fail/enums/recursive_by_value.bork
+Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field
+Arenas
+└── fun main
+== programs/check_fail/enums/unknown_variant.bork
+Type Error [101..113] enum `Shape` has no variant `Square`
+Arenas
+└── fun main
+    └── s [Local]
+== programs/check_fail/enums/wrong_arity.bork
+Type Error [134..144] variant `Shape.Rect` takes 2 argument(s), got 1
+Arenas
+└── fun main
+    └── s [Local]
+== programs/check_fail/enums/wrong_payload_type.bork
+Type Error [65..66] field `r` of variant `Shape.Circle` has type String, expected f64
+Arenas
+└── fun main
+    └── s [Local]
 == programs/check_fail/generics/cannot_infer.bork
 Type Error [130..134] cannot infer type parameter `T` of `make`; specify it explicitly, e.g. `make::<..>(..)`
 Arenas
@@ -1750,7 +1795,7 @@ Arenas
 │   └── x [Moved ← fun f]
 └── fun main
 == programs/check_fail/generics/ref_of_non_class.bork
-Type Error [135..136] `g<i32>`: managed Ref target must be a non-nullable class, got `i32`
+Type Error [135..136] `g<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
 Arenas
 ├── fun g
 │   └── x [Local]

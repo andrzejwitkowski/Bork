@@ -126,6 +126,11 @@ pub(super) fn check_call(
             _ => env.error("only generic functions take explicit type arguments", None),
         }
     }
+    if let Expr::Field { receiver, name, span, .. } = callee {
+        if let Some(e) = super::object::variant_path(receiver, env) {
+            return super::object::check_variant(e, name, *span, args, trailing, expected, return_ty, env);
+        }
+    }
     if let Expr::Field {
         receiver,
         name,

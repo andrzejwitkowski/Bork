@@ -1,0 +1,4 @@
+// diag: enum `Foo` conflicts with another type or function
+class Foo { x: i32 }
+enum Foo { A }
+fun main() {}

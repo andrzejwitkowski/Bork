@@ -74,7 +74,7 @@ fn expr(e: &mut HirExpr, f: &mut impl FnMut(TyId) -> TyId, g: &mut impl FnMut(&m
             args.iter_mut().for_each(|x| expr(x, f, g));
         }
         HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => expr(inner, f, g),
-        HirExprKind::ObjectConstruct { fields, .. } => fields.iter_mut().for_each(|x| expr(x, f, g)),
+        HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => fields.iter_mut().for_each(|x| expr(x, f, g)),
         HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. } => expr(receiver, f, g),
         HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
             for b in std::iter::once(&mut *bindings.head).chain(&mut bindings.tail) {

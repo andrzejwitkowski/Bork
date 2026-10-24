@@ -291,6 +291,12 @@ pub enum HirExprKind {
         class_name: String,
         fields: Vec<HirExpr>,
     },
+    /// `E.V(args)`; unit variants have no fields.
+    EnumConstruct {
+        enum_name: String,
+        variant: String,
+        fields: Vec<HirExpr>,
+    },
     ObjectField {
         receiver: Box<HirExpr>,
         class_name: String,

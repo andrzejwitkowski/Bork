@@ -419,7 +419,7 @@ impl<'h> Escape<'h, '_> {
             | HirExprKind::Field {
                 receiver: inner, ..
             } => self.place(inner, None),
-            HirExprKind::ObjectConstruct { fields, .. } => {
+            HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
                 for field in fields {
                     self.place(field, sink);
                 }

@@ -386,6 +386,8 @@ impl RegionVisitor for Planner<'_> {
                 }
                 allocation
             }
+            // Codegen rejects enums; keep the analysis conservative until #52 gives them a layout.
+            HirExprKind::EnumConstruct { fields, .. } => self.combine(fields),
             HirExprKind::Ident { name, .. } => self.lookup(name),
             HirExprKind::RefCreate(inner) => {
                 let origins = self.origins(inner);

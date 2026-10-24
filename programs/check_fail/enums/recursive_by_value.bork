@@ -1,0 +1,3 @@
+// diag: enum `List` has a recursive by-value layout
+enum List { Nil, Cons(head: i32, tail: List) }
+fun main() {}

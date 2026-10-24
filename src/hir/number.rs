@@ -63,7 +63,7 @@ fn expr(e: &mut HirExpr, next: &mut u32) {
             args.iter_mut().for_each(|x| expr(x, next));
         }
         HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => expr(inner, next),
-        HirExprKind::ObjectConstruct { fields, .. } => fields.iter_mut().for_each(|x| expr(x, next)),
+        HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => fields.iter_mut().for_each(|x| expr(x, next)),
         HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. } => expr(receiver, next),
         HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
             expr(&mut bindings.head.value, next);

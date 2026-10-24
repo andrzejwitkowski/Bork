@@ -115,9 +115,10 @@ impl LowerCx<'_> {
         self.tcx.with_nullable(param, nullable)
     }
 
-    /// A class name applied to the lowered type arguments `args`.
+    /// A class or enum name applied to the lowered type arguments `args`.
     fn lower_class(&mut self, name: &str, args: Vec<TyId>, nullable: bool) -> TyId {
-        let Some(class) = self.defs.lookup_class(name) else {
+        let enum_def = self.defs.lookup_enum(name).filter(|_| self.defs.lookup_class(name).is_none());
+        let Some(class) = self.defs.lookup_class(name).or(enum_def) else {
             self.error(format!("unknown named type `{name}`"));
             return self.tcx.error();
         };
@@ -136,8 +137,8 @@ impl LowerCx<'_> {
         if args.iter().any(|&arg| self.tcx.is_error(arg)) {
             return self.tcx.error();
         }
-        let class = self.tcx.class(class, args);
-        self.tcx.with_nullable(class, nullable)
+        let ty = if enum_def.is_some() { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
+        self.tcx.with_nullable(ty, nullable)
     }
 
     fn lower_ref(&mut self, inner: &Type, nullable: bool) -> TyId {

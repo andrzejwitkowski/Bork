@@ -125,7 +125,7 @@ fn expr_may_allocate_sink(tcx: &TyCtx, expr: &HirExpr) -> bool {
         HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => {
             expr_may_allocate_sink(tcx, inner)
         }
-        HirExprKind::ObjectConstruct { .. } => true,
+        HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } => true,
         HirExprKind::ObjectField { receiver, .. } => expr_may_allocate_sink(tcx, receiver),
         HirExprKind::PresenceMatch {
             bindings,
@@ -680,7 +680,7 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
             walk_expr(driver, visitor, inner)?;
             visitor.after_expr(driver, expr)
         }
-        HirExprKind::ObjectConstruct { fields, .. } => {
+        HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
             for field in fields {
                 walk_expr(driver, visitor, field)?;
             }

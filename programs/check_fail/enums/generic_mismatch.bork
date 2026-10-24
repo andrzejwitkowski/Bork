@@ -1,0 +1,5 @@
+// diag: field `v` of variant `Tree.Node` has type i32, expected String
+enum Tree<T> { Leaf, Node(l: Ref<Tree<T>>, v: T) }
+fun main() {
+    val t: Tree<String> = Tree.Node(None, 5)
+}
