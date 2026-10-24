@@ -93,3 +93,8 @@ fn the_gate_reports_enums_once_per_function() {
     let diagnostics = crate::codegen_gate::gate(&result.hir.unwrap(), &result.tcx);
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
 }
+
+#[test]
+fn an_implicit_field_shadows_an_enum_in_a_path() {
+    hir_of("enum E { A }\nclass P { x: i32 }\nclass C {\n    E: P\n    fun m(): i32 { return E.x }\n}\nfun main() {}\n");
+}

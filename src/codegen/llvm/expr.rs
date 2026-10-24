@@ -274,7 +274,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Err(not_yet_supported("managed Ref presence expression", expr.span))
             }
             HirExprKind::If { .. } => unreachable!("If is ChildPlan::If"),
-            HirExprKind::EnumConstruct { .. } => unreachable!("the codegen gate rejects enums until #52"),
+            HirExprKind::EnumConstruct { .. } => Err(not_yet_supported("enums (see #52)", expr.span)),
         }
     }
 

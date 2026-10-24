@@ -226,6 +226,10 @@ impl<'a> Env<'a> {
 
     /// The enum a bare identifier names (a variant path `E.V`).
     pub(super) fn enum_named(&self, name: &str) -> Option<&EnumInfo> {
+        // An implicit field of the enclosing class shadows the enum, as a local does.
+        if self.implicit_field(name).is_some() {
+            return None;
+        }
         self.enums.get(&self.defs.lookup_enum(name)?)
     }
 
