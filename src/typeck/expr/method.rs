@@ -1,6 +1,6 @@
 //! Method calls: `recv.m(args)` and bare `m(args)` inside a method.
 
-use crate::ast::{Closure, Expr, UnaryOp};
+use crate::ast::{Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::{AstId, Span};
 use crate::defs::DefId;
@@ -8,22 +8,19 @@ use crate::ty::{FnSig, TyId};
 
 use super::super::env::{Checked, Env};
 use super::super::MemberRef;
-use super::call::{finish_call, fresh_params, subst_sig};
+use super::call::{finish_call, fresh_params, subst_sig, CallSite};
 use super::synthesize;
 
 /// `receiver.method(args)`; the receiver is borrowed for the call.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn check_method_call(
     receiver: &Expr,
     method: &str,
     safe: bool,
-    span: Span,
     id: AstId,
-    args: &[Expr],
-    trailing: Option<&Closure>,
-    return_ty: TyId,
+    site: CallSite<'_>,
     env: &mut Env<'_>,
 ) -> Checked {
+    let CallSite { span, args, return_ty, .. } = site;
     if !is_place(receiver) {
         env.error(
             "method receiver must be a named value; bind it to a `val` first",
@@ -45,9 +42,7 @@ pub(super) fn check_method_call(
     }
     if let Some(elem) = env.tcx.vec_elem(checked.ty) {
         let borrowed = borrow(checked, env);
-        return super::vec::check_vec_method(
-            receiver, borrowed, elem, method, span, id, args, return_ty, env,
-        );
+        return super::vec::check_vec_method(receiver, borrowed, elem, method, id, site, env);
     }
     let Some(class) = env.tcx.record_def(checked.ty) else {
         let hint = env.bounds_hint(&[checked.ty]);
@@ -76,17 +71,7 @@ pub(super) fn check_method_call(
         return poisoned(args, span, return_ty, env);
     };
     let receiver = borrow(checked, env);
-    finish_call(
-        name,
-        span,
-        params,
-        ret,
-        Some(receiver),
-        args,
-        trailing,
-        return_ty,
-        env,
-    )
+    finish_call(name, params, ret, Some(receiver), site, env)
 }
 
 /// The signature of a call to the method `sig` of `class`: the receiver fixes the class parameters

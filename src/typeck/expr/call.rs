@@ -134,9 +134,8 @@ pub(super) fn check_call(
         id,
     } = callee
     {
-        return super::method::check_method_call(
-            receiver, name, *safe, *span, *id, args, trailing, return_ty, env,
-        );
+        let site = CallSite { span: *span, args, trailing, return_ty };
+        return super::method::check_method_call(receiver, name, *safe, *id, site, env);
     }
     if let Expr::Ident { name, span, id } = callee {
         if env.implicit_method(name).is_some() {
@@ -145,9 +144,8 @@ pub(super) fn check_call(
                 span: *span,
                 id: *id,
             };
-            return super::method::check_method_call(
-                &this, name, false, *span, *id, args, trailing, return_ty, env,
-            );
+            let site = CallSite { span: *span, args, trailing, return_ty };
+            return super::method::check_method_call(&this, name, false, *id, site, env);
         }
     }
     if let Expr::Ident { name, span, .. } = callee {
@@ -157,12 +155,12 @@ pub(super) fn check_call(
     }
     if let Expr::Ident { name, span, .. } = callee {
         if crate::builtins::is_ref_count(name) {
-            return check_ref_count(name, args, *span, trailing, return_ty, env);
+            return check_ref_count(name, CallSite { span: *span, args, trailing, return_ty }, env);
         }
     }
     if let Expr::Ident { name, span, .. } = callee {
         if crate::builtins::resolve(name) == Some(crate::builtins::Builtin::StringFromUtf8) {
-            return check_string_from_utf8(name, args, *span, trailing, return_ty, env);
+            return check_string_from_utf8(name, CallSite { span: *span, args, trailing, return_ty }, env);
         }
     }
     let Some((name, span, params, call_return_ty)) = callee_signature(callee, type_args, env) else {
@@ -197,7 +195,7 @@ pub(super) fn check_call(
     if let Some(expected) = expected.filter(|_| is_generic_fn(callee, env)) {
         env.same(call_return_ty, expected);
     }
-    finish_call(name, span, params, call_return_ty, None, args, trailing, return_ty, env)
+    finish_call(name, params, call_return_ty, None, CallSite { span, args, trailing, return_ty }, env)
 }
 
 /// Whether `callee` names a user function with type parameters (not shadowed by a method or class).
@@ -210,19 +208,26 @@ fn is_generic_fn(callee: &Expr, env: &Env<'_>) -> bool {
         && env.fun_sig(name).is_some_and(|sig| !sig.generics.is_empty())
 }
 
+/// What every call form is checked against: where it is written, its explicit arguments and
+/// trailing closure, and the return type of the function it appears in (for `return` inside).
+#[derive(Clone, Copy)]
+pub(super) struct CallSite<'a> {
+    pub(super) span: Span,
+    pub(super) args: &'a [Expr],
+    pub(super) trailing: Option<&'a Closure>,
+    pub(super) return_ty: TyId,
+}
+
 /// Checks explicit `args` against `params` (after the receiver, if any) and builds the call.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn finish_call(
     name: String,
-    span: Span,
     params: Vec<TyId>,
     call_return_ty: TyId,
     receiver: Option<Checked>,
-    args: &[Expr],
-    trailing: Option<&Closure>,
-    return_ty: TyId,
+    site: CallSite<'_>,
     env: &mut Env<'_>,
 ) -> Checked {
+    let CallSite { span, args, trailing, return_ty } = site;
     let explicit = if receiver.is_some() { &params[1..] } else { &params[..] };
     let (regular_params, trailing_signature) =
         split_trailing_param(&name, span, explicit, trailing, env);
@@ -430,19 +435,16 @@ fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {
 
 /// Shared checking for builtins whose parameters are not a fixed `FunSig` (any `Ref<T>`, any
 /// `&[u8; N]`). The callee gets the instantiated function type, as `print` does in `finish_call`.
-#[allow(clippy::too_many_arguments)]
 fn check_builtin_call(
     name: &str,
-    args: &[Expr],
-    span: Span,
-    trailing: Option<&Closure>,
-    return_ty: TyId,
+    site: CallSite<'_>,
     env: &mut Env<'_>,
     arity: usize,
     expected: impl Fn(usize) -> Option<TyId>,
     result: TyId,
     validate: impl FnOnce(&[Checked], &mut Env<'_>),
 ) -> Checked {
+    let CallSite { span, args, trailing, return_ty } = site;
     if trailing.is_some() {
         env.error(format!("`{name}` does not accept trailing closures"), Some(span));
     }
@@ -467,16 +469,10 @@ fn check_builtin_call(
 }
 
 /// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`.
-fn check_ref_count(
-    name: &str,
-    args: &[Expr],
-    span: Span,
-    trailing: Option<&Closure>,
-    return_ty: TyId,
-    env: &mut Env<'_>,
-) -> Checked {
+fn check_ref_count(name: &str, site: CallSite<'_>, env: &mut Env<'_>) -> Checked {
+    let span = site.span;
     let i32_ty = env.tcx.i32();
-    check_builtin_call(name, args, span, trailing, return_ty, env, 1, |_| None, i32_ty, |checked, env| {
+    check_builtin_call(name, site, env, 1, |_| None, i32_ty, |checked, env| {
         let reference = &checked[0];
         if !env.tcx.is_managed_ref(reference.ty) && !env.tcx.is_unknown(reference.ty) {
             env.error(
@@ -488,18 +484,12 @@ fn check_ref_count(
 }
 
 /// `stringFromUtf8(&bytes, start, count): String?`: the buffer is any `&[u8; N]`.
-fn check_string_from_utf8(
-    name: &str,
-    args: &[Expr],
-    span: Span,
-    trailing: Option<&Closure>,
-    return_ty: TyId,
-    env: &mut Env<'_>,
-) -> Checked {
+fn check_string_from_utf8(name: &str, site: CallSite<'_>, env: &mut Env<'_>) -> Checked {
+    let span = site.span;
     let i32_ty = env.tcx.i32();
     let result = env.tcx.string(true);
     let expected = |index| (index > 0).then_some(i32_ty);
-    check_builtin_call(name, args, span, trailing, return_ty, env, 3, expected, result, |checked, env| {
+    check_builtin_call(name, site, env, 3, expected, result, |checked, env| {
         let [buffer, start, count] = checked else {
             unreachable!("argument count was checked by check_builtin_call");
         };
