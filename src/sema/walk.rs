@@ -118,7 +118,7 @@ fn walk_stmt(
             id,
             ty: _,
             value,
-        } => walk_var_decl(az, kind, name, name_span, id, value, node, shadows),
+        } => walk_var_decl(az, VarDecl { kind, name, name_span, id, value }, node, shadows),
         Stmt::Assign { target, value } => walk_assign(az, target, value, node),
         Stmt::For { name, iter, body } => walk_for(az, name, iter, body, node),
         Stmt::While { cond, body } => walk_while(az, cond, body, node),
@@ -129,17 +129,17 @@ fn walk_stmt(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn walk_var_decl(
-    az: &mut Analyzer,
-    kind: &BindingKind,
-    name: &String,
-    name_span: &Span,
-    id: &AstId,
-    value: &Expr,
-    node: &mut ArenaNode,
-    shadows: &mut Vec<Shadow>,
-) {
+/// The parts of a `val` / `var` declaration the walk reads.
+struct VarDecl<'a> {
+    kind: &'a BindingKind,
+    name: &'a String,
+    name_span: &'a Span,
+    id: &'a AstId,
+    value: &'a Expr,
+}
+
+fn walk_var_decl(az: &mut Analyzer, decl: VarDecl<'_>, node: &mut ArenaNode, shadows: &mut Vec<Shadow>) {
+    let VarDecl { kind, name, name_span, id, value } = decl;
     let inferred = az
         .node_tys
         .get(id)
