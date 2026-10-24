@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork — quiz: enumy (#49)</title>
+<style>
+  :root { --bg:#fff; --fg:#1b1f24; --muted:#59636e; --card:#f6f8fa; --line:#d0d7de; --ok:#1a7f37; --bad:#cf222e; --accent:#0969da; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --line:#30363d; --ok:#3fb950; --bad:#f85149; --accent:#58a6ff; }
+  }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:46rem; margin:0 auto; padding:1.5rem 1rem 4rem; }
+  h1 { font-size:1.5rem; margin:0 0 .25rem; }
+  .sub { color:var(--muted); margin:0 0 1.5rem; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem; margin:0 0 1rem; }
+  .q h2 { font-size:1rem; margin:0 0 .5rem; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:.6rem; overflow:auto; font-size:.85rem; margin:.5rem 0; }
+  code { font-family: ui-monospace, monospace; }
+  label { display:block; padding:.35rem .5rem; border-radius:6px; cursor:pointer; border:1px solid transparent; }
+  label:hover { border-color:var(--line); }
+  .why { display:none; margin:.6rem 0 0; color:var(--muted); font-size:.92rem; }
+  .q.done .why { display:block; }
+  .q.done label.right { border-color:var(--ok); }
+  .q.done label.wrong { border-color:var(--bad); }
+  .verdict { font-weight:600; margin-top:.5rem; display:none; }
+  .q.done .verdict { display:block; }
+  .verdict.ok { color:var(--ok); } .verdict.bad { color:var(--bad); }
+  button { font:inherit; background:var(--accent); color:#fff; border:0; border-radius:6px; padding:.5rem 1rem; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  #result { font-size:1.1rem; font-weight:600; margin:1rem 0; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Quiz: enumy w Bork (#49)</h1>
+  <p class="sub">11 pytań o tym, co dodał PR „enums — syntax, typeck and variant construction”. Zaznacz odpowiedź, żeby zobaczyć wyjaśnienie.</p>
+  <div id="quiz"></div>
+  <p id="result" aria-live="polite"></p>
+  <button id="reset" class="ghost" type="button">Zacznij od nowa</button>
+</main>
+<script>
+const QUESTIONS = [
+  {
+    q: "Dlaczego enum dostał własny wariant <code>TyData::Enum(DefId, Vec&lt;TyId&gt;)</code>, zamiast używać <code>Class</code>?",
+    a: ["Bo klasy nie mogą być generyczne",
+        "Bo ok. 25 miejsc zakłada, że typ użytkownika jest rekordem, a dopasowanie z wildcardem w <code>children</code> po cichu gubiłoby argumenty enuma",
+        "Bo LLVM nie obsługuje klas",
+        "Bo enumy nie mają nazw"],
+    ok: 1,
+    why: "Brakujący arm w <code>TyData::children</code> (<code>_ =&gt; Vec::new()</code>) ukryłby argumenty enuma przed <code>walk</code>, <code>has_param</code> i mono. Dlatego dodano jawne arm-y."
+  },
+  {
+    q: "Który program się skompiluje (typecheck)?",
+    code: "enum Tree<T> { Leaf, Node(l: Ref<Tree<T>>, v: T) }",
+    a: ["<code>val t = Tree.Leaf</code>",
+        "<code>val t: Tree&lt;i32&gt; = Tree.Leaf</code>",
+        "<code>val t = Tree.Leaf::&lt;i32&gt;()</code>",
+        "<code>val t = Tree&lt;i32&gt;.Leaf</code>"],
+    ok: 1,
+    why: "Wariant jest instancjonowany świeżymi zmiennymi typu. Nic ich nie ustala w pierwszym przypadku (błąd „cannot infer type parameter”), a jawne argumenty typu na wariancie nie są jeszcze wspierane."
+  },
+  {
+    q: "Która definicja zostanie odrzucona z powodu rekurencji przez wartość?",
+    a: ["<code>enum L { Nil, Cons(h: i32, t: Ref&lt;L&gt;) }</code>",
+        "<code>enum L { Nil, Cons(h: i32, t: L) }</code>",
+        "Obie: <code>Ref</code> też tworzy cykl",
+        "Żadna"],
+    ok: 1,
+    why: "<code>validate_owned_layouts</code> przechodzi po polach wariantów. <code>Ref&lt;..&gt;</code> przerywa cykl; cykl przez wartość daje błąd ze ścieżką, np. <code>List -&gt; List</code>."
+  },
+  {
+    q: "Co się stanie przy <code>class Foo { x: i32 }</code> i <code>enum Foo { A }</code> w jednym pliku?",
+    a: ["Oba działają, kontekst rozstrzyga",
+        "Enum wygrywa",
+        "Błąd: enum koliduje z innym typem lub funkcją",
+        "Błąd tylko przy użyciu <code>Foo</code>"],
+    ok: 2,
+    why: "Enumy, klasy, funkcje i stałe dzielą jedną przestrzeń nazw typów w <code>DefTable</code>. Odrzucony enum nie trafia do tabel, więc nie powstaje dwuznaczność."
+  },
+  {
+    q: "Mamy <code>val Shape = P(1)</code> w funkcji i istnieje <code>enum Shape { Empty }</code>. Co robi <code>Shape.Empty</code>?",
+    a: ["Tworzy wariant enuma",
+        "Traktuje <code>Shape</code> jako lokalną zmienną: błąd „unknown field”",
+        "Panikuje kompilator",
+        "Wybiera losowo"],
+    ok: 1,
+    why: "<code>variant_path</code> uznaje identyfikator za nazwę enuma tylko wtedy, gdy żaden lokalny binding go nie przesłania."
+  },
+  {
+    q: "Czy <code>E?.V(1)</code> tworzy wariant?",
+    a: ["Tak, <code>?.</code> jest ignorowane",
+        "Nie — ścieżka wariantu nie obejmuje <code>?.</code>, więc to zwykły dostęp do „zmiennej” <code>E</code> i kończy się błędem",
+        "Tak, ale zwraca <code>E?</code>",
+        "Tak, ale tylko dla enumów generycznych"],
+    ok: 1,
+    why: "Review wykrył, że <code>?.</code> było po cichu ignorowane. Teraz <code>variant_path</code> wymaga <code>!safe</code>."
+  },
+  {
+    q: "Dlaczego wariant nie może nazywać się <code>None</code> ani <code>Some</code>?",
+    a: ["To zarezerwowane nazwy w stdlib",
+        "<code>Some</code> i <code>None</code> są słowami kluczowymi lekserem (tokeny i <code>Expr::Some/None</code>)",
+        "Bo enumy nie mogą mieć pól",
+        "Bo wygenerowałoby to kolizję z <code>Option</code>, którego jeszcze nie ma"],
+    ok: 1,
+    why: "Decyzja o kwalifikowanych wariantach (<code>Option.Some(x)</code>) vs zmianie nazw należy do #54. <code>T?</code>, <code>Some</code> i <code>None</code> zostały bez zmian."
+  },
+  {
+    q: "Co robi <code>bork build</code> z programem zawierającym enum?",
+    a: ["Kompiluje go jak klasę",
+        "Odrzuca: bramka codegenu zgłasza „enums are not supported by codegen yet” raz na funkcję",
+        "Generuje pustą funkcję",
+        "Panikuje w LLVM"],
+    ok: 1,
+    why: "Bramka sprawdza typy w sygnaturach, polach klas i typy wyrażeń (nie tylko samą konstrukcję). Layout i drop to #52, lowering <code>match</code> to #53."
+  },
+  {
+    q: "Które tickety są <b>poza</b> zakresem #49?",
+    a: ["Składnia i parser enumów",
+        "Konstrukcja wariantów i diagnostyki arności",
+        "Pattern matching i exhaustiveness (#50, #51), layout i codegen (#52, #53), prelude <code>Option</code> (#54)",
+        "Rekurencja przez wartość"],
+    ok: 2,
+    why: "Ticket #49 wprost wyłącza: pattern matching, layout i codegen."
+  },
+  {
+    q: "Co zwraca <code>record_def</code> dla typu enumowego?",
+    a: ["<code>Some(def)</code> — jak dla klasy",
+        "<code>None</code> — enum nie jest rekordem z polami, więc nie ma dostępu do pól",
+        "Panikuje",
+        "Zależy od liczby wariantów"],
+    ok: 1,
+    why: "Decyzja z audytu: enum nie ma dostępu do pól (<code>record_def</code>/<code>class_def</code> → <code>None</code>). Semantykę pod codegen (np. <code>uses_arena_storage</code>) zostawiono na #52."
+  },
+  {
+    q: "Co robi <code>E.V::&lt;i32&gt;()</code> dla wariantu?",
+    a: ["Ustawia parametr typu enuma",
+        "Jeden błąd: jawne argumenty typu na wariantach nie są jeszcze wspierane",
+        "Dwa błędy",
+        "Jest ignorowane"],
+    ok: 1,
+    why: "Wcześniej dawało dwa błędy (ogólny + własny); poprawka z review pomija ogólny strażnik dla ścieżek wariantów."
+  }
+];
+
+const root = document.getElementById("quiz");
+const result = document.getElementById("result");
+let answered = 0, score = 0;
+
+function render() {
+  answered = 0; score = 0; result.textContent = ""; root.textContent = "";
+  QUESTIONS.forEach((item, qi) => {
+    const box = document.createElement("section");
+    box.className = "q";
+    let html = `<h2>${qi + 1}. ${item.q}</h2>`;
+    if (item.code) html += `<pre><code>${item.code}</code></pre>`;
+    item.a.forEach((text, ai) => {
+      html += `<label><input type="radio" name="q${qi}" value="${ai}"> ${text}</label>`;
+    });
+    html += `<p class="verdict" aria-live="polite"></p><p class="why">${item.why}</p>`;
+    box.innerHTML = html;
+    box.querySelectorAll("input").forEach(input => input.addEventListener("change", () => pick(box, item, +input.value)));
+    root.appendChild(box);
+  });
+}
+
+function pick(box, item, chosen) {
+  if (box.classList.contains("done")) return;
+  box.classList.add("done");
+  const labels = box.querySelectorAll("label");
+  labels.forEach((label, i) => {
+    label.querySelector("input").disabled = true;
+    if (i === item.ok) label.classList.add("right");
+    else if (i === chosen) label.classList.add("wrong");
+  });
+  const verdict = box.querySelector(".verdict");
+  const good = chosen === item.ok;
+  verdict.textContent = good ? "Dobrze." : "Niepoprawnie.";
+  verdict.className = "verdict " + (good ? "ok" : "bad");
+  answered++; if (good) score++;
+  if (answered === QUESTIONS.length) result.textContent = `Wynik: ${score} / ${QUESTIONS.length}`;
+}
+
+document.getElementById("reset").addEventListener("click", render);
+render();
+</script>
+</body>
+</html>
