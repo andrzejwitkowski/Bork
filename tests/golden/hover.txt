@@ -153,7 +153,7 @@ programs/check_fail/enums/class_name_clash.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/enums/generic_mismatch.bork: hits=1 hash=f1fab92d2c3dd32c
 programs/check_fail/enums/recursive_by_value.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/enums/unknown_variant.bork: hits=1 hash=c253fc1c67e621e3
-programs/check_fail/enums/wrong_arity.bork: hits=1 hash=c5179d174b6d3c41
+programs/check_fail/enums/wrong_arity.bork: hits=1 hash=b61abe766f2c2c54
 programs/check_fail/enums/wrong_payload_type.bork: hits=1 hash=c1330217383dfc53
 programs/check_fail/generics/cannot_infer.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/constructor_cannot_infer.bork: hits=1 hash=c93764347d643c61
