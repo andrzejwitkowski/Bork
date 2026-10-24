@@ -283,8 +283,8 @@ fn check_argument(name: &str, index: usize, argument: &Checked, expected: TyId, 
     // looked at through its binding to match a builtin overload.
     let argument_ty = env.settle(argument.ty);
     let matches_builtin_overload =
-        (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(env.tcx, argument_ty))
-        || (crate::builtins::is_concat(&name)
+        (crate::builtins::is_print(name) && crate::builtins::supports_print_arg(env.tcx, argument_ty))
+        || (crate::builtins::is_concat(name)
             && env.tcx.is_string(argument_ty)
             && !env.tcx.is_nullable(argument_ty));
     if env.tcx.is_ref(expected)
