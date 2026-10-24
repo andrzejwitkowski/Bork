@@ -245,55 +245,7 @@ pub(super) fn finish_call(
     }
 
     for (index, (argument, &expected)) in checked_args.iter().zip(regular_params).enumerate() {
-        // An argument typed by a bound inference variable (`p.b` of a generic `Pair<A, B>`) must be
-        // looked at through its binding to match a builtin overload.
-        let argument_ty = env.settle(argument.ty);
-        let matches_builtin_overload =
-            (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(env.tcx, argument_ty))
-            || (crate::builtins::is_concat(&name)
-                && env.tcx.is_string(argument_ty)
-                && !env.tcx.is_nullable(argument_ty));
-        if env.tcx.is_ref(expected)
-            && !matches!(
-                &argument.kind,
-                HirExprKind::Unary {
-                    op: UnaryOp::Borrow,
-                    ..
-                }
-            )
-            && !env.tcx.is_unknown(argument.ty)
-        {
-            env.error(
-                format!(
-                    "argument {} to `{name}` expects borrow `&…`, got {argument_ty}",
-                    index + 1,
-                    argument_ty = env.show(argument.ty)
-                ),
-                argument.span,
-            );
-        }
-        let borrow_to_owned = env.tcx.is_ref(argument.ty)
-            && !env.tcx.is_ref(expected)
-            && !env.tcx.is_unknown(argument.ty)
-            && !env.tcx.is_unknown(expected);
-        if borrow_to_owned {
-            env.error(
-                format!(
-                    "argument {} to `{name}` is borrow {argument_ty}; parameter expects owned {expected} (use `move` or take `&…` in the signature)",
-                    index + 1,
-                    argument_ty = env.show(argument.ty),
-                    expected = env.show(expected)
-                ),
-                argument.span,
-            );
-        }
-        if !borrow_to_owned
-            && !env.tcx.is_unknown(argument.ty)
-            && !matches_builtin_overload
-            && !arg_matches_param(env.tcx, argument.ty, expected)
-        {
-            env.mismatch(&format!("argument {} to `{name}`", index + 1), argument.ty, expected, argument.span);
-        }
+        check_argument(&name, index, argument, expected, env);
     }
 
     if let (Some(closure), Some((closure_params, closure_ret))) = (trailing, trailing_signature) {
@@ -321,6 +273,61 @@ pub(super) fn finish_call(
         call_return_ty,
         trailing.is_some(),
     )
+}
+
+/// Checks argument `index` (0-based) of a call to `name` against its parameter type: borrows
+/// must be written `&…`, a borrow cannot fill an owned parameter, and the types must agree
+/// (builtin `print`/`concat` overloads aside).
+fn check_argument(name: &str, index: usize, argument: &Checked, expected: TyId, env: &mut Env<'_>) {
+    // An argument typed by a bound inference variable (`p.b` of a generic `Pair<A, B>`) must be
+    // looked at through its binding to match a builtin overload.
+    let argument_ty = env.settle(argument.ty);
+    let matches_builtin_overload =
+        (crate::builtins::is_print(&name) && crate::builtins::supports_print_arg(env.tcx, argument_ty))
+        || (crate::builtins::is_concat(&name)
+            && env.tcx.is_string(argument_ty)
+            && !env.tcx.is_nullable(argument_ty));
+    if env.tcx.is_ref(expected)
+        && !matches!(
+            &argument.kind,
+            HirExprKind::Unary {
+                op: UnaryOp::Borrow,
+                ..
+            }
+        )
+        && !env.tcx.is_unknown(argument.ty)
+    {
+        env.error(
+            format!(
+                "argument {} to `{name}` expects borrow `&…`, got {argument_ty}",
+                index + 1,
+                argument_ty = env.show(argument.ty)
+            ),
+            argument.span,
+        );
+    }
+    let borrow_to_owned = env.tcx.is_ref(argument.ty)
+        && !env.tcx.is_ref(expected)
+        && !env.tcx.is_unknown(argument.ty)
+        && !env.tcx.is_unknown(expected);
+    if borrow_to_owned {
+        env.error(
+            format!(
+                "argument {} to `{name}` is borrow {argument_ty}; parameter expects owned {expected} (use `move` or take `&…` in the signature)",
+                index + 1,
+                argument_ty = env.show(argument.ty),
+                expected = env.show(expected)
+            ),
+            argument.span,
+        );
+    }
+    if !borrow_to_owned
+        && !env.tcx.is_unknown(argument.ty)
+        && !matches_builtin_overload
+        && !arg_matches_param(env.tcx, argument.ty, expected)
+    {
+        env.mismatch(&format!("argument {} to `{name}`", index + 1), argument.ty, expected, argument.span);
+    }
 }
 
 fn build_call(

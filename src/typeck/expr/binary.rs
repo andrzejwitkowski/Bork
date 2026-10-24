@@ -15,6 +15,30 @@ pub(super) fn check_binary(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    let (lhs, rhs) = check_operands(op, lhs, rhs, expected, return_ty, env);
+    let span = lhs.span.or(rhs.span);
+    let result_ty = binary_result_ty(op, lhs.ty, rhs.ty, span, env);
+    env.expr_at(
+        HirExprKind::Binary {
+            op: op.clone(),
+            lhs: Box::new(lhs.hir),
+            rhs: Box::new(rhs.hir),
+        },
+        result_ty,
+        expr_span,
+    )
+}
+
+/// Checks both operands, letting each one's type guide the other where a literal could not
+/// invent a type alone (`1 + x`, `None == opt`).
+fn check_operands(
+    op: &BinOp,
+    lhs: &Expr,
+    rhs: &Expr,
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> (Checked, Checked) {
     let outer_numeric = match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
             expected.filter(|&ty| env.is_numeric(ty))
@@ -27,7 +51,7 @@ pub(super) fn check_binary(
         && outer_numeric.is_none()
         && *op != BinOp::RangeTo;
 
-    let (lhs, rhs) = if guide_from_rhs {
+    if guide_from_rhs {
         let rhs = synthesize(rhs, return_ty, env);
         let peer = (!env.tcx.is_unknown(rhs.ty)).then_some(rhs.ty);
         let lhs = dispatch(lhs, peer, return_ty, env);
@@ -41,14 +65,15 @@ pub(super) fn check_binary(
         let rhs_expected = outer_numeric.or(peer);
         let rhs = dispatch(rhs, rhs_expected, return_ty, env);
         (lhs, rhs)
-    };
+    }
+}
 
-    let span = lhs.span.or(rhs.span);
-    let (lhs_ty, rhs_ty) = (lhs.ty, rhs.ty);
+/// The type of `lhs op rhs`, reporting operands the operator does not accept.
+fn binary_result_ty(op: &BinOp, lhs_ty: TyId, rhs_ty: TyId, span: Option<Span>, env: &mut Env<'_>) -> TyId {
     let poisoned = env.tcx.is_unknown(lhs_ty) || env.tcx.is_unknown(rhs_ty);
     let (bool_ty, i32_ty) = (env.tcx.bool(), env.tcx.i32());
 
-    let result_ty = match op {
+    match op {
         BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div => {
             if poisoned {
                 env.tcx.error()
@@ -128,17 +153,7 @@ pub(super) fn check_binary(
             env.tcx.range(i32_ty)
         }
         BinOp::Elvis => unreachable!("Elvis is handled before other binary operators"),
-    };
-
-    env.expr_at(
-        HirExprKind::Binary {
-            op: op.clone(),
-            lhs: Box::new(lhs.hir),
-            rhs: Box::new(rhs.hir),
-        },
-        result_ty,
-        expr_span,
-    )
+    }
 }
 
 pub(super) fn check_elvis(

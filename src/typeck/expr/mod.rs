@@ -60,26 +60,12 @@ pub(super) fn dispatch(
     }
     let expected = expected.map(|ty| env.settle(ty));
     match expr {
-        Expr::Int(value) => {
-            let ty = match expected.filter(|&ty| env.tcx.is_integer(ty) || env.is_literal_var(ty, VarKind::Int)) {
-                Some(ty) => ty,
-                None => env.tcx.i32(),
-            };
-            env.expr(HirExprKind::Int { value: *value }, ty)
-        }
+        Expr::Int(value) => check_int(*value, expected, env),
         Expr::Bool(value) => {
             let ty = env.tcx.bool();
             env.expr(HirExprKind::Bool { value: *value }, ty)
         }
-        Expr::Float(value) => {
-            let ty = match expected.filter(|&ty| {
-                (env.tcx.is_numeric(ty) && !env.tcx.is_integer(ty)) || env.is_literal_var(ty, VarKind::Float)
-            }) {
-                Some(ty) => ty,
-                None => env.tcx.prim(Prim::F64),
-            };
-            env.expr(HirExprKind::Float { value: *value }, ty)
-        }
+        Expr::Float(value) => check_float(*value, expected, env),
         Expr::ArrayLit { elements, span } => {
             check_array_lit(elements, *span, expected, return_ty, env)
         }
@@ -105,47 +91,11 @@ pub(super) fn dispatch(
             op: UnaryOp::Borrow,
             expr,
             span,
-        } => match expr.as_ref() {
-            Expr::Ident { name, span: name_span, id } => {
-                borrow::check_borrow(name, *name_span, *id, *span, expected, env)
-            }
-            _ => {
-                env.error("`&` borrows a name", Some(*span));
-                let unknown = env.tcx.error();
-                env.expr_at(HirExprKind::None, unknown, *span)
-            }
-        },
+        } => check_borrow_operand(expr, *span, expected, env),
         Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
-        Expr::None { span } => {
-            let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
-                env.error(
-                    "cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`",
-                    Some(*span),
-                );
-                let unknown = env.tcx.error();
-                return env.expr_at(HirExprKind::None, unknown, *span);
-            };
-            env.expr_at(HirExprKind::None, ty, *span)
-        }
-        Expr::Some { expr: inner, span } => {
-            let expected_inner = expected
-                .filter(|&ty| env.tcx.is_nullable(ty))
-                .map(|ty| env.tcx.with_nullable(ty, false));
-            let inner = dispatch(inner, expected_inner, return_ty, env);
-            let ty = if env.tcx.supports_nullable(inner.ty) {
-                env.tcx.with_nullable(inner.ty, true)
-            } else {
-                if !env.tcx.is_unknown(inner.ty) {
-                    env.error(
-                        format!("`Some` value cannot have type {}", env.show(inner.ty)),
-                        Some(*span),
-                    );
-                }
-                env.tcx.error()
-            };
-            env.expr_at(HirExprKind::Some(Box::new(inner.hir)), ty, *span)
-        }
+        Expr::None { span } => check_none(*span, expected, env),
+        Expr::Some { expr: inner, span } => check_some(inner, *span, expected, return_ty, env),
         Expr::Binary { op, lhs, rhs, span } => {
             if *op == BinOp::Elvis {
                 check_elvis(op, lhs, rhs, *span, expected, return_ty, env)
@@ -157,53 +107,12 @@ pub(super) fn dispatch(
             op: UnaryOp::Not,
             expr,
             span,
-        } => {
-            let bool_ty = env.tcx.bool();
-            let operand = check(expr, bool_ty, return_ty, env);
-            if !env.tcx.is_unknown(operand.ty) && !env.same(operand.ty, bool_ty) {
-                env.error(
-                    format!("operand of `!` must have type bool, got {}", env.show(operand.ty)),
-                    operand.span.or(Some(*span)),
-                );
-            }
-            env.expr_at(
-                HirExprKind::Unary {
-                    op: UnaryOp::Not,
-                    expr: Box::new(operand.hir),
-                },
-                bool_ty,
-                *span,
-            )
-        }
+        } => check_not(expr, *span, return_ty, env),
         Expr::Unary {
             op: UnaryOp::NotNullAssert,
             expr,
             span,
-        } => {
-            let expected_operand = expected
-                .filter(|&ty| env.tcx.supports_nullable(ty))
-                .map(|ty| env.tcx.with_nullable(ty, true));
-            let operand = dispatch(expr, expected_operand, return_ty, env);
-            let result_ty = if env.tcx.is_nullable(operand.ty) {
-                env.tcx.with_nullable(operand.ty, false)
-            } else {
-                if !env.tcx.is_unknown(operand.ty) {
-                    env.error(
-                        format!("operand of `!!` must be nullable, got {}", env.show(operand.ty)),
-                        Some(*span),
-                    );
-                }
-                env.tcx.error()
-            };
-            env.expr_at(
-                HirExprKind::Unary {
-                    op: UnaryOp::NotNullAssert,
-                    expr: Box::new(operand.hir),
-                },
-                result_ty,
-                *span,
-            )
-        }
+        } => check_not_null_assert(expr, *span, expected, return_ty, env),
         Expr::Field {
             receiver,
             name,
@@ -242,6 +151,117 @@ pub(super) fn dispatch(
             env,
         ),
     }
+}
+
+/// An integer literal takes the expected integer type (or literal variable), else `i32`.
+fn check_int(value: i64, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+    let ty = match expected.filter(|&ty| env.tcx.is_integer(ty) || env.is_literal_var(ty, VarKind::Int)) {
+        Some(ty) => ty,
+        None => env.tcx.i32(),
+    };
+    env.expr(HirExprKind::Int { value }, ty)
+}
+
+/// A float literal takes the expected float type (or literal variable), else `f64`.
+fn check_float(value: f64, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+    let ty = match expected.filter(|&ty| {
+        (env.tcx.is_numeric(ty) && !env.tcx.is_integer(ty)) || env.is_literal_var(ty, VarKind::Float)
+    }) {
+        Some(ty) => ty,
+        None => env.tcx.prim(Prim::F64),
+    };
+    env.expr(HirExprKind::Float { value }, ty)
+}
+
+/// `&name`; anything else after `&` is an error.
+fn check_borrow_operand(operand: &Expr, span: Span, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+    match operand {
+        Expr::Ident { name, span: name_span, id } => {
+            borrow::check_borrow(name, *name_span, *id, span, expected, env)
+        }
+        _ => {
+            env.error("`&` borrows a name", Some(span));
+            let unknown = env.tcx.error();
+            env.expr_at(HirExprKind::None, unknown, span)
+        }
+    }
+}
+
+/// `None` needs an expected presence-capable type to take its type from.
+fn check_none(span: Span, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+    let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
+        env.error(
+            "cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`",
+            Some(span),
+        );
+        let unknown = env.tcx.error();
+        return env.expr_at(HirExprKind::None, unknown, span);
+    };
+    env.expr_at(HirExprKind::None, ty, span)
+}
+
+fn check_some(inner: &Expr, span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env<'_>) -> Checked {
+    let expected_inner = expected
+        .filter(|&ty| env.tcx.is_nullable(ty))
+        .map(|ty| env.tcx.with_nullable(ty, false));
+    let inner = dispatch(inner, expected_inner, return_ty, env);
+    let ty = if env.tcx.supports_nullable(inner.ty) {
+        env.tcx.with_nullable(inner.ty, true)
+    } else {
+        if !env.tcx.is_unknown(inner.ty) {
+            env.error(format!("`Some` value cannot have type {}", env.show(inner.ty)), Some(span));
+        }
+        env.tcx.error()
+    };
+    env.expr_at(HirExprKind::Some(Box::new(inner.hir)), ty, span)
+}
+
+fn check_not(operand: &Expr, span: Span, return_ty: TyId, env: &mut Env<'_>) -> Checked {
+    let bool_ty = env.tcx.bool();
+    let operand = check(operand, bool_ty, return_ty, env);
+    if !env.tcx.is_unknown(operand.ty) && !env.same(operand.ty, bool_ty) {
+        env.error(
+            format!("operand of `!` must have type bool, got {}", env.show(operand.ty)),
+            operand.span.or(Some(span)),
+        );
+    }
+    env.expr_at(
+        HirExprKind::Unary {
+            op: UnaryOp::Not,
+            expr: Box::new(operand.hir),
+        },
+        bool_ty,
+        span,
+    )
+}
+
+fn check_not_null_assert(
+    operand: &Expr,
+    span: Span,
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> Checked {
+    let expected_operand = expected
+        .filter(|&ty| env.tcx.supports_nullable(ty))
+        .map(|ty| env.tcx.with_nullable(ty, true));
+    let operand = dispatch(operand, expected_operand, return_ty, env);
+    let result_ty = if env.tcx.is_nullable(operand.ty) {
+        env.tcx.with_nullable(operand.ty, false)
+    } else {
+        if !env.tcx.is_unknown(operand.ty) {
+            env.error(format!("operand of `!!` must be nullable, got {}", env.show(operand.ty)), Some(span));
+        }
+        env.tcx.error()
+    };
+    env.expr_at(
+        HirExprKind::Unary {
+            op: UnaryOp::NotNullAssert,
+            expr: Box::new(operand.hir),
+        },
+        result_ty,
+        span,
+    )
 }
 
 pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind, env: &mut Env<'_>) -> Checked {
