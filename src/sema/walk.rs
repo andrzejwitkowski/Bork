@@ -336,63 +336,14 @@ fn walk(
     match expr {
         Expr::Move { name, span, id } => apply_expr_move(az, name, Some(*span), *id, node),
         Expr::Promote { name, span, id } => apply_expr_promote(az, name, Some(*span), *id, node, transfer),
-        Expr::Ident { name, span, id } => {
-            if az.is_bare_field(*id) {
-                // Bare field inside a method: a read through the `this` borrow.
-                note_use(az, "this", Some(*span), node);
-                return;
-            }
-            if matches!(transfer, Some(TransferSink::ManagedRef)) {
-                if az
-                    .env
-                    .get(name)
-                    .is_some_and(|binding| binding.ty.is_managed_ref())
-                {
-                    note_use(az, name, Some(*span), node);
-                } else {
-                    note_borrow(az, name, Some(*span), node, transfer);
-                }
-                return;
-            }
-            if let Some(sink) = transfer {
-                let Some(binding) = az.env.get(name) else {
-                    note_use(az, name, Some(*span), node);
-                    return;
-                };
-                if let Some(message) = bare_ident_move_message(binding, name, sink) {
-                    az.error(message, Some(name.clone()), Some(*span));
-                } else {
-                    note_use(az, name, Some(*span), node);
-                }
-            } else {
-                note_use(az, name, Some(*span), node);
-            }
-        }
+        Expr::Ident { name, span, id } => walk_ident(az, name, span, id, node, transfer),
         Expr::Some { expr: inner, .. } => walk(az, inner, node, transfer, record_borrow),
         Expr::Unary {
             op,
             expr: inner,
             span,
             ..
-        } => {
-            if *op == UnaryOp::Borrow {
-                if record_borrow {
-                    match inner.as_ref() {
-                        Expr::Ident { name, span: name_span, .. } => {
-                            note_borrow(az, name, Some(*name_span), node, transfer);
-                        }
-                        _ => {
-                            az.error("`&` borrows a name", None, Some(*span));
-                            walk(az, inner, node, None, true);
-                        }
-                    }
-                } else {
-                    walk(az, inner, node, None, true);
-                }
-            } else {
-                walk(az, inner, node, transfer, record_borrow);
-            }
-        }
+        } => walk_unary(az, op, inner, span, node, transfer, record_borrow),
         Expr::Field { receiver: inner, .. } => walk(az, inner, node, None, record_borrow),
         Expr::ArrayLit { elements, .. } => {
             for element in elements {
@@ -433,139 +384,229 @@ fn walk(
             args,
             trailing,
             ..
-        } => {
-            let (formals, param_tys) = if let Some((receiver, qualified)) = method_call(az, callee) {
-                walk_receiver(az, &receiver, node);
-                (
-                    az.fun_sigs.get(&qualified).map(|f| f[1..].to_vec()),
-                    az.fun_param_tys.get(&qualified).map(|p| p[1..].to_vec()),
-                )
-            } else {
-                walk(az, callee, node, None, record_borrow);
-                match callee.as_ref() {
-                    Expr::Ident { name, .. } => {
-                        if let Some(class) = az.classes.get(name) {
-                            (
-                                None,
-                                Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
-                            )
-                        } else {
-                            (
-                                az.fun_sigs.get(name).cloned(),
-                                az.fun_param_tys.get(name).cloned(),
-                            )
-                        }
-                    }
-                    _ => (None, None),
-                }
-            };
-            for (i, a) in args.iter().enumerate() {
-                let builtin_borrow = matches!(callee.as_ref(), Expr::Ident { name, .. }
-                    if crate::builtins::is_borrowed_arg(name, i));
-                let arg_record_borrow = builtin_borrow
-                    || param_tys
-                    .as_ref()
-                    .and_then(|params| params.get(i))
-                    .is_some_and(|ty| ty.is_reference());
-                let arg_transfer = formals
-                    .as_ref()
-                    .and_then(|f| f.get(i).copied())
-                    .map(|formal| TransferSink::CallArg { formal })
-                    .or_else(|| {
-                        builtin_borrow.then_some(TransferSink::CallArg {
-                            formal: BindingKind::Val,
-                        })
-                    });
-                let expected = param_tys.as_ref().and_then(|params| params.get(i));
-                walk_typed(
-                    az,
-                    a,
-                    node,
-                    arg_transfer.as_ref(),
-                    arg_record_borrow,
-                    expected,
-                );
-            }
-            if let Some(c) = trailing {
-                let params: Vec<RegionParam> = c
-                    .params
-                    .iter()
-                    .map(|p| RegionParam {
-                        name: p.name.clone(),
-                        ty: Ty::Unknown,
-                        kind: BindingKind::Val,
-                        span: Some(p.span),
-                        borrow_from: super::region::REF_PARAM_BORROW_FROM,
-                    })
-                    .collect();
-                if c.is_move {
-                    node.children.push(open_move(
-                        az,
-                        "Closure",
-                        &c.body,
-                        c.captures.as_deref(),
-                        &params,
-                    ));
-                } else {
-                    node.children
-                        .push(open_ordinary(az, "Closure", &c.body, &params, None));
-                }
-            }
-        }
+        } => walk_call(az, callee, args, trailing, node, record_borrow),
         Expr::If {
             cond,
             then_block,
             else_block,
-        } => {
-            walk(az, cond, node, None, record_borrow);
-            let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
-            let before_moved = moved_names(&az.env);
-            node.children
-                .push(open_ordinary(az, "IfThen", then_block, &[], tail_transfer));
-            let then_end = branch_end(az, then_block, &[]);
-            restore_moved_flags(&mut az.env, &before_moved);
-            let else_end = else_arm_end(
-                az,
-                node,
-                else_block.as_ref(),
-                "IfElse",
-                tail_transfer,
-                before_moved,
-            );
-            join_branch_moves(&mut az.env, &[then_end, else_end]);
-        }
+        } => walk_if(az, cond, then_block, else_block.as_ref(), node, transfer, record_borrow),
         Expr::IfVal {
             bindings,
             then_block,
             else_block,
-        } => {
-            walk(az, &bindings.head.value, node, None, record_borrow);
-            let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
-            let (body, compacted) = peel_blocks(then_block);
-            let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
-            bind_presence_guard(az, &mut frame, &bindings.head);
-            for binding in &bindings.tail {
-                walk(az, &binding.value, &mut frame.node, None, record_borrow);
-                bind_presence_guard(az, &mut frame, binding);
-            }
-            // The else path sees the header's moves but not the body's.
-            let header_moved = outer_moved_names(az, &frame.shadows);
-            walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
-            let then_end = branch_end(az, then_block, &frame.shadows);
-            node.children.push(frame.finish(az));
-            restore_moved_flags(&mut az.env, &header_moved);
-            let else_end = else_arm_end(
-                az,
-                node,
-                else_block.as_ref(),
-                "IfValNone",
-                tail_transfer,
-                header_moved,
-            );
-            join_branch_moves(&mut az.env, &[then_end, else_end]);
-        }
+        } => walk_if_val(az, bindings, then_block, else_block.as_ref(), node, transfer, record_borrow),
         Expr::Float(_) | Expr::Int(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
+}
+
+fn walk_ident(az: &mut Analyzer, name: &String, span: &Span, id: &AstId, node: &mut ArenaNode, transfer: Option<&TransferSink>) {
+        if az.is_bare_field(*id) {
+            // Bare field inside a method: a read through the `this` borrow.
+            note_use(az, "this", Some(*span), node);
+            return;
+        }
+        if matches!(transfer, Some(TransferSink::ManagedRef)) {
+            if az
+                .env
+                .get(name)
+                .is_some_and(|binding| binding.ty.is_managed_ref())
+            {
+                note_use(az, name, Some(*span), node);
+            } else {
+                note_borrow(az, name, Some(*span), node, transfer);
+            }
+            return;
+        }
+        if let Some(sink) = transfer {
+            let Some(binding) = az.env.get(name) else {
+                note_use(az, name, Some(*span), node);
+                return;
+            };
+            if let Some(message) = bare_ident_move_message(binding, name, sink) {
+                az.error(message, Some(name.clone()), Some(*span));
+            } else {
+                note_use(az, name, Some(*span), node);
+            }
+        } else {
+            note_use(az, name, Some(*span), node);
+        }
+}
+
+fn walk_unary(
+    az: &mut Analyzer,
+    op: &UnaryOp,
+    inner: &Expr,
+    span: &Span,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+    record_borrow: bool,
+) {
+        if *op == UnaryOp::Borrow {
+            if record_borrow {
+                match inner {
+                    Expr::Ident { name, span: name_span, .. } => {
+                        note_borrow(az, name, Some(*name_span), node, transfer);
+                    }
+                    _ => {
+                        az.error("`&` borrows a name", None, Some(*span));
+                        walk(az, inner, node, None, true);
+                    }
+                }
+            } else {
+                walk(az, inner, node, None, true);
+            }
+        } else {
+            walk(az, inner, node, transfer, record_borrow);
+        }
+}
+
+fn walk_call(
+    az: &mut Analyzer,
+    callee: &Expr,
+    args: &[Expr],
+    trailing: &Option<crate::ast::Closure>,
+    node: &mut ArenaNode,
+    record_borrow: bool,
+) {
+        let (formals, param_tys) = if let Some((receiver, qualified)) = method_call(az, callee) {
+            walk_receiver(az, &receiver, node);
+            (
+                az.fun_sigs.get(&qualified).map(|f| f[1..].to_vec()),
+                az.fun_param_tys.get(&qualified).map(|p| p[1..].to_vec()),
+            )
+        } else {
+            walk(az, callee, node, None, record_borrow);
+            match callee {
+                Expr::Ident { name, .. } => {
+                    if let Some(class) = az.classes.get(name) {
+                        (
+                            None,
+                            Some(class.fields.iter().map(|field| field.ty.clone()).collect()),
+                        )
+                    } else {
+                        (
+                            az.fun_sigs.get(name).cloned(),
+                            az.fun_param_tys.get(name).cloned(),
+                        )
+                    }
+                }
+                _ => (None, None),
+            }
+        };
+        for (i, a) in args.iter().enumerate() {
+            let builtin_borrow = matches!(callee, Expr::Ident { name, .. }
+                if crate::builtins::is_borrowed_arg(name, i));
+            let arg_record_borrow = builtin_borrow
+                || param_tys
+                .as_ref()
+                .and_then(|params| params.get(i))
+                .is_some_and(|ty| ty.is_reference());
+            let arg_transfer = formals
+                .as_ref()
+                .and_then(|f| f.get(i).copied())
+                .map(|formal| TransferSink::CallArg { formal })
+                .or_else(|| {
+                    builtin_borrow.then_some(TransferSink::CallArg {
+                        formal: BindingKind::Val,
+                    })
+                });
+            let expected = param_tys.as_ref().and_then(|params| params.get(i));
+            walk_typed(
+                az,
+                a,
+                node,
+                arg_transfer.as_ref(),
+                arg_record_borrow,
+                expected,
+            );
+        }
+        if let Some(c) = trailing {
+            let params: Vec<RegionParam> = c
+                .params
+                .iter()
+                .map(|p| RegionParam {
+                    name: p.name.clone(),
+                    ty: Ty::Unknown,
+                    kind: BindingKind::Val,
+                    span: Some(p.span),
+                    borrow_from: super::region::REF_PARAM_BORROW_FROM,
+                })
+                .collect();
+            if c.is_move {
+                node.children.push(open_move(
+                    az,
+                    "Closure",
+                    &c.body,
+                    c.captures.as_deref(),
+                    &params,
+                ));
+            } else {
+                node.children
+                    .push(open_ordinary(az, "Closure", &c.body, &params, None));
+            }
+        }
+}
+
+fn walk_if(
+    az: &mut Analyzer,
+    cond: &Expr,
+    then_block: &Block,
+    else_block: Option<&Block>,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+    record_borrow: bool,
+) {
+        walk(az, cond, node, None, record_borrow);
+        let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+        let before_moved = moved_names(&az.env);
+        node.children
+            .push(open_ordinary(az, "IfThen", then_block, &[], tail_transfer));
+        let then_end = branch_end(az, then_block, &[]);
+        restore_moved_flags(&mut az.env, &before_moved);
+        let else_end = else_arm_end(
+            az,
+            node,
+            else_block,
+            "IfElse",
+            tail_transfer,
+            before_moved,
+        );
+        join_branch_moves(&mut az.env, &[then_end, else_end]);
+}
+
+fn walk_if_val(
+    az: &mut Analyzer,
+    bindings: &crate::ast::ConditionalBindings,
+    then_block: &Block,
+    else_block: Option<&Block>,
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+    record_borrow: bool,
+) {
+        walk(az, &bindings.head.value, node, None, record_borrow);
+        let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+        let (body, compacted) = peel_blocks(then_block);
+        let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
+        bind_presence_guard(az, &mut frame, &bindings.head);
+        for binding in &bindings.tail {
+            walk(az, &binding.value, &mut frame.node, None, record_borrow);
+            bind_presence_guard(az, &mut frame, binding);
+        }
+        // The else path sees the header's moves but not the body's.
+        let header_moved = outer_moved_names(az, &frame.shadows);
+        walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
+        let then_end = branch_end(az, then_block, &frame.shadows);
+        node.children.push(frame.finish(az));
+        restore_moved_flags(&mut az.env, &header_moved);
+        let else_end = else_arm_end(
+            az,
+            node,
+            else_block,
+            "IfValNone",
+            tail_transfer,
+            header_moved,
+        );
+        join_branch_moves(&mut az.env, &[then_end, else_end]);
 }
 
 /// True when control never falls out of `block` (ends in `return`/`break`/`continue`, or in a
