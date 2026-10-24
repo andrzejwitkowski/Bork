@@ -80,3 +80,16 @@ fn variant_paths_ignore_safe_access_and_reject_explicit_type_args() {
 fn arity_mismatch_is_one_error_and_no_partial_node() {
     assert_eq!(messages("enum E { A(x: i32, y: i32) }\nfun main() {\n    val e = E.A(1)\n}\n").len(), 1);
 }
+
+#[test]
+fn explicit_type_arguments_on_a_variant_give_one_error() {
+    let all = messages("enum T<U> { L }\nfun main() {\n    val t: T<i32> = T.L::<i32>()\n}\n");
+    assert_eq!(all.len(), 1, "{all:?}");
+}
+
+#[test]
+fn the_gate_reports_enums_once_per_function() {
+    let result = crate::frontend::check("enum E { A }\nfun main() {\n    val a = E.A\n    val b = E.A\n}\n");
+    let diagnostics = crate::codegen_gate::gate(&result.hir.unwrap(), &result.tcx);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+}
