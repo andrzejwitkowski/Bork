@@ -1,189 +1,279 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bork — quiz: enumy (#49)</title>
+<title>Bork: enumy, konstrukcja wariantów i generyki (#49)</title>
 <style>
-  :root { --bg:#fff; --fg:#1b1f24; --muted:#59636e; --card:#f6f8fa; --line:#d0d7de; --ok:#1a7f37; --bad:#cf222e; --accent:#0969da; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --line:#30363d; --ok:#3fb950; --bad:#f85149; --accent:#58a6ff; }
-  }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
-  main { max-width:46rem; margin:0 auto; padding:1.5rem 1rem 4rem; }
-  h1 { font-size:1.5rem; margin:0 0 .25rem; }
-  .sub { color:var(--muted); margin:0 0 1.5rem; }
-  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:1rem; margin:0 0 1rem; }
-  .q h2 { font-size:1rem; margin:0 0 .5rem; }
-  pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:.6rem; overflow:auto; font-size:.85rem; margin:.5rem 0; }
-  code { font-family: ui-monospace, monospace; }
-  label { display:block; padding:.35rem .5rem; border-radius:6px; cursor:pointer; border:1px solid transparent; }
-  label:hover { border-color:var(--line); }
-  .why { display:none; margin:.6rem 0 0; color:var(--muted); font-size:.92rem; }
-  .q.done .why { display:block; }
-  .q.done label.right { border-color:var(--ok); }
-  .q.done label.wrong { border-color:var(--bad); }
-  .verdict { font-weight:600; margin-top:.5rem; display:none; }
-  .q.done .verdict { display:block; }
-  .verdict.ok { color:var(--ok); } .verdict.bad { color:var(--bad); }
-  button { font:inherit; background:var(--accent); color:#fff; border:0; border-radius:6px; padding:.5rem 1rem; cursor:pointer; }
-  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  #result { font-size:1.1rem; font-weight:600; margin:1rem 0; }
-  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
 </style>
 </head>
 <body>
-<main>
-  <h1>Quiz: enumy w Bork (#49)</h1>
-  <p class="sub">11 pytań o tym, co dodał PR „enums — syntax, typeck and variant construction”. Zaznacz odpowiedź, żeby zobaczyć wyjaśnienie.</p>
-  <div id="quiz"></div>
-  <p id="result" aria-live="polite"></p>
-  <button id="reset" class="ghost" type="button">Zacznij od nowa</button>
-</main>
+<div class="wrap">
+
+<h1>Enumy w type checkerze Bork</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/enums-syntax-typeck</code> (PR #149, ticket #49): 43 pliki, +739/−56 linii względem <code>main</code>.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: enum z danymi i typ sumy (można pominąć)</summary>
+<p>Zwykły <b>enum</b> to lista nazwanych wartości (czerwony, zielony, niebieski). Enum <b>z danymi</b> (typ sumy, ADT) idzie dalej: każdy <em>wariant</em> może nieść własne pola.</p>
+<pre>enum Shape {
+    Circle(r: f64),
+    Rect(w: f64, h: f64),
+    Empty
+}</pre>
+<p>Wartość typu <code>Shape</code> to <em>dokładnie jeden</em> z tych wariantów: albo koło z promieniem, albo prostokąt z bokami, albo nic. Dzięki temu da się opisać drzewo, listę czy wynik, który bywa błędem, bez wartości „puste pole".</p>
+<p>Wariant tworzy się zapisem <code>Shape.Circle(1.0)</code>. Kompilator musi umieć sprawdzić, że do <code>Circle</code> trafia jedna liczba, a do <code>Rect</code> dwie, i że typ wyniku to <code>Shape</code>.</p>
+</details>
+
+<h3>Stan przed zmianą</h3>
+<p>Bork miał klasy (rekordy z polami), generyki dla funkcji i klas (#44, #45) oraz sprawdzanie instancji (#145). Nie było żadnej konstrukcji sumy. <code>Some</code> i <code>None</code> były osobnymi wyrażeniami w AST, działającymi tylko na <code>T?</code>, a <code>when</code> umiało dopasować wyłącznie <code>Some(name)</code> i <code>None</code>.</p>
+<p>Ticket #49 to pierwszy krok fazy „ADT i wzorce": zadeklarować enum (również generyczny) i bezpiecznie typowo skonstruować jego wariant. <b>Dopasowanie wzorców, układ w pamięci i codegen to osobne tickety (#50–#53).</b></p>
+
+<h2 id="intuicja">2. Intuicja</h2>
+<p>Zmiana składa się z pięciu ruchów. Każdy odpowiada jednej decyzji z audytu zapisanego w tickecie.</p>
+
+<h3>Ruch pierwszy: enum to osobny rodzaj typu</h3>
+<table class="st">
+  <tr><th>Zapis w kodzie</th><th>Typ</th></tr>
+  <tr><td><code>Point</code> (klasa)</td><td><code>Class(Point, [])</code></td></tr>
+  <tr><td><code>Shape</code> (enum)</td><td><code>Enum(Shape, [])</code> <span class="tag ok">nowy</span></td></tr>
+  <tr><td><code>Tree&lt;i32&gt;</code> (enum generyczny)</td><td><code>Enum(Tree, [i32])</code></td></tr>
+</table>
+<p>Nie użyliśmy <code>Class</code>, bo około 25 miejsc zakłada, że typ użytkownika to rekord z polami. Dla enuma <code>record_def</code> i <code>class_def</code> zwracają <code>None</code>: nie ma dostępu do pól. Co ważniejsze, <code>TyData::children</code> ma gałąź <code>_ =&gt; Vec::new()</code>. Bez jawnego ramienia dla <code>Enum</code> argumenty enuma po cichu znikałyby z <code>walk</code>, <code>has_param</code> i mono.</p>
+
+<h3>Ruch drugi: jedna przestrzeń nazw i warianty jako definicje</h3>
+<p>W <code>DefTable</code> klasa, enum, funkcja i stała dzielą nazwę. Warianty to osobne definicje (<code>DefKind::Variant</code>) z właścicielem-enumem, jak metody w klasie.</p>
+<table class="st">
+  <tr><th>Program</th><th>Wynik</th></tr>
+  <tr><td><code>class Foo</code> + <code>enum Foo</code></td><td><span class="tag bad">błąd</span> enum koliduje z innym typem</td></tr>
+  <tr><td><code>enum E { A, A }</code></td><td><span class="tag bad">błąd</span> duplikat wariantu</td></tr>
+  <tr><td><code>enum E</code> + <code>const E</code></td><td><span class="tag bad">błąd</span></td></tr>
+  <tr><td><code>enum String { A }</code></td><td><span class="tag bad">błąd</span> nazwa typu wbudowanego</td></tr>
+</table>
+
+<h3>Ruch trzeci: konstrukcja wariantu jak konstruktor klasy generycznej</h3>
+<p><code>Shape.Circle(1.0)</code> parsuje się już dziś jako wywołanie na dostępie do pola z identyfikatorem. Nowa ścieżka w <code>check_call</code> przechwytuje ten kształt <em>przed</em> dispatchem metod i pól, jeśli lewa strona jest nazwą enuma, a żadna zmienna jej nie przesłania.</p>
+<div class="flow">
+  <div class="box"><h4>1. Świeże zmienne</h4><code>Tree&lt;?0&gt;</code><code>pole v: ?0</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>2. Typ oczekiwany</h4><code>val t: Tree&lt;i32&gt;</code><code>?0 := i32</code></div>
+  <div class="arrow">→</div>
+  <div class="box"><h4>3. Argumenty</h4><code>5 ~ i32</code><code>liczba pól i typy</code></div>
+  <div class="arrow">→</div>
+  <div class="box good"><h4>Wynik</h4><code>EnumConstruct</code><code>typ Tree&lt;i32&gt;</code></div>
+</div>
+<p>Diagnostyki: zła liczba argumentów, zły typ pola, nieznany wariant, brak możliwości wywnioskowania <code>T</code>. Wynikiem jest nowy węzeł HIR <code>EnumConstruct</code>.</p>
+
+<h3>Ruch czwarty: walidator układu zagląda do wariantów</h3>
+<div class="flow">
+  <div class="box err"><h4>Odrzucone</h4><code>enum List { Nil, Cons(h: i32, t: List) }</code><code>List -&gt; List</code></div>
+  <div class="arrow">≠</div>
+  <div class="box good"><h4>Poprawne</h4><code>enum List { Nil, Cons(h: i32, t: Ref&lt;List&gt;) }</code></div>
+</div>
+<p><code>validate_owned_layouts</code> przechodzi po polach wszystkich wariantów, także mieszanych cyklach <code>klasa ↔ enum</code>. <code>Ref&lt;..&gt;</code> został poszerzony: akceptuje klasę lub enum, żeby drzewo mogło odwoływać się do siebie.</p>
+
+<h3>Ruch piąty: brama kodegenu zamyka drzwi</h3>
+<p>Backendu enumów jeszcze nie ma. Brama codegenu odrzuca każdy typ lub wyrażenie, które wspomina enum (parametry, zwracane wartości, pola klas, wyrażenia), jednym błędem na funkcję.</p>
+
+<div class="callout"><b class="t">Wniosek z review</b>
+Pierwsza wersja bramki łapała tylko samą konstrukcję <code>E.V(..)</code>. Funkcja <code>fun f(e: E)</code> przechodziłaby typecheck i bramkę, a potem trafiłaby do LLVM, gdzie nie ma układu dla enuma. Stąd rozszerzenie do sygnatur i pól oraz test.</div>
+
+<div class="callout warn"><b class="t">Uwaga: nowe słowo kluczowe</b>
+<code>enum</code> jest teraz zarezerwowane. W repozytorium żaden program nie używał go jako identyfikatora, ale to zmiana zachowania. <code>enum E {}</code> (pusty) jest akceptowane.</div>
+
+<h3>Czego ten PR nie robi</h3>
+<ul>
+  <li><b>Nie ma dopasowania wzorców</b> ani sprawdzania kompletności (#50, #51). <code>when</code>, <code>Some</code>, <code>None</code> i <code>T?</code> są bez zmian.</li>
+  <li><b>Nie ma układu w pamięci ani codegenu</b> (#52, #53). Mono nie tworzy instancji generycznych enumów, a <code>EnumConstruct</code> nie jest retargetowany.</li>
+  <li><b>Nie ma <code>Option&lt;T&gt;</code> ani <code>Result</code></b> (#54). Wariant nie może nazywać się <code>Some</code>/<code>None</code>.</li>
+  <li><b>Nie ma jawnych argumentów typu na wariancie</b>: <code>Tree.Leaf::&lt;i32&gt;()</code> daje jeden czytelny błąd.</li>
+</ul>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+
+<h3>3.1 Składnia i AST (<code>parser.lalrpop</code>, <code>ast.rs</code>)</h3>
+<ul>
+  <li>Token <code>"enum"</code> i reguła <code>EnumDecl</code>: warianty rozdzielone przecinkiem lub nową linią, opcjonalny końcowy separator.</li>
+  <li><code>Item::Enum</code>, <code>Enum { name, generics, variants }</code>, <code>Variant { name, fields }</code>, <code>Program::enums</code>. Nazwa enuma jest <code>SpannedName</code>, więc błędy wskazują właściwy token.</li>
+  <li><code>ast_number.rs</code> numeruje węzły enumów (test korpusu wykrył brak).</li>
+</ul>
+
+<h3>3.2 Definicje (<code>defs.rs</code>)</h3>
+<ul>
+  <li><code>DefKind::Enum</code>, <code>DefKind::Variant</code>, <code>lookup_enum</code>, <code>lookup_variant</code>, <code>enums()</code>.</li>
+  <li>Nowe konflikty: <code>EnumConflict</code>, <code>VariantDuplicate</code>, <code>ConstEnum</code>. Enum jest sprawdzany względem listy klas w programie (klasy rejestrują się później).</li>
+  <li>Odrzucony enum nie wpisuje swoich wariantów do tabeli, więc jedna pomyłka to jeden błąd.</li>
+</ul>
+
+<h3>3.3 Typy (<code>ty/*</code>, <code>infer/unify.rs</code>, <code>mono.rs</code>)</h3>
+<ul>
+  <li><code>TyData::Enum(DefId, Vec&lt;TyId&gt;)</code> z ramionami w <code>children</code>, <code>super_fold</code>, drukowaniu, unifikacji, <code>bind</code> w mono i <code>id_to_ast</code> w sema.</li>
+  <li><code>TyCtx::enum_ty</code> i <code>enum_args</code>; <code>managed_ref_target_ok</code> akceptuje także enum.</li>
+</ul>
+
+<h3>3.4 Lowering i walidacja (<code>typeck/lower.rs</code>, <code>generics.rs</code>, <code>mod.rs</code>)</h3>
+<ul>
+  <li><code>lower_class</code> rozstrzyga nazwę jako klasę albo enum; <code>build_enums</code> typuje pola wariantów (duplikaty pól, referencje w payloadzie).</li>
+  <li>Parametr typu nie może nazywać się jak enum.</li>
+  <li><code>validate_owned_layouts</code> przyjmuje tablice klas i enumów oraz raportuje cykl dla każdego rodzaju.</li>
+</ul>
+
+<h3>3.5 Konstrukcja wariantu (<code>typeck/expr/object.rs</code>, <code>call.rs</code>, <code>mod.rs</code>)</h3>
+<ul>
+  <li><code>variant_path</code> rozpoznaje <code>E.V</code>, gdy <code>E</code> to enum, nie ma przesłaniającego bindingu i nie ma <code>?.</code>.</li>
+  <li><code>check_variant</code> (przyjmuje <code>CallSite</code>) sprawdza arność i typy pól; <code>instantiate_field</code> jest wspólny z konstruktorem klasy.</li>
+</ul>
+
+<h3>3.6 HIR i konsumenci (<code>hir/*</code>, <code>region_walk.rs</code>, <code>escape.rs</code>, <code>memory.rs</code>)</h3>
+<ul>
+  <li><code>HirExprKind::EnumConstruct { enum_name, variant, fields }</code> z ramionami w numeracji, resolve i przejściach regionów.</li>
+</ul>
+
+<h3>3.7 Brama kodegenu (<code>codegen_gate.rs</code>)</h3>
+<ul>
+  <li><code>mentions_enum</code> rekurencyjnie sprawdza typ; błąd raz na funkcję oraz dla pól klas. Pozostałe fragmenty LLVM dostały tylko <code>unreachable!</code> dla <code>EnumConstruct</code>.</li>
+</ul>
+
+<h3>3.8 Testy i dokumentacja</h3>
+<ul>
+  <li>Parser, jednostkowe testy typów i unifikacji, <code>typeck/tests/enums.rs</code>, korpus <code>programs/check/enums</code> i <code>programs/check_fail/enums</code> (po przebłogosławieniu trzech snapshotów).</li>
+  <li><code>docs/language.md</code>: sekcja „Enums", słowo zarezerwowane, uwaga o <code>Ref</code>.</li>
+  <li><b>Nie uruchomiono</b> <code>cargo test --features codegen</code> (brak LLVM 23 w środowisku autora).</li>
+</ul>
+
+<h2 id="quiz">4. Quiz</h2>
+<p>Siedem pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="1">
+  <p>1. Dlaczego enum dostał własny wariant <code>TyData::Enum</code>, zamiast używać <code>Class</code>?</p>
+  <button>Bo klasy nie mogą być generyczne.</button>
+  <button>Bo ok. 25 miejsc zakłada, że typ użytkownika to rekord, a dopasowania z wildcardem (np. <code>children</code> z <code>_ =&gt; Vec::new()</code>) po cichu gubiłyby argumenty enuma.</button>
+  <button>Bo LLVM nie obsługuje klas.</button>
+  <button>Bo enumy nie mają nazw.</button>
+  <div class="fb">Jawny wariant sprawia, że brakujący arm w <code>match</code> wywala kompilację albo jest widoczny w przeglądzie, zamiast po cichu ukrywać argumenty przed <code>walk</code>, <code>has_param</code> i mono.</div>
+</div>
+<div class="q" data-correct="1">
+  <p>2. Który zapis przejdzie typecheck dla <code>enum Tree&lt;T&gt; { Leaf, Node(l: Ref&lt;Tree&lt;T&gt;&gt;, v: T) }</code>?</p>
+  <button><code>val t = Tree.Leaf</code></button>
+  <button><code>val t: Tree&lt;i32&gt; = Tree.Leaf</code></button>
+  <button><code>val t = Tree.Leaf::&lt;i32&gt;()</code></button>
+  <button><code>val t = Tree&lt;i32&gt;.Leaf</code></button>
+  <div class="fb">Wariant dostaje świeże zmienne za parametry enuma, a ustala je dopiero typ oczekiwany lub argumenty. W pierwszym przypadku nic ich nie ustala (<em>cannot infer type parameter</em>), a jawne argumenty typu na wariancie nie są jeszcze wspierane.</div>
+</div>
+<div class="q" data-correct="2">
+  <p>3. Co zrobi kompilator z <code>enum List { Nil, Cons(h: i32, t: List) }</code>?</p>
+  <button>Przyjmie, bo <code>Nil</code> kończy rekurencję.</button>
+  <button>Przyjmie, ale zgłosi ostrzeżenie.</button>
+  <button>Odrzuci: rekurencyjny układ przez wartość (<code>List -&gt; List</code>); trzeba użyć <code>Ref&lt;..&gt;</code>.</button>
+  <button>Zawiesi się w nieskończonej pętli.</button>
+  <div class="fb"><code>validate_owned_layouts</code> przechodzi po polach wszystkich wariantów. Wariant <code>Nil</code> nie pomaga, bo rozmiar enuma zależy od największego wariantu. <code>Ref</code> przerywa cykl.</div>
+</div>
+<div class="q" data-correct="0">
+  <p>4. Co się stanie przy <code>class Foo { x: i32 }</code> i <code>enum Foo { A }</code> w jednym pliku?</p>
+  <button>Błąd: enum koliduje z innym typem lub funkcją.</button>
+  <button>Oba działają, kontekst rozstrzyga.</button>
+  <button>Enum wygrywa.</button>
+  <button>Błąd dopiero przy użyciu <code>Foo</code>.</button>
+  <div class="fb">Enumy, klasy, funkcje i stałe dzielą jedną przestrzeń nazw w <code>DefTable</code>. Odrzucony enum nie trafia do tabel, więc nie ma dwuznaczności. Ten błąd wykrył review: pierwsza wersja sprawdzała klasy, zanim je zarejestrowano.</div>
+</div>
+<div class="q" data-correct="3">
+  <p>5. Gdzie leży granica między tym PR-em a #52 i #53?</p>
+  <button>Ten PR generuje kod dla enumów, a #52 dodaje <code>match</code>.</button>
+  <button>Ten PR robi pattern matching, #52 layout.</button>
+  <button>Wszystko jest w tym PR-ze.</button>
+  <button>Ten PR kończy się na typechecku i HIR. Brama kodegenu odrzuca każdy typ lub wyrażenie z enumem (jeden błąd na funkcję), a layout, drop i lowering <code>match</code> to #52 i #53.</button>
+  <div class="fb">Pattern matching i exhaustiveness to #50 i #51. Dlatego mono nie instancjonuje generycznych enumów, a <code>EnumConstruct</code> w codegenie jest <code>unreachable!</code> za bramką.</div>
+</div>
+<div class="q" data-correct="1">
+  <p>6. Co robi <code>E?.V(1)</code>, gdy <code>E</code> jest enumem?</p>
+  <button>Tworzy wariant, a <code>?.</code> jest ignorowane.</button>
+  <button>Nie jest ścieżką wariantu: <code>?.</code> wyłącza rozpoznanie, więc <code>E</code> jest traktowane jak zmienna i kończy się błędem.</button>
+  <button>Tworzy wariant typu <code>E?</code>.</button>
+  <button>Panikuje.</button>
+  <div class="fb">Pierwsza wersja po cichu gubiła <code>?.</code>. Poprawka z review: <code>variant_path</code> wymaga <code>!safe</code>. Podobnie lokalna zmienna o nazwie enuma przesłania ścieżkę.</div>
+</div>
+<div class="q" data-correct="2">
+  <p>7. Dlaczego wariant nie może się nazywać <code>Some</code> ani <code>None</code>?</p>
+  <button>Bo enumy nie mogą mieć pól.</button>
+  <button>Bo to nazwy z biblioteki standardowej.</button>
+  <button>Bo <code>Some</code> i <code>None</code> są słowami kluczowymi lekserem (tokeny i <code>Expr::Some/None</code>), a ich losem zajmie się #54 (<code>Option&lt;T&gt;</code>).</button>
+  <button>Bo kolidują z <code>Ref</code>.</button>
+  <div class="fb"><code>T?</code>, <code>Some</code> i <code>None</code> zostały w tym PR-ze bez zmian (kryterium akceptacji). Wybór między wariantami kwalifikowanymi a zmianą nazw należy do #54.</div>
+</div>
+
 <script>
-const QUESTIONS = [
-  {
-    q: "Dlaczego enum dostał własny wariant <code>TyData::Enum(DefId, Vec&lt;TyId&gt;)</code>, zamiast używać <code>Class</code>?",
-    a: ["Bo klasy nie mogą być generyczne",
-        "Bo ok. 25 miejsc zakłada, że typ użytkownika jest rekordem, a dopasowanie z wildcardem w <code>children</code> po cichu gubiłoby argumenty enuma",
-        "Bo LLVM nie obsługuje klas",
-        "Bo enumy nie mają nazw"],
-    ok: 1,
-    why: "Brakujący arm w <code>TyData::children</code> (<code>_ =&gt; Vec::new()</code>) ukryłby argumenty enuma przed <code>walk</code>, <code>has_param</code> i mono. Dlatego dodano jawne arm-y."
-  },
-  {
-    q: "Który program się skompiluje (typecheck)?",
-    code: "enum Tree<T> { Leaf, Node(l: Ref<Tree<T>>, v: T) }",
-    a: ["<code>val t = Tree.Leaf</code>",
-        "<code>val t: Tree&lt;i32&gt; = Tree.Leaf</code>",
-        "<code>val t = Tree.Leaf::&lt;i32&gt;()</code>",
-        "<code>val t = Tree&lt;i32&gt;.Leaf</code>"],
-    ok: 1,
-    why: "Wariant jest instancjonowany świeżymi zmiennymi typu. Nic ich nie ustala w pierwszym przypadku (błąd „cannot infer type parameter”), a jawne argumenty typu na wariancie nie są jeszcze wspierane."
-  },
-  {
-    q: "Która definicja zostanie odrzucona z powodu rekurencji przez wartość?",
-    a: ["<code>enum L { Nil, Cons(h: i32, t: Ref&lt;L&gt;) }</code>",
-        "<code>enum L { Nil, Cons(h: i32, t: L) }</code>",
-        "Obie: <code>Ref</code> też tworzy cykl",
-        "Żadna"],
-    ok: 1,
-    why: "<code>validate_owned_layouts</code> przechodzi po polach wariantów. <code>Ref&lt;..&gt;</code> przerywa cykl; cykl przez wartość daje błąd ze ścieżką, np. <code>List -&gt; List</code>."
-  },
-  {
-    q: "Co się stanie przy <code>class Foo { x: i32 }</code> i <code>enum Foo { A }</code> w jednym pliku?",
-    a: ["Oba działają, kontekst rozstrzyga",
-        "Enum wygrywa",
-        "Błąd: enum koliduje z innym typem lub funkcją",
-        "Błąd tylko przy użyciu <code>Foo</code>"],
-    ok: 2,
-    why: "Enumy, klasy, funkcje i stałe dzielą jedną przestrzeń nazw typów w <code>DefTable</code>. Odrzucony enum nie trafia do tabel, więc nie powstaje dwuznaczność."
-  },
-  {
-    q: "Mamy <code>val Shape = P(1)</code> w funkcji i istnieje <code>enum Shape { Empty }</code>. Co robi <code>Shape.Empty</code>?",
-    a: ["Tworzy wariant enuma",
-        "Traktuje <code>Shape</code> jako lokalną zmienną: błąd „unknown field”",
-        "Panikuje kompilator",
-        "Wybiera losowo"],
-    ok: 1,
-    why: "<code>variant_path</code> uznaje identyfikator za nazwę enuma tylko wtedy, gdy żaden lokalny binding go nie przesłania."
-  },
-  {
-    q: "Czy <code>E?.V(1)</code> tworzy wariant?",
-    a: ["Tak, <code>?.</code> jest ignorowane",
-        "Nie — ścieżka wariantu nie obejmuje <code>?.</code>, więc to zwykły dostęp do „zmiennej” <code>E</code> i kończy się błędem",
-        "Tak, ale zwraca <code>E?</code>",
-        "Tak, ale tylko dla enumów generycznych"],
-    ok: 1,
-    why: "Review wykrył, że <code>?.</code> było po cichu ignorowane. Teraz <code>variant_path</code> wymaga <code>!safe</code>."
-  },
-  {
-    q: "Dlaczego wariant nie może nazywać się <code>None</code> ani <code>Some</code>?",
-    a: ["To zarezerwowane nazwy w stdlib",
-        "<code>Some</code> i <code>None</code> są słowami kluczowymi lekserem (tokeny i <code>Expr::Some/None</code>)",
-        "Bo enumy nie mogą mieć pól",
-        "Bo wygenerowałoby to kolizję z <code>Option</code>, którego jeszcze nie ma"],
-    ok: 1,
-    why: "Decyzja o kwalifikowanych wariantach (<code>Option.Some(x)</code>) vs zmianie nazw należy do #54. <code>T?</code>, <code>Some</code> i <code>None</code> zostały bez zmian."
-  },
-  {
-    q: "Co robi <code>bork build</code> z programem zawierającym enum?",
-    a: ["Kompiluje go jak klasę",
-        "Odrzuca: bramka codegenu zgłasza „enums are not supported by codegen yet” raz na funkcję",
-        "Generuje pustą funkcję",
-        "Panikuje w LLVM"],
-    ok: 1,
-    why: "Bramka sprawdza typy w sygnaturach, polach klas i typy wyrażeń (nie tylko samą konstrukcję). Layout i drop to #52, lowering <code>match</code> to #53."
-  },
-  {
-    q: "Które tickety są <b>poza</b> zakresem #49?",
-    a: ["Składnia i parser enumów",
-        "Konstrukcja wariantów i diagnostyki arności",
-        "Pattern matching i exhaustiveness (#50, #51), layout i codegen (#52, #53), prelude <code>Option</code> (#54)",
-        "Rekurencja przez wartość"],
-    ok: 2,
-    why: "Ticket #49 wprost wyłącza: pattern matching, layout i codegen."
-  },
-  {
-    q: "Co zwraca <code>record_def</code> dla typu enumowego?",
-    a: ["<code>Some(def)</code> — jak dla klasy",
-        "<code>None</code> — enum nie jest rekordem z polami, więc nie ma dostępu do pól",
-        "Panikuje",
-        "Zależy od liczby wariantów"],
-    ok: 1,
-    why: "Decyzja z audytu: enum nie ma dostępu do pól (<code>record_def</code>/<code>class_def</code> → <code>None</code>). Semantykę pod codegen (np. <code>uses_arena_storage</code>) zostawiono na #52."
-  },
-  {
-    q: "Co robi <code>E.V::&lt;i32&gt;()</code> dla wariantu?",
-    a: ["Ustawia parametr typu enuma",
-        "Jeden błąd: jawne argumenty typu na wariantach nie są jeszcze wspierane",
-        "Dwa błędy",
-        "Jest ignorowane"],
-    ok: 1,
-    why: "Wcześniej dawało dwa błędy (ogólny + własny); poprawka z review pomija ogólny strażnik dla ścieżek wariantów."
-  }
-];
-
-const root = document.getElementById("quiz");
-const result = document.getElementById("result");
-let answered = 0, score = 0;
-
-function render() {
-  answered = 0; score = 0; result.textContent = ""; root.textContent = "";
-  QUESTIONS.forEach((item, qi) => {
-    const box = document.createElement("section");
-    box.className = "q";
-    let html = `<h2>${qi + 1}. ${item.q}</h2>`;
-    if (item.code) html += `<pre><code>${item.code}</code></pre>`;
-    item.a.forEach((text, ai) => {
-      html += `<label><input type="radio" name="q${qi}" value="${ai}"> ${text}</label>`;
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
     });
-    html += `<p class="verdict" aria-live="polite"></p><p class="why">${item.why}</p>`;
-    box.innerHTML = html;
-    box.querySelectorAll("input").forEach(input => input.addEventListener("change", () => pick(box, item, +input.value)));
-    root.appendChild(box);
   });
-}
-
-function pick(box, item, chosen) {
-  if (box.classList.contains("done")) return;
-  box.classList.add("done");
-  const labels = box.querySelectorAll("label");
-  labels.forEach((label, i) => {
-    label.querySelector("input").disabled = true;
-    if (i === item.ok) label.classList.add("right");
-    else if (i === chosen) label.classList.add("wrong");
-  });
-  const verdict = box.querySelector(".verdict");
-  const good = chosen === item.ok;
-  verdict.textContent = good ? "Dobrze." : "Niepoprawnie.";
-  verdict.className = "verdict " + (good ? "ok" : "bad");
-  answered++; if (good) score++;
-  if (answered === QUESTIONS.length) result.textContent = `Wynik: ${score} / ${QUESTIONS.length}`;
-}
-
-document.getElementById("reset").addEventListener("click", render);
-render();
+})();
 </script>
+
+</div>
 </body>
 </html>
