@@ -44,18 +44,16 @@ pub(super) fn check_vec_new(
 }
 
 /// `receiver.method(args)` on a `Vec<elem>`; `borrowed` is the already-borrowed receiver.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn check_vec_method(
     receiver: &Expr,
     borrowed: Checked,
     elem: TyId,
     method: &str,
-    span: Span,
     id: crate::span::AstId,
-    args: &[Expr],
-    return_ty: TyId,
+    site: super::call::CallSite<'_>,
     env: &mut Env<'_>,
 ) -> Checked {
+    let super::call::CallSite { span, args, return_ty, .. } = site;
     let Some(op) = VecOp::from_name(method) else {
         env.error(format!("`Vec` has no method `{method}`"), Some(span));
         return super::method::poisoned(args, span, return_ty, env);

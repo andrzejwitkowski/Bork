@@ -64,7 +64,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     /// Comparison operands are converted to whichever side has more bits.
-    fn wider<'t>(&self, lhs: TyId, rhs: TyId) -> TyId {
+    fn wider(&self, lhs: TyId, rhs: TyId) -> TyId {
         let width = |ty: TyId| self.cx.int_type(ty).map_or(0, |ty| ty.get_bit_width());
         if width(rhs) > width(lhs) {
             rhs

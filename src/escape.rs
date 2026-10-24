@@ -350,20 +350,13 @@ impl<'h> Escape<'h, '_> {
                     .map(|element| self.place(element, sink))
                     .max()
                     .unwrap_or(0);
-                let buffer = match sink {
-                    Some(0) | None => self.depth,
-                    Some(depth) => depth,
-                };
-                buffer.max(deepest)
+                self.buffer_depth(sink).max(deepest)
             }
             HirExprKind::VecNew { cap, .. } => {
                 if let Some(cap) = cap {
                     self.place(cap, None);
                 }
-                match sink {
-                    Some(0) | None => self.depth,
-                    Some(depth) => depth,
-                }
+                self.buffer_depth(sink)
             }
             HirExprKind::VecOp { receiver, args, .. } => {
                 for arg in args {
@@ -407,26 +400,7 @@ impl<'h> Escape<'h, '_> {
                 self.place(rhs, None);
                 0
             }
-            HirExprKind::Call { callee, args, .. } => {
-                let concat = matches!(
-                    &callee.kind,
-                    HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
-                );
-                self.place(callee, None);
-                if self.tcx.is_string(expr.ty) && concat {
-                    for arg in args {
-                        self.place(arg, None);
-                    }
-                    sink.unwrap_or(self.depth)
-                } else {
-                    let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
-                    if self.maybe_arena(expr.ty) {
-                        deepest
-                    } else {
-                        0
-                    }
-                }
-            }
+            HirExprKind::Call { callee, args, .. } => self.place_call(expr, callee, args, sink),
             HirExprKind::If {
                 cond,
                 then_block,
@@ -457,27 +431,69 @@ impl<'h> Escape<'h, '_> {
                 some_block,
                 none_block,
                 ..
-            } => {
-                self.place(&bindings.head.value, None);
-                if self.tcx.is_ref(expr.ty) {
-                    reject(
-                        self.diagnostics,
-                        "a presence guard reference cannot escape its scope",
-                        expr.span,
-                    );
-                }
-                // Both presence arms materialize owned results before releasing observations.
-                let result_depth = sink.unwrap_or(self.depth);
-                let some_depth = self.presence_region(some_block, Some(result_depth), bindings);
-                let none_depth = none_block
-                    .as_ref()
-                    .map_or(0, |block| self.region(block, true, Some(result_depth)));
-                if self.maybe_arena(expr.ty) {
-                    result_depth
-                } else {
-                    some_depth.max(none_depth)
-                }
+            } => self.place_presence(expr, bindings, some_block, none_block.as_ref(), sink),
+        }
+    }
+
+    /// Where a fresh buffer (array literal, `Vec`) is allocated: the consumer's arena, or here.
+    fn buffer_depth(&self, sink: Option<usize>) -> usize {
+        match sink {
+            Some(0) | None => self.depth,
+            Some(depth) => depth,
+        }
+    }
+
+    fn place_call(
+        &mut self,
+        expr: &'h HirExpr,
+        callee: &'h HirExpr,
+        args: &'h [HirExpr],
+        sink: Option<usize>,
+    ) -> usize {
+        let concat = matches!(
+            &callee.kind,
+            HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
+        );
+        self.place(callee, None);
+        if self.tcx.is_string(expr.ty) && concat {
+            for arg in args {
+                self.place(arg, None);
             }
+            sink.unwrap_or(self.depth)
+        } else {
+            let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
+            if self.maybe_arena(expr.ty) {
+                deepest
+            } else {
+                0
+            }
+        }
+    }
+
+    fn place_presence(
+        &mut self,
+        expr: &'h HirExpr,
+        bindings: &'h HirConditionalBindings,
+        some_block: &'h HirBlock,
+        none_block: Option<&'h HirBlock>,
+        sink: Option<usize>,
+    ) -> usize {
+        self.place(&bindings.head.value, None);
+        if self.tcx.is_ref(expr.ty) {
+            reject(
+                self.diagnostics,
+                "a presence guard reference cannot escape its scope",
+                expr.span,
+            );
+        }
+        // Both presence arms materialize owned results before releasing observations.
+        let result_depth = sink.unwrap_or(self.depth);
+        let some_depth = self.presence_region(some_block, Some(result_depth), bindings);
+        let none_depth = none_block.map_or(0, |block| self.region(block, true, Some(result_depth)));
+        if self.maybe_arena(expr.ty) {
+            result_depth
+        } else {
+            some_depth.max(none_depth)
         }
     }
 

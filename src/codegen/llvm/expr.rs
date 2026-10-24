@@ -181,39 +181,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             HirExprKind::Str { value } => Ok(Some(self.emit_str_literal(value)?.into())),
             HirExprKind::None => self.cx.const_null_value(expr.ty).map(Some),
-            HirExprKind::Ident { name, use_kind } => {
-                let slot = self
-                    .lookup(name)
-                    .ok_or_else(|| not_yet_supported(&format!("`{name}` as a value"), expr.span))?;
-                let slot_ty = slot.ty;
-                let slot_ptr = slot.ptr;
-                if *use_kind == UseKind::RefMove {
-                    return self.move_ref(slot_ptr).map(Some);
-                }
-                let ty = self
-                    .cx
-                    .basic_type(slot_ty)
-                    .expect("locals only hold lowerable types");
-                let value = self.cx.builder.build_load(ty, slot_ptr, name)?;
-                if *use_kind == UseKind::RefCopy {
-                    return self.clone_ref(value).map(Some);
-                }
-                if matches!(*use_kind, UseKind::Move | UseKind::Promote) && self.cx.tcx.is_vec(slot_ty) {
-                    let copied = self.copy_vec_into_arena(value.into_pointer_value(), slot_ty)?;
-                    return Ok(Some(copied.into()));
-                }
-                if matches!(*use_kind, UseKind::Move | UseKind::Promote) && value.is_struct_value()
-                {
-                    let copied = if self.cx.tcx.is_array(slot_ty) {
-                        self.copy_array_into_arena(value.into_struct_value(), slot_ty)?
-                    } else {
-                        self.copy_into_arena(value.into_struct_value())?
-                    };
-                    Ok(Some(copied.into()))
-                } else {
-                    Ok(Some(value))
-                }
-            }
+            HirExprKind::Ident { name, use_kind } => self.emit_ident_value(name, *use_kind, expr),
             HirExprKind::Some(_) => self.emit_nullable_some(expr.ty, ops[0]).map(Some),
             HirExprKind::Unary { op, expr: inner } => match op {
                 crate::ast::UnaryOp::Borrow => Ok(Some(ops[0])),
@@ -226,26 +194,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     .emit_nullable_expect_non_null(inner.ty, ops[0])
                     .map(Some),
             },
-            HirExprKind::Binary { op, lhs, rhs } => match op {
-                BinOp::Elvis => self.emit_elvis(lhs, rhs, ops[0], expr).map(Some),
-                BinOp::And | BinOp::Or => {
-                    let lhs_bool = self.value_as_bool(ops[0], expr.span)?;
-                    self.emit_logical_from_lhs(op, lhs_bool, rhs, expr)
-                        .map(Some)
-                }
-                BinOp::Eq | BinOp::Ne if self.cx.tcx.is_managed_ref(lhs.ty) || self.cx.tcx.is_managed_ref(rhs.ty) => {
-                    self.emit_ref_eq(ops[0], ops[1], *op == BinOp::Ne).map(Some)
-                }
-                BinOp::Eq | BinOp::Ne if self.cx.tcx.is_text(lhs.ty) && self.cx.tcx.is_text(rhs.ty) => {
-                    self.emit_string_eq(ops[0], ops[1], *op == BinOp::Ne).map(Some)
-                }
-                BinOp::Eq | BinOp::Ne if is_nullable_equality(&self.cx.tcx, op, lhs, rhs) => self
-                    .emit_nullable_eq(op, lhs, rhs, ops[0], ops[1], expr)
-                    .map(Some),
-                _ => self
-                    .combine_binary_values(op, lhs, rhs, ops[0], ops[1], expr)
-                    .map(Some),
-            },
+            HirExprKind::Binary { op, lhs, rhs } => self.combine_binary(op, lhs, rhs, ops, expr).map(Some),
             HirExprKind::Call { callee, .. } => self.emit_call_with_values(callee, ops, expr),
             HirExprKind::ArrayLit { .. } => {
                 let elem_ty = self
@@ -325,6 +274,75 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Err(not_yet_supported("managed Ref presence expression", expr.span))
             }
             HirExprKind::If { .. } => unreachable!("If is ChildPlan::If"),
+        }
+    }
+
+    /// Reads a local as a value; `RefMove`/`RefCopy` and the moves of vectors, arrays and strings
+    /// each copy or transfer differently.
+    fn emit_ident_value(
+        &mut self,
+        name: &str,
+        use_kind: UseKind,
+        expr: &HirExpr,
+    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
+        let slot = self
+            .lookup(name)
+            .ok_or_else(|| not_yet_supported(&format!("`{name}` as a value"), expr.span))?;
+        let slot_ty = slot.ty;
+        let slot_ptr = slot.ptr;
+        if use_kind == UseKind::RefMove {
+            return self.move_ref(slot_ptr).map(Some);
+        }
+        let ty = self
+            .cx
+            .basic_type(slot_ty)
+            .expect("locals only hold lowerable types");
+        let value = self.cx.builder.build_load(ty, slot_ptr, name)?;
+        if use_kind == UseKind::RefCopy {
+            return self.clone_ref(value).map(Some);
+        }
+        if matches!(use_kind, UseKind::Move | UseKind::Promote) && self.cx.tcx.is_vec(slot_ty) {
+            let copied = self.copy_vec_into_arena(value.into_pointer_value(), slot_ty)?;
+            return Ok(Some(copied.into()));
+        }
+        if matches!(use_kind, UseKind::Move | UseKind::Promote) && value.is_struct_value() {
+            let copied = if self.cx.tcx.is_array(slot_ty) {
+                self.copy_array_into_arena(value.into_struct_value(), slot_ty)?
+            } else {
+                self.copy_into_arena(value.into_struct_value())?
+            };
+            Ok(Some(copied.into()))
+        } else {
+            Ok(Some(value))
+        }
+    }
+
+    /// `lhs op rhs` once the operands are evaluated into `ops`: short-circuit operators, and the
+    /// equality forms that are not plain integer comparisons (Ref, text, nullable).
+    fn combine_binary(
+        &mut self,
+        op: &BinOp,
+        lhs: &HirExpr,
+        rhs: &HirExpr,
+        ops: &[BasicValueEnum<'ctx>],
+        expr: &HirExpr,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        match op {
+            BinOp::Elvis => self.emit_elvis(lhs, rhs, ops[0], expr),
+            BinOp::And | BinOp::Or => {
+                let lhs_bool = self.value_as_bool(ops[0], expr.span)?;
+                self.emit_logical_from_lhs(op, lhs_bool, rhs, expr)
+            }
+            BinOp::Eq | BinOp::Ne if self.cx.tcx.is_managed_ref(lhs.ty) || self.cx.tcx.is_managed_ref(rhs.ty) => {
+                self.emit_ref_eq(ops[0], ops[1], *op == BinOp::Ne)
+            }
+            BinOp::Eq | BinOp::Ne if self.cx.tcx.is_text(lhs.ty) && self.cx.tcx.is_text(rhs.ty) => {
+                self.emit_string_eq(ops[0], ops[1], *op == BinOp::Ne)
+            }
+            BinOp::Eq | BinOp::Ne if is_nullable_equality(&self.cx.tcx, op, lhs, rhs) => {
+                self.emit_nullable_eq(op, lhs, rhs, ops[0], ops[1], expr)
+            }
+            _ => self.combine_binary_values(op, lhs, rhs, ops[0], ops[1], expr),
         }
     }
 

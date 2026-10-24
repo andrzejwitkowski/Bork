@@ -69,7 +69,10 @@ pub(super) fn check(stmt: &Stmt, return_ty: TyId, env: &mut Env<'_>) -> HirStmt 
             id,
             ty,
             value,
-        } => check_var_decl(*kind, name, *name_span, *id, ty.as_ref(), value, return_ty, env),
+        } => {
+            let decl = VarDecl { kind: *kind, name, name_span: *name_span, id: *id, ty: ty.as_ref(), value };
+            check_var_decl(decl, return_ty, env)
+        }
         Stmt::Assign { target, value } => assign::check(target, value, return_ty, env),
         Stmt::Return(value) => check_return(value.as_ref(), return_ty, env),
         Stmt::Expr(value) => HirStmt::Expr(expr::synthesize(value, return_ty, env).hir),
@@ -100,16 +103,18 @@ pub(super) fn check(stmt: &Stmt, return_ty: TyId, env: &mut Env<'_>) -> HirStmt 
     }
 }
 
-fn check_var_decl(
+/// The parts of a `val` / `var` declaration the check reads.
+struct VarDecl<'a> {
     kind: BindingKind,
-    name: &str,
+    name: &'a str,
     name_span: crate::span::Span,
     id: crate::span::AstId,
-    ty: Option<&crate::ast::Type>,
-    value: &crate::ast::Expr,
-    return_ty: TyId,
-    env: &mut Env<'_>,
-) -> HirStmt {
+    ty: Option<&'a crate::ast::Type>,
+    value: &'a crate::ast::Expr,
+}
+
+fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirStmt {
+    let VarDecl { kind, name, name_span, id, ty, value } = decl;
     let declared_ty = ty.map(|ty| env.lower(ty, Some(name_span)));
     // An untyped literal gets a variable that later uses fix; defaulted at the end of the body.
     let literal_kind = match value {

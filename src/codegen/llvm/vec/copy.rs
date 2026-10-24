@@ -19,8 +19,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         vec_ty: TyId,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
         let elem_ty = self.cx.tcx.vec_elem(vec_ty)
-            .ok_or_else(|| not_yet_supported("vector copy type", None))?
-            .clone();
+            .ok_or_else(|| not_yet_supported("vector copy type", None))?;
         let arena = self.sink_arena();
         let len = self.vec_load_word(source, LEN)?;
         let header = self.vec_alloc(arena, elem_ty, Some(len))?;

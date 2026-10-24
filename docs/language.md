@@ -141,7 +141,7 @@ These are lexer tokens, so they cannot name a binding, parameter, field, functio
 - ownership: `move`, `promote`
 - type constructors: `Ref`, `Vec`
 
-`const` is an ordinary keyword. `Ref` and `Vec` stay reserved only until `Vec` becomes a regular generic type (#45, #68); until then they are parsed specially (`Vec<T>(cap)` is its own expression). The type-system RFCs' assumption that the lexer does not special-case type names is the target, not today's behaviour. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
+`const` is an ordinary keyword. `Ref` and `Vec` stay reserved only until `Vec` becomes a regular generic type (#68); until then they are parsed specially (`Vec<T>(cap)` is its own expression). The type-system RFCs' assumption that the lexer does not special-case type names is the target, not today's behaviour. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
 
 ## Statements
 

@@ -66,33 +66,27 @@ pub fn check_with_members(program: &Program) -> Typeck {
     }
     collect_method_sigs(program, &defs, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut node_tys = NodeTypes::new();
+    let mut checker = FunctionChecker {
+        defs: &defs,
+        fun_sigs: &fun_sigs,
+        classes: &classes,
+        constants: &constants,
+        tcx: &mut tcx,
+        diagnostics: &mut diagnostics,
+        node_tys: &mut node_tys,
+        members: &mut members,
+    };
     let mut functions: Vec<HirFunction> = program
         .functions
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
-        .map(|function| {
-            check_function(
-                function, None, &defs, &mut tcx, &fun_sigs, &classes, &constants, &mut diagnostics, &mut node_tys,
-                &mut members,
-            )
-        })
+        .map(|function| check_function(&mut checker, function, None))
         .collect();
     // Same order as sema roots: top-level functions, then methods class by class.
     for class in &program.classes {
         let owner = defs.lookup_class(&class.name).expect("every class is registered");
         for method in &class.methods {
-            functions.push(check_function(
-                method,
-                Some(owner),
-                &defs,
-                &mut tcx,
-                &fun_sigs,
-                &classes,
-                &constants,
-                &mut diagnostics,
-                &mut node_tys,
-                &mut members,
-            ));
+            functions.push(check_function(&mut checker, method, Some(owner)));
         }
     }
 
@@ -287,19 +281,21 @@ fn collect_method_sigs(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn check_function(
-    function: &Function,
-    owner: Option<DefId>,
-    defs: &DefTable,
-    tcx: &mut TyCtx,
-    fun_sigs: &FnSigs,
-    classes: &ClassTable,
-    constants: &crate::constants::ConstantTable,
-    diagnostics: &mut Vec<Diagnostic>,
-    node_tys: &mut NodeTypes,
-    members: &mut MemberResolutions,
-) -> HirFunction {
+/// What checking any function body reads (the program's tables) and writes to (the type interner,
+/// the diagnostics and the per-node results).
+struct FunctionChecker<'a> {
+    defs: &'a DefTable,
+    fun_sigs: &'a FnSigs,
+    classes: &'a ClassTable,
+    constants: &'a crate::constants::ConstantTable,
+    tcx: &'a mut TyCtx,
+    diagnostics: &'a mut Vec<Diagnostic>,
+    node_tys: &'a mut NodeTypes,
+    members: &'a mut MemberResolutions,
+}
+
+fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<DefId>) -> HirFunction {
+    let FunctionChecker { defs, fun_sigs, classes, constants, tcx, diagnostics, node_tys, members } = checker;
     let def = match owner {
         Some(class) => defs.lookup_method(class, &function.name),
         None => defs.lookup_fn(&function.name),

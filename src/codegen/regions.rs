@@ -308,7 +308,7 @@ impl<'report, S: RegionSink> RegionEmitter<'report, S> {
     }
 }
 
-fn find_node_by_id<'a>(report: &'a ArenaReport, id: usize) -> Result<&'a ArenaNode, ScheduleError> {
+fn find_node_by_id(report: &ArenaReport, id: usize) -> Result<&ArenaNode, ScheduleError> {
     for root in &report.roots {
         if let Some(node) = find_node_in_tree(root, id) {
             return Ok(node);
