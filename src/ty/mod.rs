@@ -36,6 +36,8 @@ pub enum TyData {
     String,
     /// A class with its type arguments (empty for a non-generic class).
     Class(DefId, Vec<TyId>),
+    /// An enum with its type arguments (empty for a non-generic enum).
+    Enum(DefId, Vec<TyId>),
     Array { elem: TyId, len: u32 },
     Func { params: Vec<TyId>, ret: TyId },
     Ref(TyId),
@@ -82,10 +84,10 @@ impl TyCtx {
         self.param_names = names;
     }
 
-    /// A context that resolves class names through a snapshot of `defs`.
+    /// A context that resolves class and enum names through a snapshot of `defs`.
     pub fn new(defs: &DefTable) -> TyCtx {
         let class_ids: HashMap<String, DefId> =
-            defs.classes().map(|(name, id)| (name.to_string(), id)).collect();
+            defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
@@ -280,5 +282,21 @@ mod tests {
             let id = ctx.prim_id(prim);
             assert_eq!(ctx.prim(prim), id);
         }
+    }
+
+    #[test]
+    fn enum_arguments_are_visible_to_walks_and_substitution() {
+        let program = crate::parse("enum Opt<T> {\n None2\n Has(v: T)\n}\nfun main() {}\n").unwrap();
+        let mut ctx = TyCtx::new(&DefTable::build(&program));
+        let def = ctx.class_names.keys().copied().next().unwrap();
+        let (param, i32_ty) = (ctx.param(ParamIdx(0)), ctx.i32());
+        let generic = ctx.enum_ty(def, vec![param]);
+        let concrete = ctx.enum_ty(def, vec![i32_ty]);
+        assert_eq!(ctx.data(generic).children(), vec![param]);
+        assert!(ctx.has_param(generic) && !ctx.has_param(concrete));
+        assert_ne!(generic, concrete);
+        assert_eq!(ctx.enum_args(concrete), Some((def, &[i32_ty][..])));
+        assert_eq!(ctx.record_def(concrete), None);
+        assert_eq!(ctx.display(concrete).to_string(), "Opt<i32>");
     }
 }

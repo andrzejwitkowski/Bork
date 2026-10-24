@@ -93,7 +93,7 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
             Some(slot) => *slot.get_or_insert(actual) == actual,
             None => false,
         },
-        (TyData::Class(d1, a1), TyData::Class(d2, a2)) => {
+        (TyData::Class(d1, a1), TyData::Class(d2, a2)) | (TyData::Enum(d1, a1), TyData::Enum(d2, a2)) => {
             d1 == d2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(&p, &a)| bind(tcx, p, a, out))
         }
         (TyData::Array { elem: e1, len: l1 }, TyData::Array { elem: e2, len: l2 }) => {

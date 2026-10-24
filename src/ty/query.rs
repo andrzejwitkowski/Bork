@@ -282,6 +282,18 @@ impl TyCtx {
         self.add(TyData::Class(def, args))
     }
 
+    pub fn enum_ty(&mut self, def: DefId, args: Vec<TyId>) -> TyId {
+        self.add(TyData::Enum(def, args))
+    }
+
+    /// The enum and type arguments of an enum value (through `?`).
+    pub fn enum_args(&self, id: TyId) -> Option<(DefId, &[TyId])> {
+        match self.data(self.base(id)) {
+            TyData::Enum(def, args) => Some((*def, args)),
+            _ => None,
+        }
+    }
+
     /// The class and type arguments of an object or a borrow of one (through `?`).
     pub fn class_args(&self, id: TyId) -> Option<(DefId, &[TyId])> {
         match self.data(self.base(id)) {

@@ -12,7 +12,7 @@ impl TyData {
             TyData::Ref(t) | TyData::ManagedRef(t) | TyData::Vec(t) | TyData::Range(t) | TyData::Nullable(t) => {
                 vec![*t]
             }
-            TyData::Class(_, args) => args.clone(),
+            TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
             _ => Vec::new(),
         }
     }
@@ -73,6 +73,10 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
         TyData::Class(def, args) => {
             let args = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;
             ctx.add(TyData::Class(def, args))
+        }
+        TyData::Enum(def, args) => {
+            let args = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;
+            ctx.add(TyData::Enum(def, args))
         }
         TyData::Prim(_) | TyData::String | TyData::Param(_) | TyData::Infer(_) | TyData::Error => id,
     })

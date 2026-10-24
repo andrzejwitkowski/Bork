@@ -45,7 +45,7 @@ impl InferCtxt {
                 }
                 self.unify_inner(tcx, ra, rb)
             }
-            (TyData::Class(da, xa), TyData::Class(db, xb)) => {
+            (TyData::Class(da, xa), TyData::Class(db, xb)) | (TyData::Enum(da, xa), TyData::Enum(db, xb)) => {
                 if da != db || xa.len() != xb.len() {
                     return Err(mismatch);
                 }
