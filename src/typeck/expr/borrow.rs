@@ -24,13 +24,12 @@ pub(super) fn check_borrow(
         env.tcx.ref_to(inner.ty)
     };
     if let Some(expected) = expected {
-        if !env.tcx.is_unknown(expected) && expected != ref_ty
-            && env.tcx.ref_inner(expected) != Some(inner.ty) {
-                env.error(
-                    format!("borrow has type {}, expected {}", env.show(ref_ty), env.show(expected)),
-                    Some(span),
-                );
-            }
+        if !env.tcx.is_unknown(expected) && expected != ref_ty && env.tcx.ref_inner(expected) != Some(inner.ty) {
+            env.error(
+                format!("borrow has type {}, expected {}", env.show(ref_ty), env.show(expected)),
+                Some(span),
+            );
+        }
     }
     env.expr_at(
         HirExprKind::Unary {
