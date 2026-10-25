@@ -3,7 +3,7 @@ use crate::hir::{HirExprKind, HirExpr};
 use crate::span::Span;
 use crate::ty::TyId;
 
-use super::super::env::{Checked, ClassInfo, EnumInfo, Env};
+use super::super::env::{Checked, ClassInfo, EnumInfo, Env, VariantInfo};
 use super::call::{fresh_params, CallSite};
 use super::{check, synthesize};
 
@@ -94,6 +94,16 @@ pub(super) fn variant_path(receiver: &Expr, safe: bool, env: &Env<'_>) -> Option
 }
 
 /// `E.V(args)` or a bare `E.V`: every payload field takes exactly one argument.
+/// The error result of a malformed variant expression: the arguments are still read, so their own
+/// errors surface, and the node is typed as an error.
+fn rejected_variant(site: CallSite<'_>, env: &mut Env<'_>) -> Checked {
+    for arg in site.args {
+        let _ = synthesize(arg, site.return_ty, env);
+    }
+    let unknown = env.tcx.error();
+    env.expr_at(HirExprKind::None, unknown, site.span)
+}
+
 pub(super) fn check_variant(
     e: EnumInfo,
     variant: &str,
@@ -101,14 +111,10 @@ pub(super) fn check_variant(
     expected: Option<TyId>,
     env: &mut Env<'_>,
 ) -> Checked {
-    let CallSite { span, args, trailing, return_ty } = site;
+    let CallSite { span, args, trailing, .. } = site;
     let Some(info) = e.variants.iter().find(|v| v.name == variant) else {
         env.error(format!("enum `{}` has no variant `{variant}`", e.name), Some(span));
-        for arg in args {
-            let _ = synthesize(arg, return_ty, env);
-        }
-        let unknown = env.tcx.error();
-        return env.expr_at(HirExprKind::None, unknown, span);
+        return rejected_variant(site, env);
     };
     if trailing.is_some() {
         env.error("enum variants do not accept trailing closures", Some(span));
@@ -116,19 +122,10 @@ pub(super) fn check_variant(
     if args.len() != info.fields.len() {
         let hint = if args.is_empty() && !info.fields.is_empty() { format!(" (write `{}.{variant}(..)`)", e.name) } else { String::new() };
         env.error(
-            format!(
-                "variant `{}.{variant}` takes {} argument(s), got {}{hint}",
-                e.name,
-                info.fields.len(),
-                args.len()
-            ),
+            format!("variant `{}.{variant}` takes {} argument(s), got {}{hint}", e.name, info.fields.len(), args.len()),
             Some(span),
         );
-        for arg in args {
-            let _ = synthesize(arg, return_ty, env);
-        }
-        let unknown = env.tcx.error();
-        return env.expr_at(HirExprKind::None, unknown, span);
+        return rejected_variant(site, env);
     }
 
     let type_args = fresh_params(&e.generics, &e.name, span, env);
@@ -136,18 +133,30 @@ pub(super) fn check_variant(
     if let Some(expected) = expected {
         env.same(ty, expected);
     }
-
-    let mut values: Vec<HirExpr> = Vec::with_capacity(info.fields.len());
-    for (field, arg) in info.fields.iter().zip(args) {
-        let field_ty = instantiate_field(field.ty, &type_args, &e.name, span, env);
-        let value = check(arg, field_ty, return_ty, env);
-        let what = format!("field `{}` of variant `{}.{variant}`", field.name, e.name);
-        env.mismatch(&what, value.ty, field_ty, value.span.or(Some(field.span)));
-        values.push(value.hir);
-    }
+    let values = check_payload(&e, variant, info, &type_args, site, env);
     env.expr_at(
         HirExprKind::EnumConstruct { enum_name: e.name, variant: variant.to_string(), fields: values },
         ty,
         span,
     )
+}
+
+/// Checks each argument against its payload field, instantiated with `type_args`.
+fn check_payload(
+    e: &EnumInfo,
+    variant: &str,
+    info: &VariantInfo,
+    type_args: &[TyId],
+    site: CallSite<'_>,
+    env: &mut Env<'_>,
+) -> Vec<HirExpr> {
+    let mut values = Vec::with_capacity(info.fields.len());
+    for (field, arg) in info.fields.iter().zip(site.args) {
+        let field_ty = instantiate_field(field.ty, type_args, &e.name, site.span, env);
+        let value = check(arg, field_ty, site.return_ty, env);
+        let what = format!("field `{}` of variant `{}.{variant}`", field.name, e.name);
+        env.mismatch(&what, value.ty, field_ty, value.span.or(Some(field.span)));
+        values.push(value.hir);
+    }
+    values
 }
