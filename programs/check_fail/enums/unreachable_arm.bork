@@ -1,0 +1,9 @@
+// diag: unreachable pattern
+enum Shape { Circle(r: f64), Empty }
+fun main() {
+    val s = Shape.Empty
+    when s {
+        _ => { }
+        Empty => { }
+    }
+}

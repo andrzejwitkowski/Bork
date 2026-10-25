@@ -1374,6 +1374,21 @@ Arenas
     ├── name [Local]
     ├── IfThen
     └── IfElse
+== programs/check/enums/exhaustive.bork
+Arenas
+└── fun main
+    ├── s [Local]
+    ├── flag [Local]
+    ├── n [Local]
+    ├── k [Local]
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    └── MatchArm
 == programs/check/enums/generic_tree.bork
 Arenas
 └── fun main
@@ -1701,6 +1716,12 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/enums/bool_missing.bork
+Type Error [59..93] non-exhaustive `when`: missing `false`
+Arenas
+└── fun main
+    ├── b [Local]
+    └── MatchArm
 == programs/check_fail/enums/cannot_infer.bork
 Type Error [127..136] cannot infer type parameter `T` of `Tree`; annotate the binding with its type to fix it
 Arenas
@@ -1715,6 +1736,26 @@ Type Error [115..116] field `v` of variant `Tree.Node` has type i32, expected St
 Arenas
 └── fun main
     └── t [Local]
+== programs/check_fail/enums/int_needs_wildcard.bork
+Type Error [80..128] non-exhaustive `when`: missing `_`
+Arenas
+└── fun main
+    ├── x [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/non_exhaustive_nested.bork
+Type Error [200..278] non-exhaustive `when`: missing `Pair.Both(Shape.Circle(_), Shape.Empty)`
+Arenas
+└── fun main
+    ├── p [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/non_exhaustive_variant.bork
+Type Error [158..197] non-exhaustive `when`: missing `Shape.Rect(_, _)`
+Arenas
+└── fun main
+    ├── s [Local]
+    └── MatchArm
 == programs/check_fail/enums/pattern_duplicate_binding.bork
 Type Error [146..147] duplicate pattern binding 'a'
 Arenas
@@ -1752,6 +1793,13 @@ Type Error [101..113] enum `Shape` has no variant `Square`
 Arenas
 └── fun main
     └── s [Local]
+== programs/check_fail/enums/unreachable_arm.bork
+Type Error [141..146] unreachable pattern: earlier arms already match every value it could
+Arenas
+└── fun main
+    ├── s [Local]
+    ├── MatchArm
+    └── MatchArm
 == programs/check_fail/enums/wrong_arity.bork
 Type Error [134..144] variant `Shape.Rect` takes 2 argument(s), got 1
 Arenas

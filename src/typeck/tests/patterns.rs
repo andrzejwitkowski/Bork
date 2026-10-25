@@ -115,3 +115,61 @@ fn bare_name_of_a_payload_variant_is_an_error() {
 fn nullable_enum_has_no_variant_patterns() {
     has(&format!("{SHAPE}fun f(s: Shape?) {{\n    when s {{\n        Circle(r) => {{ }}\n        _ => {{ }}\n    }}\n}}\nfun main() {{}}\n"), "nullable enum");
 }
+
+#[test]
+fn missing_variants_are_reported_with_witnesses() {
+    has(&in_main("    when s {\n        Circle(r) => { }\n    }"), "non-exhaustive `when`: missing `Shape.Rect(_, _)`, `Shape.Empty`");
+}
+
+#[test]
+fn nested_gaps_are_reported() {
+    has(
+        "enum Shape { Circle(r: f64), Empty }\nenum Pair { Both(a: Shape, b: Shape) }\nfun main() {\n    val p = Pair.Both(Shape.Empty, Shape.Empty)\n    when p {\n        Both(Empty, _) => { }\n        Both(_, Circle(r)) => { }\n    }\n}\n",
+        "missing `Pair.Both(Shape.Circle(_), Shape.Empty)`",
+    );
+}
+
+#[test]
+fn integers_and_bools_are_checked() {
+    has("fun main() {\n    val x: i64 = 3\n    when x {\n        1 => { }\n        2 => { }\n    }\n}\n", "missing `_`");
+    has("fun main() {\n    val b = true\n    when b {\n        true => { }\n    }\n}\n", "missing `false`");
+}
+
+#[test]
+fn a_lone_some_arm_is_non_exhaustive() {
+    has("class N {\n    v: i32\n    next: Ref<N>\n}\nfun main() {\n    val a = N(1)\n    val r: Ref<N> = a.next\n    when r {\n        Some(n) => { }\n    }\n}\n", "missing `None`");
+}
+
+#[test]
+fn unreachable_arms_are_errors() {
+    has(&in_main("    when s {\n        _ => { }\n        Empty => { }\n    }"), "unreachable pattern");
+    has("fun main() {\n    val x: i64 = 3\n    when x {\n        1 => { }\n        1 => { }\n        _ => { }\n    }\n}\n", "unreachable pattern");
+}
+
+#[test]
+fn a_mistyped_unit_variant_shadows_later_arms() {
+    has(&in_main("    when s {\n        Circle(r) => { }\n        Rect(w, h) => { }\n        Emtpy => { }\n        Empty => { }\n    }"), "unreachable pattern");
+}
+
+#[test]
+fn coverage_is_not_checked_when_a_pattern_is_already_wrong() {
+    let all = messages(&in_main("    when s {\n        Triangle(x) => { }\n    }"));
+    assert_eq!(all.len(), 1, "{all:?}");
+}
+
+#[test]
+fn full_coverage_passes() {
+    clean(&in_main("    when s {\n        Circle(r) => { }\n        Rect(1, h) => { }\n        Rect(w, h) => { }\n        Empty => { }\n    }"));
+    clean("enum Box<T> { Full(v: T), Empty }\nfun main() {\n    val b = Box.Full(true)\n    when b {\n        Full(true) => { }\n        Full(false) => { }\n        Empty => { }\n    }\n}\n");
+}
+
+#[test]
+fn coverage_is_still_checked_when_an_arm_body_has_an_error() {
+    has(&in_main("    when s {\n        Circle(r) => { val q: i32 = true }\n        Empty => { }\n    }"), "missing `Shape.Rect(_, _)`");
+}
+
+#[test]
+fn no_coverage_error_on_an_unknown_scrutinee() {
+    let all = messages("fun main() {\n    val x = nope()\n    when x {\n        1 => { }\n    }\n}\n");
+    assert!(!all.iter().any(|m| m.contains("non-exhaustive")), "{all:?}");
+}

@@ -6,12 +6,15 @@
 
 use std::collections::HashSet;
 
-use crate::ast::{BindingKind, PatLit, Pattern};
-use crate::hir::{HirPat, HirPatKind, Prim};
+use std::rc::Rc;
+
+use crate::ast::{BindingKind, MatchArm, PatLit, Pattern};
+use crate::hir::{HirArm, HirPat, HirPatKind, Prim};
 use crate::span::Span;
 use crate::ty::{TyData, TyId};
 
 use super::super::env::{EnumInfo, Env};
+use super::super::exhaustive::{self, Ctor, Pat, Sig};
 use super::object::instantiate_field;
 
 pub(super) fn check_pat(
@@ -149,5 +152,38 @@ fn check_variant(pat: &Pattern, ty: TyId, by_borrow: bool, names: &mut HashSet<S
         kind: HirPatKind::Variant { enum_name: e.name.clone(), variant: name.name.clone(), index, fields },
         ty,
         span,
+    }
+}
+
+/// Reports a `when` that leaves a value unmatched, and each arm no value can reach.
+pub(super) fn check_coverage(arms: &[HirArm], source: &[MatchArm], span: Span, env: &mut Env<'_>) {
+    let rows: Vec<Vec<Pat>> = arms.iter().map(|arm| vec![lower(&arm.pat, env)]).collect();
+    let missing = exhaustive::witnesses(&rows, 1);
+    if !missing.is_empty() {
+        let shown: Vec<String> = missing.iter().take(3).map(|w| format!("`{}`", exhaustive::show(&w[0]))).collect();
+        let more = if missing.len() > 3 { " and more" } else { "" };
+        env.error(format!("non-exhaustive `when`: missing {}{more}", shown.join(", ")), Some(span));
+    }
+    for (i, arm) in source.iter().enumerate() {
+        if !exhaustive::useful(&rows[..i], &rows[i]) {
+            env.error("unreachable pattern: earlier arms already match every value it could", Some(arm.pat.span()));
+        }
+    }
+}
+
+fn lower(pat: &HirPat, env: &Env<'_>) -> Pat {
+    let ctor = |ctor, sig: Sig, args| Pat::Ctor { ctor, sig: Rc::new(sig), args };
+    match &pat.kind {
+        HirPatKind::Wildcard | HirPatKind::Bind { .. } => Pat::Wild,
+        HirPatKind::Lit(PatLit::Bool(b)) => ctor(Ctor::Bool(*b), Sig::Bool, Vec::new()),
+        HirPatKind::Lit(lit) => ctor(Ctor::Lit(lit.clone()), Sig::Infinite, Vec::new()),
+        HirPatKind::Some(inner) => ctor(Ctor::Some, Sig::Option, vec![lower(inner, env)]),
+        HirPatKind::None => ctor(Ctor::None, Sig::Option, Vec::new()),
+        HirPatKind::Variant { index, fields, .. } => {
+            let (def, _) = env.tcx.enum_args(pat.ty).expect("a checked variant pattern has an enum type");
+            let info = &env.enums[&def];
+            let variants = info.variants.iter().map(|v| (v.name.clone(), v.fields.len())).collect();
+            ctor(Ctor::Variant(*index), Sig::Enum { name: info.name.clone(), variants }, fields.iter().map(|f| lower(f, env)).collect())
+        }
     }
 }
