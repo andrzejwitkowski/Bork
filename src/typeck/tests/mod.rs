@@ -12,6 +12,7 @@ mod inference;
 mod nullable;
 mod managed_ref;
 mod methods;
+mod patterns;
 mod modes;
 mod reference;
 mod text;

@@ -95,6 +95,20 @@ fn collect_stmt(
     }
 }
 
+/// Names a pattern binds. A bare identifier that turns out to be a payload-free variant is
+/// added too; that only hides a free name of the same spelling inside the arm.
+fn pattern_names(pat: &crate::ast::Pattern, bound: &mut HashSet<String>) {
+    use crate::ast::Pattern;
+    match pat {
+        Pattern::Binding(name) => {
+            bound.insert(name.name.clone());
+        }
+        Pattern::Variant { args, .. } => args.iter().for_each(|arg| pattern_names(arg, bound)),
+        Pattern::Some { inner, .. } => pattern_names(inner, bound),
+        Pattern::Wildcard { .. } | Pattern::Literal { .. } | Pattern::None { .. } => {}
+    }
+}
+
 fn collect_expr(
     expr: &Expr,
     free: &mut BTreeMap<String, (Span, AstId)>,
@@ -168,6 +182,14 @@ fn collect_expr(
             collect_block(then_block, free, &mut present);
             if let Some(block) = else_block {
                 collect_block(block, free, &mut bound.clone());
+            }
+        }
+        Expr::Match { scrutinee, arms, .. } => {
+            collect_expr(scrutinee, free, bound);
+            for arm in arms {
+                let mut arm_bound = bound.clone();
+                pattern_names(&arm.pat, &mut arm_bound);
+                collect_block(&arm.body, free, &mut arm_bound);
             }
         }
         Expr::Str(_) | Expr::None { .. } => {}

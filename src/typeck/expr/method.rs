@@ -95,7 +95,7 @@ fn instantiate_method(
 }
 
 /// `name(.field)*` — something that has an address the method can borrow.
-fn is_place(expr: &Expr) -> bool {
+pub(super) fn is_place(expr: &Expr) -> bool {
     match expr {
         Expr::Ident { .. } => true,
         Expr::Field {

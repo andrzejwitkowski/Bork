@@ -1,0 +1,17 @@
+enum Shape { Circle(r: f64), Rect(w: i32, h: i32), Empty }
+
+enum Pair { Both(a: Shape, b: Shape) }
+
+fun main() {
+    val s = Shape.Rect(2, 3)
+    val area = when s {
+        Circle(r) => { 0 }
+        Shape.Rect(w, h) => { w * h }
+        Empty => { 0 }
+    }
+    val p = Pair.Both(Shape.Empty, Shape.Circle(1.0))
+    when p {
+        Both(Empty, Circle(r)) => { }
+        Both(_, _) => { }
+    }
+}

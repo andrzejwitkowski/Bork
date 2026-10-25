@@ -73,6 +73,28 @@ pub(super) fn walk_if_val(
     join_branch_moves(&mut az.env, &[then_end, else_end]);
 }
 
+/// `when` over patterns: each arm is an ordinary region. Pattern bindings are not tracked here;
+/// ownership of matched payloads is #53's job.
+pub(super) fn walk_match(
+    az: &mut Analyzer,
+    scrutinee: &Expr,
+    arms: &[crate::ast::MatchArm],
+    node: &mut ArenaNode,
+    transfer: Option<&TransferSink>,
+    record_borrow: bool,
+) {
+    walk(az, scrutinee, node, None, record_borrow);
+    let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    let before_moved = moved_names(&az.env);
+    let mut ends = Vec::with_capacity(arms.len());
+    for arm in arms {
+        node.children.push(open_ordinary(az, "MatchArm", &arm.body, &[], tail_transfer));
+        ends.push(branch_end(az, &arm.body, &[]));
+        restore_moved_flags(&mut az.env, &before_moved);
+    }
+    join_branch_moves(&mut az.env, &ends);
+}
+
 /// True when control never falls out of `block` (ends in `return`/`break`/`continue`, or in a
 /// nested block or `if` / `if val` whose every path does).
 fn block_diverges(block: &Block) -> bool {

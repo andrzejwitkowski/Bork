@@ -18,6 +18,7 @@ mod control;
 mod field;
 mod method;
 mod object;
+mod pat;
 mod vec;
 
 use crate::ast::{BinOp, BindingKind, Expr, UnaryOp};
@@ -32,7 +33,7 @@ use array::{check_array_lit, check_index, check_slice};
 
 use binary::{check_binary, check_elvis};
 use call::check_call;
-use control::{check_if, check_presence};
+use control::{check_if, check_match, check_presence};
 use field::check_field;
 
 /// Synthesize: the type comes from the expression alone.
@@ -144,6 +145,7 @@ pub(super) fn dispatch(
             return_ty,
             env,
         ),
+        Expr::Match { scrutinee, arms, span } => check_match(scrutinee, arms, *span, expected, return_ty, env),
         Expr::IfVal {
             bindings,
             then_block,

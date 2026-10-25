@@ -26,6 +26,7 @@ pub enum RegionSite {
     IfElse,
     PresenceSome,
     PresenceNone,
+    MatchArm,
     Closure,
 }
 
@@ -40,6 +41,7 @@ impl RegionSite {
             RegionSite::IfElse => label == "IfElse",
             RegionSite::PresenceSome => label == "IfValSome" || label == "WhenSome",
             RegionSite::PresenceNone => label == "IfValNone" || label == "WhenNone",
+            RegionSite::MatchArm => label == "MatchArm",
             RegionSite::Closure => label.starts_with("Closure"),
         }
     }
@@ -137,6 +139,8 @@ fn expr_may_allocate_sink(tcx: &TyCtx, expr: &HirExpr) -> bool {
                 || none_block.as_ref().is_some_and(|x| block_may_allocate_sink(tcx, x))
         }
         HirExprKind::None => false,
+        // Not lowered yet (#53); assume the worst.
+        HirExprKind::Match { .. } => true,
     }
 }
 
@@ -633,6 +637,14 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
 ) -> Result<(), WalkError> {
     visitor.before_expr(driver, expr)?;
     match &expr.kind {
+        // Pattern bindings are invisible to the walk; the arms are plain regions (#53 lowers them).
+        HirExprKind::Match { scrutinee, arms } => {
+            walk_expr(driver, visitor, scrutinee)?;
+            for arm in arms {
+                driver.walk_region(visitor, RegionSite::MatchArm, &arm.body)?;
+            }
+            visitor.after_expr(driver, expr)
+        }
         HirExprKind::If {
             cond,
             then_block,

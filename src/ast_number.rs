@@ -1,7 +1,7 @@
 //! Assigns an [`AstId`] to every AST node that carries a typeck fact, in a deterministic
 //! pre-order walk, and returns the `(Span, AstId)` index the LSP resolves positions with.
 
-use crate::ast::{AssignTarget, Block, Closure, ConditionalBindings, Expr, Program, Stmt};
+use crate::ast::{AssignTarget, Block, Closure, ConditionalBindings, Expr, Pattern, Program, Stmt};
 use crate::span::{AstId, Span, SpannedName};
 
 /// Numbers `program` in place. The index lists every numbered node with its source span.
@@ -112,6 +112,19 @@ impl Numberer {
         }
     }
 
+    fn pattern(&mut self, pat: &mut Pattern) {
+        match pat {
+            Pattern::Binding(name) => self.name(name),
+            Pattern::Variant { enum_name, name, args, .. } => {
+                enum_name.iter_mut().for_each(|e| self.name(e));
+                self.name(name);
+                args.iter_mut().for_each(|a| self.pattern(a));
+            }
+            Pattern::Some { inner, .. } => self.pattern(inner),
+            Pattern::Wildcard { .. } | Pattern::Literal { .. } | Pattern::None { .. } => {}
+        }
+    }
+
     fn closure(&mut self, closure: &mut Closure) {
         self.names(&mut closure.params);
         if let Some(caps) = &mut closure.captures {
@@ -160,6 +173,13 @@ impl Numberer {
                 self.bindings(bindings);
                 self.block(then_block);
                 else_block.iter_mut().for_each(|b| self.block(b));
+            }
+            Expr::Match { scrutinee, arms, .. } => {
+                self.expr(scrutinee);
+                for arm in arms {
+                    self.pattern(&mut arm.pat);
+                    self.block(&mut arm.body);
+                }
             }
         }
     }

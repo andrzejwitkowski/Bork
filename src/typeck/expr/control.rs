@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
-use crate::ast::{BindingKind, Block, ConditionalBinding, ConditionalBindings, Expr, Stmt};
+use crate::ast::{BindingKind, Block, ConditionalBinding, ConditionalBindings, Expr, MatchArm, Stmt};
 use crate::hir::{
-    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExprKind, HirStmt,
+    HirArm, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExprKind, HirStmt,
 };
+use crate::span::Span;
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
@@ -102,6 +103,39 @@ pub(super) fn check_presence(
         result_ty,
         binding_span,
     )
+}
+
+/// `when scrutinee { pattern => block ... }`. Patterns over a place bind by borrow; see
+/// [`pat::check_pat`]. Arms must agree in type when the result is used.
+pub(super) fn check_match(
+    scrutinee: &Expr,
+    arms: &[MatchArm],
+    span: Span,
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> Checked {
+    let scrutinee_hir = synthesize(scrutinee, return_ty, env);
+    let by_borrow = super::method::is_place(scrutinee) || env.tcx.is_ref(scrutinee_hir.ty);
+    let ty = env.tcx.deref_ty(scrutinee_hir.ty);
+    let mut checked_arms = Vec::with_capacity(arms.len());
+    let mut result_ty: Option<TyId> = None;
+    for arm in arms {
+        env.enter_scope();
+        let pat = super::pat::check_pat(&arm.pat, ty, by_borrow, &mut HashSet::new(), env);
+        let (body, body_ty) = check_value_block_in_current_scope(&arm.body, expected, return_ty, env);
+        env.exit_scope();
+        match result_ty {
+            None => result_ty = Some(body_ty),
+            Some(first) if expected.is_some() => {
+                env.mismatch("`when` arm", body_ty, first, arm.body.span.or(Some(arm.pat.span())));
+            }
+            Some(_) => {}
+        }
+        checked_arms.push(HirArm { pat, body });
+    }
+    let result_ty = if expected.is_some() { result_ty.expect("a `when` has an arm") } else { env.tcx.unit() };
+    env.expr_at(HirExprKind::Match { scrutinee: Box::new(scrutinee_hir.hir), arms: checked_arms }, result_ty, span)
 }
 
 fn check_conditional_binding(

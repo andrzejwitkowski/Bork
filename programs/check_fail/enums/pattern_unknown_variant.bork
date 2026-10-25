@@ -1,0 +1,9 @@
+// diag: enum `Shape` has no variant `Triangle`
+enum Shape { Circle(r: f64) }
+fun main() {
+    val s = Shape.Circle(1.0)
+    when s {
+        Triangle(x) => { }
+        _ => { }
+    }
+}

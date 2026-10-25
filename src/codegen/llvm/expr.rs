@@ -275,6 +275,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             HirExprKind::If { .. } => unreachable!("If is ChildPlan::If"),
             HirExprKind::EnumConstruct { .. } => Err(not_yet_supported("enums (see #52)", expr.span)),
+            HirExprKind::Match { .. } => Err(not_yet_supported("`when` over patterns (see #53)", expr.span)),
         }
     }
 
@@ -666,7 +667,7 @@ fn child_plan(expr: &HirExpr) -> ChildPlan<'_> {
         HirExprKind::ArrayLit { elements } => ChildPlan::Many(elements),
         HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => ChildPlan::Many(fields),
         HirExprKind::ObjectField { receiver, .. } => ChildPlan::One(receiver),
-        HirExprKind::PresenceMatch { .. } => ChildPlan::Zero,
+        HirExprKind::PresenceMatch { .. } | HirExprKind::Match { .. } => ChildPlan::Zero,
     }
 }
 

@@ -200,6 +200,13 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         HirExprKind::ObjectField { receiver, .. } => {
             gate_expr(tcx, receiver, diagnostics);
         }
+        HirExprKind::Match { scrutinee, arms } => {
+            reject(diagnostics, "`when` over patterns is not supported by codegen yet", expr.span);
+            gate_expr(tcx, scrutinee, diagnostics);
+            for arm in arms {
+                gate_block(tcx, &arm.body, diagnostics);
+            }
+        }
         HirExprKind::PresenceMatch {
             bindings,
             some_block,

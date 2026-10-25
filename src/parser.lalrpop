@@ -1,6 +1,6 @@
 use crate::ast::{
     unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, Enum, Variant, ClassField, ClassMember, Closure,
-    ConditionalBinding, ConditionalBindings, Expr, Function, Item, Param, Program, Stmt, Type, TypeParam,
+    ConditionalBinding, ConditionalBindings, Expr, Function, Item, MatchArm, Param, PatLit, Pattern, Program, Stmt, Type, TypeParam,
     UnaryOp,
 };
 use crate::span::{AstId, Span, SpannedName};
@@ -611,19 +611,45 @@ ConditionalBindingList: ConditionalBindings = {
     },
 };
 
-// `when x { Some(v) => a, None => b }` is `if val v = x { a } else { b }`.
+// `when x { Some(v) => a  None => b }` is `if val v = x { a } else { b }`; any other arm list is a
+// pattern match.
 WhenExpr: Expr = {
-    "when" <start:@L> <value:PresenceOperand> <end:@R> "{" <_leading:"NL"?>
-        "Some" "(" <some_name:SpannedIdent> ")" "=>" <some_block:Block> "NL"
-        "None" "=>" <none_block:Block> <_trailing:"NL"?>
-    "}" => Expr::IfVal {
-        bindings: ConditionalBindings {
-            head: Box::new(ConditionalBinding { name: some_name, value, value_span: Span::new(start, end) }),
-            tail: Vec::new(),
-        },
-        then_block: some_block,
-        else_block: Some(none_block),
+    <start:@L> "when" <vstart:@L> <value:PresenceOperand> <vend:@R> "{" "NL"? <arms:MatchArms> "NL"? "}" <end:@R> =>
+        Expr::when(value, Span::new(vstart, vend), arms, Span::new(start, end)),
+};
+
+MatchArms: Vec<MatchArm> = {
+    <arm:MatchArm> => vec![arm],
+    <mut arms:MatchArms> "NL" <arm:MatchArm> => {
+        arms.push(arm);
+        arms
     },
+};
+
+MatchArm: MatchArm = {
+    <pat:Pattern> "=>" <body:Block> => MatchArm { pat, body },
+};
+
+Pattern: Pattern = {
+    <name:SpannedIdent> => if name.name == "_" { Pattern::Wildcard { span: name.span } } else { Pattern::Binding(name) },
+    <start:@L> <name:SpannedIdent> "(" <args:Comma<Pattern>?> ")" <end:@R> => Pattern::Variant {
+        enum_name: None,
+        name,
+        args: args.unwrap_or_default(),
+        span: Span::new(start, end),
+    },
+    <start:@L> <enum_name:SpannedIdent> "." <name:SpannedIdent> <args:("(" <Comma<Pattern>?> ")")?> <end:@R> => Pattern::Variant {
+        enum_name: Some(enum_name),
+        name,
+        args: args.flatten().unwrap_or_default(),
+        span: Span::new(start, end),
+    },
+    <start:@L> "Some" "(" <inner:Pattern> ")" <end:@R> => Pattern::Some { inner: Box::new(inner), span: Span::new(start, end) },
+    <start:@L> "None" <end:@R> => Pattern::None { span: Span::new(start, end) },
+    <start:@L> <n:Num> <end:@R> => Pattern::Literal { value: PatLit::Int(n), span: Span::new(start, end) },
+    <start:@L> "true" <end:@R> => Pattern::Literal { value: PatLit::Bool(true), span: Span::new(start, end) },
+    <start:@L> "false" <end:@R> => Pattern::Literal { value: PatLit::Bool(false), span: Span::new(start, end) },
+    <start:@L> <s:StrLit> <end:@R> => Pattern::Literal { value: PatLit::Str(s), span: Span::new(start, end) },
 };
 
 PresenceOperand: Expr = {
