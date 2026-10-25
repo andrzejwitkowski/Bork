@@ -1,0 +1,9 @@
+enum Tree<T> {
+    Leaf,
+    Node(l: Ref<Tree<T>>, v: T),
+}
+fun main() {
+    val leaf: Tree<i32> = Tree.Leaf
+    val n = Tree.Node(None, 5)
+    val m: Tree<String> = Tree.Node(None, "a")
+}

@@ -23,6 +23,9 @@ pub(super) fn validate(program: &Program, defs: &DefTable, diagnostics: &mut Vec
     for function in &program.functions {
         check_list(&[], &function.generics, defs, diagnostics);
     }
+    for e in &program.enums {
+        check_list(&[], &e.generics, defs, diagnostics);
+    }
     for class in &program.classes {
         check_list(&[], &class.generics, defs, diagnostics);
         for method in &class.methods {
@@ -40,6 +43,7 @@ fn check_list(outer: &[TypeParam], own: &[TypeParam], defs: &DefTable, diagnosti
             format!("type parameter `{name}` shadows the class type parameter `{name}`")
         } else if name == "String"
             || defs.lookup_class(name).is_some()
+            || defs.lookup_enum(name).is_some()
             || !matches!(Type::from_ident(name, false), Type::Named { .. })
         {
             format!("type parameter `{name}` conflicts with the type `{name}`")

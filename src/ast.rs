@@ -6,6 +6,7 @@ pub use crate::span::AstId;
 pub struct Program {
     pub constants: Vec<ConstDecl>,
     pub classes: Vec<Class>,
+    pub enums: Vec<Enum>,
     pub functions: Vec<Function>,
 }
 
@@ -15,6 +16,20 @@ pub struct Class {
     pub generics: Vec<TypeParam>,
     pub fields: Vec<ClassField>,
     pub methods: Vec<Function>,
+}
+
+/// `enum Shape { Circle(r: f64), Empty }`. Payload fields are named like class fields.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Enum {
+    pub name: crate::span::SpannedName,
+    pub generics: Vec<TypeParam>,
+    pub variants: Vec<Variant>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Variant {
+    pub name: crate::span::SpannedName,
+    pub fields: Vec<ClassField>,
 }
 
 /// One entry of a class body, in source order.
@@ -63,6 +78,7 @@ pub struct ConstDecl {
 pub enum Item {
     Const(ConstDecl),
     Class(Class),
+    Enum(Enum),
     Fun(Function),
 }
 
@@ -70,17 +86,20 @@ impl Program {
     pub fn from_items(items: Vec<Item>) -> Self {
         let mut constants = Vec::new();
         let mut classes = Vec::new();
+        let mut enums = Vec::new();
         let mut functions = Vec::new();
         for item in items {
             match item {
                 Item::Const(constant) => constants.push(constant),
                 Item::Class(class) => classes.push(class),
+                Item::Enum(e) => enums.push(e),
                 Item::Fun(function) => functions.push(function),
             }
         }
         Self {
             constants,
             classes,
+            enums,
             functions,
         }
     }

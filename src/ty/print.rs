@@ -21,7 +21,7 @@ impl fmt::Display for TyPrinter<'_> {
         match self.ctx.data(self.id) {
             TyData::Prim(prim) => write!(f, "{prim}"),
             TyData::String => f.write_str("String"),
-            TyData::Class(def, args) => {
+            TyData::Class(def, args) | TyData::Enum(def, args) => {
                 f.write_str(&self.ctx.class_names[def])?;
                 if args.is_empty() {
                     return Ok(());

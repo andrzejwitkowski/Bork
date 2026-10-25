@@ -339,3 +339,17 @@ fn randomized_unify_makes_both_sides_resolve_equal() {
     }
     assert!(agreed > 50, "the generator should produce many unifiable pairs, got {agreed}");
 }
+
+#[test]
+fn enum_arguments_unify_and_mismatch_by_definition() {
+    let program = crate::parse("enum Opt<T> {\n Empty\n Has(v: T)\n}\nenum Other<T> {\n Empty\n}\nfun main() {}\n").unwrap();
+    let defs = DefTable::build(&program);
+    let mut fx = Fx { t: TyCtx::new(&defs), i: InferCtxt::new(), defs };
+    let (opt, other) = (fx.defs.lookup_enum("Opt").unwrap(), fx.defs.lookup_enum("Other").unwrap());
+    let (var, i32_ty) = (fx.var(), fx.t.i32());
+    let (with_var, concrete) = (fx.t.enum_ty(opt, vec![var]), fx.t.enum_ty(opt, vec![i32_ty]));
+    assert!(fx.unify(with_var, concrete).is_ok());
+    assert_eq!(fx.show(with_var), "Opt<i32>");
+    let other_ty = fx.t.enum_ty(other, vec![i32_ty]);
+    assert!(fx.unify(concrete, other_ty).is_err());
+}

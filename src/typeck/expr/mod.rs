@@ -119,7 +119,13 @@ pub(super) fn dispatch(
             safe,
             span,
             ..
-        } => check_field(receiver, name, *safe, *span, return_ty, env),
+        } => match object::variant_path(receiver, *safe, env) {
+            Some(e) => {
+                let site = call::CallSite { span: *span, args: &[], trailing: None, return_ty };
+                object::check_variant(e, name, site, expected, env)
+            }
+            None => check_field(receiver, name, *safe, *span, return_ty, env),
+        },
         Expr::Call {
             callee,
             type_args,

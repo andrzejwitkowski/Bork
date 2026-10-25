@@ -923,3 +923,41 @@ fn vec_and_ref_types_parse_as_before() {
     assert_eq!(ret_ty("fun f(): Vec<Vec<i32>> {}").to_string(), "Vec<Vec<i32>>");
     assert!(matches!(ret_ty("fun f(): Ref<Node> {}"), Type::ManagedRef { .. }));
 }
+
+#[test]
+fn parses_enum_with_unit_and_payload_variants() {
+    let prog = parse("enum Shape { Circle(r: f64), Rect(w: f64, h: f64), Empty }\nfun main() {}").expect("parse");
+    let shape = &prog.enums[0];
+    assert_eq!(shape.name.name, "Shape");
+    let names: Vec<_> = shape.variants.iter().map(|v| v.name.name.as_str()).collect();
+    assert_eq!(names, ["Circle", "Rect", "Empty"]);
+    assert_eq!(shape.variants[1].fields.len(), 2);
+    assert!(shape.variants[2].fields.is_empty());
+}
+
+#[test]
+fn parses_generic_enum_over_newlines_with_trailing_comma() {
+    let src = "enum Tree<T> {\n    Leaf,\n    Node(l: Ref<Tree<T>>, v: T),\n}\nfun main() {}";
+    let prog = parse(src).expect("parse");
+    assert_eq!(prog.enums[0].generics.len(), 1);
+    assert_eq!(prog.enums[0].variants.len(), 2);
+    assert!(parse("enum Tree<T> {\n    Leaf\n    Node(v: T)\n}\nfun main() {}").is_ok());
+}
+
+#[test]
+fn parses_empty_enum_and_rejects_malformed_ones() {
+    assert!(parse("enum E {}").is_ok());
+    assert!(parse("enum { A }").is_err());
+    assert!(parse("enum E { A(x) }").is_err());
+    assert!(parse("enum E { A B }").is_err());
+}
+
+#[test]
+fn enum_name_clashes_are_reported() {
+    let errors = |src: &str| frontend::check(src).diagnostics.len();
+    assert_eq!(errors("class Foo {}\nenum Foo { A }\nfun main() {}"), 1);
+    assert_eq!(errors("enum E { A }\nenum E { A }\nfun main() {}"), 1);
+    assert_eq!(errors("enum E { A, A }\nfun main() {}"), 1);
+    assert_eq!(errors("enum E { A }\nconst E: i32 = 1\nfun main() {}"), 1);
+    assert_eq!(errors("enum String { A }\nfun main() {}"), 1);
+}

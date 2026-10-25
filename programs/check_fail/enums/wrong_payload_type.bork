@@ -1,0 +1,5 @@
+// diag: field `r` of variant `Shape.Circle`
+enum Shape { Circle(r: f64) }
+fun main() {
+    val s = Shape.Circle("big")
+}

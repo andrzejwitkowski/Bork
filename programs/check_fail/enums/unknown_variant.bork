@@ -1,0 +1,5 @@
+// diag: enum `Shape` has no variant `Square`
+enum Shape { Circle(r: f64) }
+fun main() {
+    val s = Shape.Square(1.0)
+}

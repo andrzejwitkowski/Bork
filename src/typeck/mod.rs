@@ -13,7 +13,7 @@ use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram};
 use crate::span::{AstId, Span};
 use crate::ty::{FnSig, FnSigs, TyCtx, TyId};
 
-use env::{ClassFieldInfo, ClassInfo, ClassTable, Env, PendingParam};
+use env::{ClassFieldInfo, ClassInfo, ClassTable, EnumInfo, EnumTable, Env, PendingParam, VariantInfo};
 use lower::lower_type;
 
 /// Types used by sema, keyed by the AST node of a declaration name or field assignment.
@@ -58,7 +58,8 @@ pub fn check_with_members(program: &Program) -> Typeck {
 
     generics::validate(program, &defs, &mut diagnostics);
     let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
-    validate_owned_layouts(&classes, &mut tcx, &mut diagnostics);
+    let enums = build_enums(program, &defs, &mut tcx, &mut diagnostics);
+    validate_owned_layouts(&classes, &enums, &mut tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     for (name, constant) in &constants {
@@ -70,6 +71,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
         defs: &defs,
         fun_sigs: &fun_sigs,
         classes: &classes,
+        enums: &enums,
         constants: &constants,
         tcx: &mut tcx,
         diagnostics: &mut diagnostics,
@@ -126,6 +128,12 @@ fn build_classes(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ClassTable {
     let mut classes = ClassTable::new();
+    for (index, e) in program.enums.iter().enumerate() {
+        diagnostics.extend(defs.diagnostics(defs.enum_id(index), |_| true));
+        for variant in 0..e.variants.len() {
+            diagnostics.extend(defs.diagnostics(defs.variant_id(index, variant), |_| true));
+        }
+    }
     for (index, class) in program.classes.iter().enumerate() {
         use crate::defs::Clash;
         diagnostics.extend(defs.diagnostics(defs.class_id(index), |c| {
@@ -181,6 +189,51 @@ fn build_classes(
         }
     }
     classes
+}
+
+/// Lowers every variant payload. A rejected or duplicate enum keeps the first declaration only.
+fn build_enums(program: &Program, defs: &DefTable, tcx: &mut TyCtx, diagnostics: &mut Vec<Diagnostic>) -> EnumTable {
+    let mut enums = EnumTable::new();
+    for (index, e) in program.enums.iter().enumerate() {
+        let id = defs.enum_id(index);
+        if defs.lookup_enum(&e.name.name) != Some(id) {
+            continue;
+        }
+        let scope = generics::scope(&e.generics, &[]);
+        let variants = e
+            .variants
+            .iter()
+            .map(|variant| {
+                let mut field_names = HashSet::new();
+                let fields = variant
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        if !field_names.insert(field.name.name.clone()) {
+                            diagnostics.push(type_error(
+                                format!("duplicate field `{}` in variant `{}.{}`", field.name.name, e.name.name, variant.name.name),
+                                Some(field.name.span),
+                            ));
+                        }
+                        if field.ty.is_reference() {
+                            diagnostics.push(type_error(
+                                "borrowed references cannot be stored in enum payloads",
+                                Some(field.name.span),
+                            ));
+                        }
+                        ClassFieldInfo {
+                            name: field.name.name.clone(),
+                            ty: lower_type(&field.ty, defs, &scope, tcx, diagnostics, Some(field.name.span)),
+                            span: field.name.span,
+                        }
+                    })
+                    .collect();
+                VariantInfo { name: variant.name.name.clone(), fields }
+            })
+            .collect();
+        enums.insert(id, EnumInfo { id, name: e.name.name.clone(), variants, generics: generics::names(&e.generics, &[]) });
+    }
+    enums
 }
 
 fn collect_fun_sigs(
@@ -287,6 +340,7 @@ struct FunctionChecker<'a> {
     defs: &'a DefTable,
     fun_sigs: &'a FnSigs,
     classes: &'a ClassTable,
+    enums: &'a EnumTable,
     constants: &'a crate::constants::ConstantTable,
     tcx: &'a mut TyCtx,
     diagnostics: &'a mut Vec<Diagnostic>,
@@ -295,7 +349,7 @@ struct FunctionChecker<'a> {
 }
 
 fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<DefId>) -> HirFunction {
-    let FunctionChecker { defs, fun_sigs, classes, constants, tcx, diagnostics, node_tys, members } = checker;
+    let FunctionChecker { defs, fun_sigs, classes, enums, constants, tcx, diagnostics, node_tys, members } = checker;
     let def = match owner {
         Some(class) => defs.lookup_method(class, &function.name),
         None => defs.lookup_fn(&function.name),
@@ -317,7 +371,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         .chain(function.generics.iter().map(|param| param.name.name.clone()))
         .collect();
     tcx.set_param_names(generics.clone());
-    let mut env = Env::new(defs, tcx, fun_sigs, classes, constants);
+    let mut env = Env::new(defs, tcx, fun_sigs, classes, enums, constants);
     env.self_class = owner;
     // The owner class's parameters come first, as in the method signature.
     env.tparams = generics.iter().enumerate().map(|(i, name)| (name.clone(), crate::ty::ParamIdx(i as u32))).collect();
@@ -432,16 +486,16 @@ fn type_error(message: impl Into<String>, span: Option<Span>) -> Diagnostic {
     }
 }
 
-fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_owned_layouts(classes: &ClassTable, enums: &EnumTable, tcx: &mut TyCtx, diagnostics: &mut Vec<Diagnostic>) {
     /// Expanding generics (`class N<T> { x: N<N<T>> }`) never repeat a type, so the walk is capped.
     const MAX_DEPTH: usize = 32;
 
-    /// The classes a field type holds by value: itself, or as the element of an array.
+    /// The classes and enums a field type holds by value: itself, or as the element of an array.
     fn held(ty: TyId, tcx: &TyCtx) -> Option<TyId> {
         let ty = tcx.base(ty);
         match tcx.data(ty) {
-            crate::ty::TyData::Class(..) => Some(ty),
-            crate::ty::TyData::Array { elem, .. } => Some(tcx.base(*elem)).filter(|e| tcx.class_def(*e).is_some()),
+            crate::ty::TyData::Class(..) | crate::ty::TyData::Enum(..) => Some(ty),
+            crate::ty::TyData::Array { elem, .. } => Some(tcx.base(*elem)).filter(|e| tcx.class_def(*e).is_some() || tcx.enum_args(*e).is_some()),
             _ => None,
         }
     }
@@ -451,7 +505,7 @@ fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &m
     fn find_cycle(
         origin: TyId,
         current: TyId,
-        classes: &ClassTable,
+        tables: (&ClassTable, &EnumTable),
         tcx: &mut TyCtx,
         done: &mut HashSet<TyId>,
         path: &mut Vec<TyId>,
@@ -462,21 +516,26 @@ fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &m
         if !done.insert(current) {
             return false;
         }
-        let crate::ty::TyData::Class(def, args) = tcx.data(current).clone() else {
-            return false;
+        let (args, field_tys): (Vec<TyId>, Vec<TyId>) = match tcx.data(current).clone() {
+            crate::ty::TyData::Class(def, args) => match tables.0.get(&def) {
+                Some(class) => (args, class.fields.iter().map(|field| field.ty).collect()),
+                None => return false,
+            },
+            crate::ty::TyData::Enum(def, args) => match tables.1.get(&def) {
+                Some(e) => (args, e.variants.iter().flat_map(|v| &v.fields).map(|field| field.ty).collect()),
+                None => return false,
+            },
+            _ => return false,
         };
-        let Some(class) = classes.get(&def) else {
-            return false;
-        };
-        for field in &class.fields {
-            let Ok(field_ty) = crate::ty::subst(tcx, field.ty, &args) else {
+        for field_ty in field_tys {
+            let Ok(field_ty) = crate::ty::subst(tcx, field_ty, &args) else {
                 continue;
             };
             let Some(target) = held(field_ty, tcx) else {
                 continue;
             };
             path.push(target);
-            if target == origin || find_cycle(origin, target, classes, tcx, done, path) {
+            if target == origin || find_cycle(origin, target, tables, tcx, done, path) {
                 return true;
             }
             path.pop();
@@ -484,23 +543,43 @@ fn validate_owned_layouts(classes: &ClassTable, tcx: &mut TyCtx, diagnostics: &m
         false
     }
 
+    /// A class or enum whose layout is checked.
+    struct Owner<'a> {
+        kind: &'static str,
+        generics: &'a [String],
+        is_enum: bool,
+        id: DefId,
+        span: Option<Span>,
+    }
+
+    // Classes then enums, each by name.
     let mut ordered: Vec<&ClassInfo> = classes.values().collect();
     ordered.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut ordered_enums: Vec<&EnumInfo> = enums.values().collect();
+    ordered_enums.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut owners: Vec<Owner<'_>> = Vec::new();
     for class in ordered {
+        owners.push(Owner { kind: "class", generics: &class.generics, is_enum: false, id: class.id, span: class.fields.first().map(|f| f.span) });
+    }
+    for e in ordered_enums {
+        let span = e.variants.iter().flat_map(|v| &v.fields).next().map(|f| f.span);
+        owners.push(Owner { kind: "enum", generics: &e.generics, is_enum: true, id: e.id, span });
+    }
+    for Owner { kind, generics, is_enum, id, span } in owners {
         // The definition itself, its parameters standing for unknown leaf types.
-        let identity = tcx.identity_args(class.generics.len());
-        let origin = tcx.class(class.id, identity);
+        let identity = tcx.identity_args(generics.len());
+        let origin = if is_enum { tcx.enum_ty(id, identity) } else { tcx.class(id, identity) };
         let mut path = vec![origin];
-        if find_cycle(origin, origin, classes, tcx, &mut HashSet::new(), &mut path) {
-            tcx.set_param_names(class.generics.clone());
+        if find_cycle(origin, origin, (classes, enums), tcx, &mut HashSet::new(), &mut path) {
+            tcx.set_param_names(generics.to_vec());
             let shown: Vec<String> = path.iter().take(MAX_DEPTH).map(|&ty| tcx.display(ty).to_string()).collect();
             diagnostics.push(type_error(
                 format!(
-                    "class `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
+                    "{kind} `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
                     tcx.display(origin),
                     shown.join(" -> ")
                 ),
-                class.fields.first().map(|field| field.span),
+                span,
             ));
             tcx.set_param_names(Vec::new());
         }

@@ -16,6 +16,14 @@ pub fn number_nodes(program: &mut Program) -> Vec<(Span, AstId)> {
         class.fields.iter_mut().for_each(|f| n.name(&mut f.name));
         class.methods.iter_mut().for_each(|m| n.function(m));
     }
+    for e in &mut program.enums {
+        n.name(&mut e.name);
+        e.generics.iter_mut().for_each(|g| n.name(&mut g.name));
+        for variant in &mut e.variants {
+            n.name(&mut variant.name);
+            variant.fields.iter_mut().for_each(|f| n.name(&mut f.name));
+        }
+    }
     program.functions.iter_mut().for_each(|f| n.function(f));
     n.index
 }

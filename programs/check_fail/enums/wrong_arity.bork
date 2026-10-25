@@ -1,0 +1,5 @@
+// diag: variant `Shape.Rect` takes 2 argument(s), got 1
+enum Shape { Circle(r: f64), Rect(w: f64, h: f64) }
+fun main() {
+    val s = Shape.Rect(1.0)
+}

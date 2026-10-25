@@ -55,12 +55,32 @@ pub(super) struct ClassInfo {
 
 pub(super) type ClassTable = HashMap<DefId, ClassInfo>;
 
+#[derive(Clone, Debug)]
+pub(super) struct VariantInfo {
+    pub(super) name: String,
+    /// Payload fields; empty for a unit variant.
+    pub(super) fields: Vec<ClassFieldInfo>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct EnumInfo {
+    pub(super) id: DefId,
+    /// Display name only; identity is `id`.
+    pub(super) name: String,
+    pub(super) variants: Vec<VariantInfo>,
+    /// Names of the enum type parameters.
+    pub(super) generics: Vec<String>,
+}
+
+pub(super) type EnumTable = HashMap<DefId, EnumInfo>;
+
 pub(super) struct Env<'a> {
     scopes: Vec<HashMap<String, Binding>>,
     pub(super) defs: &'a DefTable,
     pub(super) tcx: &'a mut TyCtx,
     pub(super) fun_sigs: &'a FnSigs,
     pub(super) classes: &'a ClassTable,
+    pub(super) enums: &'a EnumTable,
     pub(super) constants: &'a ConstantTable,
     pub(super) diagnostics: Vec<Diagnostic>,
     /// Declaration and field assignment types keyed by source span.
@@ -92,6 +112,7 @@ impl<'a> Env<'a> {
         tcx: &'a mut TyCtx,
         fun_sigs: &'a FnSigs,
         classes: &'a ClassTable,
+        enums: &'a EnumTable,
         constants: &'a ConstantTable,
     ) -> Self {
         Self {
@@ -100,6 +121,7 @@ impl<'a> Env<'a> {
             tcx,
             fun_sigs,
             classes,
+            enums,
             constants,
             diagnostics: Vec::new(),
             node_tys: NodeTypes::new(),
@@ -200,6 +222,15 @@ impl<'a> Env<'a> {
     /// The class a bare identifier names (a constructor call).
     pub(super) fn class_named(&self, name: &str) -> Option<&ClassInfo> {
         self.classes.get(&self.defs.lookup_class(name)?)
+    }
+
+    /// The enum a bare identifier names (a variant path `E.V`).
+    pub(super) fn enum_named(&self, name: &str) -> Option<&EnumInfo> {
+        // An implicit field of the enclosing class shadows the enum, as a local does.
+        if self.implicit_field(name).is_some() {
+            return None;
+        }
+        self.enums.get(&self.defs.lookup_enum(name)?)
     }
 
     pub(super) fn class(&self, id: DefId) -> Option<&ClassInfo> {

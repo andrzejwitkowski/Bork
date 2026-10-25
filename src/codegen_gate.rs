@@ -36,9 +36,30 @@ pub fn codegen_lowers_nullable(tcx: &TyCtx, ty: TyId) -> bool {
 pub fn gate(hir: &HirProgram, tcx: &TyCtx) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for function in &hir.functions {
-        gate_block(tcx, &function.body, &mut diagnostics);
+        let mut found = Vec::new();
+        let signature = function.params.iter().map(|param| param.ty).chain([function.return_ty]);
+        if signature.into_iter().any(|ty| mentions_enum(tcx, ty)) {
+            reject(&mut found, ENUMS_UNSUPPORTED, Some(function.name_span));
+        }
+        gate_block(tcx, &function.body, &mut found);
+        // One enum error per function; its other sites say the same thing.
+        let mut seen_enum = false;
+        found.retain(|d| d.message != ENUMS_UNSUPPORTED || !std::mem::replace(&mut seen_enum, true));
+        diagnostics.extend(found);
+    }
+    for field in hir.classes.iter().flat_map(|class| &class.fields) {
+        if mentions_enum(tcx, field.ty) {
+            reject(&mut diagnostics, ENUMS_UNSUPPORTED, None);
+        }
     }
     diagnostics
+}
+
+const ENUMS_UNSUPPORTED: &str = "enums are not supported by codegen yet";
+
+/// Whether `ty` is or contains an enum (until #52 gives enums a layout).
+fn mentions_enum(tcx: &TyCtx, ty: TyId) -> bool {
+    matches!(tcx.data(ty), crate::ty::TyData::Enum(..)) || tcx.data(ty).children().into_iter().any(|child| mentions_enum(tcx, child))
 }
 
 fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
@@ -76,6 +97,9 @@ fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) 
 }
 
 fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
+    if mentions_enum(tcx, expr.ty) && !matches!(expr.kind, HirExprKind::EnumConstruct { .. }) {
+        reject(diagnostics, ENUMS_UNSUPPORTED, expr.span);
+    }
     if !codegen_lowers_nullable(tcx, expr.ty) {
         reject(
             diagnostics,
@@ -162,6 +186,12 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow,
             expr: inner,
         } => gate_expr(tcx, inner, diagnostics),
+        HirExprKind::EnumConstruct { fields, .. } => {
+            reject(diagnostics, ENUMS_UNSUPPORTED, expr.span);
+            for field in fields {
+                gate_expr(tcx, field, diagnostics);
+            }
+        }
         HirExprKind::ObjectConstruct { fields, .. } => {
             for field in fields {
                 gate_expr(tcx, field, diagnostics);

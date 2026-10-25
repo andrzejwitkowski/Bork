@@ -274,6 +274,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Err(not_yet_supported("managed Ref presence expression", expr.span))
             }
             HirExprKind::If { .. } => unreachable!("If is ChildPlan::If"),
+            HirExprKind::EnumConstruct { .. } => Err(not_yet_supported("enums (see #52)", expr.span)),
         }
     }
 
@@ -663,7 +664,7 @@ fn child_plan(expr: &HirExpr) -> ChildPlan<'_> {
         HirExprKind::Slice { receiver, lo, hi } => ChildPlan::Three(receiver, lo, hi),
         HirExprKind::Call { args, .. } => ChildPlan::Many(args),
         HirExprKind::ArrayLit { elements } => ChildPlan::Many(elements),
-        HirExprKind::ObjectConstruct { fields, .. } => ChildPlan::Many(fields),
+        HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => ChildPlan::Many(fields),
         HirExprKind::ObjectField { receiver, .. } => ChildPlan::One(receiver),
         HirExprKind::PresenceMatch { .. } => ChildPlan::Zero,
     }

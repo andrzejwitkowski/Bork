@@ -1,6 +1,6 @@
 # Bork
 
-Bork is a small language with curly-brace regions, no garbage collector, and arena memory. A program is a list of functions and classes. Statements are separated by newlines, not semicolons. `//` comments run to the end of the line.
+Bork is a small language with curly-brace regions, no garbage collector, and arena memory. A program is a list of functions, classes and enums. Statements are separated by newlines, not semicolons. `//` comments run to the end of the line.
 
 This page is the surface language as the frontend accepts it today. The chapter **Where string bytes are allocated** explains sink allocation, hoist, `promote`, and escape checking. Lower-level arena layout and codegen schedules are in [memory-model.md](memory-model.md). The last section lists what native codegen still rejects. For a step-by-step trip of one class-and-function program through every compiler phase (in Polish), see [walkthrough-classes-functions.md](walkthrough-classes-functions.md).
 
@@ -60,7 +60,7 @@ fun main() {
 - `class` is the only record declaration: fields in declaration order, methods, no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
 - Fields use `name: Type` without `val` or `var` modifiers and are mutable. Fields cannot store borrow views (`&T`); their lifetimes are not tracked inside objects. `val` keeps the binding fixed; fields of that class instance can still be assigned. A `Vec` is the exception: a `val` `Vec` cannot be mutated (`push`, `pop`, `set`, `clear`), either directly or through a field of a `val` object (`h.items.push(1)` is an error). `this`, borrows and `Ref` handles are exempt; a call result such as `getVec().push(1)` is a temporary and is not checked.
 - Class values are not Copy and do not have structural `==` or `!=`.
-- `Ref<T>` is a managed handle to a **non-nullable class** declared with `class`. `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
+- `Ref<T>` is a managed handle to a **non-nullable class** declared with `class` (or an enum, see [Enums](#enums); the frontend accepts it, codegen does not yet). `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
 - `Ref<T>` copies without `move`. After `move`, the source reads as moved.
 - Field access on a `Ref` goes through `if val`, `when`, or `?.`. The bound name inside `if val` / `when Some` is `&T` for that guard only.
 - `?.` on a class field requires `Ref<T>`; an ordinary class value or `T?` cannot use it.
@@ -103,6 +103,32 @@ cleanup diagrams, see [references.md](references.md).
 
 `strongCount(r)` and `weakCount(r)` return the reference counters of the arena a `Ref<T>` points into (diagnostics, see [memory-model.md](memory-model.md#strongcount--weakcount)). `Vec<T>` is a built-in growable array: `Vec<i32>()`, `Vec<String>(16)`; see [memory-model.md](memory-model.md#vect). Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]` on `[T; N]` and on **`&[T; N]`** (including reference parameters). A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. A `&[T; N]` parameter supports `p[i] = v` in the callee. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
 
+## Enums
+
+```bork
+enum Shape { Circle(r: f64), Rect(w: f64, h: f64), Empty }
+
+enum Tree<T> {
+    Leaf,
+    Node(l: Ref<Tree<T>>, v: T),
+}
+
+fun main() {
+    val a = Shape.Circle(1.0)
+    val b: Shape = Shape.Empty
+    val t: Tree<i32> = Tree.Node(None, 5)
+}
+```
+
+- A variant has no payload (`Empty`) or named payload fields (`Circle(r: f64)`). Variants are separated by `,` or a newline, with an optional trailing separator.
+- A variant is built with `Enum.Variant(args)`, or `Enum.Variant` for a unit variant. Every payload field takes exactly one argument; arity and field types are checked (`variant `Shape.Rect` takes 2 argument(s), got 1`). A local binding with the enum's name shadows the path.
+- Enums may be generic. Like a generic class constructor, a variant is instantiated with fresh variables fixed by its arguments or the expected type (`Tree.Leaf` needs `val t: Tree<i32> = ...`); a parameter nothing fixes is an error, and explicit type arguments on a variant are not supported yet.
+- Enums share the type-name namespace with classes, functions and constants: `enum Foo` next to `class Foo`, `fun Foo` or `const Foo` is an error, as is a duplicate enum or variant.
+- A by-value cycle through payloads is rejected with its path, the same as for classes; `Ref<Tree<T>>` is the sanctioned recursion, so `Ref<_>` accepts a class or an enum.
+- `T?`, `Some` and `None` are unchanged. `Some` and `None` are keywords, so a variant cannot be named that way.
+
+Not implemented yet: pattern matching and exhaustiveness (#50, #51), layout and codegen (#52, #53; `bork build` rejects any program that mentions an enum type), and an `Option<T>` / `Result<T, E>` prelude (#54).
+
 ## Constants
 
 `const NAME: Type = literal` at file level, with a mandatory type. Types: integers, `f32`, `f64`, `bool`, `String`. The initializer is a single literal of that type; it is range-checked (`const B: u8 = 255` is fine, `256` is an error). Constants are visible in every function and method, including ones declared earlier; there is no runtime initialization order.
@@ -135,7 +161,7 @@ count = count + 1
 
 These are lexer tokens, so they cannot name a binding, parameter, field, function, class or constant:
 
-- declarations: `class`, `const`, `fun`, `val`, `var`, `this`
+- declarations: `class`, `enum`, `const`, `fun`, `val`, `var`, `this`
 - control flow: `if`, `else`, `when`, `for`, `in`, `while`, `break`, `continue`, `return`
 - values: `true`, `false`, `Some`, `None`
 - ownership: `move`, `promote`
@@ -479,7 +505,7 @@ Supported: integer and float arithmetic and comparisons, `for` over `..`, `while
 
 `String?` `None` is a null pointer and length zero (no arena bump). Scalar `T?` is `{ i1 tag, T value }`. `!!` on null aborts.
 
-Rejected by codegen (the frontend still accepts them): trailing closures. Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
+Rejected by codegen (the frontend still accepts them): trailing closures and enums (any type or expression that mentions one). Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
 
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 

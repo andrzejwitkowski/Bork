@@ -112,7 +112,8 @@ pub(super) fn check_call(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    if !type_args.is_empty() && !is_generic_fn(callee, env) {
+    let is_variant = matches!(callee, Expr::Field { receiver, safe, .. } if super::object::variant_path(receiver, *safe, env).is_some());
+    if !type_args.is_empty() && !is_generic_fn(callee, env) && !is_variant {
         match callee {
             Expr::Ident { name, span, .. } if env.class_named(name).is_some_and(|c| !c.generics.is_empty()) => {
                 env.error(
@@ -124,6 +125,15 @@ pub(super) fn check_call(
                 env.error(format!("`{name}` is not generic; it takes no explicit type arguments"), Some(*span));
             }
             _ => env.error("only generic functions take explicit type arguments", None),
+        }
+    }
+    if let Expr::Field { receiver, name, safe, span, .. } = callee {
+        if let Some(e) = super::object::variant_path(receiver, *safe, env) {
+            if !type_args.is_empty() {
+                env.error("explicit type arguments on enum variants are not supported yet; annotate the binding instead", Some(*span));
+            }
+            let site = CallSite { span: *span, args, trailing, return_ty };
+            return super::object::check_variant(e, name, site, expected, env);
         }
     }
     if let Expr::Field {

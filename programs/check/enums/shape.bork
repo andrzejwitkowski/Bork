@@ -1,0 +1,6 @@
+enum Shape { Circle(r: f64), Rect(w: f64, h: f64), Empty }
+fun main() {
+    val a: Shape = Shape.Circle(1.0)
+    val b = Shape.Rect(2.0, 3.0)
+    val c = Shape.Empty
+}
