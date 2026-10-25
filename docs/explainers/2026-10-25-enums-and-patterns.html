@@ -263,17 +263,6 @@ const QUESTIONS = [
     ],
     a: 1,
     fb: "Goła nazwa równa nazwie wariantu bez ładunku matchowanego enuma jest tym wariantem; każda inna jest wiązaniem. Cena: literówka w nazwie wariantu cicho staje się wiązaniem, które łapie wszystko. Dlatego sprawdzanie nieosiągalnych ramion w #51 jest ważne."
-  },
-  {
-    q: "Gdy enumy dostaną metody, w ich ciele `this` będzie miało typ `&Enum`. Co z tego wynika dla `when this { A(p) => .. }`?",
-    opts: [
-      "Trzeba dodać osobną regułę, bo `this` to nie zwykła nazwa.",
-      "`when this` zawsze przenosi ładunek z `this`.",
-      "Wzorce na `this` są zabronione, dopóki nie ma #53.",
-      "Nic nowego: `this` to nazwana wartość typu `&T`, więc ładunki wiążą się przez pożyczkę i nic nie jest przenoszone."
-    ],
-    a: 3,
-    fb: "Tryb wiązania z #50 zależy tylko od tego, czy wartość jest miejscem (nazwą, polem, `this`) albo `&T`. Dlatego metody na enumach nie wymagają żadnej nowej reguły wzorców, wystarczy, że parser i typeck przyjmą metodę z `this: &Enum`."
   }
 ];
 let answered = 0, correct = 0;
