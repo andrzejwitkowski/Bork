@@ -105,3 +105,13 @@ fn variant_pattern_on_a_non_enum_is_reported() {
 fn arm_types_must_agree_when_the_result_is_used() {
     has(&in_main("    val n: i32 = when s {\n        Circle(r) => { 1 }\n        _ => { true }\n    }"), "`when` arm has type");
 }
+
+#[test]
+fn bare_name_of_a_payload_variant_is_an_error() {
+    has(&in_main("    when s {\n        Circle => { }\n        _ => { }\n    }"), "has 1 field(s); write `Circle(..)`");
+}
+
+#[test]
+fn nullable_enum_has_no_variant_patterns() {
+    has(&format!("{SHAPE}fun f(s: Shape?) {{\n    when s {{\n        Circle(r) => {{ }}\n        _ => {{ }}\n    }}\n}}\nfun main() {{}}\n"), "nullable enum");
+}

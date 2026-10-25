@@ -25,8 +25,15 @@ pub(super) fn check_pat(
     let span = pat.span();
     let kind = match pat {
         Pattern::Wildcard { .. } => HirPatKind::Wildcard,
-        Pattern::Binding(name) => match unit_variant(&name.name, ty, env) {
-            Some((enum_name, index)) => HirPatKind::Variant { enum_name, variant: name.name.clone(), index, fields: Vec::new() },
+        Pattern::Binding(name) => match named_variant(&name.name, ty, env) {
+            Some((e, index)) if e.variants[index].fields.is_empty() => {
+                HirPatKind::Variant { enum_name: e.name, variant: name.name.clone(), index, fields: Vec::new() }
+            }
+            Some((e, index)) => {
+                let arity = e.variants[index].fields.len();
+                env.error(format!("variant `{}.{}` has {arity} field(s); write `{}(..)`", e.name, name.name, name.name), Some(span));
+                HirPatKind::Wildcard
+            }
             None => bind(name, ty, by_borrow, names, env),
         },
         Pattern::Literal { value, .. } => literal(value, ty, span, env),
@@ -54,12 +61,12 @@ pub(super) fn check_pat(
     HirPat { kind, ty, span }
 }
 
-/// A bare name that spells a payload-free variant of the matched enum is that variant.
-fn unit_variant(name: &str, ty: TyId, env: &Env<'_>) -> Option<(String, usize)> {
+/// A bare name that spells a variant of the matched enum is that variant, not a binding.
+fn named_variant(name: &str, ty: TyId, env: &Env<'_>) -> Option<(EnumInfo, usize)> {
     let (def, _) = env.tcx.enum_args(ty)?;
     let e = env.enums.get(&def)?;
     let index = e.variants.iter().position(|v| v.name == name)?;
-    Some((e.name.clone(), index))
+    Some((e.clone(), index))
 }
 
 fn is_copy(ty: TyId, env: &Env<'_>) -> bool {
@@ -106,6 +113,10 @@ fn check_variant(pat: &Pattern, ty: TyId, by_borrow: bool, names: &mut HashSet<S
         HirPat { kind: HirPatKind::Wildcard, ty: unknown, span }
     };
     if env.tcx.is_unknown(ty) {
+        return rejected(args, names, env);
+    }
+    if env.tcx.is_nullable(ty) && env.tcx.enum_args(ty).is_some() {
+        env.error(format!("pattern `{}` cannot match {}; a nullable enum has no variant patterns", name.name, env.show(ty)), Some(span));
         return rejected(args, names, env);
     }
     let Some((def, type_args)) = env.tcx.enum_args(ty).map(|(def, a)| (def, a.to_vec())) else {
