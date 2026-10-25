@@ -62,6 +62,7 @@
   <li><a href="#problem">Co właściwie sprawdzamy</a></li>
   <li><a href="#naive">Sposób z kartką: wypisz wszystkie wartości</a></li>
   <li><a href="#tree">Sposób sprytniejszy: drzewko pytań</a></li>
+  <li><a href="#ints">A co z liczbą, napisem i floatem?</a></li>
   <li><a href="#wild">Co robi <code>_</code> i pominięte warianty</a></li>
   <li><a href="#unreach">To samo pytanie, drugie zastosowanie: ramię, które nic nie łapie</a></li>
   <li><a href="#bork">Jak to wygląda w kodzie Borka</a></li>
@@ -92,7 +93,7 @@ when t {
   <tr><td><code>Yes(false)</code></td><td>nie</td><td>nie</td><td class="no">NIKT NIE ŁAPIE</td></tr>
   <tr><td><code>No</code></td><td>nie</td><td class="yes">tak</td><td class="yes">tak</td></tr>
 </table>
-<p>Jest jedna dziura: <code>Yes(false)</code>. To jest cały problem. Kłopot w tym, że ta metoda się nie skaluje: <code>i64</code> ma ponad 18 trylionów wartości, a enum z kilkoma zagnieżdżonymi enumami daje ich setki. Potrzebujemy sposobu, który nie wypisuje wartości, tylko rozumuje o kształtach.</p>
+<p>Jest jedna dziura: <code>Yes(false)</code>. To jest cały problem. Kłopot w tym, że ta metoda się nie skaluje: <code>i64</code> ma ponad 18 trylionów wartości, a enum z kilkoma zagnieżdżonymi enumami daje ich setki. Potrzebujemy sposobu, który nie wypisuje wartości, tylko rozumuje o kształtach. Sekcja 3 pokazuje go na <code>bool</code>, a sekcja 4 na liczbie, bo to właśnie tam wypisywanie nie ma szans.</p>
 
 <h2 id="tree">3. Sposób sprytniejszy: drzewko pytań</h2>
 <p>Zamiast wypisywać wartości, <b>zadajemy o wartość pytania, jedno po drugim</b>, tak jak w grze „dwadzieścia pytań”. Za każdym razem robimy to samo:</p>
@@ -124,7 +125,75 @@ when t {
 
 <p>Gałąź <code>false</code> to moment, w którym „zostają zero ramion”. Ścieżka do niej (<code>Yes</code>, potem <code>false</code>) składa się na komunikat błędu: <code>non-exhaustive `when`: missing `Tri.Yes(false)`</code>. Kompilator nie przejrzał żadnych wartości; poszedł po drzewku i zauważył ślepą uliczkę.</p>
 
-<h2 id="wild">4. Co robi <code>_</code> i pominięte warianty</h2>
+<h2 id="ints">4. A co z liczbą, napisem i floatem?</h2>
+<p>To jest sedno: dla <code>bool</code> można by jeszcze wypisać wartości, dla <code>i64</code> już nie. Drzewko radzi sobie z tym jednym trikiem. Nie pytamy „jaka to liczba?” i nie rozgałęziamy się na każdą z 18 trylionów. Robimy <b>po jednej gałęzi na każdą liczbę, którą któreś ramię wymienia, plus jedną gałąź „każda inna liczba”</b>. Tych wymienionych jest tyle, ile literałów napisałeś, więc zawsze skończenie wiele.</p>
+
+<h3>Przykład: <code>i64</code></h3>
+<pre><code>val x: i64 = 3
+when x {
+    1 =&gt; ..
+    2 =&gt; ..
+}</code></pre>
+<ul class="tree root"><li>
+<span class="qn">Pytanie: jaka to liczba?</span>
+<ul class="tree">
+  <li><span class="an">1</span> <span class="alive">— żyje ramię 1</span> → <span class="good">pokryte</span></li>
+  <li><span class="an">2</span> <span class="alive">— żyje ramię 2</span> → <span class="good">pokryte</span></li>
+  <li><span class="an">każda inna liczba (0, 3, -7, 18 trylionów innych...)</span> <span class="alive">— żyją tylko ramiona z <code>_</code> lub nazwą; nie ma żadnego</span> → <span class="hole">DZIURA: missing `_`</span></li>
+</ul>
+</li></ul>
+<p>Gałąź „każda inna” <b>nigdy nie da się wyczerpać literałami</b>, bo zawsze zostanie jakaś liczba, której nie wymieniłeś. Dlatego jedyny sposób na pokrycie jej to ramię <code>_</code> (albo nazwa, np. <code>n =&gt; ..</code>). Komunikat mówi <code>missing `_`</code>, bo nie ma sensu wskazywać jednej konkretnej liczby jako dziury. Z <code>_</code>:</p>
+<pre><code>when x {
+    1 =&gt; ..
+    2 =&gt; ..
+    _ =&gt; ..
+}</code></pre>
+<ul class="tree root"><li>
+<span class="qn">Jaka to liczba?</span>
+<ul class="tree">
+  <li><span class="an">1</span> <span class="alive">— żyją: ramię 1 i <code>_</code></span> → <span class="good">pokryte</span></li>
+  <li><span class="an">2</span> <span class="alive">— żyją: ramię 2 i <code>_</code></span> → <span class="good">pokryte</span></li>
+  <li><span class="an">każda inna</span> <span class="alive">— żyje <code>_</code></span> → <span class="good">pokryte</span></li>
+</ul>
+</li></ul>
+
+<h3>Liczba schowana w enumie</h3>
+<p>Ta sama gałąź „każda inna liczba” pojawia się w środku drzewka, gdy liczba jest częścią wariantu:</p>
+<pre><code>enum Num { Val(n: i64), Nil }
+
+when v {
+    Val(0) =&gt; ..
+    Val(1) =&gt; ..
+    Nil    =&gt; ..
+}</code></pre>
+<ul class="tree root"><li>
+<span class="qn">Pytanie 1: który wariant?</span>
+<ul class="tree">
+  <li><span class="an">Val</span> <span class="alive">— żyją: ramię 1 i 2. Zostaje pytanie o liczbę.</span>
+    <ul class="tree"><li><span class="qn">Pytanie 2: jaka liczba?</span>
+      <ul class="tree">
+        <li><span class="an">0</span> <span class="alive">— żyje ramię 1</span> → <span class="good">pokryte</span></li>
+        <li><span class="an">1</span> <span class="alive">— żyje ramię 2</span> → <span class="good">pokryte</span></li>
+        <li><span class="an">każda inna</span> <span class="alive">— nie żyje żadne ramię</span> → <span class="hole">DZIURA: Num.Val(_)</span></li>
+      </ul></li></ul>
+  </li>
+  <li><span class="an">Nil</span> <span class="alive">— żyje ramię 3</span> → <span class="good">pokryte</span></li>
+</ul>
+</li></ul>
+<p>Komunikat: <code>non-exhaustive `when`: missing `Num.Val(_)`</code>. <code>_</code> w środku znaczy „jakakolwiek inna liczba niż 0 i 1”.</p>
+
+<h3>Dwa takie same literały</h3>
+<p>Gałąź dla danej liczby tworzy się raz, więc przy <code>1 =&gt; .. 1 =&gt; ..</code> w gałęzi <span class="an">1</span> żyją oba ramiona. Z punktu widzenia sekcji 6 drugie nic nowego nie łapie: <span class="hole">nieosiągalne</span>.</p>
+
+<h3>Napis (<code>String</code>)</h3>
+<p>Dokładnie to samo co liczba: po jednej gałęzi na każdy wymieniony napis (<code>"a"</code>, <code>"b"</code>) i jedna „każdy inny napis”. Bez <code>_</code> jest dziura <code>missing `_`</code>.</p>
+
+<h3>A <code>f64</code> i <code>f32</code>?</h3>
+<p>Tu jest najprościej: w Borku <b>nie ma literałów zmiennoprzecinkowych we wzorcach</b>. Nie da się napisać <code>1.5 =&gt; ..</code>. Wzorcem dla floata może być więc tylko <code>_</code> albo nazwa, a to jest jedna gałąź „każda wartość”, w której żyje to ramię. Czyli <code>when f { x =&gt; .. }</code> jest poprawne, a <code>when f { 1 =&gt; .. }</code> to błąd typu (literał <code>1</code> jest liczbą całkowitą, nie floatem). Powód: porównywanie floatów z równością to pułapka (NaN, zaokrąglenia), więc na razie ich nie wpuszczono.</p>
+
+<div class="callout key"><b class="t">Podsumowanie</b>Dla typu skończonego (<code>bool</code>, wariant enuma) gałęzie to wszystkie możliwe odpowiedzi. Dla typu nieskończonego (liczba, napis) gałęzie to <b>wymienione literały plus „każda inna”</b>, a ta ostatnia gałąź jest zawsze pokryta tylko przez <code>_</code> lub nazwę.</div>
+
+<h2 id="wild">5. Co robi <code>_</code> i pominięte warianty</h2>
 <h3><code>_</code> żyje w każdej gałęzi</h3>
 <p>Ramię z <code>_</code> pasuje do dowolnej odpowiedzi, więc na każde pytanie „przeżywa” i jedzie dalej. Dodajmy je do przykładu:</p>
 <pre><code>when t {
@@ -164,7 +233,7 @@ when s {
 </li></ul>
 <p>Komunikat wymienia brakujące warianty (do trzech, potem „and more”).</p>
 
-<h2 id="unreach">5. To samo pytanie, drugie zastosowanie</h2>
+<h2 id="unreach">6. To samo pytanie, drugie zastosowanie</h2>
 <p>Ramię jest <b>nieosiągalne</b>, jeśli nie łapie niczego, czego nie złapały wcześniejsze ramiona. Sprawdzamy to tą samą metodą: bierzemy ramię i patrzymy, czy w jakiejś gałęzi, w którą ono wchodzi, nie ma <em>żadnego wcześniejszego</em> ramienia.</p>
 
 <h3>Przykład: ramię po <code>_</code></h3>
@@ -188,7 +257,7 @@ Ramię 2 wchodzi w gałąź <span class="an">Yes</span>, a potem w obie odpowied
 </li></ul>
 <p>Wystarczy jedna gałąź z czymś nowym i ramię jest osiągalne.</p>
 
-<h2 id="bork">6. Jak to wygląda w kodzie Borka</h2>
+<h2 id="bork">7. Jak to wygląda w kodzie Borka</h2>
 <p>Kod w <code>src/typeck/exhaustive.rs</code> robi dokładnie powyższe. Tłumaczenie nazw:</p>
 <table class="t">
   <tr><th>W tym tekście</th><th>W kodzie</th></tr>
@@ -202,16 +271,16 @@ Ramię 2 wchodzi w gałąź <span class="an">Yes</span>, a potem w obie odpowied
 <p>Przepływ jest taki: typeck sprawdził wzorce (#50), <code>check_coverage</code> zamienia je na proste <code>Pat</code>, odpala algorytm i zgłasza błędy. Stare <code>when</code> z parą <code>Some(x)</code> + <code>None</code> idzie inną ścieżką (<code>if val</code>) i tego sprawdzenia nie potrzebuje.</p>
 <p><b>Skąd wiemy, że działa?</b> Obok zwykłych testów jest test, który losuje 2000 zestawów ramion dla malutkiego typu i porównuje wynik algorytmu z metodą „z kartką” z sekcji 2 (wypisanie wszystkich wartości). Muszą się zgadzać za każdym razem.</p>
 
-<h2 id="limits">7. Granice</h2>
+<h2 id="limits">8. Granice</h2>
 <ul>
-  <li><b>Liczby i napisy.</b> Wartości jest tyle, że żadna lista literałów ich nie wyczerpie, więc zawsze potrzebny jest <code>_</code> albo nazwa. Bork nie analizuje zakresów: <code>u8</code> z 256 literałami nadal chce <code>_</code>.</li>
+  <li><b>Liczby i napisy</b> zawsze potrzebują <code>_</code> albo nazwy (sekcja 4). Bork nie analizuje zakresów: <code>u8</code> z literałami od 0 do 255 nadal chce <code>_</code>, choć w praktyce pokrywa wszystko.</li>
   <li><b>Nieosiągalne ramię to błąd, nie ostrzeżenie</b>, bo kompilator nie ma jeszcze ostrzeżeń.</li>
   <li><b>Literówka w nazwie wariantu bez danych</b> (<code>Emtpy</code>) jest traktowana jak nazwa zmiennej, która łapie wszystko. Wyjdzie dopiero jako nieosiągalne ramię po niej.</li>
   <li><b>Błąd bywa „po kolei”.</b> Gdy brakuje wariantu na wierzchu, komunikat nie pokazuje jeszcze dziur w jego środku. Po naprawie pierwszej pojawi się następna.</li>
 </ul>
 
-<h2 id="quiz">8. Quiz</h2>
-<p>Pięć pytań. Kliknij odpowiedź, by zobaczyć, czy jest dobra, i dlaczego. <span id="score"></span></p>
+<h2 id="quiz">9. Quiz</h2>
+<p>Sześć pytań. Kliknij odpowiedź, by zobaczyć, czy jest dobra, i dlaczego. <span id="score"></span></p>
 <div id="quiz"></div>
 </main>
 <script>
@@ -259,6 +328,17 @@ const QUESTIONS = [
     ],
     a: 1,
     fb: "Nieosiągalność to pytanie, czy ramię łapie coś, czego nie złapały wcześniejsze. `_` przed nim łapie wszystko."
+  },
+  {
+    q: "`val x: i64 = 3` i `when x { 1 => .. 2 => .. }`. Jak kompilator znajduje dziurę, nie wypisując wszystkich liczb?",
+    opts: [
+      "Sprawdza zakres od 1 do 2 i zgłasza, że kończy się za wcześnie.",
+      "Robi gałąź dla każdej wymienionej liczby (1 i 2) oraz jedną gałąź „każda inna liczba”; w tej ostatniej nie żyje żadne ramię z `_`, więc brakuje `_`.",
+      "Wypisuje po kolei liczby od najmniejszej `i64` i przerywa na pierwszej niepokrytej.",
+      "Przyjmuje, że liczby zawsze są pokryte."
+    ],
+    a: 1,
+    fb: "Wymienionych literałów jest skończenie wiele, więc gałęzi też. Gałąź „każda inna” nigdy nie jest wyczerpana literałami, więc pokryć ją może tylko `_` albo nazwa."
   },
   {
     q: "Po co jest test, który porównuje algorytm z wypisywaniem wszystkich wartości na malutkim typie?",
