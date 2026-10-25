@@ -472,6 +472,16 @@ impl RegionVisitor for Planner<'_> {
                 }
                 origins
             }
+            HirExprKind::Match { arms, .. } => {
+                let mut origins = Origins::default();
+                for arm in arms {
+                    origins.extend(&self.block_origins(&arm.body));
+                }
+                if self.tcx.owns_result(expr.ty) {
+                    self.mark_program(&origins);
+                }
+                origins
+            }
             HirExprKind::Int { .. }
             | HirExprKind::Float { .. }
             | HirExprKind::Bool { .. }

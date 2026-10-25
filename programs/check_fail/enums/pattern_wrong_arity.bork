@@ -1,0 +1,9 @@
+// diag: has 2 field(s), the pattern has 1
+enum Shape { Rect(w: i32, h: i32) }
+fun main() {
+    val s = Shape.Rect(1, 2)
+    when s {
+        Rect(w) => { }
+        _ => { }
+    }
+}

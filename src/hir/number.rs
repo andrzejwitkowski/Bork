@@ -71,6 +71,10 @@ fn expr(e: &mut HirExpr, next: &mut u32) {
             block(some_block, next);
             none_block.iter_mut().for_each(|b| block(b, next));
         }
+        HirExprKind::Match { scrutinee, arms } => {
+            expr(scrutinee, next);
+            arms.iter_mut().for_each(|arm| block(&mut arm.body, next));
+        }
         HirExprKind::Binary { lhs, rhs, .. } => {
             expr(lhs, next);
             expr(rhs, next);

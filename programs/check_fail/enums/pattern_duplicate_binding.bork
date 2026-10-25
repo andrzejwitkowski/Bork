@@ -1,0 +1,9 @@
+// diag: duplicate pattern binding 'a'
+enum Shape { Rect(w: i32, h: i32) }
+fun main() {
+    val s = Shape.Rect(1, 2)
+    when s {
+        Rect(a, a) => { }
+        _ => { }
+    }
+}

@@ -1,7 +1,7 @@
 //! Rewrites every type, and optionally every expression, in one function body: used to replace
 //! literal inference variables and to substitute type arguments in monomorphized instances.
 
-use super::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirStmt};
+use super::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirPat, HirPatKind, HirStmt};
 use crate::ty::TyId;
 
 /// Applies `f` to the type of every expression, declaration and presence binding in `body`.
@@ -46,6 +46,16 @@ fn block(b: &mut HirBlock, f: &mut impl FnMut(TyId) -> TyId, g: &mut impl FnMut(
     }
 }
 
+fn pat(p: &mut HirPat, f: &mut impl FnMut(TyId) -> TyId) {
+    p.ty = f(p.ty);
+    match &mut p.kind {
+        HirPatKind::Bind { binding_ty, .. } => *binding_ty = f(*binding_ty),
+        HirPatKind::Variant { fields, .. } => fields.iter_mut().for_each(|x| pat(x, f)),
+        HirPatKind::Some(inner) => pat(inner, f),
+        HirPatKind::Wildcard | HirPatKind::Lit(_) | HirPatKind::None => {}
+    }
+}
+
 fn expr(e: &mut HirExpr, f: &mut impl FnMut(TyId) -> TyId, g: &mut impl FnMut(&mut HirExpr)) {
     e.ty = f(e.ty);
     match &mut e.kind {
@@ -83,6 +93,13 @@ fn expr(e: &mut HirExpr, f: &mut impl FnMut(TyId) -> TyId, g: &mut impl FnMut(&m
             }
             block(some_block, f, g);
             none_block.iter_mut().for_each(|b| block(b, f, g));
+        }
+        HirExprKind::Match { scrutinee, arms } => {
+            expr(scrutinee, f, g);
+            for arm in arms {
+                pat(&mut arm.pat, f);
+                block(&mut arm.body, f, g);
+            }
         }
         HirExprKind::Binary { lhs, rhs, .. } => {
             expr(lhs, f, g);

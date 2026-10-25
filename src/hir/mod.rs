@@ -21,6 +21,33 @@ pub struct HirConditionalBinding {
     pub binding_ty: TyId,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirArm {
+    pub pat: HirPat,
+    pub body: HirBlock,
+}
+
+/// A checked pattern. `ty` is the type of the value it matches (the scrutinee, or a payload
+/// field instantiated at the scrutinee's type arguments); a `Bind` name has the binding mode's
+/// type in `binding_ty`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirPat {
+    pub kind: HirPatKind,
+    pub ty: TyId,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HirPatKind {
+    Wildcard,
+    /// Binds the matched value; `binding_ty` is `&ty` for a non-`Copy` payload, `ty` otherwise.
+    Bind { name: crate::span::SpannedName, binding_ty: TyId },
+    Lit(ast::PatLit),
+    Variant { enum_name: String, variant: String, index: usize, fields: Vec<HirPat> },
+    Some(Box<HirPat>),
+    None,
+}
+
 /// Non-empty presence header. See [`ast::ConditionalBindings`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirConditionalBindings {
@@ -308,6 +335,11 @@ pub enum HirExprKind {
         bindings: HirConditionalBindings,
         some_block: HirBlock,
         none_block: Option<HirBlock>,
+    },
+    /// `when` over patterns (#50). Not lowered yet: exhaustiveness is #51, codegen #53.
+    Match {
+        scrutinee: Box<HirExpr>,
+        arms: Vec<HirArm>,
     },
     Binary {
         op: ast::BinOp,

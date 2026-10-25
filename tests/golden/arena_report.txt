@@ -1380,6 +1380,17 @@ Arenas
     ├── leaf [Local]
     ├── n [Local]
     └── m [Local]
+== programs/check/enums/patterns.bork
+Arenas
+└── fun main
+    ├── s [Local]
+    ├── area [Local]
+    ├── p [Local]
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    └── MatchArm
 == programs/check/enums/shape.bork
 Arenas
 └── fun main
@@ -1704,6 +1715,34 @@ Type Error [115..116] field `v` of variant `Tree.Node` has type i32, expected St
 Arenas
 └── fun main
     └── t [Local]
+== programs/check_fail/enums/pattern_duplicate_binding.bork
+Type Error [146..147] duplicate pattern binding 'a'
+Arenas
+└── fun main
+    ├── s [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/pattern_literal_mismatch.bork
+Type Error [104..105] literal pattern has type i32, expected bool
+Arenas
+└── fun main
+    ├── b [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/pattern_unknown_variant.bork
+Type Error [142..150] enum `Shape` has no variant `Triangle`
+Arenas
+└── fun main
+    ├── s [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/pattern_wrong_arity.bork
+Type Error [142..149] variant `Shape.Rect` has 2 field(s), the pattern has 1
+Arenas
+└── fun main
+    ├── s [Local]
+    ├── MatchArm
+    └── MatchArm
 == programs/check_fail/enums/recursive_by_value.bork
 Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field
 Arenas

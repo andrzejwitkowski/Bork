@@ -8,7 +8,7 @@ use super::call::{fresh_params, CallSite};
 use super::{check, synthesize};
 
 /// A declared field type with the owner's type parameters replaced by `type_args`.
-fn instantiate_field(ty: TyId, type_args: &[TyId], owner: &str, span: Span, env: &mut Env<'_>) -> TyId {
+pub(super) fn instantiate_field(ty: TyId, type_args: &[TyId], owner: &str, span: Span, env: &mut Env<'_>) -> TyId {
     if type_args.is_empty() {
         return ty;
     }

@@ -432,6 +432,8 @@ impl<'h> Escape<'h, '_> {
                 none_block,
                 ..
             } => self.place_presence(expr, bindings, some_block, none_block.as_ref(), sink),
+            // Not lowered yet (#53); the gate rejects it before codegen.
+            HirExprKind::Match { .. } => sink.unwrap_or(self.depth),
         }
     }
 

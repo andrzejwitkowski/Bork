@@ -465,6 +465,79 @@ pub enum Expr {
         then_block: Block,
         else_block: Option<Block>,
     },
+    /// `when scrutinee { pattern => block ... }` beyond the `Some(v)` / `None` pair, which
+    /// parses to [`Expr::IfVal`].
+    Match {
+        scrutinee: Box<Expr>,
+        arms: Vec<MatchArm>,
+        span: crate::span::Span,
+    },
+}
+
+impl Expr {
+    /// `when value { arms }`. The `Some(name)` + `None` pair is the presence form and keeps its
+    /// `if val` shape, so its regions and codegen are unchanged.
+    pub fn when(value: Expr, value_span: crate::span::Span, mut arms: Vec<MatchArm>, span: crate::span::Span) -> Expr {
+        if let [MatchArm { pat: Pattern::Some { inner, .. }, .. }, MatchArm { pat: Pattern::None { .. }, .. }] = &arms[..] {
+            if let Pattern::Binding(name) = inner.as_ref() {
+                let name = name.clone();
+                let none = arms.pop().expect("two arms").body;
+                let some = arms.pop().expect("two arms").body;
+                return Expr::IfVal {
+                    bindings: ConditionalBindings { head: Box::new(ConditionalBinding { name, value, value_span }), tail: Vec::new() },
+                    then_block: some,
+                    else_block: Some(none),
+                };
+            }
+        }
+        Expr::Match { scrutinee: Box::new(value), arms, span }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchArm {
+    pub pat: Pattern,
+    pub body: Block,
+}
+
+/// A pattern; `Variant` arguments are positional, in payload order.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Pattern {
+    /// `_`
+    Wildcard { span: crate::span::Span },
+    /// `name` binds the matched value.
+    Binding(crate::span::SpannedName),
+    Literal { value: PatLit, span: crate::span::Span },
+    /// `V(p, ..)`, `E.V(p, ..)`, or a bare `V` / `E.V` for a payload-free variant.
+    Variant {
+        enum_name: Option<crate::span::SpannedName>,
+        name: crate::span::SpannedName,
+        args: Vec<Pattern>,
+        span: crate::span::Span,
+    },
+    Some { inner: Box<Pattern>, span: crate::span::Span },
+    None { span: crate::span::Span },
+}
+
+impl Pattern {
+    pub fn span(&self) -> crate::span::Span {
+        match self {
+            Pattern::Binding(name) => name.span,
+            Pattern::Wildcard { span }
+            | Pattern::Literal { span, .. }
+            | Pattern::Variant { span, .. }
+            | Pattern::Some { span, .. }
+            | Pattern::None { span } => *span,
+        }
+    }
+}
+
+/// shortcut: no negative or float literal patterns, add when a ticket needs them.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PatLit {
+    Int(i64),
+    Bool(bool),
+    Str(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]

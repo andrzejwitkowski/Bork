@@ -13,7 +13,7 @@ use crate::span::{AstId, Span, SpannedName};
 use crate::typeck::MemberRef;
 
 mod branches;
-use branches::{walk_if, walk_if_val};
+use branches::{walk_if, walk_if_val, walk_match};
 
 pub(super) fn open_ordinary(
     az: &mut Analyzer,
@@ -394,6 +394,7 @@ fn walk(
             then_block,
             else_block,
         } => walk_if_val(az, bindings, then_block, else_block.as_ref(), node, transfer, record_borrow),
+        Expr::Match { scrutinee, arms, .. } => walk_match(az, scrutinee, arms, node, transfer, record_borrow),
         Expr::Float(_) | Expr::Int(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
 }

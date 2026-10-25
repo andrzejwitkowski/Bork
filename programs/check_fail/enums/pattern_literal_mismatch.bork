@@ -1,0 +1,8 @@
+// diag: literal pattern has type i32, expected bool
+fun main() {
+    val b = true
+    when b {
+        1 => { }
+        _ => { }
+    }
+}
