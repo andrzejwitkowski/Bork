@@ -269,7 +269,7 @@ Ramię 2 wchodzi w gałąź <span class="an">Yes</span>, a potem w obie odpowied
   <tr><td>lista wszystkich wariantów typu, by wiedzieć, czy któregoś brakuje</td><td><code>Sig</code> (<code>Enum</code>, <code>Option</code>, <code>Bool</code>, <code>Infinite</code>)</td></tr>
 </table>
 <p>Przepływ jest taki: typeck sprawdził wzorce (#50), <code>check_coverage</code> zamienia je na proste <code>Pat</code>, odpala algorytm i zgłasza błędy. Stare <code>when</code> z parą <code>Some(x)</code> + <code>None</code> idzie inną ścieżką (<code>if val</code>) i tego sprawdzenia nie potrzebuje.</p>
-<p><b>Skąd wiemy, że działa?</b> Obok zwykłych testów jest test, który losuje 2000 zestawów ramion dla malutkiego typu i porównuje wynik algorytmu z metodą „z kartką” z sekcji 2 (wypisanie wszystkich wartości). Muszą się zgadzać za każdym razem.</p>
+<p><b>Skąd wiemy, że działa?</b> Obok zwykłych testów jest test, który generuje 2000 zestawów ramion dla malutkiego typu (ze stałym ziarnem, więc przy każdym uruchomieniu te same, a porażka powtarza się za każdym razem) i porównuje wynik algorytmu z metodą „z kartką” z sekcji 2 (wypisanie wszystkich wartości). Muszą się zgadzać za każdym razem.</p>
 
 <h2 id="limits">8. Granice</h2>
 <ul>
@@ -349,7 +349,7 @@ const QUESTIONS = [
       "Bo algorytm nie działa dla większych typów."
     ],
     a: 1,
-    fb: "Wypisanie wartości jest wolne, ale trudno w nim się pomylić. Sprytny algorytm jest szybki, ale łatwo o błąd w szczególnym przypadku. Porównanie na 2000 losowych zestawów łapie takie błędy."
+    fb: "Wypisanie wartości jest wolne, ale trudno w nim się pomylić. Sprytny algorytm jest szybki, ale łatwo o błąd w szczególnym przypadku. Porównanie na 2000 wygenerowanych zestawów łapie takie błędy."
   }
 ];
 let answered = 0, correct = 0;
