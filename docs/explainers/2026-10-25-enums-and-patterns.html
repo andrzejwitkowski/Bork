@@ -240,12 +240,12 @@ const QUESTIONS = [
       "Wywoła panikę w generatorze kodu."
     ],
     a: 1,
-    fb: "#50 jest czysto frontendowy. Bramka odrzuca zarówno typ enuma (#49/#52), jak i sam węzeł `Match` (#53). Dodano też gałąź w `codegen/llvm/expr.rs`, która zwraca „not yet supported", żeby nie było paniki ani niezgodności w `match` po `HirExprKind`."
+    fb: "#50 jest czysto frontendowy. Bramka odrzuca zarówno typ enuma (#49/#52), jak i sam węzeł `Match` (#53). Dodano też gałąź w `codegen/llvm/expr.rs`, która zwraca „not yet supported”, żeby nie było paniki ani niezgodności w `match` po `HirExprKind`."
   },
   {
     q: "Wzorzec `Rect(w)` na wariancie `Rect(w: i32, h: i32)` jest błędem. Dlaczego typeck mimo to sprawdza jego podwzorce względem typu błędu?",
     opts: [
-      "Żeby zadeklarować wiązane nazwy, dzięki czemu ciało ramienia nie sypie fałszywymi błędami „nieznana zmienna".",
+      "Żeby zadeklarować wiązane nazwy, dzięki czemu ciało ramienia nie sypie fałszywymi błędami „nieznana zmienna”.",
       "Bo kolejność sprawdzania podwzorców zmienia typ całego `when`.",
       "Bo błąd arności jest zgłaszany dopiero po sprawdzeniu podwzorców.",
       "Bo typ błędu pozwala pominąć sprawdzanie ciała ramienia."
