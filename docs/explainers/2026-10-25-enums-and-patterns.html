@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: enumy i wzorce w <code>when</code> (#49, #50)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfbf8; --card:#fff; --line:#dcdfe6; --acc:#2f5fd0; --ok:#1f8a4c; --bad:#c0392b; --warn:#b7791f; --code:#f3f4f8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2rem; line-height:1.2; margin: .6em 0 .2em; }
+  h2 { font-size: 1.5rem; margin-top: 2.4em; border-bottom: 2px solid var(--line); padding-bottom: .2em; }
+  h3 { font-size: 1.15rem; margin-top: 1.8em; }
+  .sub { color: var(--muted); }
+  nav.toc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: 10px 20px; margin: 22px 0; }
+  nav.toc ol { margin: .3em 0; padding-left: 1.2em; }
+  a { color: var(--acc); }
+  code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .88em; }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code); border:1px solid var(--line); border-radius:8px; padding: 12px 14px; overflow-x:auto; white-space: pre; line-height:1.5; }
+  pre code { background:none; padding:0; }
+  .callout { border-left: 4px solid var(--acc); background:#eef3ff; padding: 10px 16px; border-radius: 6px; margin: 1.2em 0; }
+  .callout.warn { border-color: var(--warn); background:#fff6e5; }
+  .callout.key { border-color: var(--ok); background:#eaf7ef; }
+  .callout b.t { display:block; font-family: system-ui, sans-serif; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
+  details.skip { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: 8px 18px; margin: 1em 0; }
+  details.skip summary { cursor:pointer; font-family: system-ui, sans-serif; font-weight:600; }
+  /* diagram family 1: pipeline */
+  .pipe { display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; margin: 1.2em 0; font-family: system-ui, sans-serif; font-size:.82rem; }
+  .stage { flex:1 1 120px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; position:relative; }
+  .stage b { display:block; font-size:.9rem; }
+  .stage small { color:var(--muted); display:block; margin-top:2px; }
+  .stage.touched { border-color: var(--acc); background:#eef3ff; box-shadow: 0 0 0 2px #cfdcff; }
+  .stage.new { border-color: var(--ok); background:#eaf7ef; box-shadow: 0 0 0 2px #bfe6cc; }
+  .stage.gate { border-color: var(--bad); background:#fdeeee; }
+  .arrow { align-self:center; color:var(--muted); font-size:1.2rem; }
+  .legend { font-family: system-ui, sans-serif; font-size:.8rem; color:var(--muted); }
+  .legend span { display:inline-block; width:12px; height:12px; border-radius:3px; margin: 0 4px 0 12px; vertical-align:-1px; border:1px solid var(--line); }
+  /* diagram family 2: tree boxes */
+  .tree { font-family: system-ui, sans-serif; font-size:.85rem; display:flex; flex-direction:column; align-items:center; gap:6px; margin: 1.2em 0; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .node { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:6px 10px; text-align:center; }
+  .node.hot { border-color: var(--acc); background:#eef3ff; }
+  .node.ok { border-color: var(--ok); background:#eaf7ef; }
+  .node.bad { border-color: var(--bad); background:#fdeeee; }
+  .vline { width:2px; height:14px; background:var(--line); }
+  table.t { border-collapse:collapse; width:100%; font-family: system-ui, sans-serif; font-size:.88rem; margin:1em 0; }
+  table.t th, table.t td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
+  table.t th { background:var(--code); }
+  /* quiz */
+  .q { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: 14px 18px; margin: 1.4em 0; }
+  .q h3 { margin-top:0; }
+  .opt { display:block; width:100%; text-align:left; font: inherit; font-size:.95rem; padding: 8px 12px; margin: 6px 0; background:var(--bg); border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .opt:hover:not(:disabled) { border-color: var(--acc); }
+  .opt.right { border-color: var(--ok); background:#eaf7ef; }
+  .opt.wrong { border-color: var(--bad); background:#fdeeee; }
+  .fb { display:none; margin-top:8px; font-size:.93rem; padding: 8px 12px; border-radius:6px; background:var(--code); }
+  #score { font-family: system-ui, sans-serif; font-weight:600; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Enumy i wzorce w Borku</h1>
+<p class="sub">Przewodnik po zmianach #49 (enumy: składnia, typy, konstrukcja wariantów) i #50 (wzorce w <code>when</code>), razem z mapą tego, jak jest podzielony kompilator.</p>
+
+<nav class="toc">
+  <b>Spis treści</b>
+  <ol>
+    <li><a href="#background">Tło: jak działa kompilator Borka</a></li>
+    <li><a href="#intuition">Intuicja: czym jest wzorzec i czemu nie wystarczy <code>if val</code></a></li>
+    <li><a href="#code">Kod: co dokładnie się zmieniło</a></li>
+    <li><a href="#next">Co dalej: #51–#53 i metody na enumach</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">1. Tło</h2>
+
+<details class="skip" open>
+<summary>Dla początkujących: z czego składa się kompilator (można pominąć)</summary>
+<p>Kompilator to ciąg przekształceń. Każdy etap bierze strukturę zbudowaną przez poprzedni i albo ją wzbogaca, albo tłumaczy na bardziej „maszynową". Dzięki temu każdy etap odpowiada na jedno pytanie: <em>czy to w ogóle jest poprawny tekst?</em>, <em>czy typy się zgadzają?</em>, <em>kto jest właścicielem pamięci?</em>, <em>jak to zamienić na instrukcje procesora?</em></p>
+<p>Dwie struktury są ważne dla dalszej lektury. <b>AST</b> (drzewo składniowe) odzwierciedla to, co użytkownik napisał: <code>when s { ... }</code> to węzeł z wartością i listą ramion. <b>HIR</b> (high-level IR) to to samo drzewo po sprawdzeniu typów: każdy węzeł niesie już swój typ, a nazwy są rozwiązane. Etapy późniejsze, takie jak generator kodu LLVM, czytają HIR, a nie AST.</p>
+<p>Z tego wynika praktyczna reguła, która rządzi całym tym PR-em: <b>nowy rodzaj węzła trzeba obsłużyć w każdym etapie, który przechodzi po drzewie</b>. Rust pomaga, bo <code>match</code> bez wszystkich wariantów się nie skompiluje. Stąd liczba plików w diffie.</p>
+</details>
+
+<h3>Potok Borka</h3>
+<p>Bork ma klasy, <code>Ref&lt;T&gt;</code> (zarządzany uchwyt), generyki i arena-based zarządzanie pamięcią. Funkcja <code>frontend::check</code> spina część analityczną; <code>bork build</code> dokłada generowanie kodu. Kolory poniżej pokazują, co ruszyły #49 i #50.</p>
+
+<div class="pipe">
+  <div class="stage touched"><b>Parser</b><small>parser.lalrpop (LALRPOP) → <code>ast.rs</code></small></div><span class="arrow">→</span>
+  <div class="stage touched"><b>Numeracja</b><small><code>ast_number.rs</code>: każdy węzeł dostaje <code>AstId</code></small></div><span class="arrow">→</span>
+  <div class="stage touched"><b>DefTable</b><small><code>defs.rs</code>: klasy, funkcje, enumy, warianty</small></div><span class="arrow">→</span>
+  <div class="stage new"><b>Typeck</b><small><code>typeck/</code>: typy → HIR</small></div>
+</div>
+<div class="pipe">
+  <div class="stage touched"><b>Sema</b><small><code>sema/</code>: własność i regiony areny (na AST)</small></div><span class="arrow">→</span>
+  <div class="stage touched"><b>Analizy HIR</b><small><code>escape</code>, <code>memory</code>, <code>region_walk</code>, <code>mono</code></small></div><span class="arrow">→</span>
+  <div class="stage gate"><b>codegen_gate</b><small>odrzuca to, czego backend jeszcze nie umie</small></div><span class="arrow">→</span>
+  <div class="stage"><b>LLVM</b><small><code>codegen/llvm/</code></small></div>
+</div>
+<p class="legend"><span style="background:#eef3ff;border-color:#2f5fd0"></span>ruszone w #49/#50 <span style="background:#eaf7ef;border-color:#1f8a4c"></span>główna nowa logika <span style="background:#fdeeee;border-color:#c0392b"></span>bramka, która blokuje enumy do #52</p>
+
+<h3>Co już było: <code>when</code> i <code>if val</code></h3>
+<p><code>Ref&lt;T&gt;</code> może być żywy albo pusty (<code>None</code>). Żeby dostać się do pola, trzeba najpierw sprawdzić obecność:</p>
+<pre><code>when r {
+    Some(n) =&gt; { n.name }
+    None    =&gt; { "root" }
+}</code></pre>
+<p>Parser traktował to jako lukier na <code>if val n = r { ... } else { ... }</code>. Cała reszta kompilatora zna tylko <code>if val</code>: typeck produkuje <code>HirExprKind::PresenceMatch</code>, sema otwiera regiony <code>IfValSome</code> i <code>IfValNone</code>, a codegen potrafi je wyemitować. <code>when</code> był więc w praktyce „dwuramienną" konstrukcją, bez wzorców.</p>
+
+<h3>Co dołożył #49: enumy</h3>
+<p>Enum to typ, którego wartość jest <em>jednym z kilku wariantów</em>, każdy z własnym ładunkiem (<em>payload</em>):</p>
+<pre><code>enum Shape { Circle(r: f64), Rect(w: i32, h: i32), Empty }
+
+val a = Shape.Circle(1.0)
+val b = Shape.Empty</code></pre>
+<p>#49 dodał: węzły <code>Enum</code> i <code>Variant</code> w AST; <code>DefKind::Enum</code> i <code>DefKind::Variant</code> w <code>DefTable</code> (z kolizjami nazw); <code>TyData::Enum(def, args)</code> w systemie typów, obok <code>TyData::Class</code>; sprawdzanie ładunków (także generycznych) i <code>HirExprKind::EnumConstruct</code>. Dodał też bramkę: backend jeszcze nie ma układu pamięci enuma, więc <code>codegen_gate</code> odrzuca każdy typ, który wspomina enum.</p>
+<div class="callout warn"><b class="t">Luka po #49</b>Można było enum <em>zbudować</em>, ale nie dało się go <em>rozebrać</em>. Nie istniał żaden sposób, by z <code>Shape</code> wyciągnąć <code>r</code>. To jest dokładnie luka, którą zamyka #50.</div>
+
+<h2 id="intuition">2. Intuicja</h2>
+
+<p>Wzorzec to <em>opis kształtu wartości</em> z dziurami, w które wpadają nazwy. Dopasowanie robi dwie rzeczy naraz: sprawdza, czy wartość ma ten kształt, i nazywa jej części.</p>
+
+<div class="tree">
+  <div class="node hot"><b>val s = Shape.Rect(2, 3)</b></div>
+  <div class="vline"></div>
+  <div class="row">
+    <div class="node bad">Circle(r)<br><small>kształt się nie zgadza</small></div>
+    <div class="node ok">Rect(w, h)<br><small>pasuje: w = 2, h = 3</small></div>
+    <div class="node">Empty<br><small>nie sprawdzane</small></div>
+  </div>
+</div>
+<p>Pierwsze pasujące ramię wygrywa. Wzorce zagnieżdżają się: <code>Both(Empty, Circle(r))</code> dopasowuje parę, w której pierwszy element to <code>Empty</code>, a drugi to koło. Są też: <code>_</code> (pasuje do wszystkiego, nic nie nazywa), literały (<code>1</code>, <code>true</code>, <code>"x"</code>) oraz <code>Some(p)</code> i <code>None</code>.</p>
+
+<h3>Problem: kto jest właścicielem ładunku?</h3>
+<p>W języku z areną pamięci „nazwanie części" nie jest niewinne. Gdyby <code>p</code> w <code>A(p)</code> <em>przeniosło</em> klasę <code>P</code> z <code>e</code>, to po <code>when</code> zmienna <code>e</code> byłaby w połowie wypatroszona. #50 wybiera najprostszą bezpieczną regułę:</p>
+<div class="callout key"><b class="t">Tryb wiązania</b>
+<ul>
+  <li>Wartość <b>nazwana</b> (zmienna, pole, <code>this</code>) albo <code>&amp;T</code> → nazwa jest <b>pożyczką</b> <code>&amp;T</code>. Nic nie wychodzi z oryginału.</li>
+  <li>Wyjątek: skalary <code>Copy</code> (liczby, <code>bool</code>) wiążą się przez wartość: kopiowanie jest tanie i nie ma czego pożyczać.</li>
+  <li>Wartość <b>tymczasowa</b> (wynik wywołania) → nazwa ją <b>przejmuje</b>.</li>
+</ul></div>
+<table class="t">
+  <tr><th>Kod</th><th>Typ nazwy</th><th>Dlaczego</th></tr>
+  <tr><td><code>when e { A(p) =&gt; .. }</code>, <code>p: P</code> (klasa)</td><td><code>&amp;P</code></td><td><code>e</code> jest zmienną, a <code>P</code> nie jest <code>Copy</code></td></tr>
+  <tr><td><code>when e { B(n) =&gt; .. }</code>, <code>n: i32</code></td><td><code>i32</code></td><td>skalar <code>Copy</code></td></tr>
+  <tr><td><code>when make() { A(p) =&gt; .. }</code></td><td><code>P</code></td><td>tymczasowa wartość, nikt inny jej nie trzyma</td></tr>
+</table>
+
+<h3>Stare <code>when</code> musi działać tak samo</h3>
+<p>Kryterium akceptacji #50 mówi: wszystkie istniejące programy z <code>when</code> mają się nie zmienić. Najtańszy sposób, żeby to zagwarantować, to <em>nie dotykać</em> ich ścieżki. Parser rozpoznaje dokładnie parę <code>Some(nazwa)</code> + <code>None</code> i produkuje ten sam <code>IfVal</code> co dawniej. Wszystko inne trafia do nowego węzła <code>Match</code>.</p>
+<div class="tree">
+  <div class="node hot">when &lt;wartość&gt; { ramiona }</div>
+  <div class="vline"></div>
+  <div class="row">
+    <div class="node ok"><b>Some(x) + None</b><br>→ <code>Expr::IfVal</code><br><small>stare regiony, stary codegen</small></div>
+    <div class="node hot"><b>cokolwiek innego</b><br>→ <code>Expr::Match</code><br><small>nowe: wzorce, typeck, HIR</small></div>
+  </div>
+</div>
+
+<h2 id="code">3. Kod</h2>
+
+<h3>Krok 1: składnia (<code>ast.rs</code>, <code>parser.lalrpop</code>, <code>ast_number.rs</code>)</h3>
+<p>Nowe typy: <code>Pattern</code> (<code>Wildcard</code>, <code>Binding</code>, <code>Literal</code>, <code>Variant</code>, <code>Some</code>, <code>None</code>), <code>MatchArm { pat, body }</code> i <code>Expr::Match</code>. Reguła <code>WhenExpr</code> w gramatyce zbiera teraz dowolną listę ramion <code>wzorzec =&gt; { blok }</code>, a rozstrzygnięcie „czy to stara para" robi funkcja <code>Expr::when</code> już po sparsowaniu. To świadomy wybór: rozróżnianie dwóch kształtów w samej gramatyce LALR groziłoby konfliktami. <code>ast_number.rs</code> przydziela <code>AstId</code> nazwom we wzorcach, bo typeck zapisuje pod nimi typ wiązania (potrzebny np. do podpowiedzi w edytorze).</p>
+
+<h3>Krok 2: HIR (<code>hir/mod.rs</code>, <code>number.rs</code>, <code>resolve.rs</code>)</h3>
+<pre><code>HirExprKind::Match { scrutinee, arms: Vec&lt;HirArm&gt; }
+HirArm { pat: HirPat, body: HirBlock }
+HirPat { kind, ty, span }
+HirPatKind = Wildcard | Bind { name, binding_ty } | Lit(..)
+           | Variant { enum_name, variant, index, fields } | Some(..) | None</code></pre>
+<p>Zwróć uwagę, że <code>HirPatKind::Variant</code> przechowuje <code>index</code> wariantu. Dzięki temu #51 (kompletność) i #53 (lowering) nie muszą szukać wariantu po nazwie. <code>resolve.rs</code> przepisuje typy w całym drzewie (np. po podstawieniu argumentów generyków), więc wzorce muszą w tym uczestniczyć.</p>
+
+<h3>Krok 3: typeck (<code>typeck/expr/pat.rs</code>, <code>control.rs::check_match</code>)</h3>
+<p>Sedno PR-a. <code>check_match</code> sprawdza wartość, ustala, czy wiązać przez pożyczkę (czy to miejsce lub <code>&amp;T</code>), a potem dla każdego ramienia otwiera zakres, woła <code>check_pat</code> i sprawdza ciało. <code>check_pat</code> jest rekurencyjne i dostaje <em>oczekiwany typ</em>: dla zagnieżdżonych wzorców to typ pola ładunku <em>po podstawieniu argumentów generycznych</em>.</p>
+<pre><code>enum Box&lt;T&gt; { Full(v: T), Empty }
+val b = Box.Full(3)            // Box&lt;i32&gt;
+when b { Full(v) =&gt; { v + 1 } ... }
+//        ^ pole ma typ T → po podstawieniu i32, więc v: i32</code></pre>
+<p>Błędy, które łapie: nieznany wariant, wariant z innego enuma, zła liczba pól, powtórzona nazwa we wzorcu, literał złego typu, wzorzec wariantu na wartości, która nie jest enumem, oraz ramiona o różnych typach, gdy <code>when</code> jest używane jako wartość. Gdy wzorzec jest zepsuty, jego podwzorce i tak są sprawdzane względem typu błędu: nazwy zostają zadeklarowane, więc ciało ramienia nie sypie lawiną fałszywych „nieznana zmienna".</p>
+<div class="callout"><b class="t">Drobna decyzja</b>Goła nazwa, która pisze się jak wariant bez ładunku matchowanego enuma (<code>Empty</code>), jest tym wariantem. Każda inna goła nazwa jest wiązaniem. Wadą jest literówka: <code>Emtpy</code> po cichu staje się wiązaniem łapiącym wszystko. Dlatego #51 powinno ostrzec przed nieosiągalnymi ramionami.</div>
+
+<h3>Krok 4: reszta kompilatora (żeby kod się składał)</h3>
+<table class="t">
+  <tr><th>Plik</th><th>Co robi z <code>Match</code></th></tr>
+  <tr><td><code>sema/walk/branches.rs</code>, <code>sema/free_vars.rs</code></td><td>Każde ramię to zwykły region <code>MatchArm</code>; nazwy z wzorca są „związane" przy liczeniu zmiennych wolnych.</td></tr>
+  <tr><td><code>region_walk.rs</code></td><td>Nowy <code>RegionSite::MatchArm</code>; przechodzi po wartości i ramionach.</td></tr>
+  <tr><td><code>escape.rs</code>, <code>memory.rs</code></td><td>Zachowawcze przejście przez ramiona. Brak własnej logiki własności ładunku (to #53).</td></tr>
+  <tr><td><code>codegen_gate.rs</code>, <code>codegen/llvm/expr.rs</code></td><td>Odrzucenie z czytelnym komunikatem: <em>`when` over patterns is not supported by codegen yet</em>.</td></tr>
+</table>
+
+<h3>Testy i dokumentacja</h3>
+<p>14 testów w <code>typeck/tests/patterns.rs</code> (m.in. test, że para <code>Some</code>/<code>None</code> nadal daje <code>PresenceMatch</code>, oraz test trybu wiązania sprawdzający, że <code>p</code> ma typ <code>&amp;P</code>, a <code>n</code> typ <code>i32</code>), jeden program w <code>programs/check/enums/</code>, cztery w <code>programs/check_fail/enums/</code> i odświeżone migawki. <code>docs/language.md</code> opisuje składnię i tryb wiązania.</p>
+
+<h2 id="next">4. Co dalej</h2>
+<ul>
+  <li><b>#51 Kompletność:</b> algorytm Maranget'a nad <code>HirPat</code>; zastępuje specjalny przypadek Some/None; brakujące warianty z kontrprzykładami.</li>
+  <li><b>#52 Układ enuma w pamięci:</b> znacznik + unia ładunków, konstrukcja, drop aktywnego wariantu. Dopiero to pozwoli zdjąć bramkę.</li>
+  <li><b>#53 Lowering matchy:</b> drzewo decyzyjne, regiony dla wiązań, przenoszenie lub pożyczanie ładunku. Tu wraca decyzja o trybie wiązania z #50.</li>
+  <li><b>Metody na enumach</b> (styl Kotlin/Java): nie ma ich ani w #49, ani w #50. Parser enuma przyjmuje dziś tylko warianty, a <code>check_method_call</code> wymaga klasy. Metoda dostaje <code>this: &amp;Enum</code>, więc <code>when this { ... }</code> działa dzięki trybowi wiązania z #50: <code>this</code> jest nazwą, więc ładunki wiążą się przez pożyczkę.</li>
+</ul>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, by zobaczyć, czy była dobra, i dlaczego. <span id="score"></span></p>
+<div id="quiz"></div>
+
+</main>
+<script>
+const QUESTIONS = [
+  {
+    q: "Dlaczego `when r { Some(n) => .., None => .. }` nadal jest zamieniane na `Expr::IfVal`, a nie na nowy `Expr::Match`?",
+    opts: [
+      "Bo `Match` nie umie obsłużyć `Some` ani `None`.",
+      "Żeby regiony areny, analizy i codegen dla `if val` zostały nietknięte, a stare programy działały dokładnie tak samo.",
+      "Bo parser LALR nie potrafi odróżnić dwóch kształtów `when`.",
+      "Bo `IfVal` jest szybszy w czasie wykonania."
+    ],
+    a: 1,
+    fb: "Kryterium akceptacji mówi, że istniejące `when` mają się nie zmienić. Najtańsza gwarancja to nie ruszać ich ścieżki. `Match` obsługuje `Some`/`None` (to poprawne wzorce), a rozróżnienie robi funkcja `Expr::when` po parsowaniu, a nie sama gramatyka."
+  },
+  {
+    q: "Mamy `val e = E.A(P(1))`, gdzie `A(p: P)`, `P` to klasa, a `B(n: i32)`. Jakie typy mają nazwy w `when e { A(p) => .., B(n) => .. }`?",
+    opts: [
+      "`p: P`, `n: i32`: oba przejmują wartość.",
+      "`p: &P`, `n: &i32`: oba są pożyczkami.",
+      "`p: &P`, `n: i32`: `e` jest nazwaną wartością, więc klasa jest pożyczana, a skalar `Copy` kopiowany.",
+      "`p: Ref<P>`, `n: i32`."
+    ],
+    a: 2,
+    fb: "Nad wartością nazwaną nic nie jest przenoszone, więc nie-`Copy` ładunek wiąże się jako `&T`. Skalary `Copy` (liczby, `bool`) wiążą się przez wartość, bo pożyczanie ich nic by nie dało. Dopiero tymczasowa wartość (np. wynik wywołania) pozwala nazwie przejąć ładunek."
+  },
+  {
+    q: "Program z enumem i `when` po wariantach przechodzi `bork check`. Co zrobi `bork build`?",
+    opts: [
+      "Skompiluje go, bo `Match` ma już ścieżkę w LLVM.",
+      "Odrzuci go w `codegen_gate` z komunikatem, że `when` po wzorcach i enumy nie są jeszcze wspierane (do czasu #52/#53).",
+      "Zamieni `Match` na łańcuch `if` i skompiluje.",
+      "Wywoła panikę w generatorze kodu."
+    ],
+    a: 1,
+    fb: "#50 jest czysto frontendowy. Bramka odrzuca zarówno typ enuma (#49/#52), jak i sam węzeł `Match` (#53). Dodano też gałąź w `codegen/llvm/expr.rs`, która zwraca „not yet supported", żeby nie było paniki ani niezgodności w `match` po `HirExprKind`."
+  },
+  {
+    q: "Wzorzec `Rect(w)` na wariancie `Rect(w: i32, h: i32)` jest błędem. Dlaczego typeck mimo to sprawdza jego podwzorce względem typu błędu?",
+    opts: [
+      "Żeby zadeklarować wiązane nazwy, dzięki czemu ciało ramienia nie sypie fałszywymi błędami „nieznana zmienna".",
+      "Bo kolejność sprawdzania podwzorców zmienia typ całego `when`.",
+      "Bo błąd arności jest zgłaszany dopiero po sprawdzeniu podwzorców.",
+      "Bo typ błędu pozwala pominąć sprawdzanie ciała ramienia."
+    ],
+    a: 0,
+    fb: "Zepsuty wzorzec nadal ma nazwy, których ciało ramienia używa. Bez ich zadeklarowania jeden błąd zamieniłby się w lawinę. Typ błędu (`unknown`) wycisza kolejne niezgodności. Ciało ramienia jest sprawdzane normalnie."
+  },
+  {
+    q: "W `when s { Empty => .., other => .. }`, gdzie `s: Shape` i `Shape` ma wariant `Empty` bez ładunku, czym jest `Empty`, a czym `other`?",
+    opts: [
+      "Oba są wiązaniami; `Empty` to po prostu zła nazwa zmiennej.",
+      "`Empty` to wariant bez ładunku, a `other` to wiązanie łapiące resztę.",
+      "`Empty` to błąd, bo warianty trzeba kwalifikować nazwą enuma.",
+      "Oba są wariantami."
+    ],
+    a: 1,
+    fb: "Goła nazwa równa nazwie wariantu bez ładunku matchowanego enuma jest tym wariantem; każda inna jest wiązaniem. Cena: literówka w nazwie wariantu cicho staje się wiązaniem, które łapie wszystko. Dlatego sprawdzanie nieosiągalnych ramion w #51 jest ważne."
+  }
+];
+let answered = 0, correct = 0;
+const root = document.getElementById("quiz");
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/`([^`]+)`/g,"<code>$1</code>");
+QUESTIONS.forEach((item, qi) => {
+  const box = document.createElement("div");
+  box.className = "q";
+  box.innerHTML = `<h3>Pytanie ${qi+1}</h3><p>${esc(item.q)}</p>`;
+  const fb = document.createElement("div");
+  fb.className = "fb";
+  const buttons = item.opts.map((text, oi) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.innerHTML = esc(text);
+    b.onclick = () => {
+      buttons.forEach(x => x.disabled = true);
+      const ok = oi === item.a;
+      b.classList.add(ok ? "right" : "wrong");
+      if (!ok) buttons[item.a].classList.add("right");
+      fb.style.display = "block";
+      fb.innerHTML = (ok ? "<b>Dobrze.</b> " : "<b>Nie do końca.</b> ") + esc(item.fb);
+      answered++; if (ok) correct++;
+      document.getElementById("score").textContent = `Wynik: ${correct}/${answered}`;
+    };
+    box.appendChild(b);
+    return b;
+  });
+  box.appendChild(fb);
+  root.appendChild(box);
+});
+</script>
+</body>
+</html>
