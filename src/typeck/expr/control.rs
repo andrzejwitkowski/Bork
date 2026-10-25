@@ -116,7 +116,9 @@ pub(super) fn check_match(
     env: &mut Env<'_>,
 ) -> Checked {
     let mut pattern_errors = 0;
+    let scrutinee_start = env.diagnostics.len();
     let scrutinee_hir = synthesize(scrutinee, return_ty, env);
+    let scrutinee_errors = env.diagnostics.len() - scrutinee_start;
     let by_borrow = super::method::is_place(scrutinee) || env.tcx.is_ref(scrutinee_hir.ty);
     let ty = env.tcx.deref_ty(scrutinee_hir.ty);
     let mut checked_arms = Vec::with_capacity(arms.len());
@@ -138,7 +140,7 @@ pub(super) fn check_match(
         checked_arms.push(HirArm { pat, body });
     }
     // A broken pattern or an already-unknown scrutinee would only cascade into bogus coverage errors.
-    if pattern_errors == 0 && !env.tcx.is_unknown(ty) {
+    if scrutinee_errors == 0 && pattern_errors == 0 && !env.tcx.is_unknown(ty) {
         super::pat::check_coverage(&checked_arms, arms, span, env);
     }
     let result_ty = if expected.is_some() { result_ty.expect("a `when` has an arm") } else { env.tcx.unit() };

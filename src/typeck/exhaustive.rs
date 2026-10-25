@@ -265,6 +265,10 @@ mod tests {
 
     // Property test: compare against brute force over `Option<E>`, a type small enough to
     // enumerate (E = A | B(bool) | C(bool, bool) has 7 values, so 8 in all).
+    // Not random between runs: `Lcg` is a fixed-seed generator, so every run sees the same cases
+    // in the same order and a failure reproduces exactly; the message names the case index.
+    const SEED: u64 = 7;
+
     struct Lcg(u64);
 
     impl Lcg {
@@ -325,15 +329,15 @@ mod tests {
     fn agrees_with_brute_force() {
         let values = all_values();
         assert_eq!(values.len(), 8);
-        let mut g = Lcg(7);
-        for _ in 0..2000 {
+        let mut g = Lcg(SEED);
+        for case in 0..2000 {
             let pats: Vec<Pat> = (0..1 + g.next(5)).map(|_| gen_pat(&mut g)).collect();
             let matrix = rows(pats.clone());
             let covered = values.iter().all(|value| pats.iter().any(|p| matches(p, value)));
-            assert_eq!(witnesses(&matrix, 1).is_empty(), covered, "{pats:?}");
+            assert_eq!(witnesses(&matrix, 1).is_empty(), covered, "seed {SEED} case {case}: {pats:?}");
             for i in 0..pats.len() {
                 let reaches = values.iter().any(|value| matches(&pats[i], value) && !pats[..i].iter().any(|p| matches(p, value)));
-                assert_eq!(useful(&matrix[..i], &matrix[i]), reaches, "arm {i} of {pats:?}");
+                assert_eq!(useful(&matrix[..i], &matrix[i]), reaches, "seed {SEED} case {case} arm {i}: {pats:?}");
             }
         }
     }

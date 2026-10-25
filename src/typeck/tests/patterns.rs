@@ -173,3 +173,10 @@ fn no_coverage_error_on_an_unknown_scrutinee() {
     let all = messages("fun main() {\n    val x = nope()\n    when x {\n        1 => { }\n    }\n}\n");
     assert!(!all.iter().any(|m| m.contains("non-exhaustive")), "{all:?}");
 }
+
+#[test]
+fn no_coverage_error_when_the_scrutinee_itself_has_an_error() {
+    let all = messages("const N: i64 = 1\nfun main() {\n    when (move N) {\n        1 => { }\n    }\n}\n");
+    assert!(all.iter().any(|m| m.contains("constant")), "{all:?}");
+    assert!(!all.iter().any(|m| m.contains("non-exhaustive")), "{all:?}");
+}
