@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bork: kompletność wzorców i algorytm Maranget'a (#51)</title>
+<title>Bork: jak kompilator sprawdza, czy when pokrywa wszystko (#51)</title>
 <style>
   :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfbf8; --card:#fff; --line:#dcdfe6; --acc:#2f5fd0; --ok:#1f8a4c; --bad:#c0392b; --warn:#b7791f; --code:#f3f4f8; }
   * { box-sizing: border-box; }
@@ -24,30 +24,23 @@
   .callout.warn { border-color: var(--warn); background:#fff6e5; }
   .callout.key { border-color: var(--ok); background:#eaf7ef; }
   .callout b.t { display:block; font-family: system-ui, sans-serif; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
-  details.skip { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: 8px 18px; margin: 1em 0; }
-  details.skip summary { cursor:pointer; font-family: system-ui, sans-serif; font-weight:600; }
-  /* diagram family: pattern matrices */
-  .mx { display:inline-block; vertical-align:top; margin: 6px 10px 6px 0; font-family: system-ui, sans-serif; font-size:.85rem; }
-  .mx .cap { color:var(--muted); font-size:.75rem; margin-bottom:2px; }
-  .mx table { border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:6px; }
-  .mx td { border:1px solid var(--line); padding:4px 10px; font-family: ui-monospace, Menlo, monospace; }
-  .mx td.hit { background:#eaf7ef; }
-  .mx td.miss { background:#fdeeee; }
-  .mx td.dim { color:#9aa1b0; }
-  .mx.out table { border-color: var(--ok); }
-  .mx.bad table { border-color: var(--bad); }
-  .step { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 16px; margin: 1em 0; }
-  .step > b { font-family: system-ui, sans-serif; font-size:.8rem; letter-spacing:.05em; text-transform:uppercase; color:var(--acc); }
-  .pipe { display:flex; flex-wrap:wrap; gap:8px; margin: 1.2em 0; font-family: system-ui, sans-serif; font-size:.82rem; }
-  .stage { flex:1 1 140px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
-  .stage b { display:block; font-size:.9rem; }
-  .stage small { color:var(--muted); }
-  .stage.new { border-color: var(--ok); background:#eaf7ef; box-shadow: 0 0 0 2px #bfe6cc; }
-  .stage.touched { border-color: var(--acc); background:#eef3ff; }
-  .arrow { align-self:center; color:var(--muted); }
+  /* diagram family 1: table of all values */
   table.t { border-collapse:collapse; width:100%; font-family: system-ui, sans-serif; font-size:.88rem; margin:1em 0; }
   table.t th, table.t td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
   table.t th { background:var(--code); }
+  table.t td.yes { background:#eaf7ef; }
+  table.t td.no { background:#fdeeee; font-weight:600; }
+  td code { white-space: nowrap; }
+  /* diagram family 2: question tree */
+  ul.tree { list-style:none; margin:.4em 0; padding-left:20px; border-left:2px solid var(--line); font-family: system-ui, sans-serif; font-size:.9rem; }
+  ul.tree.root { border-left:none; padding-left:0; }
+  ul.tree li { margin: 7px 0; }
+  .qn { display:inline-block; background:#eef3ff; border:1px solid #cfdcff; border-radius:6px; padding:2px 8px; font-weight:600; }
+  .an { display:inline-block; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:1px 8px; font-family: ui-monospace, Menlo, monospace; }
+  .alive { color:var(--muted); }
+  .alive code { background:#fff; border:1px solid var(--line); }
+  .good { display:inline-block; background:#eaf7ef; border:1px solid #bfe6cc; color:var(--ok); border-radius:6px; padding:1px 8px; font-weight:600; }
+  .hole { display:inline-block; background:#fdeeee; border:1px solid #f1b9b3; color:var(--bad); border-radius:6px; padding:1px 8px; font-weight:600; }
   .q { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: 14px 18px; margin: 1.4em 0; }
   .q h3 { margin-top:0; }
   .opt { display:block; width:100%; text-align:left; font: inherit; font-size:.95rem; padding: 8px 12px; margin: 6px 0; background:var(--bg); border:1px solid var(--line); border-radius:8px; cursor:pointer; }
@@ -56,196 +49,227 @@
   .opt.wrong { border-color: var(--bad); background:#fdeeee; }
   .fb { display:none; margin-top:8px; font-size:.93rem; padding: 8px 12px; border-radius:6px; background:var(--code); }
   #score { font-family: system-ui, sans-serif; font-weight:600; }
-  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+  @media (max-width: 560px) { body { font-size:16px; } }
 </style>
 </head>
 <body>
 <main>
-<h1>Czy <code>when</code> pokrywa wszystko? Algorytm Maranget'a w Borku</h1>
-<p class="sub">Przewodnik po #51: sprawdzanie kompletności i nieosiągalnych ramion w <code>when</code>. Zaczynamy od intuicji, potem rozbieramy algorytm krok po kroku na małych przykładach, na końcu patrzymy na kod i quiz.</p>
+<h1>Jak kompilator sprawdza, czy <code>when</code> pokrywa wszystko</h1>
+<p class="sub">Wyjaśnienie #51 bez matematyki. Zaczynamy od tego, jak zrobiłby to człowiek z kartką, a dopiero potem pokazujemy, że kod w Borku robi dokładnie to samo, tylko sprytniej.</p>
 
 <nav class="toc"><b>Spis treści</b>
 <ol>
-  <li><a href="#problem">Problem: dwa pytania o listę wzorców</a></li>
-  <li><a href="#algo">Algorytm Maranget'a od zera</a></li>
-  <li><a href="#examples">Trzy rozpisane przykłady</a></li>
-  <li><a href="#bork">Jak to siedzi w Borku</a></li>
-  <li><a href="#limits">Granice i decyzje</a></li>
+  <li><a href="#problem">Co właściwie sprawdzamy</a></li>
+  <li><a href="#naive">Sposób z kartką: wypisz wszystkie wartości</a></li>
+  <li><a href="#tree">Sposób sprytniejszy: drzewko pytań</a></li>
+  <li><a href="#wild">Co robi <code>_</code> i pominięte warianty</a></li>
+  <li><a href="#unreach">To samo pytanie, drugie zastosowanie: ramię, które nic nie łapie</a></li>
+  <li><a href="#bork">Jak to wygląda w kodzie Borka</a></li>
+  <li><a href="#limits">Granice</a></li>
   <li><a href="#quiz">Quiz</a></li>
 </ol></nav>
 
-<h2 id="problem">1. Problem</h2>
-<p>Po #50 kompilator potrafi sprawdzić, że wzorce w <code>when</code> mają dobre typy. Nie wie jednak, czy razem pokrywają wszystkie wartości. Dla enuma <code>Shape</code> z trzema wariantami program, który obsługuje tylko dwa, kompilował się, a trzeci wariant wywoływałby błąd w czasie działania. Chcemy odpowiedzieć na dwa pytania o listę ramion:</p>
-<ul>
-  <li><b>Kompletność:</b> czy istnieje wartość, której żadne ramię nie dopasuje? Jeśli tak, chcemy ją pokazać (<em>świadek</em>, ang. witness).</li>
-  <li><b>Nieosiągalność:</b> czy istnieje ramię, które nigdy nie wygra, bo wcześniejsze łapią wszystko, co ono mogłoby złapać?</li>
-</ul>
-<p>Obie odpowiedzi daje jedna operacja, którą Luc Maranget nazwał <em>użytecznością</em> (ang. usefulness).</p>
-
-<div class="callout key"><b class="t">Definicja</b>Wzorzec <code>q</code> jest <b>użyteczny</b> względem listy wzorców <code>P</code>, jeśli istnieje wartość, którą dopasowuje <code>q</code>, a której nie dopasowuje żaden wzorzec z <code>P</code>.</div>
-<ul>
-  <li>Ramię <i>n</i> jest nieosiągalne ⇔ jego wzorzec <b>nie jest</b> użyteczny względem ramion <i>1…n−1</i>.</li>
-  <li><code>when</code> jest kompletne ⇔ wzorzec <code>_</code> <b>nie jest</b> użyteczny względem wszystkich ramion. (Gdyby był, istniałaby wartość, której nikt nie łapie.)</li>
-</ul>
-
-<h2 id="algo">2. Algorytm</h2>
-
-<details class="skip" open>
-<summary>Dla początkujących: wzorce jako macierz (można pominąć)</summary>
-<p>Zamiast myśleć o ramionach jako o liście instrukcji, myślimy o nich jak o <b>tabeli</b>: jeden wiersz na ramię, jedna kolumna na każdą „pozycję" wartości. Dla zwykłej wartości kolumna jest jedna. Wzorzec <code>Rect(1, h)</code> zajmuje jedną kolumnę, ale „w środku" ma dwie podkolumny: sztywną <code>1</code> i dowolne <code>h</code>. Algorytm rozwija wzorzec konstruktora w podkolumny, krok po kroku, aż wszystkie kolumny znikną.</p>
-</details>
-
-<p>Algorytm patrzy zawsze na <b>pierwszą kolumnę</b> macierzy i dzieli pracę ze względu na to, jakie konstruktory w niej występują. Potrzebne są dwie operacje.</p>
-
-<div class="step"><b>Operacja 1: specjalizacja S(c)</b>
-<p>„Załóżmy, że wartość zaczyna się od konstruktora <code>c</code>." Zostawiamy wiersze, które mogą to dopasować, i rozwijamy ich pierwszą komórkę: konstruktor <code>c(p₁…pₖ)</code> zamienia się w <i>k</i> nowych kolumn <code>p₁…pₖ</code>; <code>_</code> zamienia się w <i>k</i> razy <code>_</code>; wiersze z innym konstruktorem odpadają.</p>
-<div class="mx"><div class="cap">macierz</div><table>
-<tr><td>Some(true)</td></tr><tr><td>Some(_)</td></tr><tr><td>None</td></tr><tr><td>_</td></tr></table></div>
-<div class="mx out"><div class="cap">S(Some)</div><table>
-<tr><td>true</td></tr><tr><td>_</td></tr><tr><td>_</td></tr></table></div>
-<div class="mx out"><div class="cap">S(None) (zero kolumn)</div><table>
-<tr><td class="dim">·</td></tr><tr><td class="dim">·</td></tr></table></div>
-<p>Wiersz <code>None</code> odpadł w <code>S(Some)</code>, a wiersz <code>_</code> przeżył jako <code>_</code> (bo pasuje do czegokolwiek, także do <code>Some(x)</code>). W <code>S(None)</code> przeżyły <code>None</code> i <code>_</code>; kolumn nie zostało wcale, ale wiersze zostały.</p></div>
-
-<div class="step"><b>Operacja 2: macierz domyślna D</b>
-<p>„Wartość zaczyna się od konstruktora, którego żaden wiersz nie wymienia." Zostają tylko wiersze z <code>_</code> w pierwszej kolumnie, już bez tej kolumny.</p>
-<div class="mx"><div class="cap">macierz</div><table><tr><td>Circle</td><td>true</td></tr><tr><td>_</td><td>false</td></tr><tr><td>Empty</td><td>_</td></tr></table></div>
-<div class="mx out"><div class="cap">D</div><table><tr><td>false</td></tr></table></div></div>
-
-<h3>Reguła główna</h3>
-<p>Pytamy: czy <code>_</code> jest użyteczne względem macierzy? (To jest pytanie o kompletność; ogólny przypadek dla <code>q</code> jest bliźniaczy.) Najpierw zbieramy zbiór konstruktorów <i>Σ</i>, które występują w pierwszej kolumnie.</p>
-<ol>
-  <li><b>Σ jest pełny</b> (zawiera wszystkie konstruktory typu, np. wszystkie warianty enuma): wartość musi zaczynać się od któregoś z nich. Dla <b>każdego</b> konstruktora <code>c</code> rekurencyjnie pytamy o <code>S(c)</code>. Jeśli którakolwiek odpowiedź brzmi „tak, użyteczne", to cała odpowiedź brzmi „tak".</li>
-  <li><b>Σ jest niepełny</b> (któryś konstruktor nie występuje w żadnym wierszu): wartość zaczynająca się od brakującego konstruktora może być złapana tylko przez wiersze z <code>_</code>, czyli przez macierz domyślną <i>D</i>. Pytamy o <i>D</i>. Jeśli i tam „użyteczne", to brakujący konstruktor jest świadkiem.</li>
-  <li><b>Zero kolumn:</b> jeśli macierz nie ma wierszy, nic niczego nie łapie: „użyteczne". Jeśli ma choć jeden wiersz (pusty), ten wiersz łapie wszystko: „nieużyteczne".</li>
-</ol>
-
-<div class="callout"><b class="t">Dlaczego to działa</b>Wartość to konstruktor plus argumenty. Specjalizacja sprawdza dokładnie te wartości, które zaczynają się od <code>c</code>, i nic więcej, a kolumny argumentów dostają osobne miejsce w macierzy. Przypadek niepełnego Σ jest skrótem: zamiast sprawdzać każdy brakujący konstruktor osobno, wszystkie brakujące zachowują się tak samo (łapie je tylko <code>_</code>), więc jedno pytanie o <i>D</i> załatwia je wszystkie.</div>
-
-<h2 id="examples">3. Przykłady</h2>
-
-<h3>Przykład A: brakujący wariant w zagnieżdżonym wzorcu</h3>
+<h2 id="problem">1. Co właściwie sprawdzamy</h2>
+<p>Masz enum i <code>when</code>, które go rozbiera:</p>
 <pre><code>enum Tri { Yes(b: bool), No }
-when o {
+
+when t {
     Yes(true) =&gt; ..
-    No         =&gt; ..
+    No        =&gt; ..
 }</code></pre>
-<div class="mx"><div class="cap">macierz</div><table><tr><td>Yes(true)</td></tr><tr><td>No</td></tr></table></div>
+<p>Kompilator ma odpowiedzieć na dwa pytania:</p>
 <ol>
-  <li>Σ = {Yes, No} jest pełny (typ ma dokładnie dwa konstruktory). Rozważamy każdy z nich.</li>
-  <li><code>S(No)</code> to jeden pusty wiersz (wiersz <code>No</code>). Zero kolumn, jeden wiersz, więc „nieużyteczne": <code>No</code> jest pokryte.</li>
-  <li><code>S(Yes)</code> to <div class="mx out" style="margin:0 0 0 6px"><table><tr><td>true</td></tr></table></div>. Σ = {true} nie jest pełny dla <code>bool</code> (brakuje <code>false</code>), więc bierzemy macierz domyślną: pusta, bez wierszy. Zero kolumn, zero wierszy: „użyteczne", a brakującym konstruktorem jest <code>false</code>.</li>
-  <li>Cofamy się: świadek to <code>Tri.Yes(false)</code>. Komunikat: <code>non-exhaustive `when`: missing `Tri.Yes(false)`</code>.</li>
+  <li><b>Czy jest wartość, której żadne ramię nie złapie?</b> Jeśli tak, to pokazujemy ją w błędzie. Tutaj: <code>Yes(false)</code>.</li>
+  <li><b>Czy jest ramię, które nigdy się nie wykona</b>, bo wcześniejsze ramiona łapią wszystko, co ono mogłoby złapać?</li>
 </ol>
+<p>Nazwa fachowa pierwszego to „sprawdzanie kompletności” (ang. <em>exhaustiveness</em>). Algorytm, którego użyliśmy, pochodzi z pracy Luca Maranget'a, ale jego nazwisko nie jest ci potrzebne do zrozumienia pomysłu.</p>
 
-<h3>Przykład B: dwie kolumny</h3>
-<pre><code>enum Pair { Both(a: Shape, b: Shape) }
-enum Shape { Circle(r: f64), Empty }
-when p {
-    Both(Empty, _)     =&gt; ..
-    Both(_, Circle(r)) =&gt; ..
+<h2 id="naive">2. Sposób z kartką: wypisz wszystkie wartości</h2>
+<p>Gdy typ jest malutki, odpowiedź jest oczywista. <code>Tri</code> ma tylko trzy możliwe wartości, bo <code>bool</code> ma dwie. Wypisujemy je i sprawdzamy, które ramię je łapie:</p>
+<table class="t">
+  <tr><th>wartość</th><th><code>Yes(true)</code></th><th><code>No</code></th><th>złapana?</th></tr>
+  <tr><td><code>Yes(true)</code></td><td class="yes">tak</td><td>nie</td><td class="yes">tak</td></tr>
+  <tr><td><code>Yes(false)</code></td><td>nie</td><td>nie</td><td class="no">NIKT NIE ŁAPIE</td></tr>
+  <tr><td><code>No</code></td><td>nie</td><td class="yes">tak</td><td class="yes">tak</td></tr>
+</table>
+<p>Jest jedna dziura: <code>Yes(false)</code>. To jest cały problem. Kłopot w tym, że ta metoda się nie skaluje: <code>i64</code> ma ponad 18 trylionów wartości, a enum z kilkoma zagnieżdżonymi enumami daje ich setki. Potrzebujemy sposobu, który nie wypisuje wartości, tylko rozumuje o kształtach.</p>
+
+<h2 id="tree">3. Sposób sprytniejszy: drzewko pytań</h2>
+<p>Zamiast wypisywać wartości, <b>zadajemy o wartość pytania, jedno po drugim</b>, tak jak w grze „dwadzieścia pytań”. Za każdym razem robimy to samo:</p>
+<div class="callout key"><b class="t">Cała idea w trzech zdaniach</b>
+<ol style="margin:.3em 0">
+  <li>Zapytaj o pierwszą rzecz w wartości (np. „który to wariant?”).</li>
+  <li>Dla każdej możliwej odpowiedzi zostaw tylko te ramiona, które <em>jeszcze mogą</em> pasować, i wyrzuć z nich to, o co już zapytaliśmy.</li>
+  <li>Powtarzaj na tym, co zostało. Jeśli skończą się pytania, a nie zostało żadne ramię, to znaleźliśmy dziurę. Jeśli zostało choć jedno, ta gałąź jest pokryta.</li>
+</ol></div>
+
+<p>Zróbmy to dla naszego <code>Tri</code>. W nawiasach pokazuję, które ramiona jeszcze „żyją” w danej gałęzi:</p>
+
+<ul class="tree root"><li>
+<span class="qn">Pytanie 1: który wariant?</span>
+<ul class="tree">
+  <li>odpowiedź <span class="an">Yes</span> <span class="alive">— żyje: <code>Yes(true)</code>. Zostaje pytanie o jego <code>bool</code>.</span>
+    <ul class="tree">
+      <li><span class="qn">Pytanie 2: jaki bool?</span>
+        <ul class="tree">
+          <li>odpowiedź <span class="an">true</span> <span class="alive">— żyje: ramię 1</span> → <span class="good">pokryte</span></li>
+          <li>odpowiedź <span class="an">false</span> <span class="alive">— nie żyje żadne ramię</span> → <span class="hole">DZIURA: Yes(false)</span></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>odpowiedź <span class="an">No</span> <span class="alive">— żyje: <code>No</code>. Nie ma już pytań.</span> → <span class="good">pokryte</span></li>
+</ul>
+</li></ul>
+
+<p>Gałąź <code>false</code> to moment, w którym „zostają zero ramion”. Ścieżka do niej (<code>Yes</code>, potem <code>false</code>) składa się na komunikat błędu: <code>non-exhaustive `when`: missing `Tri.Yes(false)`</code>. Kompilator nie przejrzał żadnych wartości; poszedł po drzewku i zauważył ślepą uliczkę.</p>
+
+<h2 id="wild">4. Co robi <code>_</code> i pominięte warianty</h2>
+<h3><code>_</code> żyje w każdej gałęzi</h3>
+<p>Ramię z <code>_</code> pasuje do dowolnej odpowiedzi, więc na każde pytanie „przeżywa” i jedzie dalej. Dodajmy je do przykładu:</p>
+<pre><code>when t {
+    Yes(true) =&gt; ..
+    _         =&gt; ..
 }</code></pre>
-<p>Pierwsza specjalizacja (<code>Both</code>, jedyny konstruktor) rozwija jedną kolumnę w dwie:</p>
-<div class="mx"><div class="cap">po S(Both)</div><table><tr><td>Empty</td><td>_</td></tr><tr><td>_</td><td>Circle(_)</td></tr></table></div>
-<p>Pierwsza kolumna ma Σ = {Empty}; brakuje <code>Circle</code>, więc Σ jest niepełny i patrzymy na macierz domyślną (wiersze z <code>_</code> na początku): zostaje jeden wiersz z kolumną <code>Circle(_)</code>. Tam Σ = {Circle}, brakuje <code>Empty</code>, domyślna jest pusta: użyteczne, świadek <code>Empty</code>. Wracając: pierwsza kolumna dostaje brakujące <code>Circle(_)</code>, więc świadek to <code>Pair.Both(Shape.Circle(_), Shape.Empty)</code>. Rzeczywiście: koło w pierwszej pozycji i <code>Empty</code> w drugiej nie łapie żadne ramię.</p>
+<ul class="tree root"><li>
+<span class="qn">Który wariant?</span>
+<ul class="tree">
+  <li><span class="an">Yes</span> <span class="alive">— żyją: <code>Yes(true)</code> i <code>_</code></span>
+    <ul class="tree"><li><span class="qn">Jaki bool?</span>
+      <ul class="tree">
+        <li><span class="an">true</span> <span class="alive">— żyją oba</span> → <span class="good">pokryte</span></li>
+        <li><span class="an">false</span> <span class="alive">— żyje <code>_</code></span> → <span class="good">pokryte</span></li>
+      </ul></li></ul>
+  </li>
+  <li><span class="an">No</span> <span class="alive">— żyje <code>_</code></span> → <span class="good">pokryte</span></li>
+</ul>
+</li></ul>
+<p>Brak dziur, więc kompilator jest zadowolony. Dokładnie dlatego <code>_</code> „ratuje” każdy <code>when</code>.</p>
 
-<h3>Przykład C: nieosiągalne ramię</h3>
+<h3>Skrót, gdy wariantów jest dużo</h3>
+<p>Wyobraź sobie enum z dziesięcioma wariantami i <code>when</code> z ramionami tylko dla dwóch. Nie ma sensu rysować dziesięciu gałęzi. Wszystkie warianty, o których <code>when</code> nic nie mówi, zachowują się identycznie: łapią je wyłącznie ramiona <code>_</code>. Kompilator robi więc jedną gałąź „cała reszta”:</p>
+<pre><code>enum Shape { Circle(r: f64), Rect(w: i32, h: i32), Empty, Dot }
+
+when s {
+    Circle(r)  =&gt; ..
+    Rect(w, h) =&gt; ..
+}</code></pre>
+<ul class="tree root"><li>
+<span class="qn">Który wariant?</span>
+<ul class="tree">
+  <li><span class="an">Circle</span> → <span class="good">pokryte</span> (ramię 1)</li>
+  <li><span class="an">Rect</span> → <span class="good">pokryte</span> (ramię 2)</li>
+  <li><span class="an">cała reszta: Empty, Dot</span> <span class="alive">— żyją tylko ramiona z <code>_</code>; nie ma żadnego</span> → <span class="hole">DZIURA: Shape.Empty, Shape.Dot</span></li>
+</ul>
+</li></ul>
+<p>Komunikat wymienia brakujące warianty (do trzech, potem „and more”).</p>
+
+<h2 id="unreach">5. To samo pytanie, drugie zastosowanie</h2>
+<p>Ramię jest <b>nieosiągalne</b>, jeśli nie łapie niczego, czego nie złapały wcześniejsze ramiona. Sprawdzamy to tą samą metodą: bierzemy ramię i patrzymy, czy w jakiejś gałęzi, w którą ono wchodzi, nie ma <em>żadnego wcześniejszego</em> ramienia.</p>
+
+<h3>Przykład: ramię po <code>_</code></h3>
 <pre><code>when s {
     _     =&gt; ..
-    Empty =&gt; ..       // nieosiągalne
+    Empty =&gt; ..      // to ramię?
 }</code></pre>
-<p>Pytamy, czy <code>Empty</code> jest użyteczne względem macierzy z jedynym wierszem <code>_</code>. Wzorzec <code>Empty</code> jest konstruktorem, więc specjalizujemy: <code>S(Empty)</code> zachowuje wiersz <code>_</code> jako pusty wiersz (zero kolumn, jeden wiersz). Nowy wzorzec też jest pusty. „Jest wiersz, więc nieużyteczne": ramię jest nieosiągalne. W Borku to błąd <code>unreachable pattern</code>.</p>
+<p>Ramię 2 wchodzi tylko w gałąź <span class="an">Empty</span>. Czy jakieś wcześniejsze ramię tam żyje? Tak: <code>_</code> żyje w każdej gałęzi. Czyli ramię 2 nie złapie niczego nowego: <span class="hole">nieosiągalne</span>. W Borku to błąd <code>unreachable pattern</code>.</p>
 
-<div class="callout warn"><b class="t">Typy nieskończone</b>Dla <code>i64</code> i <code>String</code> Σ nigdy nie jest pełny, bo literałów jest nieskończenie wiele. Algorytm zawsze wybiera ścieżkę z macierzą domyślną, więc bez ramienia <code>_</code> lub nazwy znajduje świadka <code>_</code> („missing `_`"). Bork nie robi analizy zakresów: <code>u8</code> z 256 literałami nadal wymaga <code>_</code>.</div>
+<h3>Przykład: ramię, które jednak coś łapie</h3>
+<pre><code>when t {
+    Yes(true) =&gt; ..
+    Yes(_)    =&gt; ..      // to ramię?
+}</code></pre>
+<ul class="tree root"><li>
+Ramię 2 wchodzi w gałąź <span class="an">Yes</span>, a potem w obie odpowiedzi na pytanie o <code>bool</code>:
+<ul class="tree">
+  <li><span class="an">true</span> <span class="alive">— wcześniejsze ramię 1 żyje</span> → nic nowego</li>
+  <li><span class="an">false</span> <span class="alive">— żadne wcześniejsze ramię nie żyje</span> → <span class="good">ramię 2 łapie coś nowego</span></li>
+</ul>
+</li></ul>
+<p>Wystarczy jedna gałąź z czymś nowym i ramię jest osiągalne.</p>
 
-<h2 id="bork">4. Jak to siedzi w Borku</h2>
-<div class="pipe">
-  <div class="stage touched"><b>check_pat</b><small>#50: wzorce → <code>HirPat</code></small></div><span class="arrow">→</span>
-  <div class="stage new"><b>lower</b><small><code>HirPat</code> → <code>Pat</code> (bez typów)</small></div><span class="arrow">→</span>
-  <div class="stage new"><b>exhaustive.rs</b><small><code>witnesses</code>, <code>useful</code></small></div><span class="arrow">→</span>
-  <div class="stage touched"><b>błąd</b><small>jeden na <code>when</code>, jeden na ramię</small></div>
-</div>
+<h2 id="bork">6. Jak to wygląda w kodzie Borka</h2>
+<p>Kod w <code>src/typeck/exhaustive.rs</code> robi dokładnie powyższe. Tłumaczenie nazw:</p>
 <table class="t">
-  <tr><th>Element</th><th>Rola</th></tr>
-  <tr><td><code>Pat = Wild | Ctor { ctor, sig, args }</code></td><td>Wzorzec bez typów. <code>sig</code> to pełna sygnatura konstruktorów kolumny, więc algorytm wie, czy Σ jest pełny, bez pytania <code>TyCtx</code>.</td></tr>
-  <tr><td><code>Sig</code></td><td><code>Enum</code> (nazwy i arności wariantów), <code>Option</code> (Some/None), <code>Bool</code>, <code>Infinite</code> (liczby i napisy).</td></tr>
-  <tr><td><code>specialize</code>, <code>default_rows</code></td><td>Dwie operacje z sekcji 2, dosłownie.</td></tr>
-  <tr><td><code>useful(rows, q)</code></td><td>Użyteczność; służy do wykrywania nieosiągalnych ramion (ramię <i>i</i> względem ramion <i>0…i−1</i>).</td></tr>
-  <tr><td><code>witnesses(rows, n)</code></td><td>Zwraca do czterech wartości, których nikt nie łapie; <code>show</code> pisze je jak w źródle (<code>Shape.Rect(_, _)</code>).</td></tr>
-  <tr><td><code>pat::check_coverage</code></td><td>Lowering + wywołanie + komunikaty. Wywoływane z <code>check_match</code>.</td></tr>
+  <tr><th>W tym tekście</th><th>W kodzie</th></tr>
+  <tr><td>wzorzec bez typów (żeby algorytm był prosty do testowania)</td><td><code>Pat</code>: <code>Wild</code> albo <code>Ctor</code> (konstruktor z argumentami)</td></tr>
+  <tr><td>„zostaw ramiona, które jeszcze mogą pasować, i wyrzuć to, o co zapytaliśmy”</td><td><code>specialize</code></td></tr>
+  <tr><td>gałąź „cała reszta”: tylko ramiona z <code>_</code></td><td><code>default_rows</code></td></tr>
+  <tr><td>„czy ramię łapie coś nowego?”</td><td><code>useful</code> (ramię nieosiągalne = <em>nie</em> useful)</td></tr>
+  <tr><td>szukanie dziur i budowanie ścieżki do błędu</td><td><code>witnesses</code>, <code>show</code></td></tr>
+  <tr><td>lista wszystkich wariantów typu, by wiedzieć, czy któregoś brakuje</td><td><code>Sig</code> (<code>Enum</code>, <code>Option</code>, <code>Bool</code>, <code>Infinite</code>)</td></tr>
 </table>
-<p>Stare <code>when</code> z parą <code>Some(x)</code> + <code>None</code> dalej idzie ścieżką <code>IfVal</code> i tego sprawdzenia nie dotyka: tam kompletność wymusza gramatyka. Samotne <code>Some(x)</code> jest teraz węzłem <code>Match</code>, więc algorytm zgłasza brak <code>None</code>.</p>
-<h3>Jak sprawdzono poprawność</h3>
-<p>Poza testami z ręcznymi przykładami jest test własnościowy: deterministyczny generator losuje 2000 list wzorców nad typem <code>Option&lt;E&gt;</code>, w którym są tylko 8 wartości, a następnie porównuje wynik algorytmu z brutalnym przeglądem wszystkich 8 wartości (czy każda jest pokryta; czy ramię jest pierwszym, które cokolwiek łapie).</p>
+<p>Przepływ jest taki: typeck sprawdził wzorce (#50), <code>check_coverage</code> zamienia je na proste <code>Pat</code>, odpala algorytm i zgłasza błędy. Stare <code>when</code> z parą <code>Some(x)</code> + <code>None</code> idzie inną ścieżką (<code>if val</code>) i tego sprawdzenia nie potrzebuje.</p>
+<p><b>Skąd wiemy, że działa?</b> Obok zwykłych testów jest test, który losuje 2000 zestawów ramion dla malutkiego typu i porównuje wynik algorytmu z metodą „z kartką” z sekcji 2 (wypisanie wszystkich wartości). Muszą się zgadzać za każdym razem.</p>
 
-<h2 id="limits">5. Granice i decyzje</h2>
+<h2 id="limits">7. Granice</h2>
 <ul>
-  <li><b>Błąd, nie ostrzeżenie.</b> Kompilator nie ma kanału ostrzeżeń: każda diagnostyka odrzuca HIR. Nieosiągalne ramię jest więc błędem.</li>
-  <li><b>Literówka w wariancie bez ładunku</b> (<code>Emtpy</code>) wiąże się jako nazwa, która łapie wszystko. Wychodzi dopiero przez nieosiągalne ramię po niej.</li>
-  <li><b>Świadkowie są niepełni.</b> Gdy brakuje wariantu na wierzchu, komunikat nie pokazuje jeszcze braków w zagnieżdżonych wzorcach. Pojawią się po naprawie pierwszego błędu.</li>
-  <li><b>Sprawdzenie jest pomijane</b>, gdy wzorzec w tym <code>when</code> albo scrutinee ma już błąd, żeby nie sypać lawiną.</li>
+  <li><b>Liczby i napisy.</b> Wartości jest tyle, że żadna lista literałów ich nie wyczerpie, więc zawsze potrzebny jest <code>_</code> albo nazwa. Bork nie analizuje zakresów: <code>u8</code> z 256 literałami nadal chce <code>_</code>.</li>
+  <li><b>Nieosiągalne ramię to błąd, nie ostrzeżenie</b>, bo kompilator nie ma jeszcze ostrzeżeń.</li>
+  <li><b>Literówka w nazwie wariantu bez danych</b> (<code>Emtpy</code>) jest traktowana jak nazwa zmiennej, która łapie wszystko. Wyjdzie dopiero jako nieosiągalne ramię po niej.</li>
+  <li><b>Błąd bywa „po kolei”.</b> Gdy brakuje wariantu na wierzchu, komunikat nie pokazuje jeszcze dziur w jego środku. Po naprawie pierwszej pojawi się następna.</li>
 </ul>
 
-<h2 id="quiz">6. Quiz</h2>
+<h2 id="quiz">8. Quiz</h2>
 <p>Pięć pytań. Kliknij odpowiedź, by zobaczyć, czy jest dobra, i dlaczego. <span id="score"></span></p>
 <div id="quiz"></div>
 </main>
 <script>
 const QUESTIONS = [
   {
-    q: "Kiedy ramię numer n jest nieosiągalne?",
+    q: "Mamy `enum Tri { Yes(b: bool), No }` i `when t { Yes(true) => .. No => .. }`. Co wypisze kompilator?",
     opts: [
-      "Gdy jego wzorzec zawiera `_`.",
-      "Gdy nie istnieje wartość, którą dopasowuje to ramię, a której nie dopasowują ramiona 1..n-1.",
-      "Gdy ma te same zmienne co poprzednie ramię.",
-      "Gdy żadna wartość nie dopasowuje samego tego ramienia."
+      "Nic, bo oba warianty są wymienione.",
+      "`missing Tri.Yes(false)`: po wybraniu `Yes` ramię 1 pasuje tylko do `true`, więc dla `false` nie żyje żadne ramię.",
+      "`missing Tri.No`.",
+      "`unreachable pattern` przy drugim ramieniu."
     ],
     a: 1,
-    fb: "To właśnie brak użyteczności względem wcześniejszych ramion. Ramię z `_` na końcu bywa jak najbardziej osiągalne, a ostatnia opcja opisuje wzorzec, który w ogóle nic nie dopasowuje."
+    fb: "Wymienienie wariantu nie wystarcza; trzeba pokryć też jego zawartość. W gałęzi `Yes`, a potem `false`, nie zostaje żadne ramię, i to jest dziura."
   },
   {
-    q: "W pierwszej kolumnie macierzy występują konstruktory `Circle` i `Empty`; enum ma jeszcze `Rect`. Co robi algorytm, pytając o kompletność?",
+    q: "Dlaczego dodanie na końcu ramienia `_` sprawia, że zniknie błąd o niekompletności?",
     opts: [
-      "Specjalizuje po `Circle`, `Empty` i `Rect` po kolei, każde z osobna.",
-      "Zgłasza błąd od razu, bez dalszej analizy.",
-      "Σ jest niepełny, więc bierze macierz domyślną (wiersze z `_`); jeśli ta nie jest kompletna, brakujący konstruktor jest świadkiem.",
-      "Ignoruje pierwszą kolumnę i przechodzi do drugiej."
-    ],
-    a: 2,
-    fb: "Skoro brakuje `Rect`, wszystkie brakujące konstruktory są równoważne: łapią je wyłącznie wiersze z `_`. Jedno pytanie o macierz domyślną wystarcza. Błąd nie jest od razu, bo `_` może pokryć resztę."
-  },
-  {
-    q: "`when o { Yes(true) => .. No => .. }` nad `Yes(b: bool) | No`. Jaki świadek zgłosi algorytm?",
-    opts: [
-      "`No`",
-      "`Yes(true)`",
-      "`Tri.Yes(false)`",
-      "`_`"
-    ],
-    a: 2,
-    fb: "Σ = {Yes, No} jest pełny. `S(No)` jest pokryte, a `S(Yes)` zostawia kolumnę z samym `true`, w której Σ = {true} nie jest pełny dla `bool`. Brakuje `false`, więc świadek to `Tri.Yes(false)`."
-  },
-  {
-    q: "Dlaczego `when x { 1 => .. 2 => .. }` nad `i64` jest błędem, mimo że żaden z literałów się nie powtarza?",
-    opts: [
-      "Bo literały są zabronione we wzorcach.",
-      "Bo liczba literałów jest za mała względem rozmiaru `i64`, a sygnatura `Infinite` nigdy nie jest pełna, więc świadkiem jest `_`.",
-      "Bo kompilator sprawdza zakres 1..2.",
-      "Bo drugie ramię jest nieosiągalne."
+      "Bo kompilator przestaje sprawdzać, gdy widzi `_`.",
+      "Bo `_` pasuje do każdej odpowiedzi, więc żyje w każdej gałęzi drzewka i żadna gałąź nie zostaje bez ramienia.",
+      "Bo `_` zamienia się na wszystkie brakujące warianty.",
+      "Bo `_` zmienia typ całego `when`."
     ],
     a: 1,
-    fb: "Dla liczb i napisów Σ nigdy nie jest pełny, więc algorytm idzie ścieżką macierzy domyślnej i znajduje świadka `_`. Bork nie robi analizy zakresów, więc nawet `u8` z 256 literałami wymaga `_`."
+    fb: "Kompilator nadal sprawdza, ale `_` przeżywa w każdej gałęzi, więc dziur po prostu nie ma."
   },
   {
-    q: "Dlaczego moduł `exhaustive.rs` ma własny typ `Pat` zamiast używać `HirPat`?",
+    q: "Enum ma 10 wariantów, a `when` wymienia tylko 2. Co robi kompilator zamiast rysować 10 gałęzi?",
     opts: [
-      "Bo `HirPat` jest za wolny.",
-      "Bo `HirPat` nie ma wariantu `Some`.",
-      "Bo dzięki temu algorytm nie zależy od `TyCtx` ani `Env`, nosi sygnaturę konstruktorów w każdym wzorcu i da się go testować samodzielnie, także brutalnym porównaniem.",
-      "Bo kompilator Rust tego wymaga."
+      "Zgłasza błąd bez analizy.",
+      "Robi osobne gałęzie dla 2 wymienionych i jedną dla „całej reszty”, bo niewymienione warianty zachowują się tak samo: łapią je tylko ramiona `_`.",
+      "Zakłada, że reszta jest pokryta.",
+      "Sprawdza tylko pierwszy wariant."
     ],
-    a: 2,
-    fb: "Lowering z `HirPat` do `Pat` (w `pat.rs`) bierze z `env.enums` nazwy i arności wariantów raz, a sam algorytm jest czysty. Dzięki temu test własnościowy mógł sprawdzić go na 2000 losowych list wzorców bez budowania programów."
+    a: 1,
+    fb: "To skrót, który skraca drzewko. Gdy w gałęzi „reszta” nie ma ramienia `_`, wszystkie niewymienione warianty są dziurą, i komunikat je wymienia."
+  },
+  {
+    q: "`when s { _ => .. Empty => .. }`. Dlaczego ramię 2 jest błędem?",
+    opts: [
+      "Bo `Empty` jest zarezerwowane.",
+      "Bo ramię 2 wchodzi tylko w gałąź `Empty`, a tam wcześniejsze ramię `_` już żyje, więc ramię 2 nie łapie niczego nowego.",
+      "Bo `_` musi być ostatnie, to składnia.",
+      "Bo dwa ramiona w jednym `when` to za dużo."
+    ],
+    a: 1,
+    fb: "Nieosiągalność to pytanie, czy ramię łapie coś, czego nie złapały wcześniejsze. `_` przed nim łapie wszystko."
+  },
+  {
+    q: "Po co jest test, który porównuje algorytm z wypisywaniem wszystkich wartości na malutkim typie?",
+    opts: [
+      "Bo wypisywanie jest szybsze niż drzewko.",
+      "Bo dla malutkiego typu metoda „z kartką” jest oczywiście poprawna, więc jeśli sprytny algorytm daje zawsze ten sam wynik, mamy dużą pewność, że nie ma w nim błędu.",
+      "Bo kompilator używa obu metod naraz.",
+      "Bo algorytm nie działa dla większych typów."
+    ],
+    a: 1,
+    fb: "Wypisanie wartości jest wolne, ale trudno w nim się pomylić. Sprytny algorytm jest szybki, ale łatwo o błąd w szczególnym przypadku. Porównanie na 2000 losowych zestawów łapie takie błędy."
   }
 ];
 let answered = 0, correct = 0;
