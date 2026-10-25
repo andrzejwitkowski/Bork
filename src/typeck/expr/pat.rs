@@ -30,9 +30,7 @@ pub(super) fn check_pat(
             None => bind(name, ty, by_borrow, names, env),
         },
         Pattern::Literal { value, .. } => literal(value, ty, span, env),
-        Pattern::Variant { enum_name, name, args, .. } => {
-            return check_variant(enum_name.as_ref(), name, args, ty, by_borrow, span, names, env);
-        }
+        Pattern::Variant { .. } => return check_variant(pat, ty, by_borrow, names, env),
         Pattern::Some { inner, .. } => {
             let (inner_ty, inner_borrow) = match (env.tcx.managed_ref_inner(ty), env.tcx.is_nullable(ty)) {
                 (Some(target), _) => (target, true),
@@ -96,17 +94,9 @@ fn literal(value: &PatLit, ty: TyId, span: Span, env: &mut Env<'_>) -> HirPatKin
     HirPatKind::Lit(value.clone())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn check_variant(
-    enum_name: Option<&crate::span::SpannedName>,
-    name: &crate::span::SpannedName,
-    args: &[Pattern],
-    ty: TyId,
-    by_borrow: bool,
-    span: Span,
-    names: &mut HashSet<String>,
-    env: &mut Env<'_>,
-) -> HirPat {
+fn check_variant(pat: &Pattern, ty: TyId, by_borrow: bool, names: &mut HashSet<String>, env: &mut Env<'_>) -> HirPat {
+    let Pattern::Variant { enum_name, name, args, span } = pat else { unreachable!("caller matched a variant pattern") };
+    let (enum_name, span) = (enum_name.as_ref(), *span);
     let rejected = |args: &[Pattern], names: &mut HashSet<String>, env: &mut Env<'_>| {
         // Sub-patterns still bind their names, so their uses in the arm do not cascade.
         let unknown = env.tcx.error();

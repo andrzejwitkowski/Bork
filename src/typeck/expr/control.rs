@@ -128,7 +128,7 @@ pub(super) fn check_match(
         match result_ty {
             None => result_ty = Some(body_ty),
             Some(first) if expected.is_some() => {
-                env.mismatch("`when` arm", body_ty, first, arm.pat.span().into());
+                env.mismatch("`when` arm", body_ty, first, Some(arm.pat.span()));
             }
             Some(_) => {}
         }
