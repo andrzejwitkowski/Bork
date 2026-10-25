@@ -1,0 +1,10 @@
+// diag: missing `Pair.Both(Shape.Circle(_), Shape.Empty)`
+enum Shape { Circle(r: f64), Empty }
+enum Pair { Both(a: Shape, b: Shape) }
+fun main() {
+    val p = Pair.Both(Shape.Empty, Shape.Empty)
+    when p {
+        Both(Empty, _) => { }
+        Both(_, Circle(r)) => { }
+    }
+}

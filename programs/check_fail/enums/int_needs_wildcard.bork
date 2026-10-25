@@ -1,0 +1,8 @@
+// diag: non-exhaustive `when`: missing `_`
+fun main() {
+    val x: i64 = 3
+    when x {
+        1 => { }
+        2 => { }
+    }
+}

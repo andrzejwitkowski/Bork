@@ -1,0 +1,21 @@
+enum Shape { Circle(r: f64), Rect(w: i32, h: i32), Empty }
+
+fun main() {
+    val s = Shape.Rect(2, 3)
+    when s {
+        Circle(r) => { }
+        Rect(1, h) => { }
+        Rect(w, h) => { }
+        Empty => { }
+    }
+    val flag = true
+    val n = when flag {
+        true => { 1 }
+        false => { 0 }
+    }
+    val k: i64 = 4
+    when k {
+        1 => { }
+        _ => { }
+    }
+}

@@ -1,0 +1,7 @@
+// diag: missing `false`
+fun main() {
+    val b = true
+    when b {
+        true => { }
+    }
+}

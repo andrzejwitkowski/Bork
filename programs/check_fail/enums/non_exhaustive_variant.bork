@@ -1,0 +1,8 @@
+// diag: non-exhaustive `when`: missing `Shape.Rect(_, _)`
+enum Shape { Circle(r: f64), Rect(w: i32, h: i32) }
+fun main() {
+    val s = Shape.Circle(1.0)
+    when s {
+        Circle(r) => { }
+    }
+}

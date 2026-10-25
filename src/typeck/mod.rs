@@ -1,4 +1,5 @@
 mod env;
+mod exhaustive;
 mod expr;
 mod generics;
 mod lower;

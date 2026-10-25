@@ -131,9 +131,11 @@ fun main() {
 
 `when value { pattern => { ... } ... }` picks the first arm whose pattern matches. Patterns: `_`, a name (binds the value), a literal (`1`, `true`, `"s"`), `Variant(p, ..)` or `Enum.Variant(p, ..)` (one sub-pattern per payload field, nested freely), a bare `Variant` for a payload-free variant, and `Some(p)` / `None`. A bare name that spells a payload-free variant of the matched enum is that variant. The exact pair `Some(name)` + `None` keeps its `if val` meaning.
 
-Binding mode: over a named value (a variable, a field, `this`) or any `&T`, a bound name is a borrow `&T`, except `Copy` scalars (numbers, `bool`), which bind by value. Over a temporary it binds by move. Nothing is moved out of a named value. The arms must have one type when the `when` is used as a value. `bork build` still rejects `when` over patterns, and exhaustiveness is not checked yet.
+Binding mode: over a named value (a variable, a field, `this`) or any `&T`, a bound name is a borrow `&T`, except `Copy` scalars (numbers, `bool`), which bind by value. Over a temporary it binds by move. Nothing is moved out of a named value. The arms must have one type when the `when` is used as a value. `bork build` still rejects `when` over patterns.
 
-Not implemented yet: exhaustiveness (#51), layout and codegen (#52, #53; `bork build` rejects any program that mentions an enum type), and an `Option<T>` / `Result<T, E>` prelude (#54).
+Coverage is checked at compile time. A `when` over enums, `bool` or `Some`/`None` must cover every value, and the error lists what is missing (``non-exhaustive `when`: missing `Shape.Rect(_, _)` ``). Integers and strings are never fully covered by literals, so they need a `_` or a binding arm. An arm that earlier arms already cover is an error (`unreachable pattern`); this also catches a misspelled unit variant, which binds as a catch-all. The check is skipped when a pattern in the `when`, or its scrutinee, already has an error.
+
+Not implemented yet: layout and codegen (#52, #53; `bork build` rejects any program that mentions an enum type), and an `Option<T>` / `Result<T, E>` prelude (#54).
 
 ## Constants
 
