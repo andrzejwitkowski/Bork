@@ -82,22 +82,9 @@ pub struct DefTable {
 impl DefTable {
     pub fn build(program: &Program) -> DefTable {
         let mut table = DefTable::default();
-        for name in INTRINSICS {
-            let id = table.add(DefKind::Intrinsic, name, None, None);
-            table.intrinsics.insert(name.to_string(), id);
-        }
-
-        for function in &program.functions {
-            let id = table.add(DefKind::Fn, &function.name, None, builtin_redefine_span(function));
-            if crate::builtins::is_intrinsic(&function.name) {
-                table.defs[id.0 as usize].clashes.push(Clash::RedefinesBuiltin);
-            } else {
-                table.fns.insert(function.name.clone(), id);
-            }
-            table.fn_ids.push(id);
-        }
-
-        // Names a class must not reuse: user functions and the builtins that have a signature.
+        table.add_intrinsics();
+        table.add_functions(program);
+        // Names a class or enum must not reuse: user functions and the builtins that have a signature.
         let fn_names: HashSet<String> = program
             .functions
             .iter()
@@ -105,62 +92,95 @@ impl DefTable {
             .map(|f| f.name.clone())
             .chain(crate::builtins::signature_names().map(String::from))
             .collect();
+        table.add_classes(program, &fn_names);
+        table.add_enums(program, &fn_names);
+        table.add_methods(program);
+        table.add_constants(program);
+        table
+    }
+
+    fn add_intrinsics(&mut self) {
+        for name in INTRINSICS {
+            let id = self.add(DefKind::Intrinsic, name, None, None);
+            self.intrinsics.insert(name.to_string(), id);
+        }
+    }
+
+    fn add_functions(&mut self, program: &Program) {
+        for function in &program.functions {
+            let id = self.add(DefKind::Fn, &function.name, None, builtin_redefine_span(function));
+            if crate::builtins::is_intrinsic(&function.name) {
+                self.defs[id.0 as usize].clashes.push(Clash::RedefinesBuiltin);
+            } else {
+                self.fns.insert(function.name.clone(), id);
+            }
+            self.fn_ids.push(id);
+        }
+    }
+
+    fn add_classes(&mut self, program: &Program, fn_names: &HashSet<String>) {
         for class in &program.classes {
             let span = class.fields.first().map(|field| field.name.span);
-            let id = table.add(DefKind::Class, &class.name, None, span);
+            let id = self.add(DefKind::Class, &class.name, None, span);
             let mut clashes = Vec::new();
-            if class.name == "String"
-                || !matches!(Type::from_ident(&class.name, false), Type::Named { .. })
-            {
+            if class.name == "String" || !matches!(Type::from_ident(&class.name, false), Type::Named { .. }) {
                 clashes.push(Clash::ClassBuiltinType);
             }
-            if table.classes.contains_key(&class.name) {
+            if self.classes.contains_key(&class.name) {
                 clashes.push(Clash::ClassDuplicate);
             } else {
-                table.classes.insert(class.name.clone(), id);
+                self.classes.insert(class.name.clone(), id);
             }
             if fn_names.contains(&class.name) {
                 clashes.push(Clash::ClassFn);
             }
-            table.defs[id.0 as usize].clashes = clashes;
-            table.defs[id.0 as usize].arity = class.generics.len();
-            table.class_ids.push(id);
+            self.defs[id.0 as usize].clashes = clashes;
+            self.defs[id.0 as usize].arity = class.generics.len();
+            self.class_ids.push(id);
         }
+    }
 
+    fn add_enums(&mut self, program: &Program, fn_names: &HashSet<String>) {
         for e in &program.enums {
             let name = &e.name.name;
-            let id = table.add(DefKind::Enum, name, None, Some(e.name.span));
-            // Classes are registered after enums, so look at the program rather than `table.classes`.
+            let id = self.add(DefKind::Enum, name, None, Some(e.name.span));
             let conflict = name == "String"
                 || !matches!(Type::from_ident(name, false), Type::Named { .. })
-                || table.enums.contains_key(name)
-                || program.classes.iter().any(|c| c.name == *name)
+                || self.enums.contains_key(name)
+                || self.classes.contains_key(name)
                 || fn_names.contains(name);
             if conflict {
-                table.defs[id.0 as usize].clashes.push(Clash::EnumConflict);
+                self.defs[id.0 as usize].clashes.push(Clash::EnumConflict);
             } else {
-                table.enums.insert(name.clone(), id);
+                self.enums.insert(name.clone(), id);
             }
-            table.defs[id.0 as usize].arity = e.generics.len();
-            table.enum_ids.push(id);
-            let mut ids = Vec::new();
-            for variant in &e.variants {
-                let vid = table.add(DefKind::Variant, &variant.name.name, Some(id), Some(variant.name.span));
-                // A rejected enum keeps its variants out of the table, so one mistake is one error.
-                if !conflict && table.variants.insert((id, variant.name.name.clone()), vid).is_some() {
-                    table.defs[vid.0 as usize].clashes.push(Clash::VariantDuplicate);
-                }
-                ids.push(vid);
-            }
-            table.variant_ids.push(ids);
+            self.defs[id.0 as usize].arity = e.generics.len();
+            self.enum_ids.push(id);
+            let variants = self.add_variants(id, e, conflict);
+            self.variant_ids.push(variants);
         }
+    }
 
+    /// A rejected enum keeps its variants out of the table, so one mistake is one error.
+    fn add_variants(&mut self, owner: DefId, e: &crate::ast::Enum, rejected: bool) -> Vec<DefId> {
+        let mut ids = Vec::new();
+        for variant in &e.variants {
+            let id = self.add(DefKind::Variant, &variant.name.name, Some(owner), Some(variant.name.span));
+            if !rejected && self.variants.insert((owner, variant.name.name.clone()), id).is_some() {
+                self.defs[id.0 as usize].clashes.push(Clash::VariantDuplicate);
+            }
+            ids.push(id);
+        }
+        ids
+    }
+
+    fn add_methods(&mut self, program: &Program) {
         let mut qualified = HashSet::new();
         for class in &program.classes {
-            let owner = table.classes[&class.name];
+            let owner = self.classes[&class.name];
             let mut ids = Vec::new();
             for method in &class.methods {
-                let id = table.add(DefKind::Method, &method.name, Some(owner), Some(method.name_span));
+                let id = self.add(DefKind::Method, &method.name, Some(owner), Some(method.name_span));
                 let mut clashes = Vec::new();
                 if class.fields.iter().any(|field| field.name.name == method.name) {
                     clashes.push(Clash::MethodFieldName);
@@ -168,17 +188,19 @@ impl DefTable {
                 if !qualified.insert((class.name.clone(), method.name.clone())) {
                     clashes.push(Clash::MethodDuplicate);
                 } else {
-                    table.methods.insert((owner, method.name.clone()), id);
+                    self.methods.insert((owner, method.name.clone()), id);
                 }
-                table.defs[id.0 as usize].clashes = clashes;
+                self.defs[id.0 as usize].clashes = clashes;
                 ids.push(id);
             }
-            table.method_ids.push(ids);
+            self.method_ids.push(ids);
         }
+    }
 
+    fn add_constants(&mut self, program: &Program) {
         for decl in &program.constants {
             let name = &decl.name.name;
-            let id = table.add(DefKind::Const, name, None, Some(decl.name.span));
+            let id = self.add(DefKind::Const, name, None, Some(decl.name.span));
             let clash = if crate::builtins::is_intrinsic(name) {
                 Some(Clash::ConstBuiltin)
             } else if program.functions.iter().any(|f| f.name == *name) {
@@ -190,11 +212,10 @@ impl DefTable {
             } else {
                 None
             };
-            table.defs[id.0 as usize].clashes.extend(clash);
-            table.consts.entry(name.clone()).or_insert(id);
-            table.const_ids.push(id);
+            self.defs[id.0 as usize].clashes.extend(clash);
+            self.consts.entry(name.clone()).or_insert(id);
+            self.const_ids.push(id);
         }
-        table
     }
 
     fn add(&mut self, kind: DefKind, name: &str, owner: Option<DefId>, span: Option<Span>) -> DefId {

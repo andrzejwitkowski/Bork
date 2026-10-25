@@ -543,43 +543,43 @@ fn validate_owned_layouts(classes: &ClassTable, enums: &EnumTable, tcx: &mut TyC
         false
     }
 
+    /// A class or enum whose layout is checked.
+    struct Owner<'a> {
+        kind: &'static str,
+        generics: &'a [String],
+        is_enum: bool,
+        id: DefId,
+        span: Option<Span>,
+    }
+
+    // Classes then enums, each by name.
     let mut ordered: Vec<&ClassInfo> = classes.values().collect();
     ordered.sort_by(|a, b| a.name.cmp(&b.name));
-    for class in ordered {
-        // The definition itself, its parameters standing for unknown leaf types.
-        let identity = tcx.identity_args(class.generics.len());
-        let origin = tcx.class(class.id, identity);
-        let mut path = vec![origin];
-        if find_cycle(origin, origin, (classes, enums), tcx, &mut HashSet::new(), &mut path) {
-            tcx.set_param_names(class.generics.clone());
-            let shown: Vec<String> = path.iter().take(MAX_DEPTH).map(|&ty| tcx.display(ty).to_string()).collect();
-            diagnostics.push(type_error(
-                format!(
-                    "class `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
-                    tcx.display(origin),
-                    shown.join(" -> ")
-                ),
-                class.fields.first().map(|field| field.span),
-            ));
-            tcx.set_param_names(Vec::new());
-        }
-    }
     let mut ordered_enums: Vec<&EnumInfo> = enums.values().collect();
     ordered_enums.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut owners: Vec<Owner<'_>> = Vec::new();
+    for class in ordered {
+        owners.push(Owner { kind: "class", generics: &class.generics, is_enum: false, id: class.id, span: class.fields.first().map(|f| f.span) });
+    }
     for e in ordered_enums {
-        let identity = tcx.identity_args(e.generics.len());
-        let origin = tcx.enum_ty(e.id, identity);
+        let span = e.variants.iter().flat_map(|v| &v.fields).next().map(|f| f.span);
+        owners.push(Owner { kind: "enum", generics: &e.generics, is_enum: true, id: e.id, span });
+    }
+    for Owner { kind, generics, is_enum, id, span } in owners {
+        // The definition itself, its parameters standing for unknown leaf types.
+        let identity = tcx.identity_args(generics.len());
+        let origin = if is_enum { tcx.enum_ty(id, identity) } else { tcx.class(id, identity) };
         let mut path = vec![origin];
         if find_cycle(origin, origin, (classes, enums), tcx, &mut HashSet::new(), &mut path) {
-            tcx.set_param_names(e.generics.clone());
+            tcx.set_param_names(generics.to_vec());
             let shown: Vec<String> = path.iter().take(MAX_DEPTH).map(|&ty| tcx.display(ty).to_string()).collect();
             diagnostics.push(type_error(
                 format!(
-                    "enum `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
+                    "{kind} `{}` has a recursive by-value layout ({}); use `Ref<..>` for the recursive field",
                     tcx.display(origin),
                     shown.join(" -> ")
                 ),
-                e.variants.iter().flat_map(|v| &v.fields).next().map(|field| field.span),
+                span,
             ));
             tcx.set_param_names(Vec::new());
         }
