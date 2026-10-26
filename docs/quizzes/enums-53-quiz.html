@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: jak działa when w kodzie natywnym (#53)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Jak Bork kompiluje <code>when</code>: dopasowanie, regiony, własność</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/match-lowering</code> (PR #158, ticket #53): 25 plików, +986/−28 linii względem <code>main</code>. Strona opisuje ten PR, więc czytaj ją razem z nim.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+<h3>Stan przed zmianą</h3>
+<p>Po #50 i #51 kompilator potrafił <em>sprawdzić</em> <code>when</code>: wzorce miały typy, a pokrycie wszystkich przypadków było zweryfikowane (Maranget). Po #52 enumy dało się <em>zbudować</em> w pamięci. Brakowało trzeciej części: <strong>przeczytać wartość z powrotem</strong>. Wyrażenie <code>when</code> dochodziło do <code>expr.rs</code> i kończyło się komunikatem <code>`when` over patterns (see #53)</code>.</p>
+<p>W HIR istniał już <code>HirExprKind::Match { scrutinee, arms }</code> z gotowymi ramionami (<code>HirArm { pat, body }</code>) i wzorcami (<code>HirPatKind::Variant { index, fields }</code>, <code>Lit</code>, <code>Bind</code>, <code>Wildcard</code>). Indeks wariantu we wzorcu to dokładnie ten tag, który #52 zapisuje w pamięci.</p>
+<div class="callout"><b class="t">Cel #53</b>Skompilować <code>when</code> tak, żeby: wybierało pierwsze pasujące ramię, wiązało nazwy z payloadem z poprawną własnością, nie gubiło i nie zwalniało podwójnie referencji, a liczba <code>arena_push</code>/<code>pop</code> zgadzała się z harmonogramem. Poza zakresem: optymalizacja drzewa decyzyjnego.</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+<h3>Ruch pierwszy: pytania zadawane po kolei</h3>
+<p>Najprostszy poprawny sposób to <strong>łańcuch testów w kolejności ramion</strong>. Wartość sprawdzana jest raz (scrutinee), potem dla każdego ramienia: „czy tag się zgadza? czy pole pasuje do literału?”. Jeśli nie, przejdź do następnego ramienia. Jeśli tak, wejdź do jego bloku. Pokrycie jest już sprawdzone, więc po ostatnim ramieniu kod jest <code>unreachable</code>.</p>
+<div class="flow">
+  <div class="box"><h4>scrutinee</h4><code>wartość liczona raz</code></div><div class="arrow">→</div>
+  <div class="box"><h4>ramię 1</h4><code>tag == 0 ?</code></div><div class="arrow">→</div>
+  <div class="box"><h4>ramię 2</h4><code>tag == 1 ? pole == 7 ?</code></div><div class="arrow">→</div>
+  <div class="box good"><h4>ostatnie</h4><code>reszta: unreachable</code></div>
+</div>
+<h3>Ruch drugi: ramię to region, jak gałąź <code>if</code></h3>
+<p>Każde ramię jest regionem <code>MatchArm</code> z własną areną. Raport pamięci i harmonogram znały już te regiony (sema otwierała je od #50), więc brakowało tylko emitera, który w odpowiednim momencie wejdzie do regionu i z niego wyjdzie. Dlatego powstał nowy punkt zaczepienia <code>RegionVisitor::match_expr</code>, tak jak istniejący dla <code>if val</code>.</p>
+<h3>Ruch trzeci: nazwy to widoki, nie własność</h3>
+<p>Kluczowa decyzja: <strong>każde bindowanie jest widokiem na slot enuma</strong>. Ramię nigdy nie jest właścicielem payloadu, więc nie ma „przenoszenia z enuma” ani „zwalniania niepasującego payloadu”. Funkcja sprzątająca z #52 zostaje jedynym, kto zwalnia <code>Ref</code>-y, i robi to raz, gdy kończy się arena enuma. Nie ma ścieżki podwójnego zwolnienia.</p>
+<h3>Ruch czwarty: wyjątek, czyli <code>Ref</code> w payloadzie</h3>
+<p>Pole typu <code>Ref&lt;T&gt;</code> trzeba umieć dalej rozpakować przez <code>if val</code>. Wcześniej wiązało się jako <code>&amp;Ref&lt;T&gt;</code>, a <code>if val</code> tego nie przyjmuje, więc rekurencyjnego enuma (lista, drzewo wyrażeń) nie dało się przejść. Teraz takie pole wiąże się jako <strong>kopia z licznikiem</strong>, tak jak odczyt pola <code>Ref</code> w klasie. Taka kopia musi zostać zwolniona, więc ramię, które ją wiąże, <strong>zawsze dostaje własną arenę</strong> (<code>pat_binds_owned_ref</code>).</p>
+<h3>Ruch piąty: brama odrzuca to, czego jeszcze nie ma</h3>
+<p>Wzorce <code>Some</code>/<code>None</code> (poza parą <code>if val</code>) oraz <code>when</code> po <code>Ref</code> albo wartości nullable są odrzucane z podpowiedzią „use <code>if val</code>”. Ewaluator wyrażeń i lista działają bez nich.</p>
+<details class="skip"><summary>Czego ten PR nie robi</summary>
+<ul><li>Nie buduje wspólnego drzewa decyzyjnego (ramiona testowane po kolei).</li><li>Nie przenosi payloadu z enuma (<code>move</code> na enumie dalej jest odrzucane).</li><li>Nie lowerowuje <code>Some</code>/<code>None</code> w <code>when</code>.</li><li>Nie zmienia znanego zachowania sprzed #53: wywołanie zwracające enum z <code>Ref</code> w pętli kumuluje licznik do końca funkcji, tak samo jak dla klas.</li></ul></details>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+<h3>3.1 Punkt zaczepienia w przejściu po regionach (<code>src/region_walk.rs</code>)</h3>
+<pre><span class="add">+    fn match_expr&lt;C: ArenaCursor&gt;(&amp;mut self, driver: &amp;mut WalkDriver&lt;'_, C&gt;,
++        scrutinee: &amp;HirExpr, arms: &amp;[HirArm], _result_ty: TyId) -&gt; Result&lt;(), WalkError&gt; {
++        driver.walk_expr(self, scrutinee)?;
++        for arm in arms { walk_arm_region(driver, self, arm)?; }
++        Ok(())
++    }</span>
+
+ HirExprKind::Match { scrutinee, arms } =&gt; {
+<span class="del">-    walk_expr(driver, visitor, scrutinee)?;
+-    for arm in arms { driver.walk_region(visitor, RegionSite::MatchArm, &amp;arm.body)?; }</span>
+<span class="add">+    visitor.match_expr(driver, scrutinee, arms, expr.ty)?;</span></pre>
+<p>Domyślna implementacja robi to, co robiło stare przejście, więc harmonogram i znakowanie <code>codegen_push</code> działają bez zmian. Emiter LLVM nadpisuje <code>match_expr</code>. <code>expr_may_allocate_sink</code> przestaje zakładać najgorsze dla <code>Match</code> i patrzy w scrutinee i ramiona.</p>
+
+<h3>3.2 Ramię z własną areną (<code>region_walk.rs</code>)</h3>
+<pre><span class="add">+pub(crate) fn pat_binds_owned_ref(tcx: &amp;TyCtx, pat: &amp;HirPat) -&gt; bool {
++    match &amp;pat.kind {
++        HirPatKind::Bind { binding_ty, .. } =&gt; tcx.is_managed_ref(*binding_ty),
++        HirPatKind::Variant { fields, .. } =&gt; fields.iter().any(|f| pat_binds_owned_ref(tcx, f)),
++        ...
++    }
++}</span></pre>
+<p><code>region_enter_forced(.., force_push)</code> to <code>region_enter</code> z jednym dodatkiem: ramię z kopią <code>Ref</code> wymusza <code>arena_push</code>, nawet gdy jego treść nie alokuje. Bez tego kopia nie miałaby areny, w której zostanie zwolniona.</p>
+
+<h3>3.3 Główna pętla (<code>src/codegen/llvm/match_emit.rs</code>)</h3>
+<pre>for arm in arms {
+    let arm_bb  = context.append_basic_block(self.llvm_fn, "match.arm");
+    let next_bb = context.append_basic_block(self.llvm_fn, "match.next");
+    self.emit_pat_test(&amp;arm.pat, value, next_bb)?;      <span class="cm">// niepasujące: skok do next_bb</span>
+    self.cx.builder.build_unconditional_branch(arm_bb)?;
+    self.cx.builder.position_at_end(arm_bb);
+
+    let force = pat_binds_owned_ref(&amp;self.cx.tcx, &amp;arm.pat);
+    region_enter_forced(driver, self, RegionSite::MatchArm, &amp;arm.body, force)?;
+    self.bind_pat(&amp;arm.pat, value)?;                    <span class="cm">// nazwy dopiero w regionie ramienia</span>
+    let arm_value = self.emit_presence_arm(driver, RegionSite::MatchArm, &amp;arm.body, ...)?;
+    ...
+    self.cx.builder.position_at_end(next_bb);
+}
+<span class="cm">// typeck zapewnił pokrycie, więc tu nic już nie pasuje</span>
+self.cx.builder.build_unreachable()?;</pre>
+<p>Wynik <code>when</code> użytego jako wartość trafia do bloku <code>match.end</code> przez <code>phi</code> (to samo co w <code>if</code>). Ramię zakończone <code>return</code>/<code>break</code> nie dokłada gałęzi do <code>phi</code>. Wartość własnościowa (np. <code>String</code>) jest kopiowana do areny wyniku przed wyjściem z regionu ramienia.</p>
+
+<h3>3.4 Test wzorca (<code>emit_pat_test</code>)</h3>
+<pre>HirPatKind::Variant { index, fields, .. } =&gt; {
+    let (record, object) = self.variant_slot(pat, *index, value)?;
+    let tag = load i32 z elementu 0 slotu;
+    let hit = icmp EQ tag, index;                   <span class="cm">// to ten sam tag co zapisuje #52</span>
+    self.branch_unless(hit, fail)?;
+    for (field_index, field) in fields.iter().enumerate() {
+        if matches!(field.kind, Wildcard | Bind { .. }) { continue; }   <span class="cm">// zawsze pasują</span>
+        let payload = self.load_payload(record, object, field_index, field.ty)?;
+        self.emit_pat_test(field, payload, fail)?;                      <span class="cm">// zagnieżdżone</span>
+    }
+}</pre>
+<p>Literały: liczby i <code>bool</code> przez <code>icmp</code>, napisy przez istniejące <code>emit_string_eq</code> z <code>text.rs</code>. Pola leżą pod indeksem <code>field_index + 1</code>, bo element 0 to tag.</p>
+
+<h3>3.5 Bindowanie (<code>bind_pat</code>)</h3>
+<pre>HirPatKind::Bind { name, binding_ty } =&gt; {
+    let value = if self.cx.tcx.is_managed_ref(*binding_ty) { self.clone_ref(value)? } else { value };
+    self.declare_local(&amp;name.name, *binding_ty, value, None)
+}</pre>
+<p>Wszystko oprócz <code>Ref</code> to przekazanie wartości już wczytanej ze slotu: skalar jest kopiowany, napis i tablica to deskryptor wskazujący w arenę enuma, klasa i zagnieżdżony enum to uchwyt. <code>Ref</code> dostaje <code>clone_ref</code> (licznik rośnie), a <code>declare_local</code> rejestruje jego zwolnienie w arenie ramienia.</p>
+
+<h3>3.6 Typeck, brama i drobne poprawki</h3>
+<pre><span class="cm">// src/typeck/expr/pat.rs</span>
+<span class="del">-    let borrowed = by_borrow &amp;&amp; !is_copy(ty, env) &amp;&amp; !env.tcx.is_unknown(ty);</span>
+<span class="add">+    let borrowed = by_borrow &amp;&amp; !is_copy(ty, env) &amp;&amp; !env.tcx.is_managed_ref(ty) &amp;&amp; !env.tcx.is_unknown(ty);</span>
+
+<span class="cm">// src/codegen_gate.rs</span>
+<span class="add">+  "`when` over a `Ref` or a nullable value is not supported by codegen yet; use `if val`"
++  "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`"</span></pre>
+<p>W <code>emit_fn.rs</code> lokalna wartość typu enum bierze arenę z własnego uchwytu, tak jak klasa. W <code>expr.rs</code> stary komunikat „see #53” został zastąpiony błędem na wypadek <code>when</code> poza przejściem po regionach (nie powinno się zdarzyć).</p>
+
+<h3>3.7 Testy</h3>
+<table class="st">
+<tr><th>Test</th><th>Co pilnuje</th></tr>
+<tr><td><code>programs/build/enums/match_shapes.bork</code></td><td>warianty, literały liczbowe i napisowe, zagnieżdżone wzorce, <code>_</code>, zmienna łapiąca resztę, ramiona z wartością i bez</td></tr>
+<tr><td><code>expr_eval.bork</code></td><td>ewaluator <code>enum Expr</code> z dziećmi <code>Ref&lt;Expr&gt;</code>; licznik referencji liścia taki sam przed i po</td></tr>
+<tr><td><code>linked_list.bork</code></td><td>lista <code>Cons(v, next: Ref&lt;List&gt;)</code>: długość i suma, licznik niezmieniony</td></tr>
+<tr><td><code>match_ref_counts.bork</code></td><td>100 obrotów pętli z ramieniem wiążącym <code>Ref</code>, <code>return</code> z ramienia, tymczasowe scrutinee; licznik wraca</td></tr>
+<tr><td><code>match_generic_loop.bork</code></td><td><code>when</code> w funkcji generycznej, <code>when</code> zagnieżdżony w ramieniu, <code>continue</code>/<code>break</code> z ramion w pętli</td></tr>
+<tr><td><code>codegen_arena_push_pop_counts_match_schedule</code></td><td>cztery nowe próbki z <code>when</code>; liczy też <code>push_child</code> i pomija funkcje <code>bork.drop.*</code></td></tr>
+<tr><td>testy w <code>tests/build.rs</code> i typeck</td><td>odrzucenie <code>Some</code>/<code>None</code> z podpowiedzią, <code>when</code> z <code>return</code> w pętli, typ bindowania <code>Ref</code>, brama przepuszcza enumy</td></tr>
+</table>
+<p>Dokumentacja: <code>docs/language.md</code> (lowering, własność bindowań, ograniczenia), <code>docs/rfcs/0001</code> (akapit o #53), <code>programs/README.md</code>, <code>TODO.md</code>.</p>
+
+<h2 id="quiz">4. Quiz</h2>
+<p id="score">Wynik: 0 / 0 (z 8)</p>
+
+<div class="q" data-correct="1"><p>1. W jakiej kolejności Bork testuje ramiona <code>when</code>?</p>
+<button>Wszystkie naraz, bo kompilator buduje drzewo decyzyjne.</button>
+<button>Po kolei, tak jak są zapisane; pierwsze pasujące wygrywa.</button>
+<button>Od ostatniego do pierwszego.</button>
+<button>Losowo, bo pokrycie jest sprawdzone.</button>
+<div class="fb">Ramiona są łańcuchem testów w kolejności źródła. Drzewo decyzyjne to optymalizacja, która jest poza zakresem #53.</div></div>
+
+<div class="q" data-correct="2"><p>2. Co jest w kodzie po teście ostatniego ramienia?</p>
+<button>Skok do pierwszego ramienia.</button>
+<button>Błąd wykonania z komunikatem.</button>
+<button><code>unreachable</code>, bo typeck wcześniej sprawdził, że ramiona pokrywają wszystko.</button>
+<button>Ramię domyślne dodane przez kompilator.</button>
+<div class="fb">Sprawdzanie pokrycia (#51) gwarantuje, że któreś ramię pasuje. Dlatego nie trzeba generować obsługi „nic nie pasuje”.</div></div>
+
+<div class="q" data-correct="1"><p>3. Dlaczego bindowanie <code>Rect(w, h)</code> na wartości z nazwanej zmiennej nie przenosi pól z enuma?</p>
+<button>Bo przenoszenie enumów jest szybkie.</button>
+<button>Bo każde bindowanie to widok na slot; enum dalej jest właścicielem, a jego funkcja sprzątająca jest jedynym, kto zwalnia <code>Ref</code>-y.</button>
+<button>Bo pola enumów są niemutowalne.</button>
+<button>Bo <code>when</code> kopiuje cały enum.</button>
+<div class="fb">Dzięki temu nie ma „niepasującego payloadu do zwolnienia” ani ścieżki podwójnego zwolnienia. Przenoszenie enumów (<code>move</code>) nadal jest odrzucane przez bramę.</div></div>
+
+<div class="q" data-correct="1"><p>4. Dlaczego pole <code>Ref&lt;T&gt;</code> wiąże się teraz jako kopia z licznikiem, a nie jako <code>&amp;Ref&lt;T&gt;</code>?</p>
+<button>Bo <code>&amp;Ref</code> nie istnieje w LLVM.</button>
+<button>Bo inaczej nie da się go rozpakować przez <code>if val</code>, więc rekurencyjnego enuma (lista, drzewo) nie dałoby się przejść.</button>
+<button>Żeby zmniejszyć liczbę alokacji.</button>
+<button>Bo tak robią wszystkie pola enumów.</button>
+<div class="fb">Odczyt pola <code>Ref</code> w klasie już dawał kopię z licznikiem. Bindowanie z enuma zachowuje się tak samo, a wyniki obu ewaluatorów to potwierdzają.</div></div>
+
+<div class="q" data-correct="1"><p>5. Co powoduje, że ramię z takim bindowaniem zawsze wypycha własną arenę?</p>
+<button>Nic, dostaje arenę tylko gdy alokuje.</button>
+<button><code>pat_binds_owned_ref</code> przekazuje <code>force_push</code> do <code>region_enter_forced</code>, bo kopia <code>Ref</code> musi być zwolniona w arenie ramienia.</button>
+<button>Ustawienie w pliku konfiguracyjnym.</button>
+<button>Każde ramię zawsze dostaje arenę.</button>
+<div class="fb">Zwykłe ramię bez alokacji nie wypycha areny (harmonogram to rozpoznaje). Kopia <code>Ref</code> jest własnością, więc potrzebuje areny, w której jej zwolnienie zostanie zarejestrowane.</div></div>
+
+<div class="q" data-correct="1"><p>6. Po co test <code>codegen_arena_push_pop_counts_match_schedule</code> dostał dwie poprawki?</p>
+<button>Żeby szybciej działał.</button>
+<button>Zlicza teraz także <code>bork_arena_push_child</code> (funkcje inne niż <code>main</code>) i pomija funkcje <code>bork.drop.*</code>, które sprzątają w trakcie zamykania areny i nie otwierają nowych.</button>
+<button>Bo zmienił się format IR.</button>
+<button>Poprawki dotyczyły tylko nazw zmiennych.</button>
+<div class="fb">Nowe próbki mają funkcję pomocniczą, więc część wywołań to <code>push_child</code>. Funkcja <code>bork.drop.&lt;Enum&gt;</code> kończy się <code>ret</code> bez <code>arena_pop</code>, bo działa wewnątrz sprzątania areny enuma.</div></div>
+
+<div class="q" data-correct="1"><p>7. Co zobaczy użytkownik przy <code>when r { None =&gt; .. Some(n) =&gt; .. }</code> na <code>Ref</code>?</p>
+<button>Panikę kompilatora.</button>
+<button>Błąd bramy z podpowiedzią „use <code>if val</code>”.</button>
+<button>Program się skompiluje i zadziała.</button>
+<button>Ostrzeżenie bez błędu.</button>
+<div class="fb">Wzorce <code>Some</code>/<code>None</code> poza parą <code>if val</code> i <code>when</code> po <code>Ref</code> albo nullable nie są lowerowane. Brama zamienia „jeszcze nie” w komunikat z miejscem w kodzie, tak jak zrobiła to dla <code>move</code> enuma w #52.</div></div>
+
+<div class="q" data-correct="1"><p>8. Test <code>expr_eval</code> wypisuje ten sam licznik referencji przed i po trzech ewaluacjach. Co to dowodzi?</p>
+<button>Że ewaluacja jest szybka.</button>
+<button>Że ramiona wiążące <code>Ref</code> ani nie gubią, ani nie zwalniają za dużo referencji (brak wycieków i podwójnych zwolnień).</button>
+<button>Że drzewo ma trzy węzły.</button>
+<button>Że <code>strongCount</code> zawsze zwraca 3.</button>
+<div class="fb">Wyciek zostawiłby licznik wyższy po powrocie, nadmierne zwolnienie niższy. Test porównuje licznik przed i po, tak samo jak programy z #52.</div></div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
