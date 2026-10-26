@@ -26,8 +26,6 @@ match {
     "for" => "for",
     "in" => "in",
     "return" => "return",
-    "Some" => "Some",
-    "None" => "None",
     "move" => "move",
     "promote" => "promote",
     "::" => "::",
@@ -451,12 +449,8 @@ MulOp: BinOp = {
 };
 
 ExprSuffix: Expr = {
-    <callee:ExprSuffix> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
-        callee: Box::new(callee),
-        type_args: Vec::new(),
-        args: args.unwrap_or_default(),
-        trailing,
-    },
+    <start:@L> <callee:ExprSuffix> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> <end:@R> =>
+        Expr::call(callee, Vec::new(), args.unwrap_or_default(), trailing, Span::new(start, end)),
     <callee:ExprSuffix> "::" <type_args:TypeArgs> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
         callee: Box::new(callee),
         type_args,
@@ -532,13 +526,6 @@ Atom: Expr = {
         cap: cap.map(Box::new),
         span: Span::new(start, end),
     },
-    <start:@L> "None" <end:@R> => Expr::None {
-        span: Span::new(start, end),
-    },
-    <start:@L> "Some" "(" <expr:Expr> ")" <end:@R> => Expr::Some {
-        expr: Box::new(expr),
-        span: Span::new(start, end),
-    },
     "move" <id:SpannedIdent> => Expr::Move {
         name: id.name,
         span: id.span,
@@ -559,11 +546,7 @@ Atom: Expr = {
         span: Span::new(start, end),
         id: AstId::DUMMY,
     },
-    <id:SpannedIdent> => Expr::Ident {
-        name: id.name,
-        span: id.span,
-        id: AstId::DUMMY,
-    },
+    <id:SpannedIdent> => Expr::ident(id),
     "(" <e:Expr> ")" => e,
     <e:IfExpr> => e,
     <e:IfValExpr> => e,
@@ -631,21 +614,15 @@ MatchArm: MatchArm = {
 };
 
 Pattern: Pattern = {
-    <name:SpannedIdent> => if name.name == "_" { Pattern::Wildcard { span: name.span } } else { Pattern::Binding(name) },
-    <start:@L> <name:SpannedIdent> "(" <args:Comma<Pattern>?> ")" <end:@R> => Pattern::Variant {
-        enum_name: None,
-        name,
-        args: args.unwrap_or_default(),
-        span: Span::new(start, end),
-    },
+    <name:SpannedIdent> => Pattern::binding(name),
+    <start:@L> <name:SpannedIdent> "(" <args:Comma<Pattern>?> ")" <end:@R> =>
+        Pattern::unqualified_variant(name, args.unwrap_or_default(), Span::new(start, end)),
     <start:@L> <enum_name:SpannedIdent> "." <name:SpannedIdent> <args:("(" <Comma<Pattern>?> ")")?> <end:@R> => Pattern::Variant {
         enum_name: Some(enum_name),
         name,
         args: args.flatten().unwrap_or_default(),
         span: Span::new(start, end),
     },
-    <start:@L> "Some" "(" <inner:Pattern> ")" <end:@R> => Pattern::Some { inner: Box::new(inner), span: Span::new(start, end) },
-    <start:@L> "None" <end:@R> => Pattern::None { span: Span::new(start, end) },
     <start:@L> <n:Num> <end:@R> => Pattern::Literal { value: PatLit::Int(n), span: Span::new(start, end) },
     <start:@L> "true" <end:@R> => Pattern::Literal { value: PatLit::Bool(true), span: Span::new(start, end) },
     <start:@L> "false" <end:@R> => Pattern::Literal { value: PatLit::Bool(false), span: Span::new(start, end) },

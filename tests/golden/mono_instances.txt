@@ -23,6 +23,12 @@ class Pair<i32,String>
 == programs/build/generics/ref_cleanup.bork
 fun main
 class Box<i32>
+== programs/build/option/option_conversions.bork
+fun main
+fun optionFrom<i32>
+fun optionFromRef<Node>
+fun optionToRef<Node>
+class Node
 == programs/check/generics/explicit_args.bork
 fun main
 fun id<i64>
@@ -54,3 +60,6 @@ class Holder2<String,i32>
 fun main
 fun first<i32,String>
 fun second<i32,String>
+== programs/check/option/option_check.bork
+fun main
+class Box

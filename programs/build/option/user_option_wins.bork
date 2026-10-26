@@ -1,0 +1,18 @@
+// exit: 0
+// stdout: 3\n
+// A program that defines its own `Option` is not given the prelude one: the user's definition wins
+// and nothing clashes.
+enum Option {
+    Pair(a: i32, b: i32),
+    Missing,
+}
+
+fun main(): i32 {
+    val o = Option.Pair(1, 2)
+    val n: i32 = when o {
+        Pair(a, b) => { a + b }
+        Missing => { 0 }
+    }
+    println(n)
+    return 0
+}

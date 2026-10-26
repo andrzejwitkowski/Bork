@@ -38,7 +38,7 @@ fn has_generics(hir: &crate::hir::HirProgram) -> bool {
 
 /// Parse, analyze ownership, and lower program to typed HIR.
 pub fn check(source: &str) -> CheckResult {
-    let (program, node_index) = match crate::parse_indexed(source) {
+    let (mut program, node_index) = match crate::parse_indexed(source) {
         Ok(parsed) => parsed,
         Err(err) => {
             return CheckResult {
@@ -53,6 +53,7 @@ pub fn check(source: &str) -> CheckResult {
         }
     };
 
+    crate::prelude::add_prelude(&mut program, source, node_index.len() as u32);
     let typeck::Typeck { hir, node_tys, members, diagnostics: mut type_diagnostics, tcx } =
         typeck::check_with_members(&program);
     let (mut report, ownership_errors) =

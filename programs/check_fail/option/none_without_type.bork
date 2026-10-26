@@ -1,0 +1,5 @@
+// diag: cannot infer type of `None`
+// With no expected type, `None` has no `Option` to belong to.
+fun main() {
+    val o = None
+}

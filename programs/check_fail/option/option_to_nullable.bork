@@ -1,0 +1,6 @@
+// diag: expected i32?
+// No implicit `Option<T>` -> `T?`.
+fun main() {
+    val o: Option<i32> = Option.Some(1)
+    val x: i32? = o
+}

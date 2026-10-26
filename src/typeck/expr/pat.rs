@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use crate::ast::{BindingKind, MatchArm, PatLit, Pattern};
 use crate::hir::{HirArm, HirPat, HirPatKind, Prim};
-use crate::span::Span;
+use crate::span::{Span, SpannedName};
 use crate::ty::{TyData, TyId};
 
 use super::super::env::{EnumInfo, Env};
@@ -42,6 +42,15 @@ pub(super) fn check_pat(
         },
         Pattern::Literal { value, .. } => literal(value, ty, span, env),
         Pattern::Variant { .. } => return check_variant(pat, ty, by_borrow, names, env),
+        Pattern::Some { inner, .. } if is_enum_with_variant(ty, "Some", env) => {
+            let variant = SpannedName { name: "Some".into(), span, id: crate::span::AstId::DUMMY };
+            let pat = Pattern::Variant { enum_name: None, name: variant, args: vec![(**inner).clone()], span };
+            return check_pat(&pat, ty, by_borrow, names, env);
+        }
+        Pattern::None { .. } if is_enum_with_variant(ty, "None", env) => {
+            let variant = SpannedName { name: "None".into(), span, id: crate::span::AstId::DUMMY };
+            return check_pat(&Pattern::Binding(variant), ty, by_borrow, names, env);
+        }
         Pattern::Some { inner, .. } => {
             let (inner_ty, inner_borrow) = match (env.tcx.managed_ref_inner(ty), env.tcx.is_nullable(ty)) {
                 (Some(target), _) => (target, true),
@@ -63,6 +72,20 @@ pub(super) fn check_pat(
         }
     };
     HirPat { kind, ty, span }
+}
+
+/// Whether `ty` is an enum with a variant called `variant`: `Some` / `None` patterns then name it.
+fn is_enum_with_variant(ty: TyId, variant: &str, env: &Env<'_>) -> bool {
+    has_variants(ty, &[variant], env)
+}
+
+/// Whether `ty` is an enum (not a nullable one) that has every variant in `variants`.
+pub(super) fn has_variants(ty: TyId, variants: &[&str], env: &Env<'_>) -> bool {
+    if env.tcx.is_nullable(ty) {
+        return false;
+    }
+    let Some((def, _)) = env.tcx.enum_args(ty) else { return false };
+    env.enums.get(&def).is_some_and(|e| variants.iter().all(|want| e.variants.iter().any(|v| v.name == *want)))
 }
 
 /// A bare name that spells a variant of the matched enum is that variant, not a binding.
