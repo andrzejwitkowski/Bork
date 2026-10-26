@@ -63,6 +63,21 @@ fn the_codegen_gate_accepts_enums() {
 }
 
 #[test]
+fn the_codegen_gate_accepts_when_over_enums_and_rejects_some_none_patterns() {
+    let gate = |src: &str| {
+        let result = crate::frontend::check(src);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        crate::codegen_gate::gate(&result.hir.unwrap(), &result.tcx)
+    };
+    let ok = gate("enum E { A(n: i32), B }\nfun f(e: &E): i32 {\n    return when e {\n        A(n) => { n }\n        B => { 0 }\n    }\n}\nfun main() {}\n");
+    assert!(ok.is_empty(), "{ok:?}");
+    let none_first = "class N {\n    v: i32\n    next: Ref<N>\n}\nfun main() {\n    val a = N(1)\n    val r: Ref<N> = a.next\n    when r {\n        None => { }\n        Some(n) => { }\n    }\n}\n";
+    let rejected = gate(none_first);
+    assert!(rejected.iter().any(|d| d.message.contains("`when` over a `Ref`")), "{rejected:?}");
+    assert!(rejected.iter().any(|d| d.message.contains("`Some`/`None` patterns")), "{rejected:?}");
+}
+
+#[test]
 fn variant_paths_ignore_safe_access_and_reject_explicit_type_args() {
     has("enum E { A(x: i32) }\nfun main() {\n    val e = E?.A(1)\n}\n", "unknown binding `E`");
     has("enum T<U> { L }\nfun main() {\n    val t: T<i32> = T.L::<i32>()\n}\n", "explicit type arguments on enum variants");

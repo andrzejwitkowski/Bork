@@ -1077,3 +1077,27 @@ fn moving_an_enum_value_is_rejected_not_a_crash() {
     assert!(!binary.exists());
     assert!(String::from_utf8_lossy(&output.stderr).contains("moving enum values is not supported"));
 }
+
+#[test]
+fn when_over_a_ref_with_some_none_patterns_is_rejected_with_a_hint() {
+    let (output, binary) = bork_build(
+        &scratch_dir("when_some_none"),
+        "class N {\n    v: i32\n    next: Ref<N>\n}\nfun main() {\n    val a = N(1)\n    val r: Ref<N> = a.next\n    when r {\n        None => { }\n        Some(n) => { }\n    }\n}\n",
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!binary.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("use `if val`"));
+}
+
+/// Each arm is its own region: a `when` in a loop reuses one arena per iteration instead of
+/// growing, and an arm that returns still pops every open arena.
+#[test]
+fn when_in_a_loop_with_returning_arms_runs() {
+    let run = build_and_run(
+        "when_in_loop",
+        "enum E { A(n: i32), B }\nfun f(e: &E): i32 {\n    when e {\n        A(n) => { return n }\n        B => { }\n    }\n    return 0\n}\n\
+         fun main(): i32 {\n    val a = E.A(2)\n    val b = E.B\n    var i = 0\n    var t = 0\n    while (i < 1000) {\n        t = t + f(&a) + f(&b)\n        i = i + 1\n    }\n    println(t)\n    return 0\n}\n",
+    );
+    assert_eq!(run.status.code(), Some(0));
+    assert_eq!(stdout_of(&run), "2000\n");
+}

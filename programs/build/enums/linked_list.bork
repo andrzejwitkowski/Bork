@@ -1,0 +1,46 @@
+// exit: 0
+// stdout: 3\n6\n6\n0\n
+// A singly linked list as `enum List { Nil, Cons(v, next: Ref<List>) }`, summed and counted
+// recursively with `when`; walking the list leaves the head's reference count unchanged.
+enum List {
+    Nil,
+    Cons(v: i32, next: Ref<List>),
+}
+
+fun length(l: &List): i32 {
+    return when l {
+        Nil => { 0 }
+        Cons(v, next) => {
+            var rest = 0
+            if val n = next { rest = length(&n) }
+            1 + rest
+        }
+    }
+}
+
+fun sum(l: &List): i32 {
+    return when l {
+        Nil => { 0 }
+        Cons(v, next) => {
+            var rest = 0
+            if val n = next { rest = sum(&n) }
+            v + rest
+        }
+    }
+}
+
+fun main(): i32 {
+    val nil = List.Nil
+    val r0: Ref<List> = nil
+    val l1 = List.Cons(3, r0)
+    val r1: Ref<List> = l1
+    val l2 = List.Cons(2, r1)
+    val r2: Ref<List> = l2
+    val l3 = List.Cons(1, r2)
+    val before = strongCount(r2)
+    println(length(&l3))
+    println(sum(&l3))
+    println(sum(&l3))
+    println(strongCount(r2) - before)
+    return 0
+}

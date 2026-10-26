@@ -1,3 +1,9 @@
+== programs/build/enums/match_generic_loop.bork
+fun main
+fun get<i32>
+fun get<String>
+fun inner
+class P
 == programs/build/generics/identity.bork
 fun main
 fun id<i32>

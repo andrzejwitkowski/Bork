@@ -114,7 +114,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     }
 
     /// Literal bytes live in a private constant; the descriptor borrows them.
-    fn emit_str_literal(&self, value: &str) -> Result<StructValue<'ctx>, Diagnostic> {
+    pub(super) fn emit_str_literal(&self, value: &str) -> Result<StructValue<'ctx>, Diagnostic> {
         let context = self.cx.context;
         let bytes = context.const_string(value.as_bytes(), false);
         let global = self.cx.module.add_global(bytes.get_type(), None, "str");
@@ -277,7 +277,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             HirExprKind::EnumConstruct { enum_name, variant, fields } => self
                 .emit_enum_construct(enum_name, variant, fields, ops, expr.span)
                 .map(Some),
-            HirExprKind::Match { .. } => Err(not_yet_supported("`when` over patterns (see #53)", expr.span)),
+            HirExprKind::Match { .. } => Err(not_yet_supported("`when` outside the region walk", expr.span)),
         }
     }
 
@@ -568,7 +568,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .ok_or_else(|| not_yet_supported("region walk eval stack underflow", span))
     }
 
-    fn value_as_bool(
+    pub(super) fn value_as_bool(
         &mut self,
         value: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,

@@ -3,7 +3,7 @@
 use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{
-    HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, Prim, UseKind,
+    HirBlock, HirExpr, HirExprKind, HirPat, HirPatKind, HirProgram, HirStmt, Prim, UseKind,
 };
 use crate::span::Span;
 use crate::ty::{TyCtx, TyData, TyId};
@@ -178,9 +178,17 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             gate_expr(tcx, receiver, diagnostics);
         }
         HirExprKind::Match { scrutinee, arms } => {
-            reject(diagnostics, "`when` over patterns is not supported by codegen yet", expr.span);
+            let scrutinee_ty = tcx.deref_ty(scrutinee.ty);
+            if tcx.is_managed_ref(scrutinee_ty) || tcx.is_nullable(scrutinee_ty) {
+                reject(
+                    diagnostics,
+                    "`when` over a `Ref` or a nullable value is not supported by codegen yet; use `if val`",
+                    scrutinee.span,
+                );
+            }
             gate_expr(tcx, scrutinee, diagnostics);
             for arm in arms {
+                gate_pat(&arm.pat, diagnostics);
                 gate_block(tcx, &arm.body, diagnostics);
             }
         }
@@ -207,6 +215,17 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
             gate_field(tcx, expr, receiver, name, *safe, diagnostics);
             gate_expr(tcx, receiver, diagnostics);
         }
+    }
+}
+
+/// `Some` / `None` patterns are not lowered (only the `if val` pair is); everything else is.
+fn gate_pat(pat: &HirPat, diagnostics: &mut Vec<Diagnostic>) {
+    match &pat.kind {
+        HirPatKind::Some(_) | HirPatKind::None => {
+            reject(diagnostics, "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`", Some(pat.span));
+        }
+        HirPatKind::Variant { fields, .. } => fields.iter().for_each(|field| gate_pat(field, diagnostics)),
+        HirPatKind::Wildcard | HirPatKind::Bind { .. } | HirPatKind::Lit(_) => {}
     }
 }
 

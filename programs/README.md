@@ -25,7 +25,7 @@ Runnable `.bork` sources grouped by language feature. They complement `tests/*.r
 | [`basics/`](build/basics/) | Smoke: `return`, `println`, arrays, `i64` blocks |
 | [`constants/`](build/constants/) | File-level `const`, shadowing in functions and methods |
 | [`vec/`](build/vec/) | Growable `Vec<T>`: push/pop/get/set/len/clear, doubling across pages, `String` and `Ref<T>` elements, `promote` between arenas, exact `strongCount` / `weakCount` across older and newer arenas |
-| [`enums/`](build/enums/) | `enum` construction: every variant shape, mixed-size payloads, `Ref` payload counts, generic enums, enums through calls |
+| [`enums/`](build/enums/) | `enum` construction and `when`: every variant shape, mixed-size payloads, `Ref` payload counts, generic enums, literal/nested patterns, an expression evaluator, a linked list |
 | [`text/`](build/text/) | `String` bytes and content equality, `stringFromUtf8` (copy, `None`, sinks), a small HTTP-style example |
 
 The same topic names exist under `check/` and `check_fail/` where it makes sense.

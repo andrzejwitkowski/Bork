@@ -10,6 +10,7 @@ mod emit_fn;
 mod enum_glue;
 mod expr;
 mod managed_ref;
+mod match_emit;
 mod nullable;
 mod presence;
 mod region_emit;
@@ -459,6 +460,12 @@ mod tests {
     }
 
     fn ret_blocks_contain_arena_pop(ir: &str) {
+        // Enum drop glue (`bork.drop.*`) runs inside an arena's teardown and opens none.
+        let ir: String = ir
+            .split("\ndefine ")
+            .filter(|function| !function.starts_with("internal void @bork.drop."))
+            .collect::<Vec<_>>()
+            .join("\ndefine ");
         for block in ir.split("\n\n") {
             if block.contains(" ret ") {
                 assert!(
@@ -478,6 +485,12 @@ mod tests {
             "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) { total = total + i }\n    return total\n}\n",
             "fun main() {\n    val s = \"x\"\n    { println(s) }\n}\n",
             "fun main(): i32 {\n    val x = 1\n    if (x > 0) { return 1 } else { return 0 }\n}\n",
+            // `when`: plain arms, an arm that returns, an arm that binds a `Ref` payload (it pushes
+            // an arena of its own), and a value-yielding `when` with a string literal pattern.
+            "enum E { A(n: i32), B }\nfun f(e: &E): i32 {\n    return when e {\n        A(n) => { n }\n        B => { 0 }\n    }\n}\nfun main(): i32 {\n    val e = E.A(3)\n    return f(&e)\n}\n",
+            "enum E { A(n: i32), B }\nfun f(e: &E): i32 {\n    when e {\n        A(n) => { return n }\n        B => { }\n    }\n    return 0\n}\nfun main(): i32 {\n    val e = E.B\n    return f(&e)\n}\n",
+            "class N { v: i32 }\nenum S { Held(n: Ref<N>), Empty }\nfun f(s: &S): i32 {\n    var t = 0\n    when s {\n        Held(n) => { if val x = n { t = x.v } }\n        Empty => { }\n    }\n    return t\n}\nfun main(): i32 {\n    val a = N(2)\n    val r: Ref<N> = a\n    val s = S.Held(r)\n    return f(&s)\n}\n",
+            "fun f(s: String): i32 {\n    return when s {\n        \"a\" => { 1 }\n        _ => { 2 }\n    }\n}\nfun main(): i32 {\n    return f(\"a\")\n}\n",
         ];
         for source in sources {
             let checked = check(source);
@@ -494,8 +507,10 @@ mod tests {
                 .filter(|e| matches!(e, RegionEvent::Pop { .. }))
                 .count();
             let ir = ir_of(source);
+            // Functions other than `main` open their arena as a child of the caller's.
             assert_eq!(
-                ir.matches("call ptr @bork_arena_push()").count(),
+                ir.matches("call ptr @bork_arena_push()").count()
+                    + ir.matches("call ptr @bork_arena_push_child(").count(),
                 scheduled_pushes,
                 "{source}"
             );

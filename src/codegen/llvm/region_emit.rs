@@ -11,7 +11,8 @@ use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
 use crate::ty::TyId;
 use crate::hir::{
-    HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirFunction, HirStmt, };
+    HirArm, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirFunction, HirStmt,
+};
 use crate::region_walk::{
     region_enter, region_exit, ArenaCursor, RegionVisitor, WalkDriver, WalkError,
 };
@@ -204,7 +205,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     /// Walks the body of one `if val` arm and closes its region. A fall-through value is
     /// materialized into `result_sink` before the region's observations are released.
-    fn emit_presence_arm<C: ArenaCursor>(
+    pub(super) fn emit_presence_arm<C: ArenaCursor>(
         &mut self,
         driver: &mut WalkDriver<'_, C>,
         site: RegionSite,
@@ -468,7 +469,9 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         self.debug_location(expr.span);
         if matches!(
             expr.kind,
-            crate::hir::HirExprKind::PresenceMatch { .. } | crate::hir::HirExprKind::If { .. }
+            crate::hir::HirExprKind::PresenceMatch { .. }
+                | crate::hir::HirExprKind::If { .. }
+                | crate::hir::HirExprKind::Match { .. }
         ) {
             return Ok(());
         }
@@ -543,6 +546,16 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
                 Ok(())
             })
         })
+    }
+
+    fn match_expr<C: ArenaCursor>(
+        &mut self,
+        driver: &mut WalkDriver<'_, C>,
+        scrutinee: &HirExpr,
+        arms: &[HirArm],
+        result_ty: TyId,
+    ) -> Result<(), WalkError> {
+        map_emit_err(self.emit_match_with_driver(driver, scrutinee, arms, result_ty))
     }
 
     // Overrides the canonical sequence: each tail source needs a branch to the cleanup

@@ -131,13 +131,15 @@ fun main() {
 
 `when value { pattern => { ... } ... }` picks the first arm whose pattern matches. Patterns: `_`, a name (binds the value), a literal (`1`, `true`, `"s"`), `Variant(p, ..)` or `Enum.Variant(p, ..)` (one sub-pattern per payload field, nested freely), a bare `Variant` for a payload-free variant, and `Some(p)` / `None`. A bare name that spells a payload-free variant of the matched enum is that variant. The exact pair `Some(name)` + `None` keeps its `if val` meaning.
 
-Binding mode: over a named value (a variable, a field, `this`) or any `&T`, a bound name is a borrow `&T`, except `Copy` scalars (numbers, `bool`), which bind by value. Over a temporary it binds by move. Nothing is moved out of a named value. The arms must have one type when the `when` is used as a value. `bork build` still rejects `when` over patterns.
+Binding mode: over a named value (a variable, a field, `this`) or any `&T`, a bound name is a borrow `&T`, except `Copy` scalars (numbers, `bool`), which bind by value, and `Ref<T>` payloads, which bind as a counted copy (the same as reading a `Ref` field of a class) so the name can go through `if val`. Over a temporary it binds by move. Nothing is moved out of a named value. The arms must have one type when the `when` is used as a value.
 
 Coverage is checked at compile time. A `when` over enums, `bool` or `Some`/`None` must cover every value, and the error lists what is missing (``non-exhaustive `when`: missing `Shape.Rect(_, _)` ``). Integers and strings are never fully covered by literals, so they need a `_` or a binding arm. An arm that earlier arms already cover is an error (`unreachable pattern`); this also catches a misspelled unit variant, which binds as a catch-all. The check is skipped when a pattern in the `when`, or its scrutinee, already has an error.
 
-Codegen (#52): an enum value is a slot in its arena, `{ i32 tag, payload.. }`, as large and as aligned as the biggest variant (no niche optimization); the tag is the variant's declaration index. Payloads are owned like class fields: `String`, arrays and `Vec` are copied into the enum's arena and a `Ref` payload is retained and released with it, never copied bitwise. Variants can be built, passed, returned and stored in class fields; reading them back needs `when` lowering.
+Codegen (#52): an enum value is a slot in its arena, `{ i32 tag, payload.. }`, as large and as aligned as the biggest variant (no niche optimization); the tag is the variant's declaration index. Payloads are owned like class fields: `String`, arrays and `Vec` are copied into the enum's arena and a `Ref` payload is retained and released with it, never copied bitwise. Variants can be built, passed, returned, stored in class fields and read back with `when`.
 
-Not implemented yet: lowering `when` (#53) and an `Option<T>` / `Result<T, E>` prelude (#54).
+`bork build` lowers `when` over enums, integers, `bool` and `String` (#53). The scrutinee is evaluated once; the arms are tested in order (first match wins) and each arm is a region of its own. A variant pattern compares the tag and then tests the payload sub-patterns; literals compare with `==`. Every binding is a view into the matched value, so an arm never owns a payload and the enum's drop glue stays the only releaser; a `Ref` payload is the exception, it is a counted copy released when the arm ends. `when` over a `Ref` or a nullable value, and `Some`/`None` patterns other than the `if val` pair, are rejected by codegen for now.
+
+Not implemented yet: an `Option<T>` / `Result<T, E>` prelude (#54).
 
 ## Constants
 

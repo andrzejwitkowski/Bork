@@ -1,8 +1,9 @@
 //! Pattern checking for `when`: each pattern is checked against the type of the value it matches.
 //!
 //! Binding mode: over a place (or a `&T`, such as `this`) a bound name is a borrow, `&T`, except
-//! for `Copy` scalars, which bind by value. Over a temporary it binds by move. Nothing moves out
-//! of a place.
+//! for `Copy` scalars, which bind by value, and `Ref<T>` payloads, which bind as a counted copy (the
+//! same as reading a `Ref` field of a class), so the name can go through `if val`. Over a
+//! temporary it binds by move. Nothing moves out of a place.
 
 use std::collections::HashSet;
 
@@ -86,7 +87,7 @@ fn bind(
     if !names.insert(name.name.clone()) {
         env.error(format!("duplicate pattern binding '{}'", name.name), Some(name.span));
     }
-    let borrowed = by_borrow && !is_copy(ty, env) && !env.tcx.is_unknown(ty);
+    let borrowed = by_borrow && !is_copy(ty, env) && !env.tcx.is_managed_ref(ty) && !env.tcx.is_unknown(ty);
     let binding_ty = if borrowed { env.tcx.ref_to(ty) } else { ty };
     env.node_tys.insert(name.id.numbered(), binding_ty);
     env.bind(name.name.clone(), BindingKind::Val, binding_ty, borrowed);

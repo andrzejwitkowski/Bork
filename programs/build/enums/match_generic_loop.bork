@@ -1,0 +1,70 @@
+// exit: 0
+// stdout: 1\n1\n9\n7\n6\n
+// `when` inside a generic function (one instance per type argument), a `when` nested in an arm
+// over a payload that is itself an enum next to a class payload, and `continue` / `break` out of
+// arms inside a loop (each arm's region is unwound on the way out).
+class P {
+    x: i32
+}
+
+enum Maybe<T> {
+    Nothing,
+    Just(v: T),
+}
+
+enum Shape {
+    Circle(r: i32),
+    Empty,
+}
+
+enum Wrap {
+    W(s: Shape, p: P),
+    Z,
+}
+
+fun get<T>(m: &Maybe<T>, d: i32): i32 {
+    return when m {
+        Just(v) => { 1 }
+        Nothing => { d }
+    }
+}
+
+fun inner(w: &Wrap): i32 {
+    return when w {
+        W(s, p) => {
+            val a: i32 = when s {
+                Circle(r) => { r }
+                Empty => { 0 }
+            }
+            a + p.x
+        }
+        Z => { 0 }
+    }
+}
+
+fun main(): i32 {
+    val a: Maybe<i32> = Maybe.Just(5)
+    val b: Maybe<String> = Maybe.Just("s")
+    val c: Maybe<i32> = Maybe.Nothing
+    println(get::<i32>(&a, 9))
+    println(get::<String>(&b, 9))
+    println(get::<i32>(&c, 9))
+    val w = Wrap.W(Shape.Circle(4), P(3))
+    println(inner(&w))
+    val e = Shape.Empty
+    var i = 0
+    var t = 0
+    while (i < 10) {
+        i = i + 1
+        when e {
+            Circle(r) => { t = t + 100 }
+            Empty => {
+                if (i == 3) { continue }
+                if (i == 8) { break }
+                t = t + 1
+            }
+        }
+    }
+    println(t)
+    return 0
+}
