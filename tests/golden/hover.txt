@@ -86,7 +86,7 @@ programs/build/option/nullable_when.bork: hits=98 hash=6bcd66b4bfac2309
 programs/build/option/option_conversions.bork: hits=134 hash=777e46b9b8b0c322
 programs/build/option/option_result.bork: hits=122 hash=0a0cb68af0040397
 programs/build/option/user_option_wins.bork: hits=16 hash=76dafa6f555185aa
-programs/build/option/when_some_first.bork: hits=70 hash=bebb1b45615f2f39
+programs/build/option/when_some_first.bork: hits=78 hash=53a938a3ea4bf345
 programs/build/paged_arenas/concat_grows_past_page.bork: hits=90 hash=d831dd43275c145f
 programs/build/paged_arenas/many_small_allocs_cross_pages.bork: hits=5290 hash=409698be11e24f58
 programs/build/recursions/factorial.bork: hits=4 hash=333e1945c8d00531
@@ -132,6 +132,7 @@ programs/check/conditionals/if_return_move_then_use.bork: hits=25 hash=c87367bad
 programs/check/conditionals/nullable_eq.bork: hits=8 hash=205e1f814db703b5
 programs/check/enums/exhaustive.bork: hits=17 hash=2479e7674c13b910
 programs/check/enums/generic_tree.bork: hits=6 hash=b9363fc0ca6d445a
+programs/check/enums/if_val_option_shadow.bork: hits=25 hash=1d241b2c8d9b8b94
 programs/check/enums/pattern_shadow_move.bork: hits=21 hash=e465da16dd6bafd3
 programs/check/enums/patterns.bork: hits=14 hash=574ecd54e06f96a2
 programs/check/enums/shape.bork: hits=3 hash=b157880839d33ea1

@@ -1,0 +1,13 @@
+// exit: 0
+// An `if val` over an `Option` rewrites to a `when`; its binding shadows an outer `s` that was already moved.
+fun main(): i32 {
+    val s = "outer"
+    val t = move s
+    println(t)
+    val o: Option<String> = Some("inner")
+    if val s = o {
+        val n = s.length
+        println(n)
+    } else { }
+    return 0
+}

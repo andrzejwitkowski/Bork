@@ -1017,18 +1017,22 @@ Arenas
 ├── fun len
 │   ├── x [Local]
 │   ├── MatchArm
+│   │   └── s [Borrow ← pattern binding]
 │   └── MatchArm
 ├── fun size
 │   ├── x [Local]
 │   ├── MatchArm
+│   │   └── s [Borrow ← pattern binding]
 │   └── MatchArm
 ├── fun pick
 │   ├── x [Local]
 │   ├── MatchArm
+│   │   └── v [Local]
 │   └── MatchArm
 ├── fun borrowed
 │   ├── o [Borrow ← call site]
 │   ├── MatchArm
+│   │   └── v [Local]
 │   └── MatchArm
 └── fun main
     ├── a [Local]
@@ -1794,6 +1798,16 @@ Arenas
     ├── leaf [Local]
     ├── n [Local]
     └── m [Local]
+== programs/check/enums/if_val_option_shadow.bork
+Arenas
+└── fun main
+    ├── s [Moved ← fun main]
+    ├── t [Local]
+    ├── o [Local]
+    ├── MatchArm
+    │   ├── s [Borrow ← pattern binding]
+    │   └── n [Local]
+    └── MatchArm
 == programs/check/enums/pattern_shadow_move.bork
 Arenas
 ├── fun make

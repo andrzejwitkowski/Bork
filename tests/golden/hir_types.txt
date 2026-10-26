@@ -221,6 +221,7 @@ programs/check/conditionals/if_return_move_then_use.bork::run(flag: bool) -> i32
 programs/check/conditionals/nullable_eq.bork::main() -> i32
 programs/check/enums/exhaustive.bork::main() -> unit
 programs/check/enums/generic_tree.bork::main() -> unit
+programs/check/enums/if_val_option_shadow.bork::main() -> i32
 programs/check/enums/pattern_shadow_move.bork::make() -> E
 programs/check/enums/pattern_shadow_move.bork::main() -> i32
 programs/check/enums/patterns.bork::main() -> unit
