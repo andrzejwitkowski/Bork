@@ -15,7 +15,6 @@ use crate::hir::{HirClass, HirEnum, Prim};
 use crate::ty::{TyCtx, TyData, TyId};
 use crate::memory::MemoryPlan;
 
-use crate::codegen_gate::{nullable_repr, NullableRepr};
 
 /// How one enum instance sits in its arena slot: `{ i32 tag, payload.. }` per variant, the slot
 /// being as large and as aligned as the biggest variant (no niche optimization).
@@ -118,6 +117,9 @@ impl<'ctx> Codegen<'ctx> {
                 .expect("record shell was declared")
                 .set_body(&fields, false);
         }
+        // Generic enums are only definitions; codegen sees their concrete instances (see `mono`).
+        let enums: Vec<HirEnum> = enums.iter().filter(|e| e.generics.is_empty()).cloned().collect();
+        let enums = &enums[..];
         for e in enums {
             let layout = codegen.enum_layout_of(e)?;
             codegen.enum_layouts.insert(e.name.clone(), layout);
@@ -164,14 +166,15 @@ impl<'ctx> Codegen<'ctx> {
 
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
     pub fn basic_type(&self, ty: TyId) -> Option<BasicTypeEnum<'ctx>> {
+        // `T?` is an enum slot whatever `T` is, so it is decided before the kind queries below look through it.
+        if self.tcx.is_nullable(ty) {
+            return Some(self.object_handle_type().into());
+        }
         if let Some(inner) = self.tcx.ref_inner(ty) {
             return self.basic_type(inner);
         }
         if self.tcx.is_managed_ref(ty) {
             return Some(self.ref_handle_type().into());
-        }
-        if self.tcx.is_nullable(ty) {
-            return self.nullable_storage_type(ty);
         }
         if self.tcx.is_string(ty) {
             return Some(self.buffer_descriptor_type().into());
@@ -263,23 +266,6 @@ impl<'ctx> Codegen<'ctx> {
     pub fn ref_observation_type(&self) -> StructType<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
         self.context.struct_type(&[ptr.into(), ptr.into()], false)
-    }
-
-    /// In-memory shape for `T?` (not `&T`).
-    pub fn nullable_storage_type(&self, ty: TyId) -> Option<BasicTypeEnum<'ctx>> {
-        match nullable_repr(&self.tcx, ty)? {
-            NullableRepr::Buffer => Some(self.buffer_descriptor_type().into()),
-            NullableRepr::TaggedScalar => {
-                let inner = self.tcx.base(ty);
-                let value_ty = self.basic_type(inner)?;
-                let tag = self.context.bool_type();
-                Some(
-                    self.context
-                        .struct_type(&[tag.into(), value_ty], false)
-                        .into(),
-                )
-            }
-        }
     }
 
     /// Arena-backed buffer descriptor `{ ptr, i64 }` (`String`, `[T]`).

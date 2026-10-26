@@ -21,6 +21,12 @@ impl fmt::Display for TyPrinter<'_> {
         match self.ctx.data(self.id) {
             TyData::Prim(prim) => write!(f, "{prim}"),
             TyData::String => f.write_str("String"),
+            // `T?` is `Option<T>`; print it as written unless `T` could not be written with `?`.
+            TyData::Enum(def, args)
+                if Some(*def) == self.ctx.option_def() && args.len() == 1 && self.ctx.supports_nullable(args[0]) && !self.ctx.is_nullable(args[0]) =>
+            {
+                write!(f, "{}?", show(args[0]))
+            }
             TyData::Class(def, args) | TyData::Enum(def, args) => {
                 f.write_str(&self.ctx.class_names[def])?;
                 if args.is_empty() {
@@ -44,7 +50,6 @@ impl fmt::Display for TyPrinter<'_> {
             TyData::ManagedRef(t) => write!(f, "Ref<{}>", show(*t)),
             TyData::Vec(t) => write!(f, "Vec<{}>", show(*t)),
             TyData::Range(t) => write!(f, "Range<{}>", show(*t)),
-            TyData::Nullable(t) => write!(f, "{}?", show(*t)),
             // No source syntax yet; chosen so they cannot be mistaken for a written type.
             TyData::Param(idx) => match self.ctx.param_names.get(idx.0 as usize) {
                 Some(name) => f.write_str(name),

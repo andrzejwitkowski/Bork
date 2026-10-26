@@ -161,7 +161,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.release_observation(observation)?;
         self.end_present_arm(&mut split, Some(present))?;
         self.release_observation(observation)?;
-        let absent = self.cx.const_null_value(result_ty)?;
+        let absent = self.emit_none(result_ty)?;
         self.end_absent_arm(split, Some(absent))?
             .ok_or_else(|| not_yet_supported(&format!("navigated type `{}`", self.cx.tcx.display(result_ty)), span))
     }
@@ -172,20 +172,27 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         field_ty: TyId,
         result_ty: TyId,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if self.cx.tcx.is_managed_ref(field_ty) || self.cx.tcx.is_array(field_ty) || self.cx.tcx.is_string(field_ty) {
+        // A nullable field is already the result type: copy its slot out of the object's arena.
+        if self.cx.tcx.is_nullable(field_ty) {
+            return self.emit_nullable_copy(field_ty, loaded);
+        }
+        let value = if self.cx.tcx.is_managed_ref(field_ty) || self.cx.tcx.is_array(field_ty) || self.cx.tcx.is_string(field_ty) {
             let sink = self.sink_arena();
-            return self.materialize_owned_value(loaded, field_ty, sink);
+            self.materialize_owned_value(loaded, field_ty, sink)?
+        } else if self.cx.tcx.is_copy(field_ty) {
+            loaded
+        } else {
+            return Err(not_yet_supported(
+                &format!("safe navigation of `{}`", self.cx.tcx.display(field_ty)),
+                None,
+            ));
+        };
+        // A `Ref<T>` field's result is a `Ref<T>` (absent is the null handle); anything else is a `T?`.
+        if self.cx.tcx.is_nullable(result_ty) {
+            self.emit_nullable_some(result_ty, value)
+        } else {
+            Ok(value)
         }
-        if self.cx.tcx.is_nullable(field_ty) && self.cx.tcx.is_copy(self.cx.tcx.base(field_ty)) {
-            return Ok(loaded);
-        }
-        if self.cx.tcx.is_copy(field_ty) {
-            return self.emit_nullable_some(result_ty, loaded);
-        }
-        Err(not_yet_supported(
-            &format!("safe navigation of `{}`", self.cx.tcx.display(field_ty)),
-            None,
-        ))
     }
 
 

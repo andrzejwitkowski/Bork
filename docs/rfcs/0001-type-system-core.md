@@ -13,7 +13,7 @@ The type-system work in #31 to #69 fixes representation choices that are expensi
 semantic questions up front so those issues implement them instead of choosing them silently.
 
 Today: types are nominal by class name string (`TyKind::Named(String)`, `src/hir/ty.rs`); there is no
-subtyping; `Ty { kind, nullable: bool }` makes `T??` unrepresentable; `Ref<T>` is a separate
+subtyping; `T?` is `Option<T>` (revised by #54); `Ref<T>` is a separate
 `TyKind::ManagedRef` that is "presence-capable" like `T?` (`Ty::is_presence_capable`); `Unknown`
 doubles as the error type; `Vec` and `Range` are hardcoded kinds; compatibility is structural `Ty`
 equality (there is no central assignability function).
@@ -64,37 +64,37 @@ computation pass is needed in HIR.
 
 ## 3. Nullability
 
-**Decision.**
-- `T?` stays a **distinct type constructor**, not sugar for `Option<T>`. `nullable` becomes a first-class
-  part of the type (#33), not an orthogonal flag that other code can forget to check.
-- **`T??` is rejected** with a diagnostic at type lowering. It is not collapsed to `T?`: collapsing hides
-  which layer is absent and breaks generic code (`T` instantiated with `U?`).
-- `T?`, `Ref<T>` and `Option<T>` are three different types. Conversions between them are **explicit
-  only**; there are no implicit coercions in either direction. `T` to `T?` needs `Some(..)` (current
-  behaviour: `val a: i32? = 5` is rejected).
+**Decision (revised by #54).**
+- `T?` is **sugar for `Option<T>`**: one type, one mechanism. `TyData::Nullable` is gone; `TyCtx::nullable(T)`
+  builds `Option<T>` from the prelude's `Option` (`src/prelude.rs`), and `is_nullable` / `base` recognise it.
+  This replaces the original decision (a distinct constructor, #33), which existed only to avoid blocking
+  nullability on ADTs; with enums (#49-#53) that reason is gone.
+- **`T??` is `Option<Option<T>>`** and is accepted: `Some(None)` and `None` stay distinguishable, and a
+  generic `T?` instantiated with `T = U?` is no longer an error. The `NestedNullable` diagnostics are gone.
+- `Ref<T>` remains a separate type with its own absence (a null handle) and is **not** an `Option`. `Ref<T>`
+  and `Option<Ref<T>>` convert explicitly only (`optionFromRef` / `optionToRef`).
+- `T` to `T?` still needs `Some(..)` (`val a: i32? = 5` is rejected), and no implicit coercion is added in any
+  direction.
 - **One exception, kept permanently as a deliberate shorthand:** in checking mode, a value of class type `T` where `Ref<T>` is
   expected is wrapped in a ref creation (`check_managed_ref`, `src/typeck/expr/mod.rs`; e.g.
-  `val r: Ref<Node> = Node("live")`, used across `programs/*/managed_refs`). This is an allocation into
+  `val r: Ref<Node> = Node("live")`, used across `programs/*/managed_refs`). It is an allocation into
   a managed arena driven by the expected type, not subtyping: it never applies in synthesis mode, never
   to `T?` or `Option<T>`, and never in the other direction. No new coercion may be added without an RFC.
-- Generic instantiation that would produce `T??` (for example `T?` with `T = U?`) is an error at the
-  instantiation site, with a note pointing at the parameter.
 
-**Rationale.** `T?` is the cheap, presence-niche representation the codegen gate already lowers
-(`codegen_lowers_nullable`). `Option<T>` is the general ADT (#54) and needs patterns and enums first.
-Keeping them separate avoids blocking nullability work on ADTs while leaving a clear conversion story.
+**Rationale.** A second, special nullable mechanism next to `Option<T>` mixes concepts and doubles the
+rules (patterns, exhaustiveness, ownership, codegen). Making `T?` the enum removes the special cases.
+The cost is representation: a nullable is an arena slot instead of an inline `{ i1, T }` / null pointer;
+a niche optimisation on `Option` is a possible later layout change that needs no language change.
 
 **Rejected.**
-- `T?` as alias of `Option<T>`: couples nullable lowering to enums and exhaustiveness (#49 to #51).
+- `T?` as a distinct constructor next to `Option<T>` (the original decision): two mechanisms for one idea.
 - Collapse `T??` to `T?`: loses information; `Some(None)` vs `None` become indistinguishable.
-- Implicit `T` to `T?` widening everywhere: the compiler already accepts `T` where `T?` is expected only
+- Implicit `T` to `T?` widening everywhere: the compiler accepts `T` where `T?` is expected only
   through explicit `Some` / `None` expressions; this RFC does not widen that.
 
-**Consequences.** Today's `is_presence_capable` (nullable or `Ref<T>`) remains a representation query, not
-a subtyping relation. A generic signature that mentions `T?` cannot be instantiated with a nullable type
-(e.g. `fun first<T>(v: Vec<T>): T?` with `T = U?`); lifting that needs a "non-nullable" bound or
-`Option<T>`, decided with traits (#55) and #54. Existing `check_fail` diagnostics for nullable types are unchanged until the
-nullability phase re-blesses them.
+**Consequences.** `is_presence_capable` (nullable or `Ref<T>`) remains a representation query, not a
+subtyping relation. A generic signature that mentions `T?` can be instantiated with a nullable type (it
+nests). Existing `check_fail` diagnostics that spelled "nullable of nullable" are now positive tests.
 
 **Depends on.** #33, #54, and the nullability/ADT work (#49).
 
@@ -253,6 +253,8 @@ This RFC adds no `TyKind` variants itself. Follow-up issues change representatio
 
 **Implementation (#53).** `when` over patterns is lowered by `match_emit.rs` through the region walk's `RegionVisitor::match_expr`: scrutinee once, then per arm a test chain (variant tag, literals, nested payload patterns) and a `MatchArm` region. Bindings borrow from the matched slot; a `Ref` payload binds as a counted copy (typeck) and its arm pushes an arena to release it in. `Some`/`None` patterns and `when` over `Ref`/nullable values are gated.
 
-**Implementation (#54).** `Some` / `None` stop being keywords. The parser reads them as names and maps a bare `None` / a one-argument `Some(e)` to the existing nullable nodes; typeck then resolves them by the expected type: an enum that has a variant of that name makes them that variant, otherwise they keep the `T?` / `Ref<T>` meaning. `Option` and `Result` are prelude enums (`src/prelude.rs`), numbered after the user's items and kept out of the span index. The three types stay distinct and no coercion is added; the conversions are prelude functions. Making `T?` plain sugar for `Option<T>` (so this section's "distinct types" rule is lifted) is a later step.
+**Implementation (#54, part 1).** `Some` / `None` stop being keywords. The parser reads them as names and maps a bare `None` / a one-argument `Some(e)` to the existing nullable nodes; typeck then resolves them by the expected type: an enum that has a variant of that name makes them that variant, otherwise they keep the `T?` / `Ref<T>` meaning. `Option` and `Result` are prelude enums (`src/prelude.rs`), numbered after the user's items and kept out of the span index. The three types stay distinct and no coercion is added; the conversions are prelude functions. Making `T?` plain sugar for `Option<T>` (so this section's "distinct types" rule is lifted) is a later step.
+
+**Implementation (#54, part 2).** `T?` is `Option<T>`: `TyData::Nullable`, `NestedNullable` and the inline `{ i1, T }` / null-pointer representation are removed. The prelude's `Option` is always added (`src/prelude.rs`); `TyCtx` remembers its `DefId` and `nullable` / `is_nullable` / `base` are defined in terms of it. `Some(e)` / `None` resolve to the enum's variants unless a `Ref<T>` is expected. Codegen builds a nullable through `build_enum_slot` (the same slot as any enum, `src/codegen/llvm/nullable.rs`), so `when` over a `T?` works with the #53 lowering. Moving a `T?` copies the slot and its payload into the sink arena.
 
 **Implementation (#145).** `lower_type` exempts a type parameter from the `Ref` target and `Vec` element rules ("checked at instantiation"), but nothing checked it then, so `Ref<i32>` and `Vec<P>` could reach LLVM through a generic call. The rules now live on `TyCtx` (`managed_ref_target_ok`, `vec_elem_message`, `ill_formed`) and `mono` applies `ill_formed` to every instantiated type, signature, body and class field, reporting at the call that requested the instance. `mono::check_instances` is the user-facing half of `monomorphize` (collection plus class instances, no planning) and `frontend::check` runs it on a copy of the type context for programs that contain generics, so `bork check` and the LSP agree with `bork build` about phantom parameters, polymorphic recursion and ill-formed instances. Codegen resolves a class by name through `Codegen::class_by_name` / `class_field_name` and reports a missing layout instead of panicking.

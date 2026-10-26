@@ -99,10 +99,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let is_valid =
             builder.build_int_compare(IntPredicate::NE, valid, i8_ty.const_zero(), "utf8.valid")?;
 
-        let entry = builder.get_insert_block().expect("positioned in a block");
         let copy = cx.context.append_basic_block(self.llvm_fn, "utf8.copy");
+        let absent = cx.context.append_basic_block(self.llvm_fn, "utf8.none");
         let done = cx.context.append_basic_block(self.llvm_fn, "utf8.done");
-        builder.build_conditional_branch(is_valid, copy, done)?;
+        builder.build_conditional_branch(is_valid, copy, absent)?;
 
         builder.position_at_end(copy);
         let arena = self.sink_arena();
@@ -128,12 +128,18 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let copied = builder
             .build_insert_value(copied, count, 1, "utf8.out")?
             .into_struct_value();
-        builder.build_unconditional_branch(done)?;
+        let some = self.emit_nullable_some(expr.ty, copied.into())?;
+        let copy_end = self.cx.builder.get_insert_block().expect("positioned in a block");
+        self.cx.builder.build_unconditional_branch(done)?;
 
-        builder.position_at_end(done);
-        let none = cx.const_null_value(expr.ty)?.into_struct_value();
-        let phi = builder.build_phi(cx.string_type(), "utf8.result")?;
-        phi.add_incoming(&[(&none, entry), (&copied, copy)]);
+        self.cx.builder.position_at_end(absent);
+        let none = self.emit_nullable_none(expr.ty)?;
+        let none_end = self.cx.builder.get_insert_block().expect("positioned in a block");
+        self.cx.builder.build_unconditional_branch(done)?;
+
+        self.cx.builder.position_at_end(done);
+        let phi = self.cx.builder.build_phi(some.get_type(), "utf8.result")?;
+        phi.add_incoming(&[(&none, none_end), (&some, copy_end)]);
         Ok(phi.as_basic_value())
     }
 }

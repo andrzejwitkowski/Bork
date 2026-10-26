@@ -7,13 +7,27 @@ impl TyCtx {
     /// `T` for `T?`, otherwise `id` itself.
     pub fn base(&self, id: TyId) -> TyId {
         match self.data(id) {
-            TyData::Nullable(inner) => *inner,
+            TyData::Enum(def, args) if Some(*def) == self.option_def && args.len() == 1 && self.supports_nullable_payload(args[0]) => {
+                args[0]
+            }
             _ => id,
         }
     }
 
+    /// `T?`, which is the prelude's `Option<T>` with a payload `T?` can be written for. An
+    /// `Option<Ref<U>>` is only an enum: the kind queries and `?:` / `!!` do not apply to it.
     pub fn is_nullable(&self, id: TyId) -> bool {
-        matches!(self.data(id), TyData::Nullable(_))
+        matches!(self.data(id), TyData::Enum(def, args)
+            if Some(*def) == self.option_def && args.len() == 1 && self.supports_nullable_payload(args[0]))
+    }
+
+    /// Whether `payload` could have been written `payload?`. An `Option<Ref<T>>` is only an enum:
+    /// the kind queries do not look through it.
+    fn supports_nullable_payload(&self, payload: TyId) -> bool {
+        !matches!(
+            self.data(payload),
+            TyData::Range(_) | TyData::Ref(_) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
+        )
     }
 
     /// a type that cannot be nullable (`Error`) is unchanged.
@@ -207,6 +221,9 @@ impl TyCtx {
 
     /// payload bytes live in an arena (`String`, objects, `[T]`, `Vec`).
     pub fn uses_arena_storage(&self, id: TyId) -> bool {
+        if self.is_nullable(id) {
+            return true;
+        }
         match self.data(self.base(id)) {
             TyData::Ref(inner) => self.uses_arena_storage(*inner),
             TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } | TyData::Vec(_) => true,
@@ -220,7 +237,7 @@ impl TyCtx {
 
     /// Whether `Ref<inner>` is a valid type (the parameter case is the caller's to exempt).
     pub fn managed_ref_target_ok(&self, inner: TyId) -> bool {
-        matches!(self.data(inner), TyData::Class(..) | TyData::Enum(..))
+        !self.is_nullable(inner) && matches!(self.data(inner), TyData::Class(..) | TyData::Enum(..))
     }
 
     /// The message for an invalid `Ref<inner>` target.
@@ -288,7 +305,7 @@ impl TyCtx {
 
     /// The enum and type arguments of an enum value (through `?`).
     pub fn enum_args(&self, id: TyId) -> Option<(DefId, &[TyId])> {
-        match self.data(self.base(id)) {
+        match self.data(id) {
             TyData::Enum(def, args) => Some((*def, args)),
             _ => None,
         }
@@ -387,8 +404,12 @@ mod tests {
     fn with_nullable_toggles_and_leaves_error_alone() {
         let mut c = ctx();
         for id in samples(&mut c) {
+            // `Ref<T>` and the like cannot be written `T?`; the rest round-trips.
+            if !c.supports_nullable(id) {
+                continue;
+            }
             let on = c.with_nullable(id, true);
-            assert!(c.is_nullable(on) || c.is_error(id));
+            assert!(c.is_nullable(on));
             assert_eq!(c.with_nullable(on, false), c.base(id), "{}", c.display(id));
             assert_eq!(c.with_nullable(on, true), on);
         }

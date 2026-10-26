@@ -1,8 +1,8 @@
 // exit: 0
 // stdout: 7\n0\n5\n2\n2\n
-// Nothing converts implicitly between `T?`, `Ref<T>` and `Option<T>`; each direction is a call.
-// `optionFrom` turns a `T?` into an `Option<T>`. `optionFromRef` / `optionToRef` do the same for
-// `Ref<T>` and `Option<Ref<T>>`; reading a `Ref` back out of an `Option` is a counted copy.
+// `T?` is `Option<T>`, so a nullable is already an `Option`. A `Ref<T>` is a different type:
+// `optionFromRef` / `optionToRef` convert to and from `Option<Ref<T>>` (reading a `Ref` back out
+// of an `Option` is a counted copy).
 class Node {
     value: i32
 }
@@ -10,8 +10,8 @@ class Node {
 fun main(): i32 {
     val x: i32? = Some(7)
     val y: i32? = None
-    val a: Option<i32> = optionFrom::<i32>(x)
-    val b: Option<i32> = optionFrom::<i32>(y)
+    val a: Option<i32> = x
+    val b: Option<i32> = y
     when a {
         None => { println(0) }
         Some(v) => { println(v) }

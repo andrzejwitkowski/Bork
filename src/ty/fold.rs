@@ -9,7 +9,7 @@ impl TyData {
         match self {
             TyData::Array { elem, .. } => vec![*elem],
             TyData::Func { params, ret } => params.iter().copied().chain([*ret]).collect(),
-            TyData::Ref(t) | TyData::ManagedRef(t) | TyData::Vec(t) | TyData::Range(t) | TyData::Nullable(t) => {
+            TyData::Ref(t) | TyData::ManagedRef(t) | TyData::Vec(t) | TyData::Range(t) => {
                 vec![*t]
             }
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
@@ -66,16 +66,16 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
             let t = folder.fold(ctx, t)?;
             ctx.add(TyData::Range(t))
         }
-        TyData::Nullable(t) => {
-            let t = folder.fold(ctx, t)?;
-            ctx.nullable(t)?
-        }
         TyData::Class(def, args) => {
             let args = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;
             ctx.add(TyData::Class(def, args))
         }
         TyData::Enum(def, args) => {
-            let args = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;
+            let args: Vec<TyId> = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;
+            // `Error?` is `Error`, so a substitution that leaves an unknown payload stays one.
+            if Some(def) == ctx.option_def() && args.len() == 1 && ctx.is_error(args[0]) {
+                return Ok(args[0]);
+            }
             ctx.add(TyData::Enum(def, args))
         }
         TyData::Prim(_) | TyData::String | TyData::Param(_) | TyData::Infer(_) | TyData::Error => id,
@@ -164,13 +164,14 @@ mod tests {
     }
 
     #[test]
-    fn subst_into_nullable_param_rejects_t_nested_and_absorbs_error() {
+    fn subst_into_nullable_param_nests_and_absorbs_error() {
         let mut c = ctx();
         let t = p(&mut c, 0);
         let opt_t = c.nullable(t).unwrap();
         let i = int(&mut c);
         let opt_i = c.nullable(i).unwrap();
-        assert_eq!(subst(&mut c, opt_t, &[opt_i]), Err(NestedNullable));
+        let nested = c.nullable(opt_i).unwrap();
+        assert_eq!(subst(&mut c, opt_t, &[opt_i]), Ok(nested));
         assert_eq!(subst(&mut c, opt_t, &[i]).unwrap(), opt_i);
         let err = c.error();
         assert_eq!(subst(&mut c, opt_t, &[err]).unwrap(), err);

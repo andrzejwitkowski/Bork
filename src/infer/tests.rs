@@ -2,7 +2,7 @@ use super::*;
 use crate::defs::DefTable;
 
 fn tcx() -> (TyCtx, DefTable) {
-    let program = crate::parse("class Point {\n x: i32\n}\nfun main() {}\n").unwrap();
+    let program = crate::parse("class Point {\n x: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nfun main() {}\n").unwrap();
     let defs = DefTable::build(&program);
     (TyCtx::new(&defs), defs)
 }
@@ -116,13 +116,14 @@ fn nullable_does_not_unify_with_its_base_but_a_var_binds_to_it() {
 }
 
 #[test]
-fn resolving_into_a_nullable_that_would_nest_is_an_error() {
+fn resolving_into_a_nullable_nests_now_that_t_question_is_option() {
     let mut f = Fx::new();
     let (v, i32_ty) = (f.var(), f.t.i32());
     let opt_v = f.t.nullable(v).unwrap();
     let opt_i = f.t.nullable(i32_ty).unwrap();
     f.unify(v, opt_i).unwrap();
-    assert_eq!(f.i.resolve(&mut f.t, opt_v), Err(TypeError::NestedNullable));
+    let nested = f.t.nullable(opt_i).unwrap();
+    assert_eq!(f.i.resolve(&mut f.t, opt_v), Ok(nested));
 }
 
 #[test]

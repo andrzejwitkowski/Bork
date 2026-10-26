@@ -53,17 +53,22 @@ impl LowerCx<'_> {
                 let params = params.iter().map(|param| self.lower(param)).collect();
                 let ret = self.lower(ret);
                 let func = self.tcx.func(params, ret);
-                self.tcx.with_nullable(func, *nullable)
+                self.nullable_if(func, *nullable)
             }
             Type::Ref { inner, nullable } => self.lower_ref(inner, *nullable),
             Type::Primitive { name, nullable } => match Prim::from_name(name) {
                 Some(prim) => {
                     let ty = self.tcx.prim(prim);
-                    self.tcx.with_nullable(ty, *nullable)
+                    self.nullable_if(ty, *nullable)
                 }
                 None => self.tcx.error(),
             },
         }
+    }
+
+    /// `ty?` when `nullable`, else `ty` untouched: an explicit `Option<T>` is already `T?`.
+    fn nullable_if(&mut self, ty: TyId, nullable: bool) -> TyId {
+        if nullable { self.tcx.with_nullable(ty, true) } else { ty }
     }
 
     fn lower_managed_ref(&mut self, inner: &Type) -> TyId {
@@ -112,7 +117,7 @@ impl LowerCx<'_> {
             return self.tcx.error();
         }
         let param = self.tcx.param(idx);
-        self.tcx.with_nullable(param, nullable)
+        self.nullable_if(param, nullable)
     }
 
     /// A class or enum name applied to the lowered type arguments `args`.
@@ -138,7 +143,7 @@ impl LowerCx<'_> {
             return self.tcx.error();
         }
         let ty = if enum_def.is_some() { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
-        self.tcx.with_nullable(ty, nullable)
+        self.nullable_if(ty, nullable)
     }
 
     fn lower_ref(&mut self, inner: &Type, nullable: bool) -> TyId {

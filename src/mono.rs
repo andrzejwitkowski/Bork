@@ -105,8 +105,7 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
         (TyData::Ref(p), TyData::Ref(a))
         | (TyData::ManagedRef(p), TyData::ManagedRef(a))
         | (TyData::Vec(p), TyData::Vec(a))
-        | (TyData::Range(p), TyData::Range(a))
-        | (TyData::Nullable(p), TyData::Nullable(a)) => bind(tcx, *p, *a, out),
+        | (TyData::Range(p), TyData::Range(a)) => bind(tcx, *p, *a, out),
         _ => false,
     }
 }
@@ -236,9 +235,20 @@ pub(crate) fn enum_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
 /// Specialises the program reachable from `main`. `report` is the sema output for `hir`
 /// (one root per function, same order), and planning diagnostics come back as errors.
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
+    monomorphize_from(hir, tcx, report, false)
+}
+
+/// [`monomorphize`] with every non-generic function as a root, not only `main`: codegen unit tests
+/// emit helpers that `main` never calls.
+#[cfg(test)]
+pub(crate) fn monomorphize_every_function(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
+    monomorphize_from(hir, tcx, report, true)
+}
+
+fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
-    let (collector, functions, classes, enums) = collect_instances(hir, tcx)?;
+    let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
     let mut report = collector.report_per_instance(report);
     let mut program = HirProgram { classes, enums, functions };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter survived monomorphization");
@@ -258,8 +268,16 @@ pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
 type Collected<'a> = (Collector<'a>, Vec<HirFunction>, Vec<HirClass>, Vec<HirEnum>);
 
 fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collected<'a>, Vec<Diagnostic>> {
+    collect_from(hir, tcx, false)
+}
+
+fn collect_from<'a>(hir: &'a HirProgram, tcx: &mut TyCtx, every_function: bool) -> Result<Collected<'a>, Vec<Diagnostic>> {
     let mut collector = Collector::new(hir);
-    if let Some(&main) = collector.by_name.get("main") {
+    if every_function {
+        for (index, _) in hir.functions.iter().enumerate().filter(|(_, f)| f.generics.is_empty()) {
+            collector.request_instance(tcx, index, Vec::new(), None);
+        }
+    } else if let Some(&main) = collector.by_name.get("main") {
         collector.request_instance(tcx, main, Vec::new(), None);
     }
     let mut functions = collector.specialize_reachable_functions(tcx);

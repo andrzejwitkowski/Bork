@@ -187,18 +187,21 @@ mod tests {
     use super::*;
     use crate::frontend::check;
 
+    /// The program as `bork build` sees it: specialised, so every `T?` (an `Option<T>`) is an instance.
+    fn monomorphized(checked: &crate::frontend::CheckResult) -> (crate::mono::Mono, crate::ty::TyCtx) {
+        let mut tcx = checked.tcx.clone();
+        let mono = crate::mono::monomorphize_every_function(checked.hir.as_ref().unwrap(), &mut tcx, checked.report.as_ref().unwrap())
+            .expect("monomorphize");
+        (mono, tcx)
+    }
+
     fn ir_of(source: &str) -> String {
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
-        let module = emit_module(
-            &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
-        )
-        .expect("emit");
+        let module =
+            emit_module(&context, &mono.hir, &tcx, &mono.report, mono.memory_plan.clone()).expect("emit");
         module.print_to_string().to_string()
     }
 
@@ -207,13 +210,14 @@ mod tests {
         let source = "fun bump(x: i32): i32 {\n val x = x + 1\n return x\n}\nfun main(): i32 { return bump(1) }\n";
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let module = emit_module_with_debug(
             &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
+            &mono.hir,
+            &tcx,
+            &mono.report,
+            mono.memory_plan.clone(),
             source,
             Path::new("fixture.bork"),
         )
@@ -247,13 +251,14 @@ mod tests {
     fn debug_metadata_and_persistent_ref_labels() {
         let source = "class Node { next: Ref<Node> }\nfun helper(n: i32) {\n val r: Ref<Node> = Node(None)\n { val inner: Ref<Node> = r }\n}\nfun main() { helper(1) }\n";
         let checked = check(source);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let ir = emit_module_with_debug(
             &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
+            &mono.hir,
+            &tcx,
+            &mono.report,
+            mono.memory_plan.clone(),
             source,
             Path::new("fixture.bork"),
         )
@@ -284,13 +289,14 @@ mod tests {
     fn debug_bare_return_has_its_source_line() {
         let source = "fun main() {\n val n = 1\n return\n}\n";
         let checked = check(source);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let module = emit_module_with_debug(
             &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
+            &mono.hir,
+            &tcx,
+            &mono.report,
+            mono.memory_plan.clone(),
             source,
             Path::new("return.bork"),
         )
@@ -309,13 +315,14 @@ mod tests {
         let source = "class Holder { values: [i32; 2] }\nfun inspect(reference: Ref<Holder>) {\n val a = reference?.values\n val text: String? = None\n}\nfun main() {}\n";
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let ir = emit_module_with_debug(
             &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
+            &mono.hir,
+            &tcx,
+            &mono.report,
+            mono.memory_plan.clone(),
             source,
             Path::new("buffers.bork"),
         )
@@ -338,13 +345,14 @@ mod tests {
         let source = "class Node { next: Ref<Node> }\nfun helper(n: i32): i32 {\n for (i in 0..3) {\n val r: Ref<Node> = Node(None)\n {\n val inner: Ref<Node> = r\n if (n == 0) { continue }\n if (n == 1) { break }\n if (n == 2) { return i }\n }\n }\n return n\n}\nfun main(): i32 { return helper(3) }\n";
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let ir = emit_module_with_debug(
             &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
+            &mono.hir,
+            &tcx,
+            &mono.report,
+            mono.memory_plan.clone(),
             source,
             Path::new("exits.bork"),
         )
@@ -387,13 +395,14 @@ mod tests {
         let source = "class Node { next: Ref<Node> }\nclass Holder { refs: [Ref<Node>; 2] }\nfun main() {\n val r: Ref<Node> = Node(None)\n val refs = [r, None]\n val holder = Holder(refs)\n}\n";
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+        let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let ir = emit_module_with_debug(
             &context,
-            checked.hir.as_ref().unwrap(),
-            &checked.tcx,
-            checked.report.as_ref().unwrap(),
-            checked.memory_plan.unwrap(),
+            &mono.hir,
+            &tcx,
+            &mono.report,
+            mono.memory_plan.clone(),
             source,
             Path::new("arrays.bork"),
         )
@@ -829,13 +838,15 @@ mod tests {
             .find("call ptr @bork_arena_alloc(")
             .expect("copy allocation");
         assert!(bounds < validation && validation < allocation, "{ir}");
-        assert_eq!(
-            ir.matches("call ptr @bork_arena_alloc(").count(),
-            1,
-            "invalid UTF-8 must not allocate:\n{ir}"
-        );
+        // The result is a `String?` (an `Option` slot): the copy path allocates the bytes, the `Some`
+        // slot, and a second copy of the bytes into that slot's arena (a payload is owned by its
+        // slot); the invalid path only the `None` slot and never any bytes.
+        assert_eq!(ir.matches("call ptr @bork_arena_alloc(").count(), 4, "{ir}");
+        let none = block(&ir, "utf8.none");
+        assert_eq!(none.matches("call ptr @bork_arena_alloc(").count(), 1, "{none}");
+        assert!(!none.contains("llvm.memcpy"), "invalid UTF-8 must not copy bytes:\n{none}");
         let copy = block(&ir, "utf8.copy");
-        assert!(copy.contains("call ptr @bork_arena_alloc("), "{copy}");
+        assert_eq!(copy.matches("call ptr @bork_arena_alloc(").count(), 3, "{copy}");
         assert!(copy.contains("llvm.memcpy"), "{copy}");
         assert!(
             !block(&ir, "utf8.done").contains("@bork_arena_alloc"),

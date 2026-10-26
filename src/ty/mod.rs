@@ -5,7 +5,7 @@
 //! memory. Every pass reads `TyId` through the `TyCtx` the frontend keeps (#36, #37).
 //!
 //! Shape choices:
-//! - `T?` is a constructor, `TyData::Nullable`, not a flag. `T??` is rejected (`TyCtx::nullable`).
+//! - `T?` is the prelude's `Option<T>` (`TyCtx::nullable`), not a flag; `T??` is `Option<Option<T>>`.
 //! - `Error` marks a type that already has a diagnostic; `Error?` is `Error` (an error absorbs, no
 //!   cascade), so an unknown type stays unknown when made nullable. `Param` and `Infer` are for generics (Phase 3).
 //! - `String` is its own variant, not a class: it has no `DefId`.
@@ -44,8 +44,6 @@ pub enum TyData {
     ManagedRef(TyId),
     Vec(TyId),
     Range(TyId),
-    /// `T?`; the inner type is never `Nullable` or `Error`.
-    Nullable(TyId),
     /// A generic parameter, opaque inside its own item; reaches HIR only in generic items.
     Param(ParamIdx),
     /// An inference variable, local to one body; never reaches HIR.
@@ -60,7 +58,8 @@ pub struct ParamIdx(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct InferVar(pub u32);
 
-/// `T?` of a type that is already nullable.
+/// The error of folding a type. Nothing produces it any more (`T??` is an `Option<Option<T>>`); the
+/// folder and resolver signatures keep it until they are simplified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NestedNullable;
 
@@ -77,6 +76,8 @@ pub struct TyCtx {
     class_names: HashMap<DefId, String>,
     /// Names of the type parameters of the item being checked, so messages say `T`, not `T0`.
     param_names: Vec<String>,
+    /// The prelude's `Option`: `T?` is `Option<T>` (#54), so this is the enum every nullable type is.
+    option_def: Option<DefId>,
 }
 
 impl TyCtx {
@@ -89,7 +90,8 @@ impl TyCtx {
         let class_ids: HashMap<String, DefId> =
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new() };
+        let option_def = defs.lookup_enum("Option");
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));
@@ -107,13 +109,19 @@ impl TyCtx {
         id
     }
 
-    /// `T?`. `T??` is an error (RFC 0001 section 3); `Error?` is `Error`.
+    /// `T?`, which is `Option<T>`; `Error?` is `Error`. `T??` is `Option<Option<T>>` and is allowed
+    /// (RFC 0001 forbade it only while `T?` was a flag on `T`).
     pub fn nullable(&mut self, id: TyId) -> Result<TyId, NestedNullable> {
+        let Some(def) = self.option_def else { return Ok(self.add(TyData::Error)) };
         match self.data(id) {
-            TyData::Nullable(_) => Err(NestedNullable),
             TyData::Error => Ok(id),
-            _ => Ok(self.add(TyData::Nullable(id))),
+            _ => Ok(self.add(TyData::Enum(def, vec![id]))),
         }
+    }
+
+    /// The prelude's `Option` enum, when the program has one.
+    pub fn option_def(&self) -> Option<DefId> {
+        self.option_def
     }
 
     /// `Param(0)..Param(arity)`: the arguments that make a generic item refer to itself.
@@ -144,7 +152,7 @@ impl TyCtx {
 
     /// `T?` or a managed reference.
     pub fn is_presence_capable(&self, id: TyId) -> bool {
-        matches!(self.data(id), TyData::Nullable(_) | TyData::ManagedRef(_))
+        self.is_nullable(id) || matches!(self.data(id), TyData::ManagedRef(_))
     }
 
     /// The type data of `id`, which must come from this context: a foreign id
@@ -159,7 +167,7 @@ mod tests {
     use super::*;
 
     pub(super) fn ctx() -> TyCtx {
-        let program = crate::parse("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nfun main() {}\n").unwrap();
+        let program = crate::parse("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nfun main() {}\n").unwrap();
         TyCtx::new(&DefTable::build(&program))
     }
 
@@ -241,13 +249,13 @@ mod tests {
     }
 
     #[test]
-    fn nested_nullable_is_rejected_and_error_absorbs_nullable() {
+    fn nested_nullable_is_an_option_of_an_option_and_error_absorbs_nullable() {
         let mut ctx = ctx();
         let i = ctx.i32();
         let t = ctx.nullable(i).unwrap();
-        let before = ctx.types.len();
-        assert_eq!(ctx.nullable(t), Err(NestedNullable));
-        assert_eq!(ctx.types.len(), before);
+        let nested = ctx.nullable(t).unwrap();
+        assert_ne!(nested, t);
+        assert_eq!(ctx.base(nested), t);
         let err = ctx.error();
         assert_eq!(ctx.nullable(err), Ok(err));
         assert!(ctx.is_error(err) && !ctx.is_error(t));

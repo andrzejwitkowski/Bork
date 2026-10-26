@@ -3,35 +3,10 @@
 use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{
-    HirBlock, HirExpr, HirExprKind, HirPat, HirPatKind, HirProgram, HirStmt, Prim, UseKind,
+    HirBlock, HirExpr, HirExprKind, HirPat, HirPatKind, HirProgram, HirStmt, UseKind,
 };
 use crate::span::Span;
-use crate::ty::{TyCtx, TyData, TyId};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NullableRepr {
-    Buffer,
-    TaggedScalar,
-}
-
-pub(crate) fn nullable_repr(tcx: &TyCtx, ty: TyId) -> Option<NullableRepr> {
-    if !tcx.is_nullable(ty) {
-        return None;
-    }
-    let inner = tcx.base(ty);
-    if tcx.is_string(inner) || tcx.is_array(inner) {
-        return Some(NullableRepr::Buffer);
-    }
-    match tcx.data(inner) {
-        TyData::Prim(Prim::Unit) => None,
-        TyData::Prim(_) => Some(NullableRepr::TaggedScalar),
-        _ => None,
-    }
-}
-
-pub fn codegen_lowers_nullable(tcx: &TyCtx, ty: TyId) -> bool {
-    !tcx.is_nullable(ty) || nullable_repr(tcx, ty).is_some()
-}
+use crate::ty::TyCtx;
 
 pub fn gate(hir: &HirProgram, tcx: &TyCtx) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -78,13 +53,6 @@ fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) 
 }
 
 fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    if !codegen_lowers_nullable(tcx, expr.ty) {
-        reject(
-            diagnostics,
-            &format!("nullable type `{}` is not supported by codegen", tcx.display(expr.ty)),
-            expr.span,
-        );
-    }
     match &expr.kind {
         HirExprKind::Int { .. }
         | HirExprKind::Float { .. }
@@ -179,10 +147,10 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         }
         HirExprKind::Match { scrutinee, arms } => {
             let scrutinee_ty = tcx.deref_ty(scrutinee.ty);
-            if tcx.is_managed_ref(scrutinee_ty) || tcx.is_nullable(scrutinee_ty) {
+            if tcx.is_managed_ref(scrutinee_ty) {
                 reject(
                     diagnostics,
-                    "`when` over a `Ref` or a nullable value is not supported by codegen yet; use `if val`",
+                    "`when` over a `Ref` is not supported by codegen yet; use `if val`",
                     scrutinee.span,
                 );
             }
@@ -231,7 +199,7 @@ fn gate_pat(pat: &HirPat, diagnostics: &mut Vec<Diagnostic>) {
 
 /// Moving a class object, an enum value, or an array of managed `Ref` is not lowered yet.
 fn gate_move(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    if tcx.enum_args(expr.ty).is_some() {
+    if tcx.enum_args(expr.ty).is_some() && !tcx.is_nullable(expr.ty) {
         reject(diagnostics, "moving enum values is not supported by codegen yet", expr.span);
     }
     if tcx.record_def(expr.ty).is_some() {
