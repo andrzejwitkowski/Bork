@@ -208,8 +208,13 @@ fn check_conditional_binding(
         Some(target) => env.tcx.ref_to(target),
         None => {
             if !env.tcx.is_unknown(value.ty) {
+                let hint = if super::pat::has_variants(env.tcx.deref_ty(value.ty), &["Some", "None"], env) {
+                    " or add an `else` branch explicitly"
+                } else {
+                    ""
+                };
                 env.error(
-                    format!("presence matching requires Ref<T>, got {}", env.show(value.ty)),
+                    format!("presence matching requires Ref<T>{hint}, got {}", env.show(value.ty)),
                     Some(binding.value_span),
                 );
             }

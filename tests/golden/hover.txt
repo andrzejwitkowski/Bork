@@ -240,6 +240,7 @@ programs/check_fail/methods/unknown_method.bork: hits=3 hash=4d8982181d8b6248
 programs/check_fail/methods/use_after_move_receiver.bork: hits=12 hash=66729f291193b713
 programs/check_fail/methods/wrong_arg_count.bork: hits=5 hash=367421aba358dd74
 programs/check_fail/move_and_promote/move_without_keyword.bork: hits=2 hash=b2ca9113f75d5f91
+programs/check_fail/option/if_val_option_needs_else.bork: hits=12 hash=b649cd95496b00ce
 programs/check_fail/option/none_without_type.bork: hits=1 hash=82921468ce025a0f
 programs/check_fail/option/option_to_ref.bork: hits=10 hash=6cb29c36e0253a51
 programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764

@@ -1,0 +1,8 @@
+// diag: requires Ref<T> or add an `else` branch explicitly
+// `if val` over an `Option` is a two-arm `when`, so it needs its `else`; without one only a `Ref<T>` works.
+fun main() {
+    val o: Option<i32> = Option.Some(1)
+    if val v = o {
+        println(v)
+    }
+}
