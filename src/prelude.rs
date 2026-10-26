@@ -32,29 +32,54 @@ fn defines(program: &Program, name: &str) -> bool {
         || program.constants.iter().any(|c| c.name.name == name)
 }
 
-fn mentions(source: &str, name: &str) -> bool {
-    source
-        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .any(|word| word == name)
+/// `source` with comments and string literals blanked out, so only code can name a prelude item.
+fn code_only(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut chars = source.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '/' if chars.peek() == Some(&'/') => {
+                while chars.peek().is_some_and(|&n| n != '\n') {
+                    chars.next();
+                }
+            }
+            '"' => {
+                while let Some(n) = chars.next() {
+                    match n {
+                        '\\' => {
+                            chars.next();
+                        }
+                        '"' => break,
+                        _ => {}
+                    }
+                }
+                out.push(' ');
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn mentions(code: &str, name: &str) -> bool {
+    code.split(|c: char| !(c.is_alphanumeric() || c == '_')).any(|word| word == name)
 }
 
 /// Appends the prelude chunks `source` uses to `program`, after the user's items. `next_id` is the
 /// first free `AstId`.
 pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
+    let code = code_only(source);
+    let shadowed = |chunk: &Chunk| chunk.names.iter().any(|name| defines(program, name));
     let mut wanted = [false; CHUNKS.len()];
     for (index, chunk) in CHUNKS.iter().enumerate() {
-        let used = chunk.names.iter().any(|name| mentions(source, name));
-        let shadowed = chunk.names.iter().any(|name| defines(program, name));
-        if used && !shadowed {
-            wanted[index] = true;
-        }
+        // A chunk is skipped when the user defines its names, or one it builds on: the user's
+        // `Option` has its own shape, so the conversions written for the prelude's cannot work.
+        let blocked = shadowed(chunk) || chunk.needs.iter().any(|&need| shadowed(&CHUNKS[need]));
+        wanted[index] = !blocked && chunk.names.iter().any(|name| mentions(&code, name));
     }
     for (index, chunk) in CHUNKS.iter().enumerate() {
         if wanted[index] {
-            for &need in chunk.needs {
-                let shadowed = CHUNKS[need].names.iter().any(|name| defines(program, name));
-                wanted[need] = !shadowed;
-            }
+            chunk.needs.iter().for_each(|&need| wanted[need] = true);
         }
     }
     let mut extra = Program { constants: Vec::new(), classes: Vec::new(), enums: Vec::new(), functions: Vec::new() };
@@ -112,6 +137,21 @@ mod tests {
         let result = check("class Result {\n    v: i32\n}\nfun main() {\n    val r = Result(1)\n}\n");
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         assert!(result.hir.unwrap().enums.is_empty());
+    }
+
+    #[test]
+    fn names_in_comments_and_strings_do_not_load_the_prelude() {
+        let source = "// optionFrom and Option are only mentioned here\nfun main() {\n    println(\"Result Option\")\n}\n";
+        assert!(enum_names(source).is_empty());
+    }
+
+    #[test]
+    fn a_user_option_also_blocks_the_conversions_built_on_the_prelude_one() {
+        let source = "enum Option {\n    A,\n}\n// optionFrom is only a word in this comment\nfun main() {\n    val o = Option.A\n}\n";
+        assert_eq!(enum_names(source), ["Option"]);
+        let code = "enum Option {\n    A,\n}\nfun main() {\n    val x: i32? = None\n    val o = optionFrom::<i32>(x)\n}\n";
+        let result = check(code);
+        assert!(!result.is_ok(), "the prelude conversion must not be spliced onto a user `Option`");
     }
 
     #[test]

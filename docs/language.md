@@ -154,7 +154,7 @@ fun half(n: i32): Option<i32> {
     return None
 }
 
-when half(10) {
+when (half(10)) {
     None => { println(0) }
     Some(v) => { println(v) }
 }
