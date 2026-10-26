@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: układ enumów w pamięci, konstrukcja i sprzątanie (#52)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Enumy w type checkerze Bork</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/enums-syntax-typeck</code> (PR #149, ticket #49): 43 pliki, +739/−56 linii względem <code>main</code>.</p>
+
+<h1>Enumy w backendzie Borka: układ, konstrukcja, sprzątanie</h1>
+<p class="sub">Wyjaśnienie zmian z brancha <code>feat/enum-layout-codegen</code> (PR #155, ticket #52): 29 plików, +730/−115 linii względem <code>main</code>.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+<h3>Stan przed zmianą</h3>
+<p>Ticket #49 nauczył kompilator <em>rozumieć</em> enumy: składnię, typy, konstrukcję wariantu (<code>Shape.Rect(2, 3)</code>) i generyki. Ale backend (LLVM) ich nie znał. Brama kodegenu (<code>src/codegen_gate.rs</code>) odrzucała każdy program, w którego typach pojawił się enum, komunikatem <code>enums are not supported by codegen yet</code>. W <code>src/memory.rs</code> konstrukcja enuma była traktowana „zachowawczo”, bo i tak nie dało się jej zbudować.</p>
+<p>Jedyne dane o enumach w HIR to były wyrażenia (<code>EnumConstruct</code>) i typy (<code>TyData::Enum</code>). <strong>Nie było definicji enuma</strong>: <code>HirProgram</code> miał tylko <code>classes</code> i <code>functions</code>. Backend nie miał skąd wiedzieć, jakie są warianty i jakie pola.</p>
+<div class="callout"><b class="t">Cel #52</b>Zbudować, trzymać w pamięci i sprzątać wartości enumów w natywnym kodzie. Poza zakresem: <code>when</code> na enumach (czytanie wartości z powrotem), czyli #53 i #54.</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+<h3>Ruch pierwszy: enum to szuflada z karteczką</h3>
+<p>Wartość enuma to jeden z wariantów naraz. W pamięci to <strong>jeden slot</strong>: najpierw <em>tag</em> (liczba mówiąca, który wariant), potem dane tego wariantu. Wszystkie wartości danego enuma muszą mieć ten sam rozmiar, więc slot ma rozmiar <strong>największego wariantu</strong>.</p>
+<div class="flow">
+  <div class="box"><h4>Empty</h4><code>tag=0</code><code>(reszta pusta)</code></div>
+  <div class="box"><h4>Flag(on: bool)</h4><code>tag=1</code><code>on</code></div>
+  <div class="box good"><h4>Rect(w: i32, h: i64)</h4><code>tag=2</code><code>w</code><code>h</code></div>
+</div>
+<p>Slot dla całego enuma = rozmiar <code>Rect</code> (16 bajtów, wyrównanie 8). Bez oszczędzania miejsca: takie sztuczki (<em>niche optimization</em>) są poza zakresem.</p>
+<h3>Ruch drugi: mono potrzebuje definicji, żeby zrobić instancje</h3>
+<p>Dla <code>Maybe&lt;T&gt;</code> trzeba osobnego układu na <code>Maybe&lt;i32&gt;</code> i na <code>Maybe&lt;String&gt;</code>. Skoro generyczne klasy mają <code>HirClass</code>, enumy dostają <code>HirEnum</code> i przechodzą tę samą monomorfizację.</p>
+<h3>Ruch trzeci: pola enuma są własnością jak pola klasy</h3>
+<p><code>String</code> i tablice są kopiowane do areny enuma. <code>Ref</code> nie jest kopiowany bit po bicie: licznik referencji musi wzrosnąć przy budowie i spaść przy sprzątaniu. Dlatego wspólny kod dla pól klas i payloadów (<code>store_owned_field</code>).</p>
+<h3>Ruch czwarty: sprzątanie zależy od tagu</h3>
+<p>Wariant <code>One(a: Ref&lt;Node&gt;)</code> trzyma <code>Ref</code> zaraz po tagu, <code>Two(t: i8, a: Ref, b: Ref)</code> dalej. Sprzątanie musi wiedzieć, który wariant jest w środku. Kompilator generuje funkcję, która <strong>czyta tag i zwalnia tylko <code>Ref</code>-y tego wariantu</strong>. Rejestruje ją raz w arenie.</p>
+<h3>Ruch piąty: brama przepuszcza enumy, ale łapie <code>move</code></h3>
+<p>Przenoszenie enuma (<code>val f = move e</code>) jeszcze nie jest zaimplementowane. Zamiast paniki kompilatora brama zgłasza <code>moving enum values is not supported by codegen yet</code>.</p>
+<details class="skip"><summary>Czego ten PR nie robi</summary>
+<ul><li>Nie czyta wariantów z powrotem (<code>when</code>): #53/#54.</li><li>Debug info opisuje tylko tag, bez pól wariantów.</li><li>Nie zmienia narzędzia bork-debug (Python): ono czyta nazwy z rejestru runtime.</li><li>Nie optymalizuje rozmiaru enumów.</li></ul></details>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+<h3>3.1 Definicja enuma w HIR (<code>src/hir/mod.rs</code>, <code>src/typeck/mod.rs</code>)</h3>
+<pre><span class="cm">// HirProgram</span>
+<span class="add">+    pub enums: Vec&lt;HirEnum&gt;,</span>
+
+<span class="add">+pub struct HirEnum {
++    pub name: String,
++    pub generics: Vec&lt;String&gt;,
++    pub variants: Vec&lt;HirVariant&gt;,   // indeks = tag
++}</span></pre>
+<p>Typeck już miał <code>EnumInfo</code> (z #49). Teraz przepisuje je do HIR w kolejności deklaracji, bo <strong>indeks wariantu jest tagiem</strong>.</p>
+
+<h3>3.2 Monomorfizacja enumów (<code>src/mono.rs</code>)</h3>
+<pre><span class="add">+pub(crate) fn enum_instance_name(tcx: &amp;TyCtx, ty: TyId) -&gt; Option&lt;String&gt; {
++    let (def, args) = tcx.enum_args(ty)?;
++    Some(mangle(tcx.class_name(def), tcx, args))
++}</span></pre>
+<p><code>instantiate_classes</code> stało się <code>instantiate_types</code> i zwraca też listę enumów. Wspólny kod podstawiania typów w polach wydzielono do <code>instantiate_fields</code>, żeby klasy i enumy nie miały kopii. Konstrukcje enumów dostają nazwę instancji (<code>Maybe&lt;i32&gt;</code>), pod którą backend znajdzie układ.</p>
+
+<h3>3.3 Układ w LLVM (<code>src/codegen/llvm/context.rs</code>)</h3>
+<pre>fn enum_layout_of(&amp;self, e: &amp;HirEnum) -&gt; Result&lt;EnumLayout&lt;'ctx&gt;, String&gt; {
+    let (mut size, mut align) = (0, 1);
+    for variant in &amp;e.variants {
+        let mut elements = vec![self.context.i32_type().into()];   <span class="cm">// tag</span>
+        for field in &amp;variant.fields { elements.push(self.basic_type(field.ty)...); }
+        let ty = self.context.struct_type(&amp;elements, false);
+        size = size.max(self.target_data.get_abi_size(&amp;ty));
+        align = align.max(u64::from(self.target_data.get_abi_alignment(&amp;ty)));
+        variants.push(ty);
+    }
+    Ok(EnumLayout { variants, size: size.next_multiple_of(align), align })
+}</pre>
+<p>Dla każdego wariantu powstaje struktura <code>{ i32 tag, pola... }</code>. Rozmiar i wyrównanie bierzemy od LLVM (<code>target_data</code>), nie liczymy ręcznie. Slot = maksimum po wariantach.</p>
+
+<h3>3.4 Konstrukcja (<code>src/codegen/llvm/managed_ref.rs</code>)</h3>
+<pre>let object = builder.build_call(arena_alloc_fn(), &amp;[arena, size, align], "enum")?;
+let tag_slot = builder.build_struct_gep(record, object, 0, "enum.tag")?;
+builder.build_store(tag_slot, i32_type.const_int(tag, false))?;
+<span class="cm">// payload: store_owned_field(...) dla każdego pola</span>
+<span class="add">+if let Some(drop_fn) = self.cx.enum_drops.get(enum_name) {
++    builder.build_call(arena_register_drop_fn(), &amp;[arena, object, drop_fn])?;
++}</span></pre>
+<p>Alokacja jest w arenie wyznaczonej przez plan pamięci (ta sama ścieżka co obiekty klas: <code>begin_object_construct</code> obsługuje teraz też <code>EnumConstruct</code>). Wartość to uchwyt <code>{arena, wskaźnik}</code>, taki jak dla klas.</p>
+<p><code>store_owned_field</code> to wydzielona część <code>emit_object_construct</code>: <code>Ref</code> idzie przez <code>store_ref</code> (licznik rośnie), reszta przez <code>materialize_owned_value</code> (kopia do areny). Parametr <code>register_drop</code> mówi, czy rejestrować sprzątanie pojedynczego <code>Ref</code>: dla klas tak, dla enumów nie, bo rejestruje się cały slot.</p>
+
+<h3>3.5 Sprzątanie (<code>src/codegen/llvm/enum_glue.rs</code>)</h3>
+<pre>let tag = builder.build_load(i32_ty, tag_ptr, "tag")?;
+for (index, variant) in e.variants.iter().enumerate().filter(|(_, v)| has_ref(v)) {
+    <span class="cm">// if tag == index { bork_ref_drop(&amp;payload.field) dla każdego Ref }</span>
+}</pre>
+<p>Dla każdego enuma, który ma <code>Ref</code> w jakimś wariancie, powstaje wewnętrzna funkcja <code>bork.drop.&lt;Enum&gt;</code>. Ma łańcuch porównań z tagiem i w każdej gałęzi woła <code>bork_ref_drop</code> na polach <code>Ref</code> tego wariantu. Enumy bez <code>Ref</code> nie dostają nic: arena zwolni je sama.</p>
+
+<h3>3.6 Brama i plan pamięci</h3>
+<pre><span class="del">-const ENUMS_UNSUPPORTED: &amp;str = "enums are not supported by codegen yet";</span>
+<span class="add">+    if tcx.enum_args(expr.ty).is_some() {
++        reject(diagnostics, "moving enum values is not supported by codegen yet", expr.span);
++    }</span></pre>
+<p>W <code>src/memory.rs</code> <code>EnumConstruct</code> dzieli gałąź z <code>ObjectConstruct</code>, więc konstrukcja enuma dostaje arenę i krawędzie referencji jak obiekt. W <code>src/ty/query.rs</code> enum liczy się jako typ z pamięcią w arenie (<code>uses_arena_storage</code>, <code>owns_result</code>).</p>
+
+<h3>3.7 <code>Ref&lt;Enum&gt;</code> i debug</h3>
+<p>W <code>src/typeck/expr/mod.rs</code> wartość enuma może teraz zamienić się w <code>Ref</code> do tego enuma (wcześniej tylko klasy). W <code>src/codegen/llvm/debug/types.rs</code> enum dostaje nazwę <code>bork::Object&lt;E&gt;</code> i opis slotu <code>bork::Payload&lt;E&gt;</code> (tylko tag).</p>
+
+<h3>3.8 Testy i dokumentacja</h3>
+<table class="st">
+<tr><th>Test</th><th>Co pilnuje</th></tr>
+<tr><td><code>programs/build/enums/variants.bork</code></td><td>wszystkie kształty wariantów, mieszane rozmiary pól</td></tr>
+<tr><td><code>ref_payload</code>, <code>ref_to_enum</code>, <code>two_ref_variants</code></td><td>liczniki referencji: brak wycieków i nadmiernego zwalniania</td></tr>
+<tr><td><code>generic_and_calls.bork</code></td><td>generyczny enum, przekazywanie i zwracanie</td></tr>
+<tr><td><code>enum_slot_is_sized_for_its_biggest_variant</code></td><td>w IR trzy warianty alokują ten sam rozmiar (24 bajty, wyrównanie 8)</td></tr>
+<tr><td><code>moving_an_enum_value_is_rejected_not_a_crash</code></td><td>komunikat zamiast paniki</td></tr>
+<tr><td><code>debug_build_names_enums</code></td><td>nazwy w DWARF i etykieta slotu</td></tr>
+<tr><td>testy mono</td><td>instancje <code>Maybe&lt;i32&gt;</code>, <code>Maybe&lt;String&gt;</code>, klasy w payloadach</td></tr>
+</table>
+<p>Dokumentacja: <code>docs/language.md</code> (układ i własność payloadów) oraz <code>programs/README.md</code>.</p>
+
+<h2 id="quiz">4. Quiz</h2>
+<p id="score">Wynik: 0 / 0 (z 7)</p>
+
+<div class="q" data-correct="1"><p>1. Jak Bork trzyma wartość <code>enum Shape { Empty, Rect(w: i32, h: i64) }</code> w arenie?</p>
+<button>Jako osobny typ na każdy wariant, wybierany w czasie działania.</button>
+<button>Jako jeden slot: <code>i32</code> z numerem wariantu, a potem pola wariantu.</button>
+<button>Jako wskaźnik do napisu z nazwą wariantu.</button>
+<button>Jako dwa pola: <code>Empty</code> i <code>Rect</code>, oba zawsze obecne.</button>
+<div class="fb">Slot zaczyna się od tagu (<code>i32</code>), a po nim idą pola wybranego wariantu. Tag to indeks wariantu w kolejności deklaracji.</div></div>
+
+<div class="q" data-correct="1"><p>2. Warianty mają ładunki 4, 16 i 24 bajty. Ile bajtów alokuje Bork dla każdej wartości tego enuma?</p>
+<button>Tyle, ile ma dany wariant.</button>
+<button>Tyle, ile największy wariant (zaokrąglone do wyrównania).</button>
+<button>Zawsze 8 bajtów.</button>
+<button>Sumę wszystkich wariantów.</button>
+<div class="fb">Slot musi pomieścić każdy wariant, więc ma rozmiar i wyrównanie największego. Test układu sprawdza, że trzy różne warianty alokują to samo.</div></div>
+
+<div class="q" data-correct="1"><p>3. Dlaczego do #52 potrzebny był <code>HirEnum</code>?</p>
+<button>Bo parser go wymaga.</button>
+<button>Bo backend i mono musiały wiedzieć, jakie są warianty i pola, a HIR miał tylko wyrażenia i typy enumów.</button>
+<button>Bo LLVM nie zna enumów.</button>
+<button>Żeby zmienić składnię.</button>
+<div class="fb">Bez definicji w HIR codegen nie ma skąd wziąć listy wariantów, ich kolejności (tagów) ani typów pól. Mono też potrzebuje definicji generycznej, żeby zrobić z niej instancje.</div></div>
+
+<div class="q" data-correct="1"><p>4. Dlaczego pole <code>Ref</code> w wariancie nie jest kopiowane bit po bicie?</p>
+<button>Bo <code>Ref</code> jest za duży.</button>
+<button>Bo licznik silnych referencji musi wzrosnąć przy budowie, a spaść przy sprzątaniu.</button>
+<button>Bo kompilator nie zna rozmiaru <code>Ref</code>.</button>
+<button>Bo <code>Ref</code> zawsze wskazuje na enum.</button>
+<div class="fb">Kopia bitowa nie zwiększyłaby licznika, więc obiekt mógłby zniknąć za wcześnie albo zostać na zawsze. Dlatego <code>Ref</code> idzie przez <code>store_ref</code>, jak pola klas.</div></div>
+
+<div class="q" data-correct="1"><p>5. Enum ma <code>One(a: Ref&lt;Node&gt;)</code> i <code>Two(t: i8, a: Ref&lt;Node&gt;, b: Ref&lt;Node&gt;)</code>. Co robi funkcja sprzątająca?</p>
+<button>Zwalnia wszystkie trzy <code>Ref</code>-y.</button>
+<button>Czyta tag i zwalnia tylko <code>Ref</code>-y zbudowanego wariantu.</button>
+<button>Nic, arena zwolni wszystko sama.</button>
+<button>Zwalnia tylko pierwszy <code>Ref</code>.</button>
+<div class="fb">Pole <code>a</code> leży w różnych miejscach w obu wariantach. Zwolnienie po złym wariancie czytałoby śmieci, więc funkcja przełącza się po tagu. Arena sama nie zmniejszy liczników referencji.</div></div>
+
+<div class="q" data-correct="1"><p>6. Po co <code>strongCount</code> w programach <code>programs/build/enums</code>?</p>
+<button>Żeby zmierzyć szybkość.</button>
+<button>Żeby sprawdzić, że licznik wraca do wartości sprzed budowy enuma, czyli że nic nie wycieka ani nie jest zwolnione za dużo.</button>
+<button>Żeby wypisać nazwę wariantu.</button>
+<button>Żeby zamienić <code>Ref</code> w <code>String</code>.</button>
+<div class="fb">Wyciek zostawia licznik wyższy po powrocie, nadmierne zwolnienie niższy. Test porównuje licznik przed i po.</div></div>
+
+<div class="q" data-correct="1"><p>7. <code>val f = move e</code>, gdzie <code>e</code> jest enumem. Co robi kompilator po #52?</p>
+<button>Przenosi wartość.</button>
+<button>Zgłasza błąd „moving enum values is not supported by codegen yet”.</button>
+<button>Kopiuje wartość.</button>
+<button>Zawiesza się.</button>
+<div class="fb">Wcześniej to kończyło się paniką kompilatora. Teraz brama odrzuca przeniesienie z komunikatem; samo przenoszenie wróci razem z lowerowaniem <code>when</code>.</div></div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
