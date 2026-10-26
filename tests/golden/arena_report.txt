@@ -979,9 +979,15 @@ Arenas
 │   ├── IfValSome
 │   │   └── v [Local]
 │   └── IfValNone
+├── fun borrowed
+│   ├── o [Borrow ← call site]
+│   ├── IfValSome
+│   │   └── v [Local]
+│   └── IfValNone
 └── fun main
     ├── a [Local]
-    └── b [Local]
+    ├── b [Local]
+    └── c [Local]
 == programs/build/paged_arenas/concat_grows_past_page.bork
 Arenas
 └── fun main

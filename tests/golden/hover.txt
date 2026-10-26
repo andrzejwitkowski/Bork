@@ -86,7 +86,7 @@ programs/build/option/nullable_when.bork: hits=84 hash=81fc50226087a470
 programs/build/option/option_conversions.bork: hits=130 hash=dde4ac8f171c9e06
 programs/build/option/option_result.bork: hits=110 hash=b69a4ec86d4359b4
 programs/build/option/user_option_wins.bork: hits=12 hash=bf2219b8650ab95b
-programs/build/option/when_some_first.bork: hits=64 hash=fc0fc44c03286855
+programs/build/option/when_some_first.bork: hits=78 hash=42b6babd6dc4f4e3
 programs/build/paged_arenas/concat_grows_past_page.bork: hits=90 hash=d831dd43275c145f
 programs/build/paged_arenas/many_small_allocs_cross_pages.bork: hits=5290 hash=409698be11e24f58
 programs/build/recursions/factorial.bork: hits=4 hash=333e1945c8d00531

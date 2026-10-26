@@ -69,7 +69,7 @@ pub(super) fn check_presence(
         bindings.tail.is_empty(),
         none_block,
         env.tcx.managed_ref_inner(head_value.ty),
-        super::pat::has_variants(head_value.ty, &["Some", "None"], env),
+        super::pat::has_variants(env.tcx.deref_ty(head_value.ty), &["Some", "None"], env),
     ) {
         let head = &bindings.head;
         let span = head.name.span;
@@ -80,7 +80,8 @@ pub(super) fn check_presence(
             },
             MatchArm { pat: Pattern::None { span }, body: none_block.clone() },
         ];
-        return match_arms(&head.value, head_value, head_errors, &arms, head.value_span, expected, return_ty, env);
+        let scrutinee = Scrutinee { expr: &head.value, hir: head_value, errors: head_errors };
+        return match_arms(scrutinee, &arms, head.value_span, expected, return_ty, env);
     }
     env.enter_scope();
     let mut names = HashSet::new();
@@ -143,15 +144,19 @@ pub(super) fn check_match(
     let scrutinee_start = env.diagnostics.len();
     let scrutinee_hir = synthesize(scrutinee, return_ty, env);
     let scrutinee_errors = env.diagnostics.len() - scrutinee_start;
-    match_arms(scrutinee, scrutinee_hir, scrutinee_errors, arms, span, expected, return_ty, env)
+    match_arms(Scrutinee { expr: scrutinee, hir: scrutinee_hir, errors: scrutinee_errors }, arms, span, expected, return_ty, env)
+}
+
+/// A `when` scrutinee that is already checked, with the diagnostics that checking produced.
+struct Scrutinee<'a> {
+    expr: &'a Expr,
+    hir: Checked,
+    errors: usize,
 }
 
 /// The arms of a `when` whose scrutinee is already checked, so `if val` over an `Option` does not check it twice.
-#[allow(clippy::too_many_arguments)]
 fn match_arms(
-    scrutinee: &Expr,
-    scrutinee_hir: Checked,
-    scrutinee_errors: usize,
+    Scrutinee { expr: scrutinee, hir: scrutinee_hir, errors: scrutinee_errors }: Scrutinee<'_>,
     arms: &[MatchArm],
     span: Span,
     expected: Option<TyId>,
