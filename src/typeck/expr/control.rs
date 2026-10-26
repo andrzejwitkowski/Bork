@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::ast::{BindingKind, Block, ConditionalBinding, ConditionalBindings, Expr, MatchArm, Stmt};
+use crate::ast::{BindingKind, Block, ConditionalBinding, ConditionalBindings, Expr, MatchArm, Pattern, Stmt};
 use crate::hir::{
     HirArm, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExprKind, HirStmt,
 };
@@ -60,13 +60,36 @@ pub(super) fn check_presence(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    let head_value = synthesize(&bindings.head.value, return_ty, env);
+    // `when x { Some(v) => a  None => b }` parses as `if val`; over an `Option` it is a plain `when`.
+    // shortcut: an `if val` over an `Option` without `else` is not rewritten (the region walk expects an
+    // arm region per `when` arm), so it still reports `requires Ref<T>`; lift that when presence goes away.
+    if let (true, Some(none_block)) = (bindings.tail.is_empty(), none_block) {
+        if env.tcx.managed_ref_inner(head_value.ty).is_none()
+            && super::pat::has_variants(head_value.ty, &["Some", "None"], env)
+        {
+            let head = &bindings.head;
+            let span = head.name.span;
+            let arms = [
+                MatchArm {
+                    pat: Pattern::Some { inner: Box::new(Pattern::Binding(head.name.clone())), span },
+                    body: some_block.clone(),
+                },
+                MatchArm { pat: Pattern::None { span }, body: none_block.clone() },
+            ];
+            return match_arms(&head.value, head_value, 0, &arms, span, expected, return_ty, env);
+        }
+    }
     env.enter_scope();
     let mut names = HashSet::new();
-    let head = check_conditional_binding(&bindings.head, &mut names, return_ty, env);
+    let head = check_conditional_binding(&bindings.head, head_value, &mut names, env);
     let tail = bindings
         .tail
         .iter()
-        .map(|binding| check_conditional_binding(binding, &mut names, return_ty, env))
+        .map(|binding| {
+            let value = synthesize(&binding.value, return_ty, env);
+            check_conditional_binding(binding, value, &mut names, env)
+        })
         .collect();
     let binding_span = head.name.span;
     let (some_block, some_ty) =
@@ -115,10 +138,25 @@ pub(super) fn check_match(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let mut pattern_errors = 0;
     let scrutinee_start = env.diagnostics.len();
     let scrutinee_hir = synthesize(scrutinee, return_ty, env);
     let scrutinee_errors = env.diagnostics.len() - scrutinee_start;
+    match_arms(scrutinee, scrutinee_hir, scrutinee_errors, arms, span, expected, return_ty, env)
+}
+
+/// The arms of a `when` whose scrutinee is already checked, so `if val` over an `Option` does not check it twice.
+#[allow(clippy::too_many_arguments)]
+fn match_arms(
+    scrutinee: &Expr,
+    scrutinee_hir: Checked,
+    scrutinee_errors: usize,
+    arms: &[MatchArm],
+    span: Span,
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> Checked {
+    let mut pattern_errors = 0;
     let by_borrow = super::method::is_place(scrutinee) || env.tcx.is_ref(scrutinee_hir.ty);
     let ty = env.tcx.deref_ty(scrutinee_hir.ty);
     let mut checked_arms = Vec::with_capacity(arms.len());
@@ -149,8 +187,8 @@ pub(super) fn check_match(
 
 fn check_conditional_binding(
     binding: &ConditionalBinding,
+    value: Checked,
     names: &mut HashSet<String>,
-    return_ty: TyId,
     env: &mut Env<'_>,
 ) -> HirConditionalBinding {
     if !names.insert(binding.name.name.clone()) {
@@ -159,18 +197,12 @@ fn check_conditional_binding(
             Some(binding.name.span),
         );
     }
-    let value = synthesize(&binding.value, return_ty, env);
     let binding_ty = match env.tcx.managed_ref_inner(value.ty) {
         Some(target) => env.tcx.ref_to(target),
         None => {
             if !env.tcx.is_unknown(value.ty) {
-                let hint = if super::pat::has_variants(value.ty, &["Some", "None"], env) {
-                    "; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`"
-                } else {
-                    ""
-                };
                 env.error(
-                    format!("presence matching requires Ref<T>, got {}{hint}", env.show(value.ty)),
+                    format!("presence matching requires Ref<T>, got {}", env.show(value.ty)),
                     Some(binding.value_span),
                 );
             }

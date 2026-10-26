@@ -1,8 +1,7 @@
 // exit: 0
 // stdout: 7\n0\n5\n0\n1\n2\n
-// `T?` is `Option<T>`: a `when` over a nullable is an ordinary `when` over an enum (`None` first,
-// because `Some(x)` then `None` reads as `if val`), a nullable passes where an `Option` is
-// expected, and `Option<Option<T>>` keeps `Some(None)` apart from `None`.
+// `T?` is `Option<T>`: a `when` over a nullable is an ordinary `when` over an enum, a nullable passes
+// where an `Option` is expected, and `Option<Option<T>>` keeps `Some(None)` apart from `None`.
 fun show(x: i32?): i32 {
     return when x {
         None => { 0 }

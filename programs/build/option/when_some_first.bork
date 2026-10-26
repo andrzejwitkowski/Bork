@@ -1,0 +1,32 @@
+// exit: 0
+// stdout: 9\n0\n2\n-1\n3\n0\n
+// `Some(x)` before `None` over an `Option` / `T?` is a plain `when`; `if val ... else` reads an `Option` too.
+fun len(x: String?): i32 {
+    return when x {
+        Some(s) => { s.length + 7 }
+        None => { 0 }
+    }
+}
+
+fun size(x: Option<String>): i32 {
+    return when x {
+        Some(s) => { s.length }
+        None => { 0 - 1 }
+    }
+}
+
+fun pick(x: i32?): i32 {
+    return if val v = x { v } else { 0 }
+}
+
+fun main(): i32 {
+    val a: String? = Some("hi")
+    val b: String? = None
+    println(len(a))
+    println(len(b))
+    println(size(Some("hi")))
+    println(size(None))
+    println(pick(Some(3)))
+    println(pick(None))
+    return 0
+}

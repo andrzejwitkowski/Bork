@@ -82,10 +82,11 @@ programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363e
 programs/build/move_and_promote/then_return_move_not_taken.bork: hits=19 hash=0d9ed2defcb669f1
 programs/build/move_and_promote/then_return_move_taken.bork: hits=19 hash=48237cebdc030fe1
 programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
-programs/build/option/nullable_when.bork: hits=84 hash=3a4461608cf73dd6
+programs/build/option/nullable_when.bork: hits=84 hash=81fc50226087a470
 programs/build/option/option_conversions.bork: hits=130 hash=dde4ac8f171c9e06
 programs/build/option/option_result.bork: hits=110 hash=b69a4ec86d4359b4
 programs/build/option/user_option_wins.bork: hits=12 hash=bf2219b8650ab95b
+programs/build/option/when_some_first.bork: hits=64 hash=fc0fc44c03286855
 programs/build/paged_arenas/concat_grows_past_page.bork: hits=90 hash=d831dd43275c145f
 programs/build/paged_arenas/many_small_allocs_cross_pages.bork: hits=5290 hash=409698be11e24f58
 programs/build/recursions/factorial.bork: hits=4 hash=333e1945c8d00531
@@ -242,7 +243,6 @@ programs/check_fail/move_and_promote/move_without_keyword.bork: hits=2 hash=b2ca
 programs/check_fail/option/none_without_type.bork: hits=1 hash=82921468ce025a0f
 programs/check_fail/option/option_to_ref.bork: hits=10 hash=6cb29c36e0253a51
 programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764
-programs/check_fail/option/some_then_none_reads_as_if_val.bork: hits=20 hash=594ef559e450f6d2
 programs/check_fail/option/t_to_option.bork: hits=1 hash=38267fa358db6232
 programs/check_fail/vec/class_element.bork: hits=5 hash=d0a707928e787eec
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
