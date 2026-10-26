@@ -60,25 +60,27 @@ pub(super) fn check_presence(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    let head_start = env.diagnostics.len();
     let head_value = synthesize(&bindings.head.value, return_ty, env);
+    let head_errors = env.diagnostics.len() - head_start;
     // `when x { Some(v) => a  None => b }` parses as `if val`; over an `Option` it is a plain `when`.
-    // shortcut: an `if val` over an `Option` without `else` is not rewritten (the region walk expects an
-    // arm region per `when` arm), so it still reports `requires Ref<T>`; lift that when presence goes away.
-    if let (true, Some(none_block)) = (bindings.tail.is_empty(), none_block) {
-        if env.tcx.managed_ref_inner(head_value.ty).is_none()
-            && super::pat::has_variants(head_value.ty, &["Some", "None"], env)
-        {
-            let head = &bindings.head;
-            let span = head.name.span;
-            let arms = [
-                MatchArm {
-                    pat: Pattern::Some { inner: Box::new(Pattern::Binding(head.name.clone())), span },
-                    body: some_block.clone(),
-                },
-                MatchArm { pat: Pattern::None { span }, body: none_block.clone() },
-            ];
-            return match_arms(&head.value, head_value, 0, &arms, span, expected, return_ty, env);
-        }
+    // shortcut: no rewrite without `else` (the region walk wants an arm region per arm), so that still needs a `Ref<T>`.
+    if let (true, Some(none_block), None, true) = (
+        bindings.tail.is_empty(),
+        none_block,
+        env.tcx.managed_ref_inner(head_value.ty),
+        super::pat::has_variants(head_value.ty, &["Some", "None"], env),
+    ) {
+        let head = &bindings.head;
+        let span = head.name.span;
+        let arms = [
+            MatchArm {
+                pat: Pattern::Some { inner: Box::new(Pattern::Binding(head.name.clone())), span },
+                body: some_block.clone(),
+            },
+            MatchArm { pat: Pattern::None { span }, body: none_block.clone() },
+        ];
+        return match_arms(&head.value, head_value, head_errors, &arms, head.value_span, expected, return_ty, env);
     }
     env.enter_scope();
     let mut names = HashSet::new();
