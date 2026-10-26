@@ -164,8 +164,13 @@ fn check_conditional_binding(
         Some(target) => env.tcx.ref_to(target),
         None => {
             if !env.tcx.is_unknown(value.ty) {
+                let hint = if super::pat::has_variants(value.ty, &["Some", "None"], env) {
+                    "; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`"
+                } else {
+                    ""
+                };
                 env.error(
-                    format!("presence matching requires Ref<T>, got {}", env.show(value.ty)),
+                    format!("presence matching requires Ref<T>, got {}{hint}", env.show(value.ty)),
                     Some(binding.value_span),
                 );
             }

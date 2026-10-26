@@ -6,7 +6,13 @@ use crate::span::{AstId, Span, SpannedName};
 
 /// Numbers `program` in place. The index lists every numbered node with its source span.
 pub fn number_nodes(program: &mut Program) -> Vec<(Span, AstId)> {
-    let mut n = Numberer::default();
+    number_nodes_from(program, 0)
+}
+
+/// Like [`number_nodes`], with ids starting at `first`. The prelude is numbered this way, after the
+/// user's program, and its index is dropped.
+pub fn number_nodes_from(program: &mut Program, first: u32) -> Vec<(Span, AstId)> {
+    let mut n = Numberer { next: first, ..Numberer::default() };
     for constant in &mut program.constants {
         n.name(&mut constant.name);
         n.expr(&mut constant.value);

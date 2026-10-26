@@ -17,6 +17,7 @@ pub mod hir;
 pub mod infer;
 mod layout;
 pub mod memory;
+mod prelude;
 pub mod mono;
 #[cfg(feature = "lsp")]
 pub mod lsp;
@@ -39,6 +40,15 @@ pub type Error = ParseError<usize, String, &'static str>;
 /// Parses and numbers the AST ([`ast_number::number_nodes`]).
 pub fn parse(source: &str) -> Result<Program, Error> {
     parse_indexed(source).map(|(program, _)| program)
+}
+
+/// Parses without numbering the nodes (the prelude is numbered after the user's program).
+pub(crate) fn parse_unnumbered(source: &str) -> Result<Program, Error> {
+    let normalized = normalize_parenthesized_newlines(source);
+    let input = normalized.as_deref().unwrap_or(source);
+    parser::ProgramParser::new()
+        .parse(input)
+        .map_err(|err| err.map_token(|token| token.to_string()))
 }
 
 /// Like [`parse`], plus the `(Span, AstId)` index of every numbered node (for the LSP).

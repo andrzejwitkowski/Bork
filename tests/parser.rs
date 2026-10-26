@@ -818,10 +818,9 @@ fn parses_global_constants_among_items() {
 }
 
 /// Keep in sync with "Reserved words" in docs/language.md.
-const RESERVED: [&str; 23] = [
+const RESERVED: [&str; 21] = [
     "break", "class", "const", "continue", "else", "false", "for", "fun", "if", "in", "move",
-    "None", "promote", "Ref", "return", "Some", "this", "true", "val", "var", "Vec", "when",
-    "while",
+    "promote", "Ref", "return", "this", "true", "val", "var", "Vec", "when", "while",
 ];
 
 #[test]

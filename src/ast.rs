@@ -475,6 +475,24 @@ pub enum Expr {
 }
 
 impl Expr {
+    /// A name. `None` is not a keyword: it reads as the absent value of `T?` / `Ref<T>`, and
+    /// typeck decides from the expected type whether it is that or the `Option` enum's variant.
+    pub fn ident(id: crate::span::SpannedName) -> Expr {
+        if id.name == "None" {
+            return Expr::None { span: id.span };
+        }
+        Expr::Ident { name: id.name, span: id.span, id: crate::span::AstId::DUMMY }
+    }
+
+    /// A call. `Some(e)` is not a keyword either: a plain one-argument call of the name `Some`.
+    pub fn call(callee: Expr, type_args: Vec<Type>, mut args: Vec<Expr>, trailing: Option<Closure>, span: crate::span::Span) -> Expr {
+        let is_some = matches!(&callee, Expr::Ident { name, .. } if name == "Some");
+        if is_some && type_args.is_empty() && args.len() == 1 && trailing.is_none() {
+            return Expr::Some { expr: Box::new(args.pop().expect("one argument")), span };
+        }
+        Expr::Call { callee: Box::new(callee), type_args, args, trailing }
+    }
+
     /// `when value { arms }`. The `Some(name)` + `None` pair is the presence form and keeps its
     /// `if val` shape, so its regions and codegen are unchanged.
     pub fn when(value: Expr, value_span: crate::span::Span, mut arms: Vec<MatchArm>, span: crate::span::Span) -> Expr {
@@ -491,6 +509,27 @@ impl Expr {
             }
         }
         Expr::Match { scrutinee: Box::new(value), arms, span }
+    }
+}
+
+impl Pattern {
+    /// A bare name: `_`, the absent pattern `None`, or a binding.
+    pub fn binding(name: crate::span::SpannedName) -> Pattern {
+        if name.name == "_" {
+            Pattern::Wildcard { span: name.span }
+        } else if name.name == "None" {
+            Pattern::None { span: name.span }
+        } else {
+            Pattern::Binding(name)
+        }
+    }
+
+    /// `Name(p, ..)`; `Some(p)` with one sub-pattern is the present pattern.
+    pub fn unqualified_variant(name: crate::span::SpannedName, mut args: Vec<Pattern>, span: crate::span::Span) -> Pattern {
+        if name.name == "Some" && args.len() == 1 {
+            return Pattern::Some { inner: Box::new(args.pop().expect("one pattern")), span };
+        }
+        Pattern::Variant { enum_name: None, name, args, span }
     }
 }
 

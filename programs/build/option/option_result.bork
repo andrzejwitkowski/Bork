@@ -1,0 +1,48 @@
+// exit: 0
+// stdout: 5\n0\n2\n4\n8\n
+// `Option` and `Result` are ordinary prelude enums. `Some` and `None` are plain names that mean
+// the variants wherever an `Option` is expected (and `Option.Some` / `Option.None` always do).
+// They are matched with ordinary variant patterns, and `Result` carries a value or an error.
+fun half(n: i32): Option<i32> {
+    if (n > 5) {
+        return Some(n / 2)
+    }
+    return None
+}
+
+fun show(o: &Option<i32>): i32 {
+    return when o {
+        None => { 0 }
+        Some(v) => { v }
+    }
+}
+
+fun parse(n: i32): Result<i32, String> {
+    if (n > 0) {
+        return Result.Ok(n)
+    }
+    return Result.Err("negative")
+}
+
+fun main(): i32 {
+    val big = half(10)
+    val small = half(3)
+    println(show(&big))
+    println(show(&small))
+    val text: Option<String> = Option.Some("hi")
+    when text {
+        None => { println(0) }
+        Some(t) => { println(t.length) }
+    }
+    val good = parse(4)
+    val bad = parse(0)
+    when good {
+        Ok(v) => { println(v) }
+        Err(e) => { println(e.length) }
+    }
+    when bad {
+        Ok(v) => { println(v) }
+        Err(e) => { println(e.length) }
+    }
+    return 0
+}

@@ -125,7 +125,7 @@ fun main() {
 - Enums may be generic. Like a generic class constructor, a variant is instantiated with fresh variables fixed by its arguments or the expected type (`Tree.Leaf` needs `val t: Tree<i32> = ...`); a parameter nothing fixes is an error, and explicit type arguments on a variant are not supported yet.
 - Enums share the type-name namespace with classes, functions and constants: `enum Foo` next to `class Foo`, `fun Foo` or `const Foo` is an error, as is a duplicate enum or variant.
 - A by-value cycle through payloads is rejected with its path, the same as for classes; `Ref<Tree<T>>` is the sanctioned recursion, so `Ref<_>` accepts a class or an enum.
-- `T?`, `Some` and `None` are unchanged. `Some` and `None` are keywords, so a variant cannot be named that way.
+- `T?`, `Some` and `None` are unchanged for nullables and `Ref<T>`. `Some` and `None` are ordinary names, not keywords: where the expected type (or the matched value) is an enum with a variant of that name, they are that variant, so an enum may declare `Some` and `None` variants.
 
 ### Patterns in `when`
 
@@ -139,7 +139,40 @@ Codegen (#52): an enum value is a slot in its arena, `{ i32 tag, payload.. }`, a
 
 `bork build` lowers `when` over enums, integers, `bool` and `String` (#53). The scrutinee is evaluated once; the arms are tested in order (first match wins) and each arm is a region of its own. A variant pattern compares the tag and then tests the payload sub-patterns; literals compare with `==`. Every binding is a view into the matched value, so an arm never owns a payload and the enum's drop glue stays the only releaser; a `Ref` payload is the exception, it is a counted copy released when the arm ends. `when` over a `Ref` or a nullable value, and `Some`/`None` patterns other than the `if val` pair, are rejected by codegen for now.
 
-Not implemented yet: an `Option<T>` / `Result<T, E>` prelude (#54).
+### `Option` and `Result` (#54)
+
+`Option<T>` and `Result<T, E>` are ordinary generic enums written in Bork (`src/prelude/*.bork`) and added to a program that mentions them (a program that defines its own `Option` or `Result` keeps its own):
+
+```bork
+enum Option<T> { Some(value: T), None }
+enum Result<T, E> { Ok(value: T), Err(error: E) }
+```
+
+```bork
+fun half(n: i32): Option<i32> {
+    if (n > 5) { return Some(n / 2) }   // `Some` / `None` are the variants: an `Option` is expected
+    return None
+}
+
+when (half(10)) {
+    None => { println(0) }
+    Some(v) => { println(v) }
+}
+```
+
+`Option.Some(x)` and `Option.None` always mean the enum. Where the expected type is `T?` or `Ref<T>`, `Some(x)` and `None` keep their old meaning, so existing programs do not change. Write the arms of a `when` over an `Option` with `None` first, or qualify them: `Some(x)` then `None` is the `if val` form, which needs a `Ref<T>`.
+
+`T?`, `Ref<T>` and `Option<T>` are three different types and nothing converts between them implicitly. Conversions are ordinary generic functions:
+
+| from | to | call |
+|---|---|---|
+| `T?` | `Option<T>` | `optionFrom::<T>(x)` |
+| `Ref<T>` | `Option<Ref<T>>` | `optionFromRef::<T>(r)` |
+| `Option<Ref<T>>` | `Ref<T>` | `optionToRef::<T>(&o)` (a counted copy; absent gives `None`) |
+
+`Option<T>` to `T?` has no generic function, because a generic body cannot copy a `T`; match it with a concrete payload: `when o { None => { ... } Some(v) => { ... } }`. Use `T?` for a cheap optional scalar or string, `Ref<T>` for an optional link to an object, and `Option<T>` when the absent case is a value you pass around, store in an enum or class field, or match on. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), and its `?` operator is sugar over `match`; Bork's `?` propagation is a later ticket (TS-P8-01).
+
+Not implemented yet: `?` propagation; `T?` as plain sugar for `Option<T>` (the types stay distinct for now).
 
 ## Constants
 
@@ -175,7 +208,7 @@ These are lexer tokens, so they cannot name a binding, parameter, field, functio
 
 - declarations: `class`, `enum`, `const`, `fun`, `val`, `var`, `this`
 - control flow: `if`, `else`, `when`, `for`, `in`, `while`, `break`, `continue`, `return`
-- values: `true`, `false`, `Some`, `None`
+- values: `true`, `false`
 - ownership: `move`, `promote`
 - type constructors: `Ref`, `Vec`
 

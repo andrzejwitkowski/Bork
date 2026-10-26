@@ -1,0 +1,21 @@
+fun optionFrom<T>(x: T?): Option<T> {
+    if (x == None) {
+        return Option.None
+    }
+    return Option.Some(x!!)
+}
+
+fun optionFromRef<T>(r: Ref<T>): Option<Ref<T>> {
+    if (r == None) {
+        return Option.None
+    }
+    return Option.Some(r)
+}
+
+fun optionToRef<T>(o: &Option<Ref<T>>): Ref<T> {
+    when o {
+        None => { }
+        Some(r) => { return r }
+    }
+    return None
+}

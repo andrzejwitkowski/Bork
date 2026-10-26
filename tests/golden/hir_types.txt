@@ -152,6 +152,15 @@ programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool)
 programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
+programs/build/option/option_conversions.bork::main() -> i32
+programs/build/option/option_conversions.bork::optionFrom(x: T0?) -> Option<T0>
+programs/build/option/option_conversions.bork::optionFromRef(r: Ref<T0>) -> Option<Ref<T0>>
+programs/build/option/option_conversions.bork::optionToRef(o: &Option<Ref<T0>>) -> Ref<T0>
+programs/build/option/option_result.bork::half(n: i32) -> Option<i32>
+programs/build/option/option_result.bork::show(o: &Option<i32>) -> i32
+programs/build/option/option_result.bork::parse(n: i32) -> Result<i32, String>
+programs/build/option/option_result.bork::main() -> i32
+programs/build/option/user_option_wins.bork::main() -> i32
 programs/build/paged_arenas/concat_grows_past_page.bork::main() -> i32
 programs/build/paged_arenas/many_small_allocs_cross_pages.bork::main() -> i32
 programs/build/recursions/factorial.bork::fact(n: i32) -> i32
@@ -277,6 +286,9 @@ programs/check/managed_refs/chained_val_else_moves_owner.bork::run(r: Ref<Node>)
 programs/check/methods/trailing_closure.bork::main() -> i32
 programs/check/methods/trailing_closure.bork::P.apply(this: &P, k: i32, f: (i32)->i32) -> i32
 programs/check/move_and_promote/move_block.bork::main() -> i32
+programs/check/option/option_check.bork::first(o: &Option<T0>, other: Option<T0>) -> Option<T0>
+programs/check/option/option_check.bork::fallible(n: i32) -> Result<Option<i32>, String>
+programs/check/option/option_check.bork::main() -> unit
 programs/check/recursions/self_call.bork::down(n: i32) -> i32
 programs/check/recursions/self_call.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::main() -> i32

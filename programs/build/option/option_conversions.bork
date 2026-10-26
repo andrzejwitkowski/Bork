@@ -1,0 +1,32 @@
+// exit: 0
+// stdout: 7\n0\n5\n2\n2\n
+// Nothing converts implicitly between `T?`, `Ref<T>` and `Option<T>`; each direction is a call.
+// `optionFrom` turns a `T?` into an `Option<T>`. `optionFromRef` / `optionToRef` do the same for
+// `Ref<T>` and `Option<Ref<T>>`; reading a `Ref` back out of an `Option` is a counted copy.
+class Node {
+    value: i32
+}
+
+fun main(): i32 {
+    val x: i32? = Some(7)
+    val y: i32? = None
+    val a: Option<i32> = optionFrom::<i32>(x)
+    val b: Option<i32> = optionFrom::<i32>(y)
+    when a {
+        None => { println(0) }
+        Some(v) => { println(v) }
+    }
+    when b {
+        None => { println(0) }
+        Some(v) => { println(v) }
+    }
+    val node = Node(5)
+    val r: Ref<Node> = node
+    val before = strongCount(r)
+    val o: Option<Ref<Node>> = optionFromRef::<Node>(r)
+    val back: Ref<Node> = optionToRef::<Node>(&o)
+    if val n = back { println(n.value) }
+    println(before)
+    println(strongCount(r) - before)
+    return 0
+}

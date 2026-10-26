@@ -1,0 +1,18 @@
+// Type-level uses of the prelude: nested options, `Result` in a signature, a generic function over
+// `Option<T>`, and `Option` as a class field.
+class Box {
+    slot: Option<i32>
+}
+
+fun first<T>(o: &Option<T>, other: Option<T>): Option<T> {
+    return other
+}
+
+fun fallible(n: i32): Result<Option<i32>, String> {
+    return Result.Ok(Option.Some(n))
+}
+
+fun main() {
+    val nested: Option<Option<i32>> = Option.Some(Option.None)
+    val b = Box(Option.Some(1))
+}

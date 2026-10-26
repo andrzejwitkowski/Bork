@@ -1,0 +1,5 @@
+// diag: expected Option<i32>
+// A plain value does not become an `Option` by itself: write `Option.Some(5)`.
+fun main() {
+    val o: Option<i32> = 5
+}

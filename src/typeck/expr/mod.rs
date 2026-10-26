@@ -32,7 +32,7 @@ use super::env::{Checked, Env};
 use array::{check_array_lit, check_index, check_slice};
 
 use binary::{check_binary, check_elvis};
-use call::check_call;
+use call::{check_call, CallSite};
 use control::{check_if, check_match, check_presence};
 use field::check_field;
 
@@ -95,7 +95,7 @@ pub(super) fn dispatch(
         } => check_borrow_operand(expr, *span, expected, env),
         Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
-        Expr::None { span } => check_none(*span, expected, env),
+        Expr::None { span } => check_none(*span, expected, return_ty, env),
         Expr::Some { expr: inner, span } => check_some(inner, *span, expected, return_ty, env),
         Expr::Binary { op, lhs, rhs, span } => {
             if *op == BinOp::Elvis {
@@ -195,8 +195,23 @@ fn check_borrow_operand(operand: &Expr, span: Span, expected: Option<TyId>, env:
     }
 }
 
+/// The enum `expected` is, when it has a variant called `variant`. `Some` and `None` are not
+/// keywords: where an enum such as the prelude's `Option` is expected, they are its variants.
+fn expected_enum_variant(expected: Option<TyId>, variant: &str, env: &mut Env<'_>) -> Option<super::env::EnumInfo> {
+    let ty = env.settle(expected?);
+    if env.tcx.is_nullable(ty) {
+        return None;
+    }
+    let (def, _) = env.tcx.enum_args(ty)?;
+    env.enums.get(&def).filter(|e| e.variants.iter().any(|v| v.name == variant)).cloned()
+}
+
 /// `None` needs an expected presence-capable type to take its type from.
-fn check_none(span: Span, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+fn check_none(span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env<'_>) -> Checked {
+    if let Some(e) = expected_enum_variant(expected, "None", env) {
+        let site = CallSite { span, args: &[], trailing: None, return_ty };
+        return object::check_variant(e, "None", site, expected, env);
+    }
     let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
         env.error(
             "cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`",
@@ -209,6 +224,10 @@ fn check_none(span: Span, expected: Option<TyId>, env: &mut Env<'_>) -> Checked 
 }
 
 fn check_some(inner: &Expr, span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env<'_>) -> Checked {
+    if let Some(e) = expected_enum_variant(expected, "Some", env) {
+        let site = CallSite { span, args: std::slice::from_ref(inner), trailing: None, return_ty };
+        return object::check_variant(e, "Some", site, expected, env);
+    }
     let expected_inner = expected
         .filter(|&ty| env.tcx.is_nullable(ty))
         .map(|ty| env.tcx.with_nullable(ty, false));

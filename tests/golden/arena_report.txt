@@ -872,6 +872,67 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/option_conversions.bork
+Arenas
+├── fun main
+│   ├── x [Local]
+│   ├── y [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── node [Local]
+│   ├── r [Local]
+│   ├── before [Local]
+│   ├── o [Local]
+│   ├── back [Local]
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   └── IfValSome
+│       └── n [Borrow ← presence guard]
+├── fun optionFrom
+│   ├── x [Local]
+│   └── IfThen
+├── fun optionFromRef
+│   ├── r [Local]
+│   └── IfThen
+└── fun optionToRef
+    ├── o [Borrow ← call site]
+    ├── MatchArm
+    └── MatchArm
+== programs/build/option/option_result.bork
+Arenas
+├── fun half
+│   ├── n [Local]
+│   └── IfThen
+│       └── n [Copy]
+├── fun show
+│   ├── o [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+├── fun parse
+│   ├── n [Local]
+│   └── IfThen
+│       └── n [Copy]
+└── fun main
+    ├── big [Local]
+    ├── small [Local]
+    ├── text [Local]
+    ├── good [Local]
+    ├── bad [Local]
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    └── MatchArm
+== programs/build/option/user_option_wins.bork
+Arenas
+└── fun main
+    ├── o [Local]
+    ├── n [Local]
+    ├── MatchArm
+    └── MatchArm
 == programs/build/paged_arenas/concat_grows_past_page.bork
 Arenas
 └── fun main
@@ -1863,6 +1924,16 @@ Arenas
     └── MoveBlock (move)
         ├── s [Moved ← fun main]
         └── len [Local]
+== programs/check/option/option_check.bork
+Arenas
+├── fun first
+│   ├── o [Borrow ← call site]
+│   └── other [Local]
+├── fun fallible
+│   └── n [Local]
+└── fun main
+    ├── nested [Local]
+    └── b [Local]
 == programs/check/recursions/self_call.bork
 Arenas
 ├── fun down
@@ -2469,6 +2540,51 @@ Arenas
 │   └── s [Local]
 └── fun main
     └── s [Local]
+== programs/check_fail/option/none_without_type.bork
+Type Error [125..129] cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`
+Arenas
+└── fun main
+    └── o [Local]
+== programs/check_fail/option/nullable_to_option.bork
+Type Error [149..150] initializer for `o` has type i32?, expected Option<i32>
+Arenas
+└── fun main
+    ├── x [Local]
+    └── o [Local]
+== programs/check_fail/option/option_to_nullable.bork
+Type Error [120..121] initializer for `x` has type Option<i32>, expected i32?
+Arenas
+└── fun main
+    ├── o [Local]
+    └── x [Local]
+== programs/check_fail/option/option_to_ref.bork
+Type Error [241..245] initializer for `back` has type Option<Ref<Node>>, expected Ref<Node>
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── o [Local]
+    └── back [Local]
+== programs/check_fail/option/ref_to_option.bork
+Type Error [205..206] initializer for `o` has type Ref<Node>, expected Option<Ref<Node>>
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    └── o [Local]
+== programs/check_fail/option/some_then_none_reads_as_if_val.bork
+Type Error [189..190] presence matching requires Ref<T>, got Option<i32>; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`
+Arenas
+└── fun main
+    ├── o [Local]
+    ├── IfValSome
+    │   └── v [Local]
+    └── IfValNone
+== programs/check_fail/option/t_to_option.bork
+Type Error [131..132] initializer for `o` has type i32, expected Option<i32>
+Arenas
+└── fun main
+    └── o [Local]
 == programs/check_fail/vec/class_element.bork
 Type Error [89..100] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
 Arenas

@@ -1,0 +1,11 @@
+// diag: expected Option<Ref<Node>>
+// A `Ref<T>` is not an `Option<Ref<T>>`; convert with `optionFromRef`.
+class Node {
+    value: i32
+}
+
+fun main() {
+    val n = Node(1)
+    val r: Ref<Node> = n
+    val o: Option<Ref<Node>> = r
+}

@@ -81,6 +81,9 @@ programs/build/move_and_promote/regional_move.bork: hits=11 hash=cbc0ee523f69c05
 programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363eb2141308
 programs/build/move_and_promote/then_return_move_not_taken.bork: hits=19 hash=0d9ed2defcb669f1
 programs/build/move_and_promote/then_return_move_taken.bork: hits=19 hash=48237cebdc030fe1
+programs/build/option/option_conversions.bork: hits=130 hash=a807a02366271c36
+programs/build/option/option_result.bork: hits=110 hash=8a2940a6a2d0dedc
+programs/build/option/user_option_wins.bork: hits=12 hash=bf2219b8650ab95b
 programs/build/paged_arenas/concat_grows_past_page.bork: hits=90 hash=d831dd43275c145f
 programs/build/paged_arenas/many_small_allocs_cross_pages.bork: hits=5290 hash=409698be11e24f58
 programs/build/recursions/factorial.bork: hits=4 hash=333e1945c8d00531
@@ -149,6 +152,7 @@ programs/check/managed_refs/chained_val_both_return_move.bork: hits=15 hash=85de
 programs/check/managed_refs/chained_val_else_moves_owner.bork: hits=20 hash=05daaaca4ff90e73
 programs/check/methods/trailing_closure.bork: hits=18 hash=dd8877fda4760c9d
 programs/check/move_and_promote/move_block.bork: hits=6 hash=4c084e5a5cb997c3
+programs/check/option/option_check.bork: hits=20 hash=0bfef59cb3ea6871
 programs/check/recursions/self_call.bork: hits=3 hash=f64d37e350e4b406
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
@@ -229,6 +233,13 @@ programs/check_fail/methods/unknown_method.bork: hits=3 hash=4d8982181d8b6248
 programs/check_fail/methods/use_after_move_receiver.bork: hits=12 hash=66729f291193b713
 programs/check_fail/methods/wrong_arg_count.bork: hits=5 hash=367421aba358dd74
 programs/check_fail/move_and_promote/move_without_keyword.bork: hits=2 hash=b2ca9113f75d5f91
+programs/check_fail/option/none_without_type.bork: hits=1 hash=82921468ce025a0f
+programs/check_fail/option/nullable_to_option.bork: hits=3 hash=ccbd8d34c2bfd2a1
+programs/check_fail/option/option_to_nullable.bork: hits=3 hash=97ef621b4d82f7ac
+programs/check_fail/option/option_to_ref.bork: hits=10 hash=6cb29c36e0253a51
+programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764
+programs/check_fail/option/some_then_none_reads_as_if_val.bork: hits=20 hash=2cf0414f27691dfc
+programs/check_fail/option/t_to_option.bork: hits=1 hash=f3a06bf4e6c26546
 programs/check_fail/vec/class_element.bork: hits=5 hash=d0a707928e787eec
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
 programs/check_fail/vec/push_on_val.bork: hits=10 hash=e15315bf4cac4746
