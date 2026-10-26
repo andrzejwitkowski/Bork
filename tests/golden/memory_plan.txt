@@ -21,6 +21,13 @@ programs/build/enums/linked_list.bork: 725..733 List Dynamic Program
 programs/build/enums/linked_list.bork: 775..784 List Dynamic Program
 programs/build/enums/linked_list.bork: 832..841 List Dynamic Program
 programs/build/enums/linked_list.bork: 889..898 List Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 866..876 Maybe Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 907..917 Maybe Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 947..960 Maybe Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 1069..1075 Wrap Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 1076..1088 Shape Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 1093..1094 P Lexical LexicalScope(8)
+programs/build/enums/match_generic_loop.bork: 1134..1145 Shape Lexical LexicalScope(8)
 programs/build/enums/match_ref_counts.bork: 768..777 Slot Lexical LexicalScope(7)
 programs/build/enums/match_ref_counts.bork: 1020..1024 Node Dynamic Program
 programs/build/enums/match_ref_counts.bork: 1071..1080 Slot Lexical LexicalScope(12)

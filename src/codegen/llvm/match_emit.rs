@@ -117,7 +117,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 self.branch_unless(hit, fail)
             }
             HirPatKind::Variant { index, fields, .. } => {
-                let (name, record, object) = self.variant_slot(pat, *index, value)?;
+                let (record, object) = self.variant_slot(pat, *index, value)?;
                 let i32_ty = self.cx.context.i32_type();
                 let tag_ptr = self.cx.builder.build_struct_gep(record, object, 0, "tag.ptr")?;
                 let tag = self.cx.builder.build_load(i32_ty, tag_ptr, "tag")?.into_int_value();
@@ -128,7 +128,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     if matches!(field.kind, HirPatKind::Wildcard | HirPatKind::Bind { .. }) {
                         continue;
                     }
-                    let payload = self.load_payload(&name, record, object, field_index, field.ty)?;
+                    let payload = self.load_payload(record, object, field_index, field.ty)?;
                     self.emit_pat_test(field, payload, fail)?;
                 }
                 Ok(())
@@ -148,12 +148,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 self.declare_local(&name.name, *binding_ty, value, None)
             }
             HirPatKind::Variant { index, fields, .. } => {
-                let (name, record, object) = self.variant_slot(pat, *index, value)?;
+                let (record, object) = self.variant_slot(pat, *index, value)?;
                 for (field_index, field) in fields.iter().enumerate() {
                     if matches!(field.kind, HirPatKind::Wildcard | HirPatKind::Lit(_)) {
                         continue;
                     }
-                    let payload = self.load_payload(&name, record, object, field_index, field.ty)?;
+                    let payload = self.load_payload(record, object, field_index, field.ty)?;
                     self.bind_pat(field, payload)?;
                 }
                 Ok(())
@@ -162,13 +162,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
     }
 
-    /// The instance name, struct type and slot pointer of the enum value `value` of type `pat.ty`.
+    /// The variant's struct type and the slot pointer of the enum value `value` of type `pat.ty`.
     fn variant_slot(
         &mut self,
         pat: &HirPat,
         index: usize,
         value: BasicValueEnum<'ctx>,
-    ) -> Result<(String, inkwell::types::StructType<'ctx>, PointerValue<'ctx>), Diagnostic> {
+    ) -> Result<(inkwell::types::StructType<'ctx>, PointerValue<'ctx>), Diagnostic> {
         let name = crate::mono::enum_instance_name(&self.cx.tcx, pat.ty)
             .ok_or_else(|| not_yet_supported("a variant pattern over a non-enum", Some(pat.span)))?;
         let record = self
@@ -181,21 +181,20 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .builder
             .build_extract_value(value.into_struct_value(), 1, "enum.ptr")?
             .into_pointer_value();
-        Ok((name, record, object))
+        Ok((record, object))
     }
 
     /// Reads payload field `field_index` of the active variant. Not retained: a bound `Ref` is
     /// cloned by [`Self::bind_pat`], a tested one is only compared.
     fn load_payload(
         &mut self,
-        enum_name: &str,
         record: inkwell::types::StructType<'ctx>,
         object: PointerValue<'ctx>,
         field_index: usize,
         field_ty: TyId,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let ty = self.cx.basic_type(field_ty).ok_or_else(|| {
-            not_yet_supported(&format!("payload of `{enum_name}` of type `{}`", self.cx.tcx.display(field_ty)), None)
+            not_yet_supported(&format!("an enum payload of type `{}`", self.cx.tcx.display(field_ty)), None)
         })?;
         let slot = self.cx.builder.build_struct_gep(record, object, field_index as u32 + 1, "payload")?;
         Ok(self.cx.builder.build_load(ty, slot, "payload")?)

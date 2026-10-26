@@ -53,6 +53,9 @@ programs/build/enums/generic_and_calls.bork::main() -> i32
 programs/build/enums/linked_list.bork::length(l: &List) -> i32
 programs/build/enums/linked_list.bork::sum(l: &List) -> i32
 programs/build/enums/linked_list.bork::main() -> i32
+programs/build/enums/match_generic_loop.bork::get(m: &Maybe<T0>, d: i32) -> i32
+programs/build/enums/match_generic_loop.bork::inner(w: &Wrap) -> i32
+programs/build/enums/match_generic_loop.bork::main() -> i32
 programs/build/enums/match_ref_counts.bork::peek(s: &Slot) -> i32
 programs/build/enums/match_ref_counts.bork::early(s: &Slot) -> i32
 programs/build/enums/match_ref_counts.bork::make(n: Ref<Node>) -> Slot

@@ -264,6 +264,39 @@ Arenas
     ├── r2 [Local]
     ├── l3 [Local]
     └── before [Local]
+== programs/build/enums/match_generic_loop.bork
+Arenas
+├── fun get
+│   ├── m [Borrow ← call site]
+│   ├── d [Local]
+│   ├── MatchArm
+│   └── MatchArm
+│       └── d [Copy]
+├── fun inner
+│   ├── w [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── a [Local]
+│   │   ├── MatchArm
+│   │   └── MatchArm
+│   └── MatchArm
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── w [Local]
+    ├── e [Local]
+    ├── i [Local]
+    ├── t [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        ├── e [Shared ← fun main]
+        ├── MatchArm
+        │   └── t [Copy]
+        └── MatchArm
+            ├── i [Copy]
+            ├── t [Copy]
+            ├── IfThen
+            └── IfThen
 == programs/build/enums/match_ref_counts.bork
 Arenas
 ├── fun peek

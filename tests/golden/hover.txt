@@ -31,6 +31,7 @@ programs/build/constants/string_and_scalars.bork: hits=67 hash=d9e0b218cd1383d7
 programs/build/enums/expr_eval.bork: hits=167 hash=b27c55bd41307bdc
 programs/build/enums/generic_and_calls.bork: hits=16 hash=59a8a3b6204c46e7
 programs/build/enums/linked_list.bork: hits=130 hash=160e63ec2533c33e
+programs/build/enums/match_generic_loop.bork: hits=66 hash=3bbaac4db588316f
 programs/build/enums/match_ref_counts.bork: hits=196 hash=6ad329f7b3108cc5
 programs/build/enums/match_shapes.bork: hits=223 hash=6e1cf7f8dee81a1d
 programs/build/enums/ref_payload.bork: hits=80 hash=8fef823bd09efbfd
