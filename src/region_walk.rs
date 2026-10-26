@@ -6,8 +6,8 @@
 
 use crate::ast::BinOp;
 use crate::hir::{
-    peel_blocks, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
-    HirFunction, HirProgram, HirStmt,
+    peel_blocks, HirArm, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr,
+    HirExprKind, HirFunction, HirPat, HirPatKind, HirProgram, HirStmt,
 };
 use crate::ty::{TyCtx, TyId};
 use crate::sema::ArenaNode;
@@ -139,8 +139,9 @@ fn expr_may_allocate_sink(tcx: &TyCtx, expr: &HirExpr) -> bool {
                 || none_block.as_ref().is_some_and(|x| block_may_allocate_sink(tcx, x))
         }
         HirExprKind::None => false,
-        // Not lowered yet (#53); assume the worst.
-        HirExprKind::Match { .. } => true,
+        HirExprKind::Match { scrutinee, arms } => {
+            expr_may_allocate_sink(tcx, scrutinee) || arms.iter().any(|arm| block_may_allocate_sink(tcx, &arm.body))
+        }
     }
 }
 
@@ -489,6 +490,25 @@ pub trait RegionVisitor {
         Ok(())
     }
 
+    /// `when` over patterns: the scrutinee runs in the enclosing region, then each arm is a region.
+    /// Pattern bindings are invisible to the walk; codegen declares them after an arm's region opens.
+    fn match_expr<C: ArenaCursor>(
+        &mut self,
+        driver: &mut WalkDriver<'_, C>,
+        scrutinee: &HirExpr,
+        arms: &[HirArm],
+        _result_ty: TyId,
+    ) -> Result<(), WalkError>
+    where
+        Self: Sized,
+    {
+        driver.walk_expr(self, scrutinee)?;
+        for arm in arms {
+            walk_arm_region(driver, self, arm)?;
+        }
+        Ok(())
+    }
+
     /// Non-region statements (assign, var, return, break, …).
     fn on_stmt<C: ArenaCursor>(
         &mut self,
@@ -590,11 +610,23 @@ pub(crate) fn region_enter<C: ArenaCursor, V: RegionVisitor>(
     site: RegionSite,
     body: &HirBlock,
 ) -> Result<(), WalkError> {
+    region_enter_forced(driver, visitor, site, body, false)
+}
+
+/// `region_enter`, with `force_push` for a region that owns something its body does not show.
+pub(crate) fn region_enter_forced<C: ArenaCursor, V: RegionVisitor>(
+    driver: &mut WalkDriver<'_, C>,
+    visitor: &mut V,
+    site: RegionSite,
+    body: &HirBlock,
+    force_push: bool,
+) -> Result<(), WalkError> {
     driver.cursor.take_child(site)?;
     let (peeled, _) = peel_blocks(body);
     if visitor.touch_codegen_push() {
         let child = driver.cursor.last_child_mut();
-        child.codegen_push = site == RegionSite::PresenceSome
+        child.codegen_push = force_push
+            || site == RegionSite::PresenceSome
             || codegen_push_for_region(driver.tcx, &child.label, peeled);
     }
     let child_ref = driver.cursor.last_child();
@@ -614,6 +646,31 @@ pub(crate) fn region_exit<C: ArenaCursor, V: RegionVisitor>(
         visitor.loop_latch(site)?;
     }
     visitor.exit_region(site)?;
+    Ok(())
+}
+
+/// Whether a pattern binds a `Ref` by value: the binding owns a retained count, so its arm
+/// needs an arena of its own to release it in.
+pub(crate) fn pat_binds_owned_ref(tcx: &TyCtx, pat: &HirPat) -> bool {
+    match &pat.kind {
+        HirPatKind::Bind { binding_ty, .. } => tcx.is_managed_ref(*binding_ty),
+        HirPatKind::Variant { fields, .. } => fields.iter().any(|f| pat_binds_owned_ref(tcx, f)),
+        HirPatKind::Some(inner) => pat_binds_owned_ref(tcx, inner),
+        HirPatKind::Wildcard | HirPatKind::Lit(_) | HirPatKind::None => false,
+    }
+}
+
+/// One `when` arm as a plain region (what the default `match_expr` and the schedule see).
+pub(crate) fn walk_arm_region<C: ArenaCursor, V: RegionVisitor>(
+    driver: &mut WalkDriver<'_, C>,
+    visitor: &mut V,
+    arm: &HirArm,
+) -> Result<(), WalkError> {
+    let force = pat_binds_owned_ref(driver.tcx, &arm.pat);
+    region_enter_forced(driver, visitor, RegionSite::MatchArm, &arm.body, force)?;
+    let (peeled, _) = peel_blocks(&arm.body);
+    visitor.walk_block(driver, peeled, None)?;
+    region_exit(driver, visitor, RegionSite::MatchArm)?;
     Ok(())
 }
 
@@ -637,12 +694,8 @@ fn walk_expr<C: ArenaCursor, V: RegionVisitor>(
 ) -> Result<(), WalkError> {
     visitor.before_expr(driver, expr)?;
     match &expr.kind {
-        // Pattern bindings are invisible to the walk; the arms are plain regions (#53 lowers them).
         HirExprKind::Match { scrutinee, arms } => {
-            walk_expr(driver, visitor, scrutinee)?;
-            for arm in arms {
-                driver.walk_region(visitor, RegionSite::MatchArm, &arm.body)?;
-            }
+            visitor.match_expr(driver, scrutinee, arms, expr.ty)?;
             visitor.after_expr(driver, expr)
         }
         HirExprKind::If {

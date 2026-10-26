@@ -1,0 +1,84 @@
+// exit: 0
+// stdout: 12\n12\n0\nunit circle\ncircle\nthin rect\nrect\ngreeting\n2\nempty\n100\n101\n7\n9\n12\n0\n
+// `when` over enum variants, integer/string literals, nested patterns, wildcards and a catch-all
+// binding; arms that yield a value and arms that only print.
+enum Shape {
+    Circle(r: i32),
+    Rect(w: i32, h: i32),
+    Label(text: String),
+    Empty,
+}
+
+enum Pair {
+    Both(a: Shape, b: Shape),
+}
+
+fun area(s: &Shape): i32 {
+    val a: i32 = when s {
+        Circle(r) => { 3 * r * r }
+        Rect(w, h) => { w * h }
+        Label(t) => { t.length }
+        Empty => { 0 }
+    }
+    return a
+}
+
+fun describe(s: &Shape) {
+    when s {
+        Circle(1) => { println("unit circle") }
+        Circle(r) => { println("circle") }
+        Rect(w, 1) => { println("thin rect") }
+        Rect(w, h) => { println("rect") }
+        Label("hi") => { println("greeting") }
+        Label(t) => { println(t.length) }
+        Empty => { println("empty") }
+    }
+}
+
+fun code(n: i32): i32 {
+    return when n {
+        0 => { 100 }
+        1 => { 101 }
+        k => { k }
+    }
+}
+
+fun both(p: &Pair): i32 {
+    return when p {
+        Both(Empty, Circle(r)) => { r }
+        Both(Rect(w, h), _) => { w * h }
+        Both(_, _) => { 0 }
+    }
+}
+
+fun main(): i32 {
+    val circle = Shape.Circle(2)
+    val rect = Shape.Rect(3, 4)
+    val empty = Shape.Empty
+    println(area(&circle))
+    println(area(&rect))
+    println(area(&empty))
+    val c1 = Shape.Circle(1)
+    val c5 = Shape.Circle(5)
+    val thin = Shape.Rect(2, 1)
+    val wide = Shape.Rect(2, 3)
+    val hi = Shape.Label("hi")
+    val yo = Shape.Label("yo")
+    describe(&c1)
+    describe(&c5)
+    describe(&thin)
+    describe(&wide)
+    describe(&hi)
+    describe(&yo)
+    describe(&empty)
+    println(code(0))
+    println(code(1))
+    println(code(7))
+    val p1 = Pair.Both(Shape.Empty, Shape.Circle(9))
+    val p2 = Pair.Both(Shape.Rect(3, 4), Shape.Empty)
+    val p3 = Pair.Both(Shape.Empty, Shape.Empty)
+    println(both(&p1))
+    println(both(&p2))
+    println(both(&p3))
+    return 0
+}

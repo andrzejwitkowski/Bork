@@ -1,0 +1,57 @@
+// exit: 0
+// stdout: -3\n6\n3\n3\n3\n
+// An expression evaluator over a recursive enum. Children are `Ref<Expr>`; each arm binds them as
+// counted copies and walks into them with `if val`. The leaf's reference count is the same after
+// the evaluations as before, so no arm leaks or over-releases a payload.
+enum Expr {
+    Num(n: i32),
+    Add(l: Ref<Expr>, r: Ref<Expr>),
+    Mul(l: Ref<Expr>, r: Ref<Expr>),
+    Neg(e: Ref<Expr>),
+}
+
+fun eval(e: &Expr): i32 {
+    val v: i32 = when e {
+        Num(n) => { n }
+        Add(l, r) => {
+            var a = 0
+            var b = 0
+            if val x = l { a = eval(&x) }
+            if val y = r { b = eval(&y) }
+            a + b
+        }
+        Mul(l, r) => {
+            var a = 0
+            var b = 0
+            if val x = l { a = eval(&x) }
+            if val y = r { b = eval(&y) }
+            a * b
+        }
+        Neg(inner) => {
+            var a = 0
+            if val x = inner { a = eval(&x) }
+            0 - a
+        }
+    }
+    return v
+}
+
+fun main(): i32 {
+    val one = Expr.Num(1)
+    val two = Expr.Num(2)
+    val three = Expr.Num(3)
+    val r1: Ref<Expr> = one
+    val r2: Ref<Expr> = two
+    val r3: Ref<Expr> = three
+    val sum = Expr.Add(r1, r2)
+    val rs: Ref<Expr> = sum
+    val neg = Expr.Neg(rs)
+    val prod = Expr.Mul(r2, r3)
+    val before = strongCount(r2)
+    println(eval(&neg))
+    println(eval(&prod))
+    println(eval(&sum))
+    println(before)
+    println(strongCount(r2))
+    return 0
+}

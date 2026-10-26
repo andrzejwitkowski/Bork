@@ -45,9 +45,24 @@ programs/build/constants/method_and_shadow.bork::Counter.bump(this: &Counter) ->
 programs/build/constants/string_and_scalars.bork::status() -> String
 programs/build/constants/string_and_scalars.bork::len(s: &String) -> i32
 programs/build/constants/string_and_scalars.bork::main() -> i32
+programs/build/enums/expr_eval.bork::eval(e: &Expr) -> i32
+programs/build/enums/expr_eval.bork::main() -> i32
 programs/build/enums/generic_and_calls.bork::wrap(n: i32) -> Maybe<i32>
 programs/build/enums/generic_and_calls.bork::take(m: &Maybe<String>) -> unit
 programs/build/enums/generic_and_calls.bork::main() -> i32
+programs/build/enums/linked_list.bork::length(l: &List) -> i32
+programs/build/enums/linked_list.bork::sum(l: &List) -> i32
+programs/build/enums/linked_list.bork::main() -> i32
+programs/build/enums/match_ref_counts.bork::peek(s: &Slot) -> i32
+programs/build/enums/match_ref_counts.bork::early(s: &Slot) -> i32
+programs/build/enums/match_ref_counts.bork::make(n: Ref<Node>) -> Slot
+programs/build/enums/match_ref_counts.bork::probe(r: Ref<Node>) -> i32
+programs/build/enums/match_ref_counts.bork::main() -> i32
+programs/build/enums/match_shapes.bork::area(s: &Shape) -> i32
+programs/build/enums/match_shapes.bork::describe(s: &Shape) -> unit
+programs/build/enums/match_shapes.bork::code(n: i32) -> i32
+programs/build/enums/match_shapes.bork::both(p: &Pair) -> i32
+programs/build/enums/match_shapes.bork::main() -> i32
 programs/build/enums/ref_payload.bork::hold(node: Ref<Node>) -> unit
 programs/build/enums/ref_payload.bork::main() -> i32
 programs/build/enums/ref_to_enum.bork::link(leaf: Ref<Tree>) -> unit

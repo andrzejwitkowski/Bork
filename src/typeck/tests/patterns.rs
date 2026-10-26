@@ -59,6 +59,17 @@ fn place_scrutinee_binds_non_copy_payloads_by_borrow() {
 }
 
 #[test]
+fn a_ref_payload_binds_as_a_counted_copy_so_it_can_be_matched() {
+    let (hir, tcx) = super::checked_of("enum E { A(next: Ref<E>), B }\nfun f(e: &E) {\n    when e {\n        A(next) => {\n            if val n = next { }\n        }\n        B => { }\n    }\n}\nfun main() {}\n");
+    let f = hir.functions.iter().find(|f| f.name == "f").unwrap();
+    let crate::hir::HirStmt::Expr(m) = f.body.stmts.last().unwrap() else { panic!("{:?}", f.body) };
+    let crate::hir::HirExprKind::Match { arms, .. } = &m.kind else { panic!("{m:?}") };
+    let crate::hir::HirPatKind::Variant { fields, .. } = &arms[0].pat.kind else { panic!() };
+    let crate::hir::HirPatKind::Bind { binding_ty, .. } = &fields[0].kind else { panic!() };
+    assert_eq!(tcx.display(*binding_ty).to_string(), "Ref<E>");
+}
+
+#[test]
 fn a_field_through_this_is_a_place() {
     clean("enum E { A(n: i32), B }\nclass C {\n    e: E\n    fun f(): i32 {\n        return when e {\n            A(n) => { n }\n            B => { 0 }\n        }\n    }\n}\nfun main() {}\n");
 }

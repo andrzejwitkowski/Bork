@@ -193,6 +193,42 @@ Arenas
     └── IfThen
         ├── a [Shared ← fun main]
         └── b [Shared ← fun main]
+== programs/build/enums/expr_eval.bork
+Arenas
+├── fun eval
+│   ├── e [Borrow ← call site]
+│   ├── v [Local]
+│   ├── MatchArm
+│   ├── MatchArm
+│   │   ├── a [Local]
+│   │   ├── b [Local]
+│   │   ├── IfValSome
+│   │   │   └── x [Borrow ← presence guard]
+│   │   └── IfValSome
+│   │       └── y [Borrow ← presence guard]
+│   ├── MatchArm
+│   │   ├── a [Local]
+│   │   ├── b [Local]
+│   │   ├── IfValSome
+│   │   │   └── x [Borrow ← presence guard]
+│   │   └── IfValSome
+│   │       └── y [Borrow ← presence guard]
+│   └── MatchArm
+│       ├── a [Local]
+│       └── IfValSome
+│           └── x [Borrow ← presence guard]
+└── fun main
+    ├── one [Local]
+    ├── two [Local]
+    ├── three [Local]
+    ├── r1 [Local]
+    ├── r2 [Local]
+    ├── r3 [Local]
+    ├── sum [Local]
+    ├── rs [Local]
+    ├── neg [Local]
+    ├── prod [Local]
+    └── before [Local]
 == programs/build/enums/generic_and_calls.bork
 Arenas
 ├── fun wrap
@@ -203,6 +239,108 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── c [Local]
+== programs/build/enums/linked_list.bork
+Arenas
+├── fun length
+│   ├── l [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+│       ├── rest [Local]
+│       └── IfValSome
+│           └── n [Borrow ← presence guard]
+├── fun sum
+│   ├── l [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+│       ├── rest [Local]
+│       └── IfValSome
+│           └── n [Borrow ← presence guard]
+└── fun main
+    ├── nil [Local]
+    ├── r0 [Local]
+    ├── l1 [Local]
+    ├── r1 [Local]
+    ├── l2 [Local]
+    ├── r2 [Local]
+    ├── l3 [Local]
+    └── before [Local]
+== programs/build/enums/match_ref_counts.bork
+Arenas
+├── fun peek
+│   ├── s [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+│       ├── v [Local]
+│       └── IfValSome
+│           └── x [Borrow ← presence guard]
+├── fun early
+│   ├── s [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+├── fun make
+│   └── n [Local]
+├── fun probe
+│   ├── r [Local]
+│   ├── total [Local]
+│   ├── MatchArm
+│   │   └── IfValSome
+│   │       └── x [Borrow ← presence guard]
+│   └── MatchArm
+└── fun main
+    ├── node [Local]
+    ├── r [Local]
+    ├── slot [Local]
+    ├── empty [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── other [Local]
+    ├── r2 [Local]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── slot [Shared ← fun main]
+        ├── empty [Shared ← fun main]
+        └── i [Copy]
+== programs/build/enums/match_shapes.bork
+Arenas
+├── fun area
+│   ├── s [Borrow ← call site]
+│   ├── a [Local]
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   └── MatchArm
+├── fun describe
+│   ├── s [Borrow ← call site]
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   ├── MatchArm
+│   └── MatchArm
+├── fun code
+│   ├── n [Local]
+│   ├── MatchArm
+│   ├── MatchArm
+│   └── MatchArm
+├── fun both
+│   ├── p [Borrow ← call site]
+│   ├── MatchArm
+│   ├── MatchArm
+│   └── MatchArm
+└── fun main
+    ├── circle [Local]
+    ├── rect [Local]
+    ├── empty [Local]
+    ├── c1 [Local]
+    ├── c5 [Local]
+    ├── thin [Local]
+    ├── wide [Local]
+    ├── hi [Local]
+    ├── yo [Local]
+    ├── p1 [Local]
+    ├── p2 [Local]
+    └── p3 [Local]
 == programs/build/enums/ref_payload.bork
 Arenas
 ├── fun hold

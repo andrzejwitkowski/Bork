@@ -1,0 +1,70 @@
+// exit: 0
+// stdout: 3\n1500\n3\n2\n9\n9\n2\n
+// Reference counts around `when`: an arm that binds a `Ref` payload and walks it with `if val`
+// (100 times in a loop, with early returns out of an arm), and a temporary scrutinee. In both the
+// count after equals the count before, so arms neither leak nor over-release.
+class Node {
+    value: i32
+}
+
+enum Slot {
+    Empty,
+    Held(node: Ref<Node>, tag: i32),
+}
+
+fun peek(s: &Slot): i32 {
+    return when s {
+        Empty => { 0 }
+        Held(n, t) => {
+            var v = 0
+            if val x = n { v = x.value }
+            v + t
+        }
+    }
+}
+
+fun early(s: &Slot): i32 {
+    when s {
+        Held(n, t) => { return 1 }
+        Empty => { }
+    }
+    return 2
+}
+
+fun make(n: Ref<Node>): Slot {
+    return Slot.Held(n, 4)
+}
+
+fun probe(r: Ref<Node>): i32 {
+    var total = 0
+    when (make(r)) {
+        Held(n, t) => {
+            if val x = n { total = x.value + t }
+        }
+        Empty => { }
+    }
+    return total
+}
+
+fun main(): i32 {
+    val node = Node(5)
+    val r: Ref<Node> = node
+    val slot = Slot.Held(r, 7)
+    val empty = Slot.Empty
+    println(strongCount(r))
+    var i = 0
+    var total = 0
+    while (i < 100) {
+        total = total + peek(&slot) + peek(&empty) + early(&slot) + early(&empty)
+        i = i + 1
+    }
+    println(total)
+    println(strongCount(r))
+    val other = Node(5)
+    val r2: Ref<Node> = other
+    println(strongCount(r2))
+    println(probe(r2))
+    println(probe(r2))
+    println(strongCount(r2))
+    return 0
+}

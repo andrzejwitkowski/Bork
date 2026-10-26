@@ -662,7 +662,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.cx.builder.build_store(ptr, value)?;
         let home_arena = if self.cx.tcx.is_managed_ref(ty) {
             self.current_arena()
-        } else if self.cx.tcx.class_def(ty).is_some() {
+        } else if self.cx.tcx.class_def(ty).is_some() || matches!(self.cx.tcx.data(ty), crate::ty::TyData::Enum(..)) {
             self.cx
                 .builder
                 .build_extract_value(value.into_struct_value(), 0, "object.arena")?
