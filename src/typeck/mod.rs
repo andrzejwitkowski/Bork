@@ -39,6 +39,8 @@ pub struct Typeck {
     pub hir: HirProgram,
     pub node_tys: NodeTypes,
     pub members: MemberResolutions,
+    /// Binding names of `if val`s over an `Option` that were checked as a `when`; sema walks those as a `when`.
+    pub option_if_vals: HashSet<AstId>,
     pub diagnostics: Vec<Diagnostic>,
     pub tcx: TyCtx,
 }
@@ -63,6 +65,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
     validate_owned_layouts(&classes, &enums, &mut tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
+    let mut option_if_vals = HashSet::new();
     for (name, constant) in &constants {
         members.insert(constant.id.numbered(), constant.member(name));
     }
@@ -78,6 +81,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
         diagnostics: &mut diagnostics,
         node_tys: &mut node_tys,
         members: &mut members,
+        option_if_vals: &mut option_if_vals,
     };
     let mut functions: Vec<HirFunction> = program
         .functions
@@ -136,6 +140,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
         },
         node_tys,
         members,
+        option_if_vals,
         diagnostics,
         tcx,
     }
@@ -366,10 +371,11 @@ struct FunctionChecker<'a> {
     diagnostics: &'a mut Vec<Diagnostic>,
     node_tys: &'a mut NodeTypes,
     members: &'a mut MemberResolutions,
+    option_if_vals: &'a mut HashSet<AstId>,
 }
 
 fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<DefId>) -> HirFunction {
-    let FunctionChecker { defs, fun_sigs, classes, enums, constants, tcx, diagnostics, node_tys, members } = checker;
+    let FunctionChecker { defs, fun_sigs, classes, enums, constants, tcx, diagnostics, node_tys, members, option_if_vals } = checker;
     let def = match owner {
         Some(class) => defs.lookup_method(class, &function.name),
         None => defs.lookup_fn(&function.name),
@@ -437,6 +443,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
     diagnostics.append(&mut env.diagnostics);
     node_tys.extend(std::mem::take(&mut env.node_tys));
     members.extend(std::mem::take(&mut env.members));
+    option_if_vals.extend(std::mem::take(&mut env.option_if_vals));
     HirFunction {
         name,
         generics,

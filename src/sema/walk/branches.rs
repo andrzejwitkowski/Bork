@@ -49,6 +49,10 @@ pub(super) fn walk_if_val(
 ) {
     walk(az, &bindings.head.value, node, None, record_borrow);
     let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    if let (true, Some(else_block)) = (az.option_if_vals.contains(&bindings.head.name.id), else_block) {
+        walk_arms(az, &[then_block, else_block], node, tail_transfer);
+        return;
+    }
     let (body, compacted) = peel_blocks(then_block);
     let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
     bind_presence_guard(az, &mut frame, &bindings.head);
@@ -85,11 +89,16 @@ pub(super) fn walk_match(
 ) {
     walk(az, scrutinee, node, None, record_borrow);
     let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    let bodies: Vec<&Block> = arms.iter().map(|arm| &arm.body).collect();
+    walk_arms(az, &bodies, node, tail_transfer);
+}
+
+fn walk_arms(az: &mut Analyzer, bodies: &[&Block], node: &mut ArenaNode, tail_transfer: Option<&TransferSink>) {
     let before_moved = moved_names(&az.env);
-    let mut ends = Vec::with_capacity(arms.len());
-    for arm in arms {
-        node.children.push(open_ordinary(az, "MatchArm", &arm.body, &[], tail_transfer));
-        ends.push(branch_end(az, &arm.body, &[]));
+    let mut ends = Vec::with_capacity(bodies.len());
+    for body in bodies {
+        node.children.push(open_ordinary(az, "MatchArm", body, &[], tail_transfer));
+        ends.push(branch_end(az, body, &[]));
         restore_moved_flags(&mut az.env, &before_moved);
     }
     join_branch_moves(&mut az.env, &ends);

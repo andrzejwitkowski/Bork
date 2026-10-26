@@ -41,8 +41,7 @@ impl RegionSite {
             RegionSite::IfElse => label == "IfElse",
             RegionSite::PresenceSome => label == "IfValSome" || label == "WhenSome",
             RegionSite::PresenceNone => label == "IfValNone" || label == "WhenNone",
-            // A `when` with `Some(x)` then `None` over an `Option` is checked as a `when` but ownership walks it as `if val`.
-            RegionSite::MatchArm => matches!(label, "MatchArm" | "IfValSome" | "IfValNone"),
+            RegionSite::MatchArm => label == "MatchArm",
             RegionSite::Closure => label.starts_with("Closure"),
         }
     }

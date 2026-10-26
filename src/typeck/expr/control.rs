@@ -73,6 +73,7 @@ pub(super) fn check_presence(
     ) {
         let head = &bindings.head;
         let span = head.name.span;
+        env.option_if_vals.insert(head.name.id.numbered());
         let arms = [
             MatchArm {
                 pat: Pattern::Some { inner: Box::new(Pattern::Binding(head.name.clone())), span },

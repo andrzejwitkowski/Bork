@@ -54,10 +54,10 @@ pub fn check(source: &str) -> CheckResult {
     };
 
     crate::prelude::add_prelude(&mut program, source, node_index.len() as u32);
-    let typeck::Typeck { hir, node_tys, members, diagnostics: mut type_diagnostics, tcx } =
+    let typeck::Typeck { hir, node_tys, members, option_if_vals, diagnostics: mut type_diagnostics, tcx } =
         typeck::check_with_members(&program);
     let (mut report, ownership_errors) =
-        crate::sema::analyze_with_members(&program, node_tys, members.clone(), &tcx);
+        crate::sema::analyze_with_members(&program, node_tys, members.clone(), option_if_vals, &tcx);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
 

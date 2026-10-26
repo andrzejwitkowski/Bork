@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::BindingKind;
 use crate::constants::ConstantTable;
@@ -90,6 +90,8 @@ pub(super) struct Env<'a> {
     pub(super) self_class: Option<DefId>,
     /// Member names resolved by typeck, for sema and LSP.
     pub(super) members: MemberResolutions,
+    /// Binding names of `if val`s over an `Option` that were checked as a `when`.
+    pub(super) option_if_vals: HashSet<AstId>,
     /// Literal variables of this function body; defaulted and resolved once at its end.
     pub(super) infcx: InferCtxt,
     /// Type parameters of the function being checked, for written types in its body.
@@ -128,6 +130,7 @@ impl<'a> Env<'a> {
             loop_depth: 0,
             self_class: None,
             members: MemberResolutions::new(),
+            option_if_vals: HashSet::new(),
             infcx: InferCtxt::new(),
             tparams: Vec::new(),
             pending: Vec::new(),

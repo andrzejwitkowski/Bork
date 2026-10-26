@@ -966,24 +966,20 @@ Arenas
 Arenas
 ├── fun len
 │   ├── x [Local]
-│   ├── IfValSome
-│   │   └── s [Borrow ← presence guard]
-│   └── IfValNone
+│   ├── MatchArm
+│   └── MatchArm
 ├── fun size
 │   ├── x [Local]
-│   ├── IfValSome
-│   │   └── s [Borrow ← presence guard]
-│   └── IfValNone
+│   ├── MatchArm
+│   └── MatchArm
 ├── fun pick
 │   ├── x [Local]
-│   ├── IfValSome
-│   │   └── v [Local]
-│   └── IfValNone
+│   ├── MatchArm
+│   └── MatchArm
 ├── fun borrowed
 │   ├── o [Borrow ← call site]
-│   ├── IfValSome
-│   │   └── v [Local]
-│   └── IfValNone
+│   ├── MatchArm
+│   └── MatchArm
 └── fun main
     ├── a [Local]
     ├── b [Local]
