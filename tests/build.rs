@@ -1039,3 +1039,41 @@ fn build_rejects_an_instance_that_makes_an_ill_formed_type() {
     assert!(!binary.exists());
     assert!(String::from_utf8_lossy(&output.stderr).contains("managed Ref target"));
 }
+
+/// Layout of `{ i32 tag, payload.. }` per variant: the arena slot is as big and as aligned as the
+/// biggest variant, so mixed-size payloads allocate the same slot (24 bytes, 8-aligned: the `Mixed`
+/// variant holds `i8` at 4, `i64` at 8, `i16` at 16) while `Small` alone would need 8.
+#[test]
+fn enum_slot_is_sized_for_its_biggest_variant() {
+    let dir = scratch_dir("enum_slot_layout");
+    let source = "enum E {\n    Unit,\n    Small(a: i8),\n    Mixed(a: i8, b: i64, c: i16),\n}\n\
+                  fun main() {\n    val a = E.Unit\n    val b = E.Small(1)\n    val c = E.Mixed(1, 2, 3)\n}\n";
+    let input = dir.join("main.bork");
+    fs::write(&input, source).unwrap();
+    let ir = dir.join("main.ll");
+    let build = Command::new(env!("CARGO_BIN_EXE_bork"))
+        .env("BORK_DUMP_IR", &ir)
+        .arg("build")
+        .arg("-o")
+        .arg(dir.join("main"))
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert_eq!(build.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&build.stderr));
+    let ir = fs::read_to_string(ir).unwrap();
+    let allocs: Vec<&str> = ir.lines().filter(|l| l.contains("call ptr @bork_arena_alloc")).collect();
+    assert_eq!(allocs.len(), 3, "{allocs:?}");
+    assert!(allocs.iter().all(|l| l.contains("i64 24, i64 8")), "{allocs:?}");
+    assert!(ir.contains("store i32 2, ptr %enum.tag"), "tag of the third variant");
+}
+
+#[test]
+fn moving_an_enum_value_is_rejected_not_a_crash() {
+    let (output, binary) = bork_build(
+        &scratch_dir("move_enum"),
+        "enum E { A(s: String), B }\nfun main() {\n    val e = E.A(\"x\")\n    val f = move e\n}\n",
+    );
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!binary.exists());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("moving enum values is not supported"));
+}

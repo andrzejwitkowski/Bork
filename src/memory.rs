@@ -370,8 +370,8 @@ impl RegionVisitor for Planner<'_> {
         expr: &HirExpr,
     ) -> Result<(), WalkError> {
         let origins = match &expr.kind {
-            HirExprKind::ObjectConstruct { class_name, fields } => {
-                let allocation = self.add_allocation(expr, class_name);
+            HirExprKind::ObjectConstruct { class_name: name, fields } | HirExprKind::EnumConstruct { enum_name: name, fields, .. } => {
+                let allocation = self.add_allocation(expr, name);
                 for (field_index, field) in fields.iter().enumerate() {
                     if self.tcx.is_managed_ref(field.ty) {
                         let targets = self.origins(field);
@@ -386,8 +386,6 @@ impl RegionVisitor for Planner<'_> {
                 }
                 allocation
             }
-            // Codegen rejects enums; keep the analysis conservative until #52 gives them a layout.
-            HirExprKind::EnumConstruct { fields, .. } => self.combine(fields),
             HirExprKind::Ident { name, .. } => self.lookup(name),
             HirExprKind::RefCreate(inner) => {
                 let origins = self.origins(inner);

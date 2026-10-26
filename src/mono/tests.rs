@@ -197,3 +197,27 @@ fn every_ill_formed_type_of_one_instance_is_reported() {
     let in_instance = |needle: &str| diagnostics.iter().filter(|d| d.message.contains("f<i32,P>") && d.message.contains(needle)).count();
     assert_eq!((in_instance("managed Ref target"), in_instance("`Vec` element")), (1, 1), "{diagnostics:?}");
 }
+
+#[test]
+fn generic_enums_are_instantiated_per_argument_list() {
+    let m = mono(
+        "enum Maybe<T> {\n    Nothing,\n    Just(value: T),\n}\n\
+         fun main() {\n    val a = Maybe.Just(1)\n    val b: Maybe<String> = Maybe.Just(\"s\")\n    val c: Maybe<i32> = Maybe.Nothing\n}\n",
+    );
+    let mut enums: Vec<&str> = m.hir.enums.iter().map(|e| e.name.as_str()).collect();
+    enums.sort();
+    assert_eq!(enums, ["Maybe<String>", "Maybe<i32>"]);
+    let string = m.hir.enums.iter().find(|e| e.name == "Maybe<String>").unwrap();
+    assert!(string.generics.is_empty());
+    assert_eq!(string.variants[1].name, "Just");
+    assert_eq!(string.variants[1].fields.len(), 1);
+}
+
+#[test]
+fn enum_payloads_instantiate_the_classes_they_use() {
+    let m = mono(&format!(
+        "{PAIR}enum Holder {{\n    Has(p: Pair<i32, String>),\n    Empty,\n}}\nfun main() {{\n    val h = Holder.Empty\n}}\n"
+    ));
+    assert!(m.hir.classes.iter().any(|c| c.name == "Pair<i32,String>"));
+    assert_eq!(m.hir.enums.len(), 1);
+}

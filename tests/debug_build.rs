@@ -92,3 +92,33 @@ fn ordinary_build_does_not_include_debug_registry() {
     assert!(symbols.status.success());
     assert!(!String::from_utf8_lossy(&symbols.stdout).contains("bork_debug_registry"));
 }
+
+/// Enum values get DWARF names (`bork::Object<E>` for the handle, `bork::Payload<E>` for the slot)
+/// and their `Ref` payload slots a registry label, `E.Variant.field`.
+#[test]
+fn debug_build_names_enums() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("main.bork");
+    let binary = dir.path().join("main");
+    fs::write(
+        &source,
+        "class Box { value: i32 }\nenum Slot { Empty, Held(node: Ref<Box>, tag: i8) }\n\
+         fun main(): i32 {\n    val item = Box(7)\n    val reference: Ref<Box> = item\n    \
+         val slot = Slot.Held(reference, 1)\n    return 0\n}\n",
+    )
+    .unwrap();
+    let build = Command::new(env!("CARGO_BIN_EXE_bork"))
+        .args(["build", "-g", "-o"])
+        .arg(&binary)
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(0));
+    let info = Command::new("readelf").args(["--debug-dump=info"]).arg(&binary).output().unwrap();
+    let info = String::from_utf8_lossy(&info.stdout);
+    assert!(info.contains("bork::Object<Slot>"), "{info}");
+    assert!(info.contains("bork::Payload<Slot>"), "{info}");
+    let strings = Command::new("strings").arg(&binary).output().unwrap();
+    assert!(String::from_utf8_lossy(&strings.stdout).contains("Slot.Held.node"));
+}

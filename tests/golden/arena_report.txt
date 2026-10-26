@@ -193,6 +193,58 @@ Arenas
     └── IfThen
         ├── a [Shared ← fun main]
         └── b [Shared ← fun main]
+== programs/build/enums/generic_and_calls.bork
+Arenas
+├── fun wrap
+│   └── n [Local]
+├── fun take
+│   └── m [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── c [Local]
+== programs/build/enums/ref_payload.bork
+Arenas
+├── fun hold
+│   ├── node [Local]
+│   └── s [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    └── e [Local]
+== programs/build/enums/ref_to_enum.bork
+Arenas
+├── fun link
+│   ├── leaf [Local]
+│   └── node [Local]
+└── fun main
+    ├── leaf [Local]
+    └── r [Local]
+== programs/build/enums/two_ref_variants.bork
+Arenas
+├── fun one
+│   ├── n [Local]
+│   └── link [Local]
+├── fun two
+│   ├── n [Local]
+│   └── link [Local]
+├── fun nothing
+│   ├── n [Local]
+│   └── link [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── first [Local]
+    └── second [Local]
+== programs/build/enums/variants.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── d [Local]
+    ├── e [Local]
+    └── f [Local]
 == programs/build/generics/identity.bork
 Arenas
 ├── fun id

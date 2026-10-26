@@ -45,6 +45,18 @@ programs/build/constants/method_and_shadow.bork::Counter.bump(this: &Counter) ->
 programs/build/constants/string_and_scalars.bork::status() -> String
 programs/build/constants/string_and_scalars.bork::len(s: &String) -> i32
 programs/build/constants/string_and_scalars.bork::main() -> i32
+programs/build/enums/generic_and_calls.bork::wrap(n: i32) -> Maybe<i32>
+programs/build/enums/generic_and_calls.bork::take(m: &Maybe<String>) -> unit
+programs/build/enums/generic_and_calls.bork::main() -> i32
+programs/build/enums/ref_payload.bork::hold(node: Ref<Node>) -> unit
+programs/build/enums/ref_payload.bork::main() -> i32
+programs/build/enums/ref_to_enum.bork::link(leaf: Ref<Tree>) -> unit
+programs/build/enums/ref_to_enum.bork::main() -> i32
+programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
+programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
+programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
+programs/build/enums/two_ref_variants.bork::main() -> i32
+programs/build/enums/variants.bork::main() -> i32
 programs/build/generics/identity.bork::id(x: T0) -> T0
 programs/build/generics/identity.bork::main() -> i32
 programs/build/generics/list_node.bork::main() -> i32

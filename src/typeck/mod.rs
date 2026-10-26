@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::{Function, Program};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::defs::{DefId, DefTable};
-use crate::hir::{HirClass, HirClassField, HirFunction, HirParam, HirProgram};
+use crate::hir::{HirClass, HirClassField, HirEnum, HirFunction, HirParam, HirProgram, HirVariant};
 use crate::span::{AstId, Span};
 use crate::ty::{FnSig, FnSigs, TyCtx, TyId};
 
@@ -110,9 +110,28 @@ pub fn check_with_members(program: &Program) -> Typeck {
                 .collect(),
         })
         .collect();
+    let hir_enums = program
+        .enums
+        .iter()
+        .enumerate()
+        .filter_map(|(index, e)| enums.get(&defs.enum_id(index)).filter(|info| info.name == e.name.name))
+        .map(|e| HirEnum {
+            name: e.name.clone(),
+            generics: e.generics.clone(),
+            variants: e
+                .variants
+                .iter()
+                .map(|variant| HirVariant {
+                    name: variant.name.clone(),
+                    fields: variant.fields.iter().map(|f| HirClassField { name: f.name.clone(), ty: f.ty }).collect(),
+                })
+                .collect(),
+        })
+        .collect();
     Typeck {
         hir: HirProgram {
             classes: hir_classes,
+            enums: hir_enums,
             functions,
         },
         node_tys,

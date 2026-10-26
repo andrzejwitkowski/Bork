@@ -432,7 +432,10 @@ impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
         expr: &HirExpr,
     ) -> Result<(), WalkError> {
         self.debug_location(expr.span);
-        if matches!(expr.kind, crate::hir::HirExprKind::ObjectConstruct { .. }) {
+        if matches!(
+            expr.kind,
+            crate::hir::HirExprKind::ObjectConstruct { .. } | crate::hir::HirExprKind::EnumConstruct { .. }
+        ) {
             self.pin_walk_driver(driver, |emitter| {
                 emitter.walk_step(|e| e.begin_object_construct(expr))
             })?;

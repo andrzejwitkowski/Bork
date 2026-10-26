@@ -274,7 +274,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Err(not_yet_supported("managed Ref presence expression", expr.span))
             }
             HirExprKind::If { .. } => unreachable!("If is ChildPlan::If"),
-            HirExprKind::EnumConstruct { .. } => Err(not_yet_supported("enums (see #52)", expr.span)),
+            HirExprKind::EnumConstruct { enum_name, variant, fields } => self
+                .emit_enum_construct(enum_name, variant, fields, ops, expr.span)
+                .map(Some),
             HirExprKind::Match { .. } => Err(not_yet_supported("`when` over patterns (see #53)", expr.span)),
         }
     }

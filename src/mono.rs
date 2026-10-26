@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{self, HirClass, HirClassField, HirExpr, HirExprKind, HirFunction, HirProgram};
+use crate::hir::{self, HirClass, HirClassField, HirEnum, HirExpr, HirExprKind, HirFunction, HirProgram, HirVariant};
 use crate::memory::MemoryPlan;
 use crate::sema::ArenaReport;
 use crate::span::Span;
@@ -111,9 +111,9 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
     }
 }
 
-/// Every `Class` type with arguments inside `ty`, outermost first.
+/// Every `Class` or `Enum` type with arguments inside `ty`, outermost first.
 fn class_instances(tcx: &TyCtx, ty: TyId, seen: &mut HashSet<TyId>, out: &mut Vec<TyId>) {
-    if let TyData::Class(_, args) = tcx.data(ty) {
+    if let TyData::Class(_, args) | TyData::Enum(_, args) = tcx.data(ty) {
         if !args.is_empty() && seen.insert(ty) {
             out.push(ty);
         }
@@ -201,6 +201,11 @@ impl<'a> Collector<'a> {
                 }
             }
             HirExprKind::ObjectConstruct { class_name, .. } => retarget_class(tcx, e.ty, class_name),
+            HirExprKind::EnumConstruct { enum_name, .. } => {
+                if let Some(name) = enum_instance_name(tcx, e.ty) {
+                    *enum_name = name;
+                }
+            }
             HirExprKind::ObjectField { receiver, class_name, .. } => retarget_class(tcx, receiver.ty, class_name),
             _ => {}
         }
@@ -222,14 +227,20 @@ pub(crate) fn class_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
     Some(mangle(tcx.class_name(def), tcx, args))
 }
 
+/// The name mono gives the `HirEnum` of the enum value `ty` (`Option<i32>`, or just `Shape`).
+pub(crate) fn enum_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
+    let (def, args) = tcx.enum_args(ty)?;
+    Some(mangle(tcx.class_name(def), tcx, args))
+}
+
 /// Specialises the program reachable from `main`. `report` is the sema output for `hir`
 /// (one root per function, same order), and planning diagnostics come back as errors.
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
-    let (collector, functions, classes) = collect_instances(hir, tcx)?;
+    let (collector, functions, classes, enums) = collect_instances(hir, tcx)?;
     let mut report = collector.report_per_instance(report);
-    let mut program = HirProgram { classes, functions };
+    let mut program = HirProgram { classes, enums, functions };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter survived monomorphization");
     hir::number_nodes(&mut program);
     let memory_plan = plan_instances(&program, tcx, &mut report)?;
@@ -244,7 +255,7 @@ pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
     collect_instances(hir, tcx).err().unwrap_or_default()
 }
 
-type Collected<'a> = (Collector<'a>, Vec<HirFunction>, Vec<HirClass>);
+type Collected<'a> = (Collector<'a>, Vec<HirFunction>, Vec<HirClass>, Vec<HirEnum>);
 
 fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collected<'a>, Vec<Diagnostic>> {
     let mut collector = Collector::new(hir);
@@ -252,9 +263,9 @@ fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collect
         collector.request_instance(tcx, main, Vec::new(), None);
     }
     let mut functions = collector.specialize_reachable_functions(tcx);
-    let classes = collector.instantiate_classes(tcx, &mut functions);
+    let (classes, enums) = collector.instantiate_types(tcx, &mut functions);
     if collector.diagnostics.is_empty() {
-        Ok((collector, functions, classes))
+        Ok((collector, functions, classes, enums))
     } else {
         Err(collector.diagnostics)
     }
@@ -346,9 +357,9 @@ impl<'a> Collector<'a> {
         }
     }
 
-    /// Plain classes are kept; every class applied to type arguments in a signature, a body or a
-    /// field becomes an instance, transitively through the fields of instances.
-    fn instantiate_classes(&mut self, tcx: &mut TyCtx, functions: &mut [HirFunction]) -> Vec<HirClass> {
+    /// Plain classes and enums are kept; every one applied to type arguments in a signature, a body
+    /// or a field becomes an instance, transitively through the fields of instances.
+    fn instantiate_types(&mut self, tcx: &mut TyCtx, functions: &mut [HirFunction]) -> (Vec<HirClass>, Vec<HirEnum>) {
         let (mut seen, mut pending) = (HashSet::new(), Vec::new());
         for function in functions {
             function.params.iter().for_each(|param| class_instances(tcx, param.ty, &mut seen, &mut pending));
@@ -363,10 +374,50 @@ impl<'a> Collector<'a> {
         for field in classes.iter().flat_map(|class| &class.fields) {
             class_instances(tcx, field.ty, &mut seen, &mut pending);
         }
-        while let Some(ty) = pending.pop() {
-            classes.extend(self.instantiate_class(tcx, ty, &mut seen, &mut pending));
+        let mut enums: Vec<HirEnum> = self.hir.enums.iter().filter(|e| e.generics.is_empty()).cloned().collect();
+        let payloads = enums.iter().flat_map(|e| &e.variants).flat_map(|v| &v.fields);
+        for field in payloads {
+            class_instances(tcx, field.ty, &mut seen, &mut pending);
         }
-        classes
+        while let Some(ty) = pending.pop() {
+            if matches!(tcx.data(ty), TyData::Enum(..)) {
+                enums.extend(self.instantiate_enum(tcx, ty, &mut seen, &mut pending));
+            } else {
+                classes.extend(self.instantiate_class(tcx, ty, &mut seen, &mut pending));
+            }
+        }
+        (classes, enums)
+    }
+
+    /// The concrete enum for `ty` (an enum applied to arguments); payloads may use further
+    /// instances, which are pushed on `pending`.
+    fn instantiate_enum(
+        &mut self,
+        tcx: &mut TyCtx,
+        ty: TyId,
+        seen: &mut HashSet<TyId>,
+        pending: &mut Vec<TyId>,
+    ) -> Option<HirEnum> {
+        let TyData::Enum(def, args) = tcx.data(ty).clone() else { return None };
+        if too_big(tcx, &args) {
+            let message = format!("enum `{}` is instantiated with ever-growing types", tcx.class_name(def));
+            self.diagnostics.push(error(message, None));
+            return None;
+        }
+        let Some(generic) = self.hir.enums.iter().find(|e| e.name == tcx.class_name(def)) else {
+            let message = format!("internal: no definition of enum `{}`", tcx.class_name(def));
+            self.diagnostics.push(error(message, None));
+            return None;
+        };
+        let variants = generic
+            .variants
+            .iter()
+            .map(|variant| HirVariant {
+                name: variant.name.clone(),
+                fields: self.instantiate_fields(tcx, ty, &variant.fields, &args, "payload", seen, pending),
+            })
+            .collect();
+        Some(HirEnum { name: mangle(tcx.class_name(def), tcx, &args), generics: Vec::new(), variants })
     }
 
     /// The concrete class for `ty` (a class applied to arguments); its fields may use further
@@ -389,21 +440,37 @@ impl<'a> Collector<'a> {
             self.diagnostics.push(error(message, None));
             return None;
         };
-        let mut fields = Vec::new();
-        for field in &generic.fields {
-            let field_ty = subst(tcx, field.ty, &args).unwrap_or_else(|_| {
+        let fields = self.instantiate_fields(tcx, ty, &generic.fields, &args, "field", seen, pending);
+        Some(HirClass { name: mangle(tcx.class_name(def), tcx, &args), generics: Vec::new(), fields })
+    }
+
+    /// `fields` of the generic class or enum behind `ty`, with `args` substituted. Each type is
+    /// checked, and the instances it uses are pushed on `pending`.
+    fn instantiate_fields(
+        &mut self,
+        tcx: &mut TyCtx,
+        ty: TyId,
+        fields: &[HirClassField],
+        args: &[TyId],
+        what: &str,
+        seen: &mut HashSet<TyId>,
+        pending: &mut Vec<TyId>,
+    ) -> Vec<HirClassField> {
+        let mut out = Vec::new();
+        for field in fields {
+            let field_ty = subst(tcx, field.ty, args).unwrap_or_else(|_| {
                 let message = format!("type arguments of `{}` would make a nullable of a nullable", tcx.display(ty));
                 self.diagnostics.push(error(message, None));
                 tcx.error()
             });
             if let Some(rule) = tcx.ill_formed(field_ty) {
-                let message = format!("field `{}` of `{}`: {rule}", field.name, tcx.display(ty));
+                let message = format!("{what} `{}` of `{}`: {rule}", field.name, tcx.display(ty));
                 self.diagnostics.push(error(message, None));
             }
             class_instances(tcx, field_ty, seen, pending);
-            fields.push(HirClassField { name: field.name.clone(), ty: field_ty });
+            out.push(HirClassField { name: field.name.clone(), ty: field_ty });
         }
-        Some(HirClass { name: mangle(tcx.class_name(def), tcx, &args), generics: Vec::new(), fields })
+        out
     }
 
     /// One report root per instance: the generic function's root, cloned and relabelled.
@@ -443,6 +510,11 @@ fn no_params_left(program: &mut HirProgram, tcx: &TyCtx) -> bool {
     };
     for class in &program.classes {
         class.fields.iter().for_each(|field| {
+            check(field.ty);
+        });
+    }
+    for variant in program.enums.iter().flat_map(|e| &e.variants) {
+        variant.fields.iter().for_each(|field| {
             check(field.ty);
         });
     }

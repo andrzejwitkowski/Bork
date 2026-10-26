@@ -202,14 +202,14 @@ impl TyCtx {
 
     /// a value allocated into its consumer's sink arena.
     pub fn owns_result(&self, id: TyId) -> bool {
-        self.is_managed_ref(id) || self.record_def(id).is_some()
+        self.is_managed_ref(id) || self.record_def(id).is_some() || self.enum_args(id).is_some()
     }
 
     /// payload bytes live in an arena (`String`, objects, `[T]`, `Vec`).
     pub fn uses_arena_storage(&self, id: TyId) -> bool {
         match self.data(self.base(id)) {
             TyData::Ref(inner) => self.uses_arena_storage(*inner),
-            TyData::String | TyData::Class(..) | TyData::Array { .. } | TyData::Vec(_) => true,
+            TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } | TyData::Vec(_) => true,
             _ => false,
         }
     }
