@@ -1,9 +1,0 @@
-// diag: reads as `if val`
-// `Some(x)` then `None` is the `if val` form, which needs a `Ref<T>`. Put `None` first or qualify.
-fun main() {
-    val o: Option<i32> = Option.Some(1)
-    when o {
-        Some(v) => { println(v) }
-        None => { println(0) }
-    }
-}

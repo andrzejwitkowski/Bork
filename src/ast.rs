@@ -493,8 +493,8 @@ impl Expr {
         Expr::Call { callee: Box::new(callee), type_args, args, trailing }
     }
 
-    /// `when value { arms }`. The `Some(name)` + `None` pair is the presence form and keeps its
-    /// `if val` shape, so its regions and codegen are unchanged.
+    /// `when value { arms }`. The `Some(name)` + `None` pair parses as `if val`; typeck turns it back
+    /// into a plain `when` unless the value is a `Ref`, which keeps its regions and codegen.
     pub fn when(value: Expr, value_span: crate::span::Span, mut arms: Vec<MatchArm>, span: crate::span::Span) -> Expr {
         if let [MatchArm { pat: Pattern::Some { inner, .. }, .. }, MatchArm { pat: Pattern::None { .. }, .. }] = &arms[..] {
             if let Pattern::Binding(name) = inner.as_ref() {

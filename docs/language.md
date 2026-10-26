@@ -129,7 +129,7 @@ fun main() {
 
 ### Patterns in `when`
 
-`when value { pattern => { ... } ... }` picks the first arm whose pattern matches. Patterns: `_`, a name (binds the value), a literal (`1`, `true`, `"s"`), `Variant(p, ..)` or `Enum.Variant(p, ..)` (one sub-pattern per payload field, nested freely), a bare `Variant` for a payload-free variant, and `Some(p)` / `None`. A bare name that spells a payload-free variant of the matched enum is that variant. The exact pair `Some(name)` + `None` keeps its `if val` meaning.
+`when value { pattern => { ... } ... }` picks the first arm whose pattern matches. Patterns: `_`, a name (binds the value), a literal (`1`, `true`, `"s"`), `Variant(p, ..)` or `Enum.Variant(p, ..)` (one sub-pattern per payload field, nested freely), a bare `Variant` for a payload-free variant, and `Some(p)` / `None`. A bare name that spells a payload-free variant of the matched enum is that variant. Over a `Ref<T>`, the exact pair `Some(name)` + `None` is `if val`; over a `T?` or `Option` it is an ordinary `when`, in either arm order.
 
 Binding mode: over a named value (a variable, a field, `this`) or any `&T`, a bound name is a borrow `&T`, except `Copy` scalars (numbers, `bool`), which bind by value, and `Ref<T>` payloads, which bind as a counted copy (the same as reading a `Ref` field of a class) so the name can go through `if val`. Over a temporary it binds by move. Nothing is moved out of a named value. The arms must have one type when the `when` is used as a value.
 
@@ -162,7 +162,7 @@ when (half(10)) {
 }
 ```
 
-`Some(x)` and `None` are plain names, not keywords: they build the `Option` variants wherever an `Option` / `T?` is expected (`Option.Some(x)` / `Option.None` always do), and they keep their old meaning only for a `Ref<T>`. A `when` over a `T?` or `Option` works like any other `when` over an enum, with one trap: arms `Some(x)` then `None` in that order are rewritten to `if val` (which needs a `Ref<T>`), so write `None` first, or qualify them.
+`Some(x)` and `None` are plain names, not keywords: they build the `Option` variants wherever an `Option` / `T?` is expected (`Option.Some(x)` / `Option.None` always do), and they keep their old meaning only for a `Ref<T>`. A `when` over a `T?` or `Option` works like any other `when` over an enum, with the arms in any order. `if val x = opt { ... } else { ... }` reads an `Option` the same way (the `else` is required; without it `if val` still needs a `Ref<T>`). `Ref<T>` has an absence of its own (its target may be gone) and `Option` is an ordinary value, so nothing converts between them implicitly: use `optionFromRef` / `optionToRef`.
 
 Nothing converts implicitly between `Ref<T>` and `Option<Ref<T>>` (an absent reference is `None` of a `Ref`, an `Option<Ref<T>>` is an enum that holds one):
 

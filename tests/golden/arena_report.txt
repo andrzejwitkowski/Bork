@@ -962,6 +962,32 @@ Arenas
     ├── n [Local]
     ├── MatchArm
     └── MatchArm
+== programs/build/option/when_some_first.bork
+Arenas
+├── fun len
+│   ├── x [Local]
+│   ├── IfValSome
+│   │   └── s [Borrow ← presence guard]
+│   └── IfValNone
+├── fun size
+│   ├── x [Local]
+│   ├── IfValSome
+│   │   └── s [Borrow ← presence guard]
+│   └── IfValNone
+├── fun pick
+│   ├── x [Local]
+│   ├── IfValSome
+│   │   └── v [Local]
+│   └── IfValNone
+├── fun borrowed
+│   ├── o [Borrow ← call site]
+│   ├── IfValSome
+│   │   └── v [Local]
+│   └── IfValNone
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── c [Local]
 == programs/build/paged_arenas/concat_grows_past_page.bork
 Arenas
 └── fun main
@@ -2594,6 +2620,13 @@ Arenas
 │   └── s [Local]
 └── fun main
     └── s [Local]
+== programs/check_fail/option/if_val_option_needs_else.bork
+Type Error [237..238] presence matching requires Ref<T> or add an `else` branch explicitly, got i32?
+Arenas
+└── fun main
+    ├── o [Local]
+    └── IfValSome
+        └── v [Local]
 == programs/check_fail/option/none_without_type.bork
 Type Error [125..129] cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`
 Arenas
@@ -2614,14 +2647,6 @@ Arenas
     ├── n [Local]
     ├── r [Local]
     └── o [Local]
-== programs/check_fail/option/some_then_none_reads_as_if_val.bork
-Type Error [189..190] presence matching requires Ref<T>, got i32?; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`
-Arenas
-└── fun main
-    ├── o [Local]
-    ├── IfValSome
-    │   └── v [Local]
-    └── IfValNone
 == programs/check_fail/option/t_to_option.bork
 Type Error [133..134] initializer for `o` has type i32, expected i32?
 Arenas

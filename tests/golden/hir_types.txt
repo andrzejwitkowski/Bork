@@ -163,6 +163,11 @@ programs/build/option/option_result.bork::show(o: &i32?) -> i32
 programs/build/option/option_result.bork::parse(n: i32) -> Result<i32, String>
 programs/build/option/option_result.bork::main() -> i32
 programs/build/option/user_option_wins.bork::main() -> i32
+programs/build/option/when_some_first.bork::len(x: String?) -> i32
+programs/build/option/when_some_first.bork::size(x: String?) -> i32
+programs/build/option/when_some_first.bork::pick(x: i32?) -> i32
+programs/build/option/when_some_first.bork::borrowed(o: &i32?) -> i32
+programs/build/option/when_some_first.bork::main() -> i32
 programs/build/paged_arenas/concat_grows_past_page.bork::main() -> i32
 programs/build/paged_arenas/many_small_allocs_cross_pages.bork::main() -> i32
 programs/build/recursions/factorial.bork::fact(n: i32) -> i32
