@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: quiz o układzie enumów w pamięci (#52)</title>
+<style>
+:root { --bg:#FAF7F2; --card:#fff; --fg:#2C2A28; --muted:#6B6560; --line:#E5DFD6; --acc:#D9483B; --ok:#2D8B57; --bad:#C0392B; --code:#F3EFE8; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.6 "DM Sans", system-ui, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 28px 18px 80px; }
+h1 { font-size: 2rem; line-height: 1.2; margin: .4em 0 .2em; }
+.sub { color: var(--muted); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font: .88em ui-monospace, Menlo, Consolas, monospace; }
+.q { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin: 1.4em 0; }
+.q h2 { font-size: 1.05rem; margin: 0 0 8px; }
+.opt { display:block; width:100%; text-align:left; font: inherit; font-size:.95rem; padding: 8px 12px; margin: 6px 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.opt:hover:not(:disabled) { border-color: var(--acc); }
+.opt.right { border-color: var(--ok); background: #E8F5EE; }
+.opt.wrong { border-color: var(--bad); background: #FDE8E8; }
+.fb { display:none; margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: var(--code); font-size: .93rem; }
+#score { position: sticky; top: 0; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+<h1>Quiz: jak enum leży w pamięci</h1>
+<p class="sub">Sześć pytań o #52: układ <code>{ tag, payload }</code>, tworzenie wartości i sprzątanie. Każda odpowiedź ma wyjaśnienie.</p>
+<div id="score">Wynik: 0 / 0</div>
+<div id="quiz"></div>
+</main>
+<script>
+const QUESTIONS = [
+  { q: "Jak Bork trzyma wartość `enum Shape { Empty, Rect(w: i32, h: i64) }` w arenie?",
+    opts: ["Jako osobny typ na każdy wariant, wybierany w czasie działania.", "Jako jeden slot: `i32` z numerem wariantu, a potem dane wariantu.", "Jako wskaźnik do napisu z nazwą wariantu.", "Jako dwa pola: `Empty` i `Rect`, oba zawsze obecne."],
+    a: 1, fb: "Slot zaczyna się od tagu (`i32`), a po nim idą pola wybranego wariantu. Tag to indeks wariantu w kolejności deklaracji." },
+  { q: "Warianty mają ładunki 1, 16 i 24 bajty. Ile bajtów alokuje Bork dla KAŻDEJ wartości tego enuma?",
+    opts: ["Tyle, ile ma dany wariant.", "Tyle, ile największy wariant (zaokrąglone do wyrównania).", "Zawsze 8 bajtów.", "Suma wszystkich wariantów."],
+    a: 1, fb: "Slot musi pomieścić każdy wariant, więc ma rozmiar i wyrównanie największego. Dlatego test układu sprawdza, że trzy różne warianty alokują to samo (24 bajty, wyrównanie 8)." },
+  { q: "Dlaczego pole `Ref` w wariancie nie jest kopiowane bit po bicie?",
+    opts: ["Bo `Ref` jest za duży.", "Bo licznik silnych referencji musi wzrosnąć, a przy sprzątaniu spaść.", "Bo kompilator nie zna rozmiaru `Ref`.", "Bo `Ref` zawsze wskazuje na enum."],
+    a: 1, fb: "Kopia bitowa nie zwiększyłaby licznika, więc obiekt mógłby zniknąć za wcześnie albo zostać na zawsze. Dlatego `Ref` idzie przez ten sam kod co pola klas." },
+  { q: "Enum ma warianty `One(a: Ref<Node>)` i `Two(t: i8, a: Ref<Node>, b: Ref<Node>)`. Co robi funkcja sprzątająca?",
+    opts: ["Zwalnia wszystkie trzy `Ref`-y.", "Czyta tag i zwalnia tylko `Ref`-y tego wariantu, który został zbudowany.", "Nic, arena zwolni wszystko sama.", "Zwalnia tylko pierwszy `Ref`."],
+    a: 1, fb: "Pole `a` leży w różnych miejscach w obu wariantach. Zwolnienie po złym wariancie czytałoby śmieci, więc funkcja przełącza się po tagu." },
+  { q: "Po co `strongCount` w testach `programs/build/enums`?",
+    opts: ["Żeby zmierzyć szybkość.", "Żeby sprawdzić, że licznik wraca do wartości sprzed budowy enuma, czyli nic nie wycieka.", "Żeby wypisać nazwę wariantu.", "Żeby zamienić `Ref` w `String`."],
+    a: 1, fb: "Wyciek oznacza licznik wyższy po powrocie z funkcji, nadmierne zwolnienie oznacza niższy. Test porównuje licznik przed i po." },
+  { q: "`val f = move e`, gdzie `e` jest enumem. Co robi kompilator w #52?",
+    opts: ["Przenosi wartość.", "Zgłasza błąd „moving enum values is not supported by codegen yet”.", "Kopiuje wartość.", "Zawiesza się."],
+    a: 1, fb: "Wcześniej to kończyło się paniką kompilatora. Teraz bramka odrzuca przeniesienie z komunikatem; samo przenoszenie wróci razem z lowerowaniem `when`." }
+];
+let ok = 0, done = 0;
+const quiz = document.getElementById("quiz"), score = document.getElementById("score");
+const md = s => s.replace(/`([^`]+)`/g, "<code>$1</code>");
+QUESTIONS.forEach((item, qi) => {
+  const box = document.createElement("div"); box.className = "q";
+  box.innerHTML = `<h2>${qi + 1}. ${md(item.q)}</h2>`;
+  const fb = document.createElement("div"); fb.className = "fb";
+  item.opts.forEach((text, oi) => {
+    const b = document.createElement("button"); b.className = "opt"; b.innerHTML = md(text);
+    b.onclick = () => {
+      box.querySelectorAll(".opt").forEach(o => o.disabled = true);
+      b.classList.add(oi === item.a ? "right" : "wrong");
+      box.querySelectorAll(".opt")[item.a].classList.add("right");
+      done++; if (oi === item.a) ok++;
+      fb.innerHTML = md(item.fb); fb.style.display = "block";
+      score.textContent = `Wynik: ${ok} / ${done}`;
+    };
+    box.appendChild(b);
+  });
+  box.appendChild(fb); quiz.appendChild(box);
+});
+</script>
+</body>
+</html>
