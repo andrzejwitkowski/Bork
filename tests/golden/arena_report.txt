@@ -2548,19 +2548,9 @@ Arenas
 == programs/check_fail/option/nullable_to_option.bork
 Type Error [149..150] initializer for `o` has type i32?, expected Option<i32>
 Arenas
-├── fun main
-│   ├── x [Local]
-│   └── o [Local]
-├── fun optionFrom
-│   ├── x [Local]
-│   └── IfThen
-├── fun optionFromRef
-│   ├── r [Local]
-│   └── IfThen
-└── fun optionToRef
-    ├── o [Borrow ← call site]
-    ├── MatchArm
-    └── MatchArm
+└── fun main
+    ├── x [Local]
+    └── o [Local]
 == programs/check_fail/option/option_to_nullable.bork
 Type Error [120..121] initializer for `x` has type Option<i32>, expected i32?
 Arenas
@@ -2570,38 +2560,18 @@ Arenas
 == programs/check_fail/option/option_to_ref.bork
 Type Error [241..245] initializer for `back` has type Option<Ref<Node>>, expected Ref<Node>
 Arenas
-├── fun main
-│   ├── n [Local]
-│   ├── r [Local]
-│   ├── o [Local]
-│   └── back [Local]
-├── fun optionFrom
-│   ├── x [Local]
-│   └── IfThen
-├── fun optionFromRef
-│   ├── r [Local]
-│   └── IfThen
-└── fun optionToRef
-    ├── o [Borrow ← call site]
-    ├── MatchArm
-    └── MatchArm
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── o [Local]
+    └── back [Local]
 == programs/check_fail/option/ref_to_option.bork
 Type Error [205..206] initializer for `o` has type Ref<Node>, expected Option<Ref<Node>>
 Arenas
-├── fun main
-│   ├── n [Local]
-│   ├── r [Local]
-│   └── o [Local]
-├── fun optionFrom
-│   ├── x [Local]
-│   └── IfThen
-├── fun optionFromRef
-│   ├── r [Local]
-│   └── IfThen
-└── fun optionToRef
-    ├── o [Borrow ← call site]
-    ├── MatchArm
-    └── MatchArm
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    └── o [Local]
 == programs/check_fail/option/some_then_none_reads_as_if_val.bork
 Type Error [189..190] presence matching requires Ref<T>, got Option<i32>; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`
 Arenas

@@ -237,7 +237,7 @@ programs/check_fail/option/none_without_type.bork: hits=1 hash=82921468ce025a0f
 programs/check_fail/option/nullable_to_option.bork: hits=3 hash=ccbd8d34c2bfd2a1
 programs/check_fail/option/option_to_nullable.bork: hits=3 hash=97ef621b4d82f7ac
 programs/check_fail/option/option_to_ref.bork: hits=10 hash=6cb29c36e0253a51
-programs/check_fail/option/ref_to_option.bork: hits=6 hash=e1004992c2436051
+programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764
 programs/check_fail/option/some_then_none_reads_as_if_val.bork: hits=20 hash=2cf0414f27691dfc
 programs/check_fail/option/t_to_option.bork: hits=1 hash=f3a06bf4e6c26546
 programs/check_fail/vec/class_element.bork: hits=5 hash=d0a707928e787eec
