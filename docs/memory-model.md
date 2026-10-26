@@ -414,9 +414,11 @@ Examples:
 
 ### Nullable (`T?`)
 
-- **`None`** does not bump the arena: for `String?` it is a null pointer and zero length; for scalar nullables codegen uses a “not present” tag with a zeroed payload.
-- **`Some(x)`** for a non-null `String` (or other arena-backed inner type) follows the same allocation rules as a non-null value of `x`.
-- **`?:`**, **`!!`**, and **`?.length`** do not introduce extra ownership beyond their operands; escape analysis walks through `Some` and `!!` like any other unary wrapper.
+`T?` is `Option<T>` (#54), so a nullable is an enum slot `{ i32 tag, payload }` allocated like any enum value (see "Enums" in [language.md](language.md)).
+
+- **`None`** allocates a tag-only slot in the sink arena; **`Some(x)`** allocates the slot and copies an arena-backed payload (a `String`, an array) into it, so a payload is owned by its slot.
+- **`?:`**, **`!!`**, and **`?.length`** read the tag and then the payload; they add no ownership beyond their operands. `move` / `promote` of a nullable copy the slot and its payload into the sink arena.
+- The old inline forms (a null pointer for `String?`, `{ i1, T }` for scalars) are gone; a niche layout for `Option` is a possible later optimisation.
 
 ### Escape analysis (`escape::place`)
 

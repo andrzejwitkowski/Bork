@@ -872,6 +872,38 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/nullable_string_eq.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── IfThen
+    ├── IfElse
+    ├── IfThen
+    ├── IfElse
+    ├── IfThen
+    └── IfElse
+== programs/build/option/nullable_when.bork
+Arenas
+├── fun show
+│   ├── x [Local]
+│   ├── MatchArm
+│   └── MatchArm
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── o [Local]
+    ├── s [Local]
+    ├── len [Local]
+    ├── nested [Local]
+    ├── gone [Local]
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    └── MatchArm
 == programs/build/option/option_conversions.bork
 Arenas
 ├── fun main
@@ -890,9 +922,6 @@ Arenas
 │   ├── MatchArm
 │   └── IfValSome
 │       └── n [Borrow ← presence guard]
-├── fun optionFrom
-│   ├── x [Local]
-│   └── IfThen
 ├── fun optionFromRef
 │   ├── r [Local]
 │   └── IfThen
@@ -1568,6 +1597,17 @@ Arenas
     ├── this [Borrow ← call site]
     ├── k [Local]
     └── f [Local]
+== programs/build_fail/option/move_nullable_enum.bork
+Arenas
+└── fun main
+    ├── s [Moved ← fun main]
+    └── t [Local]
+== programs/build_fail/option/safe_field_of_enum.bork
+Arenas
+└── fun main
+    ├── b [Local]
+    ├── r [Local]
+    └── s [Local]
 == programs/build_fail/text/return_direct.bork
 Ownership Error [] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
 Arenas
@@ -1589,7 +1629,6 @@ Arenas
 └── fun main
 == programs/build_fail/text/return_some_concat.bork
 Ownership Error [49..71] returning a `String?` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
-Ownership Error [49..71] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
 Arenas
 ├── fun make
 └── fun main
@@ -1924,6 +1963,16 @@ Arenas
     └── MoveBlock (move)
         ├── s [Moved ← fun main]
         └── len [Local]
+== programs/check/option/nullable_is_option.bork
+Arenas
+├── fun f
+│   └── x [Local]
+├── fun g
+│   └── o [Local]
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── c [Local]
 == programs/check/option/option_check.bork
 Arenas
 ├── fun first
@@ -1933,6 +1982,11 @@ Arenas
 │   └── n [Local]
 └── fun main
     ├── nested [Local]
+    └── b [Local]
+== programs/check/option/option_of_nullable.bork
+Arenas
+└── fun main
+    ├── a [Local]
     └── b [Local]
 == programs/check/recursions/self_call.bork
 Arenas
@@ -2545,18 +2599,6 @@ Type Error [125..129] cannot infer type of `None`; add a type annotation, e.g. `
 Arenas
 └── fun main
     └── o [Local]
-== programs/check_fail/option/nullable_to_option.bork
-Type Error [149..150] initializer for `o` has type i32?, expected Option<i32>
-Arenas
-└── fun main
-    ├── x [Local]
-    └── o [Local]
-== programs/check_fail/option/option_to_nullable.bork
-Type Error [120..121] initializer for `x` has type Option<i32>, expected i32?
-Arenas
-└── fun main
-    ├── o [Local]
-    └── x [Local]
 == programs/check_fail/option/option_to_ref.bork
 Type Error [241..245] initializer for `back` has type Option<Ref<Node>>, expected Ref<Node>
 Arenas
@@ -2573,7 +2615,7 @@ Arenas
     ├── r [Local]
     └── o [Local]
 == programs/check_fail/option/some_then_none_reads_as_if_val.bork
-Type Error [189..190] presence matching requires Ref<T>, got Option<i32>; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`
+Type Error [189..190] presence matching requires Ref<T>, got i32?; a `when` with `Some(x)` then `None` over an enum reads as `if val`, so write the arms as `Enum.Some(x)` and `Enum.None`
 Arenas
 └── fun main
     ├── o [Local]
@@ -2581,7 +2623,7 @@ Arenas
     │   └── v [Local]
     └── IfValNone
 == programs/check_fail/option/t_to_option.bork
-Type Error [131..132] initializer for `o` has type i32, expected Option<i32>
+Type Error [133..134] initializer for `o` has type i32, expected i32?
 Arenas
 └── fun main
     └── o [Local]

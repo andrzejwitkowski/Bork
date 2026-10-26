@@ -123,8 +123,8 @@ fn bare_name_of_a_payload_variant_is_an_error() {
 }
 
 #[test]
-fn nullable_enum_has_no_variant_patterns() {
-    has(&format!("{SHAPE}fun f(s: Shape?) {{\n    when s {{\n        Circle(r) => {{ }}\n        _ => {{ }}\n    }}\n}}\nfun main() {{}}\n"), "nullable enum");
+fn a_nullable_enum_is_an_option_so_variant_patterns_name_the_option() {
+    has(&format!("{SHAPE}fun f(s: Shape?) {{\n    when s {{\n        Circle(r) => {{ }}\n        _ => {{ }}\n    }}\n}}\nfun main() {{}}\n"), "enum `Option` has no variant `Circle`");
 }
 
 #[test]

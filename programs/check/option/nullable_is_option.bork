@@ -1,0 +1,15 @@
+// `T?` is another spelling of `Option<T>` (#54): the same type, so each converts to the other
+// without a call, and `Option.Some` / `Option.None` build a `T?`.
+fun f(x: i32?): Option<i32> {
+    return x
+}
+
+fun g(o: Option<String>): String? {
+    return o
+}
+
+fun main() {
+    val a: i32? = Option.Some(1)
+    val b: Option<i32> = None
+    val c: Option<Option<i32>> = Some(a)
+}

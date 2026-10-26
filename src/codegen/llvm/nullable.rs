@@ -1,112 +1,130 @@
-//! Lowering for `T?`, `None`, `Some`, `?:`, and `!!`.
+//! Lowering for `T?`, `None`, `Some`, `?:`, and `!!`. `T?` is the prelude's `Option<T>` (#54), so a
+//! nullable value is an enum slot (`{ i32 tag, payload }`, see `enum_layout_of`) and these are the
+//! tag tests, constructions and payload reads over it. `Ref<T>` keeps its own null handle.
 
 use inkwell::types::BasicType;
-use inkwell::values::{BasicValueEnum, IntValue};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
-use crate::codegen_gate::{nullable_repr, NullableRepr};
 use crate::diag::Diagnostic;
 use crate::hir::{HirExpr, HirExprKind, Prim};
 use crate::ty::{TyData, TyId};
 
-use super::context::Codegen;
 use super::emit_fn::FnEmitter;
 use super::not_yet_supported;
 
-impl<'ctx> Codegen<'ctx> {
-    pub fn const_null_value(&self, ty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if self.tcx.is_managed_ref(ty) {
-            return Ok(self.ref_handle_type().const_zero().into());
-        }
-        let llvm_ty = self
-            .nullable_storage_type(ty)
-            .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.tcx.display(ty)), None))?;
-        Ok(llvm_ty.const_zero())
-    }
-}
-
 impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
+    /// The instance name of the `Option` that `ty` is, and its payload type.
+    fn option_parts(&self, ty: TyId) -> Result<(String, TyId), Diagnostic> {
+        let name = crate::mono::enum_instance_name(&self.cx.tcx, ty)
+            .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.cx.tcx.display(ty)), None))?;
+        let payload = self.cx.tcx.enum_args(ty).and_then(|(_, args)| args.first().copied());
+        payload
+            .map(|payload| (name, payload))
+            .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.cx.tcx.display(ty)), None))
+    }
+
+    /// The object pointer of the nullable value `value`.
+    fn option_object(&mut self, value: BasicValueEnum<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
+        Ok(self
+            .cx
+            .builder
+            .build_extract_value(value.into_struct_value(), 1, "opt.ptr")?
+            .into_pointer_value())
+    }
+
     pub(super) fn emit_nullable_is_null(
         &mut self,
         ty: TyId,
         value: BasicValueEnum<'ctx>,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
-        let cx = self.cx;
-        match nullable_repr(&self.cx.tcx, ty) {
-            Some(NullableRepr::Buffer) => {
-                let desc = value.into_struct_value();
-                let ptr = cx
-                    .builder
-                    .build_extract_value(desc, 0, "opt.ptr")
-                    .expect("descriptor field 0")
-                    .into_pointer_value();
-                let null = ptr.get_type().const_null();
-                Ok(cx
-                    .builder
-                    .build_int_compare(IntPredicate::EQ, ptr, null, "opt.is_null")?)
-            }
-            Some(NullableRepr::TaggedScalar) => {
-                let tag = cx
-                    .builder
-                    .build_extract_value(value.into_struct_value(), 0, "opt.tag")
-                    .expect("option tag")
-                    .into_int_value();
-                let zero = cx.context.bool_type().const_int(0, false);
-                Ok(cx
-                    .builder
-                    .build_int_compare(IntPredicate::EQ, tag, zero, "opt.is_null")?)
-            }
-            None => Err(not_yet_supported(
-                &format!("nullable test for `{}`", self.cx.tcx.display(ty)),
-                None,
-            )),
-        }
+        let (name, _) = self.option_parts(ty)?;
+        let (_, none_tag) = self
+            .cx
+            .enum_variant(&name, "None")
+            .ok_or_else(|| not_yet_supported("the prelude `Option`", None))?;
+        let record = self.cx.enum_layout(&name).expect("laid out with its enum").variants[none_tag as usize];
+        let object = self.option_object(value)?;
+        let i32_ty = self.cx.context.i32_type();
+        let tag_ptr = self.cx.builder.build_struct_gep(record, object, 0, "opt.tag.ptr")?;
+        let tag = self.cx.builder.build_load(i32_ty, tag_ptr, "opt.tag")?.into_int_value();
+        let wanted = i32_ty.const_int(u64::from(none_tag), false);
+        Ok(self.cx.builder.build_int_compare(IntPredicate::EQ, tag, wanted, "opt.is_null")?)
     }
 
+    /// `Some(inner)` in the current sink arena.
     pub(super) fn emit_nullable_some(
         &mut self,
         nullable_ty: TyId,
         inner: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let cx = self.cx;
-        match nullable_repr(&self.cx.tcx, nullable_ty) {
-            Some(NullableRepr::Buffer) => Ok(inner),
-            Some(NullableRepr::TaggedScalar) => {
-                let storage = cx
-                    .nullable_storage_type(nullable_ty)
-                    .expect("tagged scalar nullable")
-                    .into_struct_type();
-                let tag = cx.context.bool_type().const_int(1, false);
-                let empty = storage.const_named_struct(&[]);
-                let with_tag = cx.builder.build_insert_value(empty, tag, 0, "opt.tag")?;
-                Ok(cx
-                    .builder
-                    .build_insert_value(with_tag, inner, 1, "opt.val")?
-                    .into_struct_value()
-                    .into())
-            }
-            None => Err(not_yet_supported(
-                &format!("Some for `{}`", self.cx.tcx.display(nullable_ty)),
-                None,
-            )),
-        }
+        let (name, payload) = self.option_parts(nullable_ty)?;
+        let arena = self.sink_arena();
+        self.build_enum_slot(arena, &name, "Some", &[payload], &[inner], None)
     }
 
+    /// `None` in the current sink arena.
+    pub(super) fn emit_nullable_none(&mut self, nullable_ty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let (name, _) = self.option_parts(nullable_ty)?;
+        let arena = self.sink_arena();
+        self.build_enum_slot(arena, &name, "None", &[], &[], None)
+    }
+
+    /// A copy of a nullable value in the current sink arena, for `move` and `promote`: the slot
+    /// and its payload (a `String`'s bytes, say) both move there.
+    pub(super) fn emit_nullable_copy(
+        &mut self,
+        ty: TyId,
+        value: BasicValueEnum<'ctx>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let is_null = self.emit_nullable_is_null(ty, value)?;
+        let some_bb = self.cx.context.append_basic_block(self.llvm_fn, "opt.copy.some");
+        let none_bb = self.cx.context.append_basic_block(self.llvm_fn, "opt.copy.none");
+        let end_bb = self.cx.context.append_basic_block(self.llvm_fn, "opt.copy.end");
+        self.cx.builder.build_conditional_branch(is_null, none_bb, some_bb)?;
+        self.cx.builder.position_at_end(some_bb);
+        let payload = self.emit_nullable_unwrap(ty, value)?;
+        let some = self.emit_nullable_some(ty, payload)?;
+        let some_end = self.cx.builder.get_insert_block().expect("positioned");
+        self.cx.builder.build_unconditional_branch(end_bb)?;
+        self.cx.builder.position_at_end(none_bb);
+        let none = self.emit_nullable_none(ty)?;
+        let none_end = self.cx.builder.get_insert_block().expect("positioned");
+        self.cx.builder.build_unconditional_branch(end_bb)?;
+        self.cx.builder.position_at_end(end_bb);
+        let phi = self.cx.builder.build_phi(some.get_type(), "opt.copy")?;
+        phi.add_incoming(&[(&some, some_end), (&none, none_end)]);
+        Ok(phi.as_basic_value())
+    }
+
+    /// The absent value of `ty`: a null handle for a `Ref<T>`, a `None` slot for a `T?`.
+    pub(super) fn emit_none(&mut self, ty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if self.cx.tcx.is_managed_ref(ty) {
+            return Ok(self.cx.ref_handle_type().const_zero().into());
+        }
+        self.emit_nullable_none(ty)
+    }
+
+    /// The payload of a nullable value known to be `Some`.
     pub(super) fn emit_nullable_unwrap(
         &mut self,
         nullable_ty: TyId,
         value: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let cx = self.cx;
-        match nullable_repr(&self.cx.tcx, nullable_ty) {
-            Some(NullableRepr::Buffer) => Ok(value),
-            Some(NullableRepr::TaggedScalar) => Ok(cx
-                .builder
-                .build_extract_value(value.into_struct_value(), 1, "opt.val")
-                .expect("option payload")),
-            None => Err(not_yet_supported(&format!("unwrap `{}`", self.cx.tcx.display(nullable_ty)), None)),
-        }
+        let (name, payload) = self.option_parts(nullable_ty)?;
+        let (_, some_tag) = self
+            .cx
+            .enum_variant(&name, "Some")
+            .ok_or_else(|| not_yet_supported("the prelude `Option`", None))?;
+        let record = self.cx.enum_layout(&name).expect("laid out with its enum").variants[some_tag as usize];
+        let object = self.option_object(value)?;
+        let ty = self
+            .cx
+            .basic_type(payload)
+            .ok_or_else(|| not_yet_supported(&format!("nullable payload `{}`", self.cx.tcx.display(payload)), None))?;
+        let slot = self.cx.builder.build_struct_gep(record, object, 1, "opt.val.ptr")?;
+        Ok(self.cx.builder.build_load(ty, slot, "opt.val")?)
     }
 
     pub(super) fn emit_nullable_expect_non_null(
@@ -214,18 +232,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                 cx.builder.build_not(r_null, "r.some")?,
                 "both_some",
             )?;
-            let payload_eq = match nullable_repr(&self.cx.tcx, ty) {
-                Some(NullableRepr::Buffer) => self.emit_buffer_desc_eq(lhs_val, rhs_val)?,
-                Some(NullableRepr::TaggedScalar) => {
-                    self.emit_tagged_payload_eq(ty, lhs_val, rhs_val, expr.span)?
-                }
-                None => {
-                    return Err(not_yet_supported(
-                        &format!("nullable equality for `{}`", self.cx.tcx.display(ty)),
-                        expr.span,
-                    ));
-                }
-            };
+            let payload_eq = self.emit_nullable_payload_eq(ty, lhs_val, rhs_val, expr.span)?;
             let value_eq = cx.builder.build_and(both_some, payload_eq, "val.eq")?;
             self.eq_or_ne(eq, cx.builder.build_or(both_null, value_eq, "nullable.eq")?)?
         } else {
@@ -273,22 +280,28 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         Ok(cx.builder.build_and(ptr_eq, len_eq, "desc.eq")?)
     }
 
-    fn emit_tagged_payload_eq(
+    /// Whether the payloads of two nullable values are equal. Only read where both are `Some`
+    /// (the caller masks the result), and compared as a scalar or as a buffer descriptor.
+    fn emit_nullable_payload_eq(
         &mut self,
         ty: TyId,
         lhs_val: BasicValueEnum<'ctx>,
         rhs_val: BasicValueEnum<'ctx>,
         span: Option<crate::span::Span>,
     ) -> Result<IntValue<'ctx>, Diagnostic> {
-        let l_val = self
-            .cx
-            .builder
-            .build_extract_value(lhs_val.into_struct_value(), 1, "l.v")?;
-        let r_val = self
-            .cx
-            .builder
-            .build_extract_value(rhs_val.into_struct_value(), 1, "r.v")?;
+        let l_val = self.emit_nullable_unwrap(ty, lhs_val)?;
+        let r_val = self.emit_nullable_unwrap(ty, rhs_val)?;
         let inner = self.cx.tcx.base(ty);
+        // Each slot owns its own copy of the bytes, so strings compare by content.
+        if self.cx.tcx.is_string(inner) {
+            return Ok(self.emit_string_eq(l_val, r_val, false)?.into_int_value());
+        }
+        if self.cx.tcx.is_array(inner) {
+            return self.emit_buffer_desc_eq(l_val, r_val);
+        }
+        if !matches!(self.cx.tcx.data(inner), TyData::Prim(_)) {
+            return Err(not_yet_supported(&format!("nullable equality for `{}`", self.cx.tcx.display(ty)), span));
+        }
         if matches!(self.cx.tcx.data(inner), TyData::Prim(Prim::F32 | Prim::F64)) {
             let l = self.value_as_float(l_val, inner, span)?;
             let r = self.value_as_float(r_val, inner, span)?;
@@ -331,10 +344,12 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .builder
             .build_conditional_branch(is_null, null_bb, some_bb)?;
         self.cx.builder.position_at_end(null_bb);
-        let none_val = self.cx.const_null_value(result_ty)?;
+        let none_val = self.emit_nullable_none(result_ty)?;
+        let none_end = self.cx.builder.get_insert_block().expect("none block");
         self.cx.builder.build_unconditional_branch(merge_bb)?;
         self.cx.builder.position_at_end(some_bb);
-        let len = self.emit_buffer_length_value(receiver_val.into_struct_value())?;
+        let payload = self.emit_nullable_unwrap(receiver_ty, receiver_val)?;
+        let len = self.emit_buffer_length_value(payload.into_struct_value())?;
         let some_val = self.emit_nullable_some(result_ty, len.into())?;
         let some_end = self.cx.builder.get_insert_block().expect("some block");
         self.cx.builder.build_unconditional_branch(merge_bb)?;
@@ -347,62 +362,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .cx
             .builder
             .build_phi(llvm_ty.as_basic_type_enum(), "safe.len")?;
-        phi.add_incoming(&[(&none_val, null_bb), (&some_val, some_end)]);
+        phi.add_incoming(&[(&none_val, none_end), (&some_val, some_end)]);
         Ok(phi.as_basic_value())
-    }
-}
-
-#[cfg(test)]
-mod nullable_repr_tests {
-    use crate::codegen_gate::{codegen_lowers_nullable, nullable_repr, NullableRepr};
-    use crate::hir::Prim;
-    use crate::ty::TyCtx;
-
-    fn ctx() -> TyCtx {
-        let program = crate::parse("class Point {\n    x: i32\n}\nfun main() {}\n").unwrap();
-        TyCtx::new(&crate::defs::DefTable::build(&program))
-    }
-
-    #[test]
-    fn string_optional_is_buffer() {
-        let mut c = ctx();
-        let ty = c.string(true);
-        assert_eq!(nullable_repr(&c, ty), Some(NullableRepr::Buffer));
-    }
-
-    #[test]
-    fn i32_optional_is_tagged() {
-        let mut c = ctx();
-        let (i, ty) = (c.i32(), c.i32());
-        let ty = c.with_nullable(ty, true);
-        let _ = i;
-        assert_eq!(nullable_repr(&c, ty), Some(NullableRepr::TaggedScalar));
-    }
-
-    #[test]
-    fn f32_optional_is_tagged() {
-        let mut c = ctx();
-        let f32_ty = c.prim(Prim::F32);
-        let ty = c.with_nullable(f32_ty, true);
-        assert_eq!(nullable_repr(&c, ty), Some(NullableRepr::TaggedScalar));
-        assert!(codegen_lowers_nullable(&c, ty));
-    }
-
-    #[test]
-    fn non_nullable_is_none() {
-        let mut c = ctx();
-        let ty = c.i32();
-        assert_eq!(nullable_repr(&c, ty), None);
-        assert!(codegen_lowers_nullable(&c, ty));
-    }
-
-    #[test]
-    fn nullable_class_has_no_representation() {
-        let mut c = ctx();
-        let defs = crate::defs::DefTable::build(&crate::parse("class Point {\n    x: i32\n}\nfun main() {}\n").unwrap());
-        let point = c.class(defs.lookup_class("Point").unwrap(), Vec::new());
-        let class = c.with_nullable(point, true);
-        assert_eq!(nullable_repr(&c, class), None);
-        assert!(!codegen_lowers_nullable(&c, class));
     }
 }

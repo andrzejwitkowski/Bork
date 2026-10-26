@@ -1,0 +1,37 @@
+// exit: 0
+// stdout: 7\n0\n5\n0\n1\n2\n
+// `T?` is `Option<T>`: a `when` over a nullable is an ordinary `when` over an enum (`None` first,
+// because `Some(x)` then `None` reads as `if val`), a nullable passes where an `Option` is
+// expected, and `Option<Option<T>>` keeps `Some(None)` apart from `None`.
+fun show(x: i32?): i32 {
+    return when x {
+        None => { 0 }
+        Some(v) => { v }
+    }
+}
+
+fun main(): i32 {
+    val a: i32? = Some(7)
+    val b: i32? = None
+    println(show(a))
+    println(show(b))
+    val o: Option<i32> = Option.Some(5)
+    println(show(o))
+    val s: String? = Some("hi")
+    val len: i32 = when s {
+        None => { 0 }
+        Some(t) => { t.length }
+    }
+    println(len - 2)
+    val nested: Option<i32?> = Some(None)
+    val gone: Option<i32?> = None
+    println(when nested {
+        None => { 0 }
+        Some(inner) => { 1 }
+    })
+    println(when gone {
+        None => { 2 }
+        Some(inner) => { 3 }
+    })
+    return 0
+}

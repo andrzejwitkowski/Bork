@@ -32,7 +32,7 @@ fun main() {
 | `Ref<Point>` | presence-capable managed handle to a non-nullable class |
 | `[T; N]` | fixed-length array with **N** elements (`N` is a non-negative integer literal) |
 | `&T` | borrow of non-Copy `T` (`String`, `[U; N]`, …) for the current region — **parameters** and **`val` locals** only; not `&i32`; not on fields or return types |
-| `T?` | nullable form of `T` |
+| `T?` | `Option<T>` (see [Option and Result](#option-and-result-54)) |
 | `(A, B) -> R` | function type |
 | `((A, B) -> R)?` | nullable function type |
 
@@ -141,16 +141,18 @@ Codegen (#52): an enum value is a slot in its arena, `{ i32 tag, payload.. }`, a
 
 ### `Option` and `Result` (#54)
 
-`Option<T>` and `Result<T, E>` are ordinary generic enums written in Bork (`src/prelude/*.bork`) and added to a program that mentions them (a program that defines its own `Option` or `Result` keeps its own):
+`Option<T>` and `Result<T, E>` are ordinary generic enums written in Bork (`src/prelude/*.bork`). A program that defines its own `Option` or `Result` keeps its own (and then has no `T?`):
 
 ```bork
 enum Option<T> { Some(value: T), None }
 enum Result<T, E> { Ok(value: T), Err(error: E) }
 ```
 
+**`T?` is another spelling of `Option<T>`.** They are the same type: a `String?` can be passed where an `Option<String>` is expected and the other way round, `None` and `Some(x)` build either, and `T?` has no special representation any more: a nullable value is an enum slot in an arena, `{ tag, payload }`, like any other enum (a `Some` allocates; the old inline `{ i1, T }` form is gone). `Option<Option<T>>` is allowed, so `Some(None)` and `None` are different values. `Ref<T>` is the exception for now: it keeps its own null handle and its own `if val` / `?.` / `?:`, and it is **not** an `Option` (see the table).
+
 ```bork
-fun half(n: i32): Option<i32> {
-    if (n > 5) { return Some(n / 2) }   // `Some` / `None` are the variants: an `Option` is expected
+fun half(n: i32): i32? {            // the same as Option<i32>
+    if (n > 5) { return Some(n / 2) }
     return None
 }
 
@@ -160,19 +162,17 @@ when (half(10)) {
 }
 ```
 
-`Option.Some(x)` and `Option.None` always mean the enum. Where the expected type is `T?` or `Ref<T>`, `Some(x)` and `None` keep their old meaning, so existing programs do not change. Write the arms of a `when` over an `Option` with `None` first, or qualify them: `Some(x)` then `None` is the `if val` form, which needs a `Ref<T>`.
+`Some(x)` and `None` are plain names, not keywords: they build the `Option` variants wherever an `Option` / `T?` is expected (`Option.Some(x)` / `Option.None` always do), and they keep their old meaning only for a `Ref<T>`. A `when` over a `T?` or `Option` works like any other `when` over an enum, with one trap: arms `Some(x)` then `None` in that order are rewritten to `if val` (which needs a `Ref<T>`), so write `None` first, or qualify them.
 
-`T?`, `Ref<T>` and `Option<T>` are three different types and nothing converts between them implicitly. Conversions are ordinary generic functions:
+Nothing converts implicitly between `Ref<T>` and `Option<Ref<T>>` (an absent reference is `None` of a `Ref`, an `Option<Ref<T>>` is an enum that holds one):
 
 | from | to | call |
 |---|---|---|
-| `T?` | `Option<T>` | `optionFrom::<T>(x)` |
 | `Ref<T>` | `Option<Ref<T>>` | `optionFromRef::<T>(r)` |
 | `Option<Ref<T>>` | `Ref<T>` | `optionToRef::<T>(&o)` (a counted copy; absent gives `None`) |
 
-`Option<T>` to `T?` has no generic function, because a generic body cannot copy a `T`; match it with a concrete payload: `when o { None => { ... } Some(v) => { ... } }`. Use `T?` for a cheap optional scalar or string, `Ref<T>` for an optional link to an object, and `Option<T>` when the absent case is a value you pass around, store in an enum or class field, or match on. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), and its `?` operator is sugar over `match`; Bork's `?` propagation is a later ticket (TS-P8-01).
+Use `T?` for a value that may be absent, `Ref<T>` for an optional link to an object, and `Option<T>` / `Result<T, E>` in signatures and enum payloads where you want the enum spelled out. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), there is no `T?`, and its `?` operator is sugar over `match`; Bork's `?` propagation is a later ticket (TS-P8-01).
 
-Not implemented yet: `?` propagation; `T?` as plain sugar for `Option<T>` (the types stay distinct for now).
 
 ## Constants
 
@@ -548,7 +548,7 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures, nullable `T?` (`None`, `Some`, `?:`, `!!`, `?.length`, `==` / `!=` with `None`), records, `Ref<T>`, `if val`, `when`, `?.` on record fields, and `?:` on `Ref`.
 
-`String?` `None` is a null pointer and length zero (no arena bump). Scalar `T?` is `{ i1 tag, T value }`. `!!` on null aborts.
+A `T?` is an `Option<T>` enum slot `{ i32 tag, payload }` in the sink arena (`None` too); `!!` on `None` aborts.
 
 Rejected by codegen (the frontend still accepts them): trailing closures. Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
 

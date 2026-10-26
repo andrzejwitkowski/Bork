@@ -58,20 +58,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.alloc_sink = previous;
             return copied.map(Into::into);
         }
+        // A nullable value is an enum slot that already owns its payload (see `build_enum_slot`).
+        if self.cx.tcx.is_nullable(field_ty) {
+            return Ok(value);
+        }
         let inner = self.cx.tcx.base(field_ty);
         if !self.cx.tcx.is_string(inner) && !self.cx.tcx.is_array(inner) {
             return Ok(value);
-        }
-
-        if self.cx.tcx.is_nullable(field_ty) {
-            let is_null = self.emit_nullable_is_null(field_ty, value)?;
-            let mut split = self.open_presence("owned", is_null, Some(field_ty))?;
-            let copied = self.materialize_owned_value(value, inner, owner)?;
-            self.end_present_arm(&mut split, Some(copied))?;
-            let absent = self.cx.const_null_value(field_ty)?;
-            return self
-                .end_absent_arm(split, Some(absent))?
-                .ok_or_else(|| not_yet_supported("nullable owned value", None));
         }
 
         let previous = self.alloc_sink;
@@ -248,6 +241,59 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         Ok(())
     }
 
+    /// Allocates an enum slot in `arena`, writes the tag of `variant` and its payload `values`
+    /// (of types `types`), and returns the `{arena, slot}` handle. An enum with `Ref` payloads
+    /// registers its tag-switching drop glue once for the whole slot.
+    pub(super) fn build_enum_slot(
+        &mut self,
+        arena: PointerValue<'ctx>,
+        enum_name: &str,
+        variant: &str,
+        types: &[TyId],
+        values: &[BasicValueEnum<'ctx>],
+        span: Option<crate::span::Span>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let (variant_info, tag) = self
+            .cx
+            .enum_variant(enum_name, variant)
+            .ok_or_else(|| not_yet_supported(&format!("enum variant `{enum_name}.{variant}`"), span))?;
+        let labels: Vec<String> = variant_info.fields.iter().map(|f| format!("{enum_name}.{variant}.{}", f.name)).collect();
+        let layout = self
+            .cx
+            .enum_layout(enum_name)
+            .ok_or_else(|| not_yet_supported(&format!("enum `{enum_name}`"), span))?;
+        let (record, size, align) = (layout.variants[tag as usize], layout.size, layout.align);
+        let i64 = self.cx.context.i64_type();
+        let object = self
+            .cx
+            .builder
+            .build_call(
+                self.cx.arena_alloc_fn(),
+                &[arena.into(), i64.const_int(size, false).into(), i64.const_int(align, false).into()],
+                "enum",
+            )?
+            .try_as_basic_value()
+            .basic()
+            .expect("bork_arena_alloc returns a pointer")
+            .into_pointer_value();
+        let tag_slot = self.cx.builder.build_struct_gep(record, object, 0, "enum.tag")?;
+        self.cx.builder.build_store(tag_slot, self.cx.context.i32_type().const_int(u64::from(tag), false))?;
+        for (index, (ty, value)) in types.iter().zip(values).enumerate() {
+            let slot = self.cx.builder.build_struct_gep(record, object, index as u32 + 1, "payload")?;
+            self.store_owned_field(arena, slot, *ty, *value, &labels[index], false)?;
+        }
+        if let Some(drop_fn) = self.cx.enum_drops.get(enum_name) {
+            self.cx.builder.build_call(
+                self.cx.arena_register_drop_fn(),
+                &[arena.into(), object.into(), drop_fn.as_global_value().as_pointer_value().into()],
+                "",
+            )?;
+        }
+        let handle = self.cx.object_handle_type().const_named_struct(&[]);
+        let handle = self.cx.builder.build_insert_value(handle, arena, 0, "object.arena")?;
+        Ok(self.cx.builder.build_insert_value(handle, object, 1, "object.ptr")?.into_struct_value().into())
+    }
+
     /// Allocates the enum slot, writes the tag and the payload of `variant`, returns the handle.
     /// An enum with `Ref` payloads registers its tag-switching drop glue once for the whole slot.
     pub(super) fn emit_enum_construct(
@@ -262,47 +308,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .object_constructions
             .pop()
             .ok_or_else(|| not_yet_supported("enum construction context", span))?;
-        let result = (|| {
-            let (variant_info, tag) = self
-                .cx
-                .enum_variant(enum_name, variant)
-                .ok_or_else(|| not_yet_supported(&format!("enum variant `{enum_name}.{variant}`"), span))?;
-            let layout = self
-                .cx
-                .enum_layout(enum_name)
-                .ok_or_else(|| not_yet_supported(&format!("enum `{enum_name}`"), span))?;
-            let (record, size, align) = (layout.variants[tag as usize], layout.size, layout.align);
-            let i64 = self.cx.context.i64_type();
-            let object = self
-                .cx
-                .builder
-                .build_call(
-                    self.cx.arena_alloc_fn(),
-                    &[arena.into(), i64.const_int(size, false).into(), i64.const_int(align, false).into()],
-                    "enum",
-                )?
-                .try_as_basic_value()
-                .basic()
-                .expect("bork_arena_alloc returns a pointer")
-                .into_pointer_value();
-            let tag_slot = self.cx.builder.build_struct_gep(record, object, 0, "enum.tag")?;
-            self.cx.builder.build_store(tag_slot, self.cx.context.i32_type().const_int(u64::from(tag), false))?;
-            for (index, (field, value)) in fields.iter().zip(values).enumerate() {
-                let slot = self.cx.builder.build_struct_gep(record, object, index as u32 + 1, "payload")?;
-                let label = format!("{enum_name}.{variant}.{}", variant_info.fields[index].name);
-                self.store_owned_field(arena, slot, field.ty, *value, &label, false)?;
-            }
-            if let Some(drop_fn) = self.cx.enum_drops.get(enum_name) {
-                self.cx.builder.build_call(
-                    self.cx.arena_register_drop_fn(),
-                    &[arena.into(), object.into(), drop_fn.as_global_value().as_pointer_value().into()],
-                    "",
-                )?;
-            }
-            let handle = self.cx.object_handle_type().const_named_struct(&[]);
-            let handle = self.cx.builder.build_insert_value(handle, arena, 0, "object.arena")?;
-            Ok(self.cx.builder.build_insert_value(handle, object, 1, "object.ptr")?.into_struct_value().into())
-        })();
+        let types: Vec<TyId> = fields.iter().map(|field| field.ty).collect();
+        let result = self.build_enum_slot(arena, enum_name, variant, &types, values, span);
         self.alloc_sink = previous;
         result
     }

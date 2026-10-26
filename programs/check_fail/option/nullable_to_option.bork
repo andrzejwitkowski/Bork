@@ -1,6 +1,0 @@
-// diag: expected Option<i32>
-// `T?` and `Option<T>` are different types; convert with `optionFrom`.
-fun main() {
-    val x: i32? = Some(1)
-    val o: Option<i32> = x
-}

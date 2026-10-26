@@ -2,9 +2,9 @@
 //! explicit conversions between them and `T?` / `Ref<T>` are ordinary generic functions. Nothing
 //! converts implicitly.
 //!
-//! A chunk is added to the parsed program only when the program mentions one of its names and does
-//! not define that name itself, so a program that never uses the prelude is checked exactly as
-//! before and a user's own `Option` wins. Prelude items are numbered after the user's and kept out
+//! `Option` is always added, because `T?` is `Option<T>`. Every other chunk is added only when the
+//! program mentions one of its names, and a chunk is skipped when the program defines that name
+//! itself (a program with its own `Option` cannot use `T?`). Prelude items are numbered after the user's and kept out
 //! of the span index, because their spans point into prelude text, not into the user's file.
 
 use crate::ast::Program;
@@ -22,7 +22,7 @@ const OPTION: usize = 0;
 const CHUNKS: [Chunk; 3] = [
     Chunk { names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
-    Chunk { names: &["optionFrom", "optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
+    Chunk { names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
 ];
 
 fn defines(program: &Program, name: &str) -> bool {
@@ -75,7 +75,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         // A chunk is skipped when the user defines its names, or one it builds on: the user's
         // `Option` has its own shape, so the conversions written for the prelude's cannot work.
         let blocked = shadowed(chunk) || chunk.needs.iter().any(|&need| shadowed(&CHUNKS[need]));
-        wanted[index] = !blocked && chunk.names.iter().any(|name| mentions(&code, name));
+        wanted[index] = !blocked && (index == OPTION || chunk.names.iter().any(|name| mentions(&code, name)));
     }
     for (index, chunk) in CHUNKS.iter().enumerate() {
         if wanted[index] {
@@ -109,19 +109,18 @@ mod tests {
     }
 
     #[test]
-    fn a_program_that_never_names_the_prelude_gets_none_of_it() {
+    fn option_is_always_present_because_t_question_is_option_and_result_only_when_named() {
         let result = check("fun main() {\n    val x: i32? = None\n}\n");
-        assert!(result.is_ok());
-        let hir = result.hir.unwrap();
-        assert!(hir.enums.is_empty());
-        assert_eq!(hir.functions.len(), 1);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        assert_eq!(result.hir.unwrap().enums.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["Option"]);
+        assert_eq!(enum_names("fun main() {}\n"), ["Option"]);
     }
 
     #[test]
     fn each_chunk_checks_clean_on_its_own() {
         assert_eq!(enum_names("fun f(o: Option<i32>) {}\nfun main() {}\n"), ["Option"]);
-        assert_eq!(enum_names("fun f(r: Result<i32, String>) {}\nfun main() {}\n"), ["Result"]);
-        let conv = "fun main() {\n    val x: i32? = None\n    val o: Option<i32> = optionFrom::<i32>(x)\n}\n";
+        assert_eq!(enum_names("fun f(r: Result<i32, String>) {}\nfun main() {}\n"), ["Option", "Result"]);
+        let conv = "class Node {\n    v: i32\n}\nfun main() {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    val o = optionFromRef::<Node>(r)\n}\n";
         assert_eq!(enum_names(conv), ["Option"]);
     }
 
@@ -136,20 +135,22 @@ mod tests {
         assert_eq!(enum_names("enum Option {\n    A,\n    B,\n}\nfun main() {\n    val o = Option.A\n}\n"), ["Option"]);
         let result = check("class Result {\n    v: i32\n}\nfun main() {\n    val r = Result(1)\n}\n");
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        assert!(result.hir.unwrap().enums.is_empty());
+        assert_eq!(result.hir.unwrap().enums.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["Option"]);
     }
 
     #[test]
-    fn names_in_comments_and_strings_do_not_load_the_prelude() {
-        let source = "// optionFrom and Option are only mentioned here\nfun main() {\n    println(\"Result Option\")\n}\n";
-        assert!(enum_names(source).is_empty());
+    fn names_in_comments_and_strings_do_not_load_the_conversions() {
+        let source = "// optionFromRef and Result are only mentioned here\nfun main() {\n    println(\"Result optionFromRef\")\n}\n";
+        assert_eq!(enum_names(source), ["Option"]);
+        let result = check(source);
+        assert!(result.hir.unwrap().functions.iter().all(|f| !f.name.starts_with("option")));
     }
 
     #[test]
     fn a_user_option_also_blocks_the_conversions_built_on_the_prelude_one() {
-        let source = "enum Option {\n    A,\n}\n// optionFrom is only a word in this comment\nfun main() {\n    val o = Option.A\n}\n";
+        let source = "enum Option {\n    A,\n}\n// optionFromRef is only a word in this comment\nfun main() {\n    val o = Option.A\n}\n";
         assert_eq!(enum_names(source), ["Option"]);
-        let code = "enum Option {\n    A,\n}\nfun main() {\n    val x: i32? = None\n    val o = optionFrom::<i32>(x)\n}\n";
+        let code = "enum Option {\n    A,\n}\nclass Node {\n    v: i32\n}\nfun main() {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    val o = optionFromRef::<Node>(r)\n}\n";
         let result = check(code);
         assert!(!result.is_ok(), "the prelude conversion must not be spliced onto a user `Option`");
     }

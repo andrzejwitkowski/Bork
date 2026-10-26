@@ -57,8 +57,7 @@ impl InferCtxt {
             (TyData::Ref(x), TyData::Ref(y))
             | (TyData::ManagedRef(x), TyData::ManagedRef(y))
             | (TyData::Vec(x), TyData::Vec(y))
-            | (TyData::Range(x), TyData::Range(y))
-            | (TyData::Nullable(x), TyData::Nullable(y)) => self.unify_inner(tcx, x, y),
+            | (TyData::Range(x), TyData::Range(y)) => self.unify_inner(tcx, x, y),
             _ => Err(mismatch),
         }
     }

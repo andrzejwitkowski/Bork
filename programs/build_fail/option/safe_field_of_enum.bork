@@ -1,0 +1,16 @@
+// diag: `?.` of an enum field is not supported by codegen yet
+// `r?.shape` would copy the outer slot but keep the enum payload in the object's arena.
+enum Shape {
+    Circle(r: i32),
+    Empty,
+}
+
+class Box {
+    shape: Shape
+}
+
+fun main() {
+    val b = Box(Shape.Empty)
+    val r: Ref<Box> = b
+    val s = r?.shape
+}

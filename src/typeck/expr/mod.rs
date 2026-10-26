@@ -199,9 +199,6 @@ fn check_borrow_operand(operand: &Expr, span: Span, expected: Option<TyId>, env:
 /// keywords: where an enum such as the prelude's `Option` is expected, they are its variants.
 fn expected_enum_variant(expected: Option<TyId>, variant: &str, env: &mut Env<'_>) -> Option<super::env::EnumInfo> {
     let ty = env.settle(expected?);
-    if env.tcx.is_nullable(ty) {
-        return None;
-    }
     let (def, _) = env.tcx.enum_args(ty)?;
     env.enums.get(&def).filter(|e| e.variants.iter().any(|v| v.name == variant)).cloned()
 }
@@ -224,7 +221,19 @@ fn check_none(span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env
 }
 
 fn check_some(inner: &Expr, span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env<'_>) -> Checked {
-    if let Some(e) = expected_enum_variant(expected, "Some", env) {
+    // A `Some(e)` with no `Ref<T>` expected is the prelude `Option`'s variant, which is what `T?` is.
+    let wants_ref = match expected {
+        Some(ty) => {
+            let ty = env.settle(ty);
+            env.tcx.is_managed_ref(ty)
+        }
+        None => false,
+    };
+    let option = expected_enum_variant(expected, "Some", env).or_else(|| {
+        let def = env.tcx.option_def()?;
+        env.enums.get(&def).cloned().filter(|_| !wants_ref)
+    });
+    if let Some(e) = option {
         let site = CallSite { span, args: std::slice::from_ref(inner), trailing: None, return_ty };
         return object::check_variant(e, "Some", site, expected, env);
     }

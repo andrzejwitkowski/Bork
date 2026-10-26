@@ -167,10 +167,10 @@ fn opaque_parameter_rejects_operators_and_members() {
 }
 
 #[test]
-fn nullable_of_nullable_instantiation_is_an_error() {
-    let src = "fun opt<T>(x: T?): T? { return x }\nfun main() {\n    opt::<String?>(None)\n}\n";
+fn nullable_of_nullable_instantiation_is_an_option_of_an_option() {
+    let src = "fun opt<T>(x: T?): T? { return x }\nfun main() {\n    val a: Option<String?> = opt::<String?>(None)\n}\n";
     let (_, m) = run(src);
-    has(&m, "make a nullable of a nullable");
+    assert!(m.is_empty() || !m.iter().any(|m| m.contains("nullable of a nullable")), "{m:?}");
 }
 
 #[test]
@@ -217,14 +217,16 @@ fn mismatched_class_arguments_are_rejected() {
 }
 
 #[test]
-fn nullable_of_nullable_class_arguments_are_reported() {
+fn nullable_of_nullable_class_arguments_nest_instead_of_failing() {
     let holder = "class Holder<T> {\n    v: T?\n}\n";
-    let (_, m) = run(&format!("{holder}fun f(h: Holder<i32?>) {{\n    val x = h.v\n}}\nfun main() {{}}\n"));
-    has(&m, "would make a nullable of a nullable");
-    let (_, m) = run(&format!("{holder}fun f(h: &Holder<i32?>) {{\n    h.v = None\n}}\nfun main() {{}}\n"));
-    has(&m, "would make a nullable of a nullable");
-    let (_, m) = run(&format!("{holder}fun main() {{\n    val h: Holder<i32?> = Holder(None)\n}}\n"));
-    has(&m, "would make a nullable of a nullable");
+    for body in [
+        "fun f(h: Holder<i32?>) {\n    val x = h.v\n}\nfun main() {}\n",
+        "fun f(h: &Holder<i32?>) {\n    h.v = None\n}\nfun main() {}\n",
+        "fun main() {\n    val h: Holder<i32?> = Holder(None)\n}\n",
+    ] {
+        let (_, m) = run(&format!("{holder}{body}"));
+        assert!(!m.iter().any(|m| m.contains("nullable of a nullable")), "{m:?}");
+    }
 }
 
 #[test]

@@ -25,7 +25,6 @@ fun main
 class Box<i32>
 == programs/build/option/option_conversions.bork
 fun main
-fun optionFrom<i32>
 fun optionFromRef<Node>
 fun optionToRef<Node>
 class Node

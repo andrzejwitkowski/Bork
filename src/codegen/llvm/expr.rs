@@ -180,7 +180,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Ok(Some(ty.const_float(*value).into()))
             }
             HirExprKind::Str { value } => Ok(Some(self.emit_str_literal(value)?.into())),
-            HirExprKind::None => self.cx.const_null_value(expr.ty).map(Some),
+            HirExprKind::None => self.emit_none(expr.ty).map(Some),
             HirExprKind::Ident { name, use_kind } => self.emit_ident_value(name, *use_kind, expr),
             HirExprKind::Some(_) => self.emit_nullable_some(expr.ty, ops[0]).map(Some),
             HirExprKind::Unary { op, expr: inner } => match op {
@@ -304,6 +304,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let value = self.cx.builder.build_load(ty, slot_ptr, name)?;
         if use_kind == UseKind::RefCopy {
             return self.clone_ref(value).map(Some);
+        }
+        if matches!(use_kind, UseKind::Move | UseKind::Promote) && self.cx.tcx.is_nullable(slot_ty) {
+            return self.emit_nullable_copy(slot_ty, value).map(Some);
         }
         if matches!(use_kind, UseKind::Move | UseKind::Promote) && self.cx.tcx.is_vec(slot_ty) {
             let copied = self.copy_vec_into_arena(value.into_pointer_value(), slot_ty)?;
@@ -459,10 +462,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Err(not_yet_supported("non-descriptor buffer argument", span))
             };
         }
-        if matches!(
-            crate::codegen_gate::nullable_repr(&self.cx.tcx, ty),
-            Some(crate::codegen_gate::NullableRepr::TaggedScalar)
-        ) {
+        if self.cx.tcx.is_nullable(ty) {
             return Ok(value);
         }
         self.value_as_int(value, ty, span).map(Into::into)

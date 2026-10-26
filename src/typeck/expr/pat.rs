@@ -52,12 +52,11 @@ pub(super) fn check_pat(
             return check_pat(&Pattern::Binding(variant), ty, by_borrow, names, env);
         }
         Pattern::Some { inner, .. } => {
-            let (inner_ty, inner_borrow) = match (env.tcx.managed_ref_inner(ty), env.tcx.is_nullable(ty)) {
-                (Some(target), _) => (target, true),
-                (None, true) => (env.tcx.with_nullable(ty, false), by_borrow),
-                _ => {
+            let (inner_ty, inner_borrow) = match env.tcx.managed_ref_inner(ty) {
+                Some(target) => (target, true),
+                None => {
                     if !env.tcx.is_unknown(ty) {
-                        env.error(format!("`Some` pattern requires `Ref<T>` or `T?`, got {}", env.show(ty)), Some(span));
+                        env.error(format!("`Some` pattern requires `Ref<T>` or an enum with a `Some` variant, got {}", env.show(ty)), Some(span));
                     }
                     (env.tcx.error(), false)
                 }
@@ -65,8 +64,8 @@ pub(super) fn check_pat(
             HirPatKind::Some(Box::new(check_pat(inner, inner_ty, inner_borrow, names, env)))
         }
         Pattern::None { .. } => {
-            if !env.tcx.is_managed_ref(ty) && !env.tcx.is_nullable(ty) && !env.tcx.is_unknown(ty) {
-                env.error(format!("`None` pattern requires `Ref<T>` or `T?`, got {}", env.show(ty)), Some(span));
+            if !env.tcx.is_managed_ref(ty) && !env.tcx.is_unknown(ty) {
+                env.error(format!("`None` pattern requires `Ref<T>` or an enum with a `None` variant, got {}", env.show(ty)), Some(span));
             }
             HirPatKind::None
         }
@@ -81,9 +80,6 @@ fn is_enum_with_variant(ty: TyId, variant: &str, env: &Env<'_>) -> bool {
 
 /// Whether `ty` is an enum (not a nullable one) that has every variant in `variants`.
 pub(super) fn has_variants(ty: TyId, variants: &[&str], env: &Env<'_>) -> bool {
-    if env.tcx.is_nullable(ty) {
-        return false;
-    }
     let Some((def, _)) = env.tcx.enum_args(ty) else { return false };
     env.enums.get(&def).is_some_and(|e| variants.iter().all(|want| e.variants.iter().any(|v| v.name == *want)))
 }
@@ -140,10 +136,6 @@ fn check_variant(pat: &Pattern, ty: TyId, by_borrow: bool, names: &mut HashSet<S
         HirPat { kind: HirPatKind::Wildcard, ty: unknown, span }
     };
     if env.tcx.is_unknown(ty) {
-        return rejected(args, names, env);
-    }
-    if env.tcx.is_nullable(ty) && env.tcx.enum_args(ty).is_some() {
-        env.error(format!("pattern `{}` cannot match {}; a nullable enum has no variant patterns", name.name, env.show(ty)), Some(span));
         return rejected(args, names, env);
     }
     let Some((def, type_args)) = env.tcx.enum_args(ty).map(|(def, a)| (def, a.to_vec())) else {

@@ -103,12 +103,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.cx.builder.build_unconditional_branch(merge)?;
 
         self.cx.builder.position_at_end(absent);
-        let none = self.cx.const_null_value(result_ty)?;
+        let none = self.emit_none(result_ty)?;
+        let absent_end = self.cx.builder.get_insert_block().expect("positioned");
         self.cx.builder.build_unconditional_branch(merge)?;
 
         self.cx.builder.position_at_end(merge);
         let phi = self.cx.builder.build_phi(popped.get_type(), "vec.pop.value")?;
-        phi.add_incoming(&[(&popped, present_end), (&none, absent)]);
+        phi.add_incoming(&[(&popped, present_end), (&none, absent_end)]);
         Ok(phi.as_basic_value())
     }
 }
