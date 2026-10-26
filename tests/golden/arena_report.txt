@@ -872,6 +872,18 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/nullable_string_eq.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── IfThen
+    ├── IfElse
+    ├── IfThen
+    ├── IfElse
+    ├── IfThen
+    └── IfElse
 == programs/build/option/nullable_when.bork
 Arenas
 ├── fun show
@@ -1585,6 +1597,17 @@ Arenas
     ├── this [Borrow ← call site]
     ├── k [Local]
     └── f [Local]
+== programs/build_fail/option/move_nullable_enum.bork
+Arenas
+└── fun main
+    ├── s [Moved ← fun main]
+    └── t [Local]
+== programs/build_fail/option/safe_field_of_enum.bork
+Arenas
+└── fun main
+    ├── b [Local]
+    ├── r [Local]
+    └── s [Local]
 == programs/build_fail/text/return_direct.bork
 Ownership Error [] returning the result of `concat` or `stringFromUtf8` is not supported yet: returned `String` bytes must outlive the callee arena
 Arenas
@@ -1959,6 +1982,11 @@ Arenas
 │   └── n [Local]
 └── fun main
     ├── nested [Local]
+    └── b [Local]
+== programs/check/option/option_of_nullable.bork
+Arenas
+└── fun main
+    ├── a [Local]
     └── b [Local]
 == programs/check/recursions/self_call.bork
 Arenas

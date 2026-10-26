@@ -1,0 +1,6 @@
+// A written `?` adds a layer even to an `Option<T>`: `Option<i32>?` is `Option<Option<i32>>`, so
+// `Some(None)` and `None` stay different values.
+fun main() {
+    val a: Option<i32>? = Some(None)
+    val b: Option<Option<i32>> = a
+}

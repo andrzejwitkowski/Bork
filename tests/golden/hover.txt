@@ -81,6 +81,7 @@ programs/build/move_and_promote/regional_move.bork: hits=11 hash=cbc0ee523f69c05
 programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363eb2141308
 programs/build/move_and_promote/then_return_move_not_taken.bork: hits=19 hash=0d9ed2defcb669f1
 programs/build/move_and_promote/then_return_move_taken.bork: hits=19 hash=48237cebdc030fe1
+programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
 programs/build/option/nullable_when.bork: hits=84 hash=3a4461608cf73dd6
 programs/build/option/option_conversions.bork: hits=130 hash=dde4ac8f171c9e06
 programs/build/option/option_result.bork: hits=110 hash=b69a4ec86d4359b4
@@ -114,6 +115,8 @@ programs/build/vec/strings.bork: hits=32 hash=f73312c73c823f7e
 programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
+programs/build_fail/option/move_nullable_enum.bork: hits=2 hash=eb576e188b42db50
+programs/build_fail/option/safe_field_of_enum.bork: hits=5 hash=9c43688f90b639ca
 programs/build_fail/text/return_direct.bork: hits=32 hash=6cf5f68adde835de
 programs/build_fail/text/return_elvis.bork: hits=32 hash=d8c2dd8631502ce1
 programs/build_fail/text/return_not_null_assert.bork: hits=32 hash=d8c2dd8631502ce1
@@ -155,6 +158,7 @@ programs/check/methods/trailing_closure.bork: hits=18 hash=dd8877fda4760c9d
 programs/check/move_and_promote/move_block.bork: hits=6 hash=4c084e5a5cb997c3
 programs/check/option/nullable_is_option.bork: hits=8 hash=b907ae1da5a6e826
 programs/check/option/option_check.bork: hits=20 hash=65400fd946b27717
+programs/check/option/option_of_nullable.bork: hits=3 hash=6509fe91aac7e273
 programs/check/recursions/self_call.bork: hits=3 hash=f64d37e350e4b406
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b

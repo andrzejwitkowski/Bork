@@ -66,9 +66,10 @@ impl LowerCx<'_> {
         }
     }
 
-    /// `ty?` when `nullable`, else `ty` untouched: an explicit `Option<T>` is already `T?`.
+    /// `ty?` when `nullable`, else `ty` untouched. A written `?` adds a layer even to an `Option<T>`
+    /// (`Option<i32>?` is `Option<Option<i32>>`); `with_nullable` would strip it first.
     fn nullable_if(&mut self, ty: TyId, nullable: bool) -> TyId {
-        if nullable { self.tcx.with_nullable(ty, true) } else { ty }
+        if nullable { self.tcx.nullable(ty).unwrap_or(ty) } else { ty }
     }
 
     fn lower_managed_ref(&mut self, inner: &Type) -> TyId {

@@ -1,0 +1,13 @@
+// exit: 0
+// stdout: 1\n1\n0\n
+// `String?` values compare by content: each `Some` owns its own copy of the bytes, so two
+// nullables holding equal text are equal although their bytes live at different addresses.
+fun main(): i32 {
+    val a: String? = Some("same")
+    val b: String? = Some("same")
+    val c: String? = Some("other")
+    if (a == b) { println(1) } else { println(0) }
+    if (a != c) { println(1) } else { println(0) }
+    if (a == c) { println(1) } else { println(0) }
+    return 0
+}

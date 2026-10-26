@@ -292,7 +292,11 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let l_val = self.emit_nullable_unwrap(ty, lhs_val)?;
         let r_val = self.emit_nullable_unwrap(ty, rhs_val)?;
         let inner = self.cx.tcx.base(ty);
-        if self.cx.tcx.is_string(inner) || self.cx.tcx.is_array(inner) {
+        // Each slot owns its own copy of the bytes, so strings compare by content.
+        if self.cx.tcx.is_string(inner) {
+            return Ok(self.emit_string_eq(l_val, r_val, false)?.into_int_value());
+        }
+        if self.cx.tcx.is_array(inner) {
             return self.emit_buffer_desc_eq(l_val, r_val);
         }
         if !matches!(self.cx.tcx.data(inner), TyData::Prim(_)) {

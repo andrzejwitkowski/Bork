@@ -1,0 +1,12 @@
+// diag: moving enum values is not supported by codegen yet
+// A moved `T?` copies its slot and a `String` payload, but an enum payload would still point into
+// the source's arena, so moving a nullable enum is rejected rather than miscompiled.
+enum Shape {
+    Circle(r: i32),
+    Empty,
+}
+
+fun main() {
+    val s: Shape? = Some(Shape.Circle(1))
+    val t = move s
+}

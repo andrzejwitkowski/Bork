@@ -142,7 +142,11 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
                 gate_expr(tcx, field, diagnostics);
             }
         }
-        HirExprKind::ObjectField { receiver, .. } => {
+        HirExprKind::ObjectField { receiver, safe, .. } => {
+            // `r?.shape` would copy the outer slot but keep the enum payload in the object's arena.
+            if *safe && tcx.is_nullable(expr.ty) && tcx.enum_args(tcx.base(expr.ty)).is_some() {
+                reject(diagnostics, "`?.` of an enum field is not supported by codegen yet", expr.span);
+            }
             gate_expr(tcx, receiver, diagnostics);
         }
         HirExprKind::Match { scrutinee, arms } => {
@@ -199,7 +203,9 @@ fn gate_pat(pat: &HirPat, diagnostics: &mut Vec<Diagnostic>) {
 
 /// Moving a class object, an enum value, or an array of managed `Ref` is not lowered yet.
 fn gate_move(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    if tcx.enum_args(expr.ty).is_some() && !tcx.is_nullable(expr.ty) {
+    // A moved `T?` copies its slot and a `String` / array payload, but an enum payload (`Shape?`,
+    // `Option<T?>`) would still point into the source's arena.
+    if tcx.enum_args(expr.ty).is_some() && (!tcx.is_nullable(expr.ty) || tcx.enum_args(tcx.base(expr.ty)).is_some()) {
         reject(diagnostics, "moving enum values is not supported by codegen yet", expr.span);
     }
     if tcx.record_def(expr.ty).is_some() {

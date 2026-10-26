@@ -152,6 +152,7 @@ programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool)
 programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
+programs/build/option/nullable_string_eq.bork::main() -> i32
 programs/build/option/nullable_when.bork::show(x: i32?) -> i32
 programs/build/option/nullable_when.bork::main() -> i32
 programs/build/option/option_conversions.bork::main() -> i32
@@ -293,6 +294,7 @@ programs/check/option/nullable_is_option.bork::main() -> unit
 programs/check/option/option_check.bork::first(o: &T0?, other: T0?) -> T0?
 programs/check/option/option_check.bork::fallible(n: i32) -> Result<i32?, String>
 programs/check/option/option_check.bork::main() -> unit
+programs/check/option/option_of_nullable.bork::main() -> unit
 programs/check/recursions/self_call.bork::down(n: i32) -> i32
 programs/check/recursions/self_call.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::main() -> i32

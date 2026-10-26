@@ -128,6 +128,9 @@ programs/build/methods/owning_return.bork: 172..177 Point Lexical LexicalScope(2
 programs/build/methods/owning_return.bork: 230..235 Point Dynamic Program
 programs/build/methods/same_name.bork: 242..243 A Dynamic Program
 programs/build/methods/same_name.bork: 258..259 B Dynamic Program
+programs/build/option/nullable_string_eq.bork: 254..266 Option Lexical LexicalScope(0)
+programs/build/option/nullable_string_eq.bork: 288..300 Option Lexical LexicalScope(0)
+programs/build/option/nullable_string_eq.bork: 322..335 Option Lexical LexicalScope(0)
 programs/build/option/nullable_when.bork: 444..451 Option Dynamic Program
 programs/build/option/nullable_when.bork: 470..474 Option Dynamic Program
 programs/build/option/nullable_when.bork: 542..553 Option Dynamic Program
@@ -200,4 +203,6 @@ programs/check/option/option_check.bork: 406..417 Option Lexical LexicalScope(2)
 programs/check/option/option_check.bork: 418..429 Option Lexical LexicalScope(2)
 programs/check/option/option_check.bork: 443..446 Box Lexical LexicalScope(2)
 programs/check/option/option_check.bork: 447..458 Option Lexical LexicalScope(2)
+programs/check/option/option_of_nullable.bork: 187..197 Option Lexical LexicalScope(0)
+programs/check/option/option_of_nullable.bork: 192..196 Option Lexical LexicalScope(0)
 programs/check/vec/push_via_this_field.bork: 156..157 H Dynamic Program
