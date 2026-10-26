@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: jak enum trafia do pamięci (#52)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#FAF7F2; --bg2:#F5F0E8; --code:#1E1E2E; --fg:#2C2A28; --muted:#6B6560; --line:#E5DFD6; --acc:#D9483B; --accl:#FDEEE9; --ok:#2D8B57; --okl:#E8F5EE; --bad:#C0392B; --badl:#FDE8E8; --shadow:0 2px 10px rgba(80,60,40,.10); }
+* { box-sizing: border-box; }
+html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
+body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 "DM Sans", system-ui, sans-serif; }
+.module { min-height: 100vh; min-height: 100dvh; scroll-snap-align: start; padding: 64px 18px; }
+.module:nth-child(even) { background: var(--bg2); }
+.wrap { max-width: 780px; margin: 0 auto; }
+h1, h2 { font-family: "Bricolage Grotesque", system-ui, sans-serif; line-height: 1.15; }
+h1 { font-size: 2.6rem; margin: 0 0 .3em; }
+h2 { font-size: 1.8rem; margin: 0 0 .5em; }
+.lead { color: var(--muted); font-size: 1.1rem; }
+code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .86em; background: #EFE9DF; padding: 1px 5px; border-radius: 4px; }
+.term { border-bottom: 2px dotted var(--acc); cursor: help; position: relative; }
+.term:hover::after, .term:focus::after { content: attr(data-def); position: absolute; left: 0; top: 1.6em; width: 260px; background: var(--code); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: .82rem; line-height: 1.4; z-index: 5; box-shadow: var(--shadow); }
+.callout { background: var(--accl); border-left: 5px solid var(--acc); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 1.4em 0; }
+.callout b { color: var(--acc); }
+.translate { display: grid; grid-template-columns: 1fr 1fr; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); margin: 1.4em 0; }
+.translate .code { background: var(--code); color: #CDD6F4; padding: 14px; font: .82rem/1.6 "JetBrains Mono", monospace; white-space: pre-wrap; }
+.translate .plain { background: #fff; padding: 14px; font-size: .95rem; }
+@media (max-width: 640px) { .translate { grid-template-columns: 1fr; } }
+.slot { display: flex; margin: 1.2em 0; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); font: .8rem "JetBrains Mono", monospace; text-align: center; }
+.slot div { padding: 14px 6px; color: #fff; }
+.tag { background: #7B6DAA; flex: 0 0 18%; } .f1 { background: #D9483B; } .f2 { background: #2D8B57; } .pad { background: #B8B0A4; flex: 1; }
+.flow { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin:1.4em 0; box-shadow: var(--shadow); }
+.flow .steps { display:flex; gap:8px; flex-wrap:wrap; margin: 8px 0; }
+.step { flex:1 1 130px; padding:10px; border:2px solid var(--line); border-radius:10px; font-size:.85rem; opacity:.45; transition:.3s; }
+.step.on { opacity:1; border-color: var(--acc); background: var(--accl); }
+button.go { font: inherit; font-weight:600; padding: 8px 16px; border:0; border-radius:8px; background: var(--acc); color:#fff; cursor:pointer; }
+.q { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; box-shadow: var(--shadow); }
+.opt { display:block; width:100%; text-align:left; font:inherit; font-size:.95rem; padding:8px 12px; margin:6px 0; background:var(--bg); border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+.opt.right { border-color:var(--ok); background:var(--okl); } .opt.wrong { border-color:var(--bad); background:var(--badl); }
+.fb { display:none; margin-top:8px; padding:8px 12px; border-radius:8px; background:var(--bg2); font-size:.92rem; }
+</style>
+</head>
+<body>
+
+<section class="module" id="module-1"><div class="wrap">
+  <h1>Jak enum trafia do pamięci</h1>
+  <p class="lead">Do tej pory kompilator Borka umiał enumy sprawdzać, ale nie umiał ich zbudować. Ticket #52 uczy go układać wartość enuma w pamięci, tworzyć ją i po sobie sprzątać.</p>
+  <p>Wyobraź sobie szufladę na narzędzia z jednym wkładem. W środku może leżeć młotek <i>albo</i> śrubokręt <i>albo</i> pusto, nigdy dwa naraz. Karteczka na szufladzie mówi, co leży w środku. Enum działa tak samo: wartość jest <b>jednym z wariantów</b>, a karteczka to <span class="term" tabindex="0" data-def="Tag: mała liczba na początku wartości, która mówi, który wariant jest w środku. Pierwszy wariant ma 0, drugi 1 i tak dalej.">tag</span>.</p>
+  <div class="callout"><b>Po co to wiedzieć?</b> Kiedy AI pisze kod z enumami, pytanie „ile to zajmuje i kto to zwalnia?” decyduje o błędach pamięci, które trudno znaleźć.</div>
+</div></section>
+
+<section class="module" id="module-2"><div class="wrap">
+  <h2>Jeden slot, rozmiar największego wariantu</h2>
+  <p>Wszystkie wartości danego enuma muszą mieć <b>ten sam rozmiar</b>, bo kompilator nie wie z góry, który wariant się trafi. Dlatego slot ma rozmiar największego wariantu.</p>
+  <div class="translate">
+    <div class="code">enum Shape {
+  Empty,
+  Flag(on: bool),
+  Rect(w: i32, h: i64),
+}</div>
+    <div class="plain">Trzy warianty: bez danych, z jednym polem i z dwoma polami o różnej wielkości. Najgrubszy jest <code>Rect</code>, więc to on wyznacza rozmiar slotu dla wszystkich trzech.</div>
+  </div>
+  <p>Slot dla <code>Rect</code> wygląda tak:</p>
+  <div class="slot"><div class="tag">tag (i32)</div><div class="f1" style="flex:0 0 18%">w (i32)</div><div class="f2" style="flex:0 0 36%">h (i64)</div></div>
+  <p>Warianty <code>Empty</code> i <code>Flag</code> zajmują ten sam slot, tylko z niewykorzystaną resztą. Bez sztuczek oszczędzających miejsce, bo te sztuczki są poza zakresem #52.</p>
+  <div class="callout"><b>Aha!</b> Pola mają różne rozmiary, więc kompilator układa je z odstępami (<span class="term" tabindex="0" data-def="Wyrównanie: liczba i64 musi leżeć pod adresem podzielnym przez 8, inaczej procesor wolniej ją czyta albo zgłasza błąd.">wyrównanie</span>). Nie liczymy tego ręcznie, pytamy LLVM o rozmiary.</div>
+</div></section>
+
+<section class="module" id="module-3"><div class="wrap">
+  <h2>Co się dzieje przy <code>Slot.Held(node, 7)</code></h2>
+  <p>Kliknij, żeby przejść przez kolejne kroki budowania wartości.</p>
+  <div class="flow" id="flow">
+    <div class="steps">
+      <div class="step">1. Arena dostaje prośbę o miejsce na cały slot</div>
+      <div class="step">2. Do slotu trafia tag wariantu <code>Held</code></div>
+      <div class="step">3. <code>node</code> jest przekazany przez <code>Ref</code>: licznik rośnie</div>
+      <div class="step">4. <code>7</code> idzie jako zwykły bajt</div>
+      <div class="step">5. Rejestrujemy sprzątanie slotu</div>
+    </div>
+    <button class="go" id="next">Dalej</button>
+  </div>
+  <p><span class="term" tabindex="0" data-def="Referencja z licznikiem: obiekt żyje, dopóki ktoś go trzyma. Każdy Ref zwiększa licznik, a sprzątanie go zmniejsza.">Ref</span> nie może być skopiowany „po bitach”, bo licznik by się nie zmienił. Tak samo robią pola klas, więc enum używa tego samego kodu.</p>
+</div></section>
+
+<section class="module" id="module-4"><div class="wrap">
+  <h2>Sprzątanie: czytaj tag, zwalniaj to, co trzeba</h2>
+  <div class="translate">
+    <div class="code">One(a: Ref&lt;Node&gt;)
+Two(t: i8, a: Ref&lt;Node&gt;, b: Ref&lt;Node&gt;)</div>
+    <div class="plain">W <code>One</code> pole <code>a</code> leży zaraz po tagu. W <code>Two</code> po tagu jest bajt <code>t</code>, więc <code>a</code> leży dalej. Zły wariant oznaczałby czytanie śmieci.</div>
+  </div>
+  <p>Dlatego dla każdego enuma z <code>Ref</code> w danych kompilator generuje małą funkcję: <b>czyta tag, wybiera wariant i zwalnia tylko jego <code>Ref</code>-y</b>. Arena woła ją raz, gdy kończy życie.</p>
+  <div class="callout"><b>Jak to sprawdzamy?</b> Test liczy referencje przed i po. Wyciek zostawia licznik wyższy, nadmierne zwolnienie niższy. Programy w <code>programs/build/enums/</code> sprawdzają oba kierunki.</div>
+</div></section>
+
+<section class="module" id="module-5"><div class="wrap">
+  <h2>Sprawdź się</h2>
+  <div class="q" id="q">
+    <b>Enum ma warianty o ładunku 4, 16 i 24 bajty. Ile miejsca zajmie wartość pierwszego?</b>
+  </div>
+  <p class="lead" style="margin-top:2em">Więcej pytań jest w osobnym quizie z #52.</p>
+</div></section>
+
+<script>
+const steps = [...document.querySelectorAll("#flow .step")]; let at = -1;
+document.getElementById("next").onclick = () => {
+  at = (at + 1) % (steps.length + 1);
+  steps.forEach((s, i) => s.classList.toggle("on", i <= at - 0 && at < steps.length && i === at));
+  if (at === steps.length) steps.forEach(s => s.classList.remove("on"));
+};
+const q = document.getElementById("q");
+const opts = ["Tyle co wariant: 4 bajty.", "Tyle co największy wariant: 24 bajty (z zaokrągleniem do wyrównania).", "Suma: 44 bajty."];
+const fb = document.createElement("div"); fb.className = "fb";
+opts.forEach((t, i) => { const b = document.createElement("button"); b.className = "opt"; b.textContent = t;
+  b.onclick = () => { q.querySelectorAll(".opt").forEach(o => o.disabled = true);
+    b.classList.add(i === 1 ? "right" : "wrong"); q.querySelectorAll(".opt")[1].classList.add("right");
+    fb.textContent = "Każda wartość tego enuma ma ten sam rozmiar, bo kompilator nie wie z góry, który wariant się trafi."; fb.style.display = "block"; };
+  q.appendChild(b); });
+q.appendChild(fb);
+</script>
+</body>
+</html>
