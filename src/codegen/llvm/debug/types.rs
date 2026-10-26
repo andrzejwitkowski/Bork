@@ -91,7 +91,7 @@ impl<'ctx> DebugInfo<'ctx> {
                 && (cx.tcx.is_array(cx.tcx.base(ty)) || cx.tcx.is_string(cx.tcx.base(ty))))
         {
             self.buffer_di(cx, ty, &key)
-        } else if cx.tcx.class_def(ty).is_some() {
+        } else if cx.tcx.class_def(ty).is_some() || matches!(cx.tcx.data(ty), TyData::Enum(..)) {
             self.object_di(cx, ty)
         } else {
             self.scalar_di(cx, ty, &key)
@@ -133,7 +133,7 @@ impl<'ctx> DebugInfo<'ctx> {
         let target = cx.tcx.managed_ref_inner(ty).expect("Ref inner");
         let object = self.pointer(
             cx,
-            self.payload(cx, &crate::mono::class_instance_name(&cx.tcx, target).expect("Ref record")),
+            self.payload(cx, &record_name(cx, target).expect("Ref record")),
         );
         self.structure(
             cx,
@@ -164,9 +164,9 @@ impl<'ctx> DebugInfo<'ctx> {
         )
     }
 
-    /// A class object: the owning arena and a pointer to its payload.
+    /// A class object or enum value: the owning arena and a pointer to its payload.
     fn object_di(&self, cx: &Codegen<'ctx>, ty: TyId) -> DIType<'ctx> {
-        let name = crate::mono::class_instance_name(&cx.tcx, ty).expect("class record");
+        let name = record_name(cx, ty).expect("class or enum record");
         let object = self.pointer(cx, self.payload(cx, &name));
         self.structure(
             cx,
@@ -196,6 +196,14 @@ impl<'ctx> DebugInfo<'ctx> {
         let key = format!("bork::Payload<{name}>");
         if let Some(found) = self.types.borrow().get(&key) {
             return *found;
+        }
+        if let Some(layout) = cx.enum_layout(name) {
+            // shortcut: only the tag is described, the payload depends on the variant; add per-variant
+            // members once a debugger needs to read payloads (`match` lowering, #54).
+            let tag = self.builder.create_basic_type("i32", 32, 0x05, DIFlags::PUBLIC).unwrap().as_type();
+            let result = self.structure(cx, &key, layout.variants[0], vec![("tag", tag)]);
+            self.types.borrow_mut().insert(key, result);
+            return result;
         }
         // A class without a layout cannot be described; an opaque type keeps `-g` working.
         let (Some(class), Some(record)) = (cx.class_by_name(name), cx.record_type(name)) else {
@@ -228,4 +236,9 @@ impl<'ctx> DebugInfo<'ctx> {
         self.types.borrow_mut().insert(key, result);
         result
     }
+}
+
+/// The mono name of the class or enum `ty` is (or points to), which codegen lays out.
+fn record_name(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
+    crate::mono::class_instance_name(&cx.tcx, ty).or_else(|| crate::mono::enum_instance_name(&cx.tcx, ty))
 }

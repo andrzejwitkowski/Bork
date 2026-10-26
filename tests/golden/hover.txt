@@ -28,6 +28,11 @@ programs/build/conditionals/nullable_safe_length.bork: hits=20 hash=5077f40b1d40
 programs/build/conditionals/value_if.bork: hits=10 hash=f3bdbdb152d6498d
 programs/build/constants/method_and_shadow.bork: hits=31 hash=20826e92aa946d23
 programs/build/constants/string_and_scalars.bork: hits=67 hash=d9e0b218cd1383d7
+programs/build/enums/generic_and_calls.bork: hits=16 hash=59a8a3b6204c46e7
+programs/build/enums/ref_payload.bork: hits=80 hash=8fef823bd09efbfd
+programs/build/enums/ref_to_enum.bork: hits=88 hash=111fa40ac75d305e
+programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
+programs/build/enums/variants.bork: hits=14 hash=dfb3ad7d0aed6521
 programs/build/generics/identity.bork: hits=35 hash=0e2b0c1547885102
 programs/build/generics/list_node.bork: hits=183 hash=84200d48feaacbec
 programs/build/generics/pair.bork: hits=73 hash=06514e8abdb60be3

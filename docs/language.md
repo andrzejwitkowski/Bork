@@ -135,7 +135,9 @@ Binding mode: over a named value (a variable, a field, `this`) or any `&T`, a bo
 
 Coverage is checked at compile time. A `when` over enums, `bool` or `Some`/`None` must cover every value, and the error lists what is missing (``non-exhaustive `when`: missing `Shape.Rect(_, _)` ``). Integers and strings are never fully covered by literals, so they need a `_` or a binding arm. An arm that earlier arms already cover is an error (`unreachable pattern`); this also catches a misspelled unit variant, which binds as a catch-all. The check is skipped when a pattern in the `when`, or its scrutinee, already has an error.
 
-Not implemented yet: layout and codegen (#52, #53; `bork build` rejects any program that mentions an enum type), and an `Option<T>` / `Result<T, E>` prelude (#54).
+Codegen (#52): an enum value is a slot in its arena, `{ i32 tag, payload.. }`, as large and as aligned as the biggest variant (no niche optimization); the tag is the variant's declaration index. Payloads are owned like class fields: `String`, arrays and `Vec` are copied into the enum's arena and a `Ref` payload is retained and released with it, never copied bitwise. Variants can be built, passed, returned and stored in class fields; reading them back needs `when` lowering.
+
+Not implemented yet: lowering `when` (#53) and an `Option<T>` / `Result<T, E>` prelude (#54).
 
 ## Constants
 
@@ -513,7 +515,7 @@ Supported: integer and float arithmetic and comparisons, `for` over `..`, `while
 
 `String?` `None` is a null pointer and length zero (no arena bump). Scalar `T?` is `{ i1 tag, T value }`. `!!` on null aborts.
 
-Rejected by codegen (the frontend still accepts them): trailing closures and enums (any type or expression that mentions one). Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
+Rejected by codegen (the frontend still accepts them): trailing closures. Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
 
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 

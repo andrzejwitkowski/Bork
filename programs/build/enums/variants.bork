@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: constructed\n
+// Every variant shape of one enum constructs: unit, one scalar, mixed-size scalars, `String`.
+enum Shape {
+    Empty,
+    Flag(on: bool),
+    Circle(r: f64),
+    Rect(w: i32, h: i64),
+    Label(text: String),
+    Mixed(a: i8, b: i64, c: i16, name: String),
+}
+
+fun main(): i32 {
+    val a = Shape.Empty
+    val b = Shape.Flag(true)
+    val c = Shape.Circle(1.5)
+    val d = Shape.Rect(2, 3)
+    val e = Shape.Label("hello")
+    val f = Shape.Mixed(1, 2, 3, "mixed")
+    println("constructed")
+    return 0
+}

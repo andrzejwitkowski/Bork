@@ -1,0 +1,27 @@
+// exit: 0
+// stdout: 2\n3\n2\n
+// A `Ref` payload is a counted reference, never a bitwise copy: building the variant retains the
+// node (2 -> 3), and the count falls back once the enum's arena is gone.
+class Node {
+    value: i32
+}
+
+enum Slot {
+    Empty,
+    Held(node: Ref<Node>, tag: i8),
+}
+
+fun hold(node: Ref<Node>) {
+    val s = Slot.Held(node, 7)
+    println(strongCount(node))
+}
+
+fun main(): i32 {
+    val n = Node(5)
+    val r: Ref<Node> = n
+    val e = Slot.Empty
+    println(strongCount(r))
+    hold(r)
+    println(strongCount(r))
+    return 0
+}

@@ -77,6 +77,7 @@ pub enum UseKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirProgram {
     pub classes: Vec<HirClass>,
+    pub enums: Vec<HirEnum>,
     pub functions: Vec<HirFunction>,
 }
 
@@ -85,6 +86,22 @@ pub struct HirClass {
     pub name: String,
     /// Type parameter names; `TyData::Param(i)` in field types refers to `generics[i]`.
     pub generics: Vec<String>,
+    pub fields: Vec<HirClassField>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirEnum {
+    pub name: String,
+    /// Type parameter names; `TyData::Param(i)` in payload types refers to `generics[i]`.
+    pub generics: Vec<String>,
+    /// In declaration order; the index is the variant's tag.
+    pub variants: Vec<HirVariant>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirVariant {
+    pub name: String,
+    /// Payload fields; empty for a unit variant.
     pub fields: Vec<HirClassField>,
 }
 

@@ -1,0 +1,44 @@
+// exit: 0
+// stdout: 2\n3\n5\n5\n5\n5\n
+// Two variants hold `Ref`s at different payload offsets. In `main` each construction retains its
+// own (2 -> 3 -> 5). Each helper builds one variant and returns: the tag-switching drop glue must
+// release exactly what that variant holds, so the count is unchanged afterwards (a leak leaves it
+// higher, an over-release lower; the earlier values stay alive, so the baseline is 5). A payload-free variant retains and releases nothing.
+class Node {
+    value: i32
+}
+
+enum Link {
+    Nothing,
+    One(a: Ref<Node>),
+    Two(tag: i8, a: Ref<Node>, b: Ref<Node>),
+}
+
+fun one(n: Ref<Node>) {
+    val link = Link.One(n)
+}
+
+fun two(n: Ref<Node>) {
+    val link = Link.Two(1, n, n)
+}
+
+fun nothing(n: Ref<Node>) {
+    val link = Link.Nothing
+}
+
+fun main(): i32 {
+    val n = Node(1)
+    val r: Ref<Node> = n
+    println(strongCount(r))
+    val first = Link.One(r)
+    println(strongCount(r))
+    val second = Link.Two(1, r, r)
+    println(strongCount(r))
+    one(r)
+    println(strongCount(r))
+    two(r)
+    println(strongCount(r))
+    nothing(r)
+    println(strongCount(r))
+    return 0
+}

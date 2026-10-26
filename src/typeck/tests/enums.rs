@@ -49,24 +49,16 @@ fn generic_arity_is_checked_for_enum_types() {
 }
 
 #[test]
-fn enums_are_rejected_by_the_codegen_gate() {
-    let result = crate::frontend::check("enum E { A }\nfun main() {\n    val e = E.A\n}\n");
-    assert!(result.diagnostics.is_empty());
-    let hir = result.hir.unwrap();
-    let diagnostics = crate::codegen_gate::gate(&hir, &result.tcx);
-    assert!(diagnostics.iter().any(|d| d.message.contains("enums are not supported by codegen yet")), "{diagnostics:?}");
-}
-
-#[test]
-fn enum_types_in_signatures_and_fields_are_rejected_by_the_gate() {
+fn the_codegen_gate_accepts_enums() {
     for src in [
+        "enum E { A }\nfun main() {\n    val e = E.A\n}\n",
         "enum E { A }\nfun f(e: E) {}\nfun main() {}\n",
         "enum E { A }\nclass C { e: Ref<E> }\nfun main() {}\n",
     ] {
         let result = crate::frontend::check(src);
         assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
         let diagnostics = crate::codegen_gate::gate(&result.hir.unwrap(), &result.tcx);
-        assert!(!diagnostics.is_empty(), "{src}");
+        assert!(diagnostics.is_empty(), "{src}: {diagnostics:?}");
     }
 }
 
@@ -85,13 +77,6 @@ fn arity_mismatch_is_one_error_and_no_partial_node() {
 fn explicit_type_arguments_on_a_variant_give_one_error() {
     let all = messages("enum T<U> { L }\nfun main() {\n    val t: T<i32> = T.L::<i32>()\n}\n");
     assert_eq!(all.len(), 1, "{all:?}");
-}
-
-#[test]
-fn the_gate_reports_enums_once_per_function() {
-    let result = crate::frontend::check("enum E { A }\nfun main() {\n    val a = E.A\n    val b = E.A\n}\n");
-    let diagnostics = crate::codegen_gate::gate(&result.hir.unwrap(), &result.tcx);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
 }
 
 #[test]

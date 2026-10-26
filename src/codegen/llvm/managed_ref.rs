@@ -95,7 +95,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             not_yet_supported("record allocation without a memory plan", Some(span))
         })?;
         let previous = self.alloc_sink;
-        let crate::hir::HirExprKind::ObjectConstruct { class_name, .. } = &expr.kind else {
+        let (crate::hir::HirExprKind::ObjectConstruct { class_name: name, .. }
+        | crate::hir::HirExprKind::EnumConstruct { enum_name: name, .. }) = &expr.kind
+        else {
             return Err(not_yet_supported("record allocation", Some(span)));
         };
         let arena = if allocation.class == ArenaClass::Dynamic {
@@ -140,7 +142,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             )?;
             arena
         } else if let Some(sink) = self.result_sink.filter(|_| {
-            crate::mono::class_instance_name(&self.cx.tcx, self.function.return_ty).as_deref() == Some(class_name)
+            crate::mono::class_instance_name(&self.cx.tcx, self.function.return_ty)
+                .or_else(|| crate::mono::enum_instance_name(&self.cx.tcx, self.function.return_ty))
+                .as_deref()
+                == Some(name)
         }) {
             sink
         } else {
@@ -190,35 +195,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     self.cx
                         .builder
                         .build_struct_gep(record, object, index as u32, "field")?;
-                if self.cx.tcx.is_managed_ref(field.ty) {
-                    self.cx
-                        .builder
-                        .build_store(slot, self.cx.ref_handle_type().const_zero())?;
-                    self.store_ref(slot, arena, *value)?;
-                    self.cx.builder.build_call(
-                        self.cx.arena_register_ref_drop_fn(),
-                        &[arena.into(), slot.into()],
-                        "",
-                    )?;
-                    let field_name = self.cx.class_field_name(class_name, index)?.to_string();
-                    self.cx.debug_label_slot(
-                        arena,
-                        slot,
-                        &format!("{class_name}.{field_name}"),
-                        field.ty,
-                        self.cx.context.i64_type().const_zero(),
-                        self.cx.context.i64_type().const_all_ones(),
-                    )?;
-                } else {
-                    let value = self.materialize_owned_value(*value, field.ty, arena)?;
-                    self.cx.builder.build_store(slot, value)?;
-                    let field_name = self.cx.class_field_name(class_name, index)?;
-                    self.debug_label_ref_array(
-                        value,
-                        field.ty,
-                        &format!("{class_name}.{field_name}"),
-                    )?;
-                }
+                let label = format!("{class_name}.{}", self.cx.class_field_name(class_name, index)?);
+                self.store_owned_field(arena, slot, field.ty, *value, &label, true)?;
             }
 
             let handle = self.cx.object_handle_type().const_named_struct(&[]);
@@ -232,6 +210,98 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .build_insert_value(handle, object, 1, "object.ptr")?
                 .into_struct_value()
                 .into())
+        })();
+        self.alloc_sink = previous;
+        result
+    }
+
+    /// Stores `value` into a record or enum-payload `slot` owned by `arena`: a `Ref` goes through
+    /// ref glue and is registered for drop, anything else is copied into the arena.
+    fn store_owned_field(
+        &mut self,
+        arena: PointerValue<'ctx>,
+        slot: PointerValue<'ctx>,
+        field_ty: crate::ty::TyId,
+        value: BasicValueEnum<'ctx>,
+        label: &str,
+        register_drop: bool,
+    ) -> Result<(), Diagnostic> {
+        if self.cx.tcx.is_managed_ref(field_ty) {
+            self.cx.builder.build_store(slot, self.cx.ref_handle_type().const_zero())?;
+            self.store_ref(slot, arena, value)?;
+            if register_drop {
+                self.cx.builder.build_call(self.cx.arena_register_ref_drop_fn(), &[arena.into(), slot.into()], "")?;
+            }
+            self.cx.debug_label_slot(
+                arena,
+                slot,
+                label,
+                field_ty,
+                self.cx.context.i64_type().const_zero(),
+                self.cx.context.i64_type().const_all_ones(),
+            )?;
+        } else {
+            let value = self.materialize_owned_value(value, field_ty, arena)?;
+            self.cx.builder.build_store(slot, value)?;
+            self.debug_label_ref_array(value, field_ty, label)?;
+        }
+        Ok(())
+    }
+
+    /// Allocates the enum slot, writes the tag and the payload of `variant`, returns the handle.
+    /// An enum with `Ref` payloads registers its tag-switching drop glue once for the whole slot.
+    pub(super) fn emit_enum_construct(
+        &mut self,
+        enum_name: &str,
+        variant: &str,
+        fields: &[HirExpr],
+        values: &[BasicValueEnum<'ctx>],
+        span: Option<crate::span::Span>,
+    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let (previous, arena) = self
+            .object_constructions
+            .pop()
+            .ok_or_else(|| not_yet_supported("enum construction context", span))?;
+        let result = (|| {
+            let (variant_info, tag) = self
+                .cx
+                .enum_variant(enum_name, variant)
+                .ok_or_else(|| not_yet_supported(&format!("enum variant `{enum_name}.{variant}`"), span))?;
+            let layout = self
+                .cx
+                .enum_layout(enum_name)
+                .ok_or_else(|| not_yet_supported(&format!("enum `{enum_name}`"), span))?;
+            let (record, size, align) = (layout.variants[tag as usize], layout.size, layout.align);
+            let i64 = self.cx.context.i64_type();
+            let object = self
+                .cx
+                .builder
+                .build_call(
+                    self.cx.arena_alloc_fn(),
+                    &[arena.into(), i64.const_int(size, false).into(), i64.const_int(align, false).into()],
+                    "enum",
+                )?
+                .try_as_basic_value()
+                .basic()
+                .expect("bork_arena_alloc returns a pointer")
+                .into_pointer_value();
+            let tag_slot = self.cx.builder.build_struct_gep(record, object, 0, "enum.tag")?;
+            self.cx.builder.build_store(tag_slot, self.cx.context.i32_type().const_int(u64::from(tag), false))?;
+            for (index, (field, value)) in fields.iter().zip(values).enumerate() {
+                let slot = self.cx.builder.build_struct_gep(record, object, index as u32 + 1, "payload")?;
+                let label = format!("{enum_name}.{variant}.{}", variant_info.fields[index].name);
+                self.store_owned_field(arena, slot, field.ty, *value, &label, false)?;
+            }
+            if let Some(drop_fn) = self.cx.enum_drops.get(enum_name) {
+                self.cx.builder.build_call(
+                    self.cx.arena_register_drop_fn(),
+                    &[arena.into(), object.into(), drop_fn.as_global_value().as_pointer_value().into()],
+                    "",
+                )?;
+            }
+            let handle = self.cx.object_handle_type().const_named_struct(&[]);
+            let handle = self.cx.builder.build_insert_value(handle, arena, 0, "object.arena")?;
+            Ok(self.cx.builder.build_insert_value(handle, object, 1, "object.ptr")?.into_struct_value().into())
         })();
         self.alloc_sink = previous;
         result

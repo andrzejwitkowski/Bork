@@ -1,0 +1,24 @@
+// exit: 0
+// stdout: ok\n
+// A generic enum instantiated twice, passed to a function and returned from one.
+enum Maybe<T> {
+    Nothing,
+    Just(value: T),
+}
+
+fun wrap(n: i32): Maybe<i32> {
+    return Maybe.Just(n)
+}
+
+fun take(m: &Maybe<String>) {
+}
+
+fun main(): i32 {
+    val a = wrap(4)
+    val b: Maybe<String> = Maybe.Just("text")
+    val c: Maybe<String> = Maybe.Nothing
+    take(&b)
+    take(&c)
+    println("ok")
+    return 0
+}

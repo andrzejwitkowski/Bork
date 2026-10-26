@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: 2\n3\n2\n
+// `Ref<Tree>` is a counted reference to an enum slot: the `Node` variant retains `leaf`, and the
+// count falls back when the node's arena goes away. `Leaf` has no `Ref`, so only `Node` releases.
+enum Tree {
+    Leaf(v: i32),
+    Node(next: Ref<Tree>, v: i32),
+}
+
+fun link(leaf: Ref<Tree>) {
+    val node = Tree.Node(leaf, 2)
+    println(strongCount(leaf))
+}
+
+fun main(): i32 {
+    val leaf = Tree.Leaf(1)
+    val r: Ref<Tree> = leaf
+    println(strongCount(r))
+    link(r)
+    println(strongCount(r))
+    return 0
+}

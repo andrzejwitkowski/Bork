@@ -11,11 +11,20 @@ use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, IntType, StructType};
 use inkwell::values::FunctionValue;
 use inkwell::{AddressSpace, OptimizationLevel};
 
-use crate::hir::{HirClass, Prim};
+use crate::hir::{HirClass, HirEnum, Prim};
 use crate::ty::{TyCtx, TyData, TyId};
 use crate::memory::MemoryPlan;
 
 use crate::codegen_gate::{nullable_repr, NullableRepr};
+
+/// How one enum instance sits in its arena slot: `{ i32 tag, payload.. }` per variant, the slot
+/// being as large and as aligned as the biggest variant (no niche optimization).
+pub(super) struct EnumLayout<'ctx> {
+    /// `{ i32 tag, field.. }` per variant, in tag order; the tag is element 0.
+    pub variants: Vec<StructType<'ctx>>,
+    pub size: u64,
+    pub align: u64,
+}
 
 pub struct Codegen<'ctx> {
     pub context: &'ctx Context,
@@ -26,6 +35,10 @@ pub struct Codegen<'ctx> {
     pub(super) target_data: TargetData,
     pub(super) debug: Option<super::debug::DebugInfo<'ctx>>,
     pub(super) classes: Vec<HirClass>,
+    pub(super) enums: Vec<HirEnum>,
+    pub(super) enum_layouts: HashMap<String, EnumLayout<'ctx>>,
+    /// `void drop(ptr slot)` per enum with a `Ref` payload, registered once per constructed value.
+    pub(super) enum_drops: HashMap<String, FunctionValue<'ctx>>,
     /// The checked program's types; ids in the HIR resolve here.
     pub(super) tcx: TyCtx,
     pub memory_plan: MemoryPlan,
@@ -45,6 +58,7 @@ impl<'ctx> Codegen<'ctx> {
         context: &'ctx Context,
         name: &str,
         classes: &[HirClass],
+        enums: &[HirEnum],
         tcx: &TyCtx,
         memory_plan: MemoryPlan,
     ) -> Result<Self, String> {
@@ -67,7 +81,7 @@ impl<'ctx> Codegen<'ctx> {
             })
             .collect();
         let machine = native_target_machine()?;
-        let codegen = Self {
+        let mut codegen = Self {
             context,
             module: context.create_module(name),
             builder: context.create_builder(),
@@ -77,6 +91,9 @@ impl<'ctx> Codegen<'ctx> {
             memory_plan,
             debug: None,
             classes: classes.to_vec(),
+            enums: enums.to_vec(),
+            enum_layouts: HashMap::new(),
+            enum_drops: HashMap::new(),
             tcx: tcx.clone(),
         };
         codegen.module.set_triple(&machine.get_triple());
@@ -101,7 +118,48 @@ impl<'ctx> Codegen<'ctx> {
                 .expect("record shell was declared")
                 .set_body(&fields, false);
         }
+        for e in enums {
+            let layout = codegen.enum_layout_of(e)?;
+            codegen.enum_layouts.insert(e.name.clone(), layout);
+        }
+        for e in enums {
+            if let Some(drop_fn) = codegen.emit_enum_drop(e)? {
+                codegen.enum_drops.insert(e.name.clone(), drop_fn);
+            }
+        }
         Ok(codegen)
+    }
+
+    fn enum_layout_of(&self, e: &HirEnum) -> Result<EnumLayout<'ctx>, String> {
+        let mut variants = Vec::new();
+        let (mut size, mut align) = (0, 1);
+        for variant in &e.variants {
+            let mut elements = vec![self.context.i32_type().into()];
+            for field in &variant.fields {
+                elements.push(self.basic_type(field.ty).ok_or_else(|| {
+                    format!(
+                        "enum payload `{}.{}` has unsupported type `{}`",
+                        e.name, field.name, self.tcx.display(field.ty)
+                    )
+                })?);
+            }
+            let ty = self.context.struct_type(&elements, false);
+            size = size.max(self.target_data.get_abi_size(&ty));
+            align = align.max(u64::from(self.target_data.get_abi_alignment(&ty)));
+            variants.push(ty);
+        }
+        Ok(EnumLayout { variants, size: size.next_multiple_of(align), align })
+    }
+
+    pub(super) fn enum_layout(&self, name: &str) -> Option<&EnumLayout<'ctx>> {
+        self.enum_layouts.get(name)
+    }
+
+    /// The `HirEnum` laid out under `name`, with the tag of `variant`.
+    pub(super) fn enum_variant(&self, name: &str, variant: &str) -> Option<(&crate::hir::HirVariant, u32)> {
+        let e = self.enums.iter().find(|e| e.name == name)?;
+        let tag = e.variants.iter().position(|v| v.name == variant)?;
+        Some((&e.variants[tag], tag as u32))
     }
 
     /// LLVM type for a value of `ty`; `None` for `unit` and types codegen cannot lower yet.
@@ -125,7 +183,7 @@ impl<'ctx> Codegen<'ctx> {
             // Pointer to the arena-resident header `{ buf, len, cap, arena }`.
             return Some(self.context.ptr_type(AddressSpace::default()).into());
         }
-        if self.tcx.class_def(ty).is_some() {
+        if self.tcx.class_def(ty).is_some() || matches!(self.tcx.data(ty), TyData::Enum(..)) {
             return Some(self.object_handle_type().into());
         }
         if let TyData::Prim(prim) = *self.tcx.data(ty) {
@@ -483,7 +541,7 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     /// `void name(ptr arena)`.
-    fn arena_handle_fn(&self, name: &str) -> FunctionValue<'ctx> {
+    pub(super) fn arena_handle_fn(&self, name: &str) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
         let params: [BasicMetadataTypeEnum; 1] = [ptr.into()];
         self.runtime_fn(name, || self.context.void_type().fn_type(&params, false))
@@ -548,7 +606,7 @@ mod tests {
     #[test]
     fn ref_handle_layout_matches_runtime() {
         let context = Context::create();
-        let cg = Codegen::new(&context, "layout", &[], &TyCtx::new(&Default::default()), MemoryPlan::default()).unwrap();
+        let cg = Codegen::new(&context, "layout", &[], &[], &TyCtx::new(&Default::default()), MemoryPlan::default()).unwrap();
         let (size, align, offsets) = bork_runtime::REF_HANDLE_LAYOUT;
         assert_eq!(
             (cg.ref_handle_layout(), cg.ref_handle_offsets()),

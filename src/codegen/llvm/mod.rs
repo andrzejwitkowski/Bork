@@ -7,6 +7,7 @@ mod call_abi;
 mod context;
 mod debug;
 mod emit_fn;
+mod enum_glue;
 mod expr;
 mod managed_ref;
 mod nullable;
@@ -72,7 +73,7 @@ fn emit_module_impl<'ctx>(
         ));
     }
 
-    let mut cx = Codegen::new(context, "bork", &hir.classes, tcx, memory_plan)
+    let mut cx = Codegen::new(context, "bork", &hir.classes, &hir.enums, tcx, memory_plan)
         .map_err(|message| codegen_error(message, None))?;
     if let Some((source, path)) = source {
         cx.debug = Some(debug::DebugInfo::new(&cx, source, path));
