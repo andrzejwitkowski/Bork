@@ -3,120 +3,232 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bork: jak enum trafia do pamięci (#52)</title>
+<title>Bork od środka: droga programu przez kompilator</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#FAF7F2; --bg2:#F5F0E8; --code:#1E1E2E; --fg:#2C2A28; --muted:#6B6560; --line:#E5DFD6; --acc:#D9483B; --accl:#FDEEE9; --ok:#2D8B57; --okl:#E8F5EE; --bad:#C0392B; --badl:#FDE8E8; --shadow:0 2px 10px rgba(80,60,40,.10); }
+:root { --bg:#FAF7F2; --bg2:#F5F0E8; --code:#1E1E2E; --fg:#2C2A28; --muted:#6B6560; --line:#E5DFD6; --acc:#D9483B; --accl:#FDEEE9; --ok:#2D8B57; --okl:#E8F5EE; --bad:#C0392B; --badl:#FDE8E8; --a1:#D9483B; --a2:#2D8B57; --a3:#7B6DAA; --a4:#2A7AB0; --shadow:0 2px 10px rgba(80,60,40,.10); }
 * { box-sizing: border-box; }
 html { scroll-snap-type: y proximity; scroll-behavior: smooth; }
 body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 "DM Sans", system-ui, sans-serif; }
+nav.dots { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+nav.dots a { width: 11px; height: 11px; border-radius: 50%; background: var(--line); border: 2px solid var(--muted); display: block; }
+nav.dots a.on { background: var(--acc); border-color: var(--acc); }
 .module { min-height: 100vh; min-height: 100dvh; scroll-snap-align: start; padding: 64px 18px; }
-.module:nth-child(even) { background: var(--bg2); }
-.wrap { max-width: 780px; margin: 0 auto; }
+.module:nth-of-type(even) { background: var(--bg2); }
+.wrap { max-width: 800px; margin: 0 auto; }
 h1, h2 { font-family: "Bricolage Grotesque", system-ui, sans-serif; line-height: 1.15; }
-h1 { font-size: 2.6rem; margin: 0 0 .3em; }
-h2 { font-size: 1.8rem; margin: 0 0 .5em; }
+h1 { font-size: 2.7rem; margin: 0 0 .3em; } h2 { font-size: 1.85rem; margin: 0 0 .5em; }
+h3 { font-size: 1.05rem; margin: 1.6em 0 .3em; }
 .lead { color: var(--muted); font-size: 1.1rem; }
 code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .86em; background: #EFE9DF; padding: 1px 5px; border-radius: 4px; }
 .term { border-bottom: 2px dotted var(--acc); cursor: help; position: relative; }
-.term:hover::after, .term:focus::after { content: attr(data-def); position: absolute; left: 0; top: 1.6em; width: 260px; background: var(--code); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: .82rem; line-height: 1.4; z-index: 5; box-shadow: var(--shadow); }
+.term:hover::after, .term:focus::after { content: attr(data-def); position: absolute; left: 0; top: 1.6em; width: 270px; background: var(--code); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: .82rem; line-height: 1.4; z-index: 5; box-shadow: var(--shadow); font-style: normal; }
 .callout { background: var(--accl); border-left: 5px solid var(--acc); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 1.4em 0; }
-.callout b { color: var(--acc); }
-.translate { display: grid; grid-template-columns: 1fr 1fr; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); margin: 1.4em 0; }
-.translate .code { background: var(--code); color: #CDD6F4; padding: 14px; font: .82rem/1.6 "JetBrains Mono", monospace; white-space: pre-wrap; }
-.translate .plain { background: #fff; padding: 14px; font-size: .95rem; }
-@media (max-width: 640px) { .translate { grid-template-columns: 1fr; } }
-.slot { display: flex; margin: 1.2em 0; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); font: .8rem "JetBrains Mono", monospace; text-align: center; }
-.slot div { padding: 14px 6px; color: #fff; }
-.tag { background: #7B6DAA; flex: 0 0 18%; } .f1 { background: #D9483B; } .f2 { background: #2D8B57; } .pad { background: #B8B0A4; flex: 1; }
-.flow { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin:1.4em 0; box-shadow: var(--shadow); }
-.flow .steps { display:flex; gap:8px; flex-wrap:wrap; margin: 8px 0; }
-.step { flex:1 1 130px; padding:10px; border:2px solid var(--line); border-radius:10px; font-size:.85rem; opacity:.45; transition:.3s; }
-.step.on { opacity:1; border-color: var(--acc); background: var(--accl); }
-button.go { font: inherit; font-weight:600; padding: 8px 16px; border:0; border-radius:8px; background: var(--acc); color:#fff; cursor:pointer; }
-.q { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; box-shadow: var(--shadow); }
+.callout b:first-child { color: var(--acc); }
+.translate { border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); margin: 1.4em 0; }
+.translate .file { background: #2A2A3C; color: #9AA3B8; font: .74rem "JetBrains Mono", monospace; padding: 6px 14px; }
+.translate .row { display: grid; grid-template-columns: 1.25fr 1fr; }
+.translate pre { margin: 0; background: var(--code); color: #CDD6F4; padding: 14px; font: .78rem/1.6 "JetBrains Mono", monospace; overflow-x: auto; }
+.translate .plain { background: #fff; padding: 14px; font-size: .92rem; }
+.translate .plain p { margin: 0 0 .6em; }
+pre .k { color:#CBA6F7; } pre .f { color:#89B4FA; } pre .s { color:#A6E3A1; } pre .c { color:#7F849C; } pre .n { color:#FAB387; }
+@media (max-width: 700px) { .translate .row { grid-template-columns: 1fr; } nav.dots { display: none; } }
+.pipe { display: flex; flex-wrap: wrap; gap: 6px; margin: 1.2em 0; }
+.pipe .st { flex: 1 1 100px; padding: 10px 8px; border: 2px solid var(--line); border-radius: 10px; background: #fff; text-align: center; font-size: .8rem; transition: .3s; }
+.pipe .st b { display: block; font: .78rem "JetBrains Mono", monospace; }
+.pipe .st.on { border-color: var(--acc); background: var(--accl); transform: translateY(-3px); }
+.flowbox { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:1.4em 0; box-shadow: var(--shadow); }
+.flowbox .say { min-height: 3.4em; margin: 8px 0; }
+button.go { font: inherit; font-weight:600; padding: 8px 16px; border:0; border-radius:8px; background: var(--acc); color:#fff; cursor:pointer; margin-right: 6px; }
+button.go.alt { background: #fff; color: var(--fg); border: 1px solid var(--line); }
+.chat { background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; margin:1.4em 0; box-shadow: var(--shadow); min-height: 120px; }
+.msg { display: flex; gap: 8px; margin: 8px 0; opacity: 0; transform: translateY(6px); transition: .35s; }
+.msg.show { opacity: 1; transform: none; }
+.msg .av { flex: 0 0 34px; height: 34px; border-radius: 50%; color:#fff; font: 700 .7rem "JetBrains Mono", monospace; display: flex; align-items: center; justify-content: center; }
+.msg .bub { background: var(--bg2); border-radius: 12px; padding: 7px 12px; font-size: .92rem; max-width: 560px; }
+.msg .bub small { display:block; color: var(--muted); font: .7rem "JetBrains Mono", monospace; }
+.slot { display: flex; margin: 1.2em 0; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); font: .78rem "JetBrains Mono", monospace; text-align: center; }
+.slot div { padding: 14px 4px; color: #fff; }
+.q { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; box-shadow: var(--shadow); margin-top: 1.8em; }
 .opt { display:block; width:100%; text-align:left; font:inherit; font-size:.95rem; padding:8px 12px; margin:6px 0; background:var(--bg); border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+.opt:hover:not(:disabled) { border-color: var(--acc); }
 .opt.right { border-color:var(--ok); background:var(--okl); } .opt.wrong { border-color:var(--bad); background:var(--badl); }
 .fb { display:none; margin-top:8px; padding:8px 12px; border-radius:8px; background:var(--bg2); font-size:.92rem; }
+.src { font: .74rem "JetBrains Mono", monospace; color: var(--muted); }
 </style>
 </head>
 <body>
+<nav class="dots" id="dots"></nav>
 
-<section class="module" id="module-1"><div class="wrap">
-  <h1>Jak enum trafia do pamięci</h1>
-  <p class="lead">Do tej pory kompilator Borka umiał enumy sprawdzać, ale nie umiał ich zbudować. Ticket #52 uczy go układać wartość enuma w pamięci, tworzyć ją i po sobie sprzątać.</p>
-  <p>Wyobraź sobie szufladę na narzędzia z jednym wkładem. W środku może leżeć młotek <i>albo</i> śrubokręt <i>albo</i> pusto, nigdy dwa naraz. Karteczka na szufladzie mówi, co leży w środku. Enum działa tak samo: wartość jest <b>jednym z wariantów</b>, a karteczka to <span class="term" tabindex="0" data-def="Tag: mała liczba na początku wartości, która mówi, który wariant jest w środku. Pierwszy wariant ma 0, drugi 1 i tak dalej.">tag</span>.</p>
-  <div class="callout"><b>Po co to wiedzieć?</b> Kiedy AI pisze kod z enumami, pytanie „ile to zajmuje i kto to zwalnia?” decyduje o błędach pamięci, które trudno znaleźć.</div>
+<section class="module" id="m1"><div class="wrap">
+  <h1>Bork od środka</h1>
+  <p class="lead">Co się dzieje między „napisałem plik <code>.bork</code>” a „uruchamiam program”? Ta strona prowadzi przez cały kompilator, krok po kroku, na prawdziwym kodzie z repozytorium. Na końcu zobaczysz, gdzie wchodzi do tego enum (#52).</p>
+  <p>Bork to język bez śmieciarza (<span class="term" tabindex="0" data-def="Garbage collector: osobny mechanizm, który w tle szuka niepotrzebnej pamięci i ją zwalnia. Bork go nie ma.">garbage collectora</span>). Pamięć zarządzają <b>areny</b>: każdy blok <code>{ ... }</code> dostaje kawałek pamięci, a gdy blok się kończy, cały kawałek znika naraz. Prawie każdy etap kompilatora jest po to, żeby to było bezpieczne.</p>
+  <div class="translate"><div class="file">src/codegen/mod.rs · build_with_options (skrót)</div><div class="row">
+<pre><span class="k">let</span> mono = crate::mono::<span class="f">monomorphize</span>(hir, &amp;<span class="k">mut</span> tcx, report)?;
+<span class="k">let</span> gate_diagnostics = <span class="f">gate</span>(hir, &amp;tcx);
+<span class="c">// ...</span>
+llvm::<span class="f">emit_module</span>(&amp;context, hir, &amp;tcx, report, memory_plan)
+llvm::<span class="f">write_object_with_debug</span>(&amp;module, object.path(), debug)
+link::<span class="f">link_executable</span>(object.path(), output)</pre>
+<div class="plain"><p>To jest <b>tylna połowa</b> kompilatora, trzy ruchy po kolei: dopasuj kod generyczny do konkretnych typów (<code>monomorphize</code>), sprawdź, czy backend to potrafi (<code>gate</code>), zamień na LLVM i zlinkuj z runtime.</p><p>Wcześniej działa przód: parser, typy i analiza pamięci.</p></div></div></div>
+  <div class="callout"><b>Po co to wiedzieć?</b> Kiedy AI proponuje zmianę „w kompilatorze”, najważniejsze pytanie brzmi: <i>w którym etapie</i>? Ta mapa mówi, gdzie szukać błędu i kto za co odpowiada.</div>
 </div></section>
 
-<section class="module" id="module-2"><div class="wrap">
-  <h2>Jeden slot, rozmiar największego wariantu</h2>
-  <p>Wszystkie wartości danego enuma muszą mieć <b>ten sam rozmiar</b>, bo kompilator nie wie z góry, który wariant się trafi. Dlatego slot ma rozmiar największego wariantu.</p>
-  <div class="translate">
-    <div class="code">enum Shape {
-  Empty,
-  Flag(on: bool),
-  Rect(w: i32, h: i64),
-}</div>
-    <div class="plain">Trzy warianty: bez danych, z jednym polem i z dwoma polami o różnej wielkości. Najgrubszy jest <code>Rect</code>, więc to on wyznacza rozmiar slotu dla wszystkich trzech.</div>
+<section class="module" id="m2"><div class="wrap">
+  <h2>Przód: od tekstu do sprawdzonego programu</h2>
+  <p>Funkcja <code>frontend::check</code> robi całą pracę „zanim cokolwiek zostanie wygenerowane”. Kliknij „Dalej”, żeby przejść etapami.</p>
+  <div class="pipe" id="pipe1">
+    <div class="st"><b>parse</b>tekst → AST</div>
+    <div class="st"><b>typeck</b>typy → HIR</div>
+    <div class="st"><b>sema</b>własność, areny</div>
+    <div class="st"><b>mono check</b>instancje generyków</div>
+    <div class="st"><b>escape</b>co ucieka z bloku</div>
+    <div class="st"><b>memory</b>plan alokacji</div>
   </div>
-  <p>Slot dla <code>Rect</code> wygląda tak:</p>
-  <div class="slot"><div class="tag">tag (i32)</div><div class="f1" style="flex:0 0 18%">w (i32)</div><div class="f2" style="flex:0 0 36%">h (i64)</div></div>
-  <p>Warianty <code>Empty</code> i <code>Flag</code> zajmują ten sam slot, tylko z niewykorzystaną resztą. Bez sztuczek oszczędzających miejsce, bo te sztuczki są poza zakresem #52.</p>
-  <div class="callout"><b>Aha!</b> Pola mają różne rozmiary, więc kompilator układa je z odstępami (<span class="term" tabindex="0" data-def="Wyrównanie: liczba i64 musi leżeć pod adresem podzielnym przez 8, inaczej procesor wolniej ją czyta albo zgłasza błąd.">wyrównanie</span>). Nie liczymy tego ręcznie, pytamy LLVM o rozmiary.</div>
+  <div class="flowbox" id="flow1" data-steps='["Parser (LALRPOP) czyta tekst i buduje drzewo: klasy, enumy, funkcje. Błąd składni kończy tutaj.","Type checker nadaje każdemu wyrażeniu typ i produkuje HIR, czyli drzewo z typami.","Sema pilnuje własności: kto jest właścicielem wartości i do którego bloku należy. Wynik to raport aren.","Dla kodu generycznego sprawdzamy też konkretne instancje, żeby `check` zgadzał się z `build`.","Escape analysis szuka wartości, które wychodzą poza swój blok, bo muszą żyć w dłuższej arenie.","Memory plan zapisuje dla każdego obiektu, w jakiej arenie ma być zaalokowany."]'>
+    <div class="say"></div><button class="go">Dalej</button><button class="go alt">Od nowa</button>
+  </div>
+  <div class="translate"><div class="file">src/frontend.rs · check (skrót)</div><div class="row">
+<pre><span class="k">let</span> (program, node_index) = <span class="f">parse_indexed</span>(source)?;
+<span class="k">let</span> typeck::Typeck { hir, node_tys, members, tcx, .. } =
+    typeck::<span class="f">check_with_members</span>(&amp;program);
+<span class="k">let</span> (<span class="k">mut</span> report, ownership_errors) =
+    sema::<span class="f">analyze_with_members</span>(&amp;program, node_tys, members, &amp;tcx);
+<span class="c">// ... mono::check_instances ...</span>
+hoist::<span class="f">annotate</span>(&amp;<span class="k">mut</span> program);
+hir::<span class="f">number_nodes</span>(&amp;<span class="k">mut</span> program);
+escape::<span class="f">check_function</span>(function, &amp;tcx, &amp;<span class="k">mut</span> diagnostics);
+<span class="k">let</span> (plan, _) = memory::<span class="f">plan</span>(&amp;program, &amp;tcx, &amp;report);</pre>
+<div class="plain"><p>Każda linia to jeden z etapów z diagramu. Dane płyną jak w rurze: wynik typecka (<code>hir</code>, <code>tcx</code>) idzie do <code>sema</code>, <code>escape</code> i <code>memory</code>.</p><p>Wszystkie błędy trafiają do jednej listy <code>diagnostics</code>. HIR istnieje tylko wtedy, gdy ta lista jest pusta.</p></div></div></div>
+  <div class="q" data-q="Kompilator znalazł błąd własności (np. użycie zmiennej po `move`). Czy dostaniemy HIR do dalszych etapów?" data-o='["Tak, błędy nie blokują HIR.","Nie: HIR istnieje tylko, gdy lista diagnostyk jest pusta, ale raport aren zostaje do podglądu.","Tak, ale bez typów."]' data-a="1" data-f="W `CheckResult` pole `hir` jest `Some` dokładnie wtedy, gdy `diagnostics` jest puste. Raport aren zostaje nawet przy błędach (test `report_survives_semantic_errors`)."></div>
 </div></section>
 
-<section class="module" id="module-3"><div class="wrap">
-  <h2>Co się dzieje przy <code>Slot.Held(node, 7)</code></h2>
-  <p>Kliknij, żeby przejść przez kolejne kroki budowania wartości.</p>
-  <div class="flow" id="flow">
-    <div class="steps">
-      <div class="step">1. Arena dostaje prośbę o miejsce na cały slot</div>
-      <div class="step">2. Do slotu trafia tag wariantu <code>Held</code></div>
-      <div class="step">3. <code>node</code> jest przekazany przez <code>Ref</code>: licznik rośnie</div>
-      <div class="step">4. <code>7</code> idzie jako zwykły bajt</div>
-      <div class="step">5. Rejestrujemy sprzątanie slotu</div>
-    </div>
-    <button class="go" id="next">Dalej</button>
-  </div>
-  <p><span class="term" tabindex="0" data-def="Referencja z licznikiem: obiekt żyje, dopóki ktoś go trzyma. Każdy Ref zwiększa licznik, a sprzątanie go zmniejsza.">Ref</span> nie może być skopiowany „po bitach”, bo licznik by się nie zmienił. Tak samo robią pola klas, więc enum używa tego samego kodu.</p>
+<section class="module" id="m3"><div class="wrap">
+  <h2>Typy i HIR: wspólny język etapów</h2>
+  <p>Każdy typ w programie ma jeden numer (<code>TyId</code>), a jego kształt siedzi w jednym miejscu, <code>TyCtx</code>. Dzięki temu porównanie dwóch typów to porównanie dwóch liczb.</p>
+  <div class="translate"><div class="file">src/ty/mod.rs · TyData (skrót)</div><div class="row">
+<pre><span class="k">pub enum</span> TyData {
+    Prim(Prim),
+    String,
+    Class(DefId, Vec&lt;TyId&gt;),
+    Enum(DefId, Vec&lt;TyId&gt;),
+    Array { elem: TyId, len: u32 },
+    Ref(TyId),
+    ManagedRef(TyId),
+    Vec(TyId),
+    Nullable(TyId),
+    Param(ParamIdx),
+    <span class="c">// ...</span>
+}</pre>
+<div class="plain"><p>Lista wszystkich kształtów, jakie może mieć typ. <code>Class</code> i <code>Enum</code> niosą swoje argumenty (<code>Maybe&lt;i32&gt;</code> to <code>Enum(Maybe, [i32])</code>).</p><p><code>Param</code> to <span class="term" tabindex="0" data-def="Parametr typu: placeholder jak T w Maybe<T>. Istnieje tylko w kodzie generycznym, do czasu aż mono podstawi konkretny typ.">parametr typu</span>, który żyje tylko do monomorfizacji.</p></div></div></div>
+  <div class="translate"><div class="file">src/hir/mod.rs</div><div class="row">
+<pre><span class="k">pub struct</span> HirProgram {
+    <span class="k">pub</span> classes: Vec&lt;HirClass&gt;,
+    <span class="k">pub</span> enums: Vec&lt;HirEnum&gt;,   <span class="c">// dodane w #52</span>
+    <span class="k">pub</span> functions: Vec&lt;HirFunction&gt;,
+}</pre>
+<div class="plain"><p>HIR to „program po typach”: klasy, <b>enumy</b> i funkcje, każde wyrażenie ma już swój <code>TyId</code>.</p><p>Do #52 enumy istniały tylko w typach i wyrażeniach. Teraz mają własną definicję, bo backend musi wiedzieć, jak wygląda każdy wariant.</p></div></div></div>
+  <div class="callout"><b>Aha!</b> HIR jest granicą między „co programista napisał” a „co maszyna ma zrobić”. Wszystko po stronie HIR ma już typy, więc kolejne etapy nie zgadują.</div>
 </div></section>
 
-<section class="module" id="module-4"><div class="wrap">
-  <h2>Sprzątanie: czytaj tag, zwalniaj to, co trzeba</h2>
-  <div class="translate">
-    <div class="code">One(a: Ref&lt;Node&gt;)
-Two(t: i8, a: Ref&lt;Node&gt;, b: Ref&lt;Node&gt;)</div>
-    <div class="plain">W <code>One</code> pole <code>a</code> leży zaraz po tagu. W <code>Two</code> po tagu jest bajt <code>t</code>, więc <code>a</code> leży dalej. Zły wariant oznaczałby czytanie śmieci.</div>
-  </div>
-  <p>Dlatego dla każdego enuma z <code>Ref</code> w danych kompilator generuje małą funkcję: <b>czyta tag, wybiera wariant i zwalnia tylko jego <code>Ref</code>-y</b>. Arena woła ją raz, gdy kończy życie.</p>
-  <div class="callout"><b>Jak to sprawdzamy?</b> Test liczy referencje przed i po. Wyciek zostawia licznik wyższy, nadmierne zwolnienie niższy. Programy w <code>programs/build/enums/</code> sprawdzają oba kierunki.</div>
+<section class="module" id="m4"><div class="wrap">
+  <h2>Pamięć: areny i plan alokacji</h2>
+  <p>Wyobraź sobie biurko z szufladą na każdy projekt. Wszystko, co powstaje przy projekcie, wkładasz do jego szuflady. Gdy projekt się kończy, wysypujesz całą szufladę jednym ruchem. Nie szukasz pojedynczych kartek. Tak działa arena.</p>
+  <div class="translate"><div class="file">src/memory.rs</div><div class="row">
+<pre><span class="k">pub enum</span> ArenaClass {
+    Lexical,
+    Dynamic,
+}
+<span class="k">pub enum</span> LifetimeDomain {
+    Program,
+    LexicalScope(<span class="k">usize</span>),
+}
+<span class="k">pub struct</span> MemoryPlan {
+    <span class="k">pub</span> allocations: Vec&lt;ArenaPlan&gt;,
+}</pre>
+<div class="plain"><p><code>Lexical</code>: arena żyje tyle co blok <code>{}</code>. <code>Dynamic</code>: arena tworzona w czasie działania, bo wartość musi przeżyć blok albo jest wskazywana przez <code>Ref</code>.</p><p><code>MemoryPlan</code> to lista decyzji: dla każdego miejsca, gdzie powstaje obiekt, w której arenie ma leżeć i jak długo.</p></div></div></div>
+  <div class="callout"><b>Ważne w #52.</b> Konstrukcja enuma trafia do tego samego planu co konstrukcja obiektu klasy (<code>ObjectConstruct</code> i <code>EnumConstruct</code> przechodzą przez tę samą gałąź w <code>memory.rs</code>). Wcześniej kompilator traktował enumy „zachowawczo”, bo backend ich nie umiał.</div>
+  <div class="q" data-q="Blok `{ ... }` się kończy. Co dzieje się z jego areną (typu Lexical)?" data-o='["Garbage collector zbiera po kolei każdy obiekt.","Cała arena jest resetowana naraz i wraca do puli do ponownego użycia.","Nic, pamięć czeka na koniec programu."]' data-a="1" data-f="Wg `docs/memory-model.md`: wyjście z regionu resetuje arenę, a ta wraca do puli. Dlatego nie ma śmieciarza i nie ma kosztu na pojedynczy obiekt."></div>
 </div></section>
 
-<section class="module" id="module-5"><div class="wrap">
-  <h2>Sprawdź się</h2>
-  <div class="q" id="q">
-    <b>Enum ma warianty o ładunku 4, 16 i 24 bajty. Ile miejsca zajmie wartość pierwszego?</b>
+<section class="module" id="m5"><div class="wrap">
+  <h2>Mono i brama: zanim wejdzie LLVM</h2>
+  <p>Generyk jak <code>Maybe&lt;T&gt;</code> to przepis, nie gotowe danie. Backend potrzebuje konkretów, więc <b>monomorfizacja</b> (<code>src/mono.rs</code>) robi osobną kopię dla każdej użytej kombinacji: <code>Maybe&lt;i32&gt;</code> i <code>Maybe&lt;String&gt;</code> to dwa różne typy z dwoma układami w pamięci.</p>
+  <div class="translate"><div class="file">src/mono.rs</div><div class="row">
+<pre><span class="k">pub(crate) fn</span> <span class="f">enum_instance_name</span>(tcx: &amp;TyCtx, ty: TyId)
+    -&gt; Option&lt;String&gt; {
+    <span class="k">let</span> (def, args) = tcx.<span class="f">enum_args</span>(ty)?;
+    Some(<span class="f">mangle</span>(tcx.<span class="f">class_name</span>(def), tcx, args))
+}</pre>
+<div class="plain"><p>Nazwa instancji powstaje z nazwy enuma i argumentów: <code>Maybe&lt;i32&gt;</code>. Pod tą nazwą backend szuka układu w pamięci.</p><p>Tak samo robi się to dla klas (<code>class_instance_name</code>). #52 dodało wersję dla enumów.</p></div></div></div>
+  <p>Potem <b>brama</b> (<code>codegen_gate.rs</code>) pyta: „czy backend umie to wygenerować?”. Zamiast paniki w LLVM użytkownik dostaje czytelny błąd z lokalizacją. Do #52 brama odrzucała każdy enum. Teraz przepuszcza je, a odrzuca tylko to, czego jeszcze nie ma, np. <code>move</code> na enumie.</p>
+  <div class="q" data-q="Po co brama, skoro typecheck już przeszedł?" data-o='["Żeby przyspieszyć kompilację.","Typecheck mówi, że program jest poprawny w języku. Brama mówi, że backend potrafi go zamienić na kod. To dwa różne pytania.","Brama zamienia typy."]' data-a="1" data-f="Frontend akceptuje więcej niż backend potrafi. Brama zamienia „jeszcze nie wspieramy” w komunikat z miejscem w kodzie."></div>
+</div></section>
+
+<section class="module" id="m6"><div class="wrap">
+  <h2>Backend i runtime: kto z kim rozmawia</h2>
+  <p>Kompilator nie robi pamięci sam. Generuje kod LLVM, który w czasie działania woła bibliotekę <code>bork_runtime</code> (napisaną w Rust): <code>bork_arena_alloc</code>, <code>bork_arena_register_drop</code> i tym podobne. Zobacz rozmowę przy budowaniu enuma:</p>
+  <div class="chat" id="chat" data-msgs='[["CG","#D9483B","codegen","Mam `Slot.Held(node, 7)`. Potrzebuję slotu na wartość: tag plus największy wariant."],["AR","#2D8B57","arena (runtime)","`bork_arena_alloc(arena, 16, 8)`. Masz wskaźnik, bump w bieżącej stronie."],["CG","#D9483B","codegen","Zapisuję tag wariantu `Held` i bajt `7`."],["RF","#7B6DAA","ref glue","`node` to `Ref`: kopiuję uchwyt i zwiększam licznik silnych referencji."],["CG","#D9483B","codegen","Rejestruję funkcję sprzątającą dla całego slotu: `bork_arena_register_drop`."],["AR","#2D8B57","arena (runtime)","Gdy arena się kończy, wołam ją. Ona czyta tag i zwalnia tylko `Ref`-y tego wariantu."]]'></div>
+  <button class="go" id="chatBtn">Odtwórz rozmowę</button>
+  <div class="translate"><div class="file">src/codegen/llvm/managed_ref.rs · emit_enum_construct (skrót)</div><div class="row">
+<pre><span class="k">let</span> (record, size, align) =
+    (layout.variants[tag <span class="k">as</span> usize], layout.size, layout.align);
+<span class="k">let</span> object = builder.<span class="f">build_call</span>(
+    self.cx.<span class="f">arena_alloc_fn</span>(),
+    &amp;[arena.into(), size.into(), align.into()], <span class="s">"enum"</span>)?;
+<span class="k">let</span> tag_slot = builder.<span class="f">build_struct_gep</span>(record, object, <span class="n">0</span>, <span class="s">"enum.tag"</span>)?;
+builder.<span class="f">build_store</span>(tag_slot, i32_type.<span class="f">const_int</span>(tag, <span class="k">false</span>))?;
+<span class="c">// pola: store_owned_field(...) dla każdego payloadu</span>
+<span class="k">if let</span> Some(drop_fn) = self.cx.enum_drops.<span class="f">get</span>(enum_name) {
+    builder.<span class="f">build_call</span>(arena_register_drop_fn(), ...)?;
+}</pre>
+<div class="plain"><p>To jest kod, który <i>pisze</i> kod. Kompilator buduje w LLVM instrukcje: „zaalokuj <code>size</code> bajtów”, „zapisz tag”, „zapisz pola”, „zarejestruj sprzątanie”.</p><p>Rozmiar bierze z największego wariantu, więc każda wartość tego enuma zajmuje tyle samo miejsca.</p></div></div></div>
+  <div class="callout"><b>Dlaczego <code>Ref</code> nie jest kopiowany bitowo?</b> <code>RefHandle</code> w runtime ma trzy pola (<code>control</code>, <code>object</code>, <code>kind</code>) i liczniki referencji. Kopia bitowa nie zwiększyłaby licznika, więc obiekt zniknąłby za wcześnie albo nigdy. Dlatego payload enuma przechodzi przez ten sam kod co pola klas.</div>
+</div></section>
+
+<section class="module" id="m7"><div class="wrap">
+  <h2>Cały obraz: droga jednego enuma</h2>
+  <p>Weźmy <code>enum Shape { Empty, Rect(w: i32, h: i64) }</code> i <code>val s = Shape.Rect(2, 3)</code>. Zobacz, co robi z tym każdy etap.</p>
+  <div class="pipe" id="pipe2">
+    <div class="st"><b>parser</b>enum → AST</div><div class="st"><b>typeck</b>HirEnum, TyData::Enum</div><div class="st"><b>memory</b>alokacja jak obiekt</div><div class="st"><b>mono</b>nazwa instancji</div><div class="st"><b>gate</b>przepuszcza</div><div class="st"><b>codegen</b>slot + tag</div><div class="st"><b>runtime</b>arena + drop</div>
   </div>
-  <p class="lead" style="margin-top:2em">Więcej pytań jest w osobnym quizie z #52.</p>
+  <div class="flowbox" id="flow2" data-steps='["Parser: `enum Shape {...}` staje się węzłem `Enum` w AST, a `Shape.Rect(2, 3)` wyrażeniem konstrukcji wariantu.","Typeck: definicja trafia do `HirProgram.enums`, wartość dostaje typ `Enum(Shape, [])`, a konstrukcja `EnumConstruct`.","Memory plan: konstrukcja enuma dostaje arenę tak samo jak obiekt klasy.","Mono: dla generyków powstaje osobna instancja; `Shape` jest zwykły, więc zostaje jak jest.","Brama: enumy są dozwolone; `move` na enumie dostałby komunikat.","Codegen: układ `{ i32 tag, w: i32, h: i64 }` w slocie 16 bajtów; zapis tagu 1 i pól 2, 3.","Runtime: `bork_arena_alloc` daje pamięć; jeśli w wariantach są `Ref`-y, funkcja sprzątająca jest zarejestrowana w arenie."]'>
+    <div class="say"></div><button class="go">Dalej</button><button class="go alt">Od nowa</button>
+  </div>
+  <div class="slot"><div style="background:#7B6DAA;flex:0 0 25%">tag (i32) = 1</div><div style="background:#D9483B;flex:0 0 25%">w (i32) = 2</div><div style="background:#2D8B57;flex:0 0 50%">h (i64) = 3</div></div>
+  <p class="src">Układ slotu dla wariantu <code>Rect</code>. Test <code>enum_slot_is_sized_for_its_biggest_variant</code> w <code>tests/build.rs</code> sprawdza w wygenerowanym IR, że wszystkie warianty alokują ten sam rozmiar.</p>
+  <div class="q" data-q="Chcesz dodać do Borka nowy rodzaj wartości. Które etapy prawdopodobnie trzeba ruszyć?" data-o='["Tylko parser.","Parser, typy, HIR, plan pamięci, bramę i codegen, zależnie od tego, co nowe: dokładnie ta lista, którą przeszedł enum.","Tylko codegen."]' data-a="1" data-f="Enum #49 dołożył składnię, typy i HIR. #52 dołożył plan pamięci, mono, bramę, codegen i debug. Nowe rodzaje wartości zwykle przechodzą przez wszystkie etapy."></div>
 </div></section>
 
 <script>
-const steps = [...document.querySelectorAll("#flow .step")]; let at = -1;
-document.getElementById("next").onclick = () => {
-  at = (at + 1) % (steps.length + 1);
-  steps.forEach((s, i) => s.classList.toggle("on", i <= at - 0 && at < steps.length && i === at));
-  if (at === steps.length) steps.forEach(s => s.classList.remove("on"));
-};
-const q = document.getElementById("q");
-const opts = ["Tyle co wariant: 4 bajty.", "Tyle co największy wariant: 24 bajty (z zaokrągleniem do wyrównania).", "Suma: 44 bajty."];
-const fb = document.createElement("div"); fb.className = "fb";
-opts.forEach((t, i) => { const b = document.createElement("button"); b.className = "opt"; b.textContent = t;
-  b.onclick = () => { q.querySelectorAll(".opt").forEach(o => o.disabled = true);
-    b.classList.add(i === 1 ? "right" : "wrong"); q.querySelectorAll(".opt")[1].classList.add("right");
-    fb.textContent = "Każda wartość tego enuma ma ten sam rozmiar, bo kompilator nie wie z góry, który wariant się trafi."; fb.style.display = "block"; };
-  q.appendChild(b); });
-q.appendChild(fb);
+const mods = [...document.querySelectorAll(".module")], dots = document.getElementById("dots");
+mods.forEach(m => { const a = document.createElement("a"); a.href = "#" + m.id; a.title = m.querySelector("h1,h2").textContent; dots.appendChild(a); });
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) [...dots.children].forEach((d, i) => d.classList.toggle("on", mods[i] === e.target)); }), { threshold: .5 });
+mods.forEach(m => io.observe(m));
+const md = s => s.replace(/`([^`]+)`/g, "<code>$1</code>");
+document.querySelectorAll(".flowbox").forEach(box => {
+  const steps = JSON.parse(box.dataset.steps), say = box.querySelector(".say"), [next, reset] = box.querySelectorAll("button");
+  const pipe = box.previousElementSibling && box.previousElementSibling.classList.contains("pipe") ? box.previousElementSibling : null;
+  let at = -1;
+  const show = () => { say.innerHTML = at < 0 ? "Kliknij „Dalej”." : md(steps[at]); if (pipe) [...pipe.children].forEach((s, i) => s.classList.toggle("on", i === at)); };
+  next.onclick = () => { at = Math.min(at + 1, steps.length - 1); show(); };
+  reset.onclick = () => { at = -1; show(); }; show();
+});
+const chat = document.getElementById("chat"), msgs = JSON.parse(chat.dataset.msgs);
+document.getElementById("chatBtn").onclick = () => { chat.innerHTML = "";
+  msgs.forEach(([av, col, who, text], i) => { const m = document.createElement("div"); m.className = "msg";
+    m.innerHTML = `<div class="av" style="background:${col}">${av}</div><div class="bub"><small>${who}</small>${md(text)}</div>`;
+    chat.appendChild(m); setTimeout(() => m.classList.add("show"), 600 * i + 50); }); };
+document.querySelectorAll(".q").forEach(q => {
+  const opts = JSON.parse(q.dataset.o), a = +q.dataset.a;
+  q.innerHTML = `<b>${md(q.dataset.q)}</b>`;
+  const fb = document.createElement("div"); fb.className = "fb";
+  opts.forEach((t, i) => { const b = document.createElement("button"); b.className = "opt"; b.innerHTML = md(t);
+    b.onclick = () => { q.querySelectorAll(".opt").forEach(o => o.disabled = true); b.classList.add(i === a ? "right" : "wrong");
+      q.querySelectorAll(".opt")[a].classList.add("right"); fb.innerHTML = md(q.dataset.f); fb.style.display = "block"; };
+    q.appendChild(b); });
+  q.appendChild(fb); });
 </script>
 </body>
 </html>
