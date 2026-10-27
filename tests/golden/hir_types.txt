@@ -184,6 +184,41 @@ programs/build/managed_refs/presence_int_result.bork::pick(r: Ref<Node>) -> i32
 programs/build/managed_refs/presence_int_result.bork::main() -> i32
 programs/build/managed_refs/program_dynamic_across_blocks.bork::make_shared() -> Ref<Box>
 programs/build/managed_refs/program_dynamic_across_blocks.bork::main() -> i32
+programs/build/managed_refs/return_chain_local_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_chain_local_ref.bork::spin() -> unit
+programs/build/managed_refs/return_chain_local_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_chain_local_ref.bork::make() -> Outer
+programs/build/managed_refs/return_chain_local_ref.bork::main() -> i32
+programs/build/managed_refs/return_enum_payload_obj.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_enum_payload_obj.bork::spin() -> unit
+programs/build/managed_refs/return_enum_payload_obj.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_enum_payload_obj.bork::make() -> E
+programs/build/managed_refs/return_enum_payload_obj.bork::main() -> i32
+programs/build/managed_refs/return_generic_box.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_generic_box.bork::spin() -> unit
+programs/build/managed_refs/return_generic_box.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_generic_box.bork::make() -> Box<RA>
+programs/build/managed_refs/return_generic_box.bork::main() -> i32
+programs/build/managed_refs/return_ifval_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_ifval_ref.bork::spin() -> unit
+programs/build/managed_refs/return_ifval_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_ifval_ref.bork::make(o: Ref<P>) -> RA
+programs/build/managed_refs/return_ifval_ref.bork::main() -> i32
+programs/build/managed_refs/return_loop_before_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_loop_before_ref.bork::spin() -> unit
+programs/build/managed_refs/return_loop_before_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_loop_before_ref.bork::find(limit: i32) -> RA
+programs/build/managed_refs/return_loop_before_ref.bork::main() -> i32
+programs/build/managed_refs/return_loop_decl_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_loop_decl_ref.bork::spin() -> unit
+programs/build/managed_refs/return_loop_decl_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_loop_decl_ref.bork::find(limit: i32) -> RA
+programs/build/managed_refs/return_loop_decl_ref.bork::main() -> i32
+programs/build/managed_refs/return_nested_loops_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_nested_loops_ref.bork::spin() -> unit
+programs/build/managed_refs/return_nested_loops_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_nested_loops_ref.bork::find() -> RA
+programs/build/managed_refs/return_nested_loops_ref.bork::main() -> i32
 programs/build/managed_refs/return_nested_object_with_ref.bork::mkO() -> Outer
 programs/build/managed_refs/return_nested_object_with_ref.bork::main() -> i32
 programs/build/managed_refs/return_object_with_ref_field.bork::churn(k: i32) -> i32
@@ -193,6 +228,39 @@ programs/build/managed_refs/return_object_with_ref_field.bork::mkOuter() -> Oute
 programs/build/managed_refs/return_object_with_ref_field.bork::mkEnum() -> E
 programs/build/managed_refs/return_object_with_ref_field.bork::main() -> i32
 programs/build/managed_refs/return_object_with_ref_field.bork::Holder.mixed(this: &Holder, flag: bool) -> RA
+programs/build/managed_refs/return_ref_from_call.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_ref_from_call.bork::spin() -> unit
+programs/build/managed_refs/return_ref_from_call.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_ref_from_call.bork::mkRef(k: i32) -> Ref<P>
+programs/build/managed_refs/return_ref_from_call.bork::wrap(k: i32) -> RA
+programs/build/managed_refs/return_ref_from_call.bork::main() -> i32
+programs/build/managed_refs/return_scalar_this.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_scalar_this.bork::spin() -> unit
+programs/build/managed_refs/return_scalar_this.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_scalar_this.bork::main() -> i32
+programs/build/managed_refs/return_scalar_this.bork::Counter.pick(this: &Counter, flag: bool) -> A
+programs/build/managed_refs/return_scalar_this.bork::Counter.mkRef(this: &Counter) -> RA
+programs/build/managed_refs/return_this_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_this_ref.bork::spin() -> unit
+programs/build/managed_refs/return_this_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_this_ref.bork::main() -> i32
+programs/build/managed_refs/return_this_ref.bork::Holder.get(this: &Holder) -> RA
+programs/build/managed_refs/return_this_ref.bork::Holder.fresh(this: &Holder) -> RA
+programs/build/managed_refs/return_two_paths_ref.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_two_paths_ref.bork::spin() -> unit
+programs/build/managed_refs/return_two_paths_ref.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_two_paths_ref.bork::make(flag: bool) -> RA
+programs/build/managed_refs/return_two_paths_ref.bork::main() -> i32
+programs/build/managed_refs/return_vec_of_refs.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_vec_of_refs.bork::spin() -> unit
+programs/build/managed_refs/return_vec_of_refs.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_vec_of_refs.bork::make() -> Bag
+programs/build/managed_refs/return_vec_of_refs.bork::main() -> i32
+programs/build/managed_refs/return_when_arms.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_when_arms.bork::spin() -> unit
+programs/build/managed_refs/return_when_arms.bork::show(r: &RA) -> unit
+programs/build/managed_refs/return_when_arms.bork::make(k: K) -> RA
+programs/build/managed_refs/return_when_arms.bork::main() -> i32
 programs/build/managed_refs/val_both_return_string_move.bork::run(r: Ref<Node>) -> i32
 programs/build/managed_refs/val_both_return_string_move.bork::main() -> i32
 programs/build/managed_refs/val_else_move_string.bork::run(r: Ref<Node>) -> unit

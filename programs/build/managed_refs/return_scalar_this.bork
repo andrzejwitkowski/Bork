@@ -1,0 +1,46 @@
+// exit: 0
+// stdout: 8\n7\n14\n
+// Methods using a scalar field of this, a local object and a fresh Ref (base 7).
+class P { n: i32 }
+class A { x: P }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+class Bag { items: Vec<Ref<P>> }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    val r: Ref<P> = P(k + 2)
+    val c = RA(P(k + 3))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(r: &RA) {
+    if val v = r.x { println(v.n) }
+}
+
+class Counter {
+    base: i32
+    fun pick(flag: bool): A {
+        val p = P(base + 1)
+        if (flag) { return A(p) }
+        return A(P(base))
+    }
+    fun mkRef(): RA { return RA(P(base * 2)) }
+}
+fun main(): i32 {
+    val c = Counter(7)
+    val a = c.pick(true)
+    val b = c.pick(false)
+    val r = c.mkRef()
+    spin()
+    println(a.x.n)
+    println(b.x.n)
+    show(&r)
+    return 0
+}
