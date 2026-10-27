@@ -110,6 +110,8 @@ pub fn check_with_members(program: &Program) -> Typeck {
                 .map(|field| HirClassField {
                     name: field.name.clone(),
                     ty: field.ty,
+                    span: field.span,
+                    source: None,
                 })
                 .collect(),
         })
@@ -127,7 +129,7 @@ pub fn check_with_members(program: &Program) -> Typeck {
                 .iter()
                 .map(|variant| HirVariant {
                     name: variant.name.clone(),
-                    fields: variant.fields.iter().map(|f| HirClassField { name: f.name.clone(), ty: f.ty }).collect(),
+                    fields: variant.fields.iter().map(|f| HirClassField { name: f.name.clone(), ty: f.ty, span: f.span, source: None }).collect(),
                 })
                 .collect(),
         })
@@ -448,6 +450,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         name,
         generics,
         name_span: function.name_span,
+        source: None,
         params,
         return_ty,
         body,

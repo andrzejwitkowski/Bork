@@ -2,6 +2,9 @@
 mod abi;
 mod registry;
 mod slots;
+pub(crate) mod diag;
+#[cfg(test)]
+mod diag_tests;
 
 pub(super) use registry::invalidate;
 pub(crate) use registry::Mutation;

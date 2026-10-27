@@ -39,6 +39,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             this.vec_store_elem(dst_slot, arena, elem_ty, value, true)
         })?;
         self.vec_store(header, LEN, len)?;
+        self.cx.debug_copy_origin(source, header)?;
+        self.cx.debug_copy_origin(from, to)?;
         Ok(header)
     }
 }

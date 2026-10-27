@@ -27,11 +27,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     /// The object pointer of the nullable value `value`.
     fn option_object(&mut self, value: BasicValueEnum<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
-        Ok(self
-            .cx
-            .builder
-            .build_extract_value(value.into_struct_value(), 1, "opt.ptr")?
-            .into_pointer_value())
+        self.object_pointer(value.into_struct_value())
     }
 
     pub(super) fn emit_nullable_is_null(
@@ -95,6 +91,11 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         self.cx.builder.position_at_end(end_bb);
         let phi = self.cx.builder.build_phi(some.get_type(), "opt.copy")?;
         phi.add_incoming(&[(&some, some_end), (&none, none_end)]);
+        if self.cx.debug.is_some() {
+            let source = self.object_pointer(value.into_struct_value())?;
+            let destination = self.object_pointer(phi.as_basic_value().into_struct_value())?;
+            self.cx.debug_copy_origin(source, destination)?;
+        }
         Ok(phi.as_basic_value())
     }
 

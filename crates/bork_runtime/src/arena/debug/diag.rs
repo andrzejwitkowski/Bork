@@ -1,0 +1,608 @@
+//! Allocation diagnostics live outside payload pages and the debugger's stable ABI.
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    ffi::{c_char, c_void, CStr},
+    fmt,
+    io::Write,
+};
+
+#[repr(C)]
+pub struct SourceLocation {
+    pub path: *const c_char,
+    pub start: usize,
+    pub end: usize,
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Location {
+    path: String,
+    start: usize,
+    end: usize,
+    line: usize,
+    column: usize,
+}
+
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.path.is_empty() {
+            return f.write_str("<runtime>");
+        }
+        write!(
+            f,
+            "{}:{}:{} [bytes {}..{}]",
+            self.path, self.line, self.column, self.start, self.end
+        )
+    }
+}
+
+unsafe fn string(p: *const c_char) -> String {
+    if p.is_null() {
+        String::new()
+    } else {
+        CStr::from_ptr(p).to_string_lossy().into_owned()
+    }
+}
+
+unsafe fn location(p: *const SourceLocation) -> Location {
+    if p.is_null() {
+        return current_location();
+    }
+    let p = &*p;
+    Location {
+        path: string(p.path),
+        start: p.start,
+        end: p.end,
+        line: p.line,
+        column: p.column,
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum MemoryState {
+    Live,
+    Freed,
+    UnusedInPool,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct DebugDiag {
+    pub start: usize,
+    pub size: usize,
+    pub id: usize,
+    pub owner: usize,
+    pub state: MemoryState,
+    pub name: String,
+    pub type_name: String,
+    created: Location,
+    declared: Option<Location>,
+    released: Option<Location>,
+}
+
+#[derive(Clone)]
+struct Range {
+    end: usize,
+    current: DebugDiag,
+    // A flat description deliberately cannot own another history entry.
+    previous: Option<DebugDiag>,
+}
+
+struct Arena {
+    parent: usize,
+    created: Location,
+    released: Option<Location>,
+}
+
+struct Frame {
+    name: String,
+    site: Location,
+}
+
+#[derive(Default)]
+struct Diagnostics {
+    next_id: usize,
+    ranges: BTreeMap<usize, Range>,
+    arenas: BTreeMap<usize, Arena>,
+    stack: Vec<Frame>,
+    site: Location,
+}
+
+thread_local! { static DIAG: RefCell<Diagnostics> = RefCell::new(Diagnostics::default()); }
+
+pub(crate) fn current_location() -> Location {
+    DIAG.with(|d| {
+        let d = d.borrow();
+        d.stack
+            .last()
+            .map_or_else(|| d.site.clone(), |f| f.site.clone())
+    })
+}
+
+pub(crate) fn arena_created(id: usize, parent: usize) {
+    let created = current_location();
+    DIAG.with(|d| {
+        d.borrow_mut().arenas.insert(
+            id,
+            Arena {
+                parent,
+                created,
+                released: None,
+            },
+        );
+    });
+}
+
+impl Diagnostics {
+    fn overlaps(&self, start: usize, end: usize) -> Vec<usize> {
+        let first = self
+            .ranges
+            .range(..=start)
+            .next_back()
+            .map_or(start, |(&a, _)| a);
+        self.ranges
+            .range(first..end)
+            .filter_map(|(&a, r)| (r.end > start).then_some(a))
+            .collect()
+    }
+
+    fn replace(&mut self, start: usize, end: usize, current: DebugDiag) {
+        let mut cursor = start;
+        for key in self.overlaps(start, end) {
+            let old = self.ranges.remove(&key).unwrap();
+            if key < start {
+                self.ranges.insert(
+                    key,
+                    Range {
+                        end: start,
+                        ..old.clone()
+                    },
+                );
+            }
+            let lo = key.max(start);
+            let hi = old.end.min(end);
+            if cursor < lo {
+                self.ranges.insert(
+                    cursor,
+                    Range {
+                        end: lo,
+                        current: current.clone(),
+                        previous: None,
+                    },
+                );
+            }
+            let previous = if old.current.id == current.id {
+                old.previous.clone()
+            } else if old.current.id != 0 {
+                Some(old.current.clone())
+            } else {
+                None
+            };
+            self.ranges.insert(
+                lo,
+                Range {
+                    end: hi,
+                    current: current.clone(),
+                    previous,
+                },
+            );
+            cursor = hi;
+            if old.end > end {
+                self.ranges.insert(end, old);
+            }
+        }
+        if cursor < end {
+            self.ranges.insert(
+                cursor,
+                Range {
+                    end,
+                    current,
+                    previous: None,
+                },
+            );
+        }
+    }
+
+    fn edit_allocation(&mut self, address: usize, mut edit: impl FnMut(&mut DebugDiag)) {
+        let Some(r) = self.ranges.get(&address) else {
+            return;
+        };
+        let (start, end, id) = (
+            r.current.start,
+            r.current.start + r.current.size.max(1),
+            r.current.id,
+        );
+        for (_, r) in self.ranges.range_mut(start..end) {
+            if r.current.id == id && r.current.state == MemoryState::Live {
+                edit(&mut r.current);
+            }
+        }
+    }
+}
+
+pub(crate) fn allocated(owner: usize, start: usize, size: usize, pages: &[(usize, usize, usize)]) {
+    track(owner, start, size, pages, None);
+}
+
+fn track(
+    owner: usize,
+    start: usize,
+    size: usize,
+    pages: &[(usize, usize, usize)],
+    origin: Option<DebugDiag>,
+) {
+    let created = current_location();
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        // Cover unallocated page tails too; taking a page from the pool revives no bytes.
+        for &(base, _, capacity) in pages {
+            let end = base + capacity;
+            let mut cursor = base;
+            let keys = d.overlaps(base, end);
+            for key in keys {
+                if cursor < key {
+                    let empty = DebugDiag {
+                        start: cursor,
+                        size: key - cursor,
+                        id: 0,
+                        owner,
+                        state: MemoryState::UnusedInPool,
+                        name: String::new(),
+                        type_name: String::new(),
+                        created: created.clone(),
+                        declared: None,
+                        released: None,
+                    };
+                    d.ranges.insert(
+                        cursor,
+                        Range {
+                            end: key,
+                            current: empty,
+                            previous: None,
+                        },
+                    );
+                }
+                cursor = cursor.max(d.ranges[&key].end);
+            }
+            if cursor < end {
+                let empty = DebugDiag {
+                    start: cursor,
+                    size: end - cursor,
+                    id: 0,
+                    owner,
+                    state: MemoryState::UnusedInPool,
+                    name: String::new(),
+                    type_name: String::new(),
+                    created: created.clone(),
+                    declared: None,
+                    released: None,
+                };
+                d.ranges.insert(
+                    cursor,
+                    Range {
+                        end,
+                        current: empty,
+                        previous: None,
+                    },
+                );
+            }
+        }
+        d.next_id += 1;
+        let mut current = origin.unwrap_or_else(|| DebugDiag {
+            start,
+            size,
+            id: d.next_id,
+            owner,
+            state: MemoryState::Live,
+            name: String::new(),
+            type_name: String::new(),
+            created,
+            declared: None,
+            released: None,
+        });
+        current.start = start;
+        current.size = size;
+        current.owner = owner;
+        current.state = MemoryState::Live;
+        current.released = None;
+        d.replace(
+            start,
+            start
+                .checked_add(size.max(1))
+                .expect("allocation range overflow"),
+            current,
+        );
+    });
+}
+
+pub(crate) fn freed(start: usize) {
+    let site = current_location();
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        d.edit_allocation(start, |a| {
+            a.state = MemoryState::Freed;
+            a.released = Some(site.clone());
+        });
+    });
+}
+
+pub(crate) fn retired(owner: usize, site: Location) {
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        if let Some(a) = d.arenas.get_mut(&owner) {
+            a.released = Some(site.clone());
+        }
+        for r in d.ranges.values_mut().filter(|r| r.current.owner == owner) {
+            r.current.state = MemoryState::UnusedInPool;
+            if r.current.released.is_none() {
+                r.current.released = Some(site.clone());
+            }
+        }
+    });
+}
+
+pub(crate) fn grown(
+    owner: usize,
+    old: usize,
+    new: usize,
+    size: usize,
+    pages: &[(usize, usize, usize)],
+) {
+    let origin = DIAG.with(|d| d.borrow().ranges.get(&old).map(|r| r.current.clone()));
+    if old != new {
+        freed(old);
+    }
+    track(owner, new, size, pages, origin);
+}
+
+pub(super) fn label(
+    address: usize,
+    name: String,
+    type_name: String,
+    site: Location,
+    declaration: bool,
+) {
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        d.edit_allocation(address, |a| {
+            // An alias cannot rename the original declaration or the concrete allocation type.
+            if a.name.is_empty() && !name.is_empty() {
+                a.name = name.clone();
+                a.declared = Some(site.clone());
+            }
+            if a.type_name.is_empty() {
+                a.type_name = type_name.clone();
+            }
+            if !declaration && a.created.path.is_empty() {
+                a.created = site.clone();
+            }
+        });
+    });
+}
+
+pub(super) struct Failure {
+    pub current: DebugDiag,
+    pub previous: Option<DebugDiag>,
+}
+
+pub(super) fn failure(start: usize, size: usize, owner: usize) -> Option<Failure> {
+    // shortcut: raw pointers cannot identify reused live bytes; that requires a pointer ABI change.
+    if size == 0 {
+        return None;
+    }
+    DIAG.with(|d| {
+        let d = d.borrow();
+        let end = start.checked_add(size);
+        let keys = d.overlaps(start, end.unwrap_or(usize::MAX));
+        let mut cursor = start;
+        let mut allocation = None;
+        let mut first = None;
+        for key in keys {
+            let r = &d.ranges[&key];
+            first.get_or_insert(r);
+            let valid = key <= cursor
+                && end.is_some()
+                && r.current.state == MemoryState::Live
+                && (r.current.size != 0 || owner != 0)
+                && (owner == 0 || r.current.owner == owner)
+                && (owner == 0 || d.arenas.get(&owner).is_none_or(|a| a.released.is_none()))
+                && allocation.is_none_or(|id| id == r.current.id);
+            if !valid {
+                return Some(Failure {
+                    current: r.current.clone(),
+                    previous: r.previous.clone(),
+                });
+            }
+            allocation = Some(r.current.id);
+            cursor = r.end;
+            if cursor >= end.unwrap() {
+                return None;
+            }
+        }
+        if let Some(r) = first {
+            return Some(Failure {
+                current: r.current.clone(),
+                previous: r.previous.clone(),
+            });
+        }
+        if start == 0
+            || end.is_none()
+            || (owner != 0 && d.arenas.get(&owner).is_some_and(|a| a.released.is_some()))
+        {
+            return Some(Failure {
+                current: DebugDiag {
+                    start,
+                    size,
+                    id: 0,
+                    owner,
+                    state: MemoryState::UnusedInPool,
+                    name: String::new(),
+                    type_name: String::new(),
+                    created: Location::default(),
+                    declared: None,
+                    released: d.arenas.get(&owner).and_then(|a| a.released.clone()),
+                },
+                previous: None,
+            });
+        }
+        None // Stack and program constants have no arena allocation record.
+    })
+}
+
+fn report(
+    start: usize,
+    size: usize,
+    op: &str,
+    site: &Location,
+    failure: &Failure,
+    expected: usize,
+) -> String {
+    use fmt::Write;
+    let a = &failure.current;
+    let mut out = format!("Bork DebugDiag: invalid {op} at 0x{start:x}, size {size}, state {:?}\n  access: {site}\n  allocation #{} at 0x{:x}, size {}, arena #{} (handle arena #{expected})\n  name: {}\n  type: {}\n  created: {}\n", a.state, a.id, a.start, a.size, a.owner, a.name, a.type_name, a.created);
+    if let Some(s) = &a.declared {
+        let _ = writeln!(out, "  declared: {s}");
+    }
+    if let Some(s) = &a.released {
+        let _ = writeln!(out, "  released: {s}");
+    }
+    if let Some(p) = &failure.previous {
+        let _ = writeln!(out, "  previous occupancy (history): allocation #{}, arena #{}, {}: {}, created: {}, released: {}", p.id, p.owner, p.name, p.type_name, p.created, p.released.as_ref().unwrap_or(&p.created));
+    }
+    DIAG.with(|d| {
+        let d = d.borrow();
+        let _ = writeln!(out, "  Bork call stack:");
+        for f in d.stack.iter().rev() {
+            let _ = writeln!(out, "    {} at {}", f.name, f.site);
+        }
+        let _ = writeln!(out, "  arena chain:");
+        let mut id = if expected == 0 { a.owner } else { expected };
+        while id != 0 {
+            if let Some(arena) = d.arenas.get(&id) {
+                let _ = writeln!(out, "    arena #{id}, created: {}", arena.created);
+                id = arena.parent;
+            } else {
+                let _ = writeln!(out, "    arena #{id}");
+                break;
+            }
+        }
+    });
+    out
+}
+
+pub(crate) fn check(address: usize, size: usize, write: bool) {
+    check_at(
+        address,
+        size,
+        if write { "write" } else { "read" },
+        current_location(),
+        0,
+    );
+}
+
+fn check_at(address: usize, size: usize, op: &str, site: Location, owner: usize) {
+    if let Some(f) = failure(address, size, owner) {
+        let _ = std::io::stderr()
+            .lock()
+            .write_all(report(address, size, op, &site, &f, owner).as_bytes());
+        std::process::abort();
+    }
+}
+
+pub(crate) fn check_handle(owner: usize, address: usize) {
+    check_at(address, 1, "handle access", current_location(), owner);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bork_debug_check(
+    address: *const c_void,
+    size: usize,
+    operation: u8,
+    site: *const SourceLocation,
+) {
+    check_at(
+        address as usize,
+        size,
+        if operation == 0 { "read" } else { "write" },
+        location(site),
+        0,
+    );
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bork_debug_check_handle(
+    owner: *const c_void,
+    address: *const c_void,
+    site: *const SourceLocation,
+) {
+    check_at(
+        address as usize,
+        1,
+        "handle access",
+        location(site),
+        owner as usize,
+    );
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bork_debug_site(site: *const SourceLocation) {
+    let site = location(site);
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        if let Some(frame) = d.stack.last_mut() {
+            frame.site = site;
+        } else {
+            d.site = site;
+        }
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bork_debug_frame_enter(name: *const c_char, site: *const SourceLocation) {
+    let frame = Frame {
+        name: string(name),
+        site: location(site),
+    };
+    DIAG.with(|d| d.borrow_mut().stack.push(frame));
+}
+
+#[no_mangle]
+pub extern "C" fn bork_debug_frame_exit() {
+    DIAG.with(|d| {
+        d.borrow_mut().stack.pop();
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bork_debug_label_allocation(
+    address: *const c_void,
+    name: *const c_char,
+    type_name: *const c_char,
+    site: *const SourceLocation,
+    declaration: u8,
+) {
+    label(
+        address as usize,
+        string(name),
+        string(type_name),
+        location(site),
+        declaration != 0,
+    );
+}
+
+#[no_mangle]
+pub extern "C" fn bork_debug_copy_origin(source: *const c_void, destination: *const c_void) {
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        let origin = d.ranges.get(&(source as usize)).map(|r| r.current.clone());
+        if let Some(origin) = origin {
+            d.edit_allocation(destination as usize, |dest| {
+                dest.created = origin.created.clone();
+                dest.declared = origin.declared.clone();
+                dest.name = origin.name.clone();
+                dest.type_name = origin.type_name.clone();
+            });
+        }
+    });
+}

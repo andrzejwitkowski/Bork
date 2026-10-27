@@ -123,6 +123,7 @@ pub fn emit_function<'report, 'a, 'ctx>(
     if !cx.current_block_terminated() {
         emitter.build_fallthrough()?;
     }
+    emitter.debug_location(None);
     Ok(())
 }
 
@@ -130,6 +131,7 @@ pub(super) struct Slot<'ctx> {
     pub ptr: PointerValue<'ctx>,
     pub ty: TyId,
     pub home_arena: PointerValue<'ctx>,
+    pub declaration: crate::span::Span,
 }
 
 pub(super) struct FnEmitter<'s, 'report, 'a, 'ctx> {
@@ -350,6 +352,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.store_ref(ptr, home, stored)?;
         } else {
             self.cx.builder.build_store(ptr, stored)?;
+            let declaration = self.lookup(name).expect("assigned local exists").declaration;
+            self.cx.debug_declaration(stored, slot_ty, name, declaration, self.function.source)?;
             self.debug_label_ref_array(stored, slot_ty, name)?;
         }
         Ok(())
@@ -681,6 +685,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 ptr,
                 ty,
                 home_arena,
+                declaration: self.statement_span.unwrap_or(self.function.name_span),
             },
         );
         if self.cx.tcx.is_managed_ref(ty) {
@@ -688,6 +693,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
         self.debug_local(name, ty, ptr, home_arena, argument)?;
         if argument.is_none() {
+            self.cx.debug_value(value, ty, name, true)?;
             self.debug_label_ref_array(value, ty, name)?;
         }
         Ok(())

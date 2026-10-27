@@ -94,6 +94,7 @@ fn emit_module_impl<'ctx>(
     regions.finish().map_err(schedule_error)?;
     if let Some(debug) = &cx.debug {
         debug.builder.finalize();
+        debug::checks::instrument(&cx)?;
     }
     cx.module
         .verify()
@@ -303,7 +304,7 @@ mod tests {
         .unwrap();
         let ir = module.print_to_string().to_string();
         let return_line = ir.lines().find(|l| l.contains("ret i32")).unwrap();
-        let metadata = return_line.split("!dbg !").nth(1).unwrap();
+        let metadata = return_line.split("!dbg !").nth(1).unwrap().split(',').next().unwrap();
         assert!(
             ir.contains(&format!("!{metadata} = !DILocation(line: 3,")),
             "wrong return line: {ir}"

@@ -6,6 +6,8 @@ use std::slice;
 /// # Safety
 /// For `len > 0`, `ptr` must reference `len` readable bytes.
 unsafe fn bytes<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
+    #[cfg(feature = "debug-runtime")]
+    crate::arena::debug::diag::check(ptr as usize, len, false);
     if len == 0 {
         &[]
     } else {

@@ -54,9 +54,21 @@ pub fn check(source: &str) -> CheckResult {
         }
     };
 
+    let user_functions = program.functions.len();
+    let user_enums = program.enums.len();
     crate::prelude::add_prelude(&mut program, source, node_index.len() as u32);
-    let typeck::Typeck { hir, node_tys, members, option_if_vals, diagnostics: mut type_diagnostics, tcx } =
+    let typeck::Typeck { mut hir, node_tys, members, option_if_vals, diagnostics: mut type_diagnostics, tcx } =
         typeck::check_with_members(&program);
+    for function in hir.functions.iter_mut().take(program.functions.len()).skip(user_functions) {
+        function.source = crate::prelude::source_file(&function.name);
+    }
+    for e in &program.enums[user_enums..] {
+        if let Some(hir_enum) = hir.enums.iter_mut().find(|h| h.name == e.name.name) {
+            for field in hir_enum.variants.iter_mut().flat_map(|v| &mut v.fields) {
+                field.source = crate::prelude::source_file(&e.name.name);
+            }
+        }
+    }
     let (mut report, ownership_errors) =
         crate::sema::analyze_with_members(&program, node_tys, members.clone(), option_if_vals, &tcx);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();

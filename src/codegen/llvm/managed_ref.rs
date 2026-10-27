@@ -186,6 +186,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .basic()
                 .expect("bork_arena_alloc returns a pointer")
                 .into_pointer_value();
+            self.cx.debug_allocation(object, "", class_name, false)?;
 
             for (index, (field, value)) in fields.iter().zip(values).enumerate() {
                 let slot =
@@ -193,7 +194,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                         .builder
                         .build_struct_gep(record, object, index as u32, "field")?;
                 let label = format!("{class_name}.{}", self.cx.class_field_name(class_name, index)?);
-                self.store_owned_field(arena, slot, field.ty, *value, &label, true)?;
+                let declaration = &self.cx.classes.iter().find(|c| c.name == class_name).unwrap().fields[index];
+                let (declaration, source) = (declaration.span, declaration.source);
+                self.store_owned_field(arena, slot, field.ty, *value, &label, declaration, source, true)?;
             }
 
             let handle = self.cx.object_handle_type().const_named_struct(&[]);
@@ -221,6 +224,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         field_ty: crate::ty::TyId,
         value: BasicValueEnum<'ctx>,
         label: &str,
+        declaration: crate::span::Span,
+        source: Option<&'static str>,
         register_drop: bool,
     ) -> Result<(), Diagnostic> {
         if self.cx.tcx.is_managed_ref(field_ty) {
@@ -240,6 +245,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         } else {
             let value = self.materialize_owned_value(value, field_ty, arena)?;
             self.cx.builder.build_store(slot, value)?;
+            self.cx.debug_declaration(value, field_ty, label, declaration, source)?;
             self.debug_label_ref_array(value, field_ty, label)?;
         }
         Ok(())
@@ -262,6 +268,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .enum_variant(enum_name, variant)
             .ok_or_else(|| not_yet_supported(&format!("enum variant `{enum_name}.{variant}`"), span))?;
         let labels: Vec<String> = variant_info.fields.iter().map(|f| format!("{enum_name}.{variant}.{}", f.name)).collect();
+        let declarations: Vec<_> = variant_info.fields.iter().map(|f| (f.span, f.source)).collect();
         let layout = self
             .cx
             .enum_layout(enum_name)
@@ -280,6 +287,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic()
             .expect("bork_arena_alloc returns a pointer")
             .into_pointer_value();
+        self.cx.debug_allocation(object, "", enum_name, false)?;
         let tag_slot = self.cx.builder.build_struct_gep(record, object, 0, "enum.tag")?;
         self.cx.builder.build_store(tag_slot, self.cx.context.i32_type().const_int(u64::from(tag), false))?;
         for (index, (ty, value)) in types.iter().zip(values).enumerate() {
@@ -287,7 +295,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 continue;
             }
             let slot = self.cx.builder.build_struct_gep(record, object, index as u32 + 1, "payload")?;
-            self.store_owned_field(arena, slot, *ty, *value, &labels[index], false)?;
+            self.store_owned_field(arena, slot, *ty, *value, &labels[index], declarations[index].0, declarations[index].1, false)?;
         }
         if let Some(drop_fn) = self.cx.enum_drops.get(enum_name) {
             self.cx.builder.build_call(
@@ -383,8 +391,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         } else {
             let stored = self.materialize_owned_value(stored, value.ty, owner)?;
             self.cx.builder.build_store(slot, stored)?;
-            let field_name = self.cx.class_field_name(class_name, field_index)?;
-            self.debug_label_ref_array(stored, value.ty, &format!("{class_name}.{field_name}"))?;
+            let declaration = &self.cx.classes.iter().find(|c| c.name == class_name).unwrap().fields[field_index];
+            let label = format!("{class_name}.{}", declaration.name);
+            self.cx.debug_declaration(stored, value.ty, &label, declaration.span, declaration.source)?;
+            self.debug_label_ref_array(stored, value.ty, &label)?;
         }
         Ok(())
     }
@@ -596,10 +606,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &self,
         object: StructValue<'ctx>,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
-        Ok(self
+        let pointer = self
             .cx
             .builder
             .build_extract_value(object, 1, "object.ptr")?
-            .into_pointer_value())
+            .into_pointer_value();
+        if self.cx.debug.is_some() {
+            let owner = self.object_control(object)?;
+            self.cx.debug_check_handle(owner, pointer)?;
+        }
+        Ok(pointer)
     }
 }

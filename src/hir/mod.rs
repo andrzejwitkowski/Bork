@@ -109,6 +109,9 @@ pub struct HirVariant {
 pub struct HirClassField {
     pub name: String,
     pub ty: TyId,
+    pub span: Span,
+    /// None denotes the user's input; prelude spans need their separate source file.
+    pub source: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,6 +120,8 @@ pub struct HirFunction {
     /// Type parameter names, owner class first; `TyData::Param(i)` refers to `generics[i]`.
     pub generics: Vec<String>,
     pub name_span: Span,
+    /// None denotes the user's input; prelude spans need their separate source file.
+    pub source: Option<&'static str>,
     pub params: Vec<HirParam>,
     pub return_ty: TyId,
     pub body: HirBlock,

@@ -1,13 +1,13 @@
 //! Source metadata and labels for the optional runtime debug registry.
+pub(super) mod checks;
+#[cfg(test)]
+mod diag_tests;
 mod hooks;
 mod scopes;
 mod types;
 
 use super::context::Codegen;
-use crate::{
-    hir::HirFunction,
-    span::Span,
-};
+use crate::{hir::HirFunction, span::Span};
 use inkwell::{
     debug_info::{
         AsDIScope, DIFile, DIFlags, DIFlagsConstants, DIScope, DIType, DWARFEmissionKind,
@@ -28,6 +28,13 @@ pub(super) struct DebugInfo<'ctx> {
     path: String,
     types: RefCell<HashMap<String, DIType<'ctx>>>,
     pub position: Cell<Span>,
+    active_source: Cell<Option<&'static str>>,
+    last_stamped: RefCell<
+        HashMap<inkwell::basic_block::BasicBlock<'ctx>, inkwell::values::InstructionValue<'ctx>>,
+    >,
+    function_spans: RefCell<HashMap<String, (Span, Option<&'static str>)>>,
+    locations:
+        RefCell<HashMap<(Option<&'static str>, usize, usize), inkwell::values::PointerValue<'ctx>>>,
 }
 
 impl<'ctx> DebugInfo<'ctx> {
@@ -74,11 +81,16 @@ impl<'ctx> DebugInfo<'ctx> {
             path: absolute.to_string_lossy().into_owned(),
             types: RefCell::new(HashMap::new()),
             position: Cell::new(Span::default()),
+            active_source: Cell::new(None),
+            last_stamped: RefCell::new(HashMap::new()),
+            function_spans: RefCell::new(HashMap::new()),
+            locations: RefCell::new(HashMap::new()),
         }
     }
 
     fn line_column(&self, span: Span) -> (u32, u32) {
-        let prefix = &self.source.as_bytes()[..span.start.min(self.source.len())];
+        let (_, source) = self.source_parts();
+        let prefix = &source.as_bytes()[..span.start.min(source.len())];
         let line = prefix.iter().filter(|&&b| b == b'\n').count() + 1;
         let col = prefix
             .iter()
@@ -87,23 +99,46 @@ impl<'ctx> DebugInfo<'ctx> {
         (line as u32, col as u32)
     }
 
+    fn source_parts(&self) -> (&str, &str) {
+        self.active_source
+            .get()
+            .map_or((&*self.path, &*self.source), |path| {
+                (path, crate::prelude::source_text(path))
+            })
+    }
+
+    fn source_file(&self) -> DIFile<'ctx> {
+        match self.active_source.get() {
+            None => self.file,
+            Some(path) => {
+                let path = Path::new(path);
+                self.builder.create_file(
+                    &path.file_name().unwrap().to_string_lossy(),
+                    &path.parent().unwrap().to_string_lossy(),
+                )
+            }
+        }
+    }
+
     pub fn function(
         &self,
         cx: &Codegen<'ctx>,
         function: &HirFunction,
         llvm: inkwell::values::FunctionValue<'ctx>,
     ) -> DIScope<'ctx> {
+        self.active_source.set(function.source);
+        let file = self.source_file();
         let (line, _) = self.line_column(function.name_span);
         let params: Vec<_> = function.params.iter().map(|p| self.ty(cx, p.ty)).collect();
         let result = (function.return_ty != cx.unit_ty()).then(|| self.ty(cx, function.return_ty));
         let sig = self
             .builder
-            .create_subroutine_type(self.file, result, &params, DIFlags::PUBLIC);
+            .create_subroutine_type(file, result, &params, DIFlags::PUBLIC);
         let sub = self.builder.create_function(
-            self.file.as_debug_info_scope(),
+            file.as_debug_info_scope(),
             &function.name,
             None,
-            self.file,
+            file,
             line,
             sig,
             function.name != "main",
@@ -114,6 +149,10 @@ impl<'ctx> DebugInfo<'ctx> {
         );
         llvm.set_subprogram(sub);
         self.position.set(function.name_span);
+        self.function_spans.borrow_mut().insert(
+            llvm.get_name().to_string_lossy().into_owned(),
+            (function.name_span, function.source),
+        );
         sub.as_debug_info_scope()
     }
 }

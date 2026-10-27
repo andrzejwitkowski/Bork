@@ -178,11 +178,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .enum_layout(&name)
             .and_then(|layout| layout.variants.get(index).copied())
             .ok_or_else(|| not_yet_supported(&format!("enum `{name}`"), Some(pat.span)))?;
-        let object = self
-            .cx
-            .builder
-            .build_extract_value(value.into_struct_value(), 1, "enum.ptr")?
-            .into_pointer_value();
+        let object = self.object_pointer(value.into_struct_value())?;
         Ok((record, object))
     }
 

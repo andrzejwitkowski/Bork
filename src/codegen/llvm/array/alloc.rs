@@ -39,7 +39,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         values: &[BasicValueEnum<'ctx>],
         elem_ty: TyId,
-        _array_ty: TyId,
+        array_ty: TyId,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let count = values.len();
         let (_, stride, align) = self.elem_storage(elem_ty)?;
@@ -53,6 +53,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let base = self.arena_alloc(arena, byte_len, align)?;
+        cx.debug_allocation(base, "", &cx.tcx.display(array_ty).to_string(), false)?;
         for (index, value) in values.iter().enumerate() {
             let slot = self.elem_ptr(base, index, stride)?;
             if self.cx.tcx.is_managed_ref(elem_ty) {
@@ -88,6 +89,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let dst_base = self.arena_alloc(arena, byte_len, align)?;
+        self.cx.debug_copy_origin(base, dst_base)?;
         if self.cx.tcx.is_string(elem_ty) || self.cx.tcx.is_managed_ref(elem_ty) {
             let zero = self.cx.context.i64_type().const_int(0, false);
             let one = self.cx.context.i64_type().const_int(1, false);

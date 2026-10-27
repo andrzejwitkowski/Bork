@@ -10,6 +10,7 @@
 use crate::ast::Program;
 
 struct Chunk {
+    path: &'static str,
     /// Names that pull the chunk in, and that a user definition of the same name suppresses.
     names: &'static [&'static str],
     /// Chunks whose names this one uses.
@@ -20,10 +21,18 @@ struct Chunk {
 const OPTION: usize = 0;
 
 const CHUNKS: [Chunk; 3] = [
-    Chunk { names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
-    Chunk { names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
-    Chunk { names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
+    Chunk { path: concat!(env!("CARGO_MANIFEST_DIR"), "/src/prelude/option.bork"), names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
+    Chunk { path: concat!(env!("CARGO_MANIFEST_DIR"), "/src/prelude/result.bork"), names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
+    Chunk { path: concat!(env!("CARGO_MANIFEST_DIR"), "/src/prelude/option_conv.bork"), names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
 ];
+
+pub(crate) fn source_file(name: &str) -> Option<&'static str> {
+    CHUNKS.iter().find(|c| c.names.contains(&name)).map(|c| c.path)
+}
+
+pub(crate) fn source_text(path: &str) -> &'static str {
+    CHUNKS.iter().find(|c| c.path == path).expect("prelude source file").source
+}
 
 fn defines(program: &Program, name: &str) -> bool {
     program.classes.iter().any(|c| c.name == name)

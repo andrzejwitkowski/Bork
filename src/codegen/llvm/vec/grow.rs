@@ -59,6 +59,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
         self.cx.builder.position_at_end(fresh);
         let first = self.arena_alloc(arena, new_bytes, align)?;
+        self.cx.debug_copy_origin(header, first)?;
         self.cx.builder.build_unconditional_branch(joined)?;
 
         self.cx.builder.position_at_end(moved);

@@ -486,7 +486,7 @@ impl<'a> Collector<'a> {
                 self.diagnostics.push(error(message, None));
             }
             class_instances(tcx, field_ty, seen, pending);
-            out.push(HirClassField { name: field.name.clone(), ty: field_ty });
+            out.push(HirClassField { name: field.name.clone(), ty: field_ty, span: field.span, source: field.source });
         }
         out
     }

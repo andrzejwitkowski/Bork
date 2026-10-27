@@ -120,6 +120,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .basic()
             .expect("bork_arena_alloc returns a pointer")
             .into_pointer_value();
+        cx.debug_allocation(dst, "", "String", false)?;
         builder
             .build_memcpy(dst, 1, src, 1, count)
             .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;

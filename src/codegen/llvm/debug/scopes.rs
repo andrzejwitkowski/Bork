@@ -11,6 +11,35 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let Some(debug) = &self.cx.debug else {
             return;
         };
+        // DWARF's line/column cannot distinguish nested spans with the same starting byte.
+        if let Some(function) = self
+            .cx
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_parent())
+        {
+            let old = debug.position.get();
+            let word = self.cx.context.i64_type();
+            let metadata = self.cx.context.metadata_node(&[
+                word.const_int(old.start as u64, false).into(),
+                word.const_int(old.end as u64, false).into(),
+            ]);
+            let kind = self.cx.context.get_kind_id("bork.span");
+            let mut stamped = debug.last_stamped.borrow_mut();
+            for block in function.get_basic_blocks() {
+                let mut next = match stamped.get(&block) {
+                    Some(last) => last.get_next_instruction(),
+                    None => block.get_first_instruction(),
+                };
+                while let Some(instruction) = next {
+                    instruction
+                        .set_metadata(metadata, kind)
+                        .expect("span metadata node");
+                    stamped.insert(block, instruction);
+                    next = instruction.get_next_instruction();
+                }
+            }
+        }
         if let Some(span) = span {
             debug.position.set(span);
         }
@@ -36,7 +65,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let (line, col) = debug.line_column(debug.position.get());
             debug
                 .builder
-                .create_lexical_block(self.debug_scopes.last().unwrap().0, debug.file, line, col)
+                .create_lexical_block(
+                    self.debug_scopes.last().unwrap().0,
+                    debug.source_file(),
+                    line,
+                    col,
+                )
                 .as_debug_info_scope()
         });
         let f = self.cx.runtime_fn("bork_debug_scope_enter", || {
@@ -103,7 +137,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 scope,
                 name,
                 i,
-                debug.file,
+                debug.source_file(),
                 line,
                 debug.ty(self.cx, ty),
                 true,
@@ -112,7 +146,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             None => debug.builder.create_auto_variable(
                 scope,
                 name,
-                debug.file,
+                debug.source_file(),
                 line,
                 debug.ty(self.cx, ty),
                 true,
