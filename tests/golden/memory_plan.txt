@@ -87,6 +87,13 @@ programs/build/enums/return_hoisted_object.bork: 612..615 Box Lexical LexicalSco
 programs/build/enums/return_hoisted_object.bork: 616..617 N Lexical LexicalScope(4)
 programs/build/enums/return_hoisted_object.bork: 638..641 Box Lexical LexicalScope(4)
 programs/build/enums/return_hoisted_object.bork: 642..643 N Lexical LexicalScope(4)
+programs/build/enums/return_hoisted_via_call.bork: 168..169 B Lexical LexicalScope(0)
+programs/build/enums/return_hoisted_via_call.bork: 170..171 A Lexical LexicalScope(0)
+programs/build/enums/return_hoisted_via_call.bork: 188..189 B Lexical LexicalScope(0)
+programs/build/enums/return_hoisted_via_call.bork: 190..191 A Lexical LexicalScope(0)
+programs/build/enums/return_hoisted_via_call.bork: 252..253 B Lexical LexicalScope(1)
+programs/build/enums/return_hoisted_via_call.bork: 304..305 A Dynamic Program
+programs/build/enums/return_hoisted_via_call.bork: 339..340 C Lexical LexicalScope(2)
 programs/build/enums/return_nested_hoisted_object.bork: 171..174 Box Lexical LexicalScope(0)
 programs/build/enums/return_nested_hoisted_object.bork: 175..176 N Lexical LexicalScope(0)
 programs/build/enums/return_nested_hoisted_object.bork: 193..196 Box Lexical LexicalScope(0)
@@ -231,6 +238,13 @@ programs/build/vec/ref_weak_expires.bork: 516..520 Node Dynamic Program
 programs/build/vec/ref_weak_expires.bork: 541..545 Node Dynamic Program
 programs/build/vec/ref_weak_expires.bork: 566..570 Node Dynamic Program
 programs/build/vec/ref_weak_expires.bork: 591..595 Node Dynamic Program
+programs/build/vec/return_vec_of_linked_refs.bork: 238..239 B Lexical LexicalScope(0)
+programs/build/vec/return_vec_of_linked_refs.bork: 240..241 A Dynamic LexicalScope(0)
+programs/build/vec/return_vec_of_linked_refs.bork: 258..259 B Lexical LexicalScope(0)
+programs/build/vec/return_vec_of_linked_refs.bork: 260..261 A Dynamic LexicalScope(0)
+programs/build/vec/return_vec_of_linked_refs.bork: 387..388 A Dynamic Program
+programs/build/vec/return_vec_of_linked_refs.bork: 421..422 B Dynamic Program
+programs/build/vec/return_vec_of_linked_refs.bork: 479..482 Bag Lexical LexicalScope(1)
 programs/build/vec/with_capacity.bork: 1645..1649 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1669..1673 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1693..1697 Node Dynamic Program

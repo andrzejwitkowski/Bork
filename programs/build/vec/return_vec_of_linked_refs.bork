@@ -1,0 +1,43 @@
+// exit: 0
+// stdout: 60\n
+// A Vec of Refs filled in a loop and returned inside an object: the Refs keep their targets alive.
+class A { n: i32 }
+class B { a: Ref<A> }
+class Bag { items: Vec<Ref<B>> }
+fun churn(k: i32): i32 {
+    val x = B(A(k))
+    val y = B(A(k + 1))
+    return k
+}
+fun make(): Bag {
+    var v = Vec<Ref<B>>()
+    var i = 0
+    while (i < 5) {
+        val a: Ref<A> = A(i + 10)
+        val b: Ref<B> = B(a)
+        v.push(b)
+        i = i + 1
+    }
+    return Bag(v)
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    var total = 0
+    var j = 0
+    while (j < 5) {
+        val got = r.items.get(j)
+        if val b = got {
+            if val a = b.a {
+                total = total + a.n
+            }
+        }
+        j = j + 1
+    }
+    println(total)
+    return 0
+}

@@ -466,6 +466,22 @@ Arenas
     │   └── i [Copy]
     └── MatchArm
         └── n [Borrow ← pattern binding]
+== programs/build/enums/return_hoisted_via_call.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun mk
+│   └── a [Local]
+├── fun make
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_nested_hoisted_object.bork
 Arenas
 ├── fun churn
@@ -1811,6 +1827,36 @@ Arenas
             └── IfValSome
                 ├── node [Borrow ← presence guard]
                 └── alive [Copy]
+== programs/build/vec/return_vec_of_linked_refs.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make
+│   ├── v [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── a [Local]
+│       ├── b [Local]
+│       ├── i [Copy]
+│       └── v [Borrow ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── j [Local]
+    ├── WhileLoop
+    │   └── i [Copy]
+    └── WhileLoop
+        ├── got [Local]
+        ├── r [Shared ← fun main]
+        ├── j [Copy]
+        └── IfValSome
+            ├── b [Borrow ← presence guard]
+            └── IfValSome
+                ├── a [Borrow ← presence guard]
+                └── total [Copy]
 == programs/build/vec/strings.bork
 Arenas
 └── fun main

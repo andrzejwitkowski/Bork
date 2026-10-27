@@ -1,0 +1,27 @@
+// exit: 0
+// stdout: 42\n
+// `b` comes from a call that stores `a`; both must outlive `make`.
+class A { n: i32 }
+class B { a: A }
+fun churn(k: i32): i32 {
+    val x = B(A(k))
+    val y = B(A(k + 1))
+    return x.a.n + y.a.n
+}
+fun mk(a: A): B { return B(a) }
+class C { b: B }
+fun make(): C {
+    val a = A(42)
+    val b = mk(a)
+    return C(b)
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    println(r.b.a.n)
+    return 0
+}

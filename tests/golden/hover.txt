@@ -38,6 +38,7 @@ programs/build/enums/ref_payload.bork: hits=80 hash=8fef823bd09efbfd
 programs/build/enums/ref_to_enum.bork: hits=88 hash=111fa40ac75d305e
 programs/build/enums/return_hoisted_chain.bork: hits=24 hash=6cb617e41480377a
 programs/build/enums/return_hoisted_object.bork: hits=76 hash=51c1ada4a7fbaa54
+programs/build/enums/return_hoisted_via_call.bork: hits=26 hash=51c82452ced04f85
 programs/build/enums/return_nested_hoisted_object.bork: hits=22 hash=23b79e83ad60cce7
 programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
 programs/build/enums/unit_payload.bork: hits=110 hash=809165b17ece9bf2
@@ -126,6 +127,7 @@ programs/build/vec/ref_nodes.bork: hits=52 hash=ffcc863956c4e5f4
 programs/build/vec/ref_promote.bork: hits=71 hash=0e33d511037d488a
 programs/build/vec/ref_promote_strong.bork: hits=127 hash=14bcefaf30457cb8
 programs/build/vec/ref_weak_expires.bork: hits=180 hash=c4b25c52eaf3c31c
+programs/build/vec/return_vec_of_linked_refs.bork: hits=64 hash=b94ea82a72352d73
 programs/build/vec/strings.bork: hits=32 hash=f73312c73c823f7e
 programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
