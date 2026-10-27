@@ -1760,6 +1760,60 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/assign_option_from_block.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── o [Local]
+    ├── Block
+    ├── MatchArm
+    │   └── a [Borrow ← pattern binding]
+    └── MatchArm
+== programs/build/option/assign_option_in_loop.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── o [Local]
+    ├── i [Local]
+    ├── WhileLoop
+    │   └── i [Copy]
+    ├── MatchArm
+    │   └── a [Borrow ← pattern binding]
+    └── MatchArm
+== programs/build/option/assign_option_overwritten.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── o [Local]
+    ├── Block
+    ├── Block
+    ├── MatchArm
+    │   └── a [Borrow ← pattern binding]
+    └── MatchArm
 == programs/build/option/equality_cases_still_work.bork
 Arenas
 └── fun main
@@ -1909,6 +1963,332 @@ Arenas
     ├── MatchArm
     │   └── v [Local]
     └── MatchArm
+== programs/build/option/return_option_in_field.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun make
+└── fun main
+    └── h [Local]
+== programs/build/option/return_option_local_by_name.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun make
+│   └── o [Local]
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_none.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun make
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_elvis.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+│   └── o [Local]
+└── fun main
+    ├── none [Local]
+    └── o [Local]
+== programs/build/option/return_option_some_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun make
+│   ├── flag [Local]
+│   └── IfThen
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_in_enum_payload.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+└── fun main
+    ├── e [Local]
+    ├── MatchArm
+    │   ├── a [Borrow ← pattern binding]
+    │   ├── MatchArm
+    │   │   └── x [Borrow ← pattern binding]
+    │   └── MatchArm
+    └── MatchArm
+== programs/build/option/return_option_some_local.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+│   └── n [Local]
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_local_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+│   ├── flag [Local]
+│   └── IfThen
+│       └── n [Local]
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_local_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+│   ├── p [Local]
+│   └── r [Local]
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_object.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun make
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_param.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun wrap
+│   └── a [Local]
+└── fun main
+    └── o [Local]
+== programs/build/option/return_option_some_two_paths.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+│   ├── flag [Local]
+│   ├── keep [Local]
+│   └── IfThen
+│       └── keep [Shared ← fun make]
+└── fun main
+    ├── a [Local]
+    └── b [Local]
+== programs/build/option/return_option_some_with_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+└── fun main
+    └── o [Local]
 == programs/build/option/return_option_wrapped_object.bork
 Arenas
 ├── fun make
@@ -3345,29 +3725,6 @@ Arenas
 │       └── IfThen
 │           └── p [Shared ← WhileLoop]
 └── fun main
-== programs/check_fail/enums/return_option_of_object.bork
-Ownership Error [585..600] returning a `RA?` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
-Arenas
-├── fun churn
-│   ├── k [Local]
-│   ├── a [Local]
-│   ├── b [Local]
-│   ├── r [Local]
-│   └── c [Local]
-├── fun spin
-│   ├── i [Local]
-│   └── WhileLoop
-│       └── i [Copy]
-├── fun show
-│   ├── r [Borrow ← call site]
-│   └── IfValSome
-│       └── v [Borrow ← presence guard]
-├── fun make
-└── fun main
-    ├── a [Local]
-    ├── MatchArm
-    │   └── r [Borrow ← pattern binding]
-    └── MatchArm
 == programs/check_fail/enums/return_value_if_loop_local.bork
 Ownership Error [418..419] `p` is declared inside a loop, so it is freed on every iteration; declare it before the loop and return it from inside, or build the returned value outside the loop
 Arenas
@@ -3902,6 +4259,25 @@ Arenas
 │   └── s [Local]
 └── fun main
     └── s [Local]
+== programs/check_fail/option/assign_some_local_to_outer.bork
+Ownership Error [385..397] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── o [Local]
+    ├── Block
+    │   └── n [Moved ← Block]
+    ├── MatchArm
+    │   └── a [Borrow ← pattern binding]
+    └── MatchArm
 == programs/check_fail/option/if_val_option_needs_else.bork
 Type Error [237..238] presence matching requires Ref<T> or add an `else` branch explicitly, got i32?
 Arenas
@@ -3929,6 +4305,38 @@ Arenas
     ├── n [Local]
     ├── r [Local]
     └── o [Local]
+== programs/check_fail/option/return_some_loop_local.bork
+Ownership Error [659..666] `n` is declared inside a loop, so it is freed on every iteration; declare it before the loop and return it from inside, or build the returned value outside the loop
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── a [Borrow ← pattern binding]
+│   └── MatchArm
+├── fun showRA
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   ├── r [Borrow ← pattern binding]
+│   │   └── IfValSome
+│   │       └── v [Borrow ← presence guard]
+│   └── MatchArm
+├── fun make
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── n [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── n [Shared ← WhileLoop]
+└── fun main
 == programs/check_fail/option/t_to_option.bork
 Type Error [133..134] initializer for `o` has type i32, expected i32?
 Arenas

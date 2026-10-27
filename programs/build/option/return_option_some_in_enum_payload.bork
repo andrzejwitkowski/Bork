@@ -1,0 +1,47 @@
+// exit: 0
+// stdout: 20\n
+// Some(object) in an enum payload.
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b: A? = Some(A(P(k + 1)))
+    val c = A(P(k + 2))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(o: A?) {
+    when o {
+        Some(a) => { println(a.x.n) }
+        None => { println(0 - 1) }
+    }
+}
+class RA { x: Ref<P> }
+fun showRA(o: RA?) {
+    when o {
+        Some(r) => { if val v = r.x { println(v.n) } }
+        None => { println(0 - 1) }
+    }
+}
+enum E { Has(a: A?), Empty }
+fun make(): E { return E.Has(Some(A(P(20)))) }
+fun main(): i32 {
+    val e = make()
+    spin()
+    when e {
+        Has(a) => {
+            when a {
+                Some(x) => { println(x.x.n) }
+                None => { println(0) }
+            }
+        }
+        Empty => { println(0) }
+    }
+    return 0
+}

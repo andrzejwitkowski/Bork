@@ -1,0 +1,44 @@
+// exit: 0
+// stdout: 18\n19\n
+// Two paths: a local object and a fresh one, both in Some.
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b: A? = Some(A(P(k + 1)))
+    val c = A(P(k + 2))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(o: A?) {
+    when o {
+        Some(a) => { println(a.x.n) }
+        None => { println(0 - 1) }
+    }
+}
+class RA { x: Ref<P> }
+fun showRA(o: RA?) {
+    when o {
+        Some(r) => { if val v = r.x { println(v.n) } }
+        None => { println(0 - 1) }
+    }
+}
+fun make(flag: bool): A? {
+    val keep = A(P(18))
+    if (flag) { return Some(keep) }
+    return Some(A(P(19)))
+}
+fun main(): i32 {
+    val a = make(true)
+    val b = make(false)
+    spin()
+    show(a)
+    show(b)
+    return 0
+}
