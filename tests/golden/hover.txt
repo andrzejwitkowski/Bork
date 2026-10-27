@@ -87,6 +87,7 @@ programs/build/move_and_promote/regional_move.bork: hits=11 hash=cbc0ee523f69c05
 programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363eb2141308
 programs/build/move_and_promote/then_return_move_not_taken.bork: hits=19 hash=0d9ed2defcb669f1
 programs/build/move_and_promote/then_return_move_taken.bork: hits=19 hash=48237cebdc030fe1
+programs/build/option/nullable_moved_into_owner.bork: hits=62 hash=eacd4526ecb7c71b
 programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
 programs/build/option/nullable_when.bork: hits=98 hash=6bcd66b4bfac2309
 programs/build/option/option_conversions.bork: hits=134 hash=777e46b9b8b0c322

@@ -58,9 +58,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.alloc_sink = previous;
             return copied.map(Into::into);
         }
-        // A nullable value is an enum slot that already owns its payload (see `build_enum_slot`).
+        // A nullable value is an enum slot in some other arena; the owner gets its own copy (T01).
         if self.cx.tcx.is_nullable(field_ty) {
-            return Ok(value);
+            let previous = self.alloc_sink;
+            self.alloc_sink = Some(owner);
+            let copied = self.emit_nullable_copy(field_ty, value);
+            self.alloc_sink = previous;
+            return copied;
         }
         let inner = self.cx.tcx.base(field_ty);
         if !self.cx.tcx.is_string(inner) && !self.cx.tcx.is_array(inner) {
