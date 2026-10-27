@@ -470,6 +470,23 @@ Arenas
     ├── MatchArm
     │   └── x [Borrow ← pattern binding]
     └── MatchArm
+== programs/build/enums/user_option_not_generic.bork
+Arenas
+└── fun main
+    ├── o [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/build/enums/user_option_other_shape.bork
+Arenas
+└── fun main
+    ├── o [Local]
+    ├── e [Local]
+    ├── MatchArm
+    │   └── v [Local]
+    ├── MatchArm
+    ├── MatchArm
+    │   └── v [Local]
+    └── MatchArm
 == programs/build/enums/variants.bork
 Arenas
 └── fun main
@@ -2358,6 +2375,11 @@ Arenas
     ├── s [Local]
     ├── MatchArm
     └── MatchArm
+== programs/check_fail/enums/user_option_other_shape_nullable.bork
+Type Error [149..150] `T?` is `Option<T>`, but this program's own `Option` replaces the prelude one; give it `Some(value: T)` and `None`
+Arenas
+└── fun main
+    └── x [Local]
 == programs/check_fail/enums/when_arms_mismatch_in_initializer.bork
 Type Error [117..125] `when` arm has type bool, expected i32
 Arenas

@@ -1,0 +1,11 @@
+// exit: 0
+// A non-generic `Option` is an ordinary enum.
+enum Option { Empty, Full }
+
+fun main(): i32 {
+    val o = Option.Full
+    when o {
+        Empty => { return 1 }
+        Full => { return 0 }
+    }
+}

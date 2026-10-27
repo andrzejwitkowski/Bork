@@ -65,6 +65,8 @@ pub struct DefTable {
     defs: Vec<Def>,
     classes: HashMap<String, DefId>,
     enums: HashMap<String, DefId>,
+    /// The enum that is `T?`: named `Option`, one parameter, `Some(value)` and a payload-free `None`.
+    option: Option<DefId>,
     variants: HashMap<(DefId, String), DefId>,
     fns: HashMap<String, DefId>,
     consts: HashMap<String, DefId>,
@@ -77,6 +79,11 @@ pub struct DefTable {
     enum_ids: Vec<DefId>,
     variant_ids: Vec<Vec<DefId>>,
     method_ids: Vec<Vec<DefId>>,
+}
+
+fn is_option_shaped(e: &crate::ast::Enum) -> bool {
+    let arity = |name: &str| e.variants.iter().find(|v| v.name.name == name).map(|v| v.fields.len());
+    e.generics.len() == 1 && e.variants.len() == 2 && arity("Some") == Some(1) && arity("None") == Some(0)
 }
 
 impl DefTable {
@@ -153,6 +160,9 @@ impl DefTable {
                 self.defs[id.0 as usize].clashes.push(Clash::EnumConflict);
             } else {
                 self.enums.insert(name.clone(), id);
+                if name == "Option" && is_option_shaped(e) {
+                    self.option = Some(id);
+                }
             }
             self.defs[id.0 as usize].arity = e.generics.len();
             self.enum_ids.push(id);
@@ -226,6 +236,11 @@ impl DefTable {
 
     pub fn get(&self, id: DefId) -> &Def {
         &self.defs[id.0 as usize]
+    }
+
+    /// The enum `T?` stands for. A program that defines its own `Option` of another shape has none.
+    pub fn lookup_option(&self) -> Option<DefId> {
+        self.option
     }
 
     pub fn lookup_enum(&self, name: &str) -> Option<DefId> {

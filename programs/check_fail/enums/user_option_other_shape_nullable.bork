@@ -1,0 +1,7 @@
+// diag: `T?` is `Option<T>`, but this program's own `Option` replaces the prelude one
+enum Option<T> { Other(value: T) }
+
+fun main(): i32 {
+    val x: i32? = None
+    return 0
+}

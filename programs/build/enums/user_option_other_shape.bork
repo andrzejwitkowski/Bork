@@ -1,0 +1,18 @@
+// exit: 0
+// stdout: 5\n1\n
+// A user `Option` of another shape wins over the prelude's and is an ordinary enum; `T?` is not available then.
+enum Option<T> { Other(value: T), Empty }
+
+fun main(): i32 {
+    val o: Option<i32> = Option.Other(5)
+    when o {
+        Other(v) => { println(v) }
+        Empty => { println(0) }
+    }
+    val e: Option<i32> = Option.Empty
+    when e {
+        Other(v) => { println(0) }
+        Empty => { println(1) }
+    }
+    return 0
+}

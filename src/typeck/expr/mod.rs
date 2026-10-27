@@ -210,6 +210,11 @@ fn check_none(span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env
         return object::check_variant(e, "None", site, expected, env);
     }
     let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
+        // An expected type that is already an error was reported where it was written.
+        if expected.is_some_and(|ty| env.tcx.is_unknown(ty)) {
+            let unknown = env.tcx.error();
+            return env.expr_at(HirExprKind::None, unknown, span);
+        }
         env.error(
             "cannot infer type of `None`; add a type annotation, e.g. `val x: i32? = None`",
             Some(span),
