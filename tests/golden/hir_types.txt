@@ -306,6 +306,15 @@ programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool)
 programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
+programs/build/option/assign_option_from_block.bork::churn(k: i32) -> i32
+programs/build/option/assign_option_from_block.bork::spin() -> unit
+programs/build/option/assign_option_from_block.bork::main() -> i32
+programs/build/option/assign_option_in_loop.bork::churn(k: i32) -> i32
+programs/build/option/assign_option_in_loop.bork::spin() -> unit
+programs/build/option/assign_option_in_loop.bork::main() -> i32
+programs/build/option/assign_option_overwritten.bork::churn(k: i32) -> i32
+programs/build/option/assign_option_overwritten.bork::spin() -> unit
+programs/build/option/assign_option_overwritten.bork::main() -> i32
 programs/build/option/equality_cases_still_work.bork::main() -> i32
 programs/build/option/nested_option_returned.bork::make() -> Option<i32?>
 programs/build/option/nested_option_returned.bork::churn() -> unit
@@ -324,6 +333,79 @@ programs/build/option/option_result.bork::show(o: &i32?) -> i32
 programs/build/option/option_result.bork::parse(n: i32) -> Result<i32, String>
 programs/build/option/option_result.bork::main() -> i32
 programs/build/option/prelude_some_none_unshadowed.bork::main() -> i32
+programs/build/option/return_option_in_field.bork::churn(k: i32) -> i32
+programs/build/option/return_option_in_field.bork::spin() -> unit
+programs/build/option/return_option_in_field.bork::show(o: A?) -> unit
+programs/build/option/return_option_in_field.bork::make() -> Holder
+programs/build/option/return_option_in_field.bork::main() -> i32
+programs/build/option/return_option_local_by_name.bork::churn(k: i32) -> i32
+programs/build/option/return_option_local_by_name.bork::spin() -> unit
+programs/build/option/return_option_local_by_name.bork::show(o: A?) -> unit
+programs/build/option/return_option_local_by_name.bork::make() -> A?
+programs/build/option/return_option_local_by_name.bork::main() -> i32
+programs/build/option/return_option_none.bork::churn(k: i32) -> i32
+programs/build/option/return_option_none.bork::spin() -> unit
+programs/build/option/return_option_none.bork::show(o: A?) -> unit
+programs/build/option/return_option_none.bork::make() -> A?
+programs/build/option/return_option_none.bork::main() -> i32
+programs/build/option/return_option_some_elvis.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_elvis.bork::spin() -> unit
+programs/build/option/return_option_some_elvis.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_elvis.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_elvis.bork::make(o: A?) -> A?
+programs/build/option/return_option_some_elvis.bork::main() -> i32
+programs/build/option/return_option_some_in_branch.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_in_branch.bork::spin() -> unit
+programs/build/option/return_option_some_in_branch.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_in_branch.bork::make(flag: bool) -> A?
+programs/build/option/return_option_some_in_branch.bork::main() -> i32
+programs/build/option/return_option_some_in_enum_payload.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_in_enum_payload.bork::spin() -> unit
+programs/build/option/return_option_some_in_enum_payload.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_in_enum_payload.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_in_enum_payload.bork::make() -> E
+programs/build/option/return_option_some_in_enum_payload.bork::main() -> i32
+programs/build/option/return_option_some_local.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_local.bork::spin() -> unit
+programs/build/option/return_option_some_local.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_local.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_local.bork::make() -> A?
+programs/build/option/return_option_some_local.bork::main() -> i32
+programs/build/option/return_option_some_local_in_branch.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_local_in_branch.bork::spin() -> unit
+programs/build/option/return_option_some_local_in_branch.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_local_in_branch.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_local_in_branch.bork::make(flag: bool) -> A?
+programs/build/option/return_option_some_local_in_branch.bork::main() -> i32
+programs/build/option/return_option_some_local_ref.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_local_ref.bork::spin() -> unit
+programs/build/option/return_option_some_local_ref.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_local_ref.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_local_ref.bork::make() -> RA?
+programs/build/option/return_option_some_local_ref.bork::main() -> i32
+programs/build/option/return_option_some_object.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_object.bork::spin() -> unit
+programs/build/option/return_option_some_object.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_object.bork::make() -> A?
+programs/build/option/return_option_some_object.bork::main() -> i32
+programs/build/option/return_option_some_param.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_param.bork::spin() -> unit
+programs/build/option/return_option_some_param.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_param.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_param.bork::wrap(a: A) -> A?
+programs/build/option/return_option_some_param.bork::main() -> i32
+programs/build/option/return_option_some_two_paths.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_two_paths.bork::spin() -> unit
+programs/build/option/return_option_some_two_paths.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_two_paths.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_two_paths.bork::make(flag: bool) -> A?
+programs/build/option/return_option_some_two_paths.bork::main() -> i32
+programs/build/option/return_option_some_with_ref.bork::churn(k: i32) -> i32
+programs/build/option/return_option_some_with_ref.bork::spin() -> unit
+programs/build/option/return_option_some_with_ref.bork::show(o: A?) -> unit
+programs/build/option/return_option_some_with_ref.bork::showRA(o: RA?) -> unit
+programs/build/option/return_option_some_with_ref.bork::make() -> RA?
+programs/build/option/return_option_some_with_ref.bork::main() -> i32
 programs/build/option/return_option_wrapped_object.bork::make() -> Box
 programs/build/option/return_option_wrapped_object.bork::churn(k: i32) -> i32
 programs/build/option/return_option_wrapped_object.bork::main() -> i32

@@ -493,7 +493,9 @@ impl<'h> Escape<'h, '_> {
             } => self.place(inner, None),
             // A `T?` is `Option<T>`, but for escape it stays transparent as `Some(e)` always was:
             // codegen copies a returned value into the caller's sink arena at the return.
-            HirExprKind::EnumConstruct { fields, .. } if self.tcx.is_nullable(expr.ty) => {
+            HirExprKind::EnumConstruct { fields, .. }
+                if self.tcx.is_nullable(expr.ty) && !fields.iter().any(|f| crate::hoist::holds_object(self.tcx, f.ty)) =>
+            {
                 fields.iter().map(|field| self.place(field, None)).max().unwrap_or(0)
             }
             HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {

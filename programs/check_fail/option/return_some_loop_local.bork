@@ -1,0 +1,42 @@
+// diag: is declared inside a loop
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b: A? = Some(A(P(k + 1)))
+    val c = A(P(k + 2))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(o: A?) {
+    when o {
+        Some(a) => { println(a.x.n) }
+        None => { println(0 - 1) }
+    }
+}
+class RA { x: Ref<P> }
+fun showRA(o: RA?) {
+    when o {
+        Some(r) => { if val v = r.x { println(v.n) } }
+        None => { println(0 - 1) }
+    }
+}
+fun make(): A? {
+    var i = 0
+    while (i < 5) {
+        val n = A(P(i))
+        if (i == 2) { return Some(n) }
+        i = i + 1
+    }
+    return None
+}
+fun main(): i32 {
+    show(make())
+    return 0
+}

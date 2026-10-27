@@ -1,0 +1,35 @@
+// exit: 0
+// stdout: 7\n
+// The same in a branch.
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b: A? = Some(A(P(k + 1)))
+    val c = A(P(k + 2))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(o: A?) {
+    when o {
+        Some(a) => { println(a.x.n) }
+        None => { println(0 - 1) }
+    }
+}
+
+fun make(flag: bool): A? {
+    if (flag) { return Some(A(P(7))) }
+    return None
+}
+fun main(): i32 {
+    val o = make(true)
+    spin()
+    show(o)
+    return 0
+}
