@@ -8,7 +8,8 @@ use crate::sema::peel_blocks;
 use crate::sema::policy::TransferSink;
 use crate::sema::region::{RegionFrame, RegionParam};
 use crate::sema::report::ArenaNode;
-use crate::ast::{BindingKind, Block, ConditionalBinding, Expr, Stmt};
+use crate::ast::{BindingKind, Block, ConditionalBinding, Expr, Pattern, Stmt};
+use crate::span::SpannedName;
 use std::collections::HashSet;
 
 pub(super) fn walk_if(
@@ -49,6 +50,10 @@ pub(super) fn walk_if_val(
 ) {
     walk(az, &bindings.head.value, node, None, record_borrow);
     let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    if let (true, Some(else_block)) = (az.option_if_vals.contains(&bindings.head.name.id), else_block) {
+        walk_arms(az, &[(then_block, vec![&bindings.head.name]), (else_block, Vec::new())], node, tail_transfer);
+        return;
+    }
     let (body, compacted) = peel_blocks(then_block);
     let mut frame = RegionFrame::new(az.alloc_id(), "IfValSome".into(), compacted);
     bind_presence_guard(az, &mut frame, &bindings.head);
@@ -73,8 +78,7 @@ pub(super) fn walk_if_val(
     join_branch_moves(&mut az.env, &[then_end, else_end]);
 }
 
-/// `when` over patterns: each arm is an ordinary region. Pattern bindings are not tracked here;
-/// ownership of matched payloads is #53's job.
+/// `when` over patterns: each arm is a region binding its pattern names.
 pub(super) fn walk_match(
     az: &mut Analyzer,
     scrutinee: &Expr,
@@ -85,14 +89,58 @@ pub(super) fn walk_match(
 ) {
     walk(az, scrutinee, node, None, record_borrow);
     let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
+    let arms: Vec<_> = arms
+        .iter()
+        .map(|arm| {
+            let mut names = Vec::new();
+            pattern_bindings(&arm.pat, &mut names);
+            (&arm.body, names)
+        })
+        .collect();
+    walk_arms(az, &arms, node, tail_transfer);
+}
+
+/// Walks `when` arms, each a `MatchArm` region that binds its pattern names.
+fn walk_arms(
+    az: &mut Analyzer,
+    arms: &[(&Block, Vec<&SpannedName>)],
+    node: &mut ArenaNode,
+    tail_transfer: Option<&TransferSink>,
+) {
     let before_moved = moved_names(&az.env);
     let mut ends = Vec::with_capacity(arms.len());
-    for arm in arms {
-        node.children.push(open_ordinary(az, "MatchArm", &arm.body, &[], tail_transfer));
-        ends.push(branch_end(az, &arm.body, &[]));
+    for (block, names) in arms {
+        let (body, compacted) = peel_blocks(*block);
+        let mut frame = RegionFrame::new(az.alloc_id(), "MatchArm".into(), compacted);
+        for name in names {
+            // A bare payload-free variant parses as a binding but typeck never types it.
+            let Some(ty) = az.node_tys.get(&name.id).cloned() else { continue };
+            frame.bind_param(
+                az,
+                &RegionParam {
+                    name: name.name.clone(),
+                    ty,
+                    kind: BindingKind::Val,
+                    span: Some(name.span),
+                    borrow_from: "pattern binding",
+                },
+            );
+        }
+        walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
+        ends.push(branch_end(az, *block, &frame.shadows));
+        node.children.push(frame.finish(az));
         restore_moved_flags(&mut az.env, &before_moved);
     }
     join_branch_moves(&mut az.env, &ends);
+}
+
+fn pattern_bindings<'a>(pat: &'a Pattern, out: &mut Vec<&'a SpannedName>) {
+    match pat {
+        Pattern::Binding(name) => out.push(name),
+        Pattern::Variant { args, .. } => args.iter().for_each(|arg| pattern_bindings(arg, out)),
+        Pattern::Some { inner, .. } => pattern_bindings(inner, out),
+        Pattern::Wildcard { .. } | Pattern::Literal { .. } | Pattern::None { .. } => {}
+    }
 }
 
 /// True when control never falls out of `block` (ends in `return`/`break`/`continue`, or in a

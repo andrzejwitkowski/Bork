@@ -87,6 +87,8 @@ pub(super) struct Analyzer {
     pub(super) loop_move_ban: Vec<HashSet<String>>,
     /// Member resolutions from typeck (bare fields, method calls).
     pub(super) members: crate::typeck::MemberResolutions,
+    /// Binding names of `if val`s over an `Option`, which typeck checked as a `when`.
+    pub(super) option_if_vals: HashSet<crate::span::AstId>,
 }
 
 impl Analyzer {
@@ -101,6 +103,7 @@ impl Analyzer {
             node_tys: HashMap::new(),
             loop_move_ban: Vec::new(),
             members: Default::default(),
+            option_if_vals: HashSet::new(),
         }
     }
 
