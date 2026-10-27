@@ -82,11 +82,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs_val: BasicValueEnum<'ctx>,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if matches!(
-            self.cx.tcx.data(expr.ty),
-            crate::ty::TyData::Prim(Prim::F32 | Prim::F64)
-        ) {
-            return self.combine_float_binary_values(op, lhs_val, rhs_val, expr);
+        let is_float = |ty| matches!(self.cx.tcx.data(ty), crate::ty::TyData::Prim(Prim::F32 | Prim::F64));
+        // A comparison's result is `bool`, so its operands decide.
+        let float_ty = [expr.ty, lhs.ty].into_iter().find(|&ty| is_float(ty));
+        if let Some(ty) = float_ty {
+            return self.combine_float_binary_values(op, lhs_val, rhs_val, ty, expr);
         }
         if let Some(predicate) = comparison(op) {
             let operand_ty = self.wider(lhs.ty, rhs.ty);
@@ -148,10 +148,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         op: &BinOp,
         lhs_val: BasicValueEnum<'ctx>,
         rhs_val: BasicValueEnum<'ctx>,
+        operand_ty: TyId,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let l = self.value_as_float(lhs_val, expr.ty, expr.span)?;
-        let r = self.value_as_float(rhs_val, expr.ty, expr.span)?;
+        let l = self.value_as_float(lhs_val, operand_ty, expr.span)?;
+        let r = self.value_as_float(rhs_val, operand_ty, expr.span)?;
         let builder = &self.cx.builder;
         Ok(match op {
             BinOp::Add => builder.build_float_add(l, r, "fadd")?.into(),

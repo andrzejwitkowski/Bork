@@ -47,6 +47,7 @@ programs/build/constants/string_and_scalars.bork::len(s: &String) -> i32
 programs/build/constants/string_and_scalars.bork::main() -> i32
 programs/build/enums/expr_eval.bork::eval(e: &Expr) -> i32
 programs/build/enums/expr_eval.bork::main() -> i32
+programs/build/enums/float_compare_payload.bork::main() -> i32
 programs/build/enums/generic_and_calls.bork::wrap(n: i32) -> Maybe<i32>
 programs/build/enums/generic_and_calls.bork::take(m: &Maybe<String>) -> unit
 programs/build/enums/generic_and_calls.bork::main() -> i32
@@ -188,6 +189,7 @@ programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool)
 programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
+programs/build/option/equality_cases_still_work.bork::main() -> i32
 programs/build/option/nested_option_returned.bork::make() -> Option<i32?>
 programs/build/option/nested_option_returned.bork::churn() -> unit
 programs/build/option/nested_option_returned.bork::main() -> i32

@@ -23,6 +23,7 @@ programs/build/enums/expr_eval.bork: 1101..1109 Expr Dynamic LexicalScope(10)
 programs/build/enums/expr_eval.bork: 1213..1221 Expr Dynamic LexicalScope(10)
 programs/build/enums/expr_eval.bork: 1272..1280 Expr Lexical LexicalScope(10)
 programs/build/enums/expr_eval.bork: 1300..1308 Expr Lexical LexicalScope(10)
+programs/build/enums/float_compare_payload.bork: 52..55 E Lexical LexicalScope(0)
 programs/build/enums/generic_and_calls.bork: 203..213 Maybe Lexical LexicalScope(0)
 programs/build/enums/generic_and_calls.bork: 318..328 Maybe Lexical LexicalScope(2)
 programs/build/enums/generic_and_calls.bork: 364..377 Maybe Lexical LexicalScope(2)
@@ -193,6 +194,10 @@ programs/build/methods/owning_return.bork: 172..177 Point Lexical LexicalScope(2
 programs/build/methods/owning_return.bork: 230..235 Point Dynamic Program
 programs/build/methods/same_name.bork: 242..243 A Dynamic Program
 programs/build/methods/same_name.bork: 258..259 B Dynamic Program
+programs/build/option/equality_cases_still_work.bork: 68..75 Option Lexical LexicalScope(0)
+programs/build/option/equality_cases_still_work.bork: 94..98 Option Lexical LexicalScope(0)
+programs/build/option/equality_cases_still_work.bork: 128..132 Option Lexical LexicalScope(0)
+programs/build/option/equality_cases_still_work.bork: 162..166 Option Lexical LexicalScope(0)
 programs/build/option/nested_option_returned.bork: 85..92 Option Lexical LexicalScope(0)
 programs/build/option/nested_option_returned.bork: 104..111 Option Lexical LexicalScope(0)
 programs/build/option/nested_option_returned.bork: 161..180 Option Lexical LexicalScope(1)
