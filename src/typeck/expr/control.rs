@@ -164,42 +164,76 @@ fn match_arms(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let mut pattern_errors = 0;
     let by_borrow = super::method::is_place(scrutinee) || env.tcx.is_ref(scrutinee_hir.ty);
     let ty = env.tcx.deref_ty(scrutinee_hir.ty);
+    let mut pattern_errors = 0;
     let mut checked_arms = Vec::with_capacity(arms.len());
-    let mut result_ty: Option<TyId> = None;
-    // Without an expected type, arms that disagree make a statement `when`, typed unit like a plain `if`.
-    let mut agree = true;
+    let mut join = ArmTypes::default();
     for arm in arms {
-        env.enter_scope();
-        let before = env.diagnostics.len();
-        let pat = super::pat::check_pat(&arm.pat, ty, by_borrow, &mut HashSet::new(), env);
-        pattern_errors += env.diagnostics.len() - before;
-        let (body, body_ty) = check_value_block_in_current_scope(&arm.body, expected, return_ty, env);
-        env.exit_scope();
-        // An arm that returns has no value to join with the others.
-        if !stmt::block_always_returns(&body) {
-            match result_ty {
-                None => result_ty = Some(body_ty),
-                Some(first) if expected.is_some() => {
-                    env.mismatch("`when` arm", body_ty, first, arm.body.span.or(Some(arm.pat.span())));
-                }
-                Some(first) => agree &= env.same(body_ty, first),
-            }
+        let checked = check_arm(arm, ty, by_borrow, expected, return_ty, env);
+        pattern_errors += checked.pattern_errors;
+        if !stmt::block_always_returns(&checked.arm.body) {
+            join.add(checked.body_ty, arm, expected, env);
         }
-        checked_arms.push(HirArm { pat, body });
+        checked_arms.push(checked.arm);
     }
     // A broken pattern or an already-unknown scrutinee would only cascade into bogus coverage errors.
     if scrutinee_errors == 0 && pattern_errors == 0 && !env.tcx.is_unknown(ty) {
         super::pat::check_coverage(&checked_arms, arms, span, env);
     }
-    let unit = env.tcx.unit();
-    let result_ty = match result_ty {
-        Some(ty) if agree => ty,
-        _ => expected.unwrap_or(unit),
-    };
+    let result_ty = join.result(expected, env);
     env.expr_at(HirExprKind::Match { scrutinee: Box::new(scrutinee_hir.hir), arms: checked_arms }, result_ty, span)
+}
+
+struct CheckedArm {
+    arm: HirArm,
+    body_ty: TyId,
+    pattern_errors: usize,
+}
+
+/// Checks one arm's pattern and body in their own scope.
+fn check_arm(
+    arm: &MatchArm,
+    ty: TyId,
+    by_borrow: bool,
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> CheckedArm {
+    env.enter_scope();
+    let before = env.diagnostics.len();
+    let pat = super::pat::check_pat(&arm.pat, ty, by_borrow, &mut HashSet::new(), env);
+    let pattern_errors = env.diagnostics.len() - before;
+    let (body, body_ty) = check_value_block_in_current_scope(&arm.body, expected, return_ty, env);
+    env.exit_scope();
+    CheckedArm { arm: HirArm { pat, body }, body_ty, pattern_errors }
+}
+
+/// The types of the arms that can fall through, joined into one result type.
+#[derive(Default)]
+struct ArmTypes {
+    first: Option<TyId>,
+    /// Without an expected type, arms that disagree make a statement `when`, typed unit like a plain `if`.
+    disagree: bool,
+}
+
+impl ArmTypes {
+    fn add(&mut self, body_ty: TyId, arm: &MatchArm, expected: Option<TyId>, env: &mut Env<'_>) {
+        match self.first {
+            None => self.first = Some(body_ty),
+            Some(first) if expected.is_some() => {
+                env.mismatch("`when` arm", body_ty, first, arm.body.span.or(Some(arm.pat.span())));
+            }
+            Some(first) => self.disagree |= !env.same(body_ty, first),
+        }
+    }
+
+    fn result(self, expected: Option<TyId>, env: &mut Env<'_>) -> TyId {
+        match self.first {
+            Some(ty) if !self.disagree => ty,
+            _ => expected.unwrap_or_else(|| env.tcx.unit()),
+        }
+    }
 }
 
 fn check_conditional_binding(
