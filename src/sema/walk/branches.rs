@@ -166,6 +166,7 @@ fn expr_diverges(expr: &Expr) -> bool {
             else_block: Some(else_block),
             ..
         } => block_diverges(then_block) && block_diverges(else_block),
+        Expr::Match { arms, .. } => !arms.is_empty() && arms.iter().all(|arm| block_diverges(&arm.body)),
         _ => false,
     }
 }

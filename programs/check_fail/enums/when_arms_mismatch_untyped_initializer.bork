@@ -1,0 +1,10 @@
+// diag: `when` arm
+enum E { A, B }
+
+fun main(): i32 {
+    val n = when E.A {
+        A => { 1 }
+        B => { true }
+    }
+    return 0
+}

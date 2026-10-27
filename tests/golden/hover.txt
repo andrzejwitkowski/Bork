@@ -38,6 +38,8 @@ programs/build/enums/ref_payload.bork: hits=80 hash=8fef823bd09efbfd
 programs/build/enums/ref_to_enum.bork: hits=88 hash=111fa40ac75d305e
 programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
 programs/build/enums/variants.bork: hits=14 hash=dfb3ad7d0aed6521
+programs/build/enums/when_result_inferred.bork: hits=10 hash=b697a9394be7a57d
+programs/build/enums/when_returns_in_every_arm.bork: hits=39 hash=36e25f6ee1ce0f9d
 programs/build/generics/borrow_infers_enum_arg.bork: hits=5 hash=e23c4866f14b801e
 programs/build/generics/identity.bork: hits=35 hash=0e2b0c1547885102
 programs/build/generics/list_node.bork: hits=183 hash=84200d48feaacbec
@@ -131,12 +133,14 @@ programs/check/borrow/reference_nested_call.bork: hits=10 hash=0a6f165229ad1994
 programs/check/conditionals/if_mismatch.bork: hits=10 hash=46900b87c1a0cced
 programs/check/conditionals/if_return_move_then_use.bork: hits=25 hash=c87367bad3285e18
 programs/check/conditionals/nullable_eq.bork: hits=8 hash=205e1f814db703b5
-programs/check/enums/exhaustive.bork: hits=17 hash=2479e7674c13b910
+programs/check/enums/exhaustive.bork: hits=17 hash=56e80d7f4fafe4f8
 programs/check/enums/generic_tree.bork: hits=6 hash=b9363fc0ca6d445a
 programs/check/enums/if_val_option_shadow.bork: hits=25 hash=1d241b2c8d9b8b94
 programs/check/enums/pattern_shadow_move.bork: hits=21 hash=e465da16dd6bafd3
-programs/check/enums/patterns.bork: hits=14 hash=574ecd54e06f96a2
+programs/check/enums/patterns.bork: hits=14 hash=295b668f9f7614be
 programs/check/enums/shape.bork: hits=3 hash=b157880839d33ea1
+programs/check/enums/when_returning_arm_move.bork: hits=8 hash=dcb9b5656dad4703
+programs/check/enums/when_statement_arms_differ.bork: hits=14 hash=d8041d11f69f64eb
 programs/check/generics/explicit_args.bork: hits=4 hash=91802693aefd43c9
 programs/check/generics/generic_class.bork: hits=31 hash=4a01baf605dfd4ff
 programs/check/generics/generic_in_generic.bork: hits=5 hash=d3cda0a95860b63c
@@ -190,6 +194,9 @@ programs/check_fail/enums/pattern_wrong_arity.bork: hits=3 hash=b172b9abe3669698
 programs/check_fail/enums/recursive_by_value.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/enums/unknown_variant.bork: hits=1 hash=c253fc1c67e621e3
 programs/check_fail/enums/unreachable_arm.bork: hits=2 hash=f92cdf5abf1f6d0a
+programs/check_fail/enums/when_arms_mismatch_in_initializer.bork: hits=2 hash=e18ce7701f1eb9ef
+programs/check_fail/enums/when_arms_mismatch_untyped_initializer.bork: hits=1 hash=f7c1e756483e7e80
+programs/check_fail/enums/when_missing_return_in_one_arm.bork: hits=4 hash=0d4ff60d971c1e6f
 programs/check_fail/enums/wrong_arity.bork: hits=1 hash=b61abe766f2c2c54
 programs/check_fail/enums/wrong_payload_type.bork: hits=1 hash=c1330217383dfc53
 programs/check_fail/generics/borrow_conflicting_type_args.bork: hits=6 hash=2da8407760577851

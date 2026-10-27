@@ -1,0 +1,11 @@
+// exit: 0
+// stdout: 42\n
+enum E { A, B }
+fun main(): i32 {
+    val n = when E.A {
+        A => { 42 }
+        B => { 0 }
+    }
+    println(n)
+    return 0
+}

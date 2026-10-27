@@ -77,6 +77,10 @@ programs/build/enums/variants.bork: 380..392 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 410..420 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 439..450 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 472..483 Shape Lexical LexicalScope(0)
+programs/build/enums/when_result_inferred.bork: 78..81 E Lexical LexicalScope(0)
+programs/build/enums/when_returns_in_every_arm.bork: 596..599 E Lexical LexicalScope(11)
+programs/build/enums/when_returns_in_every_arm.bork: 612..615 E Lexical LexicalScope(11)
+programs/build/enums/when_returns_in_every_arm.bork: 628..631 F Lexical LexicalScope(11)
 programs/build/generics/borrow_infers_enum_arg.bork: 123..126 E Lexical LexicalScope(2)
 programs/build/generics/identity.bork: 271..276 Point Dynamic Program
 programs/build/generics/list_node.bork: 431..435 Node Dynamic Program
@@ -197,6 +201,8 @@ programs/check/enums/patterns.bork: 295..307 Shape Lexical LexicalScope(0)
 programs/check/enums/shape.bork: 91..103 Shape Lexical LexicalScope(0)
 programs/check/enums/shape.bork: 121..131 Shape Lexical LexicalScope(0)
 programs/check/enums/shape.bork: 154..165 Shape Lexical LexicalScope(0)
+programs/check/enums/when_returning_arm_move.bork: 335..338 E Lexical LexicalScope(4)
+programs/check/enums/when_statement_arms_differ.bork: 159..162 E Lexical LexicalScope(0)
 programs/check/generics/generic_class.bork: 158..162 Pair Dynamic Program
 programs/check/generics/generic_class.bork: 281..285 Pair Lexical LexicalScope(0)
 programs/check/generics/identity.bork: 126..131 Point Dynamic Program

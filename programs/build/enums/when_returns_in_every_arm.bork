@@ -1,0 +1,41 @@
+// exit: 0
+// stdout: 1\n20\n2\n
+// A `when` whose arms all return ends the function; a returning arm adds no type to a `when` value.
+enum E { A, B }
+enum F { X, Y }
+
+fun f(e: &E): i32 {
+    when e {
+        A => { return 1 }
+        B => { return 2 }
+    }
+}
+
+fun g(e: &E): i32 {
+    return when e {
+        A => { return 1 }
+        B => { 2 }
+    }
+}
+
+fun nested(e: &E, f: &F): i32 {
+    when e {
+        A => {
+            when f {
+                X => { return 10 }
+                Y => { return 20 }
+            }
+        }
+        B => { return 30 }
+    }
+}
+
+fun main(): i32 {
+    val a = E.A
+    val b = E.B
+    val y = F.Y
+    println(f(&a))
+    println(nested(&a, &y))
+    println(g(&b))
+    return 0
+}

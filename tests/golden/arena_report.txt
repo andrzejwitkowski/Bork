@@ -451,6 +451,34 @@ Arenas
     ├── d [Local]
     ├── e [Local]
     └── f [Local]
+== programs/build/enums/when_result_inferred.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/build/enums/when_returns_in_every_arm.bork
+Arenas
+├── fun f
+│   ├── e [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+├── fun g
+│   ├── e [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+├── fun nested
+│   ├── e [Borrow ← call site]
+│   ├── f [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── f [Shared ← fun nested]
+│   │   ├── MatchArm
+│   │   └── MatchArm
+│   └── MatchArm
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── y [Local]
 == programs/build/generics/borrow_infers_enum_arg.bork
 Arenas
 ├── fun f
@@ -1846,6 +1874,30 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── c [Local]
+== programs/check/enums/when_returning_arm_move.bork
+Arenas
+├── fun take
+│   └── s [Local]
+├── fun f
+│   ├── e [Borrow ← call site]
+│   ├── s [Moved ← fun f]
+│   ├── MatchArm
+│   │   └── s [Moved ← fun f]
+│   └── MatchArm
+└── fun main
+    └── e [Local]
+== programs/check/enums/when_statement_arms_differ.bork
+Arenas
+└── fun main
+    ├── e [Local]
+    ├── i [Local]
+    ├── WhileLoop
+    │   ├── e [Shared ← fun main]
+    │   ├── MatchArm
+    │   │   └── i [Copy]
+    │   └── MatchArm
+    ├── MatchArm
+    └── MatchArm
 == programs/check/generics/explicit_args.bork
 Arenas
 ├── fun id
@@ -2278,6 +2330,29 @@ Arenas
     ├── s [Local]
     ├── MatchArm
     └── MatchArm
+== programs/check_fail/enums/when_arms_mismatch_in_initializer.bork
+Type Error [117..125] `when` arm has type bool, expected i32
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/when_arms_mismatch_untyped_initializer.bork
+Type Error [110..118] `when` arm has type bool, expected i32
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/when_missing_return_in_one_arm.bork
+Type Error [] function must return a value of type i32 on all paths
+Arenas
+├── fun f
+│   ├── e [Borrow ← call site]
+│   ├── MatchArm
+│   └── MatchArm
+└── fun main
+    └── e [Local]
 == programs/check_fail/enums/wrong_arity.bork
 Type Error [134..144] variant `Shape.Rect` takes 2 argument(s), got 1
 Arenas
