@@ -91,7 +91,7 @@ fn generic_function_signature_uses_param_types() {
 
 #[test]
 fn param_works_under_ref_vec_array_and_nullable() {
-    clean("fun f<T>(a: &T, b: Vec<T>, c: [T; 2], d: T?) {}\nfun main() {}\n");
+    clean("enum Option<T> {\n    Some(value: T)\n    None\n}\nfun f<T>(a: &T, b: Vec<T>, c: [T; 2], d: T?) {}\nfun main() {}\n");
 }
 
 #[test]

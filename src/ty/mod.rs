@@ -90,7 +90,7 @@ impl TyCtx {
         let class_ids: HashMap<String, DefId> =
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
-        let option_def = defs.lookup_enum("Option");
+        let option_def = defs.lookup_option();
         let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
