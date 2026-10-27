@@ -1,0 +1,54 @@
+// exit: 0
+// stdout: 1\n2\n3\n107\n11\n
+// A function that returns an object holding a `Ref` (directly, nested, in an enum payload, or from a method)
+// used to abort at runtime: the `Ref` target stayed in the callee arena. 200 churn rounds follow the calls.
+class P { n: i32 }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+enum E { Has(p: Ref<P>), Empty }
+class Holder {
+    base: i32
+    keep: Ref<P>
+    fun mixed(flag: bool): RA {
+        val local: Ref<P> = P(base + 100)
+        if (flag) {
+            return RA(local)
+        }
+        return RA(keep)
+    }
+}
+fun churn(k: i32): i32 {
+    val a: Ref<P> = P(k)
+    val b: Ref<P> = P(k + 1)
+    val c = RA(P(k + 2))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun mk(): RA { return RA(P(1)) }
+fun mkOuter(): Outer { return Outer(RA(P(2))) }
+fun mkEnum(): E { return E.Has(P(3)) }
+fun main(): i32 {
+    val h = Holder(7, P(11))
+    val a = mk()
+    val o = mkOuter()
+    val e = mkEnum()
+    val m1 = h.mixed(true)
+    val m2 = h.mixed(false)
+    spin()
+    if val v = a.x { println(v.n) }
+    val orr = o.r
+    if val v = orr.x { println(v.n) }
+    when e {
+        Has(p) => { if val q = p { println(q.n) } }
+        Empty => { println(0) }
+    }
+    if val v = m1.x { println(v.n) }
+    if val v = m2.x { println(v.n) }
+    return 0
+}

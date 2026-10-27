@@ -184,6 +184,15 @@ programs/build/managed_refs/presence_int_result.bork::pick(r: Ref<Node>) -> i32
 programs/build/managed_refs/presence_int_result.bork::main() -> i32
 programs/build/managed_refs/program_dynamic_across_blocks.bork::make_shared() -> Ref<Box>
 programs/build/managed_refs/program_dynamic_across_blocks.bork::main() -> i32
+programs/build/managed_refs/return_nested_object_with_ref.bork::mkO() -> Outer
+programs/build/managed_refs/return_nested_object_with_ref.bork::main() -> i32
+programs/build/managed_refs/return_object_with_ref_field.bork::churn(k: i32) -> i32
+programs/build/managed_refs/return_object_with_ref_field.bork::spin() -> unit
+programs/build/managed_refs/return_object_with_ref_field.bork::mk() -> RA
+programs/build/managed_refs/return_object_with_ref_field.bork::mkOuter() -> Outer
+programs/build/managed_refs/return_object_with_ref_field.bork::mkEnum() -> E
+programs/build/managed_refs/return_object_with_ref_field.bork::main() -> i32
+programs/build/managed_refs/return_object_with_ref_field.bork::Holder.mixed(this: &Holder, flag: bool) -> RA
 programs/build/managed_refs/val_both_return_string_move.bork::run(r: Ref<Node>) -> i32
 programs/build/managed_refs/val_both_return_string_move.bork::main() -> i32
 programs/build/managed_refs/val_else_move_string.bork::run(r: Ref<Node>) -> unit

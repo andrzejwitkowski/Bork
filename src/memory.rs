@@ -84,6 +84,12 @@ struct Planner<'t> {
     allocation_indices: HashMap<NodeId, usize>,
     allocations: Vec<ArenaPlan>,
     edges: Vec<(NodeId, NodeId)>,
+    /// Objects returned from the function: their `Ref` targets must outlive the frame, though the
+    /// objects themselves live in the caller's result sink and need no promotion.
+    returned: HashSet<NodeId>,
+    /// `(owner, inner)`: a class/enum object stored in another one. Not a `Ref`, so it adds no arena
+    /// class change; it only lets `returned` reach the `Ref`s held by nested objects.
+    nested: Vec<(NodeId, NodeId)>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -98,6 +104,8 @@ impl<'t> Planner<'t> {
             allocation_indices: HashMap::new(),
             allocations: Vec::new(),
             edges: Vec::new(),
+            returned: HashSet::new(),
+            nested: Vec::new(),
             diagnostics: Vec::new(),
         }
     }
@@ -209,14 +217,20 @@ impl<'t> Planner<'t> {
 
     fn propagate_program_lifetimes(&mut self) {
         loop {
+            let mut grew = false;
+            for (owner, inner) in &self.nested {
+                if self.returned.contains(owner) {
+                    grew |= self.returned.insert(*inner);
+                }
+            }
             let promoted: Vec<_> = self
                 .edges
                 .iter()
                 .filter_map(|(source, target)| {
-                    (self.is_program(*source) && !self.is_program(*target)).then_some(*target)
+                    ((self.is_program(*source) || self.returned.contains(source)) && !self.is_program(*target)).then_some(*target)
                 })
                 .collect();
-            if promoted.is_empty() {
+            if promoted.is_empty() && !grew {
                 break;
             }
             for target in promoted {
@@ -350,6 +364,9 @@ impl RegionVisitor for Planner<'_> {
                 driver.walk_expr(self, value)?;
                 if self.tcx.is_managed_ref(value.ty) {
                     self.mark_program(&self.origins(value));
+                } else {
+                    let origins = self.origins(value);
+                    self.returned.extend(origins.0);
                 }
             }
             HirStmt::Expr(value) => driver.walk_expr(self, value)?,
@@ -381,6 +398,11 @@ impl RegionVisitor for Planner<'_> {
                                 .entry((*source, field_index))
                                 .or_default()
                                 .extend(&targets);
+                        }
+                    } else if crate::hoist::holds_object(self.tcx, field.ty) {
+                        let inner = self.origins(field);
+                        for owner in &allocation.0 {
+                            self.nested.extend(inner.0.iter().map(|inner| (*owner, *inner)));
                         }
                     }
                 }
