@@ -1,0 +1,35 @@
+// exit: 0
+// stdout: 4\n4\n
+// A `String?` built in a short-lived scope and moved into a returned object is copied into the owner's arena,
+// so later allocations cannot overwrite it.
+class Box { x: String? }
+
+fun make(): Box {
+    val x: String? = Some(concat("ab", "cd"))
+    return Box(x)
+}
+
+fun churn(k: i32): i32 {
+    val a: String? = Some("01234567890123456789")
+    val b = Box(Some(concat("zz", "yyyyyy")))
+    return k
+}
+
+fun main(): i32 {
+    val b = make()
+    churn(0)
+    when b.x {
+        Some(s) => { println(s.length) }
+        None => { println(0) }
+    }
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    when b.x {
+        Some(s) => { println(s.length) }
+        None => { println(0) }
+    }
+    return 0
+}

@@ -941,8 +941,9 @@ mod tests {
              }\n\
              fun main() {}\n",
         );
-        // Safe navigation copies once per arm, then each result must copy out of its arm.
-        assert_eq!(ir.matches("call void @llvm.memcpy").count(), 4, "{ir}");
+        // Safe navigation copies once per arm, then each result must copy out of its arm. A nullable
+        // moved into an owner is copied there too (T01), one more per arm.
+        assert_eq!(ir.matches("call void @llvm.memcpy").count(), 6, "{ir}");
     }
 
     #[test]

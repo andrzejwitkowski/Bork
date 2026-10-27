@@ -988,6 +988,25 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/nullable_moved_into_owner.bork
+Arenas
+├── fun make
+│   └── x [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── b [Local]
+    ├── i [Local]
+    ├── MatchArm
+    │   └── s [Borrow ← pattern binding]
+    ├── MatchArm
+    ├── WhileLoop
+    │   └── i [Copy]
+    ├── MatchArm
+    │   └── s [Borrow ← pattern binding]
+    └── MatchArm
 == programs/build/option/nullable_string_eq.bork
 Arenas
 └── fun main
