@@ -156,6 +156,10 @@ pub fn collect_idents(fields: &[crate::hir::HirExpr], out: &mut Vec<String>) {
             HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
                 collect_idents(fields, out)
             }
+            // `local.n` stored in the result still points into `local`'s arena.
+            HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. } => {
+                collect_idents(std::slice::from_ref(receiver.as_ref()), out)
+            }
             _ => {}
         }
     }

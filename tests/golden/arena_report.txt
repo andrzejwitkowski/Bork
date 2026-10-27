@@ -426,6 +426,19 @@ Arenas
 └── fun main
     ├── leaf [Local]
     └── r [Local]
+== programs/build/enums/return_field_of_local.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make
+│   └── local [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_hoisted_chain.bork
 Arenas
 ├── fun churn
@@ -2531,6 +2544,15 @@ Arenas
 == programs/check_fail/enums/recursive_by_value.bork
 Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field
 Arenas
+└── fun main
+== programs/check_fail/enums/return_field_of_local_in_branch.bork
+Ownership Error [175..178] `local` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── local [Local]
+│   └── IfThen
+│       └── local [Shared ← fun make]
 └── fun main
 == programs/check_fail/enums/return_local_object_in_branch.bork
 Ownership Error [167..170] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement

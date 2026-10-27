@@ -70,6 +70,9 @@ programs/build/enums/ref_payload.bork::hold(node: Ref<Node>) -> unit
 programs/build/enums/ref_payload.bork::main() -> i32
 programs/build/enums/ref_to_enum.bork::link(leaf: Ref<Tree>) -> unit
 programs/build/enums/ref_to_enum.bork::main() -> i32
+programs/build/enums/return_field_of_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_field_of_local.bork::make() -> Outer
+programs/build/enums/return_field_of_local.bork::main() -> i32
 programs/build/enums/return_hoisted_chain.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_chain.bork::make2() -> C
 programs/build/enums/return_hoisted_chain.bork::main() -> i32

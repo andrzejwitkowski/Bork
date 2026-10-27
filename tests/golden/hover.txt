@@ -36,6 +36,7 @@ programs/build/enums/match_ref_counts.bork: hits=206 hash=8f9f95a7065f4a82
 programs/build/enums/match_shapes.bork: hits=246 hash=0971bfd1ca01c29f
 programs/build/enums/ref_payload.bork: hits=80 hash=8fef823bd09efbfd
 programs/build/enums/ref_to_enum.bork: hits=88 hash=111fa40ac75d305e
+programs/build/enums/return_field_of_local.bork: hits=29 hash=e1b865555c286783
 programs/build/enums/return_hoisted_chain.bork: hits=24 hash=6cb617e41480377a
 programs/build/enums/return_hoisted_object.bork: hits=76 hash=51c1ada4a7fbaa54
 programs/build/enums/return_hoisted_via_call.bork: hits=26 hash=51c82452ced04f85
@@ -206,6 +207,7 @@ programs/check_fail/enums/pattern_literal_out_of_range.bork: hits=26 hash=a4ebe5
 programs/check_fail/enums/pattern_unknown_variant.bork: hits=3 hash=9e7ccaf0c7208792
 programs/check_fail/enums/pattern_wrong_arity.bork: hits=3 hash=b172b9abe3669698
 programs/check_fail/enums/recursive_by_value.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/enums/return_field_of_local_in_branch.bork: hits=26 hash=a311517262fb884f
 programs/check_fail/enums/return_local_object_in_branch.bork: hits=11 hash=9a59af95c24de67e
 programs/check_fail/enums/unknown_variant.bork: hits=1 hash=c253fc1c67e621e3
 programs/check_fail/enums/unreachable_arm.bork: hits=2 hash=f92cdf5abf1f6d0a
