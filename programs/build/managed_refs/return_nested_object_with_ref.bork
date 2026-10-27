@@ -1,0 +1,14 @@
+// exit: 0
+// stdout: 2\n
+// A nested object (`Outer` -> `RA` -> `Ref<P>`) built through a local.
+class P { n: i32 }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+enum E { Has(p: Ref<P>), Empty }
+
+fun mkO(): Outer { val r = RA(P(2))
+    return Outer(r) }
+fun main(): i32 { val o = mkO()
+    val r = o.r
+    if val v = r.x { println(v.n) }
+    return 0 }

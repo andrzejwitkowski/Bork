@@ -1121,6 +1121,56 @@ Arenas
     └── IfValSome
         ├── live [Borrow ← presence guard]
         └── total [Copy]
+== programs/build/managed_refs/return_nested_object_with_ref.bork
+Arenas
+├── fun mkO
+│   └── r [Local]
+└── fun main
+    ├── o [Local]
+    ├── r [Local]
+    └── IfValSome
+        └── v [Borrow ← presence guard]
+== programs/build/managed_refs/return_object_with_ref_field.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun mk
+├── fun mkOuter
+├── fun mkEnum
+├── fun main
+│   ├── h [Local]
+│   ├── a [Local]
+│   ├── o [Local]
+│   ├── e [Local]
+│   ├── m1 [Local]
+│   ├── m2 [Local]
+│   ├── orr [Local]
+│   ├── IfValSome
+│   │   └── v [Borrow ← presence guard]
+│   ├── IfValSome
+│   │   └── v [Borrow ← presence guard]
+│   ├── MatchArm
+│   │   ├── p [Local]
+│   │   └── IfValSome
+│   │       └── q [Borrow ← presence guard]
+│   ├── MatchArm
+│   ├── IfValSome
+│   │   └── v [Borrow ← presence guard]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+└── fun Holder.mixed
+    ├── this [Borrow ← call site]
+    ├── flag [Local]
+    ├── local [Local]
+    └── IfThen
+        └── local [Shared ← fun Holder.mixed]
 == programs/build/managed_refs/val_both_return_string_move.bork
 Arenas
 ├── fun run
