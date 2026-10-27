@@ -1,0 +1,26 @@
+// exit: 0
+// stdout: 42\n
+// `a` is only a field of the hoisted `b`, and `b` only a field of the returned `C`: all three live in the result arena.
+class A { n: i32 }
+class B { a: A }
+class C { b: B }
+fun churn(k: i32): i32 {
+    val x = C(B(A(k)))
+    val y = C(B(A(k + 1)))
+    return x.b.a.n + y.b.a.n
+}
+fun make2(): C {
+    val a = A(42)
+    val b = B(a)
+    return C(b)
+}
+fun main(): i32 {
+    val r = make2()
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    println(r.b.a.n)
+    return 0
+}

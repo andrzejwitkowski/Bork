@@ -426,6 +426,20 @@ Arenas
 └── fun main
     ├── leaf [Local]
     └── r [Local]
+== programs/build/enums/return_hoisted_chain.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make2
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_hoisted_object.bork
 Arenas
 ├── fun makeEnum

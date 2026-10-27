@@ -117,6 +117,24 @@ fn hoist_into_result(block: &mut HirBlock) {
     let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &ret.kind else { return };
     let mut used = Vec::new();
     collect_idents(fields, &mut used);
+    // A hoisted local's own constructor fields outlive it too (`a` in `val b = B(a)`).
+    loop {
+        let before = used.len();
+        for stmt in block.stmts.iter() {
+            if let HirStmt::VarDecl { name, value, .. } = stmt {
+                if used.contains(name) {
+                    if let HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } = &value.kind {
+                        collect_idents(fields, &mut used);
+                    }
+                }
+            }
+        }
+        used.sort();
+        used.dedup();
+        if used.len() == before {
+            break;
+        }
+    }
     for stmt in &mut block.stmts {
         if let HirStmt::VarDecl { name, value, alloc_in_binding, .. } = stmt {
             let constructs = matches!(
