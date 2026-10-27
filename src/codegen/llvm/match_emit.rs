@@ -143,6 +143,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     fn bind_pat(&mut self, pat: &HirPat, value: BasicValueEnum<'ctx>) -> Result<(), Diagnostic> {
         match &pat.kind {
             HirPatKind::Wildcard | HirPatKind::Lit(_) | HirPatKind::None => Ok(()),
+            // shortcut: a bound `unit` payload declares no local, so reading it in the arm is not supported yet.
+            HirPatKind::Bind { binding_ty, .. } if self.cx.tcx.deref_ty(*binding_ty) == self.cx.unit_ty() => Ok(()),
             HirPatKind::Bind { name, binding_ty } => {
                 let value = if self.cx.tcx.is_managed_ref(*binding_ty) { self.clone_ref(value)? } else { value };
                 self.declare_local(&name.name, *binding_ty, value, None)
@@ -193,6 +195,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         field_index: usize,
         field_ty: TyId,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        if field_ty == self.cx.unit_ty() {
+            return Ok(self.cx.context.struct_type(&[], false).const_zero().into());
+        }
         let ty = self.cx.basic_type(field_ty).ok_or_else(|| {
             not_yet_supported(&format!("an enum payload of type `{}`", self.cx.tcx.display(field_ty)), None)
         })?;

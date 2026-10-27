@@ -550,9 +550,19 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             return self.emit_expr(expr);
         }
         let n = child_plan(expr).len();
+        let unit = self.cx.unit_ty();
+        // A `unit` enum payload leaves nothing on the eval stack; it stands in as a zero-sized value.
+        let is_unit_payload = |index: usize| match &expr.kind {
+            HirExprKind::EnumConstruct { fields, .. } => fields[index].ty == unit,
+            _ => false,
+        };
         let mut ops = Vec::with_capacity(n);
-        for _ in 0..n {
-            ops.push(self.pop_walk_operand(expr.span)?);
+        for index in (0..n).rev() {
+            ops.push(if is_unit_payload(index) {
+                self.cx.context.struct_type(&[], false).const_zero().into()
+            } else {
+                self.pop_walk_operand(expr.span)?
+            });
         }
         ops.reverse();
         self.combine_expr(expr, &ops)

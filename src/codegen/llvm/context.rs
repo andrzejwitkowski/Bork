@@ -138,6 +138,11 @@ impl<'ctx> Codegen<'ctx> {
         for variant in &e.variants {
             let mut elements = vec![self.context.i32_type().into()];
             for field in &variant.fields {
+                // `unit` has no LLVM value type; a zero-sized field keeps the logical field indices.
+                if field.ty == self.unit_ty() {
+                    elements.push(self.context.struct_type(&[], false).into());
+                    continue;
+                }
                 elements.push(self.basic_type(field.ty).ok_or_else(|| {
                     format!(
                         "enum payload `{}.{}` has unsupported type `{}`",
