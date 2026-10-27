@@ -83,16 +83,11 @@ impl<'ctx> DebugInfo<'ctx> {
             .insert(key.clone(), placeholder.as_type());
         let result = if cx.tcx.is_managed_ref(ty) {
             self.ref_di(cx, ty, &key)
-        } else if cx.tcx.is_nullable(ty) && !cx.tcx.is_array(cx.tcx.base(ty)) && !cx.tcx.is_string(ty) {
-            self.nullable_di(cx, ty, &key)
-        } else if cx.tcx.is_string(ty)
-            || cx.tcx.is_array(ty)
-            || (cx.tcx.is_nullable(ty)
-                && (cx.tcx.is_array(cx.tcx.base(ty)) || cx.tcx.is_string(cx.tcx.base(ty))))
-        {
-            self.buffer_di(cx, ty, &key)
         } else if cx.tcx.class_def(ty).is_some() || matches!(cx.tcx.data(ty), TyData::Enum(..)) {
+            // Before the nullable and buffer queries: `T?` is an `Option<T>` enum slot behind an object handle.
             self.object_di(cx, ty)
+        } else if cx.tcx.is_string(ty) || cx.tcx.is_array(ty) {
+            self.buffer_di(cx, ty, &key)
         } else {
             self.scalar_di(cx, ty, &key)
         };
@@ -141,14 +136,6 @@ impl<'ctx> DebugInfo<'ctx> {
             cx.ref_handle_type(),
             vec![("control", self.usize_di(cx)), ("object", object), ("kind", self.u8_di())],
         )
-    }
-
-    /// `T?` for a scalar or object `T` (its LLVM type is a struct): a presence flag and the value.
-    fn nullable_di(&self, cx: &Codegen<'ctx>, ty: TyId, key: &str) -> DIType<'ctx> {
-        let inner = cx.tcx.base(ty);
-        let llvm = cx.basic_type(ty).unwrap().into_struct_type();
-        let bool_ty = self.ty(cx, cx.bool_ty());
-        self.structure(cx, key, llvm, vec![("present", bool_ty), ("value", self.ty(cx, inner))])
     }
 
     /// A string or array (nullable or not): the data pointer and the length.

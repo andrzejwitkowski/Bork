@@ -311,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn debug_nullable_buffers_keep_descriptor_fields() {
+    fn debug_nullable_buffers_are_option_enum_handles() {
         let source = "class Holder { values: [i32; 2] }\nfun inspect(reference: Ref<Holder>) {\n val a = reference?.values\n val text: String? = None\n}\nfun main() {}\n";
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
@@ -329,15 +329,11 @@ mod tests {
         .unwrap()
         .print_to_string()
         .to_string();
-        assert_eq!(
-            ir.matches("name: \"data\"").count(),
-            2,
-            "nullable buffers need data pointers: {ir}"
-        );
         assert!(
-            !ir.contains("name: \"present\""),
-            "buffers encode absence in the pointer: {ir}"
+            ir.contains("bork::Object<Option<String>>"),
+            "a nullable buffer is an `Option` enum behind an object handle: {ir}"
         );
+        assert!(!ir.contains("name: \"present\""), "the old presence flag is gone: {ir}");
     }
 
     #[test]

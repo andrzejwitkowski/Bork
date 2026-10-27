@@ -122,3 +122,31 @@ fn debug_build_names_enums() {
     let strings = Command::new("strings").arg(&binary).output().unwrap();
     assert!(String::from_utf8_lossy(&strings.stdout).contains("Slot.Held.node"));
 }
+
+#[test]
+fn debug_build_describes_nullable_as_an_option_enum_handle() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("main.bork");
+    let binary = dir.path().join("main");
+    fs::write(
+        &source,
+        "fun main(): i32 {\n    val n: i32? = Some(42)\n    val s: String? = Some(\"hi\")\n    \
+         val p: Option<i32> = Option.None\n    return 0\n}\n",
+    )
+    .unwrap();
+    let build = Command::new(env!("CARGO_BIN_EXE_bork"))
+        .args(["build", "-g", "-o"])
+        .arg(&binary)
+        .arg(&source)
+        .output()
+        .unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(0));
+    let info = Command::new("readelf").args(["--debug-dump=info"]).arg(&binary).output().unwrap();
+    let info = String::from_utf8_lossy(&info.stdout);
+    for name in ["bork::Object<Option<i32>>", "bork::Object<Option<String>>"] {
+        assert!(info.contains(name), "{name}: {info}");
+    }
+    // The old ABI's flag and inline payload must not be described for the `T?` aliases.
+    assert!(!info.contains("): present\n"), "{info}");
+}
