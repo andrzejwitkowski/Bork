@@ -30,18 +30,22 @@ pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec
                 decl_depth: 0,
                 value_depth: 0,
                 short_lived_object: false,
+                in_loop: false,
             };
             (param.name.as_str(), local)
         })
         .collect();
     let mut escape = Escape {
         depth: 0,
+        loop_depth: 0,
         scopes: vec![params],
         tcx,
         diagnostics,
     };
     escape.region(&function.body, false, None);
 }
+
+const LOOP_HINT: &str = "declare it before the loop and return it from inside, or build the returned value outside the loop";
 
 fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
     diagnostics.push(Diagnostic {
@@ -59,10 +63,13 @@ struct Local {
     /// A `val`/`var` of this function holding a class or enum handle that is not hoisted into
     /// the result sink: it dies with its region.
     short_lived_object: bool,
+    /// Declared inside a `for` / `while` body.
+    in_loop: bool,
 }
 
 struct Escape<'h, 'd> {
     depth: usize,
+    loop_depth: usize,
     scopes: Vec<HashMap<&'h str, Local>>,
     tcx: &'d TyCtx,
     diagnostics: &'d mut Vec<Diagnostic>,
@@ -107,19 +114,36 @@ impl<'h> Escape<'h, '_> {
         let mut names = Vec::new();
         crate::hoist::collect_idents(fields, self.tcx, &mut names);
         for name in names {
-            if self.lookup(&name).is_some_and(|local| {
+            let Some(local) = self.lookup(&name).copied().filter(|local| {
                 local.short_lived_object && owner_depth.is_none_or(|depth| local.decl_depth > depth)
-            }) {
-                reject(
-                    self.diagnostics,
-                    &format!(
-                        "`{name}` is freed before the value that stores it, but that value would still point at it; \
-                         build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement"
-                    ),
-                    value.span,
-                );
-            }
+            }) else {
+                continue;
+            };
+            let message = if local.in_loop {
+                format!("`{name}` is declared inside a loop, so it is freed on every iteration; {LOOP_HINT}")
+            } else {
+                format!(
+                    "`{name}` is freed before the value that stores it, but that value would still point at it; \
+                     build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement"
+                )
+            };
+            reject(self.diagnostics, &message, value.span);
         }
+    }
+
+    /// `return a` where `a` is an object declared in a loop body.
+    fn check_returned_loop_local(&mut self, value: &'h HirExpr) -> bool {
+        let HirExprKind::Ident { name, .. } = &value.kind else { return false };
+        let Some(local) = self.lookup(name).copied() else { return false };
+        if !(local.short_lived_object && local.in_loop) {
+            return false;
+        }
+        reject(
+            self.diagnostics,
+            &format!("`{name}` is declared inside a loop, so it is freed on every iteration; {LOOP_HINT}"),
+            value.span,
+        );
+        true
     }
 
     fn open_scope(&mut self) {
@@ -170,6 +194,9 @@ impl<'h> Escape<'h, '_> {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
                 self.check_returned_objects(value);
+                if self.check_returned_loop_local(value) {
+                    return;
+                }
                 if self.tcx.is_ref(value.ty) {
                     reject(
                         self.diagnostics,
@@ -211,6 +238,7 @@ impl<'h> Escape<'h, '_> {
                     decl_depth: self.depth,
                     value_depth,
                     short_lived_object: !hoisted && crate::hoist::holds_object(self.tcx, *ty),
+                    in_loop: self.loop_depth > 0,
                 };
                 self.scopes
                     .last_mut()
@@ -257,11 +285,15 @@ impl<'h> Escape<'h, '_> {
             }
             HirStmt::For { iter, body, .. } => {
                 self.place(iter, None);
+                self.loop_depth += 1;
                 self.region(body, false, None);
+                self.loop_depth -= 1;
             }
             HirStmt::While { cond, body } => {
                 self.place(cond, None);
+                self.loop_depth += 1;
                 self.region(body, false, None);
+                self.loop_depth -= 1;
             }
             HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
         }
@@ -551,6 +583,7 @@ impl<'h> Escape<'h, '_> {
                 decl_depth: self.depth,
                 value_depth: self.depth,
                 short_lived_object: false,
+                in_loop: false,
             },
         );
     }

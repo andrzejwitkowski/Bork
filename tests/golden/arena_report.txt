@@ -437,6 +437,79 @@ Arenas
 └── fun main
     ├── leaf [Local]
     └── r [Local]
+== programs/build/enums/return_construct_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── p [Local]
+│   ├── q [Local]
+│   └── IfThen
+│       └── p [Shared ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_decl_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── b [Local]
+│   └── IfThen
+│       └── a [Local]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_enum_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   ├── y [Local]
+│   └── e [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── n [Local]
+│   └── IfThen
+│       └── n [Shared ← fun make]
+└── fun main
+    ├── e [Local]
+    ├── i [Local]
+    ├── WhileLoop
+    │   └── i [Copy]
+    ├── MatchArm
+    │   └── n [Borrow ← pattern binding]
+    └── MatchArm
+== programs/build/enums/return_field_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── local [Local]
+│   └── IfThen
+│       └── local [Shared ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_field_of_local.bork
 Arenas
 ├── fun churn
@@ -445,6 +518,43 @@ Arenas
 │   └── y [Local]
 ├── fun make
 │   └── local [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_from_for_loop.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun find
+│   ├── limit [Local]
+│   ├── keep [Local]
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       └── IfThen
+│           └── keep [Shared ← fun find]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_from_loop_before.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun find
+│   ├── limit [Local]
+│   ├── keep [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── IfThen
+│           └── keep [Shared ← fun find]
 └── fun main
     ├── r [Local]
     ├── i [Local]
@@ -507,6 +617,48 @@ Arenas
     ├── i [Local]
     └── WhileLoop
         └── i [Copy]
+== programs/build/enums/return_in_method.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun main
+│   ├── f [Local]
+│   ├── r [Local]
+│   ├── s [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun F.make
+│   ├── this [Borrow ← call site]
+│   └── p [Local]
+└── fun F.pick
+    ├── this [Borrow ← call site]
+    ├── flag [Local]
+    ├── p [Local]
+    └── IfThen
+        └── p [Shared ← fun F.pick]
+== programs/build/enums/return_in_when_arm_stores_local.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun make
+│   ├── f [Local]
+│   ├── p [Local]
+│   ├── k [Local]
+│   ├── IfThen
+│   ├── IfElse
+│   ├── MatchArm
+│   │   └── p [Shared ← fun make]
+│   └── MatchArm
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_method_result_ref.bork
 Arenas
 ├── fun churn
@@ -545,6 +697,43 @@ Arenas
 │   └── IfThen
 │       └── local [Shared ← fun make]
 └── fun main
+== programs/build/enums/return_two_paths.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── IfThen
+│       └── a [Shared ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_unreturned_local.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   └── IfThen
+│       └── a [Shared ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_via_local.bork
 Arenas
 ├── fun make
@@ -563,6 +752,30 @@ Arenas
 └── fun main
     ├── r [Local]
     ├── w [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_when_arms.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── k [Local]
+│   ├── IfThen
+│   ├── IfElse
+│   ├── MatchArm
+│   │   └── a [Shared ← fun make]
+│   └── MatchArm
+│       └── b [Shared ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
     ├── i [Local]
     └── WhileLoop
         └── i [Copy]
@@ -1986,6 +2199,24 @@ Arenas
     ├── IfThen
     ├── IfThen
     └── IfThen
+== programs/build_fail/enums/return_move_object.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   └── IfThen
+│       └── a [Moved ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build_fail/escape_inner_return_string.bork
 Ownership Error [103..104] returning a `String` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
 Arenas
@@ -2642,34 +2873,58 @@ Arenas
 │   ├── a [Local]
 │   └── b [Local]
 └── fun main
-== programs/check_fail/enums/return_field_of_local_in_branch.bork
-Ownership Error [175..178] `local` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+== programs/check_fail/enums/return_decl_in_for_loop.bork
+Ownership Error [293..294] `a` is declared inside a loop, so it is freed on every iteration; declare it before the loop and return it from inside, or build the returned value outside the loop
 Arenas
-├── fun make
-│   ├── flag [Local]
-│   ├── local [Local]
-│   └── IfThen
-│       └── local [Shared ← fun make]
-└── fun main
-== programs/check_fail/enums/return_local_object_in_branch.bork
-Ownership Error [167..170] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
-Arenas
-├── fun make
-│   ├── flag [Local]
-│   ├── n [Local]
-│   └── IfThen
-│       └── n [Shared ← fun make]
-└── fun main
-    └── e [Local]
-== programs/check_fail/enums/return_via_local_branch.bork
-Ownership Error [173..174] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
-Arenas
-├── fun make
-│   ├── flag [Local]
-│   ├── x [Local]
+├── fun churn
+│   ├── k [Local]
 │   ├── a [Local]
-│   └── IfThen
-│       └── a [Shared ← fun make]
+│   └── b [Local]
+├── fun find
+│   ├── limit [Local]
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       ├── a [Local]
+│       └── IfThen
+│           └── a [Shared ← ForLoop (i)]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/check_fail/enums/return_decl_in_loop.bork
+Ownership Error [346..347] `a` is declared inside a loop, so it is freed on every iteration; declare it before the loop and return it from inside, or build the returned value outside the loop
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── a [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── a [Shared ← WhileLoop]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/check_fail/enums/return_loop_local_stored.bork
+Ownership Error [197..198] `p` is declared inside a loop, so it is freed on every iteration; declare it before the loop and return it from inside, or build the returned value outside the loop
+Arenas
+├── fun make
+│   ├── limit [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── p [Shared ← WhileLoop]
 └── fun main
 == programs/check_fail/enums/return_via_local_reused.bork
 Ownership Error [162..163] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned

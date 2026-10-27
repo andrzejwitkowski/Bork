@@ -1,0 +1,30 @@
+// exit: 0
+// stdout: 42\n
+class N { n: i32 }
+enum E { A(n: N), B }
+fun churn(k: i32): i32 {
+    val x = N(k)
+    val y = N(k + 1)
+    val e = E.A(N(k + 2))
+    return k
+}
+fun make(flag: bool): E {
+    val n = N(42)
+    if (flag) {
+        return E.A(n)
+    }
+    return E.B
+}
+fun main(): i32 {
+    val e = make(true)
+    var i = 0
+    while (i < 100) {
+        churn(i + 7000)
+        i = i + 1
+    }
+    when e {
+        A(n) => { println(n.n) }
+        B => { println(0) }
+    }
+    return 0
+}

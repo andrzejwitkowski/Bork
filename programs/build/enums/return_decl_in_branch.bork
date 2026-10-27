@@ -1,0 +1,33 @@
+// exit: 0
+// stdout: 1\n2\n
+// A `val` declared inside the branch that returns it.
+class P { n: i32 }
+class A { x: P }
+class W { a: A }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    val c = A(P(k + 2))
+    return a.x.n + b.x.n + c.x.n
+}
+
+fun make(flag: bool): A {
+    if (flag) {
+        val a = A(P(1))
+        return a
+    }
+    val b = A(P(2))
+    return b
+}
+fun main(): i32 {
+    val r = make(true)
+    val s = make(false)
+    var i = 0
+    while (i < 100) {
+        churn(i + 7000)
+        i = i + 1
+    }
+    println(r.x.n)
+    println(s.x.n)
+    return 0
+}
