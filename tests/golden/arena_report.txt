@@ -442,6 +442,34 @@ Arenas
     ├── r [Local]
     ├── first [Local]
     └── second [Local]
+== programs/build/enums/unit_payload.bork
+Arenas
+├── fun nothing
+├── fun code
+│   ├── s [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── u [Borrow ← pattern binding]
+│   │   └── n [Local]
+│   └── MatchArm
+├── fun report
+│   ├── r [Borrow ← call site]
+│   ├── MatchArm
+│   │   └── v [Borrow ← pattern binding]
+│   └── MatchArm
+│       └── e [Borrow ← pattern binding]
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── some [Local]
+    ├── none [Local]
+    ├── good [Local]
+    ├── bad [Local]
+    ├── MatchArm
+    │   └── x [Borrow ← pattern binding]
+    ├── MatchArm
+    ├── MatchArm
+    │   └── x [Borrow ← pattern binding]
+    └── MatchArm
 == programs/build/enums/variants.bork
 Arenas
 └── fun main

@@ -279,6 +279,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let tag_slot = self.cx.builder.build_struct_gep(record, object, 0, "enum.tag")?;
         self.cx.builder.build_store(tag_slot, self.cx.context.i32_type().const_int(u64::from(tag), false))?;
         for (index, (ty, value)) in types.iter().zip(values).enumerate() {
+            if *ty == self.cx.unit_ty() {
+                continue;
+            }
             let slot = self.cx.builder.build_struct_gep(record, object, index as u32 + 1, "payload")?;
             self.store_owned_field(arena, slot, *ty, *value, &labels[index], false)?;
         }

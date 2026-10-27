@@ -71,6 +71,12 @@ programs/build/enums/two_ref_variants.bork: 763..775 Link Lexical LexicalScope(2
 programs/build/enums/two_ref_variants.bork: 809..813 Node Dynamic Program
 programs/build/enums/two_ref_variants.bork: 886..894 Link Lexical LexicalScope(3)
 programs/build/enums/two_ref_variants.bork: 943..951 Link Lexical LexicalScope(3)
+programs/build/enums/unit_payload.bork: 537..546 Step Lexical LexicalScope(7)
+programs/build/enums/unit_payload.bork: 573..582 Step Lexical LexicalScope(7)
+programs/build/enums/unit_payload.bork: 656..667 Option Lexical LexicalScope(7)
+programs/build/enums/unit_payload.bork: 708..719 Option Lexical LexicalScope(7)
+programs/build/enums/unit_payload.bork: 932..944 Outcome Lexical LexicalScope(7)
+programs/build/enums/unit_payload.bork: 993..1004 Outcome Lexical LexicalScope(7)
 programs/build/enums/variants.bork: 327..338 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 351..361 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 380..392 Shape Lexical LexicalScope(0)

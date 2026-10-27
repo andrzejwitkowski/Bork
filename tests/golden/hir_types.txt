@@ -74,6 +74,10 @@ programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::main() -> i32
+programs/build/enums/unit_payload.bork::nothing() -> unit
+programs/build/enums/unit_payload.bork::code(s: &Step) -> i32
+programs/build/enums/unit_payload.bork::report(r: &Outcome<unit, String>) -> unit
+programs/build/enums/unit_payload.bork::main() -> i32
 programs/build/enums/variants.bork::main() -> i32
 programs/build/enums/when_result_inferred.bork::main() -> i32
 programs/build/enums/when_returns_in_every_arm.bork::f(e: &E) -> i32

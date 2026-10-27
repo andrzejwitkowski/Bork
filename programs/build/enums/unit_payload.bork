@@ -1,0 +1,43 @@
+// exit: 0
+// stdout: 7\n-1\n1\n0\nok\n4\n
+// `unit` is a valid payload type: it takes no storage, and the fields around it keep their indices.
+enum Step { Idle(u: unit, n: i32), Done }
+enum Outcome<T, E> { Good(value: T), Bad(error: E) }
+
+fun nothing() { }
+
+fun code(s: &Step): i32 {
+    return when s {
+        Idle(u, n) => { n }
+        Done => { 0 - 1 }
+    }
+}
+
+fun report(r: &Outcome<unit, String>) {
+    when r {
+        Good(v) => { println("ok") }
+        Bad(e) => { println(e.length) }
+    }
+}
+
+fun main(): i32 {
+    val a = Step.Idle(nothing(), 7)
+    val b = Step.Done
+    println(code(&a))
+    println(code(&b))
+    val some: Option<unit> = Option.Some(nothing())
+    val none: Option<unit> = Option.None
+    when some {
+        Some(x) => { println(1) }
+        None => { println(0) }
+    }
+    when none {
+        Some(x) => { println(1) }
+        None => { println(0) }
+    }
+    val good: Outcome<unit, String> = Outcome.Good(nothing())
+    val bad: Outcome<unit, String> = Outcome.Bad("boom")
+    report(&good)
+    report(&bad)
+    return 0
+}
