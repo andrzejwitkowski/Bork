@@ -71,6 +71,8 @@ programs/build/managed_refs/count_of_last_reference.bork: hits=31 hash=e7a34c41b
 programs/build/managed_refs/expired_weak_back_edge.bork: hits=74 hash=917c7b80288ffb67
 programs/build/managed_refs/presence_int_result.bork: hits=40 hash=6a90237e74bfbada
 programs/build/managed_refs/program_dynamic_across_blocks.bork: hits=93 hash=b505111b552f06df
+programs/build/managed_refs/return_nested_object_with_ref.bork: hits=16 hash=50ed13054d995438
+programs/build/managed_refs/return_object_with_ref_field.bork: hits=135 hash=88b7c762a0fe4f5f
 programs/build/managed_refs/val_both_return_string_move.bork: hits=16 hash=e1cb37e16958fa9a
 programs/build/managed_refs/val_else_move_string.bork: hits=32 hash=f8e3b255940cdca4
 programs/build/managed_refs/val_then_return_move.bork: hits=31 hash=96fba1ba4ded0011
