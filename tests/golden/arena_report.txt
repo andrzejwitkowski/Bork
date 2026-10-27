@@ -452,6 +452,19 @@ Arenas
     │   └── i [Copy]
     └── MatchArm
         └── n [Borrow ← pattern binding]
+== programs/build/enums/return_nested_hoisted_object.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun make
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/two_ref_variants.bork
 Arenas
 ├── fun one
@@ -1014,6 +1027,20 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/nested_option_returned.bork
+Arenas
+├── fun make
+│   └── i [Local]
+├── fun churn
+│   └── a [Local]
+└── fun main
+    ├── o [Local]
+    ├── MatchArm
+    │   ├── x [Borrow ← pattern binding]
+    │   ├── MatchArm
+    │   │   └── v [Local]
+    │   └── MatchArm
+    └── MatchArm
 == programs/build/option/nullable_moved_into_owner.bork
 Arenas
 ├── fun make
@@ -2340,6 +2367,20 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/enums/assign_local_object_to_outer_var.bork
+Ownership Error [272..275] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── out [Local]
+    ├── i [Local]
+    ├── Block
+    │   └── n [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/check_fail/enums/bool_missing.bork
 Type Error [59..93] non-exhaustive `when`: missing `false`
 Arenas
@@ -2432,7 +2473,7 @@ Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); 
 Arenas
 └── fun main
 == programs/check_fail/enums/return_local_object_in_branch.bork
-Ownership Error [162..165] `n` is freed when this function returns, but the returned value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Ownership Error [167..170] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
 Arenas
 ├── fun make
 │   ├── flag [Local]

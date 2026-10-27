@@ -1,4 +1,4 @@
-// diag: is freed when this function returns
+// diag: is freed before the value that stores it
 class N { n: i32 }
 enum E { A(n: N), B }
 

@@ -1,0 +1,26 @@
+// exit: 0
+// stdout: 42\n
+// A hoisted object may itself be stored in another returned object.
+class N { n: i32 }
+class Box { n: N }
+fun churn(k: i32): i32 {
+    val a = Box(N(k))
+    val b = Box(N(k + 1))
+    return a.n.n + b.n.n
+}
+
+class Holder { b: Box }
+fun make(): Holder {
+    val b = Box(N(42))
+    return Holder(b)
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    println(r.b.n.n)
+    return 0
+}

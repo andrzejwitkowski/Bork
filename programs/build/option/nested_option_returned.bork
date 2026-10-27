@@ -1,0 +1,23 @@
+// exit: 0
+// stdout: 7\n
+fun make(): Option<Option<i32>> {
+    val i: Option<i32> = Some(7)
+    return Some(i)
+}
+fun churn() {
+    val a: Option<Option<i32>> = Some(Some(1234567))
+}
+fun main(): i32 {
+    val o = make()
+    churn()
+    when o {
+        Some(x) => {
+            when x {
+                Some(v) => { println(v) }
+                None => { println(0) }
+            }
+        }
+        None => { println(0) }
+    }
+    return 0
+}

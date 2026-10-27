@@ -37,6 +37,7 @@ programs/build/enums/match_shapes.bork: hits=246 hash=0971bfd1ca01c29f
 programs/build/enums/ref_payload.bork: hits=80 hash=8fef823bd09efbfd
 programs/build/enums/ref_to_enum.bork: hits=88 hash=111fa40ac75d305e
 programs/build/enums/return_hoisted_object.bork: hits=76 hash=51c1ada4a7fbaa54
+programs/build/enums/return_nested_hoisted_object.bork: hits=22 hash=23b79e83ad60cce7
 programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
 programs/build/enums/unit_payload.bork: hits=110 hash=809165b17ece9bf2
 programs/build/enums/user_option_not_generic.bork: hits=2 hash=2b139c274fabd61e
@@ -88,6 +89,7 @@ programs/build/move_and_promote/regional_move.bork: hits=11 hash=cbc0ee523f69c05
 programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363eb2141308
 programs/build/move_and_promote/then_return_move_not_taken.bork: hits=19 hash=0d9ed2defcb669f1
 programs/build/move_and_promote/then_return_move_taken.bork: hits=19 hash=48237cebdc030fe1
+programs/build/option/nested_option_returned.bork: hits=33 hash=0e01b5f60d37a96a
 programs/build/option/nullable_moved_into_owner.bork: hits=62 hash=eacd4526ecb7c71b
 programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
 programs/build/option/nullable_when.bork: hits=98 hash=6bcd66b4bfac2309
@@ -186,6 +188,7 @@ programs/check_fail/conditionals/if_both_paths_move_then_use.bork: hits=35 hash=
 programs/check_fail/conditionals/if_one_path_move_then_use.bork: hits=20 hash=827eeb8ae1785bed
 programs/check_fail/constants/assign.bork: hits=1 hash=35354576bc4b80d7
 programs/check_fail/constants/range.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/enums/assign_local_object_to_outer_var.bork: hits=26 hash=9330ed931d1729c0
 programs/check_fail/enums/bool_missing.bork: hits=2 hash=03e305ae320b9b37
 programs/check_fail/enums/cannot_infer.bork: hits=1 hash=6650c5f7466b933c
 programs/check_fail/enums/class_name_clash.bork: hits=0 hash=cbf29ce484222325
@@ -200,7 +203,7 @@ programs/check_fail/enums/pattern_literal_out_of_range.bork: hits=26 hash=a4ebe5
 programs/check_fail/enums/pattern_unknown_variant.bork: hits=3 hash=9e7ccaf0c7208792
 programs/check_fail/enums/pattern_wrong_arity.bork: hits=3 hash=b172b9abe3669698
 programs/check_fail/enums/recursive_by_value.bork: hits=0 hash=cbf29ce484222325
-programs/check_fail/enums/return_local_object_in_branch.bork: hits=11 hash=182c7a8b7ef21d6f
+programs/check_fail/enums/return_local_object_in_branch.bork: hits=11 hash=9a59af95c24de67e
 programs/check_fail/enums/unknown_variant.bork: hits=1 hash=c253fc1c67e621e3
 programs/check_fail/enums/unreachable_arm.bork: hits=2 hash=f92cdf5abf1f6d0a
 programs/check_fail/enums/user_option_other_shape_nullable.bork: hits=1 hash=815ad2ebf2f68f02

@@ -76,6 +76,9 @@ programs/build/enums/return_hoisted_object.bork::makeMid() -> Mid
 programs/build/enums/return_hoisted_object.bork::makeTop() -> Top
 programs/build/enums/return_hoisted_object.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_object.bork::main() -> i32
+programs/build/enums/return_nested_hoisted_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
+programs/build/enums/return_nested_hoisted_object.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
@@ -171,6 +174,9 @@ programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool)
 programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
+programs/build/option/nested_option_returned.bork::make() -> Option<i32?>
+programs/build/option/nested_option_returned.bork::churn() -> unit
+programs/build/option/nested_option_returned.bork::main() -> i32
 programs/build/option/nullable_moved_into_owner.bork::make() -> Box
 programs/build/option/nullable_moved_into_owner.bork::churn(k: i32) -> i32
 programs/build/option/nullable_moved_into_owner.bork::main() -> i32

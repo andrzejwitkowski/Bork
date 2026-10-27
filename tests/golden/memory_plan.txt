@@ -78,6 +78,13 @@ programs/build/enums/return_hoisted_object.bork: 612..615 Box Lexical LexicalSco
 programs/build/enums/return_hoisted_object.bork: 616..617 N Lexical LexicalScope(4)
 programs/build/enums/return_hoisted_object.bork: 638..641 Box Lexical LexicalScope(4)
 programs/build/enums/return_hoisted_object.bork: 642..643 N Lexical LexicalScope(4)
+programs/build/enums/return_nested_hoisted_object.bork: 171..174 Box Lexical LexicalScope(0)
+programs/build/enums/return_nested_hoisted_object.bork: 175..176 N Lexical LexicalScope(0)
+programs/build/enums/return_nested_hoisted_object.bork: 193..196 Box Lexical LexicalScope(0)
+programs/build/enums/return_nested_hoisted_object.bork: 197..198 N Lexical LexicalScope(0)
+programs/build/enums/return_nested_hoisted_object.bork: 292..295 Box Lexical LexicalScope(1)
+programs/build/enums/return_nested_hoisted_object.bork: 296..297 N Lexical LexicalScope(1)
+programs/build/enums/return_nested_hoisted_object.bork: 314..320 Holder Lexical LexicalScope(1)
 programs/build/enums/two_ref_variants.bork: 645..653 Link Lexical LexicalScope(0)
 programs/build/enums/two_ref_variants.bork: 699..707 Link Lexical LexicalScope(1)
 programs/build/enums/two_ref_variants.bork: 763..775 Link Lexical LexicalScope(2)
@@ -155,6 +162,10 @@ programs/build/methods/owning_return.bork: 172..177 Point Lexical LexicalScope(2
 programs/build/methods/owning_return.bork: 230..235 Point Dynamic Program
 programs/build/methods/same_name.bork: 242..243 A Dynamic Program
 programs/build/methods/same_name.bork: 258..259 B Dynamic Program
+programs/build/option/nested_option_returned.bork: 85..92 Option Lexical LexicalScope(0)
+programs/build/option/nested_option_returned.bork: 104..111 Option Lexical LexicalScope(0)
+programs/build/option/nested_option_returned.bork: 161..180 Option Lexical LexicalScope(1)
+programs/build/option/nested_option_returned.bork: 166..179 Option Lexical LexicalScope(1)
 programs/build/option/nullable_moved_into_owner.bork: 250..274 Option Lexical LexicalScope(0)
 programs/build/option/nullable_moved_into_owner.bork: 286..289 Box Lexical LexicalScope(0)
 programs/build/option/nullable_moved_into_owner.bork: 342..370 Option Lexical LexicalScope(1)

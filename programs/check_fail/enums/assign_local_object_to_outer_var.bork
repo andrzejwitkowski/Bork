@@ -1,0 +1,22 @@
+// diag: is freed before the value that stores it
+class N { n: i32 }
+class Box { n: N }
+fun churn(k: i32): i32 {
+    val a = Box(N(k))
+    val b = Box(N(k + 1))
+    return a.n.n + b.n.n
+}
+fun main(): i32 {
+    var out = Box(N(1))
+    {
+        val n = N(42)
+        out = Box(n)
+    }
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    println(out.n.n)
+    return 0
+}

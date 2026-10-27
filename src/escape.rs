@@ -99,6 +99,12 @@ impl<'h> Escape<'h, '_> {
     /// A local object stored in a returned construct would be freed with its region while the
     /// result still points at it. `hoist` allocates the simple cases in the result sink.
     fn check_returned_objects(&mut self, value: &'h HirExpr) {
+        self.check_stored_objects(value, None);
+    }
+
+    /// With `owner_depth`, only locals declared in a deeper region than the owner dangle (an
+    /// assignment into an outer `var`); without it, every short-lived local does (a `return`).
+    fn check_stored_objects(&mut self, value: &'h HirExpr, owner_depth: Option<usize>) {
         let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &value.kind
         else {
             return;
@@ -106,11 +112,13 @@ impl<'h> Escape<'h, '_> {
         let mut names = Vec::new();
         crate::hoist::collect_idents(fields, &mut names);
         for name in names {
-            if self.lookup(&name).is_some_and(|local| local.short_lived_object) {
+            if self.lookup(&name).is_some_and(|local| {
+                local.short_lived_object && owner_depth.is_none_or(|depth| local.decl_depth > depth)
+            }) {
                 reject(
                     self.diagnostics,
                     &format!(
-                        "`{name}` is freed when this function returns, but the returned value would still point at it; \
+                        "`{name}` is freed before the value that stores it, but that value would still point at it; \
                          build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement"
                     ),
                     value.span,
@@ -228,6 +236,7 @@ impl<'h> Escape<'h, '_> {
                     .lookup(name)
                     .map(|local| local.decl_depth)
                     .unwrap_or(0);
+                self.check_stored_objects(value, Some(depth));
                 let value_depth = self.place(value, Some(depth));
                 if target.index().is_none() {
                     if let Some(local) = self.lookup_mut(name) {
