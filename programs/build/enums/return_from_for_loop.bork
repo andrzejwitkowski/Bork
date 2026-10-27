@@ -1,0 +1,28 @@
+// exit: 0
+// stdout: 5\n
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    return a.x.n + b.x.n
+}
+fun find(limit: i32): A {
+    val keep = A(P(5))
+    for (i in 0..limit) {
+        if (i == 2) {
+            return keep
+        }
+    }
+    return A(P(0))
+}
+fun main(): i32 {
+    val r = find(10)
+    var i = 0
+    while (i < 100) {
+        churn(i + 7000)
+        i = i + 1
+    }
+    println(r.x.n)
+    return 0
+}

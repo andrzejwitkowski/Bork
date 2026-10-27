@@ -1,0 +1,18 @@
+// diag: is declared inside a loop
+class P { n: i32 }
+class A { x: P }
+fun make(limit: i32): A {
+    var i = 0
+    while (i < limit) {
+        val p = P(i)
+        if (i == 1) {
+            return A(p)
+        }
+        i = i + 1
+    }
+    return A(P(0))
+}
+fun main(): i32 {
+    println(make(5).x.n)
+    return 0
+}

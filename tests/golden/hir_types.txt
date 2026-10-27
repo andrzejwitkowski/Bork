@@ -71,9 +71,27 @@ programs/build/enums/ref_payload.bork::hold(node: Ref<Node>) -> unit
 programs/build/enums/ref_payload.bork::main() -> i32
 programs/build/enums/ref_to_enum.bork::link(leaf: Ref<Tree>) -> unit
 programs/build/enums/ref_to_enum.bork::main() -> i32
+programs/build/enums/return_construct_in_branch.bork::churn(k: i32) -> i32
+programs/build/enums/return_construct_in_branch.bork::make(flag: bool) -> A
+programs/build/enums/return_construct_in_branch.bork::main() -> i32
+programs/build/enums/return_decl_in_branch.bork::churn(k: i32) -> i32
+programs/build/enums/return_decl_in_branch.bork::make(flag: bool) -> A
+programs/build/enums/return_decl_in_branch.bork::main() -> i32
+programs/build/enums/return_enum_in_branch.bork::churn(k: i32) -> i32
+programs/build/enums/return_enum_in_branch.bork::make(flag: bool) -> E
+programs/build/enums/return_enum_in_branch.bork::main() -> i32
+programs/build/enums/return_field_in_branch.bork::churn(k: i32) -> i32
+programs/build/enums/return_field_in_branch.bork::make(flag: bool) -> Box
+programs/build/enums/return_field_in_branch.bork::main() -> i32
 programs/build/enums/return_field_of_local.bork::churn(k: i32) -> i32
 programs/build/enums/return_field_of_local.bork::make() -> Outer
 programs/build/enums/return_field_of_local.bork::main() -> i32
+programs/build/enums/return_from_for_loop.bork::churn(k: i32) -> i32
+programs/build/enums/return_from_for_loop.bork::find(limit: i32) -> A
+programs/build/enums/return_from_for_loop.bork::main() -> i32
+programs/build/enums/return_from_loop_before.bork::churn(k: i32) -> i32
+programs/build/enums/return_from_loop_before.bork::find(limit: i32) -> A
+programs/build/enums/return_from_loop_before.bork::main() -> i32
 programs/build/enums/return_hoisted_chain.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_chain.bork::make2() -> C
 programs/build/enums/return_hoisted_chain.bork::main() -> i32
@@ -87,6 +105,13 @@ programs/build/enums/return_hoisted_via_call.bork::mk(a: A) -> B
 programs/build/enums/return_hoisted_via_call.bork::make() -> C
 programs/build/enums/return_hoisted_via_call.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_via_call.bork::main() -> i32
+programs/build/enums/return_in_method.bork::churn(k: i32) -> i32
+programs/build/enums/return_in_method.bork::main() -> i32
+programs/build/enums/return_in_method.bork::F.make(this: &F) -> A
+programs/build/enums/return_in_method.bork::F.pick(this: &F, flag: bool) -> A
+programs/build/enums/return_in_when_arm_stores_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_in_when_arm_stores_local.bork::make(f: bool) -> A
+programs/build/enums/return_in_when_arm_stores_local.bork::main() -> i32
 programs/build/enums/return_method_result_ref.bork::churn(k: i32) -> i32
 programs/build/enums/return_method_result_ref.bork::make() -> Outer
 programs/build/enums/return_method_result_ref.bork::main() -> i32
@@ -96,10 +121,27 @@ programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
 programs/build/enums/return_nested_hoisted_object.bork::main() -> i32
 programs/build/enums/return_scalar_field_in_branch.bork::make(flag: bool) -> Box
 programs/build/enums/return_scalar_field_in_branch.bork::main() -> i32
+programs/build/enums/return_two_paths.bork::churn(k: i32) -> i32
+programs/build/enums/return_two_paths.bork::make(flag: bool) -> A
+programs/build/enums/return_two_paths.bork::main() -> i32
+programs/build/enums/return_unreturned_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_unreturned_local.bork::make(flag: bool) -> A
+programs/build/enums/return_unreturned_local.bork::main() -> i32
+programs/build/enums/return_value_if_local_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_value_if_local_object.bork::spin() -> unit
+programs/build/enums/return_value_if_local_object.bork::make(flag: bool) -> A
+programs/build/enums/return_value_if_local_object.bork::main() -> i32
+programs/build/enums/return_value_if_stores_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_value_if_stores_local.bork::spin() -> unit
+programs/build/enums/return_value_if_stores_local.bork::make(flag: bool) -> A
+programs/build/enums/return_value_if_stores_local.bork::main() -> i32
 programs/build/enums/return_via_local.bork::make() -> A
 programs/build/enums/return_via_local.bork::makeNested() -> Wrap
 programs/build/enums/return_via_local.bork::churn(k: i32) -> i32
 programs/build/enums/return_via_local.bork::main() -> i32
+programs/build/enums/return_when_arms.bork::churn(k: i32) -> i32
+programs/build/enums/return_when_arms.bork::make(flag: bool) -> A
+programs/build/enums/return_when_arms.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
