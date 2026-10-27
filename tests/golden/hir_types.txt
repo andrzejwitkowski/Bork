@@ -178,6 +178,11 @@ programs/build/option/option_result.bork::half(n: i32) -> i32?
 programs/build/option/option_result.bork::show(o: &i32?) -> i32
 programs/build/option/option_result.bork::parse(n: i32) -> Result<i32, String>
 programs/build/option/option_result.bork::main() -> i32
+programs/build/option/prelude_some_none_unshadowed.bork::main() -> i32
+programs/build/option/user_function_named_some.bork::Some(x: i32) -> i32
+programs/build/option/user_function_named_some.bork::main() -> i32
+programs/build/option/user_names_shadow_none.bork::f(None: i32) -> i32
+programs/build/option/user_names_shadow_none.bork::main() -> i32
 programs/build/option/user_option_wins.bork::main() -> i32
 programs/build/option/when_some_first.bork::len(x: String?) -> i32
 programs/build/option/when_some_first.bork::size(x: String?) -> i32

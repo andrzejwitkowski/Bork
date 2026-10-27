@@ -92,6 +92,9 @@ programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
 programs/build/option/nullable_when.bork: hits=98 hash=6bcd66b4bfac2309
 programs/build/option/option_conversions.bork: hits=134 hash=777e46b9b8b0c322
 programs/build/option/option_result.bork: hits=122 hash=0a0cb68af0040397
+programs/build/option/prelude_some_none_unshadowed.bork: hits=32 hash=5eb324eb289bb807
+programs/build/option/user_function_named_some.bork: hits=12 hash=b05f3340f19e1457
+programs/build/option/user_names_shadow_none.bork: hits=24 hash=a3a838e354b8d1a1
 programs/build/option/user_option_wins.bork: hits=16 hash=76dafa6f555185aa
 programs/build/option/when_some_first.bork: hits=78 hash=53a938a3ea4bf345
 programs/build/paged_arenas/concat_grows_past_page.bork: hits=90 hash=d831dd43275c145f

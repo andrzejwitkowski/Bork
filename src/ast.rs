@@ -423,12 +423,16 @@ pub enum Expr {
         span: crate::span::Span,
         id: crate::span::AstId,
     },
+    /// Numbered like an identifier: typeck falls back to it when a binding named `None` shadows the prelude.
     None {
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
+    /// Numbered for the same reason: a user function named `Some` makes this a plain call.
     Some {
         expr: Box<Expr>,
         span: crate::span::Span,
+        id: crate::span::AstId,
     },
     Binary {
         op: BinOp,
@@ -479,7 +483,7 @@ impl Expr {
     /// typeck decides from the expected type whether it is that or the `Option` enum's variant.
     pub fn ident(id: crate::span::SpannedName) -> Expr {
         if id.name == "None" {
-            return Expr::None { span: id.span };
+            return Expr::None { span: id.span, id: crate::span::AstId::DUMMY };
         }
         Expr::Ident { name: id.name, span: id.span, id: crate::span::AstId::DUMMY }
     }
@@ -488,7 +492,7 @@ impl Expr {
     pub fn call(callee: Expr, type_args: Vec<Type>, mut args: Vec<Expr>, trailing: Option<Closure>, span: crate::span::Span) -> Expr {
         let is_some = matches!(&callee, Expr::Ident { name, .. } if name == "Some");
         if is_some && type_args.is_empty() && args.len() == 1 && trailing.is_none() {
-            return Expr::Some { expr: Box::new(args.pop().expect("one argument")), span };
+            return Expr::Some { expr: Box::new(args.pop().expect("one argument")), span, id: crate::span::AstId::DUMMY };
         }
         Expr::Call { callee: Box::new(callee), type_args, args, trailing }
     }

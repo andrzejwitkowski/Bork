@@ -1,0 +1,11 @@
+// exit: 0
+// stdout: 5\n3\n
+// A local or parameter named `None` is an ordinary name; without one `None` is still the absent value.
+fun f(None: i32): i32 { return None + 1 }
+
+fun main(): i32 {
+    val None = 5
+    println(None)
+    println(f(2))
+    return 0
+}

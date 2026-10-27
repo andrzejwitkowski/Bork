@@ -1103,6 +1103,29 @@ Arenas
     │   └── v [Local]
     └── MatchArm
         └── e [Borrow ← pattern binding]
+== programs/build/option/prelude_some_none_unshadowed.bork
+Arenas
+└── fun main
+    ├── x [Local]
+    ├── y [Local]
+    ├── MatchArm
+    │   └── v [Local]
+    ├── MatchArm
+    ├── MatchArm
+    │   └── v [Local]
+    └── MatchArm
+== programs/build/option/user_function_named_some.bork
+Arenas
+├── fun Some
+│   └── x [Local]
+└── fun main
+    └── n [Local]
+== programs/build/option/user_names_shadow_none.bork
+Arenas
+├── fun f
+│   └── None [Local]
+└── fun main
+    └── None [Local]
 == programs/build/option/user_option_wins.bork
 Arenas
 └── fun main

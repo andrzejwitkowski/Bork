@@ -95,8 +95,16 @@ pub(super) fn dispatch(
         } => check_borrow_operand(expr, *span, expected, env),
         Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
-        Expr::None { span } => check_none(*span, expected, return_ty, env),
-        Expr::Some { expr: inner, span } => check_some(inner, *span, expected, return_ty, env),
+        // A local, constant or function of the same name wins over the prelude's `None` / `Some`.
+        Expr::None { span, id } if env.binding("None").is_some() || env.constants.contains_key("None") => {
+            check_ident("None", *span, *id, UseKind::Local, env)
+        }
+        Expr::Some { expr: inner, span, id } if env.fun_sig("Some").is_some() || env.binding("Some").is_some() => {
+            let callee = Expr::Ident { name: "Some".into(), span: *span, id: *id };
+            check_call(&callee, &[], std::slice::from_ref(inner), None, expected, return_ty, env)
+        }
+        Expr::None { span, .. } => check_none(*span, expected, return_ty, env),
+        Expr::Some { expr: inner, span, .. } => check_some(inner, *span, expected, return_ty, env),
         Expr::Binary { op, lhs, rhs, span } => {
             if *op == BinOp::Elvis {
                 check_elvis(op, lhs, rhs, *span, expected, return_ty, env)
@@ -381,7 +389,7 @@ fn check_managed_ref(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    if let Expr::None { span } = expr {
+    if let Expr::None { span, .. } = expr {
         return env.expr_at(HirExprKind::None, expected, *span);
     }
 

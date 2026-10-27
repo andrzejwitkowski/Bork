@@ -1,0 +1,15 @@
+// exit: 0
+// stdout: 3\n
+fun main(): i32 {
+    val x: i32? = Some(3)
+    val y: i32? = None
+    when x {
+        Some(v) => { println(v) }
+        None => { println(0) }
+    }
+    when y {
+        Some(v) => { println(v) }
+        None => { }
+    }
+    return 0
+}
