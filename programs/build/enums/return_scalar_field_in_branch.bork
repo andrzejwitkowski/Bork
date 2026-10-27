@@ -1,0 +1,16 @@
+// exit: 0
+// stdout: 5\n
+// Reading a scalar field of a local copies the value: no handle into the local, so a return in a branch is fine.
+class L { n: i32 }
+class Box { n: i32 }
+fun make(flag: bool): Box {
+    val local = L(5)
+    if (flag) {
+        return Box(local.n)
+    }
+    return Box(1)
+}
+fun main(): i32 {
+    println(make(true).n)
+    return 0
+}

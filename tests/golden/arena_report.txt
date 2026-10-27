@@ -492,15 +492,16 @@ Arenas
         └── n [Borrow ← pattern binding]
 == programs/build/enums/return_hoisted_via_call.bork
 Arenas
-├── fun churn
-│   ├── k [Local]
-│   ├── x [Local]
-│   └── y [Local]
 ├── fun mk
 │   └── a [Local]
 ├── fun make
 │   ├── a [Local]
 │   └── b [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   ├── y [Local]
+│   └── z [Local]
 └── fun main
     ├── r [Local]
     ├── i [Local]
@@ -536,6 +537,14 @@ Arenas
     ├── i [Local]
     └── WhileLoop
         └── i [Copy]
+== programs/build/enums/return_scalar_field_in_branch.bork
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── local [Local]
+│   └── IfThen
+│       └── local [Shared ← fun make]
+└── fun main
 == programs/build/enums/two_ref_variants.bork
 Arenas
 ├── fun one
@@ -1246,6 +1255,22 @@ Arenas
     ├── MatchArm
     ├── MatchArm
     │   └── v [Local]
+    └── MatchArm
+== programs/build/option/return_option_wrapped_object.bork
+Arenas
+├── fun make
+│   └── n [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    ├── WhileLoop
+    │   └── i [Copy]
+    ├── MatchArm
+    │   └── v [Borrow ← pattern binding]
     └── MatchArm
 == programs/build/option/user_function_named_some.bork
 Arenas

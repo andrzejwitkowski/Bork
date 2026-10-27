@@ -91,11 +91,6 @@ impl<'h> Escape<'h, '_> {
         self.region_body(body, true, sink)
     }
 
-    fn holds_object(&self, ty: TyId) -> bool {
-        let ty = self.tcx.base(ty);
-        self.tcx.class_def(ty).is_some() || matches!(self.tcx.data(ty), crate::ty::TyData::Enum(..))
-    }
-
     /// A local object stored in a returned construct would be freed with its region while the
     /// result still points at it. `hoist` allocates the simple cases in the result sink.
     fn check_returned_objects(&mut self, value: &'h HirExpr) {
@@ -110,7 +105,7 @@ impl<'h> Escape<'h, '_> {
             return;
         };
         let mut names = Vec::new();
-        crate::hoist::collect_idents(fields, &mut names);
+        crate::hoist::collect_idents(fields, self.tcx, &mut names);
         for name in names {
             if self.lookup(&name).is_some_and(|local| {
                 local.short_lived_object && owner_depth.is_none_or(|depth| local.decl_depth > depth)
@@ -214,7 +209,7 @@ impl<'h> Escape<'h, '_> {
                 let local = Local {
                     decl_depth: self.depth,
                     value_depth,
-                    short_lived_object: !hoisted && self.holds_object(*ty),
+                    short_lived_object: !hoisted && crate::hoist::holds_object(self.tcx, *ty),
                 };
                 self.scopes
                     .last_mut()

@@ -83,9 +83,9 @@ programs/build/enums/return_hoisted_object.bork::makeMid() -> Mid
 programs/build/enums/return_hoisted_object.bork::makeTop() -> Top
 programs/build/enums/return_hoisted_object.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_object.bork::main() -> i32
-programs/build/enums/return_hoisted_via_call.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_via_call.bork::mk(a: A) -> B
 programs/build/enums/return_hoisted_via_call.bork::make() -> C
+programs/build/enums/return_hoisted_via_call.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_via_call.bork::main() -> i32
 programs/build/enums/return_method_result_ref.bork::churn(k: i32) -> i32
 programs/build/enums/return_method_result_ref.bork::make() -> Outer
@@ -94,6 +94,8 @@ programs/build/enums/return_method_result_ref.bork::Box.get(this: &Box) -> Ref<N
 programs/build/enums/return_nested_hoisted_object.bork::churn(k: i32) -> i32
 programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
 programs/build/enums/return_nested_hoisted_object.bork::main() -> i32
+programs/build/enums/return_scalar_field_in_branch.bork::make(flag: bool) -> Box
+programs/build/enums/return_scalar_field_in_branch.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
@@ -207,6 +209,9 @@ programs/build/option/option_result.bork::show(o: &i32?) -> i32
 programs/build/option/option_result.bork::parse(n: i32) -> Result<i32, String>
 programs/build/option/option_result.bork::main() -> i32
 programs/build/option/prelude_some_none_unshadowed.bork::main() -> i32
+programs/build/option/return_option_wrapped_object.bork::make() -> Box
+programs/build/option/return_option_wrapped_object.bork::churn(k: i32) -> i32
+programs/build/option/return_option_wrapped_object.bork::main() -> i32
 programs/build/option/user_function_named_some.bork::Some(x: i32) -> i32
 programs/build/option/user_function_named_some.bork::main() -> i32
 programs/build/option/user_names_shadow_none.bork::f(None: i32) -> i32
