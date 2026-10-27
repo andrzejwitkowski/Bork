@@ -29,6 +29,8 @@ have already been reused can still look valid; DebugDiag does not change pointer
 representations, quarantine memory or retain a complete execution history. Metadata
 lives outside payload memory and the existing debugger ABI, and increases debug
 execution time and memory use. Ordinary builds contain none of these new hooks.
+Retired arena descriptions stay alive through the retained address records and their
+ancestors; recycling an arena does not accumulate an independent arena history.
 
 Load the Python tools manually, using your checkout's absolute path:
 

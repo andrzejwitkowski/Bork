@@ -5,6 +5,7 @@ use std::{
     ffi::{c_char, c_void, CStr},
     fmt,
     io::Write,
+    rc::Rc,
 };
 
 #[repr(C)]
@@ -73,6 +74,7 @@ pub(super) struct DebugDiag {
     pub size: usize,
     pub id: usize,
     pub owner: usize,
+    arena: Option<Rc<Arena>>,
     pub state: MemoryState,
     pub name: String,
     pub type_name: String,
@@ -89,10 +91,11 @@ struct Range {
     previous: Option<DebugDiag>,
 }
 
+#[derive(Debug)]
 struct Arena {
-    parent: usize,
+    id: usize,
+    parent: Option<Rc<Arena>>,
     created: Location,
-    released: Option<Location>,
 }
 
 struct Frame {
@@ -104,7 +107,7 @@ struct Frame {
 struct Diagnostics {
     next_id: usize,
     ranges: BTreeMap<usize, Range>,
-    arenas: BTreeMap<usize, Arena>,
+    arenas: BTreeMap<usize, Rc<Arena>>,
     stack: Vec<Frame>,
     site: Location,
 }
@@ -123,19 +126,27 @@ pub(crate) fn current_location() -> Location {
 pub(crate) fn arena_created(id: usize, parent: usize) {
     let created = current_location();
     DIAG.with(|d| {
-        d.borrow_mut().arenas.insert(
+        let mut d = d.borrow_mut();
+        let parent = d.arenas.get(&parent).cloned().unwrap_or_else(|| {
+            Rc::new(Arena {
+                id: parent,
+                parent: None,
+                created: Location::default(),
+            })
+        });
+        d.arenas.insert(
             id,
-            Arena {
-                parent,
+            Rc::new(Arena {
+                id,
+                parent: Some(parent),
                 created,
-                released: None,
-            },
+            }),
         );
     });
 }
 
 impl Diagnostics {
-    fn overlaps(&self, start: usize, end: usize) -> Vec<usize> {
+    fn overlaps(&self, start: usize, end: usize) -> impl Iterator<Item = (usize, &Range)> {
         let first = self
             .ranges
             .range(..=start)
@@ -143,13 +154,13 @@ impl Diagnostics {
             .map_or(start, |(&a, _)| a);
         self.ranges
             .range(first..end)
-            .filter_map(|(&a, r)| (r.end > start).then_some(a))
-            .collect()
+            .filter_map(move |(&a, r)| (r.end > start).then_some((a, r)))
     }
 
     fn replace(&mut self, start: usize, end: usize, current: DebugDiag) {
         let mut cursor = start;
-        for key in self.overlaps(start, end) {
+        let keys: Vec<_> = self.overlaps(start, end).map(|(key, _)| key).collect();
+        for key in keys {
             let old = self.ranges.remove(&key).unwrap();
             if key < start {
                 self.ranges.insert(
@@ -239,14 +250,15 @@ fn track(
         for &(base, _, capacity) in pages {
             let end = base + capacity;
             let mut cursor = base;
-            let keys = d.overlaps(base, end);
-            for key in keys {
+            let occupied: Vec<_> = d.overlaps(base, end).map(|(key, r)| (key, r.end)).collect();
+            for (key, range_end) in occupied.into_iter().chain(std::iter::once((end, end))) {
                 if cursor < key {
                     let empty = DebugDiag {
                         start: cursor,
                         size: key - cursor,
                         id: 0,
                         owner,
+                        arena: d.arenas.get(&owner).cloned(),
                         state: MemoryState::UnusedInPool,
                         name: String::new(),
                         type_name: String::new(),
@@ -263,29 +275,7 @@ fn track(
                         },
                     );
                 }
-                cursor = cursor.max(d.ranges[&key].end);
-            }
-            if cursor < end {
-                let empty = DebugDiag {
-                    start: cursor,
-                    size: end - cursor,
-                    id: 0,
-                    owner,
-                    state: MemoryState::UnusedInPool,
-                    name: String::new(),
-                    type_name: String::new(),
-                    created: created.clone(),
-                    declared: None,
-                    released: None,
-                };
-                d.ranges.insert(
-                    cursor,
-                    Range {
-                        end,
-                        current: empty,
-                        previous: None,
-                    },
-                );
+                cursor = cursor.max(range_end);
             }
         }
         d.next_id += 1;
@@ -294,6 +284,7 @@ fn track(
             size,
             id: d.next_id,
             owner,
+            arena: d.arenas.get(&owner).cloned(),
             state: MemoryState::Live,
             name: String::new(),
             type_name: String::new(),
@@ -304,6 +295,7 @@ fn track(
         current.start = start;
         current.size = size;
         current.owner = owner;
+        current.arena = d.arenas.get(&owner).cloned();
         current.state = MemoryState::Live;
         current.released = None;
         d.replace(
@@ -330,9 +322,7 @@ pub(crate) fn freed(start: usize) {
 pub(crate) fn retired(owner: usize, site: Location) {
     DIAG.with(|d| {
         let mut d = d.borrow_mut();
-        if let Some(a) = d.arenas.get_mut(&owner) {
-            a.released = Some(site.clone());
-        }
+        d.arenas.remove(&owner);
         for r in d.ranges.values_mut().filter(|r| r.current.owner == owner) {
             r.current.state = MemoryState::UnusedInPool;
             if r.current.released.is_none() {
@@ -394,19 +384,18 @@ pub(super) fn failure(start: usize, size: usize, owner: usize) -> Option<Failure
     DIAG.with(|d| {
         let d = d.borrow();
         let end = start.checked_add(size);
-        let keys = d.overlaps(start, end.unwrap_or(usize::MAX));
+        let ranges = d.overlaps(start, end.unwrap_or(usize::MAX));
         let mut cursor = start;
         let mut allocation = None;
         let mut first = None;
-        for key in keys {
-            let r = &d.ranges[&key];
+        for (key, r) in ranges {
             first.get_or_insert(r);
             let valid = key <= cursor
                 && end.is_some()
                 && r.current.state == MemoryState::Live
                 && (r.current.size != 0 || owner != 0)
                 && (owner == 0 || r.current.owner == owner)
-                && (owner == 0 || d.arenas.get(&owner).is_none_or(|a| a.released.is_none()))
+                && (owner == 0 || d.arenas.contains_key(&owner))
                 && allocation.is_none_or(|id| id == r.current.id);
             if !valid {
                 return Some(Failure {
@@ -426,22 +415,20 @@ pub(super) fn failure(start: usize, size: usize, owner: usize) -> Option<Failure
                 previous: r.previous.clone(),
             });
         }
-        if start == 0
-            || end.is_none()
-            || (owner != 0 && d.arenas.get(&owner).is_some_and(|a| a.released.is_some()))
-        {
+        if start == 0 || end.is_none() || (owner != 0 && !d.arenas.contains_key(&owner)) {
             return Some(Failure {
                 current: DebugDiag {
                     start,
                     size,
                     id: 0,
                     owner,
+                    arena: d.arenas.get(&owner).cloned(),
                     state: MemoryState::UnusedInPool,
                     name: String::new(),
                     type_name: String::new(),
                     created: Location::default(),
                     declared: None,
-                    released: d.arenas.get(&owner).and_then(|a| a.released.clone()),
+                    released: None,
                 },
                 previous: None,
             });
@@ -477,15 +464,25 @@ fn report(
             let _ = writeln!(out, "    {} at {}", f.name, f.site);
         }
         let _ = writeln!(out, "  arena chain:");
-        let mut id = if expected == 0 { a.owner } else { expected };
-        while id != 0 {
-            if let Some(arena) = d.arenas.get(&id) {
-                let _ = writeln!(out, "    arena #{id}, created: {}", arena.created);
-                id = arena.parent;
-            } else {
-                let _ = writeln!(out, "    arena #{id}");
-                break;
-            }
+        let id = if expected == 0 { a.owner } else { expected };
+        let mut arena = a
+            .arena
+            .as_ref()
+            .filter(|a| a.id == id)
+            .or_else(|| {
+                failure
+                    .previous
+                    .as_ref()
+                    .and_then(|p| p.arena.as_ref())
+                    .filter(|a| a.id == id)
+            })
+            .or_else(|| d.arenas.get(&id));
+        if arena.is_none() {
+            let _ = writeln!(out, "    arena #{id}");
+        }
+        while let Some(a) = arena {
+            let _ = writeln!(out, "    arena #{}, created: {}", a.id, a.created);
+            arena = a.parent.as_ref();
         }
     });
     out
@@ -496,22 +493,22 @@ pub(crate) fn check(address: usize, size: usize, write: bool) {
         address,
         size,
         if write { "write" } else { "read" },
-        current_location(),
+        current_location,
         0,
     );
 }
 
-fn check_at(address: usize, size: usize, op: &str, site: Location, owner: usize) {
+fn check_at(address: usize, size: usize, op: &str, site: impl FnOnce() -> Location, owner: usize) {
     if let Some(f) = failure(address, size, owner) {
         let _ = std::io::stderr()
             .lock()
-            .write_all(report(address, size, op, &site, &f, owner).as_bytes());
+            .write_all(report(address, size, op, &site(), &f, owner).as_bytes());
         std::process::abort();
     }
 }
 
 pub(crate) fn check_handle(owner: usize, address: usize) {
-    check_at(address, 1, "handle access", current_location(), owner);
+    check_at(address, 1, "handle access", current_location, owner);
 }
 
 #[no_mangle]
@@ -525,7 +522,7 @@ pub unsafe extern "C" fn bork_debug_check(
         address as usize,
         size,
         if operation == 0 { "read" } else { "write" },
-        location(site),
+        || location(site),
         0,
     );
 }
@@ -540,7 +537,7 @@ pub unsafe extern "C" fn bork_debug_check_handle(
         address as usize,
         1,
         "handle access",
-        location(site),
+        || location(site),
         owner as usize,
     );
 }
@@ -595,14 +592,72 @@ pub unsafe extern "C" fn bork_debug_label_allocation(
 pub extern "C" fn bork_debug_copy_origin(source: *const c_void, destination: *const c_void) {
     DIAG.with(|d| {
         let mut d = d.borrow_mut();
-        let origin = d.ranges.get(&(source as usize)).map(|r| r.current.clone());
+        let origin = d
+            .ranges
+            .range(..=source as usize)
+            .next_back()
+            .filter(|(_, r)| (source as usize) < r.end && r.current.state == MemoryState::Live)
+            .map(|(_, r)| r.current.clone());
         if let Some(origin) = origin {
             d.edit_allocation(destination as usize, |dest| {
                 dest.created = origin.created.clone();
                 dest.declared = origin.declared.clone();
                 dest.name = origin.name.clone();
-                dest.type_name = origin.type_name.clone();
+                if dest.type_name.is_empty() {
+                    dest.type_name = origin.type_name.clone();
+                }
             });
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arena::*;
+
+    #[test]
+    fn recycling_keeps_only_live_arena_records_and_referenced_ancestors() {
+        let before = DIAG.with(|d| d.borrow().arenas.len());
+        let mut arena = bork_arena_push();
+        for _ in 0..100 {
+            unsafe {
+                bork_arena_alloc(arena, 8, 8);
+                arena = bork_arena_reset(arena);
+            }
+        }
+        assert_eq!(DIAG.with(|d| d.borrow().arenas.len()), before + 1);
+        unsafe {
+            bork_arena_pop(arena);
+        }
+        assert_eq!(DIAG.with(|d| d.borrow().arenas.len()), before);
+    }
+
+    #[test]
+    fn retired_ancestors_remain_available_in_reports() {
+        unsafe {
+            let parent = bork_arena_push();
+            let child = bork_arena_push_child(parent);
+            let address = bork_arena_alloc(child, 8, 8).addr();
+            bork_arena_pop(child);
+            bork_arena_pop(parent);
+            let failed = failure(address, 8, child.addr()).unwrap();
+            let message = report(
+                address,
+                8,
+                "read",
+                &Location::default(),
+                &failed,
+                child.addr(),
+            );
+            assert!(
+                message.contains(&format!("arena #{}", parent.addr())),
+                "{message}"
+            );
+            assert!(
+                message.contains(&format!("arena #{}", child.addr())),
+                "{message}"
+            );
+        }
+    }
 }

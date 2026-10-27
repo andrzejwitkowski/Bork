@@ -1,12 +1,20 @@
 use super::*;
 use inkwell::{
     memory_buffer::MemoryBuffer,
-    values::{CallSiteValue, InstructionOpcode},
+    values::{CallSiteValue, InstructionOpcode, InstructionValue},
 };
 
-#[cfg(unix)]
-fn invalidated_array_report(source: &str) -> String {
-    use std::{os::unix::process::ExitStatusExt, process::Command};
+fn calls_function(instruction: InstructionValue<'_>, name: &str) -> bool {
+    CallSiteValue::try_from(instruction)
+        .ok()
+        .and_then(|call| call.get_called_fn_value())
+        .is_some_and(|function| function.get_name().to_bytes() == name.as_bytes())
+}
+
+fn debug_module<'ctx>(
+    context: &'ctx inkwell::context::Context,
+    source: &str,
+) -> inkwell::module::Module<'ctx> {
     let checked = crate::frontend::check(source);
     assert!(checked.is_ok(), "{:?}", checked.diagnostics);
     let mut tcx = checked.tcx.clone();
@@ -16,9 +24,8 @@ fn invalidated_array_report(source: &str) -> String {
         checked.report.as_ref().unwrap(),
     )
     .unwrap();
-    let context = inkwell::context::Context::create();
-    let module = crate::codegen::llvm::emit_module_with_debug(
-        &context,
+    crate::codegen::llvm::emit_module_with_debug(
+        context,
         &mono.hir,
         &tcx,
         &mono.report,
@@ -26,7 +33,83 @@ fn invalidated_array_report(source: &str) -> String {
         source,
         Path::new("fixture.bork"),
     )
+    .unwrap()
+}
+
+fn instrumented_ir<'ctx>(context: &'ctx inkwell::context::Context, ir: &[u8]) -> Codegen<'ctx> {
+    let checked = crate::frontend::check("fun main() {}\n");
+    let mut cx = Codegen::new(
+        context,
+        "test",
+        &[],
+        &[],
+        &checked.tcx,
+        checked.memory_plan.unwrap(),
+    )
     .unwrap();
+    cx.module = context
+        .create_module_from_ir(MemoryBuffer::create_from_memory_range_copy(ir, "test"))
+        .unwrap();
+    cx.debug = Some(DebugInfo::new(
+        &cx,
+        "fun main() {}\n",
+        Path::new("fixture.bork"),
+    ));
+    cx.debug.as_ref().unwrap().builder.finalize();
+    super::checks::instrument(&cx).unwrap();
+    cx.module.verify().unwrap();
+    cx
+}
+
+#[cfg(unix)]
+fn run_module(module: &inkwell::module::Module<'_>) -> std::process::Output {
+    module.verify().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let object = dir.path().join("test.o");
+    let binary = dir.path().join("test");
+    crate::codegen::llvm::write_object_with_debug(module, &object, true).unwrap();
+    crate::codegen::link::link_executable_with_debug(&object, &binary, true).unwrap();
+    std::process::Command::new(&binary).output().unwrap()
+}
+
+#[test]
+fn reads_do_not_relabel_the_input_allocation() {
+    let source = "fun read(items: [i32;2]): i32 { return items[0] }\nfun main(): i32 { val items = [1,2]\n return read(move items) }\n";
+    let context = inkwell::context::Context::create();
+    let module = debug_module(&context, source);
+    let function = module.get_function("bork.read").unwrap();
+    assert!(
+        !function
+            .get_basic_blocks()
+            .iter()
+            .flat_map(|b| b.get_instructions())
+            .any(|i| { calls_function(i, "bork_debug_label_allocation") }),
+        "reading an array parameter must not relabel its allocation"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn slice_copy_keeps_origin_and_its_own_concrete_type() {
+    let source = "fun main(): i32 {\n val original = [1,2,3,4]\n val piece = original[1..3]\n val copied = move piece\n return copied[0]\n}\n";
+    let report = invalidated_array_report(source);
+    assert!(report.contains("name: original\n"), "{report}");
+    assert!(report.contains("type: [i32; 2]\n"), "{report}");
+    let start = source.find("[1,2,3,4]").unwrap();
+    assert!(
+        report
+            .lines()
+            .any(|l| l.contains("created:")
+                && l.contains(&format!("[bytes {start}..{}]", start + 9))),
+        "{report}"
+    );
+}
+
+#[cfg(unix)]
+fn invalidated_array_report(source: &str) -> String {
+    use std::os::unix::process::ExitStatusExt;
+    let context = inkwell::context::Context::create();
+    let module = debug_module(&context, source);
     let instructions: Vec<_> = module
         .get_function("main")
         .unwrap()
@@ -36,13 +119,7 @@ fn invalidated_array_report(source: &str) -> String {
         .collect();
     let allocation = instructions
         .iter()
-        .find(|i| {
-            i.get_opcode() == InstructionOpcode::Call
-                && CallSiteValue::try_from(**i)
-                    .unwrap()
-                    .get_called_fn_value()
-                    .is_some_and(|f| f.get_name().to_bytes() == b"bork_arena_alloc")
-        })
+        .find(|i| calls_function(**i, "bork_arena_alloc"))
         .unwrap();
     let load = instructions
         .iter()
@@ -72,13 +149,7 @@ fn invalidated_array_report(source: &str) -> String {
             "",
         )
         .unwrap();
-    module.verify().unwrap();
-    let dir = tempfile::tempdir().unwrap();
-    let object = dir.path().join("test.o");
-    let binary = dir.path().join("test");
-    crate::codegen::llvm::write_object_with_debug(&module, &object, true).unwrap();
-    crate::codegen::link::link_executable_with_debug(&object, &binary, true).unwrap();
-    let output = Command::new(&binary).output().unwrap();
+    let output = run_module(&module);
     assert_eq!(output.status.signal(), Some(6), "{output:?}");
     String::from_utf8(output.stderr).unwrap()
 }
@@ -178,13 +249,7 @@ fn class_enum_and_option_unpacking_check_arena_identity() {
                 .get_basic_blocks()
                 .iter()
                 .flat_map(|b| b.get_instructions())
-                .any(|i| {
-                    i.get_opcode() == InstructionOpcode::Call
-                        && CallSiteValue::try_from(i)
-                            .unwrap()
-                            .get_called_fn_value()
-                            .is_some_and(|f| f.get_name().to_bytes() == b"bork_debug_check_handle")
-                }),
+                .any(|i| { calls_function(i, "bork_debug_check_handle") }),
             "{name} lacks handle identity validation"
         );
     }
@@ -206,18 +271,8 @@ fn class_enum_and_option_unpacking_check_arena_identity() {
 fn nested_expressions_keep_their_distinct_original_byte_spans() {
     let source =
         "class Box { value: i32 }\nfun main(): i32 { val item = Box(7)\n return item.value }\n";
-    let checked = crate::frontend::check(source);
     let context = inkwell::context::Context::create();
-    let module = crate::codegen::llvm::emit_module_with_debug(
-        &context,
-        checked.hir.as_ref().unwrap(),
-        &checked.tcx,
-        checked.report.as_ref().unwrap(),
-        checked.memory_plan.unwrap(),
-        source,
-        Path::new("fixture.bork"),
-    )
-    .unwrap();
+    let module = debug_module(&context, source);
     let loads: Vec<_> = module
         .get_function("main")
         .unwrap()
@@ -251,29 +306,11 @@ fn nested_expressions_keep_their_distinct_original_byte_spans() {
 #[test]
 #[cfg(unix)]
 fn hir_provenance_reaches_reports_after_returning_and_copying_fields() {
-    use std::{os::unix::process::ExitStatusExt, process::Command};
+    use std::os::unix::process::ExitStatusExt;
     let source = "class Holder<T> { values: T }\nfun make(): Holder<[i32; 2]> { return Holder([1,2]) }\nfun main(): i32 { val item = make()\n return item.values[0] }\n";
     for field in [false, true] {
-        let checked = crate::frontend::check(source);
-        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
-        let mut tcx = checked.tcx.clone();
-        let mono = crate::mono::monomorphize(
-            checked.hir.as_ref().unwrap(),
-            &mut tcx,
-            checked.report.as_ref().unwrap(),
-        )
-        .unwrap();
         let context = inkwell::context::Context::create();
-        let module = crate::codegen::llvm::emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan,
-            source,
-            Path::new("fixture.bork"),
-        )
-        .unwrap();
+        let module = debug_module(&context, source);
         let instructions: Vec<_> = module
             .get_function("main")
             .unwrap()
@@ -283,13 +320,7 @@ fn hir_provenance_reaches_reports_after_returning_and_copying_fields() {
             .collect();
         let guard = instructions
             .iter()
-            .find(|i| {
-                i.get_opcode() == InstructionOpcode::Call
-                    && CallSiteValue::try_from(**i)
-                        .unwrap()
-                        .get_called_fn_value()
-                        .is_some_and(|f| f.get_name().to_bytes() == b"bork_debug_check_handle")
-            })
+            .find(|i| calls_function(**i, "bork_debug_check_handle"))
             .unwrap();
         let owner = guard.get_operand(0).unwrap().unwrap_value();
         let builder = context.create_builder();
@@ -338,13 +369,7 @@ fn hir_provenance_reaches_reports_after_returning_and_copying_fields() {
                 )
                 .unwrap();
         }
-        module.verify().unwrap();
-        let dir = tempfile::tempdir().unwrap();
-        let object = dir.path().join("test.o");
-        let binary = dir.path().join("test");
-        crate::codegen::llvm::write_object_with_debug(&module, &object, true).unwrap();
-        crate::codegen::link::link_executable_with_debug(&object, &binary, true).unwrap();
-        let output = Command::new(&binary).output().unwrap();
+        let output = run_module(&module);
         assert_eq!(output.status.signal(), Some(6), "{output:?}");
         let report = String::from_utf8_lossy(&output.stderr);
         let origin = if field { "[1,2]" } else { "Holder([1,2])" };
@@ -376,7 +401,7 @@ fn hir_provenance_reaches_reports_after_returning_and_copying_fields() {
 #[test]
 #[cfg(unix)]
 fn faulty_ir_aborts_for_each_memory_operation_with_a_recursive_stack() {
-    use std::{os::unix::process::ExitStatusExt, process::Command};
+    use std::os::unix::process::ExitStatusExt;
     for (operation, expected) in [
         ("%x = load i32, ptr %p", Some("read")),
         ("store i32 1, ptr %p", Some("write")),
@@ -435,36 +460,8 @@ fn faulty_ir_aborts_for_each_memory_operation_with_a_recursive_stack() {
         "#
         );
         let context = inkwell::context::Context::create();
-        let checked = crate::frontend::check("fun main() {}\n");
-        let mut cx = Codegen::new(
-            &context,
-            "test",
-            &[],
-            &[],
-            &checked.tcx,
-            checked.memory_plan.unwrap(),
-        )
-        .unwrap();
-        cx.module = context
-            .create_module_from_ir(MemoryBuffer::create_from_memory_range_copy(
-                ir.as_bytes(),
-                "test",
-            ))
-            .unwrap();
-        cx.debug = Some(DebugInfo::new(
-            &cx,
-            "fun main() {}\n",
-            Path::new("fixture.bork"),
-        ));
-        cx.debug.as_ref().unwrap().builder.finalize();
-        super::checks::instrument(&cx).unwrap();
-        cx.module.verify().unwrap();
-        let directory = tempfile::tempdir().unwrap();
-        let object = directory.path().join("test.o");
-        let binary = directory.path().join("test");
-        crate::codegen::llvm::write_object_with_debug(&cx.module, &object, true).unwrap();
-        crate::codegen::link::link_executable_with_debug(&object, &binary, true).unwrap();
-        let output = Command::new(&binary).output().unwrap();
+        let cx = instrumented_ir(&context, ir.as_bytes());
+        let output = run_module(&cx.module);
         if let Some(expected) = expected {
             assert_eq!(output.status.signal(), Some(6), "{operation}: {output:?}");
             let report = String::from_utf8_lossy(&output.stderr);
@@ -490,16 +487,6 @@ fn faulty_ir_aborts_for_each_memory_operation_with_a_recursive_stack() {
 #[test]
 fn every_memory_access_including_glue_is_checked_before_execution() {
     let context = inkwell::context::Context::create();
-    let checked = crate::frontend::check("fun main() {}\n");
-    let mut cx = Codegen::new(
-        &context,
-        "test",
-        &[],
-        &[],
-        &checked.tcx,
-        checked.memory_plan.clone().unwrap(),
-    )
-    .unwrap();
     let ir = br#"
         declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1)
         declare void @llvm.memmove.p0.p0.i64(ptr, ptr, i64, i1)
@@ -513,17 +500,7 @@ fn every_memory_access_including_glue_is_checked_before_execution() {
           ret void
         }
     "#;
-    cx.module = context
-        .create_module_from_ir(MemoryBuffer::create_from_memory_range_copy(ir, "test"))
-        .unwrap();
-    cx.debug = Some(DebugInfo::new(
-        &cx,
-        "fun main() {}\n",
-        Path::new("fixture.bork"),
-    ));
-    cx.debug.as_ref().unwrap().builder.finalize();
-    super::checks::instrument(&cx).unwrap();
-    cx.module.verify().unwrap();
+    let cx = instrumented_ir(&context, ir);
     let function = cx.module.get_function("bork.drop.test").unwrap();
     let calls: Vec<_> = function
         .get_basic_blocks()
@@ -533,11 +510,7 @@ fn every_memory_access_including_glue_is_checked_before_execution() {
     assert_eq!(
         calls
             .iter()
-            .filter(|i| i.get_opcode() == InstructionOpcode::Call
-                && CallSiteValue::try_from(**i)
-                    .unwrap()
-                    .get_called_fn_value()
-                    .is_some_and(|f| f.get_name().to_bytes() == b"bork_debug_check"))
+            .filter(|i| calls_function(**i, "bork_debug_check"))
             .count(),
         7
     );

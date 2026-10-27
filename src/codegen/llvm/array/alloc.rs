@@ -89,6 +89,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let dst_base = self.arena_alloc(arena, byte_len, align)?;
+        self.cx.debug_allocation(dst_base, "", &self.cx.tcx.display(array_ty).to_string(), false)?;
         self.cx.debug_copy_origin(base, dst_base)?;
         if self.cx.tcx.is_string(elem_ty) || self.cx.tcx.is_managed_ref(elem_ty) {
             let zero = self.cx.context.i64_type().const_int(0, false);

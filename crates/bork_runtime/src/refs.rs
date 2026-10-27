@@ -163,8 +163,6 @@ pub unsafe extern "C" fn bork_ref_move_out(output: *mut RefHandle, reference: *m
     #[cfg(feature = "debug-runtime")]
     super::arena::debug::diag::check(output as usize, std::mem::size_of::<RefHandle>(), true);
     #[cfg(feature = "debug-runtime")]
-    super::arena::debug::diag::check(reference as usize, std::mem::size_of::<RefHandle>(), true);
-    #[cfg(feature = "debug-runtime")]
     let _mutation = super::arena::debug::Mutation::begin();
     assert!(!output.is_null(), "Ref output must not be null");
     // SAFETY: The ABI caller provides writable output and source slots.
@@ -263,8 +261,6 @@ pub unsafe extern "C" fn bork_ref_store_take_ptr(
     incoming: *const RefHandle,
 ) {
     #[cfg(feature = "debug-runtime")]
-    super::arena::debug::diag::check(destination as usize, std::mem::size_of::<RefHandle>(), true);
-    #[cfg(feature = "debug-runtime")]
     super::arena::debug::diag::check(incoming as usize, std::mem::size_of::<RefHandle>(), false);
     #[cfg(feature = "debug-runtime")]
     let _mutation = super::arena::debug::Mutation::begin();
@@ -310,8 +306,6 @@ fn observe(reference: RefHandle) -> RefObservation {
             super::arena::debug::diag::check_handle(reference.control as usize, reference.object as usize);
             // Pin independently from the storage slot: the block may overwrite that slot.
             retain_strong_internal(reference.control);
-            #[cfg(feature = "debug-runtime")]
-            super::arena::debug::diag::check_handle(reference.control as usize, reference.object as usize);
             RefObservation {
                 object: reference.object,
                 guard: reference.control,

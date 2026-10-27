@@ -156,18 +156,6 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         ops: &[BasicValueEnum<'ctx>],
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         self.debug_location(expr.span);
-        let value = self.combine_expr_inner(expr, ops)?;
-        if !self.cx.current_block_terminated() {
-            if let Some(value) = value { self.cx.debug_value(value, expr.ty, "", false)?; }
-        }
-        Ok(value)
-    }
-
-    fn combine_expr_inner(
-        &mut self,
-        expr: &HirExpr,
-        ops: &[BasicValueEnum<'ctx>],
-    ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         debug_assert_eq!(ops.len(), child_plan(expr).len());
         match &expr.kind {
             HirExprKind::Int { value } => {
