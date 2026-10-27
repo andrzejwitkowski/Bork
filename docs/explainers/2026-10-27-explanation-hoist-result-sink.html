@@ -249,8 +249,8 @@ fun make(): C {
     val b = mk(a)
     return C(b)
 }</code></pre>
-    <div class="flow"><span class="box">return uses <code>b</code></span><span class="arrow">&rarr;</span><span class="box">b is a <code>Call</code></span><span class="arrow">&rarr;</span><span class="box new">b hoisted; a was passed to the call</span></div>
-    <p>Calls are hoistable initializers too. Here <code>a</code> is hoisted because <code>b</code> is hoisted and <code>a</code> is stored through it (the fixpoint), and the call's own result is built in the result sink it is given. I verified that this prints <code>42</code> after the churn loop; I did not trace every path inside the callee.</p>
+    <div class="flow"><span class="box">return uses <code>b</code></span><span class="arrow">&rarr;</span><span class="box">b is a <code>Call</code></span><span class="arrow">&rarr;</span><span class="box new">b hoisted</span><span class="arrow">&rarr;</span><span class="box new">a: program-lived (planner rule)</span></div>
+    <p>Calls are hoistable initializers too, but the argument is <em>not</em> traced by hoist: the fixpoint only follows constructors, and <code>b</code> here is a call. <code>a</code> is safe for a different reason. The memory planner has no escape summaries for callees, so it conservatively marks every object passed to a call as program-lived (<code>memory.rs</code>, the <code>Call</code> arm). In the memory plan the <code>A(42)</code> shows up as <code>Dynamic Program</code>, not as part of <code>make()</code>'s arena. I verified it prints <code>42</code> after 200 churn rounds. This case depends on that planner rule, not on this PR.</p>
   </div>
 
   <div class="step">
@@ -296,7 +296,8 @@ return Bag(v)</code></pre>
   <tr><th>Situation</th><th>Result</th><th>Where it is decided</th></tr>
   <tr><td>Local object (construct or call) used as a field of the final <code>return</code></td><td class="ok">hoisted, works</td><td><code>hoist.rs</code></td></tr>
   <tr><td>&hellip; reached through a chain of other hoisted locals</td><td class="ok">all hoisted</td><td><code>hoist.rs</code> fixpoint</td></tr>
-  <tr><td>&hellip; reached through a field read (<code>local.n</code>)</td><td class="ok">receiver hoisted</td><td><code>collect_idents</code></td></tr>
+  <tr><td>&hellip; reached through a field read of an object-typed field (<code>local.n</code>)</td><td class="ok">receiver hoisted</td><td><code>collect_idents</code></td></tr>
+  <tr><td>&hellip; a field read of a scalar (<code>local.count</code>)</td><td class="ok">not tracked, copies the value</td><td><code>collect_idents</code></td></tr>
   <tr><td>Same, but <code>return</code> is nested in an <code>if</code> or loop</td><td class="bad">compile error</td><td><code>escape.rs</code></td></tr>
   <tr><td>Local object assigned into an outer <code>var</code></td><td class="bad">compile error</td><td><code>escape.rs</code></td></tr>
   <tr><td><code>val b = Box(n); return b</code> (returned via a variable)</td><td class="bad">compile error</td><td>existing <code>escape</code> rule</td></tr>
@@ -319,7 +320,7 @@ return Bag(v)</code></pre>
 }</code></pre>
 <p><code>RESULT_SINK</code> is the string <code>"$result"</code>. It reuses the existing <code>alloc_in_binding: Option&lt;String&gt;</code> field, which normally names an outer variable whose arena to use. The <code>$</code> is meant to keep it from colliding with a user variable name (I did not check the lexer's identifier rules to confirm that). A dedicated enum would be cleaner; the string was the smallest change that fit the existing field.</p>
 
-<p><code>collect_idents</code> is the shared helper. It walks the fields of a construct and collects the names of local variables stored there, looking through nested constructs and through the receiver of a field read.</p>
+<p><code>collect_idents</code> is the shared helper. It walks the fields of a construct and collects the names of local variables stored there, looking through nested constructs and through the receiver of a field read whose field is itself an object handle (a scalar read copies the value, so it does not count).</p>
 
 <h3>4.2 <code>src/escape.rs</code>: reject everything else</h3>
 <ul>
