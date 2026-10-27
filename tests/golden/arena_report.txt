@@ -235,6 +235,17 @@ Arenas
     ├── neg [Local]
     ├── prod [Local]
     └── before [Local]
+== programs/build/enums/float_compare_payload.bork
+Arenas
+└── fun main
+    ├── e [Local]
+    ├── a [Local]
+    ├── MatchArm
+    │   ├── x [Local]
+    │   ├── IfThen
+    │   └── IfElse
+    ├── IfThen
+    └── IfElse
 == programs/build/enums/generic_and_calls.bork
 Arenas
 ├── fun wrap
@@ -988,6 +999,15 @@ Arenas
 │       └── MoveBlock (move)
 │           └── s [Moved ← fun run]
 └── fun main
+== programs/build/option/equality_cases_still_work.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── s [Local]
+    ├── IfThen
+    ├── IfThen
+    └── IfThen
 == programs/build/option/nullable_moved_into_owner.bork
 Arenas
 ├── fun make
@@ -2329,6 +2349,12 @@ Arenas
 Type Error [86..89] enum `Foo` conflicts with another type or function
 Arenas
 └── fun main
+== programs/check_fail/enums/enum_equality_unsupported.bork
+Type Error [92..95] `==` is not supported for the enum E yet; match on it with `when`
+Arenas
+└── fun main
+    ├── IfThen
+    └── IfElse
 == programs/check_fail/enums/generic_enum_instance_invalid.bork
 Type Error [] payload `r` of `E<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
 Arenas

@@ -1,0 +1,6 @@
+// diag: `==` is not supported for the enum E yet
+enum E { A, B }
+fun main(): i32 {
+    if (E.A == E.B) { println(1) } else { println(2) }
+    return 0
+}
