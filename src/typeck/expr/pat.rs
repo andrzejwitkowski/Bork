@@ -114,6 +114,12 @@ fn bind(
 }
 
 fn literal(value: &PatLit, ty: TyId, span: Span, env: &mut Env<'_>) -> HirPatKind {
+    // shortcut: a literal against a still-unresolved integer variable is not range checked, add when a ticket needs it.
+    if let (PatLit::Int(v), crate::ty::TyData::Prim(prim)) = (value, env.tcx.data(ty)) {
+        if prim.is_integer() && !crate::constants::fits(*v, *prim) {
+            env.error(format!("integer literal {v} is out of range for {}", env.show(ty)), Some(span));
+        }
+    }
     let found = match value {
         PatLit::Int(_) if env.tcx.is_integer(ty) || env.is_literal_var(ty, crate::infer::VarKind::Int) => ty,
         PatLit::Int(_) => env.tcx.i32(),

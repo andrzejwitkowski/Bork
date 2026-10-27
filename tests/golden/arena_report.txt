@@ -416,6 +416,13 @@ Arenas
     ├── d [Local]
     ├── e [Local]
     └── f [Local]
+== programs/build/generics/borrow_infers_enum_arg.bork
+Arenas
+├── fun f
+│   ├── e [Borrow ← call site]
+│   └── MatchArm
+└── fun main
+    └── e [Local]
 == programs/build/generics/identity.bork
 Arenas
 ├── fun id
@@ -2105,6 +2112,11 @@ Arenas
 Type Error [86..89] enum `Foo` conflicts with another type or function
 Arenas
 └── fun main
+== programs/check_fail/enums/generic_enum_instance_invalid.bork
+Type Error [] payload `r` of `E<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
+Arenas
+└── fun main
+    └── e [Local]
 == programs/check_fail/enums/generic_mismatch.bork
 Type Error [115..116] field `v` of variant `Tree.Node` has type i32, expected String
 Arenas
@@ -2142,6 +2154,14 @@ Type Error [104..105] literal pattern has type i32, expected bool
 Arenas
 └── fun main
     ├── b [Local]
+    ├── MatchArm
+    └── MatchArm
+== programs/check_fail/enums/pattern_literal_out_of_range.bork
+Type Error [109..112] integer literal 256 is out of range for u8
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── MatchArm
     ├── MatchArm
     └── MatchArm
 == programs/check_fail/enums/pattern_unknown_variant.bork
@@ -2184,6 +2204,16 @@ Type Error [65..66] field `r` of variant `Shape.Circle` has type String, expecte
 Arenas
 └── fun main
     └── s [Local]
+== programs/check_fail/generics/borrow_conflicting_type_args.bork
+Type Error [175..177] argument 2 to `g` has type &E<bool>, expected &E<?2>
+Type Error [175..177] borrow has type &E<bool>, expected &E<?2>
+Arenas
+├── fun g
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+└── fun main
+    ├── x [Local]
+    └── y [Local]
 == programs/check_fail/generics/cannot_infer.bork
 Type Error [130..134] cannot infer type parameter `T` of `make`; specify it explicitly, e.g. `make::<..>(..)`
 Arenas
