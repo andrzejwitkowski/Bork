@@ -107,6 +107,14 @@ impl<'h> Escape<'h, '_> {
     /// With `owner_depth`, only locals declared in a deeper region than the owner dangle (an
     /// assignment into an outer `var`); without it, every short-lived local does (a `return`).
     fn check_stored_objects(&mut self, value: &'h HirExpr, owner_depth: Option<usize>) {
+        let mut tails = Vec::new();
+        crate::hoist::value_tails(value, &mut tails);
+        for tail in tails {
+            self.check_stored_in(tail, owner_depth);
+        }
+    }
+
+    fn check_stored_in(&mut self, value: &'h HirExpr, owner_depth: Option<usize>) {
         let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &value.kind
         else {
             return;
@@ -124,7 +132,7 @@ impl<'h> Escape<'h, '_> {
             } else {
                 format!(
                     "`{name}` is freed before the value that stores it, but that value would still point at it; \
-                     build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement"
+                     build it directly in the constructor, or declare it at the top level of the function"
                 )
             };
             reject(self.diagnostics, &message, value.span);
@@ -133,6 +141,12 @@ impl<'h> Escape<'h, '_> {
 
     /// `return a` where `a` is an object declared in a loop body.
     fn check_returned_loop_local(&mut self, value: &'h HirExpr) -> bool {
+        let mut tails = Vec::new();
+        crate::hoist::value_tails(value, &mut tails);
+        tails.into_iter().fold(false, |found, tail| self.check_loop_local_tail(tail) || found)
+    }
+
+    fn check_loop_local_tail(&mut self, value: &'h HirExpr) -> bool {
         let HirExprKind::Ident { name, .. } = &value.kind else { return false };
         let Some(local) = self.lookup(name).copied() else { return false };
         if !(local.short_lived_object && local.in_loop) {

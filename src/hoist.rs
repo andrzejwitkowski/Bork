@@ -118,7 +118,14 @@ fn hoist_into_result(body: &mut HirBlock, tcx: &TyCtx) {
     let mut returns = Vec::new();
     collect_returns(body, &mut returns);
     let mut used = Vec::new();
-    for ret in &returns {
+    let tails: Vec<&crate::hir::HirExpr> = {
+        let mut out = Vec::new();
+        for ret in &returns {
+            value_tails(ret, &mut out);
+        }
+        out
+    };
+    for ret in &tails {
         match &ret.kind {
             HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
                 collect_idents(fields, tcx, &mut used)
@@ -128,7 +135,7 @@ fn hoist_into_result(body: &mut HirBlock, tcx: &TyCtx) {
     }
     let mut decls = Vec::new();
     collect_decls(body, &mut decls);
-    for ret in &returns {
+    for ret in &tails {
         // Only a construct: a call's result may own bytes (a `String?`) that this does not move.
         if let HirExprKind::Ident { name, .. } = &ret.kind {
             let is_construct = decls.iter().any(|(n, v)| n == name && matches!(v.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. }));
@@ -224,6 +231,21 @@ fn mark_decls(block: &mut HirBlock, used: &[String], in_loop: bool) {
             },
             _ => {}
         }
+    }
+}
+
+/// The expressions a returned value can actually be: itself, or for an `if`/`else` the tail
+/// expression of each branch, recursively. `return if (f) { A(p) } else { A(q) }` stores `p` or `q`.
+pub fn value_tails<'a>(expr: &'a crate::hir::HirExpr, out: &mut Vec<&'a crate::hir::HirExpr>) {
+    match &expr.kind {
+        HirExprKind::If { then_block, else_block, .. } => {
+            for block in std::iter::once(then_block).chain(else_block.iter()) {
+                if let Some(HirStmt::Expr(tail)) = block.stmts.last() {
+                    value_tails(tail, out);
+                }
+            }
+        }
+        _ => out.push(expr),
     }
 }
 
