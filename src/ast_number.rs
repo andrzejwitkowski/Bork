@@ -141,7 +141,7 @@ impl Numberer {
 
     fn expr(&mut self, expr: &mut Expr) {
         match expr {
-            Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
+            Expr::Int(_) | Expr::Float(_) | Expr::Bool(_) | Expr::Str(_) => {}
             Expr::ArrayLit { elements, .. } => elements.iter_mut().for_each(|e| self.expr(e)),
             Expr::Index { receiver, index, .. } => {
                 self.expr(receiver);
@@ -156,7 +156,12 @@ impl Numberer {
             Expr::Ident { span, id, .. } | Expr::Move { span, id, .. } | Expr::Promote { span, id, .. } => {
                 *id = self.fresh(*span);
             }
-            Expr::Some { expr, .. } | Expr::Unary { expr, .. } => self.expr(expr),
+            Expr::Some { expr, span, id } => {
+                *id = self.fresh(*span);
+                self.expr(expr);
+            }
+            Expr::None { span, id } => *id = self.fresh(*span),
+            Expr::Unary { expr, .. } => self.expr(expr),
             Expr::Binary { lhs, rhs, .. } => {
                 self.expr(lhs);
                 self.expr(rhs);

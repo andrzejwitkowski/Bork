@@ -1,0 +1,10 @@
+// exit: 0
+// stdout: 6\n
+// A user function named `Some` wins over the prelude variant.
+fun Some(x: i32): i32 { return x + 1 }
+
+fun main(): i32 {
+    val n = Some(5)
+    println(n)
+    return 0
+}
