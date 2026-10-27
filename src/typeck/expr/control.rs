@@ -169,6 +169,8 @@ fn match_arms(
     let ty = env.tcx.deref_ty(scrutinee_hir.ty);
     let mut checked_arms = Vec::with_capacity(arms.len());
     let mut result_ty: Option<TyId> = None;
+    // Without an expected type, arms that disagree make a statement `when`, typed unit like a plain `if`.
+    let mut agree = true;
     for arm in arms {
         env.enter_scope();
         let before = env.diagnostics.len();
@@ -176,12 +178,15 @@ fn match_arms(
         pattern_errors += env.diagnostics.len() - before;
         let (body, body_ty) = check_value_block_in_current_scope(&arm.body, expected, return_ty, env);
         env.exit_scope();
-        match result_ty {
-            None => result_ty = Some(body_ty),
-            Some(first) if expected.is_some() => {
-                env.mismatch("`when` arm", body_ty, first, arm.body.span.or(Some(arm.pat.span())));
+        // An arm that returns has no value to join with the others.
+        if !stmt::block_always_returns(&body) {
+            match result_ty {
+                None => result_ty = Some(body_ty),
+                Some(first) if expected.is_some() => {
+                    env.mismatch("`when` arm", body_ty, first, arm.body.span.or(Some(arm.pat.span())));
+                }
+                Some(first) => agree &= env.same(body_ty, first),
             }
-            Some(_) => {}
         }
         checked_arms.push(HirArm { pat, body });
     }
@@ -189,7 +194,11 @@ fn match_arms(
     if scrutinee_errors == 0 && pattern_errors == 0 && !env.tcx.is_unknown(ty) {
         super::pat::check_coverage(&checked_arms, arms, span, env);
     }
-    let result_ty = if expected.is_some() { result_ty.expect("a `when` has an arm") } else { env.tcx.unit() };
+    let unit = env.tcx.unit();
+    let result_ty = match result_ty {
+        Some(ty) if agree => ty,
+        _ => expected.unwrap_or(unit),
+    };
     env.expr_at(HirExprKind::Match { scrutinee: Box::new(scrutinee_hir.hir), arms: checked_arms }, result_ty, span)
 }
 

@@ -1,0 +1,19 @@
+// exit: 0
+// A `when` used as a statement may have arms of different types, and a `break` arm is not a return.
+enum E { A, B }
+
+fun main(): i32 {
+    val e = E.A
+    var i = 0
+    while (i < 3) {
+        when e {
+            A => { i = i + 1 }
+            B => { break }
+        }
+    }
+    when e {
+        A => { 1 }
+        B => { println(2) }
+    }
+    return 0
+}

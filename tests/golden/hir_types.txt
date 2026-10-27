@@ -75,6 +75,11 @@ programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::main() -> i32
 programs/build/enums/variants.bork::main() -> i32
+programs/build/enums/when_result_inferred.bork::main() -> i32
+programs/build/enums/when_returns_in_every_arm.bork::f(e: &E) -> i32
+programs/build/enums/when_returns_in_every_arm.bork::g(e: &E) -> i32
+programs/build/enums/when_returns_in_every_arm.bork::nested(e: &E, f: &F) -> i32
+programs/build/enums/when_returns_in_every_arm.bork::main() -> i32
 programs/build/generics/borrow_infers_enum_arg.bork::f(e: &E<T0>) -> unit
 programs/build/generics/borrow_infers_enum_arg.bork::main() -> i32
 programs/build/generics/identity.bork::id(x: T0) -> T0
@@ -228,6 +233,10 @@ programs/check/enums/pattern_shadow_move.bork::make() -> E
 programs/check/enums/pattern_shadow_move.bork::main() -> i32
 programs/check/enums/patterns.bork::main() -> unit
 programs/check/enums/shape.bork::main() -> unit
+programs/check/enums/when_returning_arm_move.bork::take(s: String) -> i32
+programs/check/enums/when_returning_arm_move.bork::f(e: &E) -> i32
+programs/check/enums/when_returning_arm_move.bork::main() -> i32
+programs/check/enums/when_statement_arms_differ.bork::main() -> i32
 programs/check/generics/explicit_args.bork::id(x: T0) -> T0
 programs/check/generics/explicit_args.bork::main() -> unit
 programs/check/generics/generic_class.bork::main() -> unit

@@ -1,0 +1,10 @@
+// diag: expected i32
+enum E { A, B }
+
+fun main(): i32 {
+    val n: i32 = when E.A {
+        A => { 1 }
+        B => { true }
+    }
+    return n
+}

@@ -1,0 +1,14 @@
+// diag: function must return a value of type i32 on all paths
+enum E { A, B }
+
+fun f(e: &E): i32 {
+    when e {
+        A => { return 1 }
+        B => { }
+    }
+}
+
+fun main(): i32 {
+    val e = E.A
+    return f(&e)
+}

@@ -55,6 +55,10 @@ fn expr_always_returns(expr: &crate::hir::HirExpr) -> bool {
             else_block: Some(else_block),
             ..
         } => block_always_returns(then_block) && block_always_returns(else_block),
+        // Exhaustiveness is checked separately, so every input takes one of the arms.
+        crate::hir::HirExprKind::Match { arms, .. } => {
+            !arms.is_empty() && arms.iter().all(|arm| block_always_returns(&arm.body))
+        }
         _ => false,
     }
 }

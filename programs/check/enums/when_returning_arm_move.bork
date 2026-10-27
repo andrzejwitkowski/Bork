@@ -1,0 +1,19 @@
+// exit: 0
+// An arm that moves `s` and returns does not poison the path that falls through the `when`.
+enum E { A, B }
+
+fun take(s: String): i32 { return s.length }
+
+fun f(e: &E): i32 {
+    val s = "abc"
+    when e {
+        A => { return take(move s) }
+        B => { }
+    }
+    return take(move s)
+}
+
+fun main(): i32 {
+    val e = E.A
+    return f(&e) - 3
+}
