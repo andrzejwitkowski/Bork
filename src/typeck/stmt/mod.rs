@@ -124,6 +124,8 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
     let literal_kind = match value {
         crate::ast::Expr::Int(_) => Some(crate::infer::VarKind::Int),
         crate::ast::Expr::Float(_) => Some(crate::infer::VarKind::Float),
+        // A `when` initializer is a value, so its arms must agree even without an annotation.
+        crate::ast::Expr::Match { .. } => Some(crate::infer::VarKind::General),
         _ => None,
     };
     let hint = match (declared_ty, literal_kind) {

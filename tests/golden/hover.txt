@@ -195,6 +195,7 @@ programs/check_fail/enums/recursive_by_value.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/enums/unknown_variant.bork: hits=1 hash=c253fc1c67e621e3
 programs/check_fail/enums/unreachable_arm.bork: hits=2 hash=f92cdf5abf1f6d0a
 programs/check_fail/enums/when_arms_mismatch_in_initializer.bork: hits=2 hash=e18ce7701f1eb9ef
+programs/check_fail/enums/when_arms_mismatch_untyped_initializer.bork: hits=1 hash=f7c1e756483e7e80
 programs/check_fail/enums/when_missing_return_in_one_arm.bork: hits=4 hash=0d4ff60d971c1e6f
 programs/check_fail/enums/wrong_arity.bork: hits=1 hash=b61abe766f2c2c54
 programs/check_fail/enums/wrong_payload_type.bork: hits=1 hash=c1330217383dfc53

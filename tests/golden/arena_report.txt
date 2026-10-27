@@ -2337,6 +2337,13 @@ Arenas
     ├── n [Local]
     ├── MatchArm
     └── MatchArm
+== programs/check_fail/enums/when_arms_mismatch_untyped_initializer.bork
+Type Error [110..118] `when` arm has type bool, expected i32
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── MatchArm
+    └── MatchArm
 == programs/check_fail/enums/when_missing_return_in_one_arm.bork
 Type Error [] function must return a value of type i32 on all paths
 Arenas
