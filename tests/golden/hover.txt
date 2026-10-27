@@ -54,6 +54,8 @@ programs/build/enums/return_nested_hoisted_object.bork: hits=22 hash=23b79e83ad6
 programs/build/enums/return_scalar_field_in_branch.bork: hits=26 hash=67464cdad1a975ba
 programs/build/enums/return_two_paths.bork: hits=45 hash=a8ed21d360e189d1
 programs/build/enums/return_unreturned_local.bork: hits=51 hash=a40b8def8786de32
+programs/build/enums/return_value_if_local_object.bork: hits=31 hash=3e2e683992c3fe06
+programs/build/enums/return_value_if_stores_local.bork: hits=31 hash=f2b57f5eb05efe72
 programs/build/enums/return_via_local.bork: hits=74 hash=639e8c6f32b70152
 programs/build/enums/return_when_arms.bork: hits=47 hash=3dc5fced46281552
 programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
@@ -246,6 +248,7 @@ programs/check_fail/enums/return_decl_in_for_loop.bork: hits=35 hash=5e577b678c1
 programs/check_fail/enums/return_decl_in_loop.bork: hits=42 hash=b4ca9bb06d515ae9
 programs/check_fail/enums/return_loop_local_stored.bork: hits=23 hash=e1f65efee34df7ff
 programs/check_fail/enums/return_option_of_object.bork: hits=37 hash=f4fe54afd460f7a5
+programs/check_fail/enums/return_value_if_loop_local.bork: hits=34 hash=a4ee331439a2b7d8
 programs/check_fail/enums/return_via_local_reused.bork: hits=21 hash=fcd2cd83077152d6
 programs/check_fail/enums/return_via_var.bork: hits=11 hash=d2feedd86d52c249
 programs/check_fail/enums/unknown_variant.bork: hits=1 hash=c253fc1c67e621e3
