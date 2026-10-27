@@ -199,7 +199,10 @@ Arenas
 │   ├── e [Borrow ← call site]
 │   ├── v [Local]
 │   ├── MatchArm
+│   │   └── n [Local]
 │   ├── MatchArm
+│   │   ├── l [Local]
+│   │   ├── r [Local]
 │   │   ├── a [Local]
 │   │   ├── b [Local]
 │   │   ├── IfValSome
@@ -207,6 +210,8 @@ Arenas
 │   │   └── IfValSome
 │   │       └── y [Borrow ← presence guard]
 │   ├── MatchArm
+│   │   ├── l [Local]
+│   │   ├── r [Local]
 │   │   ├── a [Local]
 │   │   ├── b [Local]
 │   │   ├── IfValSome
@@ -214,6 +219,7 @@ Arenas
 │   │   └── IfValSome
 │   │       └── y [Borrow ← presence guard]
 │   └── MatchArm
+│       ├── inner [Local]
 │       ├── a [Local]
 │       └── IfValSome
 │           └── x [Borrow ← presence guard]
@@ -245,6 +251,8 @@ Arenas
 │   ├── l [Borrow ← call site]
 │   ├── MatchArm
 │   └── MatchArm
+│       ├── v [Local]
+│       ├── next [Local]
 │       ├── rest [Local]
 │       └── IfValSome
 │           └── n [Borrow ← presence guard]
@@ -252,6 +260,8 @@ Arenas
 │   ├── l [Borrow ← call site]
 │   ├── MatchArm
 │   └── MatchArm
+│       ├── v [Local]
+│       ├── next [Local]
 │       ├── rest [Local]
 │       └── IfValSome
 │           └── n [Borrow ← presence guard]
@@ -270,13 +280,17 @@ Arenas
 │   ├── m [Borrow ← call site]
 │   ├── d [Local]
 │   ├── MatchArm
+│   │   └── v [Local]
 │   └── MatchArm
 │       └── d [Copy]
 ├── fun inner
 │   ├── w [Borrow ← call site]
 │   ├── MatchArm
+│   │   ├── s [Borrow ← pattern binding]
+│   │   ├── p [Borrow ← pattern binding]
 │   │   ├── a [Local]
 │   │   ├── MatchArm
+│   │   │   └── r [Local]
 │   │   └── MatchArm
 │   └── MatchArm
 └── fun main
@@ -291,6 +305,7 @@ Arenas
         ├── i [Copy]
         ├── e [Shared ← fun main]
         ├── MatchArm
+        │   ├── r [Local]
         │   └── t [Copy]
         └── MatchArm
             ├── i [Copy]
@@ -303,12 +318,16 @@ Arenas
 │   ├── s [Borrow ← call site]
 │   ├── MatchArm
 │   └── MatchArm
+│       ├── n [Local]
+│       ├── t [Local]
 │       ├── v [Local]
 │       └── IfValSome
 │           └── x [Borrow ← presence guard]
 ├── fun early
 │   ├── s [Borrow ← call site]
 │   ├── MatchArm
+│   │   ├── n [Local]
+│   │   └── t [Local]
 │   └── MatchArm
 ├── fun make
 │   └── n [Local]
@@ -316,8 +335,11 @@ Arenas
 │   ├── r [Local]
 │   ├── total [Local]
 │   ├── MatchArm
+│   │   ├── n [Local]
+│   │   ├── t [Local]
 │   │   └── IfValSome
-│   │       └── x [Borrow ← presence guard]
+│   │       ├── x [Borrow ← presence guard]
+│   │       └── t [Copy]
 │   └── MatchArm
 └── fun main
     ├── node [Local]
@@ -339,27 +361,40 @@ Arenas
 │   ├── s [Borrow ← call site]
 │   ├── a [Local]
 │   ├── MatchArm
+│   │   └── r [Local]
 │   ├── MatchArm
+│   │   ├── w [Local]
+│   │   └── h [Local]
 │   ├── MatchArm
+│   │   └── t [Borrow ← pattern binding]
 │   └── MatchArm
 ├── fun describe
 │   ├── s [Borrow ← call site]
 │   ├── MatchArm
 │   ├── MatchArm
+│   │   └── r [Local]
+│   ├── MatchArm
+│   │   └── w [Local]
+│   ├── MatchArm
+│   │   ├── w [Local]
+│   │   └── h [Local]
 │   ├── MatchArm
 │   ├── MatchArm
-│   ├── MatchArm
-│   ├── MatchArm
+│   │   └── t [Borrow ← pattern binding]
 │   └── MatchArm
 ├── fun code
 │   ├── n [Local]
 │   ├── MatchArm
 │   ├── MatchArm
 │   └── MatchArm
+│       └── k [Local]
 ├── fun both
 │   ├── p [Borrow ← call site]
 │   ├── MatchArm
+│   │   └── r [Local]
 │   ├── MatchArm
+│   │   ├── w [Local]
+│   │   └── h [Local]
 │   └── MatchArm
 └── fun main
     ├── circle [Local]
@@ -421,6 +456,7 @@ Arenas
 ├── fun f
 │   ├── e [Borrow ← call site]
 │   └── MatchArm
+│       └── v [Local]
 └── fun main
     └── e [Local]
 == programs/build/generics/identity.bork
@@ -897,6 +933,7 @@ Arenas
 │   ├── x [Local]
 │   ├── MatchArm
 │   └── MatchArm
+│       └── v [Local]
 └── fun main
     ├── a [Local]
     ├── b [Local]
@@ -907,10 +944,13 @@ Arenas
     ├── gone [Local]
     ├── MatchArm
     ├── MatchArm
+    │   └── t [Borrow ← pattern binding]
     ├── MatchArm
     ├── MatchArm
+    │   └── inner [Borrow ← pattern binding]
     ├── MatchArm
     └── MatchArm
+        └── inner [Borrow ← pattern binding]
 == programs/build/option/option_conversions.bork
 Arenas
 ├── fun main
@@ -925,8 +965,10 @@ Arenas
 │   ├── back [Local]
 │   ├── MatchArm
 │   ├── MatchArm
+│   │   └── v [Local]
 │   ├── MatchArm
 │   ├── MatchArm
+│   │   └── v [Local]
 │   └── IfValSome
 │       └── n [Borrow ← presence guard]
 ├── fun optionFromRef
@@ -936,6 +978,7 @@ Arenas
     ├── o [Borrow ← call site]
     ├── MatchArm
     └── MatchArm
+        └── r [Local]
 == programs/build/option/option_result.bork
 Arenas
 ├── fun half
@@ -946,6 +989,7 @@ Arenas
 │   ├── o [Borrow ← call site]
 │   ├── MatchArm
 │   └── MatchArm
+│       └── v [Local]
 ├── fun parse
 │   ├── n [Local]
 │   └── IfThen
@@ -958,16 +1002,23 @@ Arenas
     ├── bad [Local]
     ├── MatchArm
     ├── MatchArm
+    │   └── t [Borrow ← pattern binding]
     ├── MatchArm
+    │   └── v [Local]
     ├── MatchArm
+    │   └── e [Borrow ← pattern binding]
     ├── MatchArm
+    │   └── v [Local]
     └── MatchArm
+        └── e [Borrow ← pattern binding]
 == programs/build/option/user_option_wins.bork
 Arenas
 └── fun main
     ├── o [Local]
     ├── n [Local]
     ├── MatchArm
+    │   ├── a [Local]
+    │   └── b [Local]
     └── MatchArm
 == programs/build/option/when_some_first.bork
 Arenas
@@ -1734,8 +1785,12 @@ Arenas
     ├── n [Local]
     ├── k [Local]
     ├── MatchArm
+    │   └── r [Local]
     ├── MatchArm
+    │   └── h [Local]
     ├── MatchArm
+    │   ├── w [Local]
+    │   └── h [Local]
     ├── MatchArm
     ├── MatchArm
     ├── MatchArm
@@ -1747,6 +1802,15 @@ Arenas
     ├── leaf [Local]
     ├── n [Local]
     └── m [Local]
+== programs/check/enums/pattern_shadow_move.bork
+Arenas
+├── fun make
+└── fun main
+    ├── s [Local]
+    ├── MatchArm
+    │   ├── s [Moved ← MatchArm]
+    │   └── a [Local]
+    └── MatchArm
 == programs/check/enums/patterns.bork
 Arenas
 └── fun main
@@ -1754,9 +1818,13 @@ Arenas
     ├── area [Local]
     ├── p [Local]
     ├── MatchArm
+    │   └── r [Local]
+    ├── MatchArm
+    │   ├── w [Local]
+    │   └── h [Local]
     ├── MatchArm
     ├── MatchArm
-    ├── MatchArm
+    │   └── r [Local]
     └── MatchArm
 == programs/check/enums/shape.bork
 Arenas
@@ -2132,18 +2200,22 @@ Arenas
     ├── p [Local]
     ├── MatchArm
     └── MatchArm
+        └── r [Local]
 == programs/check_fail/enums/non_exhaustive_variant.bork
 Type Error [158..197] non-exhaustive `when`: missing `Shape.Rect(_, _)`
 Arenas
 └── fun main
     ├── s [Local]
     └── MatchArm
+        └── r [Local]
 == programs/check_fail/enums/pattern_duplicate_binding.bork
 Type Error [146..147] duplicate pattern binding 'a'
 Arenas
 └── fun main
     ├── s [Local]
     ├── MatchArm
+    │   ├── a [Local]
+    │   └── a [Local]
     └── MatchArm
 == programs/check_fail/enums/pattern_literal_mismatch.bork
 Type Error [104..105] literal pattern has type i32, expected bool
@@ -2166,6 +2238,7 @@ Arenas
 └── fun main
     ├── s [Local]
     ├── MatchArm
+    │   └── x [Local]
     └── MatchArm
 == programs/check_fail/enums/pattern_wrong_arity.bork
 Type Error [142..149] variant `Shape.Rect` has 2 field(s), the pattern has 1
@@ -2173,6 +2246,7 @@ Arenas
 └── fun main
     ├── s [Local]
     ├── MatchArm
+    │   └── w [Local]
     └── MatchArm
 == programs/check_fail/enums/recursive_by_value.bork
 Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field

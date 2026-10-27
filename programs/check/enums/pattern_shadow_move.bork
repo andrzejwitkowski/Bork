@@ -1,0 +1,16 @@
+// exit: 0
+// A `when` pattern binding that shadows an outer name: `move s` moves the binding, not the outer `s`.
+enum E { A(s: String), B }
+fun make(): E { return E.A("inner") }
+fun main(): i32 {
+    val s = "outer"
+    when (make()) {
+        A(s) => {
+            val a = move s
+            println(a)
+        }
+        B => { }
+    }
+    println(s)
+    return 0
+}

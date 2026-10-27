@@ -8,7 +8,8 @@ use crate::sema::peel_blocks;
 use crate::sema::policy::TransferSink;
 use crate::sema::region::{RegionFrame, RegionParam};
 use crate::sema::report::ArenaNode;
-use crate::ast::{BindingKind, Block, ConditionalBinding, Expr, Stmt};
+use crate::ast::{BindingKind, Block, ConditionalBinding, Expr, Pattern, Stmt};
+use crate::span::SpannedName;
 use std::collections::HashSet;
 
 pub(super) fn walk_if(
@@ -89,8 +90,33 @@ pub(super) fn walk_match(
 ) {
     walk(az, scrutinee, node, None, record_borrow);
     let tail_transfer = transfer.filter(|sink| matches!(sink, TransferSink::ManagedRef));
-    let bodies: Vec<&Block> = arms.iter().map(|arm| &arm.body).collect();
-    walk_arms(az, &bodies, node, tail_transfer);
+    let before_moved = moved_names(&az.env);
+    let mut ends = Vec::with_capacity(arms.len());
+    for arm in arms {
+        let (body, compacted) = peel_blocks(&arm.body);
+        let mut frame = RegionFrame::new(az.alloc_id(), "MatchArm".into(), compacted);
+        let mut names = Vec::new();
+        pattern_bindings(&arm.pat, &mut names);
+        for name in names {
+            // A bare payload-free variant parses as a binding but typeck never types it.
+            let Some(ty) = az.node_tys.get(&name.id).cloned() else { continue };
+            frame.bind_param(
+                az,
+                &RegionParam {
+                    name: name.name.clone(),
+                    ty,
+                    kind: BindingKind::Val,
+                    span: Some(name.span),
+                    borrow_from: "pattern binding",
+                },
+            );
+        }
+        walk_block(az, body, &mut frame.node, &mut frame.shadows, tail_transfer);
+        ends.push(branch_end(az, &arm.body, &frame.shadows));
+        node.children.push(frame.finish(az));
+        restore_moved_flags(&mut az.env, &before_moved);
+    }
+    join_branch_moves(&mut az.env, &ends);
 }
 
 fn walk_arms(az: &mut Analyzer, bodies: &[&Block], node: &mut ArenaNode, tail_transfer: Option<&TransferSink>) {
@@ -102,6 +128,15 @@ fn walk_arms(az: &mut Analyzer, bodies: &[&Block], node: &mut ArenaNode, tail_tr
         restore_moved_flags(&mut az.env, &before_moved);
     }
     join_branch_moves(&mut az.env, &ends);
+}
+
+fn pattern_bindings<'a>(pat: &'a Pattern, out: &mut Vec<&'a SpannedName>) {
+    match pat {
+        Pattern::Binding(name) => out.push(name),
+        Pattern::Variant { args, .. } => args.iter().for_each(|arg| pattern_bindings(arg, out)),
+        Pattern::Some { inner, .. } => pattern_bindings(inner, out),
+        Pattern::Wildcard { .. } | Pattern::Literal { .. } | Pattern::None { .. } => {}
+    }
 }
 
 /// True when control never falls out of `block` (ends in `return`/`break`/`continue`, or in a
