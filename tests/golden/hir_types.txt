@@ -75,6 +75,8 @@ programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::main() -> i32
 programs/build/enums/variants.bork::main() -> i32
+programs/build/generics/borrow_infers_enum_arg.bork::f(e: &E<T0>) -> unit
+programs/build/generics/borrow_infers_enum_arg.bork::main() -> i32
 programs/build/generics/identity.bork::id(x: T0) -> T0
 programs/build/generics/identity.bork::main() -> i32
 programs/build/generics/list_node.bork::main() -> i32

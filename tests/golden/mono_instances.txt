@@ -4,6 +4,9 @@ fun get<i32>
 fun get<String>
 fun inner
 class P
+== programs/build/generics/borrow_infers_enum_arg.bork
+fun main
+fun f<i32>
 == programs/build/generics/identity.bork
 fun main
 fun id<i32>

@@ -1,0 +1,7 @@
+// diag: payload `r` of `E<i32>`
+enum E<T> { A(r: Ref<T>) }
+
+fun main(): i32 {
+    val e: E<i32> = E.A(None)
+    return 0
+}

@@ -1,0 +1,10 @@
+// diag: integer literal 256 is out of range for u8
+fun main(): i32 {
+    val n: u8 = 0
+    when n {
+        256 => { println(1) }
+        0 => { println(2) }
+        _ => { println(3) }
+    }
+    return 0
+}
