@@ -1,0 +1,30 @@
+// exit: 0
+// stdout: 42\n
+// A `Ref` returned by a method of a local object and stored in the result keeps its target alive.
+class N { n: i32 }
+class Box {
+    n: Ref<N>
+    fun get(): Ref<N> { return n }
+}
+class Outer { n: Ref<N> }
+fun churn(k: i32): i32 {
+    val x = Box(N(k))
+    val y = Box(N(k + 1))
+    return k
+}
+fun make(): Outer {
+    val local = Box(N(42))
+    return Outer(local.get())
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    if val n = r.n {
+        println(n.n)
+    }
+    return 0
+}

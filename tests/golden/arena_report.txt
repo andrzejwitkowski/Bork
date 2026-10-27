@@ -495,6 +495,23 @@ Arenas
     ├── i [Local]
     └── WhileLoop
         └── i [Copy]
+== programs/build/enums/return_method_result_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make
+│   └── local [Local]
+├── fun main
+│   ├── r [Local]
+│   ├── i [Local]
+│   ├── WhileLoop
+│   │   └── i [Copy]
+│   └── IfValSome
+│       └── n [Borrow ← presence guard]
+└── fun Box.get
+    └── this [Borrow ← call site]
 == programs/build/enums/return_nested_hoisted_object.bork
 Arenas
 ├── fun churn

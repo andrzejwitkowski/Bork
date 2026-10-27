@@ -86,6 +86,10 @@ programs/build/enums/return_hoisted_via_call.bork::churn(k: i32) -> i32
 programs/build/enums/return_hoisted_via_call.bork::mk(a: A) -> B
 programs/build/enums/return_hoisted_via_call.bork::make() -> C
 programs/build/enums/return_hoisted_via_call.bork::main() -> i32
+programs/build/enums/return_method_result_ref.bork::churn(k: i32) -> i32
+programs/build/enums/return_method_result_ref.bork::make() -> Outer
+programs/build/enums/return_method_result_ref.bork::main() -> i32
+programs/build/enums/return_method_result_ref.bork::Box.get(this: &Box) -> Ref<N>
 programs/build/enums/return_nested_hoisted_object.bork::churn(k: i32) -> i32
 programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
 programs/build/enums/return_nested_hoisted_object.bork::main() -> i32

@@ -102,6 +102,13 @@ programs/build/enums/return_hoisted_via_call.bork: 190..191 A Lexical LexicalSco
 programs/build/enums/return_hoisted_via_call.bork: 252..253 B Lexical LexicalScope(1)
 programs/build/enums/return_hoisted_via_call.bork: 304..305 A Dynamic Program
 programs/build/enums/return_hoisted_via_call.bork: 339..340 C Lexical LexicalScope(2)
+programs/build/enums/return_method_result_ref.bork: 271..274 Box Lexical LexicalScope(0)
+programs/build/enums/return_method_result_ref.bork: 275..276 N Dynamic LexicalScope(0)
+programs/build/enums/return_method_result_ref.bork: 293..296 Box Lexical LexicalScope(0)
+programs/build/enums/return_method_result_ref.bork: 297..298 N Dynamic LexicalScope(0)
+programs/build/enums/return_method_result_ref.bork: 358..361 Box Dynamic Program
+programs/build/enums/return_method_result_ref.bork: 362..363 N Dynamic Program
+programs/build/enums/return_method_result_ref.bork: 380..385 Outer Lexical LexicalScope(1)
 programs/build/enums/return_nested_hoisted_object.bork: 171..174 Box Lexical LexicalScope(0)
 programs/build/enums/return_nested_hoisted_object.bork: 175..176 N Lexical LexicalScope(0)
 programs/build/enums/return_nested_hoisted_object.bork: 193..196 Box Lexical LexicalScope(0)

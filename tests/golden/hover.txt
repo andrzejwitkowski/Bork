@@ -40,6 +40,7 @@ programs/build/enums/return_field_of_local.bork: hits=29 hash=e1b865555c286783
 programs/build/enums/return_hoisted_chain.bork: hits=24 hash=6cb617e41480377a
 programs/build/enums/return_hoisted_object.bork: hits=76 hash=51c1ada4a7fbaa54
 programs/build/enums/return_hoisted_via_call.bork: hits=26 hash=51c82452ced04f85
+programs/build/enums/return_method_result_ref.bork: hits=38 hash=c70fadc375ab7337
 programs/build/enums/return_nested_hoisted_object.bork: hits=22 hash=23b79e83ad60cce7
 programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
 programs/build/enums/unit_payload.bork: hits=110 hash=809165b17ece9bf2
