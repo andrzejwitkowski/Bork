@@ -127,6 +127,14 @@ programs/build/enums/return_two_paths.bork::main() -> i32
 programs/build/enums/return_unreturned_local.bork::churn(k: i32) -> i32
 programs/build/enums/return_unreturned_local.bork::make(flag: bool) -> A
 programs/build/enums/return_unreturned_local.bork::main() -> i32
+programs/build/enums/return_value_if_local_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_value_if_local_object.bork::spin() -> unit
+programs/build/enums/return_value_if_local_object.bork::make(flag: bool) -> A
+programs/build/enums/return_value_if_local_object.bork::main() -> i32
+programs/build/enums/return_value_if_stores_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_value_if_stores_local.bork::spin() -> unit
+programs/build/enums/return_value_if_stores_local.bork::make(flag: bool) -> A
+programs/build/enums/return_value_if_stores_local.bork::main() -> i32
 programs/build/enums/return_via_local.bork::make() -> A
 programs/build/enums/return_via_local.bork::makeNested() -> Wrap
 programs/build/enums/return_via_local.bork::churn(k: i32) -> i32
