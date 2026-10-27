@@ -1,0 +1,9 @@
+// diag: borrow has type &E<bool>
+enum E<T> { A(v: T) }
+fun g<T>(a: &E<T>, b: &E<T>) { }
+fun main(): i32 {
+    val x: E<i32> = E.A(5)
+    val y: E<bool> = E.A(true)
+    g(&x, &y)
+    return 0
+}

@@ -24,7 +24,11 @@ pub(super) fn check_borrow(
         env.tcx.ref_to(inner.ty)
     };
     if let Some(expected) = expected {
-        if !env.tcx.is_unknown(expected) && expected != ref_ty && env.tcx.ref_inner(expected) != Some(inner.ty) {
+        let target = env.tcx.ref_inner(expected);
+        if !env.tcx.is_unknown(expected)
+            && !env.same(expected, ref_ty)
+            && !target.is_some_and(|target| env.same(target, inner.ty))
+        {
             env.error(
                 format!("borrow has type {}, expected {}", env.show(ref_ty), env.show(expected)),
                 Some(span),

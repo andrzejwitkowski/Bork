@@ -77,6 +77,7 @@ programs/build/enums/variants.bork: 380..392 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 410..420 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 439..450 Shape Lexical LexicalScope(0)
 programs/build/enums/variants.bork: 472..483 Shape Lexical LexicalScope(0)
+programs/build/generics/borrow_infers_enum_arg.bork: 123..126 E Lexical LexicalScope(2)
 programs/build/generics/identity.bork: 271..276 Point Dynamic Program
 programs/build/generics/list_node.bork: 431..435 Node Dynamic Program
 programs/build/generics/list_node.bork: 460..464 Node Dynamic Program

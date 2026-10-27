@@ -1,0 +1,12 @@
+// exit: 0
+enum E<T> { A(v: T) }
+
+fun f<T>(e: &E<T>) {
+    when e { A(v) => { } }
+}
+
+fun main(): i32 {
+    val e: E<i32> = E.A(5)
+    f(&e)
+    return 0
+}

@@ -34,6 +34,7 @@ impl CheckResult {
 fn has_generics(hir: &crate::hir::HirProgram) -> bool {
     hir.functions.iter().any(|function| !function.generics.is_empty())
         || hir.classes.iter().any(|class| !class.generics.is_empty())
+    || hir.enums.iter().any(|e| !e.generics.is_empty())
 }
 
 /// Parse, analyze ownership, and lower program to typed HIR.

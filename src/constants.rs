@@ -130,7 +130,7 @@ fn literal_value(ty: TyId, value: &Expr, span: Span, tcx: &TyCtx) -> Result<HirE
     })
 }
 
-fn fits(value: i64, prim: Prim) -> bool {
+pub(crate) fn fits(value: i64, prim: Prim) -> bool {
     let (min, max): (i128, i128) = match prim {
         Prim::I8 => (i8::MIN.into(), i8::MAX.into()),
         Prim::I16 => (i16::MIN.into(), i16::MAX.into()),
