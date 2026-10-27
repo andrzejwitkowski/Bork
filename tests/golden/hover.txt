@@ -29,6 +29,7 @@ programs/build/conditionals/value_if.bork: hits=10 hash=f3bdbdb152d6498d
 programs/build/constants/method_and_shadow.bork: hits=31 hash=20826e92aa946d23
 programs/build/constants/string_and_scalars.bork: hits=67 hash=d9e0b218cd1383d7
 programs/build/enums/expr_eval.bork: hits=187 hash=5b29c3504a0f7c7b
+programs/build/enums/float_compare_payload.bork: hits=38 hash=6ce989bf746dc5f7
 programs/build/enums/generic_and_calls.bork: hits=16 hash=59a8a3b6204c46e7
 programs/build/enums/linked_list.bork: hits=149 hash=e3adeb5ff253c2ab
 programs/build/enums/match_generic_loop.bork: hits=74 hash=3afba8fb7a5447b0
@@ -87,6 +88,7 @@ programs/build/move_and_promote/regional_move.bork: hits=11 hash=cbc0ee523f69c05
 programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363eb2141308
 programs/build/move_and_promote/then_return_move_not_taken.bork: hits=19 hash=0d9ed2defcb669f1
 programs/build/move_and_promote/then_return_move_taken.bork: hits=19 hash=48237cebdc030fe1
+programs/build/option/equality_cases_still_work.bork: hits=30 hash=ebb33cc5cd686d6d
 programs/build/option/nullable_moved_into_owner.bork: hits=62 hash=eacd4526ecb7c71b
 programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
 programs/build/option/nullable_when.bork: hits=98 hash=6bcd66b4bfac2309
@@ -188,6 +190,7 @@ programs/check_fail/constants/range.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/enums/bool_missing.bork: hits=2 hash=03e305ae320b9b37
 programs/check_fail/enums/cannot_infer.bork: hits=1 hash=6650c5f7466b933c
 programs/check_fail/enums/class_name_clash.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/enums/enum_equality_unsupported.bork: hits=16 hash=f3aa1ad319c84fd5
 programs/check_fail/enums/generic_enum_instance_invalid.bork: hits=1 hash=8e67ba2478f53988
 programs/check_fail/enums/generic_mismatch.bork: hits=1 hash=f1fab92d2c3dd32c
 programs/check_fail/enums/int_needs_wildcard.bork: hits=2 hash=62253ab5e450103d

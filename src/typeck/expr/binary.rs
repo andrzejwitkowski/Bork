@@ -124,6 +124,14 @@ fn binary_result_ty(op: &BinOp, lhs_ty: TyId, rhs_ty: TyId, span: Option<Span>, 
                     span,
                 );
             }
+            // shortcut: no structural equality for enums until traits give `==` a source, so say so here.
+            let settled = env.settle(lhs_ty);
+            if !poisoned
+                && matches!(env.tcx.data(settled), crate::ty::TyData::Enum(..))
+                && !env.tcx.is_nullable(settled)
+            {
+                env.error(format!("`==` is not supported for the enum {} yet; match on it with `when`", env.show(lhs_ty)), span);
+            }
             bool_ty
         }
         BinOp::And | BinOp::Or => {
