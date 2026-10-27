@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoisting objects into the result arena (Bork PR #174)</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#1d1d1f; --muted:#66666e; --line:#dcd8cf; --accent:#2b5fd9; --ok:#1f8a4c; --bad:#c0392b; --warn:#b7791f;
+          --arena-a:#e8f0fe; --arena-b:#fdf1dc; --dead:#f6d6d2; --code:#f2efe8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Iowan Old Style", serif; }
+  header, main, nav.toc { max-width: 820px; margin: 0 auto; padding: 0 20px; }
+  header { padding-top: 48px; }
+  h1 { font-size: 2.0rem; line-height:1.2; margin: 0 0 8px; }
+  h2 { font-size: 1.5rem; margin: 56px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.15rem; margin: 32px 0 4px; }
+  p.sub { color: var(--muted); margin-top: 0; }
+  nav.toc { margin-top: 24px; }
+  nav.toc ol { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 14px 14px 36px; margin:0; font-family: system-ui, sans-serif; font-size: .95rem; }
+  nav.toc a { color: var(--accent); text-decoration:none; }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  pre { background: var(--code); border:1px solid var(--line); border-radius:8px; padding: 12px 14px; overflow-x:auto; white-space: pre; font-size: .85rem; line-height: 1.5; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  pre code { background: none; padding: 0; }
+  .callout { border-left: 4px solid var(--accent); background:#eef3ff; padding: 10px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; font-family: system-ui, sans-serif; font-size: .95rem; }
+  .callout.warn { border-color: var(--warn); background:#fff6e5; }
+  .callout.bad { border-color: var(--bad); background:#fdecea; }
+  .callout b.t { display:block; margin-bottom: 2px; }
+  details.skip { background:#fff; border:1px solid var(--line); border-radius:8px; padding: 6px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-family: system-ui, sans-serif; font-weight:600; padding: 6px 0; }
+  /* diagrams */
+  .fig { background:#fff; border:1px solid var(--line); border-radius:10px; padding: 16px; margin: 22px 0; font-family: system-ui, sans-serif; font-size: .88rem; }
+  .fig .cap { color: var(--muted); margin-top: 10px; font-size: .84rem; }
+  .row { display:flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .stack { display:flex; flex-direction: column; gap: 8px; flex: 1 1 220px; min-width: 200px; }
+  .arena { border: 2px solid #8aa6e8; background: var(--arena-a); border-radius: 8px; padding: 8px 10px; }
+  .arena.caller { border-color:#e0a84a; background: var(--arena-b); }
+  .arena.dead { border-color: var(--bad); background: var(--dead); border-style: dashed; }
+  .arena h4 { margin: 0 0 6px; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: #333; }
+  .obj { display:inline-block; background:#fff; border:1.5px solid #555; border-radius: 6px; padding: 3px 9px; margin: 2px 4px 2px 0; font-family: ui-monospace, Menlo, monospace; font-size: .8rem; }
+  .obj.dangling { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+  .arrow { color: var(--accent); font-weight: 700; text-align:center; align-self:center; font-size: 1.3rem; }
+  .ptr { color: var(--bad); font-weight:700; }
+  .ok { color: var(--ok); font-weight:700; }
+  .bad { color: var(--bad); font-weight:700; }
+  .flow { display:flex; flex-wrap:wrap; gap: 8px; align-items:center; }
+  .box { border:1.5px solid #555; border-radius:6px; padding: 6px 10px; background:#fff; }
+  .box.new { border-color: var(--ok); background:#eaf7ef; }
+  .box.changed { border-color: var(--warn); background:#fff6e5; }
+  table.t { border-collapse: collapse; width:100%; font-family: system-ui, sans-serif; font-size:.88rem; }
+  table.t th, table.t td { border:1px solid var(--line); padding: 6px 10px; text-align:left; vertical-align: top; }
+  table.t th { background:#f3f1ea; }
+  .step-nav { display:flex; gap:8px; margin: 8px 0; }
+  .step-nav button, .q button.opt { font: inherit; font-family: system-ui, sans-serif; cursor:pointer; }
+  .step-nav button { border:1px solid var(--line); background:#fff; padding:6px 12px; border-radius:6px; }
+  .step-nav button:disabled { opacity:.4; cursor: default; }
+  .step { display:none; } .step.on { display:block; }
+  /* quiz */
+  .q { background:#fff; border:1px solid var(--line); border-radius:10px; padding: 14px 18px; margin: 18px 0; font-family: system-ui, sans-serif; }
+  .q p.qt { margin: 0 0 10px; font-weight: 600; font-family: Georgia, serif; }
+  .q button.opt { display:block; width:100%; text-align:left; background:#fafafa; border:1px solid var(--line); border-radius:8px; padding: 9px 12px; margin: 6px 0; font-size:.93rem; }
+  .q button.opt:hover:not(:disabled) { border-color: var(--accent); }
+  .q button.opt.right { background:#e6f5ec; border-color: var(--ok); }
+  .q button.opt.wrong { background:#fdecea; border-color: var(--bad); }
+  .q .fb { display:none; margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size:.92rem; }
+  .q .fb.show { display:block; background:#f3f1ea; }
+  #score { font-family: system-ui, sans-serif; font-weight:600; }
+  footer { max-width:820px; margin: 56px auto 80px; padding: 0 20px; color: var(--muted); font-family: system-ui, sans-serif; font-size:.85rem; }
+  @media (max-width: 560px) { body { font-size: 16px; } h1 { font-size: 1.6rem; } .arrow { transform: rotate(90deg); } }
+</style>
+</head>
+<body>
+<header>
+  <p class="sub">Bork &middot; PR #174 &middot; audit item T01 (P0)</p>
+  <h1>Why a returned object must be born in the caller's arena</h1>
+  <p class="sub">A guided tour of <code>hoist</code>, the result sink, and the escape check that keeps them honest.</p>
+</header>
+
+<nav class="toc">
+  <ol>
+    <li><a href="#bg">Background</a>: arenas, handles, and the return problem</li>
+    <li><a href="#intuition">Intuition</a>: build it where it will live</li>
+    <li><a href="#cases">The cases, one by one</a></li>
+    <li><a href="#code">Code walkthrough</a></li>
+    <li><a href="#limits">What this does not do</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<h2 id="bg">1. Background</h2>
+
+<details class="skip">
+  <summary>Beginner background: how Bork manages memory (skip if you know arenas)</summary>
+
+  <h3>Arenas instead of a garbage collector</h3>
+  <p>Most languages free memory object by object, either with a garbage collector or with explicit <code>free</code> calls. Bork does neither. It allocates objects into <em>arenas</em>: big regions of memory where allocation is just bumping a pointer, and where everything is released at once when the arena goes away. That makes allocation very cheap and makes freeing free, but it comes with a rule: nothing may point into an arena after that arena has been released.</p>
+
+  <p>In Bork every function call, and every nested <code>{ ... }</code> block, gets its own region. When the function returns, its arena is popped and its memory becomes available for the next allocation. Whatever you allocated there is simply gone.</p>
+
+  <div class="fig">
+    <div class="row">
+      <div class="stack">
+        <div class="arena"><h4>arena of <code>main</code></h4><span class="obj">r</span></div>
+        <div class="arrow">&darr; calls</div>
+        <div class="arena"><h4>arena of <code>make()</code></h4><span class="obj">N(42)</span><span class="obj">Box</span></div>
+      </div>
+      <div class="stack">
+        <div class="arena dead"><h4>after <code>make()</code> returns</h4><span class="obj dangling">N(42)</span><span class="obj dangling">Box</span><br>popped. The next call reuses these bytes.</div>
+      </div>
+    </div>
+    <div class="cap">Figure 1. Each call has its own arena. Returning pops it. A pointer into the popped arena now points at whatever gets allocated there next.</div>
+  </div>
+
+  <h3>Handles</h3>
+  <p>A value of a class or enum type is not stored inline. A variable of type <code>Box</code> holds a <em>handle</em>: roughly <code>{arena, object-pointer}</code>. The object itself lives in some arena, and the handle says which one. So a field <code>n: N</code> inside a <code>Box</code> is again just a handle to an <code>N</code> that lives somewhere else.</p>
+
+  <p>This indirection is what makes the problem in this PR possible. Two objects can sit in two different arenas and still point at each other.</p>
+</details>
+
+<h3>The relevant background: how a return value escapes</h3>
+<p>If a function returns an object, that object cannot live in the callee's arena, because that arena is popped on return. Bork handles this with a hidden argument. A function that returns an owning value receives a <strong>result sink</strong> from its caller: a pointer to the caller's arena, passed in as an extra parameter (<code>OwningReturn</code> in <code>call_abi.rs</code>). When the function builds the value it is about to return, it allocates it <em>in that arena</em>. The popped callee arena is never involved.</p>
+
+<p>Codegen has a field for this, <code>alloc_sink</code>. Normally it is empty and allocations go to the current region. When it is set, the next allocation goes there instead. The <code>return</code> statement sets it to the result sink around the returned expression, which is why <code>return Box(N(42))</code> has always worked.</p>
+
+<div class="callout">
+  <b class="t">There was already a hoisting pass</b>
+  Before this PR, <code>src/hoist.rs</code> existed for strings. It spots <code>var inner = &lt;init&gt;</code> immediately followed by <code>outer = move inner</code> and annotates <code>inner</code> with <code>alloc_in_binding = "outer"</code>, so that codegen builds <code>inner</code> directly in <code>outer</code>'s arena and no copy is needed. The word "hoist" means exactly that: move the <em>allocation</em> of a value up to where its owner lives.
+</div>
+
+<p>And there was also an escape check, <code>src/escape.rs</code>, which rejects programs where a <code>String</code> would outlive the arena holding its bytes. It had a rule for strings, and no rule at all for class and enum handles stored inside other objects.</p>
+
+<h2 id="intuition">2. Intuition</h2>
+
+<h3>The bug</h3>
+<p>Here is the audit's reproduction, slightly trimmed:</p>
+<pre><code>class N { n: i32 }
+class Box { n: N }
+
+fun make(): Box {
+    val n = N(42)      // lives in make()'s arena
+    return Box(n)      // Box goes to the caller's arena, holding a handle to n
+}
+
+fun churn() { val x = N(12345) }
+
+fun main(): i32 {
+    val r = make()
+    churn()            // reuses the bytes make() left behind
+    println(r.n.n)     // prints 12345, not 42
+    return 0
+}</code></pre>
+
+<p>The returned <code>Box</code> is correct: it was built in the result sink. But the <code>N</code> it points at was built by an ordinary <code>val</code>, in the ordinary place, which is <code>make()</code>'s own arena. The program compiled, ran, and read freed memory. This is why the audit rated it P0: it is the one finding where an accepted program silently misbehaves.</p>
+
+<div class="fig">
+  <div class="row">
+    <div class="stack">
+      <div class="arena caller"><h4>caller (<code>main</code>) arena</h4><span class="obj">Box</span> <span class="ptr">&rarr;</span></div>
+    </div>
+    <div class="arrow">&rarr;</div>
+    <div class="stack">
+      <div class="arena dead"><h4>make()'s arena, popped</h4><span class="obj dangling">N(42)</span>then overwritten by <span class="obj">N(12345)</span></div>
+    </div>
+  </div>
+  <div class="cap">Figure 2. Before: the owner survives, the thing it points at does not. The pointer crosses from a live arena into a dead one.</div>
+</div>
+
+<h3>The fix, in one sentence</h3>
+<p>If a local object is going to be stored inside the returned object, allocate it in the result sink in the first place. There is no copy and no move; the object is simply born in the right arena, next to its owner.</p>
+
+<div class="fig">
+  <div class="row">
+    <div class="stack">
+      <div class="arena caller"><h4>caller arena (result sink)</h4><span class="obj">N(42)</span><span class="obj">Box</span><br><span class="ok">Box &rarr; N(42): both live as long as the caller wants them</span></div>
+    </div>
+    <div class="arrow">&larr; hoisted</div>
+    <div class="stack">
+      <div class="arena"><h4>make()'s arena</h4>nothing the result depends on</div>
+    </div>
+  </div>
+  <div class="cap">Figure 3. After: <code>val n = N(42)</code> is annotated, and codegen allocates it in the caller's arena.</div>
+</div>
+
+<div class="callout">
+  <b class="t">Why not copy the object instead?</b>
+  A copy would give the field a new identity. In Bork, class instances have identity: if two handles point at the same object, mutating one is visible through the other. Copying <code>n</code> into the owner's arena would silently break that. The audit says to keep identity, and the only way to do that is to allocate in the right place the first time.
+</div>
+
+<div class="callout warn">
+  <b class="t">An approach that looked like it worked, and didn't</b>
+  The first attempt was to teach the memory planner that a stored object handle keeps its target alive, by adding a lifetime edge. The audit's repro started printing <code>42</code>. But a stress loop with 50 allocation rounds printed <code>49</code>. The target was marked as a dynamic arena but was still freed at function exit; <code>42</code> had been luck. This is why every test in this PR runs a churn loop after the call: a single allocation is not enough to expose a dangling pointer.
+</div>
+
+<h3>The safety net</h3>
+<p>Hoisting only works when the compiler can prove it is safe, and that is a small, syntactic pattern. Everything else must not compile quietly. So the PR has two halves that mirror each other:</p>
+<ul>
+  <li><strong>Hoist</strong> handles the simple, definite case and makes it work.</li>
+  <li><strong>Escape</strong> rejects every other way a local object can end up inside a longer-lived one, with a message that says how to restructure.</li>
+</ul>
+<p>The two must agree. The same function, <code>collect_idents</code>, answers "which local variables does this expression store?" for both of them, so a case cannot be hoisted by one and rejected by the other.</p>
+
+<h2 id="cases">3. The cases, one by one</h2>
+<p>Step through them. Each shows a program, what the compiler decides, and where each object ends up.</p>
+
+<div class="fig" id="stepper">
+  <div class="step-nav">
+    <button id="prev">&larr; Previous</button>
+    <button id="next">Next &rarr;</button>
+    <span id="stepcount" style="align-self:center;color:var(--muted)"></span>
+  </div>
+
+  <div class="step on">
+    <b>Case 1. The basic case: a local used as a field of the return</b>
+<pre><code>fun make(): Box {
+    val n = N(42)
+    return Box(n)
+}</code></pre>
+    <div class="flow"><span class="box changed"><code>n</code> is a class construct, used in <code>return Box(n)</code></span><span class="arrow">&rarr;</span><span class="box new">hoisted into the result sink</span></div>
+    <p><code>n</code> is declared at the top level of the function and is a direct field of the final <code>return</code>. Hoisted. Prints <code>42</code>.</p>
+  </div>
+
+  <div class="step">
+    <b>Case 2. A chain: a &rarr; b &rarr; c</b>
+<pre><code>fun make2(): C {
+    val a = A(42)
+    val b = B(a)
+    return C(b)
+}</code></pre>
+    <div class="flow"><span class="box">return uses <code>b</code></span><span class="arrow">&rarr;</span><span class="box">b's initializer uses <code>a</code></span><span class="arrow">&rarr;</span><span class="box new">both hoisted</span></div>
+    <p>The first version of the PR only looked at what the <em>return</em> stored directly, so <code>b</code> was hoisted but <code>a</code> was not. The result printed <code>49</code>. The fix is a fixpoint loop in <code>hoist_into_result</code>: whenever a hoisted variable's initializer is itself a construct, its fields join the set, and we repeat until nothing changes. The order in which you declare the variables does not matter.</p>
+  </div>
+
+  <div class="step">
+    <b>Case 3. A field read: <code>local.n</code></b>
+<pre><code>fun make(): Outer {
+    val local = Box(N(42))
+    return Outer(Box(local.n))
+}</code></pre>
+    <div class="flow"><span class="box">stored: <code>local.n</code></span><span class="arrow">&rarr;</span><span class="box">root of the read is <code>local</code></span><span class="arrow">&rarr;</span><span class="box new"><code>local</code> hoisted</span></div>
+    <p>The stored value is not a bare variable but a read of a field of one. The pointer still lands inside <code>local</code>'s arena, so <code>collect_idents</code> descends into the receiver of the field read. Without that, this printed <code>49</code>.</p>
+  </div>
+
+  <div class="step">
+    <b>Case 4. Through a call</b>
+<pre><code>fun mk(a: A): B { return B(a) }
+fun make(): C {
+    val a = A(42)
+    val b = mk(a)
+    return C(b)
+}</code></pre>
+    <div class="flow"><span class="box">return uses <code>b</code></span><span class="arrow">&rarr;</span><span class="box">b is a <code>Call</code></span><span class="arrow">&rarr;</span><span class="box new">b hoisted; a was passed to the call</span></div>
+    <p>Calls are hoistable initializers too. Here <code>a</code> is hoisted because <code>b</code> is hoisted and <code>a</code> is stored through it (the fixpoint), and the call's own result is built in the result sink it is given. I verified that this prints <code>42</code> after the churn loop; I did not trace every path inside the callee.</p>
+  </div>
+
+  <div class="step">
+    <b>Case 5. Rejected: the return is inside an <code>if</code></b>
+<pre><code>fun make(flag: bool): Box {
+    val n = N(42)
+    if (flag) {
+        return Box(n)      // error
+    }
+    return Box(N(1))
+}</code></pre>
+    <div class="flow"><span class="box bad">not the final statement of the top-level block</span><span class="arrow">&rarr;</span><span class="box bad">not hoisted</span><span class="arrow">&rarr;</span><span class="box bad">escape: compile error</span></div>
+    <p>Hoisting <code>n</code> unconditionally would make the other path pay for an allocation it does not need, and the analysis for "this <code>val</code> is only ever returned" gets much harder with control flow. So the pass stays simple, and <code>escape</code> rejects it: <em>"<code>n</code> is freed before the value that stores it &hellip; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement."</em></p>
+  </div>
+
+  <div class="step">
+    <b>Case 6. Rejected: assignment into an outer <code>var</code></b>
+<pre><code>var out = Box(N(1))
+{
+    val n = N(42)
+    out = Box(n)           // error
+}
+// n's block is gone; out still points at it</code></pre>
+    <div class="flow"><span class="box bad"><code>n</code> declared deeper than <code>out</code></span><span class="arrow">&rarr;</span><span class="box bad">escape: error</span></div>
+    <p>This is the same dangling pointer reached through an assignment instead of a <code>return</code>. It printed <code>49</code> before the check existed. The rule here is slightly different: only locals declared in a <em>deeper</em> region than the owner dangle, so the check compares depths. A <code>return</code> has no owner depth; every short-lived local dangles.</p>
+  </div>
+
+  <div class="step">
+    <b>Case 7. Already fine: a Vec of Refs</b>
+<pre><code>var v = Vec&lt;Ref&lt;B&gt;&gt;()
+while (i &lt; 5) {
+    val a: Ref&lt;A&gt; = A(i + 10)
+    val b: Ref&lt;B&gt; = B(a)
+    v.push(b)
+}
+return Bag(v)</code></pre>
+    <div class="flow"><span class="box">elements are <code>Ref&lt;T&gt;</code></span><span class="arrow">&rarr;</span><span class="box new"><code>Ref</code> keeps its target alive</span></div>
+    <p>A <code>Ref</code> is reference-counted by the runtime, so it does not depend on this mechanism. Note also that <code>Vec&lt;B&gt;</code> of plain objects is rejected by the type checker today (elements must be Copy, <code>String</code> or <code>Ref</code>), so there is no way to put a bare local object into a Vec. If that ever changes, <code>VecNew</code> will need hoisting too.</p>
+  </div>
+</div>
+
+<table class="t">
+  <tr><th>Situation</th><th>Result</th><th>Where it is decided</th></tr>
+  <tr><td>Local object (construct or call) used as a field of the final <code>return</code></td><td class="ok">hoisted, works</td><td><code>hoist.rs</code></td></tr>
+  <tr><td>&hellip; reached through a chain of other hoisted locals</td><td class="ok">all hoisted</td><td><code>hoist.rs</code> fixpoint</td></tr>
+  <tr><td>&hellip; reached through a field read (<code>local.n</code>)</td><td class="ok">receiver hoisted</td><td><code>collect_idents</code></td></tr>
+  <tr><td>Same, but <code>return</code> is nested in an <code>if</code> or loop</td><td class="bad">compile error</td><td><code>escape.rs</code></td></tr>
+  <tr><td>Local object assigned into an outer <code>var</code></td><td class="bad">compile error</td><td><code>escape.rs</code></td></tr>
+  <tr><td><code>val b = Box(n); return b</code> (returned via a variable)</td><td class="bad">compile error</td><td>existing <code>escape</code> rule</td></tr>
+  <tr><td>Stored through a <code>Ref</code></td><td class="ok">fine as before</td><td>runtime refcount</td></tr>
+</table>
+
+<h2 id="code">4. Code walkthrough</h2>
+<p>The change is small in source (about 100 lines of Rust) and large in tests. It is easiest to read in the order the compiler runs: <em>hoist</em> decides, <em>escape</em> verifies, <em>codegen</em> obeys.</p>
+
+<h3>4.1 <code>src/hoist.rs</code>: decide what gets hoisted</h3>
+<p><code>annotate</code> already ran the string-hoisting pass per function. It now also calls <code>hoist_into_result</code> on the function's top-level block.</p>
+<pre><code>fn hoist_into_result(block: &amp;mut HirBlock) {
+    // 1. The block must end in `return &lt;construct&gt;`.
+    // 2. used = names stored in that construct (collect_idents).
+    // 3. Fixpoint: if a used name is declared as a construct,
+    //    add the names stored in *its* initializer; repeat.
+    // 4. Every `val` in the block whose name is in `used` and whose
+    //    initializer is a construct or call gets
+    //    alloc_in_binding = Some(RESULT_SINK).
+}</code></pre>
+<p><code>RESULT_SINK</code> is the string <code>"$result"</code>. It reuses the existing <code>alloc_in_binding: Option&lt;String&gt;</code> field, which normally names an outer variable whose arena to use. The <code>$</code> is meant to keep it from colliding with a user variable name (I did not check the lexer's identifier rules to confirm that). A dedicated enum would be cleaner; the string was the smallest change that fit the existing field.</p>
+
+<p><code>collect_idents</code> is the shared helper. It walks the fields of a construct and collects the names of local variables stored there, looking through nested constructs and through the receiver of a field read.</p>
+
+<h3>4.2 <code>src/escape.rs</code>: reject everything else</h3>
+<ul>
+  <li><strong><code>Local::short_lived_object</code></strong>: a new flag, true for a <code>val</code>/<code>var</code> that holds a class or enum handle and was <em>not</em> hoisted. It records "this object dies with its region."</li>
+  <li><strong><code>check_stored_objects(value, owner_depth)</code></strong>: if <code>value</code> is a construct, collect the locals it stores, and report an error for any that are short-lived. With an <code>owner_depth</code> (an assignment), only locals declared deeper than the owner count.</li>
+  <li><strong>Two call sites</strong>: the <code>Return</code> arm (no owner depth) and the <code>Assign</code> arm (owner depth is the target binding's depth).</li>
+</ul>
+
+<h3>4.3 <code>src/codegen/llvm/emit_fn.rs</code>: obey the annotation</h3>
+<pre><code>if alloc_in_binding.as_deref() == Some(crate::hoist::RESULT_SINK) {
+    self.alloc_sink = self.result_sink;
+} else if let Some(target) = alloc_in_binding {
+    // existing: look up the outer binding and use its home arena
+}</code></pre>
+<p>Four lines. When emitting a <code>VarDecl</code> annotated with the result sink, point <code>alloc_sink</code> at the function's hidden result-sink parameter for the duration of the initializer. The existing machinery for object construction already consults <code>alloc_sink</code>, so nothing else needs to change.</p>
+
+<h3>4.4 Docs and tests</h3>
+<ul>
+  <li><code>docs/memory-model.md</code>: one bullet in the Hoist section describing the result-sink rule.</li>
+  <li><strong>Executable fixtures</strong> in <code>programs/build/</code>, all with a churn loop after the call: enum, class, nested, chain, via a call, field read, method returning a <code>Ref</code>, a Vec of linked <code>Ref</code>s, and a returned <code>Option&lt;Option&lt;i32&gt;&gt;</code>.</li>
+  <li><strong>Rejection fixtures</strong> in <code>programs/check_fail/</code>: return in a branch, field read in a branch, assignment into an outer <code>var</code>.</li>
+  <li>The golden snapshots (<code>memory_plan</code>, <code>arena_report</code>, <code>hir_types</code>, <code>hover</code>) only gained entries for the new fixtures. No existing program changed its memory plan.</li>
+</ul>
+
+<h2 id="limits">5. What this does not do</h2>
+<ul>
+  <li><strong>Only the final <code>return</code> of the top-level block.</strong> Other shapes are rejected rather than supported. Safe, but you may be asked to restructure.</li>
+  <li><strong>Only bare locals and field reads are tracked.</strong> An object reached through some other expression is not checked by <code>collect_idents</code>. A method returning a bare object cannot be written today (a field read is a borrow), which is why this gap is hard to hit.</li>
+  <li><strong>Conditional hoisting is not attempted.</strong> That would need real use-def analysis. The docs list it under "Still open".</li>
+  <li><strong>The marker is a magic string.</strong> A dedicated enum on <code>VarDecl</code> would be cleaner.</li>
+  <li><strong>No <code>Vec</code> of objects.</strong> If element types ever widen, the same dangling problem reappears for <code>push</code>.</li>
+</ul>
+
+<div class="callout">
+  <b class="t">The general lesson</b>
+  In an arena language, a pointer's validity is a property of <em>where both ends live</em>. You can fix a dangling pointer by moving the target, copying it, or forbidding the program. Copying breaks identity, so this PR moves the allocation when the pattern is simple enough to prove, and forbids the program when it is not.
+</div>
+
+<h2 id="quiz">6. Quiz</h2>
+<p>Five questions. Click an answer to see whether it is right and why. <span id="score"></span></p>
+
+<div class="q" data-answer="1">
+  <p class="qt">1. In the original bug, why did <code>return Box(n)</code> produce a dangling pointer even though the returned <code>Box</code> itself was fine?</p>
+  <button class="opt">The <code>Box</code> was allocated in the callee's arena and freed on return.</button>
+  <button class="opt">The <code>Box</code> went to the result sink, but <code>n</code> was allocated by an ordinary <code>val</code> in the callee's arena, which was popped.</button>
+  <button class="opt">The type checker let the program through with the wrong field type.</button>
+  <button class="opt">The garbage collector ran before <code>main</code> read the field.</button>
+  <div class="fb" data-r="Right. The owner and the thing it points at were allocated in different arenas, and only one of them survived the return." data-w="Not quite. Bork has no GC, and the returned <code>Box</code> was built in the result sink, so it survived. The problem was the object it pointed at: <code>val n</code> is an ordinary local allocation in the callee's arena."></div>
+</div>
+
+<div class="q" data-answer="2">
+  <p class="qt">2. Why does the fix allocate <code>n</code> in the caller's arena rather than copying it there when the function returns?</p>
+  <button class="opt">Copying is slower than bumping a pointer.</button>
+  <button class="opt">The caller's arena has no room for copies.</button>
+  <button class="opt">A copy would be a different object, breaking class identity for anyone else holding a handle to the original.</button>
+  <button class="opt">The LLVM backend cannot emit <code>memcpy</code> for objects.</button>
+  <div class="fb" data-r="Right. Class instances have identity. Allocating in the right place the first time avoids ever creating a second object." data-w="Performance is not the deciding factor. Copying would create a second object, and any other handle to the original would no longer see the same state."></div>
+</div>
+
+<div class="q" data-answer="0">
+  <p class="qt">3. For <code>val a = A(42); val b = B(a); return C(b)</code>, the first version of the PR hoisted <code>b</code> but printed <code>49</code>. What was missing?</p>
+  <button class="opt">It looked only at what the <code>return</code> stored directly, so <code>a</code>, stored only inside <code>b</code>, stayed in the callee's arena. The fix is a fixpoint over initializers.</button>
+  <button class="opt">It hoisted variables in declaration order, and <code>b</code> was declared after <code>a</code>.</button>
+  <button class="opt">It never hoisted calls, only constructs.</button>
+  <button class="opt">It forgot to set <code>result_sink</code> for the second variable.</button>
+  <div class="fb" data-r="Right. Dangling-ness is transitive: a hoisted object's own fields must outlive it as well, so the set of hoisted names grows until it stops changing." data-w="Order was not the issue, and the sink was set correctly for what was hoisted. The set of variables was simply too small: it did not include variables stored only inside other hoisted variables."></div>
+</div>
+
+<div class="q" data-answer="3">
+  <p class="qt">4. A function has <code>val n = N(42)</code> and then <code>if (flag) { return Box(n) }</code>. What happens, and why?</p>
+  <button class="opt">It is hoisted, because <code>n</code> is still used in a <code>return</code>.</button>
+  <button class="opt">It compiles, and reads freed memory only when <code>flag</code> is true.</button>
+  <button class="opt">The hoist pass hoists it into the <code>if</code> branch's arena.</button>
+  <button class="opt">Compile error from <code>escape</code>: the hoist pass only handles the final <code>return</code> of the top-level block, and everything else storing a short-lived object is rejected.</button>
+  <div class="fb" data-r="Right. Hoisting is deliberately limited to a pattern the compiler can prove, and the escape check turns every other case into a diagnostic." data-w="Hoisting only applies when the <code>return</code> is the final statement of the top-level block. Anywhere else the object would be short-lived, and <code>escape</code> reports an error instead of silently compiling a dangling pointer."></div>
+</div>
+
+<div class="q" data-answer="2">
+  <p class="qt">5. The planner approach (marking stored handles as lifetime edges) first appeared to fix the bug, printing <code>42</code>. What exposed it as wrong?</p>
+  <button class="opt">A golden snapshot changed.</button>
+  <button class="opt">The type checker rejected the program.</button>
+  <button class="opt">A loop of 50 allocation rounds after the call printed <code>49</code>: the target was still freed at function exit, and <code>42</code> had been luck.</button>
+  <button class="opt">Valgrind reported a leak.</button>
+  <div class="fb" data-r="Right. A single later allocation may not land on the freed bytes; repeating it makes overwriting likely. That is why every fixture in this PR has a churn loop." data-w="It was the churn loop. Reading freed memory can return the old value if nothing has overwritten it yet, so one allocation is a weak test; fifty are a strong one."></div>
+</div>
+
+</main>
+
+<footer>
+  Generated for Bork PR #174 (branch <code>fix/hoist-object-to-result</code>). Source: <code>src/hoist.rs</code>, <code>src/escape.rs</code>, <code>src/codegen/llvm/emit_fn.rs</code>.
+</footer>
+
+<script>
+(function () {
+  var steps = Array.prototype.slice.call(document.querySelectorAll('#stepper .step'));
+  var i = 0, prev = document.getElementById('prev'), next = document.getElementById('next'), count = document.getElementById('stepcount');
+  function show() {
+    steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
+    prev.disabled = i === 0; next.disabled = i === steps.length - 1;
+    count.textContent = 'Case ' + (i + 1) + ' of ' + steps.length;
+  }
+  prev.onclick = function () { if (i > 0) { i--; show(); } };
+  next.onclick = function () { if (i < steps.length - 1) { i++; show(); } };
+  show();
+
+  var qs = Array.prototype.slice.call(document.querySelectorAll('.q')), correct = 0, answered = 0, score = document.getElementById('score');
+  qs.forEach(function (q) {
+    var ans = parseInt(q.getAttribute('data-answer'), 10), fb = q.querySelector('.fb');
+    var opts = Array.prototype.slice.call(q.querySelectorAll('button.opt'));
+    opts.forEach(function (b, k) {
+      b.onclick = function () {
+        if (q.getAttribute('data-done')) return;
+        q.setAttribute('data-done', '1');
+        answered++;
+        opts.forEach(function (o, j) { o.disabled = true; if (j === ans) o.classList.add('right'); });
+        var ok = k === ans;
+        if (ok) correct++; else b.classList.add('wrong');
+        fb.innerHTML = (ok ? '<b style="color:#1f8a4c">Correct.</b> ' : '<b style="color:#c0392b">Not quite.</b> ') + fb.getAttribute(ok ? 'data-r' : 'data-w');
+        fb.classList.add('show');
+        score.textContent = ' Score: ' + correct + ' / ' + qs.length + (answered === qs.length ? ' (done)' : '');
+      };
+    });
+  });
+})();
+</script>
+</body>
+</html>
