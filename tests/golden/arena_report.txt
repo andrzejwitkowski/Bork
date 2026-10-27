@@ -545,6 +545,27 @@ Arenas
 │   └── IfThen
 │       └── local [Shared ← fun make]
 └── fun main
+== programs/build/enums/return_via_local.bork
+Arenas
+├── fun make
+│   ├── x [Local]
+│   ├── y [Local]
+│   ├── z [Local]
+│   └── a [Local]
+├── fun makeNested
+│   ├── inner [Local]
+│   ├── a [Local]
+│   └── w [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── w [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/two_ref_variants.bork
 Arenas
 ├── fun one
@@ -2613,6 +2634,14 @@ Arenas
 Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field
 Arenas
 └── fun main
+== programs/check_fail/enums/return_alias_hoisted.bork
+Ownership Error [157..158] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── x [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
 == programs/check_fail/enums/return_field_of_local_in_branch.bork
 Ownership Error [175..178] `local` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
 Arenas
@@ -2632,6 +2661,29 @@ Arenas
 │       └── n [Shared ← fun make]
 └── fun main
     └── e [Local]
+== programs/check_fail/enums/return_via_local_branch.bork
+Ownership Error [173..174] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── x [Local]
+│   ├── a [Local]
+│   └── IfThen
+│       └── a [Shared ← fun make]
+└── fun main
+== programs/check_fail/enums/return_via_local_reused.bork
+Ownership Error [162..163] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+== programs/check_fail/enums/return_via_var.bork
+Ownership Error [145..146] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   └── a [Local]
+└── fun main
 == programs/check_fail/enums/unknown_variant.bork
 Type Error [101..113] enum `Shape` has no variant `Square`
 Arenas

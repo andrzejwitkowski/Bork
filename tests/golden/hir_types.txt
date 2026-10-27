@@ -96,6 +96,10 @@ programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
 programs/build/enums/return_nested_hoisted_object.bork::main() -> i32
 programs/build/enums/return_scalar_field_in_branch.bork::make(flag: bool) -> Box
 programs/build/enums/return_scalar_field_in_branch.bork::main() -> i32
+programs/build/enums/return_via_local.bork::make() -> A
+programs/build/enums/return_via_local.bork::makeNested() -> Wrap
+programs/build/enums/return_via_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_via_local.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit

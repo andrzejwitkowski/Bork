@@ -115,9 +115,16 @@ pub const RESULT_SINK: &str = "$result";
 
 fn hoist_into_result(block: &mut HirBlock, tcx: &TyCtx) {
     let Some(HirStmt::Return { value: Some(ret) }) = block.stmts.last() else { return };
-    let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &ret.kind else { return };
     let mut used = Vec::new();
-    collect_idents(fields, tcx, &mut used);
+    match &ret.kind {
+        HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
+            collect_idents(fields, tcx, &mut used)
+        }
+        // `val a = A(..); return a` is `return A(..)`: `a` itself is born in the result sink.
+        // Only a construct: a call's result may own bytes (a `String?`) that this does not move.
+        HirExprKind::Ident { name, .. } if is_construct_local(block, name) => used.push(name.clone()),
+        _ => return,
+    }
     // A hoisted local's own constructor fields outlive it too (`a` in `val b = B(a)`).
     loop {
         let before = used.len();
@@ -175,4 +182,12 @@ pub fn collect_idents(fields: &[crate::hir::HirExpr], tcx: &TyCtx, out: &mut Vec
 pub fn holds_object(tcx: &TyCtx, ty: TyId) -> bool {
     let ty = tcx.base(ty);
     tcx.class_def(ty).is_some() || matches!(tcx.data(ty), TyData::Enum(..))
+}
+
+/// `name` is a `val` of this block initialised by a class or enum construct.
+fn is_construct_local(block: &HirBlock, name: &str) -> bool {
+    block.stmts.iter().any(|stmt| {
+        matches!(stmt, HirStmt::VarDecl { kind: crate::ast::BindingKind::Val, name: n, value, .. }
+            if n == name && matches!(value.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. }))
+    })
 }

@@ -388,7 +388,7 @@ Examples:
 - **Implemented pattern:** linear siblings in one block — `var inner = <hoistable init>` immediately followed by `outer = move inner`, where `outer` is already in scope (parameter or earlier `var`). HIR sets `alloc_in_binding` on `inner` so codegen initializes in `outer`’s arena (`hoist.rs`).
 - **Hoistable inits:** string literals and calls (including `concat`) today.
 - **Not hoisted:** conditional escape, loops, closures, multiple sinks, or `outer` not visible — use **`promote`** or restructure.
-- **Result sink (class/enum fields):** a `val` of a class or enum (construct or call) declared in the function's top-level block and used as a field of the final `return`'s construct is allocated in the caller's result arena (`hoist::RESULT_SINK`), so the returned value does not point into a freed arena. Any other local object stored in a returned construct is rejected by `escape` (it would dangle).
+- **Result sink (class/enum fields):** a `val` of a class or enum (construct or call) declared in the function's top-level block and used as a field of the final `return`'s construct is allocated in the caller's result arena (`hoist::RESULT_SINK`), so the returned value does not point into a freed arena. `val a = A(..); return a` counts the same way (a `val` initialised by a construct, returned by name; `var`, aliases and call results do not). Any other local object stored in a returned construct is rejected by `escape` (it would dangle).
 
 ### `promote`
 

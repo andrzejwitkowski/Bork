@@ -204,8 +204,9 @@ impl<'h> Escape<'h, '_> {
                 self.region(body, false, None);
             }
             HirStmt::VarDecl { name, value, ty, alloc_in_binding, .. } => {
-                let value_depth = self.place(value, None);
                 let hoisted = alloc_in_binding.as_deref() == Some(crate::hoist::RESULT_SINK);
+                // A hoisted object lives in the caller's arena (depth 0), not in this region.
+                let value_depth = if hoisted { 0 } else { self.place(value, None) };
                 let local = Local {
                     decl_depth: self.depth,
                     value_depth,
