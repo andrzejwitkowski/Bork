@@ -1,0 +1,28 @@
+// exit: 0
+// stdout: 42\n
+// `a` is passed to a call whose result is hoisted. The planner keeps call arguments program-lived, so it survives 200 churn rounds.
+class A { n: i32 }
+class B { a: A }
+class C { b: B }
+fun mk(a: A): B { return B(a) }
+fun make(): C {
+    val a = A(42)
+    val b = mk(a)
+    return C(b)
+}
+fun churn(k: i32): i32 {
+    val x = B(A(k))
+    val y = B(A(k + 1))
+    val z = B(A(k + 2))
+    return x.a.n + y.a.n + z.a.n
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 200) {
+        churn(i)
+        i = i + 1
+    }
+    println(r.b.a.n)
+    return 0
+}

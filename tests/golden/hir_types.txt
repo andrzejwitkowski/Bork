@@ -71,6 +71,35 @@ programs/build/enums/ref_payload.bork::hold(node: Ref<Node>) -> unit
 programs/build/enums/ref_payload.bork::main() -> i32
 programs/build/enums/ref_to_enum.bork::link(leaf: Ref<Tree>) -> unit
 programs/build/enums/ref_to_enum.bork::main() -> i32
+programs/build/enums/return_field_of_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_field_of_local.bork::make() -> Outer
+programs/build/enums/return_field_of_local.bork::main() -> i32
+programs/build/enums/return_hoisted_chain.bork::churn(k: i32) -> i32
+programs/build/enums/return_hoisted_chain.bork::make2() -> C
+programs/build/enums/return_hoisted_chain.bork::main() -> i32
+programs/build/enums/return_hoisted_object.bork::makeEnum() -> E
+programs/build/enums/return_hoisted_object.bork::makeBox() -> Box
+programs/build/enums/return_hoisted_object.bork::makeMid() -> Mid
+programs/build/enums/return_hoisted_object.bork::makeTop() -> Top
+programs/build/enums/return_hoisted_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_hoisted_object.bork::main() -> i32
+programs/build/enums/return_hoisted_via_call.bork::mk(a: A) -> B
+programs/build/enums/return_hoisted_via_call.bork::make() -> C
+programs/build/enums/return_hoisted_via_call.bork::churn(k: i32) -> i32
+programs/build/enums/return_hoisted_via_call.bork::main() -> i32
+programs/build/enums/return_method_result_ref.bork::churn(k: i32) -> i32
+programs/build/enums/return_method_result_ref.bork::make() -> Outer
+programs/build/enums/return_method_result_ref.bork::main() -> i32
+programs/build/enums/return_method_result_ref.bork::Box.get(this: &Box) -> Ref<N>
+programs/build/enums/return_nested_hoisted_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
+programs/build/enums/return_nested_hoisted_object.bork::main() -> i32
+programs/build/enums/return_scalar_field_in_branch.bork::make(flag: bool) -> Box
+programs/build/enums/return_scalar_field_in_branch.bork::main() -> i32
+programs/build/enums/return_via_local.bork::make() -> A
+programs/build/enums/return_via_local.bork::makeNested() -> Wrap
+programs/build/enums/return_via_local.bork::churn(k: i32) -> i32
+programs/build/enums/return_via_local.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit
@@ -167,6 +196,9 @@ programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_taken.bork::main() -> i32
 programs/build/option/equality_cases_still_work.bork::main() -> i32
+programs/build/option/nested_option_returned.bork::make() -> Option<i32?>
+programs/build/option/nested_option_returned.bork::churn() -> unit
+programs/build/option/nested_option_returned.bork::main() -> i32
 programs/build/option/nullable_moved_into_owner.bork::make() -> Box
 programs/build/option/nullable_moved_into_owner.bork::churn(k: i32) -> i32
 programs/build/option/nullable_moved_into_owner.bork::main() -> i32
@@ -181,6 +213,9 @@ programs/build/option/option_result.bork::show(o: &i32?) -> i32
 programs/build/option/option_result.bork::parse(n: i32) -> Result<i32, String>
 programs/build/option/option_result.bork::main() -> i32
 programs/build/option/prelude_some_none_unshadowed.bork::main() -> i32
+programs/build/option/return_option_wrapped_object.bork::make() -> Box
+programs/build/option/return_option_wrapped_object.bork::churn(k: i32) -> i32
+programs/build/option/return_option_wrapped_object.bork::main() -> i32
 programs/build/option/user_function_named_some.bork::Some(x: i32) -> i32
 programs/build/option/user_function_named_some.bork::main() -> i32
 programs/build/option/user_names_shadow_none.bork::f(None: i32) -> i32
@@ -225,6 +260,9 @@ programs/build/vec/ref_nodes.bork::main() -> i32
 programs/build/vec/ref_promote.bork::main() -> i32
 programs/build/vec/ref_promote_strong.bork::main() -> i32
 programs/build/vec/ref_weak_expires.bork::main() -> i32
+programs/build/vec/return_vec_of_linked_refs.bork::churn(k: i32) -> i32
+programs/build/vec/return_vec_of_linked_refs.bork::make() -> Bag
+programs/build/vec/return_vec_of_linked_refs.bork::main() -> i32
 programs/build/vec/strings.bork::main() -> i32
 programs/build/vec/with_capacity.bork::main() -> i32
 programs/check/borrow/array_slice_length.bork::main() -> i32

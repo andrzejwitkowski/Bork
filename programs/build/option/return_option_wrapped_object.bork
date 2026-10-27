@@ -1,0 +1,29 @@
+// exit: 0
+// stdout: 42\n
+// A local object stored in the result through `Some(..)` is an enum construct and is hoisted like any other.
+class A { n: i32 }
+class B { a: A? }
+class N { n: i32 }
+class Box { n: N? }
+fun make(): Box {
+    val n = N(42)
+    return Box(Some(n))
+}
+fun churn(k: i32): i32 {
+    val x = Box(Some(N(k)))
+    val y = Box(Some(N(k + 1)))
+    return k
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 200) {
+        churn(i)
+        i = i + 1
+    }
+    when r.n {
+        Some(v) => { println(v.n) }
+        None => { println(0) }
+    }
+    return 0
+}

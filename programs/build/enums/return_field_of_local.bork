@@ -1,0 +1,25 @@
+// exit: 0
+// stdout: 42\n
+// A field read from a local object stored in the result keeps that local in the result arena.
+class N { n: i32 }
+class Box { n: N }
+class Outer { b: Box }
+fun churn(k: i32): i32 {
+    val x = Box(N(k))
+    val y = Box(N(k + 1))
+    return k
+}
+fun make(): Outer {
+    val local = Box(N(42))
+    return Outer(Box(local.n))
+}
+fun main(): i32 {
+    val r = make()
+    var i = 0
+    while (i < 50) {
+        churn(i)
+        i = i + 1
+    }
+    println(r.b.n.n)
+    return 0
+}

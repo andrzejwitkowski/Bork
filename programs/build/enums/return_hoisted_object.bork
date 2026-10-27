@@ -1,0 +1,55 @@
+// exit: 0
+// stdout: 42\n42\n42\n3825\n
+// A class or enum built before `return` and used as a field of the returned value is allocated
+// in the caller's result arena, so later allocations cannot overwrite it.
+class N { n: i32 }
+class Box { n: N }
+class Mid { n: N }
+class Top { m: Mid }
+enum E { A(n: N) }
+
+fun makeEnum(): E {
+    val n = N(42)
+    return E.A(n)
+}
+
+fun makeBox(): Box {
+    val n = N(42)
+    return Box(n)
+}
+
+fun makeMid(): Mid {
+    val n = N(42)
+    return Mid(n)
+}
+
+fun makeTop(): Top {
+    val m = makeMid()
+    return Top(m)
+}
+
+fun churn(k: i32): i32 {
+    val a = Box(N(k))
+    val b = Box(N(k + 1))
+    val c = Box(N(k + 2))
+    return a.n.n + b.n.n + c.n.n
+}
+
+fun main(): i32 {
+    val e = makeEnum()
+    val b = makeBox()
+    val t = makeTop()
+    var i = 0
+    var total = 0
+    while (i < 50) {
+        total = total + churn(i)
+        i = i + 1
+    }
+    when e {
+        A(n) => { println(n.n) }
+    }
+    println(b.n.n)
+    println(t.m.n.n)
+    println(total)
+    return 0
+}

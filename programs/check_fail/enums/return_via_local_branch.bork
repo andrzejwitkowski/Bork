@@ -1,0 +1,17 @@
+// diag: whose bytes live in an inner region
+class P { n: i32 }
+class A { x: P }
+
+fun make(flag: bool): A {
+    val x = P(1)
+    val a = A(x)
+    if (flag) {
+        return a
+    }
+    return A(P(2))
+}
+
+fun main(): i32 {
+    println(make(true).x.n)
+    return 0
+}

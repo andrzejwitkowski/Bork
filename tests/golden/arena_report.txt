@@ -437,6 +437,135 @@ Arenas
 └── fun main
     ├── leaf [Local]
     └── r [Local]
+== programs/build/enums/return_field_of_local.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make
+│   └── local [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_hoisted_chain.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make2
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_hoisted_object.bork
+Arenas
+├── fun makeEnum
+│   └── n [Local]
+├── fun makeBox
+│   └── n [Local]
+├── fun makeMid
+│   └── n [Local]
+├── fun makeTop
+│   └── m [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+└── fun main
+    ├── e [Local]
+    ├── b [Local]
+    ├── t [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── WhileLoop
+    │   ├── total [Copy]
+    │   └── i [Copy]
+    └── MatchArm
+        └── n [Borrow ← pattern binding]
+== programs/build/enums/return_hoisted_via_call.bork
+Arenas
+├── fun mk
+│   └── a [Local]
+├── fun make
+│   ├── a [Local]
+│   └── b [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   ├── y [Local]
+│   └── z [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_method_result_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make
+│   └── local [Local]
+├── fun main
+│   ├── r [Local]
+│   ├── i [Local]
+│   ├── WhileLoop
+│   │   └── i [Copy]
+│   └── IfValSome
+│       └── n [Borrow ← presence guard]
+└── fun Box.get
+    └── this [Borrow ← call site]
+== programs/build/enums/return_nested_hoisted_object.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun make
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
+== programs/build/enums/return_scalar_field_in_branch.bork
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── local [Local]
+│   └── IfThen
+│       └── local [Shared ← fun make]
+└── fun main
+== programs/build/enums/return_via_local.bork
+Arenas
+├── fun make
+│   ├── x [Local]
+│   ├── y [Local]
+│   ├── z [Local]
+│   └── a [Local]
+├── fun makeNested
+│   ├── inner [Local]
+│   ├── a [Local]
+│   └── w [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── r [Local]
+    ├── w [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/two_ref_variants.bork
 Arenas
 ├── fun one
@@ -1008,6 +1137,20 @@ Arenas
     ├── IfThen
     ├── IfThen
     └── IfThen
+== programs/build/option/nested_option_returned.bork
+Arenas
+├── fun make
+│   └── i [Local]
+├── fun churn
+│   └── a [Local]
+└── fun main
+    ├── o [Local]
+    ├── MatchArm
+    │   ├── x [Borrow ← pattern binding]
+    │   ├── MatchArm
+    │   │   └── v [Local]
+    │   └── MatchArm
+    └── MatchArm
 == programs/build/option/nullable_moved_into_owner.bork
 Arenas
 ├── fun make
@@ -1133,6 +1276,22 @@ Arenas
     ├── MatchArm
     ├── MatchArm
     │   └── v [Local]
+    └── MatchArm
+== programs/build/option/return_option_wrapped_object.bork
+Arenas
+├── fun make
+│   └── n [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    ├── WhileLoop
+    │   └── i [Copy]
+    ├── MatchArm
+    │   └── v [Borrow ← pattern binding]
     └── MatchArm
 == programs/build/option/user_function_named_some.bork
 Arenas
@@ -1764,6 +1923,36 @@ Arenas
             └── IfValSome
                 ├── node [Borrow ← presence guard]
                 └── alive [Copy]
+== programs/build/vec/return_vec_of_linked_refs.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── x [Local]
+│   └── y [Local]
+├── fun make
+│   ├── v [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── a [Local]
+│       ├── b [Local]
+│       ├── i [Copy]
+│       └── v [Borrow ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── j [Local]
+    ├── WhileLoop
+    │   └── i [Copy]
+    └── WhileLoop
+        ├── got [Local]
+        ├── r [Shared ← fun main]
+        ├── j [Copy]
+        └── IfValSome
+            ├── b [Borrow ← presence guard]
+            └── IfValSome
+                ├── a [Borrow ← presence guard]
+                └── total [Copy]
 == programs/build/vec/strings.bork
 Arenas
 └── fun main
@@ -2334,6 +2523,20 @@ Arenas
 Type Error [36..39] integer literal 256 is out of range for u8
 Arenas
 └── fun main
+== programs/check_fail/enums/assign_local_object_to_outer_var.bork
+Ownership Error [272..275] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── out [Local]
+    ├── i [Local]
+    ├── Block
+    │   └── n [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/check_fail/enums/bool_missing.bork
 Type Error [59..93] non-exhaustive `when`: missing `false`
 Arenas
@@ -2430,6 +2633,56 @@ Arenas
 == programs/check_fail/enums/recursive_by_value.bork
 Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field
 Arenas
+└── fun main
+== programs/check_fail/enums/return_alias_hoisted.bork
+Ownership Error [157..158] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── x [Local]
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+== programs/check_fail/enums/return_field_of_local_in_branch.bork
+Ownership Error [175..178] `local` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── local [Local]
+│   └── IfThen
+│       └── local [Shared ← fun make]
+└── fun main
+== programs/check_fail/enums/return_local_object_in_branch.bork
+Ownership Error [167..170] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── n [Local]
+│   └── IfThen
+│       └── n [Shared ← fun make]
+└── fun main
+    └── e [Local]
+== programs/check_fail/enums/return_via_local_branch.bork
+Ownership Error [173..174] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── x [Local]
+│   ├── a [Local]
+│   └── IfThen
+│       └── a [Shared ← fun make]
+└── fun main
+== programs/check_fail/enums/return_via_local_reused.bork
+Ownership Error [162..163] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+== programs/check_fail/enums/return_via_var.bork
+Ownership Error [145..146] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun make
+│   └── a [Local]
 └── fun main
 == programs/check_fail/enums/unknown_variant.bork
 Type Error [101..113] enum `Shape` has no variant `Square`
