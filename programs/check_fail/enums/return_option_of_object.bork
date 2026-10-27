@@ -1,0 +1,34 @@
+// diag: whose bytes live in an inner region
+// Returning an `Option` of an object is rejected today (same before #174); pinned so a change is noticed.
+class P { n: i32 }
+class A { x: P }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+class Bag { items: Vec<Ref<P>> }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    val r: Ref<P> = P(k + 2)
+    val c = RA(P(k + 3))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(r: &RA) {
+    if val v = r.x { println(v.n) }
+}
+fun make(): RA? { return Some(RA(P(83))) }
+fun main(): i32 {
+    val a = make()
+    spin()
+    when a {
+        Some(r) => { show(&r) }
+        None => { println(0) }
+    }
+    return 0
+}

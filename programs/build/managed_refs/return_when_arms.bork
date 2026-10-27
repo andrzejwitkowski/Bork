@@ -1,0 +1,43 @@
+// exit: 0
+// stdout: 71\n72\n
+// Return in the arms of a when.
+class P { n: i32 }
+class A { x: P }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+class Bag { items: Vec<Ref<P>> }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    val r: Ref<P> = P(k + 2)
+    val c = RA(P(k + 3))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(r: &RA) {
+    if val v = r.x { println(v.n) }
+}
+
+enum K { X, Y }
+fun make(k: K): RA {
+    val a: Ref<P> = P(71)
+    val b: Ref<P> = P(72)
+    when k {
+        X => { return RA(a) }
+        Y => { return RA(b) }
+    }
+}
+fun main(): i32 {
+    val x = make(K.X)
+    val y = make(K.Y)
+    spin()
+    show(&x)
+    show(&y)
+    return 0
+}

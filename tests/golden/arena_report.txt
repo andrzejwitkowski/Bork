@@ -1121,6 +1121,177 @@ Arenas
     └── IfValSome
         ├── live [Borrow ← presence guard]
         └── total [Copy]
+== programs/build/managed_refs/return_chain_local_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+│   ├── p [Local]
+│   ├── r [Local]
+│   └── o [Local]
+└── fun main
+    ├── o [Local]
+    └── r [Local]
+== programs/build/managed_refs/return_enum_payload_obj.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+└── fun main
+    ├── e [Local]
+    ├── MatchArm
+    │   └── r [Borrow ← pattern binding]
+    └── MatchArm
+== programs/build/managed_refs/return_generic_box.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+└── fun main
+    ├── b [Local]
+    └── r [Local]
+== programs/build/managed_refs/return_ifval_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+│   ├── o [Local]
+│   ├── extra [Local]
+│   └── IfValSome
+│       ├── p [Borrow ← presence guard]
+│       └── extra [Shared ← fun make]
+└── fun main
+    ├── src [Local]
+    └── a [Local]
+== programs/build/managed_refs/return_loop_before_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun find
+│   ├── limit [Local]
+│   ├── keep [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── IfThen
+│           └── keep [Shared ← fun find]
+└── fun main
+    └── a [Local]
+== programs/build/managed_refs/return_loop_decl_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun find
+│   ├── limit [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── p [Shared ← WhileLoop]
+└── fun main
+    └── a [Local]
+== programs/build/managed_refs/return_nested_loops_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun find
+│   ├── keep [Local]
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       └── ForLoop (j)
+│           ├── j [Local]
+│           ├── i [Copy]
+│           └── IfThen
+│               ├── j [Copy]
+│               └── IfThen
+│                   └── keep [Shared ← fun find]
+└── fun main
+    └── a [Local]
 == programs/build/managed_refs/return_nested_object_with_ref.bork
 Arenas
 ├── fun mkO
@@ -1171,6 +1342,166 @@ Arenas
     ├── local [Local]
     └── IfThen
         └── local [Shared ← fun Holder.mixed]
+== programs/build/managed_refs/return_ref_from_call.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun mkRef
+│   └── k [Local]
+├── fun wrap
+│   └── k [Local]
+└── fun main
+    └── a [Local]
+== programs/build/managed_refs/return_scalar_this.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun main
+│   ├── c [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── r [Local]
+├── fun Counter.pick
+│   ├── this [Borrow ← call site]
+│   ├── flag [Local]
+│   ├── p [Local]
+│   └── IfThen
+│       └── p [Shared ← fun Counter.pick]
+└── fun Counter.mkRef
+    └── this [Borrow ← call site]
+== programs/build/managed_refs/return_this_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun main
+│   ├── h [Local]
+│   ├── a [Local]
+│   └── b [Local]
+├── fun Holder.get
+│   └── this [Borrow ← call site]
+└── fun Holder.fresh
+    └── this [Borrow ← call site]
+== programs/build/managed_refs/return_two_paths_ref.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── IfThen
+│       └── a [Shared ← fun make]
+└── fun main
+    ├── x [Local]
+    └── y [Local]
+== programs/build/managed_refs/return_vec_of_refs.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+│   ├── v [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── v [Borrow ← fun make]
+│       └── i [Copy]
+└── fun main
+    ├── b [Local]
+    ├── t [Local]
+    ├── j [Local]
+    └── WhileLoop
+        ├── got [Local]
+        ├── b [Shared ← fun main]
+        ├── j [Copy]
+        └── IfValSome
+            ├── p [Borrow ← presence guard]
+            └── t [Copy]
+== programs/build/managed_refs/return_when_arms.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── MatchArm
+│   │   └── a [Shared ← fun make]
+│   └── MatchArm
+│       └── b [Shared ← fun make]
+└── fun main
+    ├── x [Local]
+    └── y [Local]
 == programs/build/managed_refs/val_both_return_string_move.bork
 Arenas
 ├── fun run
@@ -2976,6 +3307,29 @@ Arenas
 │       └── IfThen
 │           └── p [Shared ← WhileLoop]
 └── fun main
+== programs/check_fail/enums/return_option_of_object.bork
+Ownership Error [585..600] returning a `RA?` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── r [Local]
+│   └── c [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun show
+│   ├── r [Borrow ← call site]
+│   └── IfValSome
+│       └── v [Borrow ← presence guard]
+├── fun make
+└── fun main
+    ├── a [Local]
+    ├── MatchArm
+    │   └── r [Borrow ← pattern binding]
+    └── MatchArm
 == programs/check_fail/enums/return_via_local_reused.bork
 Ownership Error [162..163] returning a `A` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
 Arenas

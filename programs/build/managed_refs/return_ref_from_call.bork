@@ -1,0 +1,34 @@
+// exit: 0
+// stdout: 5\n
+// The Ref stored in the returned object comes from another call.
+class P { n: i32 }
+class A { x: P }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+class Bag { items: Vec<Ref<P>> }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    val r: Ref<P> = P(k + 2)
+    val c = RA(P(k + 3))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(r: &RA) {
+    if val v = r.x { println(v.n) }
+}
+
+fun mkRef(k: i32): Ref<P> { return P(k) }
+fun wrap(k: i32): RA { return RA(mkRef(k)) }
+fun main(): i32 {
+    val a = wrap(5)
+    spin()
+    show(&a)
+    return 0
+}

@@ -1,0 +1,40 @@
+// exit: 0
+// stdout: 61\n62\n
+// Two returns, each of a different local Ref.
+class P { n: i32 }
+class A { x: P }
+class RA { x: Ref<P> }
+class Outer { r: RA }
+class Bag { items: Vec<Ref<P>> }
+fun churn(k: i32): i32 {
+    val a = A(P(k))
+    val b = A(P(k + 1))
+    val r: Ref<P> = P(k + 2)
+    val c = RA(P(k + 3))
+    return k
+}
+fun spin() {
+    var i = 0
+    while (i < 200) {
+        churn(i + 7000)
+        i = i + 1
+    }
+}
+fun show(r: &RA) {
+    if val v = r.x { println(v.n) }
+}
+
+fun make(flag: bool): RA {
+    val a: Ref<P> = P(61)
+    val b: Ref<P> = P(62)
+    if (flag) { return RA(a) }
+    return RA(b)
+}
+fun main(): i32 {
+    val x = make(true)
+    val y = make(false)
+    spin()
+    show(&x)
+    show(&y)
+    return 0
+}
