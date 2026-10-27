@@ -29,6 +29,7 @@ pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec
             let local = Local {
                 decl_depth: 0,
                 value_depth: 0,
+                short_lived_object: false,
             };
             (param.name.as_str(), local)
         })
@@ -55,6 +56,9 @@ fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) 
 struct Local {
     decl_depth: usize,
     value_depth: usize,
+    /// A `val`/`var` of this function holding a class or enum handle that is not hoisted into
+    /// the result sink: it dies with its region.
+    short_lived_object: bool,
 }
 
 struct Escape<'h, 'd> {
@@ -85,6 +89,34 @@ impl<'h> Escape<'h, '_> {
             self.bind_guard(binding);
         }
         self.region_body(body, true, sink)
+    }
+
+    fn holds_object(&self, ty: TyId) -> bool {
+        let ty = self.tcx.base(ty);
+        self.tcx.class_def(ty).is_some() || matches!(self.tcx.data(ty), crate::ty::TyData::Enum(..))
+    }
+
+    /// A local object stored in a returned construct would be freed with its region while the
+    /// result still points at it. `hoist` allocates the simple cases in the result sink.
+    fn check_returned_objects(&mut self, value: &'h HirExpr) {
+        let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &value.kind
+        else {
+            return;
+        };
+        let mut names = Vec::new();
+        crate::hoist::collect_idents(fields, &mut names);
+        for name in names {
+            if self.lookup(&name).is_some_and(|local| local.short_lived_object) {
+                reject(
+                    self.diagnostics,
+                    &format!(
+                        "`{name}` is freed when this function returns, but the returned value would still point at it; \
+                         build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement"
+                    ),
+                    value.span,
+                );
+            }
+        }
     }
 
     fn open_scope(&mut self) {
@@ -134,6 +166,7 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
+                self.check_returned_objects(value);
                 if self.tcx.is_ref(value.ty) {
                     reject(
                         self.diagnostics,
@@ -167,11 +200,13 @@ impl<'h> Escape<'h, '_> {
             HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => {
                 self.region(body, false, None);
             }
-            HirStmt::VarDecl { name, value, .. } => {
+            HirStmt::VarDecl { name, value, ty, alloc_in_binding, .. } => {
                 let value_depth = self.place(value, None);
+                let hoisted = alloc_in_binding.as_deref() == Some(crate::hoist::RESULT_SINK);
                 let local = Local {
                     decl_depth: self.depth,
                     value_depth,
+                    short_lived_object: !hoisted && self.holds_object(*ty),
                 };
                 self.scopes
                     .last_mut()
@@ -510,6 +545,7 @@ impl<'h> Escape<'h, '_> {
             Local {
                 decl_depth: self.depth,
                 value_depth: self.depth,
+                short_lived_object: false,
             },
         );
     }

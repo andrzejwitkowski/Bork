@@ -12,6 +12,7 @@ pub fn annotate(program: &mut HirProgram) {
             .map(|param| param.name.clone())
             .collect();
         annotate_block(&mut function.body, &visible);
+        hoist_into_result(&mut function.body);
     }
 }
 
@@ -105,4 +106,39 @@ fn assign_moves_ident(value: &crate::hir::HirExpr, name: &str) -> bool {
             use_kind: UseKind::Move,
         } if rhs == name
     )
+}
+
+/// `val n = <construct>` whose only use is a field of the returned construct is
+/// allocated in the result sink, so it outlives the function with its owner.
+pub const RESULT_SINK: &str = "$result";
+
+fn hoist_into_result(block: &mut HirBlock) {
+    let Some(HirStmt::Return { value: Some(ret) }) = block.stmts.last() else { return };
+    let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &ret.kind else { return };
+    let mut used = Vec::new();
+    collect_idents(fields, &mut used);
+    for stmt in &mut block.stmts {
+        if let HirStmt::VarDecl { name, value, alloc_in_binding, .. } = stmt {
+            let constructs = matches!(
+                value.kind,
+                HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } | HirExprKind::Call { .. }
+            );
+            if constructs && used.contains(name) && alloc_in_binding.is_none() {
+                *alloc_in_binding = Some(RESULT_SINK.to_string());
+            }
+        }
+    }
+}
+
+/// Names used directly as fields of a construct, looking through nested constructs.
+pub fn collect_idents(fields: &[crate::hir::HirExpr], out: &mut Vec<String>) {
+    for field in fields {
+        match &field.kind {
+            HirExprKind::Ident { name, .. } => out.push(name.clone()),
+            HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
+                collect_idents(fields, out)
+            }
+            _ => {}
+        }
+    }
 }

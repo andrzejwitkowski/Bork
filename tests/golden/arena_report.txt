@@ -426,6 +426,32 @@ Arenas
 └── fun main
     ├── leaf [Local]
     └── r [Local]
+== programs/build/enums/return_hoisted_object.bork
+Arenas
+├── fun makeEnum
+│   └── n [Local]
+├── fun makeBox
+│   └── n [Local]
+├── fun makeMid
+│   └── n [Local]
+├── fun makeTop
+│   └── m [Local]
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+└── fun main
+    ├── e [Local]
+    ├── b [Local]
+    ├── t [Local]
+    ├── i [Local]
+    ├── total [Local]
+    ├── WhileLoop
+    │   ├── total [Copy]
+    │   └── i [Copy]
+    └── MatchArm
+        └── n [Borrow ← pattern binding]
 == programs/build/enums/two_ref_variants.bork
 Arenas
 ├── fun one
@@ -2405,6 +2431,16 @@ Arenas
 Type Error [75..79] enum `List` has a recursive by-value layout (List -> List); use `Ref<..>` for the recursive field
 Arenas
 └── fun main
+== programs/check_fail/enums/return_local_object_in_branch.bork
+Ownership Error [162..165] `n` is freed when this function returns, but the returned value would still point at it; build it directly in the constructor, or declare it at the top level of the function and return the value as its final statement
+Arenas
+├── fun make
+│   ├── flag [Local]
+│   ├── n [Local]
+│   └── IfThen
+│       └── n [Shared ← fun make]
+└── fun main
+    └── e [Local]
 == programs/check_fail/enums/unknown_variant.bork
 Type Error [101..113] enum `Shape` has no variant `Square`
 Arenas

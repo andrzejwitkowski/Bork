@@ -285,7 +285,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 ..
             } => {
                 let prev = self.alloc_sink;
-                if let Some(target) = alloc_in_binding {
+                if alloc_in_binding.as_deref() == Some(crate::hoist::RESULT_SINK) {
+                    self.alloc_sink = self.result_sink;
+                } else if let Some(target) = alloc_in_binding {
                     let slot = self.lookup(target).ok_or_else(|| {
                         not_yet_supported(
                             &format!("hoisted alloc target `{target}` is not in scope"),

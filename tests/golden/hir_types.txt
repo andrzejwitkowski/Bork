@@ -70,6 +70,12 @@ programs/build/enums/ref_payload.bork::hold(node: Ref<Node>) -> unit
 programs/build/enums/ref_payload.bork::main() -> i32
 programs/build/enums/ref_to_enum.bork::link(leaf: Ref<Tree>) -> unit
 programs/build/enums/ref_to_enum.bork::main() -> i32
+programs/build/enums/return_hoisted_object.bork::makeEnum() -> E
+programs/build/enums/return_hoisted_object.bork::makeBox() -> Box
+programs/build/enums/return_hoisted_object.bork::makeMid() -> Mid
+programs/build/enums/return_hoisted_object.bork::makeTop() -> Top
+programs/build/enums/return_hoisted_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_hoisted_object.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit

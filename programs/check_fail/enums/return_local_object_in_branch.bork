@@ -1,0 +1,16 @@
+// diag: is freed when this function returns
+class N { n: i32 }
+enum E { A(n: N), B }
+
+fun make(flag: bool): E {
+    val n = N(42)
+    if (flag) {
+        return E.A(n)
+    }
+    return E.B
+}
+
+fun main(): i32 {
+    val e = make(true)
+    return 0
+}
