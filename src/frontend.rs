@@ -59,6 +59,7 @@ pub fn check(source: &str) -> CheckResult {
     crate::prelude::add_prelude(&mut program, source, node_index.len() as u32);
     let typeck::Typeck { mut hir, node_tys, members, option_if_vals, diagnostics: mut type_diagnostics, tcx } =
         typeck::check_with_members(&program);
+    // shortcut: sources use chunk export names; track per-item origins before adding unlisted helpers.
     for function in hir.functions.iter_mut().take(program.functions.len()).skip(user_functions) {
         function.source = crate::prelude::source_file(&function.name);
     }

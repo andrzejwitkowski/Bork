@@ -1,11 +1,44 @@
 #![cfg(all(feature = "debug-runtime", unix))]
 
 use std::{
+    alloc::{GlobalAlloc, Layout, System},
+    cell::Cell,
     ffi::{c_char, c_void},
     os::unix::process::ExitStatusExt,
     process::Command,
     ptr,
 };
+
+thread_local! { static ALLOCATIONS: Cell<Option<usize>> = const { Cell::new(None) }; }
+
+struct CountingAllocator;
+
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+unsafe impl GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let _ = ALLOCATIONS.try_with(|count| {
+            if let Some(n) = count.get() {
+                count.set(Some(n + 1));
+            }
+        });
+        System.alloc(layout)
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+        let _ = ALLOCATIONS.try_with(|count| {
+            if let Some(n) = count.get() {
+                count.set(Some(n + 1));
+            }
+        });
+        System.realloc(pointer, layout, size)
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        System.dealloc(pointer, layout)
+    }
+}
 
 #[repr(C)]
 struct Site {
@@ -45,6 +78,7 @@ extern "C" {
     );
     fn bork_debug_site(site: *const Site);
     fn bork_debug_frame_enter(name: *const c_char, site: *const Site);
+    fn bork_debug_frame_exit();
     fn bork_debug_copy_origin(source: *const c_void, destination: *const c_void);
     fn bork_ref_is_none_ptr(p: *const c_void) -> bool;
     fn bork_ref_release_observation_ptr(p: *const c_void);
@@ -199,5 +233,49 @@ fn zero_length_access_does_not_read_payload() {
     unsafe {
         bork_debug_check(ptr::null(), 0, 0, ptr::null());
         bork_debug_check(ptr::without_provenance(usize::MAX), 0, 1, ptr::null());
+    }
+}
+
+#[test]
+fn repeated_debug_text_hooks_do_not_allocate_after_warmup() {
+    let _ = bork_runtime::REF_HANDLE_LAYOUT;
+    unsafe {
+        let arena = bork_arena_push();
+        let object = bork_arena_alloc(arena, 64, 8);
+        for path in [
+            c"fixture.bork".as_ptr(),
+            b"fixture\xff.bork\0".as_ptr().cast(),
+        ] {
+            let site = Site {
+                path,
+                start: 12,
+                end: 27,
+                line: 2,
+                column: 5,
+            };
+            let hooks = || {
+                bork_debug_site(&site);
+                bork_debug_frame_enter(c"callee".as_ptr(), &site);
+                bork_debug_label_allocation(
+                    object,
+                    c"item".as_ptr(),
+                    c"Node<i32>".as_ptr(),
+                    &site,
+                    1,
+                );
+                bork_debug_frame_exit();
+            };
+            hooks();
+            ALLOCATIONS.with(|count| count.set(Some(0)));
+            for _ in 0..100 {
+                hooks();
+            }
+            let allocations = ALLOCATIONS.with(|count| count.replace(None).unwrap());
+            assert_eq!(
+                allocations, 0,
+                "repeated source, frame and allocation-label hooks"
+            );
+        }
+        bork_arena_pop(arena);
     }
 }

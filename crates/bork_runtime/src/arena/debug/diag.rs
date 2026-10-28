@@ -1,7 +1,7 @@
 //! Allocation diagnostics live outside payload pages and the debugger's stable ABI.
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     ffi::{c_char, c_void, CStr},
     fmt,
     io::Write,
@@ -39,12 +39,24 @@ impl fmt::Display for Location {
     }
 }
 
-unsafe fn string(p: *const c_char) -> String {
-    if p.is_null() {
-        String::new()
+unsafe fn string(p: *const c_char) -> Rc<str> {
+    let bytes = if p.is_null() {
+        &[][..]
     } else {
-        CStr::from_ptr(p).to_string_lossy().into_owned()
-    }
+        CStr::from_ptr(p).to_bytes()
+    };
+    DIAG.with(|d| {
+        let mut d = d.borrow_mut();
+        if bytes.is_empty() {
+            return d.empty.clone();
+        }
+        if let Some(text) = d.text.get(bytes) {
+            return text.clone();
+        }
+        let text: Rc<str> = String::from_utf8_lossy(bytes).as_ref().into();
+        d.text.insert(bytes.into(), text.clone());
+        text
+    })
 }
 
 unsafe fn location(p: *const SourceLocation) -> Location {
@@ -53,7 +65,7 @@ unsafe fn location(p: *const SourceLocation) -> Location {
     }
     let p = &*p;
     Location {
-        path: string(p.path).into(),
+        path: string(p.path),
         start: p.start,
         end: p.end,
         line: p.line,
@@ -76,8 +88,8 @@ pub(super) struct DebugDiag {
     pub owner: usize,
     arena: Option<Rc<Arena>>,
     pub state: MemoryState,
-    pub name: String,
-    pub type_name: String,
+    pub name: Rc<str>,
+    pub type_name: Rc<str>,
     created: Location,
     declared: Option<Location>,
     released: Option<Location>,
@@ -99,12 +111,14 @@ struct Arena {
 }
 
 struct Frame {
-    name: String,
+    name: Rc<str>,
     site: Location,
 }
 
 #[derive(Default)]
 struct Diagnostics {
+    empty: Rc<str>,
+    text: HashMap<Box<[u8]>, Rc<str>>,
     next_id: usize,
     ranges: BTreeMap<usize, Range>,
     covered: BTreeMap<usize, usize>,
@@ -182,8 +196,8 @@ impl Diagnostics {
                     owner,
                     arena: self.arenas.get(&owner).cloned(),
                     state: MemoryState::UnusedInPool,
-                    name: String::new(),
-                    type_name: String::new(),
+                    name: self.empty.clone(),
+                    type_name: self.empty.clone(),
                     created: created.clone(),
                     declared: None,
                     released: None,
@@ -327,8 +341,8 @@ fn track(owner: usize, start: usize, size: usize, page: (usize, usize), origin: 
             owner,
             arena: d.arenas.get(&owner).cloned(),
             state: MemoryState::Live,
-            name: String::new(),
-            type_name: String::new(),
+            name: d.empty.clone(),
+            type_name: d.empty.clone(),
             created,
             declared: None,
             released: None,
@@ -385,8 +399,8 @@ pub(crate) fn grown(owner: usize, old: usize, new: usize, size: usize, page: (us
 
 pub(super) fn label(
     address: usize,
-    name: String,
-    type_name: String,
+    name: Rc<str>,
+    type_name: Rc<str>,
     site: Location,
     declaration: bool,
 ) {
@@ -461,8 +475,8 @@ pub(super) fn failure(start: usize, size: usize, owner: usize) -> Option<Failure
                     owner,
                     arena: d.arenas.get(&owner).cloned(),
                     state: MemoryState::UnusedInPool,
-                    name: String::new(),
-                    type_name: String::new(),
+                    name: d.empty.clone(),
+                    type_name: d.empty.clone(),
                     created: Location::default(),
                     declared: None,
                     released: None,
@@ -665,6 +679,7 @@ mod tests {
             };
             bork_debug_site(&site);
             let first = current_location();
+            bork_debug_site(&site);
             let second = current_location();
             assert_eq!(first.path.as_ptr(), second.path.as_ptr());
             arena_created(1, 0);
@@ -674,6 +689,24 @@ mod tests {
                 failure(0x1000, 1, 0).unwrap().current.created.path.as_ptr(),
                 first.path.as_ptr()
             );
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn debug_text_uses_contents_instead_of_argument_addresses() {
+        std::thread::spawn(|| unsafe {
+            let mut bytes = *b"first\0";
+            let first = string(bytes.as_ptr().cast());
+            let separate = *b"first\0";
+            let same = string(separate.as_ptr().cast());
+            assert!(Rc::ptr_eq(&first, &same));
+            bytes[0] = b't';
+            let changed = string(bytes.as_ptr().cast());
+            assert_eq!(&*first, "first");
+            assert_eq!(&*changed, "tirst");
+            assert_eq!(&*string(std::ptr::null()), "");
         })
         .join()
         .unwrap();

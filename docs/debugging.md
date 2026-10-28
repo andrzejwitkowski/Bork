@@ -34,6 +34,9 @@ lives outside payload memory and the existing debugger ABI, and increases debug
 execution time and memory use. Ordinary builds contain none of these new hooks.
 Retired arena descriptions stay alive through the retained address records and their
 ancestors; recycling an arena does not accumulate an independent arena history.
+Allocation records also remain after blocks are returned to the system, so stale
+pointers can still be diagnosed. Metadata grows with distinct tracked address
+ranges; retaining one previous occupant per range does not bound its total size.
 
 Load the Python tools manually, using your checkout's absolute path:
 

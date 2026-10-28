@@ -68,8 +68,8 @@ fn reset_and_moving_grow_retire_old_ranges_but_keep_provenance() {
         let next = bork_arena_reset(a);
         let d = diag::failure(q.addr(), 1, 0).unwrap();
         assert_eq!(d.current.state, MemoryState::UnusedInPool);
-        assert_eq!(d.current.name, "numbers");
-        assert_eq!(d.current.type_name, "[i32; 8]");
+        assert_eq!(d.current.name.as_ref(), "numbers");
+        assert_eq!(d.current.type_name.as_ref(), "[i32; 8]");
         bork_arena_pop(next);
     }
 }
@@ -140,7 +140,7 @@ fn history_keeps_exactly_one_previous_occupant() {
             bork_arena_free(a, p, 8);
             let failure = diag::failure(p.addr(), 1, 0).unwrap();
             if name == "third" {
-                assert_eq!(failure.previous.unwrap().name, "second");
+                assert_eq!(failure.previous.unwrap().name.as_ref(), "second");
             }
         }
         bork_arena_pop(a);
@@ -192,7 +192,7 @@ fn larger_reuse_reports_the_previous_occupant_of_the_accessed_bytes() {
         assert_eq!(state(combined, 64), None);
         bork_arena_free(a, combined, 64);
         let failure = diag::failure(combined.byte_add(40).addr(), 1, 0).unwrap();
-        assert_eq!(failure.previous.unwrap().name, "second");
+        assert_eq!(failure.previous.unwrap().name.as_ref(), "second");
         bork_arena_pop(a);
     }
 }
