@@ -42,7 +42,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .builder
                 .build_int_mul(cap, self.word(stride as u64), "vec.cap.bytes")?;
             let buf = self.arena_alloc(arena, bytes, align)?;
-            self.cx.debug_allocation(buf, "", &format!("Vec<{}>", self.cx.tcx.display(elem_ty)), false)?;
+            if self.cx.debug.is_some() {
+                self.cx.debug_allocation(buf, "", &format!("Vec<{}>", self.cx.tcx.display(elem_ty)), false)?;
+            }
             self.vec_store(header, BUF, buf)?;
             self.vec_store(header, CAP, cap)?;
             self.cx.builder.build_unconditional_branch(done)?;
@@ -61,7 +63,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 "",
             )?;
         }
-        self.cx.debug_allocation(header, "", &format!("Vec<{}>", self.cx.tcx.display(elem_ty)), false)?;
+        if self.cx.debug.is_some() {
+            self.cx.debug_allocation(header, "", &format!("Vec<{}>", self.cx.tcx.display(elem_ty)), false)?;
+        }
         Ok(header)
     }
 
