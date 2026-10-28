@@ -77,7 +77,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.cx
             .builder
             .build_conditional_branch(is_absent, none_bb, some_bb)?;
-        self.cx.builder.position_at_end(some_bb);
+        self.cx.position_at_end(some_bb);
         Ok(PresenceSplit {
             label: label.to_owned(),
             none_bb,
@@ -93,7 +93,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         value: Option<BasicValueEnum<'ctx>>,
     ) -> Result<(), Diagnostic> {
         self.finish_presence_branch(split.merge_bb, value, &mut split.incoming)?;
-        self.cx.builder.position_at_end(split.none_bb);
+        self.cx.position_at_end(split.none_bb);
         Ok(())
     }
 
@@ -103,7 +103,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         value: Option<BasicValueEnum<'ctx>>,
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         self.finish_presence_branch(split.merge_bb, value, &mut split.incoming)?;
-        self.cx.builder.position_at_end(split.merge_bb);
+        self.cx.position_at_end(split.merge_bb);
         let Some(result_ty) = split.result_ty else {
             return Ok(None);
         };

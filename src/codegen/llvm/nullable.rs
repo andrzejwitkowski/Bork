@@ -3,7 +3,7 @@
 //! tag tests, constructions and payload reads over it. `Ref<T>` keeps its own null handle.
 
 use inkwell::types::BasicType;
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, IntValue};
 use inkwell::IntPredicate;
 
 use crate::ast::BinOp;
@@ -25,11 +25,6 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.cx.tcx.display(ty)), None))
     }
 
-    /// The object pointer of the nullable value `value`.
-    fn option_object(&mut self, value: BasicValueEnum<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
-        self.object_pointer(value.into_struct_value())
-    }
-
     pub(super) fn emit_nullable_is_null(
         &mut self,
         ty: TyId,
@@ -41,7 +36,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .enum_variant(&name, "None")
             .ok_or_else(|| not_yet_supported("the prelude `Option`", None))?;
         let record = self.cx.enum_layout(&name).expect("laid out with its enum").variants[none_tag as usize];
-        let object = self.option_object(value)?;
+        let object = self.object_pointer(value.into_struct_value())?;
         let i32_ty = self.cx.context.i32_type();
         let tag_ptr = self.cx.builder.build_struct_gep(record, object, 0, "opt.tag.ptr")?;
         let tag = self.cx.builder.build_load(i32_ty, tag_ptr, "opt.tag")?.into_int_value();
@@ -79,21 +74,25 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let none_bb = self.cx.context.append_basic_block(self.llvm_fn, "opt.copy.none");
         let end_bb = self.cx.context.append_basic_block(self.llvm_fn, "opt.copy.end");
         self.cx.builder.build_conditional_branch(is_null, none_bb, some_bb)?;
-        self.cx.builder.position_at_end(some_bb);
+        self.cx.position_at_end(some_bb);
         let payload = self.emit_nullable_unwrap(ty, value)?;
         let some = self.emit_nullable_some(ty, payload)?;
         let some_end = self.cx.builder.get_insert_block().expect("positioned");
         self.cx.builder.build_unconditional_branch(end_bb)?;
-        self.cx.builder.position_at_end(none_bb);
+        self.cx.position_at_end(none_bb);
         let none = self.emit_nullable_none(ty)?;
         let none_end = self.cx.builder.get_insert_block().expect("positioned");
         self.cx.builder.build_unconditional_branch(end_bb)?;
-        self.cx.builder.position_at_end(end_bb);
+        self.cx.position_at_end(end_bb);
         let phi = self.cx.builder.build_phi(some.get_type(), "opt.copy")?;
         phi.add_incoming(&[(&some, some_end), (&none, none_end)]);
         if self.cx.debug.is_some() {
-            let source = self.object_pointer(value.into_struct_value())?;
-            let destination = self.object_pointer(phi.as_basic_value().into_struct_value())?;
+            let source = self.cx.builder
+                .build_extract_value(value.into_struct_value(), 1, "debug.source")?
+                .into_pointer_value();
+            let destination = self.cx.builder
+                .build_extract_value(phi.as_basic_value().into_struct_value(), 1, "debug.destination")?
+                .into_pointer_value();
             self.cx.debug_copy_origin(source, destination)?;
         }
         Ok(phi.as_basic_value())
@@ -119,7 +118,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .enum_variant(&name, "Some")
             .ok_or_else(|| not_yet_supported("the prelude `Option`", None))?;
         let record = self.cx.enum_layout(&name).expect("laid out with its enum").variants[some_tag as usize];
-        let object = self.option_object(value)?;
+        let object = self.object_pointer(value.into_struct_value())?;
         let ty = self
             .cx
             .basic_type(payload)
@@ -139,10 +138,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let abort_bb = cx.context.append_basic_block(self.llvm_fn, "nn.abort");
         cx.builder
             .build_conditional_branch(is_null, abort_bb, ok_bb)?;
-        cx.builder.position_at_end(abort_bb);
+        cx.position_at_end(abort_bb);
         cx.builder.build_call(cx.abort_function(), &[], "abort")?;
         cx.builder.build_unreachable()?;
-        cx.builder.position_at_end(ok_bb);
+        cx.position_at_end(ok_bb);
         self.emit_nullable_unwrap(nullable_ty, value)
     }
 
@@ -174,15 +173,15 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         self.cx
             .builder
             .build_conditional_branch(is_null, rhs_bb, lhs_bb)?;
-        self.cx.builder.position_at_end(rhs_bb);
+        self.cx.position_at_end(rhs_bb);
         let rhs_val = self.emit_skipped_as(rhs, result_ty)?;
         let rhs_end = self.cx.builder.get_insert_block().expect("rhs block");
         self.cx.builder.build_unconditional_branch(merge_bb)?;
-        self.cx.builder.position_at_end(lhs_bb);
+        self.cx.position_at_end(lhs_bb);
         let lhs_unwrapped = self.emit_nullable_unwrap(nullable_ty, lhs_val)?;
         let lhs_end = self.cx.builder.get_insert_block().expect("lhs block");
         self.cx.builder.build_unconditional_branch(merge_bb)?;
-        self.cx.builder.position_at_end(merge_bb);
+        self.cx.position_at_end(merge_bb);
         let llvm_ty = self
             .cx
             .basic_type(result_ty)
@@ -344,17 +343,17 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         self.cx
             .builder
             .build_conditional_branch(is_null, null_bb, some_bb)?;
-        self.cx.builder.position_at_end(null_bb);
+        self.cx.position_at_end(null_bb);
         let none_val = self.emit_nullable_none(result_ty)?;
         let none_end = self.cx.builder.get_insert_block().expect("none block");
         self.cx.builder.build_unconditional_branch(merge_bb)?;
-        self.cx.builder.position_at_end(some_bb);
+        self.cx.position_at_end(some_bb);
         let payload = self.emit_nullable_unwrap(receiver_ty, receiver_val)?;
         let len = self.emit_buffer_length_value(payload.into_struct_value())?;
         let some_val = self.emit_nullable_some(result_ty, len.into())?;
         let some_end = self.cx.builder.get_insert_block().expect("some block");
         self.cx.builder.build_unconditional_branch(merge_bb)?;
-        self.cx.builder.position_at_end(merge_bb);
+        self.cx.position_at_end(merge_bb);
         let llvm_ty = self
             .cx
             .basic_type(result_ty)

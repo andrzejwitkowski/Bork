@@ -108,7 +108,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .context
                 .append_basic_block(self.llvm_fn, "arr.copy.done");
             self.cx.builder.build_unconditional_branch(header)?;
-            self.cx.builder.position_at_end(header);
+            self.cx.position_at_end(header);
             let i_phi = self.cx.builder.build_phi(self.cx.context.i64_type(), "i")?;
             i_phi.add_incoming(&[(&zero as &dyn inkwell::values::BasicValue<'_>, entry)]);
             let i = i_phi.as_basic_value().into_int_value();
@@ -119,7 +119,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx
                 .builder
                 .build_conditional_branch(done_cond, done, body)?;
-            self.cx.builder.position_at_end(body);
+            self.cx.position_at_end(body);
             let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), stride)?;
             let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), stride)?;
             let loaded = builder_load(self, llvm_elem, src_slot)?;
@@ -141,7 +141,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let next = self.cx.builder.build_int_add(i, one, "i.next")?;
             self.cx.builder.build_unconditional_branch(header)?;
             i_phi.add_incoming(&[(&next as &dyn inkwell::values::BasicValue<'_>, body)]);
-            self.cx.builder.position_at_end(done);
+            self.cx.position_at_end(done);
         } else {
             self.cx
                 .builder

@@ -16,6 +16,9 @@ address and byte count, allocation/arena IDs, memory state (`Live`, `Freed`, or
 locations with original byte spans, Bork call stack, and retained arena ancestry.
 Declarations from the prelude refer to their own source files. Replacement allocations
 retain the original variable or field declaration location.
+Embedded prelude sources use the stable prefix `<bork-prelude>`. To browse them,
+map it to your checkout's `src/prelude` directory with GDB's `set substitute-path`
+or LLDB's `target.source-map` setting.
 Cleanup can access live payloads; allocations become unused after callbacks finish,
 with the release location captured before cleanup begins. Promotion and buffer
 growth preserve the original provenance while ownership follows the actual allocator

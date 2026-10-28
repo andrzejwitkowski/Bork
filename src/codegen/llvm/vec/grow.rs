@@ -28,7 +28,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let done = context.append_basic_block(self.llvm_fn, "vec.room");
         self.cx.builder.build_conditional_branch(full, grow, done)?;
 
-        self.cx.builder.position_at_end(grow);
+        self.cx.position_at_end(grow);
         let doubled = self
             .cx
             .builder
@@ -57,12 +57,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let joined = context.append_basic_block(self.llvm_fn, "vec.grow.join");
         self.cx.builder.build_conditional_branch(empty, fresh, moved)?;
 
-        self.cx.builder.position_at_end(fresh);
+        self.cx.position_at_end(fresh);
         let first = self.arena_alloc(arena, new_bytes, align)?;
         self.cx.debug_copy_origin(header, first)?;
         self.cx.builder.build_unconditional_branch(joined)?;
 
-        self.cx.builder.position_at_end(moved);
+        self.cx.position_at_end(moved);
         let grown = self
             .cx
             .builder
@@ -83,7 +83,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .into_pointer_value();
         self.cx.builder.build_unconditional_branch(joined)?;
 
-        self.cx.builder.position_at_end(joined);
+        self.cx.position_at_end(joined);
         let phi = self.cx.builder.build_phi(
             context.ptr_type(AddressSpace::default()),
             "vec.buf.new",
@@ -92,7 +92,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.vec_store(header, BUF, phi.as_basic_value())?;
         self.vec_store(header, CAP, new_cap)?;
         self.cx.builder.build_unconditional_branch(done)?;
-        self.cx.builder.position_at_end(done);
+        self.cx.position_at_end(done);
         Ok(())
     }
 }

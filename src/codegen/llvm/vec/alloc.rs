@@ -36,7 +36,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx
                 .builder
                 .build_conditional_branch(positive, alloc, done)?;
-            self.cx.builder.position_at_end(alloc);
+            self.cx.position_at_end(alloc);
             let bytes = self
                 .cx
                 .builder
@@ -46,7 +46,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.vec_store(header, BUF, buf)?;
             self.vec_store(header, CAP, cap)?;
             self.cx.builder.build_unconditional_branch(done)?;
-            self.cx.builder.position_at_end(done);
+            self.cx.position_at_end(done);
         }
         if self.cx.tcx.is_managed_ref(elem_ty) {
             // One drop per vector: the buffer moves on growth, so slot addresses cannot be registered.

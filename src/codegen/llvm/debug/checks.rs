@@ -1,7 +1,7 @@
 //! Instrument the complete module, including glue emitted before DebugInfo existed.
 use super::*;
 use crate::diag::Diagnostic;
-use inkwell::values::{BasicValueEnum, CallSiteValue, InstructionOpcode};
+use inkwell::values::{AsValueRef, BasicValueEnum, CallSiteValue, InstructionOpcode};
 
 pub(in crate::codegen::llvm) fn instrument(cx: &Codegen<'_>) -> Result<(), Diagnostic> {
     let debug = cx.debug.as_ref().expect("debug instrumentation");
@@ -92,10 +92,9 @@ pub(in crate::codegen::llvm) fn instrument(cx: &Codegen<'_>) -> Result<(), Diagn
                 }
                 InstructionOpcode::Call => {
                     let call = CallSiteValue::try_from(instruction).unwrap();
-                    let Some(callee) = call.get_called_fn_value() else {
-                        continue;
-                    };
-                    let name = callee.get_name().to_string_lossy();
+                    let callee = call.get_called_fn_value();
+                    let name = callee.as_ref().map(|f| f.get_name().to_string_lossy());
+                    let name = name.as_deref().unwrap_or("");
                     if name.starts_with("llvm.memcpy.") || name.starts_with("llvm.memmove.") {
                         check(cx, operand(1), operand(2), false, site)?;
                         check(cx, operand(0), operand(2), true, site)?;
@@ -128,6 +127,9 @@ fn check<'ctx>(
     write: bool,
     site: inkwell::values::PointerValue<'ctx>,
 ) -> Result<(), Diagnostic> {
+    if non_arena_address(address) {
+        return Ok(());
+    }
     let ptr = cx.context.ptr_type(inkwell::AddressSpace::default());
     let word = cx.context.i64_type();
     let size =
@@ -155,4 +157,29 @@ fn check<'ctx>(
         "",
     )?;
     Ok(())
+}
+
+fn non_arena_address(address: BasicValueEnum<'_>) -> bool {
+    use inkwell::llvm_sys::{core::*, LLVMOpcode, LLVMValueKind};
+    let mut address = address.as_value_ref();
+    // Loads, selects and PHIs can contain arena pointers, even when their slots are local.
+    unsafe {
+        loop {
+            let opcode = match LLVMGetValueKind(address) {
+                LLVMValueKind::LLVMGlobalVariableValueKind => return true,
+                LLVMValueKind::LLVMInstructionValueKind => LLVMGetInstructionOpcode(address),
+                LLVMValueKind::LLVMConstantExprValueKind => LLVMGetConstOpcode(address),
+                _ => return false,
+            };
+            match opcode {
+                LLVMOpcode::LLVMAlloca => return true,
+                LLVMOpcode::LLVMGetElementPtr
+                | LLVMOpcode::LLVMBitCast
+                | LLVMOpcode::LLVMAddrSpaceCast => {
+                    address = LLVMGetOperand(address, 0);
+                }
+                _ => return false,
+            }
+        }
+    }
 }

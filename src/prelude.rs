@@ -21,9 +21,9 @@ struct Chunk {
 const OPTION: usize = 0;
 
 const CHUNKS: [Chunk; 3] = [
-    Chunk { path: concat!(env!("CARGO_MANIFEST_DIR"), "/src/prelude/option.bork"), names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
-    Chunk { path: concat!(env!("CARGO_MANIFEST_DIR"), "/src/prelude/result.bork"), names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
-    Chunk { path: concat!(env!("CARGO_MANIFEST_DIR"), "/src/prelude/option_conv.bork"), names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
+    Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
+    Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
+    Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
 ];
 
 pub(crate) fn source_file(name: &str) -> Option<&'static str> {

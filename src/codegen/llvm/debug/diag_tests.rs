@@ -61,6 +61,146 @@ fn instrumented_ir<'ctx>(context: &'ctx inkwell::context::Context, ir: &[u8]) ->
     cx
 }
 
+#[test]
+fn known_stack_and_global_addresses_skip_checks_but_loaded_pointers_do_not() {
+    let context = inkwell::context::Context::create();
+    let cx = instrumented_ir(
+        &context,
+        br#"
+        @data = global [2 x i32] zeroinitializer
+        @heap = global ptr null
+        declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1)
+        declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)
+        define void @access(ptr %argument, i64 %index, i1 %condition) {
+          %stack = alloca [2 x i32]
+          %local = getelementptr [2 x i32], ptr %stack, i64 0, i64 %index
+          %global = getelementptr [2 x i32], ptr @data, i64 0, i64 %index
+          store i32 1, ptr %local
+          %a = load i32, ptr %global
+          store i32 %a, ptr getelementptr ([2 x i32], ptr @data, i64 0, i64 1)
+          %pointer = load ptr, ptr @heap
+          %b = load i32, ptr %pointer
+          store i32 %b, ptr %argument
+          %mixed = select i1 %condition, ptr %stack, ptr %argument
+          %c = load i32, ptr %mixed
+          %d = load i32, ptr null
+          call void @llvm.memcpy.p0.p0.i64(ptr %local, ptr %argument, i64 4, i1 false)
+          call void @llvm.memset.p0.i64(ptr %local, i8 0, i64 4, i1 false)
+          ret void
+        }
+    "#,
+    );
+    let checks = cx
+        .module
+        .get_function("access")
+        .unwrap()
+        .get_first_basic_block()
+        .unwrap()
+        .get_instructions()
+        .filter(|i| calls_function(*i, "bork_debug_check"))
+        .count();
+    assert_eq!(checks, 5);
+}
+
+#[test]
+fn indirect_calls_set_their_own_source_site() {
+    let context = inkwell::context::Context::create();
+    let cx = instrumented_ir(
+        &context,
+        br#"
+        define void @caller(ptr %callback) {
+          call void %callback(), !bork.span !0
+          ret void
+        }
+        !0 = !{i64 4, i64 8}
+    "#,
+    );
+    let call = cx
+        .module
+        .get_function("caller")
+        .unwrap()
+        .get_first_basic_block()
+        .unwrap()
+        .get_instructions()
+        .find(|i| {
+            i.get_opcode() == InstructionOpcode::Call
+                && CallSiteValue::try_from(*i)
+                    .unwrap()
+                    .get_called_fn_value()
+                    .is_none()
+        })
+        .unwrap();
+    let site = call.get_previous_instruction().unwrap();
+    assert!(calls_function(site, "bork_debug_site"));
+    assert!(!site
+        .get_operand(0)
+        .unwrap()
+        .unwrap_value()
+        .into_pointer_value()
+        .is_null());
+}
+
+#[test]
+fn option_copy_does_not_recheck_handles_for_metadata_only() {
+    let context = inkwell::context::Context::create();
+    let module = debug_module(&context, "fun copy(value: i32?): i32? { return move value }\nfun main(): i32 { return copy(Some(7)) ?: 0 }\n");
+    let instructions: Vec<_> = module
+        .get_function("bork.copy")
+        .unwrap()
+        .get_basic_blocks()
+        .iter()
+        .flat_map(|b| b.get_instructions())
+        .collect();
+    let origin = instructions
+        .iter()
+        .position(|i| calls_function(*i, "bork_debug_copy_origin"))
+        .unwrap();
+    let merge = instructions[..origin]
+        .iter()
+        .rposition(|i| i.get_opcode() == InstructionOpcode::Phi)
+        .unwrap();
+    assert!(!instructions[merge..origin]
+        .iter()
+        .any(|i| calls_function(*i, "bork_debug_check_handle")));
+    assert!(instructions[..merge]
+        .iter()
+        .any(|i| calls_function(*i, "bork_debug_check_handle")));
+}
+
+#[test]
+fn source_stamping_does_not_rescan_all_preceding_blocks() {
+    let source = format!(
+        "fun main(): i32 {{ var total: i32 = 0\n {} return total }}\n",
+        "if (total == 0) { total = 1 } else { total = 2 }\n".repeat(128)
+    );
+    let context = inkwell::context::Context::create();
+    super::scopes::STAMPED_BLOCK_VISITS.with(|visits| visits.set(0));
+    let module = debug_module(&context, &source);
+    let function = module.get_function("main").unwrap();
+    let visits = super::scopes::STAMPED_BLOCK_VISITS.with(|visits| visits.get());
+    assert!(
+        visits < function.count_basic_blocks() as usize * 20,
+        "{visits} block visits"
+    );
+    for instruction in function
+        .get_basic_blocks()
+        .iter()
+        .flat_map(|b| b.get_instructions())
+    {
+        if matches!(
+            instruction.get_opcode(),
+            InstructionOpcode::Load | InstructionOpcode::Store
+        ) {
+            assert!(
+                instruction
+                    .get_metadata(context.get_kind_id("bork.span"))
+                    .is_some(),
+                "{instruction:?}"
+            );
+        }
+    }
+}
+
 #[cfg(unix)]
 fn run_module(module: &inkwell::module::Module<'_>) -> std::process::Output {
     module.verify().unwrap();
@@ -177,7 +317,7 @@ fn reported_prelude_payload_declarations_use_their_own_source_files() {
         ("val result: Result<[i32;2], i32> = Result.Ok([1,2])\n return when result { Ok(items) => { items[0] }\n Err(error) => { error } }", "result.bork"),
     ] {
         let report = invalidated_array_report(&format!("fun main(): i32 {{\n {body}\n}}\n"));
-        assert!(report.lines().any(|l| l.contains("declared:") && l.contains(&format!("/src/prelude/{prelude}:"))), "{report}");
+        assert!(report.lines().any(|l| l.contains("declared:") && l.contains(&format!("<bork-prelude>/{prelude}:"))), "{report}");
         let text = if prelude == "option.bork" { include_str!("../../../prelude/option.bork") } else { include_str!("../../../prelude/result.bork") };
         let start = text.find("value").unwrap();
         assert!(report.lines().any(|l| l.contains("declared:") && l.contains(&format!("[bytes {start}..{}]", start + 5))), "{report}");

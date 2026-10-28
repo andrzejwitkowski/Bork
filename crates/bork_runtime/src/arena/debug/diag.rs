@@ -19,7 +19,7 @@ pub struct SourceLocation {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Location {
-    path: String,
+    path: Rc<str>,
     start: usize,
     end: usize,
     line: usize,
@@ -53,7 +53,7 @@ unsafe fn location(p: *const SourceLocation) -> Location {
     }
     let p = &*p;
     Location {
-        path: string(p.path),
+        path: string(p.path).into(),
         start: p.start,
         end: p.end,
         line: p.line,
@@ -652,6 +652,32 @@ pub extern "C" fn bork_debug_copy_origin(source: *const c_void, destination: *co
 mod tests {
     use super::*;
     use crate::arena::*;
+
+    #[test]
+    fn source_paths_are_shared_by_location_snapshots() {
+        std::thread::spawn(|| unsafe {
+            let site = SourceLocation {
+                path: c"fixture.bork".as_ptr(),
+                start: 1,
+                end: 2,
+                line: 1,
+                column: 2,
+            };
+            bork_debug_site(&site);
+            let first = current_location();
+            let second = current_location();
+            assert_eq!(first.path.as_ptr(), second.path.as_ptr());
+            arena_created(1, 0);
+            allocated(1, 0x1000, 16, (0x1000, 4096));
+            freed(0x1000);
+            assert_eq!(
+                failure(0x1000, 1, 0).unwrap().current.created.path.as_ptr(),
+                first.path.as_ptr()
+            );
+        })
+        .join()
+        .unwrap();
+    }
 
     #[test]
     fn small_allocations_do_not_rescan_registered_page_ranges() {

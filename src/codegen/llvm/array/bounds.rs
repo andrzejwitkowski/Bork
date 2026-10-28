@@ -46,12 +46,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .context
             .append_basic_block(self.llvm_fn, "bounds.bad");
         self.cx.builder.build_conditional_branch(cond, bad, ok)?;
-        self.cx.builder.position_at_end(bad);
+        self.cx.position_at_end(bad);
         self.cx
             .builder
             .build_call(self.cx.abort_function(), &[], "abort")?;
         self.cx.builder.build_unreachable()?;
-        self.cx.builder.position_at_end(ok);
+        self.cx.position_at_end(ok);
         Ok(())
     }
 }
