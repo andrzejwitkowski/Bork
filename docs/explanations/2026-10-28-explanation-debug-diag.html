@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DebugDiag — diagnostyka pamięci w buildach debug (PR #180)</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#222; --muted:#666; --accent:#1f5fbf; --ok:#1c7c3c; --bad:#b3261e; --card:#fff; --line:#e1ddd3; --code:#f3f1ea; --warn:#fff4d6; --note:#e8f0fe; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { font-size: 1.5em; margin-top: 2.2em; border-bottom: 2px solid var(--line); padding-bottom: .2em; }
+  h3 { font-size: 1.15em; margin-top: 1.6em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav { background: var(--card); border:1px solid var(--line); border-radius:8px; padding: 10px 18px; margin: 18px 0; font-family: system-ui, sans-serif; font-size: .95em; }
+  nav ol { margin: 6px 0; padding-left: 22px; }
+  a { color: var(--accent); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code); border:1px solid var(--line); border-radius:8px; padding: 12px 14px; overflow-x:auto; white-space: pre; line-height:1.45; }
+  .callout { border-left: 4px solid var(--accent); background: var(--note); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; font-family: system-ui, sans-serif; font-size: .95em; }
+  .callout.warn { border-color:#c98a00; background: var(--warn); }
+  .callout b.t { display:block; margin-bottom:2px; }
+  details.skip { background: var(--card); border:1px dashed var(--line); border-radius:8px; padding: 8px 16px; margin: 14px 0; }
+  details.skip summary { cursor: pointer; font-family: system-ui, sans-serif; font-weight: 600; }
+  /* diagrams */
+  .diagram { background: var(--card); border:1px solid var(--line); border-radius:10px; padding: 16px; margin: 20px 0; font-family: system-ui, sans-serif; font-size: .88em; overflow-x:auto; }
+  .diagram .cap { color: var(--muted); margin-top: 10px; font-size: .95em; }
+  .row { display:flex; gap: 6px; align-items: stretch; margin: 6px 0; flex-wrap: wrap; }
+  .seg { padding: 8px 10px; border-radius: 6px; border:1px solid #0002; text-align:center; min-width: 70px; }
+  .live { background:#d9f2df; } .freed { background:#fde0dd; } .pool { background:#e9e9e9; } .stack { background:#e3eaff; }
+  .box { border:2px solid #444; border-radius:8px; padding: 8px 12px; background:#fff; }
+  .arrow { align-self:center; font-size:1.3em; color:#555; }
+  .col { display:flex; flex-direction:column; gap:6px; }
+  table.t { border-collapse: collapse; width:100%; }
+  table.t th, table.t td { border:1px solid var(--line); padding: 6px 9px; text-align:left; vertical-align: top; }
+  table.t th { background: var(--code); }
+  .legend span { display:inline-block; padding:2px 8px; border-radius:4px; margin-right:6px; border:1px solid #0002; }
+  /* quiz */
+  .q { background: var(--card); border:1px solid var(--line); border-radius:10px; padding: 14px 18px; margin: 18px 0; font-family: system-ui, sans-serif; }
+  .q h3 { margin-top: 0; font-size: 1.02em; }
+  .q button { display:block; width:100%; text-align:left; margin: 6px 0; padding: 9px 12px; font: inherit; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; }
+  .q button:hover:not(:disabled) { border-color: var(--accent); }
+  .q button.right { background:#d9f2df; border-color: var(--ok); }
+  .q button.wrong { background:#fde0dd; border-color: var(--bad); }
+  .q .fb { margin-top: 8px; display:none; padding: 8px 12px; border-radius: 8px; background: var(--code); }
+  #score { font-family: system-ui, sans-serif; font-weight: 600; }
+  @media (max-width: 600px) { body { font-size: 16px; } .seg { min-width: 54px; padding:6px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>DebugDiag: jak Bork łapie złe odczyty pamięci, zanim zrobią szkodę</h1>
+<p class="sub">Omówienie PR #180 „feat: add DebugDiag memory diagnostics for debug builds” (gałąź <code>feat/debug-diag</code>, siedem commitów na <code>dcbe484</code>).</p>
+
+<nav>
+  <b>Spis treści</b>
+  <ol>
+    <li><a href="#tlo">Tło: areny, wskaźniki i buildy <code>-g</code></a></li>
+    <li><a href="#intuicja">Intuicja: mapa cieni i strażnik przed każdym dostępem</a></li>
+    <li><a href="#kod">Kod: przegląd zmian po kolei</a></li>
+    <li><a href="#granice">Granice i znane niedoskonałości</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: czym jest arena i dlaczego jej wskaźniki są groźne (można pominąć)</summary>
+<p>W typowym programie każdy obiekt alokujemy osobno i osobno zwalniamy. <b>Arena</b> działa inaczej: dostaje duże <i>strony</i> pamięci i wydaje z nich kolejne kawałki, po prostu przesuwając wskaźnik do przodu (<i>bump allocation</i>). Pojedynczych obiektów się nie zwalnia — kasuje się całą arenę naraz, a jej strony wracają do puli i mogą trafić do innej areny.</p>
+<p>To szybkie i wygodne, ale wskaźnik do obiektu to wciąż zwykły adres liczbowy. Gdy arena zniknie, a jej strona zostanie użyta ponownie, stary adres nadal „wygląda” poprawnie: wskazuje na bajty, tylko że należą już do kogoś innego. Odczyt takiego adresu nie wywołuje żadnego błędu — program po cichu czyta śmieci.</p>
+</details>
+
+<h3>Co już było w Borku</h3>
+<p>Bork kompiluje się przez LLVM do kodu natywnego. Po <code>bork build -g</code> dostajemy DWARF, wyłączone optymalizacje i „rejestr debuggera” — strukturę w pamięci, z której narzędzia GDB/LLDB potrafią odczytać areny i ich zawartość. Rejestr jest <i>pasywny</i>: pozwala obejrzeć stan, ale niczego nie pilnuje. Kiedy program odczyta zwolnioną pamięć, nikt się o tym nie dowie.</p>
+
+<div class="callout"><b class="t">Cel PR-a</b>Z <code>-g</code> każdy odczyt i zapis do pamięci aren ma być sprawdzany <i>przed</i> wykonaniem. Błąd = raport na stderr i <code>abort()</code>, a w raporcie: kto zaalokował ten blok, w jakim jest stanie, jaki jest stos wywołań Borka i jaki rodowód mają areny. Układ wartości w pamięci i ABI rejestru debuggera pozostają bez zmian.</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+
+<p>Pomysł ma dwie połowy. Pierwsza: runtime prowadzi <b>mapę cieni</b> — osobną strukturę, poza pamięcią programu, która dla każdego zakresu adresów wie, czym on jest. Druga: kompilator wstawia przed każdym ryzykownym dostępem wywołanie <b>strażnika</b>, który pyta tę mapę „czy mogę?”.</p>
+
+<h3>Mapa cieni</h3>
+<p>Każdy zakres adresów jest w jednym z trzech stanów:</p>
+<div class="diagram">
+  <div class="legend"><span class="live">Live</span> obiekt żyje &nbsp; <span class="freed">Freed</span> zwolniony jawnie &nbsp; <span class="pool">UnusedInPool</span> strona leży w puli / arena zniknęła</div>
+  <div class="row" style="margin-top:12px">
+    <div class="seg live">0x1000<br><b>#1</b> Vec<br>64 B</div>
+    <div class="seg live">0x1040<br><b>#2</b> Player<br>32 B</div>
+    <div class="seg freed">0x1060<br><b>#3</b> String<br>16 B</div>
+    <div class="seg pool">0x1070<br>ogon strony<br>(nieużywany)</div>
+  </div>
+  <div class="cap">Przykład: jedna strona areny. Mapa to <code>BTreeMap&lt;adres_początku, Range&gt;</code> — wyszukanie „który zakres zawiera adres X?” to jedno zapytanie po kluczach.</div>
+</div>
+
+<h3>Strażnik przed dostępem</h3>
+<div class="diagram">
+  <div class="row">
+    <div class="box">kod Borka:<br><code>load p</code></div>
+    <div class="arrow">→</div>
+    <div class="box" style="background:#fff4d6">wstawione przez kompilator:<br><code>bork_debug_check(p, 8, read, site)</code></div>
+    <div class="arrow">→</div>
+    <div class="col">
+      <div class="box live">zakres Live, w całości pokryty → <b>OK, wykonaj load</b></div>
+      <div class="box freed">Freed / UnusedInPool / dziura → <b>raport + abort()</b></div>
+      <div class="box stack">adres nieśledzony (stos, stałe) → <b>OK</b></div>
+    </div>
+  </div>
+  <div class="cap">Dostęp o rozmiarze 0 zawsze przechodzi. Dostęp rozciągający się na dwie różne alokacje jest odrzucany.</div>
+</div>
+
+<h3>Przykład z danymi</h3>
+<p>Program alokuje <code>String</code> w arenie, arena zostaje zniszczona, a potem ktoś czyta stary wskaźnik. Bez DebugDiag: cichy odczyt cudzych bajtów. Z DebugDiag:</p>
+<pre>Bork DebugDiag: invalid read at 0x7f10a000, size 5, state UnusedInPool
+  access: main.bork:12:9 [bytes 211..216]
+  allocation #3 at 0x7f10a000, size 16, arena #2 (handle arena #0)
+  name: greeting
+  type: String
+  created: main.bork:7:15 [bytes 120..131]
+  declared: main.bork:7:9 [bytes 114..122]
+  released: main.bork:10:5 [bytes 180..181]
+  Bork call stack:
+    main at main.bork:12:9 [bytes 211..216]
+  arena chain:
+    arena #2, created: main.bork:6:5 [bytes 100..110]</pre>
+<p>(Wartości są przykładowe, ale pola odpowiadają funkcji <code>report()</code> w <code>diag.rs</code>.) Raport mówi, <i>co</i> zostało zepsute, <i>gdzie</i> powstało, <i>kiedy</i> zniknęło i <i>kto</i> po nie sięgnął.</p>
+
+<div class="callout"><b class="t">Dlaczego „ponowne użycie” nie oszukuje mapy</b>Gdy strona z puli trafia do nowej areny, „ożywa” tylko zakres nowej alokacji — reszta strony pozostaje <code>UnusedInPool</code>. Mapa pamięta też <i>jednego</i> poprzedniego lokatora zakresu, więc raport może powiedzieć „ten adres należał wcześniej do alokacji #3”.</div>
+
+<h3>Uchwyty też się starzeją</h3>
+<p>Wskaźnik to nie wszystko — uchwyty do obiektów (<code>Ref</code>, klasy, enumy, <code>Option</code>) niosą też <b>ID areny</b>. Strażnik <code>bork_debug_check_handle(owner, adres)</code> sprawdza, czy adres należy do <i>tej</i> areny. Dzięki temu uchwyt do zniszczonej areny wykrywamy nawet wtedy, gdy inna arena zajęła ten sam adres.</p>
+
+<h2 id="kod">3. Kod</h2>
+
+<h3>3.1 Runtime: mapa cieni (<code>crates/bork_runtime/src/arena/debug/diag.rs</code>, +833)</h3>
+<table class="t">
+  <tr><th>Funkcja</th><th>Co robi</th></tr>
+  <tr><td><code>allocated / track</code></td><td>Rejestruje nowy zakres jako <code>Live</code> i przy okazji pokrywa niezajęte ogony strony jako <code>UnusedInPool</code>.</td></tr>
+  <tr><td><code>freed</code></td><td>Oznacza alokację <code>Freed</code>, zapamiętuje miejsce zwolnienia.</td></tr>
+  <tr><td><code>grown</code></td><td>Przy powiększeniu bloku (także z przeniesieniem) rejestruje nowy adres, zachowując pochodzenie (<code>origin</code>) — nazwa i miejsce deklaracji nie giną.</td></tr>
+  <tr><td><code>retired</code></td><td>Przy zniszczeniu areny wszystkie jej zakresy → <code>UnusedInPool</code>; zapisuje miejsce zwolnienia zrobione przed uruchomieniem destruktorów.</td></tr>
+  <tr><td><code>failure / check_at</code></td><td>Serce strażnika: przechodzi po zakresach nakładających się na dostęp i szuka naruszeń; jeśli znajdzie — drukuje raport i <code>abort()</code>.</td></tr>
+  <tr><td><code>bork_debug_*</code> (<code>extern "C"</code>)</td><td>Punkty wejścia dla wygenerowanego kodu: <code>check</code>, <code>check_handle</code>, <code>site</code>, <code>frame_enter/exit</code>, <code>label_allocation</code>, <code>copy_origin</code>.</td></tr>
+</table>
+<p>Cała mapa leży w <code>thread_local!</code> — runtime w trybie debug i tak dopuszcza tylko jeden wątek wykonujący Borka. Teksty (ścieżki, nazwy, typy) są <i>internowane</i> jako <code>Rc&lt;str&gt;</code>, żeby powtarzane wywołania haków nie alokowały pamięci.</p>
+
+<h3>3.2 Runtime: miejsca, które muszą pytać strażnika</h3>
+<p>W <code>arena.rs</code> alokacja, powiększenie i zwolnienie wołają odpowiednio <code>allocated</code>, <code>grown</code>, <code>freed</code>, a zniszczenie areny — <code>retired</code>. Dodatkowo (<code>refs.rs</code>, <code>lib.rs</code>, tekst) sprawdzane są sloty <code>Ref</code>, obserwacje, operacje na napisach, drukowanie i sprzątanie <code>Vec&lt;Ref&lt;T&gt;&gt;</code> — wszystko, co dereferencjuje pamięć już w runtime, a nie w wygenerowanym kodzie.</p>
+<div class="callout warn"><b class="t">Detal: obiekty zerowego rozmiaru</b>Pod <code>debug-runtime</code> alokacja o rozmiarze 0 dostaje 1 bajt (<code>size.max(1)</code>), żeby każdy obiekt miał własną tożsamość w mapie. Cena: układ pamięci w debugu różni się od release.</div>
+
+<h3>3.3 Kompilator: przebieg instrumentacji (<code>src/codegen/llvm/debug/checks.rs</code>, +185)</h3>
+<p>Funkcja <code>instrument</code> przechodzi po <b>całym module LLVM</b> — również po kodzie pomocniczym (np. sprzątaniu enumów), który powstał, zanim istniała informacja debug. Dla każdej funkcji:</p>
+<ul>
+  <li>na początku: <code>bork_debug_frame_enter(nazwa, miejsce)</code>, przed każdym <code>ret</code>: <code>bork_debug_frame_exit()</code> — z tego powstaje „Bork call stack” w raporcie;</li>
+  <li>przed każdym <code>load</code>/<code>store</code>: <code>bork_debug_check</code> z rozmiarem wynikającym z typu;</li>
+  <li>przed <code>memcpy</code>/<code>memmove</code> sprawdzane są oba końce (źródło i cel), przed <code>memset</code> — cel;</li>
+  <li>przed każdym zwykłym wywołaniem: <code>bork_debug_site</code>, żeby ramka wiedziała, z którego miejsca woła.</li>
+</ul>
+<p>Żeby nie spowolnić wszystkiego, <code>non_arena_address</code> pomija adresy, o których <i>statycznie</i> wiadomo, że nie leżą w arenie: <code>alloca</code>, zmienne globalne i łańcuchy GEP/bitcast nad nimi. Wskaźniki pochodzące z <code>load</code>, <code>select</code>, <code>phi</code> czy argumentów funkcji są sprawdzane — mogą wskazywać na arenę.</p>
+
+<h3>3.4 Kompilator: skąd strażnik zna miejsce w kodzie źródłowym</h3>
+<p>Podczas generowania kodu <code>debug_location</code> i <code>debug_stamp_current_block</code> przyklejają do instrukcji metadane <code>bork.span</code> (początek i koniec bajtowy wyrażenia). Stemplowanie jest przyrostowe — zapamiętujemy ostatnią ostemplowaną instrukcję bloku. Później <code>instrument</code> zamienia ten span na globalną stałą <code>SourceLocation</code> (ścieżka, bajty, linia, kolumna) i przekazuje wskaźnik do haków. Funkcje z prelude'u wskazują na własne pliki źródłowe (<code>frontend.rs</code> przypisuje im <code>source</code>), a w DWARF mają stabilny prefiks <code>&lt;bork-prelude&gt;</code>.</p>
+
+<h3>3.5 Etykiety: nazwa i typ w raporcie</h3>
+<p>W <code>hooks.rs</code> <code>debug_allocation</code> / <code>debug_value</code> wołają <code>bork_debug_label_allocation</code> z nazwą zmiennej lub pola i pełnym typem (<code>Vec&lt;Player&gt;</code>…). <code>debug_copy_origin</code> przenosi nazwę i miejsce deklaracji, gdy dane są kopiowane do nowej alokacji (powiększenie wektora, kopia tablicy), więc raport nie gubi „co to właściwie było”. Zmiany w <code>managed_ref.rs</code>, <code>array/*</code>, <code>vec/*</code>, <code>nullable.rs</code> to głównie doprowadzenie tych etykiet do każdego miejsca, gdzie powstaje alokacja.</p>
+
+<h3>3.6 Testy i dokumentacja</h3>
+<ul>
+  <li><code>crates/bork_runtime/tests/debug_diag.rs</code> — rekursywne SIGABRT z pełnym raportem;</li>
+  <li><code>diag_tests.rs</code> (runtime i codegen) — pamięć zwolniona, częściowe ponowne użycie, zerowe rozmiary, wszystkie intrinsics, pomijanie stosu/globali, wywołania pośrednie, testy „zero alokacji po rozgrzewce” dla haków;</li>
+  <li><code>docs/debugging.md</code> — jak to włączyć, jak czytać raport, jakie są ograniczenia.</li>
+</ul>
+
+<h2 id="granice">4. Granice</h2>
+<div class="callout warn"><b class="t">Czego DebugDiag nie obiecuje</b>
+Surowy wskaźnik do zakresu, który został już ponownie użyty i jest znowu <code>Live</code>, nadal wygląda poprawnie — wskaźniki nie niosą informacji o „generacji”, a PR nie zmienia ich reprezentacji (brak kwarantanny i pełnej historii). Narzut czasu i pamięci w buildach <code>-g</code> jest znaczny.</div>
+<p>Przy przeglądzie kodu wyszły też drobne, nieblokujące rzeczy: rekordy zakresów dla bloków oddanych systemowi nie są nigdy usuwane (metadane rosną z liczbą różnych adresów), zwolnienia obiektów zerowego rozmiaru nie trafiają do mapy, a wywołań strażnika jest sporo (np. przed każdym <code>load</code> z wskaźnika nieznanego statycznie). Dokumentacja wspomina o części z nich wprost.</p>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, żeby zobaczyć, czy się zgadza. <span id="score"></span></p>
+
+<div class="q" data-correct="1">
+  <h3>1. Gdzie DebugDiag trzyma metadane o alokacjach?</h3>
+  <button>W nagłówku przed każdym obiektem w arenie</button>
+  <button>W osobnej strukturze (mapie zakresów) poza pamięcią programu</button>
+  <button>W dodatkowych bitach każdego wskaźnika</button>
+  <button>W rejestrze debuggera GDB/LLDB</button>
+  <div class="fb">Mapa jest w <code>thread_local</code> w runtime. Dzięki temu układ wartości, reprezentacja wskaźników i ABI rejestru debuggera zostają nietknięte — to jedno z założeń PR-a.</div>
+</div>
+
+<div class="q" data-correct="2">
+  <h3>2. Program czyta wskaźnik do <code>String</code> z areny, która została zniszczona, a jej strona wróciła do puli i nikt jej jeszcze nie użył. Co się stanie w buildzie <code>-g</code>?</h3>
+  <button>Nic — odczyt jest legalny, bo adres nadal jest mapowany</button>
+  <button>Odczyt zwróci zera, program pójdzie dalej</button>
+  <button>Strażnik zobaczy zakres w stanie <code>UnusedInPool</code>, wypisze raport i zrobi <code>abort()</code></button>
+  <button>Kompilator odrzuci program na etapie typowania</button>
+  <div class="fb"><code>retired</code> przestawia wszystkie zakresy zniszczonej areny na <code>UnusedInPool</code>, a <code>failure()</code> uznaje taki zakres za naruszenie.</div>
+</div>
+
+<div class="q" data-correct="0">
+  <h3>3. Dlaczego <code>instrument</code> pomija sprawdzenie dla <code>load</code> z <code>alloca</code>, ale nie dla <code>load</code> z argumentu funkcji?</h3>
+  <button><code>alloca</code> to na pewno stos, a argument może być wskaźnikiem do pamięci areny</button>
+  <button>Argumenty funkcji są zawsze zbyt wolne do sprawdzania</button>
+  <button>Przy <code>alloca</code> rozmiar jest zawsze 0</button>
+  <button>To przypadek — oba są sprawdzane tak samo</button>
+  <div class="fb"><code>non_arena_address</code> zwalnia ze sprawdzania tylko to, co statycznie nie może leżeć w arenie: <code>alloca</code>, globale i łańcuchy GEP/bitcast nad nimi. Wskaźniki z <code>load</code>, <code>phi</code>, <code>select</code> i argumentów są sprawdzane.</div>
+</div>
+
+<div class="q" data-correct="3">
+  <h3>4. Wektor w arenie się powiększył i został przeniesiony pod nowy adres. Jak DebugDiag dba o to, by raport nadal wskazywał pierwotną nazwę zmiennej i miejsce deklaracji?</h3>
+  <button>Nie dba — nowy blok dostaje pustą nazwę</button>
+  <button>Zapisuje nazwę w samych bajtach bloku</button>
+  <button>Szuka nazwy po adresie w pliku DWARF przy każdym błędzie</button>
+  <button><code>grown</code> rejestruje nowy zakres, przenosząc dotychczasowy opis (<code>origin</code>), a stary adres oznacza jako zwolniony</button>
+  <div class="fb">W <code>grown</code> opis starej alokacji jest odczytywany i przekazywany do <code>track</code> jako <code>origin</code>; jeśli adres się zmienił, stary zakres przechodzi w stan <code>Freed</code>.</div>
+</div>
+
+<div class="q" data-correct="1">
+  <h3>5. Którego błędu DebugDiag <i>nie</i> gwarantuje wykryć?</h3>
+  <button>Odczytu zwolnionego bloku</button>
+  <button>Odczytu surowym wskaźnikiem przez adres, który został już ponownie użyty i jest znów <code>Live</code></button>
+  <button>Zapisu poza końcem alokacji, w dziurę między obiektami</button>
+  <button>Użycia uchwytu do zniszczonej areny</button>
+  <div class="fb">Wskaźnik nie niesie „generacji”, więc stary adres wskazujący teraz na nowy żywy obiekt wygląda poprawnie. Uchwyty z ID areny (odpowiedź 4) są tu odporniejsze, ale surowych wskaźników PR nie zmienia — dokumentacja mówi o tym wprost.</div>
+</div>
+
+</div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, good = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, btns = q.querySelectorAll('button');
+    btns.forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (q.dataset.done) return;
+        q.dataset.done = 1; answered++;
+        btns.forEach(function (x) { x.disabled = true; });
+        btns[correct].classList.add('right');
+        if (i === correct) good++; else b.classList.add('wrong');
+        var fb = q.querySelector('.fb');
+        fb.style.display = 'block';
+        fb.insertAdjacentHTML('afterbegin', '<b>' + (i === correct ? 'Dobrze! ' : 'Niezupełnie. ') + '</b>');
+        document.getElementById('score').textContent = 'Wynik: ' + good + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
