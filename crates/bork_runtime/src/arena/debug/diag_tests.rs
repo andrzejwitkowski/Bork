@@ -87,6 +87,28 @@ fn in_place_grow_extends_only_the_live_allocation() {
     }
 }
 
+#[test]
+fn allocations_in_older_pages_and_large_blocks_keep_their_bounds() {
+    unsafe {
+        let arena = bork_arena_push();
+        bork_arena_alloc(arena, 2000, 8);
+        bork_arena_alloc(arena, 2000, 8);
+        bork_arena_alloc(arena, 2000, 8);
+        bork_arena_alloc(arena, 2000, 8);
+        bork_arena_alloc(arena, 80, 8);
+        let older = bork_arena_alloc(arena, 64, 8);
+        let large = bork_arena_alloc(arena, 8192, 8);
+        assert_eq!(state(older, 64), None);
+        assert!(state(older, 65).is_some());
+        assert_eq!(state(large, 8192), None);
+        let grown = bork_arena_grow(arena, large, 8192, 16384, 8);
+        assert_eq!(state(grown, 16384), None);
+        bork_arena_pop(arena);
+        assert_eq!(state(older, 64), Some(MemoryState::UnusedInPool));
+        assert_eq!(state(grown, 16384), Some(MemoryState::UnusedInPool));
+    }
+}
+
 unsafe extern "C" fn checked_drop(p: *mut std::ffi::c_void) {
     assert!(diag::failure(p.addr(), 8, 0).is_none());
 }

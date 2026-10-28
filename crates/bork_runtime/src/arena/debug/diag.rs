@@ -1,7 +1,7 @@
 //! Allocation diagnostics live outside payload pages and the debugger's stable ABI.
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     ffi::{c_char, c_void, CStr},
     fmt,
     io::Write,
@@ -107,6 +107,7 @@ struct Frame {
 struct Diagnostics {
     next_id: usize,
     ranges: BTreeMap<usize, Range>,
+    owned_ranges: BTreeMap<usize, BTreeSet<usize>>,
     arenas: BTreeMap<usize, Rc<Arena>>,
     stack: Vec<Frame>,
     site: Location,
@@ -146,6 +147,26 @@ pub(crate) fn arena_created(id: usize, parent: usize) {
 }
 
 impl Diagnostics {
+    fn insert_range(&mut self, start: usize, range: Range) {
+        let owner = range.current.owner;
+        if let Some(old) = self.ranges.insert(start, range) {
+            if let Some(keys) = self.owned_ranges.get_mut(&old.current.owner) {
+                keys.remove(&start);
+            }
+        }
+        if self.arenas.contains_key(&owner) {
+            self.owned_ranges.entry(owner).or_default().insert(start);
+        }
+    }
+
+    fn remove_range(&mut self, start: usize) -> Range {
+        let old = self.ranges.remove(&start).unwrap();
+        if let Some(keys) = self.owned_ranges.get_mut(&old.current.owner) {
+            keys.remove(&start);
+        }
+        old
+    }
+
     fn overlaps(&self, start: usize, end: usize) -> impl Iterator<Item = (usize, &Range)> {
         let first = self
             .ranges
@@ -161,9 +182,9 @@ impl Diagnostics {
         let mut cursor = start;
         let keys: Vec<_> = self.overlaps(start, end).map(|(key, _)| key).collect();
         for key in keys {
-            let old = self.ranges.remove(&key).unwrap();
+            let old = self.remove_range(key);
             if key < start {
-                self.ranges.insert(
+                self.insert_range(
                     key,
                     Range {
                         end: start,
@@ -174,7 +195,7 @@ impl Diagnostics {
             let lo = key.max(start);
             let hi = old.end.min(end);
             if cursor < lo {
-                self.ranges.insert(
+                self.insert_range(
                     cursor,
                     Range {
                         end: lo,
@@ -190,7 +211,7 @@ impl Diagnostics {
             } else {
                 None
             };
-            self.ranges.insert(
+            self.insert_range(
                 lo,
                 Range {
                     end: hi,
@@ -200,11 +221,11 @@ impl Diagnostics {
             );
             cursor = hi;
             if old.end > end {
-                self.ranges.insert(end, old);
+                self.insert_range(end, old);
             }
         }
         if cursor < end {
-            self.ranges.insert(
+            self.insert_range(
                 cursor,
                 Range {
                     end,
@@ -232,51 +253,44 @@ impl Diagnostics {
     }
 }
 
-pub(crate) fn allocated(owner: usize, start: usize, size: usize, pages: &[(usize, usize, usize)]) {
-    track(owner, start, size, pages, None);
+pub(crate) fn allocated(owner: usize, start: usize, size: usize, page: (usize, usize)) {
+    track(owner, start, size, page, None);
 }
 
-fn track(
-    owner: usize,
-    start: usize,
-    size: usize,
-    pages: &[(usize, usize, usize)],
-    origin: Option<DebugDiag>,
-) {
+fn track(owner: usize, start: usize, size: usize, page: (usize, usize), origin: Option<DebugDiag>) {
     let created = current_location();
     DIAG.with(|d| {
         let mut d = d.borrow_mut();
-        // Cover unallocated page tails too; taking a page from the pool revives no bytes.
-        for &(base, _, capacity) in pages {
-            let end = base + capacity;
-            let mut cursor = base;
-            let occupied: Vec<_> = d.overlaps(base, end).map(|(key, r)| (key, r.end)).collect();
-            for (key, range_end) in occupied.into_iter().chain(std::iter::once((end, end))) {
-                if cursor < key {
-                    let empty = DebugDiag {
-                        start: cursor,
-                        size: key - cursor,
-                        id: 0,
-                        owner,
-                        arena: d.arenas.get(&owner).cloned(),
-                        state: MemoryState::UnusedInPool,
-                        name: String::new(),
-                        type_name: String::new(),
-                        created: created.clone(),
-                        declared: None,
-                        released: None,
-                    };
-                    d.ranges.insert(
-                        cursor,
-                        Range {
-                            end: key,
-                            current: empty,
-                            previous: None,
-                        },
-                    );
-                }
-                cursor = cursor.max(range_end);
+        // Cover this page's unallocated tails too; taking it from the pool revives no bytes.
+        let (base, capacity) = page;
+        let end = base + capacity;
+        let mut cursor = base;
+        let occupied: Vec<_> = d.overlaps(base, end).map(|(key, r)| (key, r.end)).collect();
+        for (key, range_end) in occupied.into_iter().chain(std::iter::once((end, end))) {
+            if cursor < key {
+                let empty = DebugDiag {
+                    start: cursor,
+                    size: key - cursor,
+                    id: 0,
+                    owner,
+                    arena: d.arenas.get(&owner).cloned(),
+                    state: MemoryState::UnusedInPool,
+                    name: String::new(),
+                    type_name: String::new(),
+                    created: created.clone(),
+                    declared: None,
+                    released: None,
+                };
+                d.insert_range(
+                    cursor,
+                    Range {
+                        end: key,
+                        current: empty,
+                        previous: None,
+                    },
+                );
             }
+            cursor = cursor.max(range_end);
         }
         d.next_id += 1;
         let mut current = origin.unwrap_or_else(|| DebugDiag {
@@ -323,7 +337,9 @@ pub(crate) fn retired(owner: usize, site: Location) {
     DIAG.with(|d| {
         let mut d = d.borrow_mut();
         d.arenas.remove(&owner);
-        for r in d.ranges.values_mut().filter(|r| r.current.owner == owner) {
+        let keys = d.owned_ranges.remove(&owner).unwrap_or_default();
+        for key in keys {
+            let r = d.ranges.get_mut(&key).unwrap();
             r.current.state = MemoryState::UnusedInPool;
             if r.current.released.is_none() {
                 r.current.released = Some(site.clone());
@@ -332,18 +348,12 @@ pub(crate) fn retired(owner: usize, site: Location) {
     });
 }
 
-pub(crate) fn grown(
-    owner: usize,
-    old: usize,
-    new: usize,
-    size: usize,
-    pages: &[(usize, usize, usize)],
-) {
+pub(crate) fn grown(owner: usize, old: usize, new: usize, size: usize, page: (usize, usize)) {
     let origin = DIAG.with(|d| d.borrow().ranges.get(&old).map(|r| r.current.clone()));
     if old != new {
         freed(old);
     }
-    track(owner, new, size, pages, origin);
+    track(owner, new, size, page, origin);
 }
 
 pub(super) fn label(
@@ -617,8 +627,34 @@ mod tests {
     use crate::arena::*;
 
     #[test]
+    fn retiring_an_owner_preserves_another_owners_reused_subrange() {
+        std::thread::spawn(|| {
+            arena_created(1, 0);
+            arena_created(2, 0);
+            allocated(1, 0x1000, 64, (0x1000, 4096));
+            freed(0x1000);
+            allocated(2, 0x1010, 16, (0x1000, 4096));
+            retired(1, Location::default());
+            for address in [0x1000, 0x1020, 0x1040] {
+                assert_eq!(
+                    failure(address, 1, 0).unwrap().current.state,
+                    MemoryState::UnusedInPool
+                );
+            }
+            assert!(failure(0x1010, 16, 2).is_none());
+            retired(2, Location::default());
+            let failed = failure(0x1010, 16, 0).unwrap();
+            assert_eq!(failed.current.state, MemoryState::UnusedInPool);
+            assert_eq!(failed.previous.unwrap().owner, 1);
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
     fn recycling_keeps_only_live_arena_records_and_referenced_ancestors() {
         let before = DIAG.with(|d| d.borrow().arenas.len());
+        let indexed_before = DIAG.with(|d| d.borrow().owned_ranges.len());
         let mut arena = bork_arena_push();
         for _ in 0..100 {
             unsafe {
@@ -627,6 +663,7 @@ mod tests {
             }
         }
         assert_eq!(DIAG.with(|d| d.borrow().arenas.len()), before + 1);
+        assert_eq!(DIAG.with(|d| d.borrow().owned_ranges.len()), indexed_before);
         unsafe {
             bork_arena_pop(arena);
         }

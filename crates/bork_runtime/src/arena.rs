@@ -363,6 +363,25 @@ impl Arena {
     }
 
     #[cfg(feature = "debug-runtime")]
+    fn debug_page(&self, ptr: *mut u8) -> (usize, usize) {
+        if let Some(page) = self.pages.last().filter(|page| page.contains(ptr)) {
+            return (page.base(), PAGE_SIZE);
+        }
+        if let Some((base, layout)) = self.large.iter().rev().find(|(base, layout)| {
+            (*base as usize..*base as usize + layout.size()).contains(&(ptr as usize))
+        }) {
+            return (*base as usize, layout.size());
+        }
+        let page = self
+            .pages
+            .iter()
+            .rev()
+            .find(|page| page.contains(ptr))
+            .expect("allocation must belong to an arena page or large block");
+        (page.base(), PAGE_SIZE)
+    }
+
+    #[cfg(feature = "debug-runtime")]
     fn debug_pages(&self) -> Vec<(usize, usize, usize)> {
         let pages = self.pages.iter().map(|p| (p.base(), p.offset, PAGE_SIZE));
         let large = self
@@ -971,9 +990,14 @@ pub(crate) fn alloc_internal(arena: *mut c_void, size: usize, align: usize) -> *
     with_payload(arena, |payload| {
         // Give zero-sized debug objects distinct identities without making bytes readable.
         let storage_size = if cfg!(feature = "debug-runtime") { size.max(1) } else { size };
-        let ptr = payload.alloc(storage_size, align).cast();
+        let ptr: *mut c_void = payload.alloc(storage_size, align).cast();
         #[cfg(feature = "debug-runtime")]
-        debug::diag::allocated(arena as usize, ptr as usize, size, &payload.debug_pages());
+        debug::diag::allocated(
+            arena as usize,
+            ptr as usize,
+            size,
+            payload.debug_page(ptr.cast()),
+        );
         ptr
     })
 }
@@ -997,10 +1021,16 @@ pub(crate) fn grow_internal(
     #[cfg(feature = "debug-runtime")]
     debug::diag::check(ptr as usize, old, false);
     with_payload(arena, |payload| {
-        let grown = payload.grow(ptr.cast(), old, new, align).cast();
+        let grown: *mut c_void = payload.grow(ptr.cast(), old, new, align).cast();
         #[cfg(feature = "debug-runtime")]
         if new > old {
-            debug::diag::grown(arena as usize, ptr as usize, grown as usize, new, &payload.debug_pages());
+            debug::diag::grown(
+                arena as usize,
+                ptr as usize,
+                grown as usize,
+                new,
+                payload.debug_page(grown.cast()),
+            );
         }
         grown
     })
