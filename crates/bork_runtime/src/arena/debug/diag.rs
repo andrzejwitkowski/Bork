@@ -107,10 +107,13 @@ struct Frame {
 struct Diagnostics {
     next_id: usize,
     ranges: BTreeMap<usize, Range>,
+    covered: BTreeMap<usize, usize>,
     owned_ranges: BTreeMap<usize, BTreeSet<usize>>,
     arenas: BTreeMap<usize, Rc<Arena>>,
     stack: Vec<Frame>,
     site: Location,
+    #[cfg(test)]
+    gap_range_visits: usize,
 }
 
 thread_local! { static DIAG: RefCell<Diagnostics> = RefCell::new(Diagnostics::default()); }
@@ -147,6 +150,60 @@ pub(crate) fn arena_created(id: usize, parent: usize) {
 }
 
 impl Diagnostics {
+    fn register_page(&mut self, owner: usize, page: (usize, usize), created: &Location) {
+        let (base, capacity) = page;
+        let end = base + capacity;
+        let preceding = self.covered.range(..=base).next_back();
+        if preceding.is_some_and(|(_, &covered_end)| covered_end >= end) {
+            return;
+        }
+        let merged_start = preceding
+            .filter(|(_, &covered_end)| covered_end >= base)
+            .map_or(base, |(&start, _)| start);
+
+        // Range replacement preserves coverage, including unused tails and pooled pages.
+        let mut cursor = base;
+        let occupied: Vec<_> = self
+            .covered
+            .range(merged_start..=end)
+            .map(|(&start, &end)| (start, end))
+            .collect();
+        #[cfg(test)]
+        {
+            self.gap_range_visits += occupied.len();
+        }
+        let mut merged_end = end;
+        for (key, range_end) in occupied.into_iter().chain(std::iter::once((end, end))) {
+            if cursor < key {
+                let empty = DebugDiag {
+                    start: cursor,
+                    size: key - cursor,
+                    id: 0,
+                    owner,
+                    arena: self.arenas.get(&owner).cloned(),
+                    state: MemoryState::UnusedInPool,
+                    name: String::new(),
+                    type_name: String::new(),
+                    created: created.clone(),
+                    declared: None,
+                    released: None,
+                };
+                self.insert_range(
+                    cursor,
+                    Range {
+                        end: key,
+                        current: empty,
+                        previous: None,
+                    },
+                );
+            }
+            cursor = cursor.max(range_end);
+            merged_end = merged_end.max(range_end);
+            self.covered.remove(&key);
+        }
+        self.covered.insert(merged_start, merged_end);
+    }
+
     fn insert_range(&mut self, start: usize, range: Range) {
         let owner = range.current.owner;
         if let Some(old) = self.ranges.insert(start, range) {
@@ -261,37 +318,7 @@ fn track(owner: usize, start: usize, size: usize, page: (usize, usize), origin: 
     let created = current_location();
     DIAG.with(|d| {
         let mut d = d.borrow_mut();
-        // Cover this page's unallocated tails too; taking it from the pool revives no bytes.
-        let (base, capacity) = page;
-        let end = base + capacity;
-        let mut cursor = base;
-        let occupied: Vec<_> = d.overlaps(base, end).map(|(key, r)| (key, r.end)).collect();
-        for (key, range_end) in occupied.into_iter().chain(std::iter::once((end, end))) {
-            if cursor < key {
-                let empty = DebugDiag {
-                    start: cursor,
-                    size: key - cursor,
-                    id: 0,
-                    owner,
-                    arena: d.arenas.get(&owner).cloned(),
-                    state: MemoryState::UnusedInPool,
-                    name: String::new(),
-                    type_name: String::new(),
-                    created: created.clone(),
-                    declared: None,
-                    released: None,
-                };
-                d.insert_range(
-                    cursor,
-                    Range {
-                        end: key,
-                        current: empty,
-                        previous: None,
-                    },
-                );
-            }
-            cursor = cursor.max(range_end);
-        }
+        d.register_page(owner, page, &created);
         d.next_id += 1;
         let mut current = origin.unwrap_or_else(|| DebugDiag {
             start,
@@ -625,6 +652,53 @@ pub extern "C" fn bork_debug_copy_origin(source: *const c_void, destination: *co
 mod tests {
     use super::*;
     use crate::arena::*;
+
+    #[test]
+    fn small_allocations_do_not_rescan_registered_page_ranges() {
+        std::thread::spawn(|| {
+            arena_created(1, 0);
+            allocated(1, 0x1000, 16, (0x1000, 4096));
+            let before = DIAG.with(|d| d.borrow().gap_range_visits);
+            for i in 1..128 {
+                allocated(1, 0x1000 + i * 16, 16, (0x1000, 4096));
+            }
+            assert_eq!(DIAG.with(|d| d.borrow().gap_range_visits), before);
+        })
+        .join()
+        .unwrap();
+    }
+
+    #[test]
+    fn registered_pages_merge_and_extend_without_reviving_old_bytes() {
+        std::thread::spawn(|| {
+            arena_created(1, 0);
+            for base in [0x1000, 0x1200, 0x1100] {
+                allocated(1, base, 16, (base, 0x100));
+                freed(base);
+            }
+            allocated(1, 0x1100, 32, (0x1100, 0x300));
+            allocated(1, 0xf00, 16, (0xf00, 0x200));
+            assert!(failure(0x1100, 32, 1).is_none());
+            for address in [0x1000, 0x1200] {
+                assert_eq!(
+                    failure(address, 1, 0).unwrap().current.state,
+                    MemoryState::Freed
+                );
+            }
+            assert_eq!(
+                failure(0x13ff, 1, 0).unwrap().current.state,
+                MemoryState::UnusedInPool
+            );
+            assert!(failure(0x1400, 1, 0).is_none());
+            DIAG.with(|d| {
+                let d = d.borrow();
+                assert_eq!(d.covered.len(), 1);
+                assert_eq!(d.covered.get(&0xf00), Some(&0x1400));
+            });
+        })
+        .join()
+        .unwrap();
+    }
 
     #[test]
     fn retiring_an_owner_preserves_another_owners_reused_subrange() {
