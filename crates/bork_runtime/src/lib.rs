@@ -50,6 +50,8 @@ pub unsafe extern "C" fn bork_println_str(ptr: *const u8, len: usize) {
 }
 
 unsafe fn write_bytes(ptr: *const u8, len: usize, newline: bool) {
+    #[cfg(feature = "debug-runtime")]
+    arena::debug::diag::check(ptr as usize, len, false);
     let mut stdout = io::stdout().lock();
     if len == 0 {
         if newline {

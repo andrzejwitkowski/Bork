@@ -39,20 +39,20 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .context
             .append_basic_block(self.llvm_fn, "debug.array.done");
         builder.build_unconditional_branch(header)?;
-        builder.position_at_end(header);
+        cx.position_at_end(header);
         let index = builder.build_phi(word, "debug.index")?;
         index.add_incoming(&[(&word.const_zero(), entry)]);
         let current = index.as_basic_value().into_int_value();
         let more =
             builder.build_int_compare(IntPredicate::ULT, current, len, "debug.array.more")?;
         builder.build_conditional_branch(more, body, done)?;
-        builder.position_at_end(body);
+        cx.position_at_end(body);
         let slot = self.elem_ptr_at(base, self.truncate_i32(current), stride)?;
         cx.debug_relabel_slot(slot, label, elem, current)?;
         let next = builder.build_int_add(current, word.const_int(1, false), "debug.index.next")?;
         builder.build_unconditional_branch(header)?;
         index.add_incoming(&[(&next, body)]);
-        builder.position_at_end(done);
+        cx.position_at_end(done);
         Ok(())
     }
 }

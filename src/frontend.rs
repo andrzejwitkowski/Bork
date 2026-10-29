@@ -37,6 +37,15 @@ fn has_generics(hir: &crate::hir::HirProgram) -> bool {
     || hir.enums.iter().any(|e| !e.generics.is_empty())
 }
 
+fn label_prelude_functions(hir: &mut HirProgram, functions: &[crate::ast::Function]) {
+    // shortcut: sources use chunk export names; track per-item origins before adding unlisted helpers.
+    for declaration in functions {
+        if let Some(function) = hir.functions.iter_mut().find(|function| function.name == declaration.name) {
+            function.source = crate::prelude::source_file(&function.name);
+        }
+    }
+}
+
 /// Parse, analyze ownership, and lower program to typed HIR.
 pub fn check(source: &str) -> CheckResult {
     let (mut program, node_index) = match crate::parse_indexed(source) {
@@ -54,9 +63,19 @@ pub fn check(source: &str) -> CheckResult {
         }
     };
 
+    let user_functions = program.functions.len();
+    let user_enums = program.enums.len();
     crate::prelude::add_prelude(&mut program, source, node_index.len() as u32);
-    let typeck::Typeck { hir, node_tys, members, option_if_vals, diagnostics: mut type_diagnostics, tcx } =
+    let typeck::Typeck { mut hir, node_tys, members, option_if_vals, diagnostics: mut type_diagnostics, tcx } =
         typeck::check_with_members(&program);
+    label_prelude_functions(&mut hir, &program.functions[user_functions..]);
+    for e in &program.enums[user_enums..] {
+        if let Some(hir_enum) = hir.enums.iter_mut().find(|h| h.name == e.name.name) {
+            for field in hir_enum.variants.iter_mut().flat_map(|v| &mut v.fields) {
+                field.source = crate::prelude::source_file(&e.name.name);
+            }
+        }
+    }
     let (mut report, ownership_errors) =
         crate::sema::analyze_with_members(&program, node_tys, members.clone(), option_if_vals, &tcx);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
@@ -122,6 +141,23 @@ mod tests {
     #[test]
     fn check_ok_on_minimal_typed_program() {
         assert_eq!(hir_of("fun main(): i32 { return 1 }").functions.len(), 1);
+    }
+
+    #[test]
+    fn filtered_intrinsic_declarations_do_not_shift_prelude_sources() {
+        let source = "fun print(value: i32) {}\nclass Node { v: i32 }\nfun main() {\n val node = Node(1)\n val reference: Ref<Node> = node\n val option = optionFromRef::<Node>(reference)\n}\n";
+        let (mut program, index) = crate::parse_indexed(source).unwrap();
+        let user_functions = program.functions.len();
+        crate::prelude::add_prelude(&mut program, source, index.len() as u32);
+        let typeck::Typeck { mut hir, diagnostics, .. } = typeck::check_with_members(&program);
+        assert!(diagnostics.iter().any(|d| d.message.contains("cannot redefine builtin function `print`")));
+        label_prelude_functions(&mut hir, &program.functions[user_functions..]);
+        assert!(!hir.functions.iter().any(|function| function.name == "print"));
+        for name in ["optionFromRef", "optionToRef"] {
+            let function = hir.functions.iter().find(|function| function.name == name).unwrap();
+            assert_eq!(function.source, Some("<bork-prelude>/option_conv.bork"), "{name}");
+        }
+        assert_eq!(hir.functions.iter().find(|function| function.name == "main").unwrap().source, None);
     }
 
     #[test]

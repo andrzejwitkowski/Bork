@@ -56,10 +56,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let ok_bb = cx.context.append_basic_block(self.llvm_fn, "div.ok");
         let bad_bb = cx.context.append_basic_block(self.llvm_fn, "div.bad");
         builder.build_conditional_branch(illegal, bad_bb, ok_bb)?;
-        builder.position_at_end(bad_bb);
+        cx.position_at_end(bad_bb);
         builder.build_call(cx.abort_function(), &[], "abort")?;
         builder.build_unreachable()?;
-        builder.position_at_end(ok_bb);
+        cx.position_at_end(ok_bb);
         Ok(())
     }
 
@@ -222,15 +222,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         match op {
             BinOp::And => {
                 builder.build_conditional_branch(lhs_true, rhs_bb, short_bb)?;
-                builder.position_at_end(rhs_bb);
+                cx.position_at_end(rhs_bb);
                 let rhs_val = self.emit_bool(rhs)?;
                 let rhs_end = builder
                     .get_insert_block()
                     .expect("rhs emission positions builder");
                 builder.build_unconditional_branch(merge_bb)?;
-                builder.position_at_end(short_bb);
+                cx.position_at_end(short_bb);
                 builder.build_unconditional_branch(merge_bb)?;
-                builder.position_at_end(merge_bb);
+                cx.position_at_end(merge_bb);
                 let phi = builder.build_phi(i1, "log")?;
                 phi.add_incoming(&[
                     (&rhs_val as &dyn inkwell::values::BasicValue, rhs_end),
@@ -240,15 +240,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             }
             BinOp::Or => {
                 builder.build_conditional_branch(lhs_true, short_bb, rhs_bb)?;
-                builder.position_at_end(short_bb);
+                cx.position_at_end(short_bb);
                 builder.build_unconditional_branch(merge_bb)?;
-                builder.position_at_end(rhs_bb);
+                cx.position_at_end(rhs_bb);
                 let rhs_val = self.emit_bool(rhs)?;
                 let rhs_end = builder
                     .get_insert_block()
                     .expect("rhs emission positions builder");
                 builder.build_unconditional_branch(merge_bb)?;
-                builder.position_at_end(merge_bb);
+                cx.position_at_end(merge_bb);
                 let phi = builder.build_phi(i1, "log")?;
                 phi.add_incoming(&[
                     (&one as &dyn inkwell::values::BasicValue, short_bb),

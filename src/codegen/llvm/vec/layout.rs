@@ -103,7 +103,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let body_block = context.append_basic_block(self.llvm_fn, "vec.loop.body");
         let done = context.append_basic_block(self.llvm_fn, "vec.loop.done");
         self.cx.builder.build_unconditional_branch(header)?;
-        self.cx.builder.position_at_end(header);
+        self.cx.position_at_end(header);
         let index = self.cx.builder.build_phi(context.i64_type(), "vec.i")?;
         index.add_incoming(&[(&self.word(0), entry)]);
         let i = index.as_basic_value().into_int_value();
@@ -114,13 +114,13 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         self.cx
             .builder
             .build_conditional_branch(more, body_block, done)?;
-        self.cx.builder.position_at_end(body_block);
+        self.cx.position_at_end(body_block);
         body(self, i)?;
         let next = self.cx.builder.build_int_add(i, self.word(1), "vec.next")?;
         let tail = self.cx.builder.get_insert_block().expect("positioned");
         self.cx.builder.build_unconditional_branch(header)?;
         index.add_incoming(&[(&next, tail)]);
-        self.cx.builder.position_at_end(done);
+        self.cx.position_at_end(done);
         Ok(())
     }
 }

@@ -86,7 +86,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .builder
             .build_conditional_branch(empty, absent, present)?;
 
-        self.cx.builder.position_at_end(present);
+        self.cx.position_at_end(present);
         let last = self.cx.builder.build_int_sub(len, self.word(1), "vec.last")?;
         self.vec_store(header, LEN, last)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
@@ -102,12 +102,12 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let present_end = self.cx.builder.get_insert_block().expect("positioned");
         self.cx.builder.build_unconditional_branch(merge)?;
 
-        self.cx.builder.position_at_end(absent);
+        self.cx.position_at_end(absent);
         let none = self.emit_none(result_ty)?;
         let absent_end = self.cx.builder.get_insert_block().expect("positioned");
         self.cx.builder.build_unconditional_branch(merge)?;
 
-        self.cx.builder.position_at_end(merge);
+        self.cx.position_at_end(merge);
         let phi = self.cx.builder.build_phi(popped.get_type(), "vec.pop.value")?;
         phi.add_incoming(&[(&popped, present_end), (&none, absent_end)]);
         Ok(phi.as_basic_value())

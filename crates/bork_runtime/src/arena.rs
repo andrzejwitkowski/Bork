@@ -363,6 +363,25 @@ impl Arena {
     }
 
     #[cfg(feature = "debug-runtime")]
+    fn debug_page(&self, ptr: *mut u8) -> (usize, usize) {
+        if let Some(page) = self.pages.last().filter(|page| page.contains(ptr)) {
+            return (page.base(), PAGE_SIZE);
+        }
+        if let Some((base, layout)) = self.large.iter().rev().find(|(base, layout)| {
+            (*base as usize..*base as usize + layout.size()).contains(&(ptr as usize))
+        }) {
+            return (*base as usize, layout.size());
+        }
+        let page = self
+            .pages
+            .iter()
+            .rev()
+            .find(|page| page.contains(ptr))
+            .expect("allocation must belong to an arena page or large block");
+        (page.base(), PAGE_SIZE)
+    }
+
+    #[cfg(feature = "debug-runtime")]
     fn debug_pages(&self) -> Vec<(usize, usize, usize)> {
         let pages = self.pages.iter().map(|p| (p.base(), p.offset, PAGE_SIZE));
         let large = self
@@ -601,6 +620,8 @@ fn new_control(parent: ArenaId, mode: ArenaMode, strong_count: usize) -> *mut c_
             "parent arena_id must be smaller than child arena_id"
         );
         let payload = runtime.pool.acquire();
+        #[cfg(feature = "debug-runtime")]
+        debug::diag::arena_created(id.as_usize(), parent.as_usize());
         runtime.controls.insert(
             id,
             ArenaControl {
@@ -622,6 +643,8 @@ fn new_control(parent: ArenaId, mode: ArenaMode, strong_count: usize) -> *mut c_
 
 fn destroy_control(id: ArenaId) {
     #[cfg(feature = "debug-runtime")]
+    let release_site = debug::diag::current_location();
+    #[cfg(feature = "debug-runtime")]
     let _mutation = debug::Mutation::begin();
     #[cfg(feature = "debug-runtime")]
     debug::remove_owner(id.as_usize());
@@ -640,6 +663,9 @@ fn destroy_control(id: ArenaId) {
         // SAFETY: Entries are compiler-registered initialized values inside live payload bytes.
         unsafe { (entry.drop_fn)(entry.value) };
     }
+
+    #[cfg(feature = "debug-runtime")]
+    debug::diag::retired(id.as_usize(), release_site);
 
     let should_free = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
@@ -961,7 +987,19 @@ fn with_payload<R>(arena: *mut c_void, f: impl FnOnce(&mut Arena) -> R) -> R {
 }
 
 pub(crate) fn alloc_internal(arena: *mut c_void, size: usize, align: usize) -> *mut c_void {
-    with_payload(arena, |payload| payload.alloc(size, align).cast())
+    with_payload(arena, |payload| {
+        // Give zero-sized debug objects distinct identities without making bytes readable.
+        let storage_size = if cfg!(feature = "debug-runtime") { size.max(1) } else { size };
+        let ptr: *mut c_void = payload.alloc(storage_size, align).cast();
+        #[cfg(feature = "debug-runtime")]
+        debug::diag::allocated(
+            arena as usize,
+            ptr as usize,
+            size,
+            payload.debug_page(ptr.cast()),
+        );
+        ptr
+    })
 }
 
 #[no_mangle]
@@ -980,8 +1018,21 @@ pub(crate) fn grow_internal(
     new: usize,
     align: usize,
 ) -> *mut c_void {
+    #[cfg(feature = "debug-runtime")]
+    debug::diag::check(ptr as usize, old, false);
     with_payload(arena, |payload| {
-        payload.grow(ptr.cast(), old, new, align).cast()
+        let grown: *mut c_void = payload.grow(ptr.cast(), old, new, align).cast();
+        #[cfg(feature = "debug-runtime")]
+        if new > old {
+            debug::diag::grown(
+                arena as usize,
+                ptr as usize,
+                grown as usize,
+                new,
+                payload.debug_page(grown.cast()),
+            );
+        }
+        grown
     })
 }
 
@@ -1000,6 +1051,12 @@ pub unsafe extern "C" fn bork_arena_grow(
 /// Returns a block (with the size it was allocated or last grown to) for reuse.
 #[no_mangle]
 pub unsafe extern "C" fn bork_arena_free(arena: *mut c_void, ptr: *mut c_void, size: usize) {
+    #[cfg(feature = "debug-runtime")]
+    if size != 0 {
+        debug::diag::check_handle(arena as usize, ptr as usize);
+        debug::diag::check(ptr as usize, size, true);
+        debug::diag::freed(ptr as usize);
+    }
     with_payload(arena, |payload| payload.free(ptr.cast(), size));
 }
 

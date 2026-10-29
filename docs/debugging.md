@@ -4,6 +4,40 @@ Build with `bork build -g program.bork` to emit native DWARF, disable LLVM optim
 and include the debug registry. Normal builds do not contain the registry. Stop at a
 source breakpoint before inspecting arenas; the tools never call target functions.
 
+With `-g`, DebugDiag also checks arena memory before generated loads, stores and
+memory intrinsics, including enum cleanup functions. Copies check both the source
+and destination. Runtime Ref slots, observations, string operations, printing and
+`Vec<Ref<T>>` cleanup are checked before they dereference payload memory. Empty
+accesses do not read payload bytes; stack memory and program constants pass through.
+
+An invalid access prints a report to stderr and aborts. It includes the operation,
+address and byte count, allocation/arena IDs, memory state (`Live`, `Freed`, or
+`UnusedInPool`), variable or field name, concrete type, creation/declaration/release
+locations with original byte spans, Bork call stack, and retained arena ancestry.
+Declarations from the prelude refer to their own source files. Replacement allocations
+retain the original variable or field declaration location.
+Embedded prelude sources use the stable prefix `<bork-prelude>`. To browse them,
+map it to your checkout's `src/prelude` directory with GDB's `set substitute-path`
+or LLDB's `target.source-map` setting.
+Cleanup can access live payloads; allocations become unused after callbacks finish,
+with the release location captured before cleanup begins. Promotion and buffer
+growth preserve the original provenance while ownership follows the actual allocator
+token, including caller result sinks and dynamic Ref arenas.
+
+Taking an arena from the pool does not revive its old allocations. Reuse makes only
+the new allocation's bytes live and retains one previous occupancy description,
+labelled as history. Arena IDs in class, enum, Option and Ref handles detect stale
+handles even when another arena reuses their address. A raw pointer into bytes that
+have already been reused can still look valid; DebugDiag does not change pointer
+representations, quarantine memory or retain a complete execution history. Metadata
+lives outside payload memory and the existing debugger ABI, and increases debug
+execution time and memory use. Ordinary builds contain none of these new hooks.
+Retired arena descriptions stay alive through the retained address records and their
+ancestors; recycling an arena does not accumulate an independent arena history.
+Allocation records also remain after blocks are returned to the system, so stale
+pointers can still be diagnosed. Metadata grows with distinct tracked address
+ranges; retaining one previous occupant per range does not bound its total size.
+
 Load the Python tools manually, using your checkout's absolute path:
 
 ```text

@@ -95,7 +95,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         );
         let mut incoming: Vec<(BasicValueEnum<'ctx>, BasicBlock<'ctx>)> = Vec::new();
         for (site, block, bb) in branches {
-            self.cx.builder.position_at_end(bb);
+            self.cx.position_at_end(bb);
             let value = self
                 .emit_region_with_driver(site, block, value_ty)
                 .map_err(region_walk_codegen_error)?;
@@ -115,7 +115,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                 incoming.push((value, end));
             }
         }
-        self.cx.builder.position_at_end(merge_bb);
+        self.cx.position_at_end(merge_bb);
 
         if let Some(result_ty) = llvm_ty {
             if !incoming.is_empty() {
@@ -253,15 +253,15 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             self.cx
                 .builder
                 .build_conditional_branch(is_absent, cleanup, next)?;
-            self.cx.builder.position_at_end(next);
+            self.cx.position_at_end(next);
             self.bind_observation(binding, observation, object, control)?;
         }
         let present = self.cx.builder.get_insert_block().expect("present path");
-        self.cx.builder.position_at_end(cleanup);
+        self.cx.position_at_end(cleanup);
         self.debug_unwind(self.debug_scopes.len().saturating_sub(1))?;
         self.regions.sink_mut().unwind_to_depth(outer_depth)?;
         self.cx.builder.build_unconditional_branch(absent)?;
-        self.cx.builder.position_at_end(present);
+        self.cx.position_at_end(present);
         Ok(())
     }
 

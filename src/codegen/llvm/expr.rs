@@ -155,6 +155,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         expr: &HirExpr,
         ops: &[BasicValueEnum<'ctx>],
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
+        self.debug_location(expr.span);
         debug_assert_eq!(ops.len(), child_plan(expr).len());
         match &expr.kind {
             HirExprKind::Int { value } => {
@@ -382,6 +383,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .build_memcpy(dst, 1, src, 1, len)
             .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
         let moved = builder.build_insert_value(source, dst, 0, "moved")?;
+        cx.debug_copy_origin(src, dst)?;
+        cx.debug_allocation(dst, "", "String", false)?;
         Ok(moved.into_struct_value())
     }
 
@@ -503,6 +506,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic()
             .expect("bork_arena_alloc returns a pointer")
             .into_pointer_value();
+        cx.debug_allocation(dst, "", "String", false)?;
         builder
             .build_memcpy(dst, 1, left_ptr, 1, left_len)
             .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;

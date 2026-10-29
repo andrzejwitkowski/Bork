@@ -78,7 +78,7 @@ pub fn emit_function<'report, 'a, 'ctx>(
 ) -> Result<(), Diagnostic> {
     let (llvm_fn, _) = callees[function.name.as_str()];
     let entry = cx.context.append_basic_block(llvm_fn, "entry");
-    cx.builder.position_at_end(entry);
+    cx.position_at_end(entry);
 
     let mut emitter = FnEmitter {
         cx,
@@ -123,6 +123,7 @@ pub fn emit_function<'report, 'a, 'ctx>(
     if !cx.current_block_terminated() {
         emitter.build_fallthrough()?;
     }
+    emitter.debug_location(None);
     Ok(())
 }
 
@@ -130,6 +131,7 @@ pub(super) struct Slot<'ctx> {
     pub ptr: PointerValue<'ctx>,
     pub ty: TyId,
     pub home_arena: PointerValue<'ctx>,
+    pub declaration: crate::span::Span,
 }
 
 pub(super) struct FnEmitter<'s, 'report, 'a, 'ctx> {
@@ -261,7 +263,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub fn ensure_open_block(&self) {
         if self.cx.current_block_terminated() {
             let dead = self.cx.context.append_basic_block(self.llvm_fn, "dead");
-            self.cx.builder.position_at_end(dead);
+            self.cx.position_at_end(dead);
         }
     }
 
@@ -350,6 +352,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.store_ref(ptr, home, stored)?;
         } else {
             self.cx.builder.build_store(ptr, stored)?;
+            let declaration = self.lookup(name).expect("assigned local exists").declaration;
+            self.cx.debug_declaration(stored, slot_ty, name, declaration, self.function.source)?;
             self.debug_label_ref_array(stored, slot_ty, name)?;
         }
         Ok(())
@@ -478,7 +482,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             debug_depth: self.debug_scopes.len(),
         });
 
-        builder.position_at_end(header_bb);
+        cx.position_at_end(header_bb);
         if owns_loop_arena {
             self.regions.sink_mut().begin_loop_generation(preheader)?;
         }
@@ -486,7 +490,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let in_range = builder.build_int_compare(IntPredicate::SLT, current, end, "for.cond")?;
         builder.build_conditional_branch(in_range, body_bb, exit_bb)?;
 
-        builder.position_at_end(body_bb);
+        cx.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
         self.debug_enter_scope(None)?;
         let (peeled, _) = crate::hir::peel_blocks(body);
@@ -499,7 +503,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             builder.build_unconditional_branch(latch_bb)?;
         }
 
-        builder.position_at_end(latch_bb);
+        cx.position_at_end(latch_bb);
         if cx.insertion_is_dead() {
             builder.build_unreachable()?;
         } else {
@@ -511,7 +515,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             builder.build_unconditional_branch(header_bb)?;
         }
 
-        builder.position_at_end(exit_bb);
+        cx.position_at_end(exit_bb);
         self.loop_stack.pop();
         crate::region_walk::region_exit(driver, self, RegionSite::For)
             .map_err(region_walk_codegen_error)?;
@@ -558,14 +562,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             debug_depth: self.debug_scopes.len(),
         });
 
-        builder.position_at_end(header_bb);
+        cx.position_at_end(header_bb);
         if owns_loop_arena {
             self.regions.sink_mut().begin_loop_generation(preheader)?;
         }
         let keep_going = self.emit_bool(cond)?;
         builder.build_conditional_branch(keep_going, body_bb, exit_bb)?;
 
-        builder.position_at_end(body_bb);
+        cx.position_at_end(body_bb);
         self.scopes.push(HashMap::new());
         self.debug_enter_scope(None)?;
         let (peeled, _) = crate::hir::peel_blocks(body);
@@ -578,7 +582,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             builder.build_unconditional_branch(latch_bb)?;
         }
 
-        builder.position_at_end(latch_bb);
+        cx.position_at_end(latch_bb);
         if cx.insertion_is_dead() {
             builder.build_unreachable()?;
         } else {
@@ -587,7 +591,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             builder.build_unconditional_branch(header_bb)?;
         }
 
-        builder.position_at_end(exit_bb);
+        cx.position_at_end(exit_bb);
         self.loop_stack.pop();
         crate::region_walk::region_exit(driver, self, RegionSite::While)
             .map_err(region_walk_codegen_error)?;
@@ -681,6 +685,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 ptr,
                 ty,
                 home_arena,
+                declaration: self.statement_span.unwrap_or(self.function.name_span),
             },
         );
         if self.cx.tcx.is_managed_ref(ty) {
@@ -688,6 +693,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         }
         self.debug_local(name, ty, ptr, home_arena, argument)?;
         if argument.is_none() {
+            self.cx.debug_value(value, ty, name, true)?;
             self.debug_label_ref_array(value, ty, name)?;
         }
         Ok(())

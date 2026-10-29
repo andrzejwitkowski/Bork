@@ -104,7 +104,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let done = cx.context.append_basic_block(self.llvm_fn, "utf8.done");
         builder.build_conditional_branch(is_valid, copy, absent)?;
 
-        builder.position_at_end(copy);
+        cx.position_at_end(copy);
         let arena = self.sink_arena();
         let dst = builder
             .build_call(
@@ -120,6 +120,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .basic()
             .expect("bork_arena_alloc returns a pointer")
             .into_pointer_value();
+        cx.debug_allocation(dst, "", "String", false)?;
         builder
             .build_memcpy(dst, 1, src, 1, count)
             .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
@@ -132,12 +133,12 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let copy_end = self.cx.builder.get_insert_block().expect("positioned in a block");
         self.cx.builder.build_unconditional_branch(done)?;
 
-        self.cx.builder.position_at_end(absent);
+        self.cx.position_at_end(absent);
         let none = self.emit_nullable_none(expr.ty)?;
         let none_end = self.cx.builder.get_insert_block().expect("positioned in a block");
         self.cx.builder.build_unconditional_branch(done)?;
 
-        self.cx.builder.position_at_end(done);
+        self.cx.position_at_end(done);
         let phi = self.cx.builder.build_phi(some.get_type(), "utf8.result")?;
         phi.add_incoming(&[(&none, none_end), (&some, copy_end)]);
         Ok(phi.as_basic_value())

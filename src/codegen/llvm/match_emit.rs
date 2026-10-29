@@ -59,7 +59,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let next_bb = context.append_basic_block(self.llvm_fn, "match.next");
             self.emit_pat_test(&arm.pat, value, next_bb)?;
             self.cx.builder.build_unconditional_branch(arm_bb)?;
-            self.cx.builder.position_at_end(arm_bb);
+            self.cx.position_at_end(arm_bb);
 
             let force = pat_binds_owned_ref(&self.cx.tcx, &arm.pat);
             region_enter_forced(driver, self, RegionSite::MatchArm, &arm.body, force)
@@ -81,11 +81,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     incoming.push((arm_value, end));
                 }
             }
-            self.cx.builder.position_at_end(next_bb);
+            self.cx.position_at_end(next_bb);
         }
         // Typeck proved the arms cover every value, so no pattern fails past the last arm.
         self.cx.builder.build_unreachable()?;
-        self.cx.builder.position_at_end(end_bb);
+        self.cx.position_at_end(end_bb);
 
         if let Some(llvm_ty) = llvm_ty {
             let result = if incoming.is_empty() {
@@ -178,11 +178,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .enum_layout(&name)
             .and_then(|layout| layout.variants.get(index).copied())
             .ok_or_else(|| not_yet_supported(&format!("enum `{name}`"), Some(pat.span)))?;
-        let object = self
-            .cx
-            .builder
-            .build_extract_value(value.into_struct_value(), 1, "enum.ptr")?
-            .into_pointer_value();
+        let object = self.object_pointer(value.into_struct_value())?;
         Ok((record, object))
     }
 
@@ -235,7 +231,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     fn branch_unless(&mut self, hit: IntValue<'ctx>, fail: BasicBlock<'ctx>) -> Result<(), Diagnostic> {
         let ok = self.cx.context.append_basic_block(self.llvm_fn, "match.ok");
         self.cx.builder.build_conditional_branch(hit, ok, fail)?;
-        self.cx.builder.position_at_end(ok);
+        self.cx.position_at_end(ok);
         Ok(())
     }
 }

@@ -39,7 +39,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         values: &[BasicValueEnum<'ctx>],
         elem_ty: TyId,
-        _array_ty: TyId,
+        array_ty: TyId,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let count = values.len();
         let (_, stride, align) = self.elem_storage(elem_ty)?;
@@ -53,6 +53,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let base = self.arena_alloc(arena, byte_len, align)?;
+        if cx.debug.is_some() {
+            cx.debug_allocation(base, "", &cx.tcx.display(array_ty).to_string(), false)?;
+        }
         for (index, value) in values.iter().enumerate() {
             let slot = self.elem_ptr(base, index, stride)?;
             if self.cx.tcx.is_managed_ref(elem_ty) {
@@ -88,6 +91,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         )?;
         let arena = self.sink_arena();
         let dst_base = self.arena_alloc(arena, byte_len, align)?;
+        if self.cx.debug.is_some() {
+            self.cx.debug_allocation(dst_base, "", &self.cx.tcx.display(array_ty).to_string(), false)?;
+            self.cx.debug_copy_origin(base, dst_base)?;
+        }
         if self.cx.tcx.is_string(elem_ty) || self.cx.tcx.is_managed_ref(elem_ty) {
             let zero = self.cx.context.i64_type().const_int(0, false);
             let one = self.cx.context.i64_type().const_int(1, false);
@@ -105,7 +112,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 .context
                 .append_basic_block(self.llvm_fn, "arr.copy.done");
             self.cx.builder.build_unconditional_branch(header)?;
-            self.cx.builder.position_at_end(header);
+            self.cx.position_at_end(header);
             let i_phi = self.cx.builder.build_phi(self.cx.context.i64_type(), "i")?;
             i_phi.add_incoming(&[(&zero as &dyn inkwell::values::BasicValue<'_>, entry)]);
             let i = i_phi.as_basic_value().into_int_value();
@@ -116,7 +123,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx
                 .builder
                 .build_conditional_branch(done_cond, done, body)?;
-            self.cx.builder.position_at_end(body);
+            self.cx.position_at_end(body);
             let src_slot = self.elem_ptr_at(base, self.truncate_i32(i), stride)?;
             let dst_slot = self.elem_ptr_at(dst_base, self.truncate_i32(i), stride)?;
             let loaded = builder_load(self, llvm_elem, src_slot)?;
@@ -138,7 +145,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let next = self.cx.builder.build_int_add(i, one, "i.next")?;
             self.cx.builder.build_unconditional_branch(header)?;
             i_phi.add_incoming(&[(&next as &dyn inkwell::values::BasicValue<'_>, body)]);
-            self.cx.builder.position_at_end(done);
+            self.cx.position_at_end(done);
         } else {
             self.cx
                 .builder
