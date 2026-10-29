@@ -10,7 +10,7 @@ use super::{generics, lower::lower_type, type_error};
 use crate::ast::{Impl, Program, Trait};
 use crate::defs::{DefId, DefTable};
 use crate::diag::Diagnostic;
-use crate::ty::{subst, ParamIdx, TyCtx, TyData, TyId};
+use crate::ty::{subst, ParamIdx, Predicate, TraitRef, TyCtx, TyData, TyId};
 
 /// A trait method signature without the implicit `this: &Self`. In `params`/`ret`, `Param(0)` is
 /// `Self`, then come the trait's parameters, then the method's own.
@@ -30,15 +30,55 @@ pub(super) struct TraitInfo {
 }
 
 /// One `impl Trait<args> for self_ty`; read by the solver (#56) and by dispatch (#58).
-// shortcut: nothing reads the table until the solver (#56) and dispatch (#58) land.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub(super) struct ImplInfo {
     pub id: DefId,
     pub generics: Vec<String>,
     pub trait_args: Vec<TyId>,
     pub self_ty: TyId,
+    /// The impl's own bounds (`impl<T: Show> ..`); they become obligations when it is selected.
+    pub predicates: Vec<Predicate<TyId>>,
     pub methods: HashMap<String, DefId>,
+}
+
+/// The predicates of `T: Trait<..>` bounds on `generics`; `scope` numbers the parameters. An unknown
+/// trait or a wrong argument count is reported and the bound dropped.
+pub(super) fn lower_bounds(
+    generics: &[crate::ast::TypeParam],
+    scope: &[(String, ParamIdx)],
+    defs: &DefTable,
+    traits: &HashMap<DefId, TraitInfo>,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<Predicate<TyId>> {
+    let mut predicates = Vec::new();
+    for param in generics {
+        let Some(&(_, idx)) = scope.iter().find(|(name, _)| *name == param.name.name) else { continue };
+        for bound in &param.bounds {
+            let span = Some(bound.name.span);
+            let Some(trait_id) = defs.lookup_trait(&bound.name.name).filter(|id| traits.contains_key(id)) else {
+                diagnostics.push(type_error(format!("unknown trait `{}`", bound.name.name), span));
+                continue;
+            };
+            let wanted = traits[&trait_id].generics.len();
+            if bound.args.len() != wanted {
+                let message = format!(
+                    "trait `{}` takes {wanted} type argument(s) but {} were supplied",
+                    bound.name.name,
+                    bound.args.len()
+                );
+                diagnostics.push(type_error(message, span));
+                continue;
+            }
+            let args: Vec<TyId> = bound.args.iter().map(|a| lower_type(a, defs, scope, tcx, diagnostics, span)).collect();
+            if args.iter().any(|&a| tcx.is_error(a)) {
+                continue;
+            }
+            let self_ty = tcx.param(idx);
+            predicates.push(Predicate { self_ty, trait_ref: TraitRef { trait_id, args } });
+        }
+    }
+    predicates
 }
 
 /// Impls by trait, in program order.
@@ -66,7 +106,7 @@ pub(super) fn build_traits(
 }
 
 fn lower_trait(t: &Trait, defs: &DefTable, tcx: &mut TyCtx, diagnostics: &mut Vec<Diagnostic>) -> TraitInfo {
-    let mut outer = vec![crate::ast::TypeParam { name: crate::span::SpannedName::new("Self", t.name.span) }];
+    let mut outer = vec![crate::ast::TypeParam { name: crate::span::SpannedName::new("Self", t.name.span), bounds: Vec::new() }];
     outer.extend(t.generics.iter().cloned());
     let mut seen = HashSet::new();
     let mut methods = Vec::new();
@@ -108,7 +148,7 @@ pub(super) fn build_impls(
             diagnostics.push(type_error(format!("unknown trait `{}`", i.trait_name.name), Some(i.trait_name.span)));
             continue;
         };
-        if let Some(info) = check_impl(i, index, &traits[&trait_id], defs, tcx, diagnostics) {
+        if let Some(info) = check_impl(i, index, &traits[&trait_id], traits, defs, tcx, diagnostics) {
             table.entry(trait_id).or_default().push(info);
         }
     }
@@ -119,6 +159,7 @@ fn check_impl(
     i: &Impl,
     index: usize,
     t: &TraitInfo,
+    traits: &HashMap<DefId, TraitInfo>,
     defs: &DefTable,
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
@@ -136,6 +177,7 @@ fn check_impl(
     }
     let scope = generics::scope(&[], &i.generics);
     tcx.set_param_names(generics::names(&[], &i.generics));
+    let predicates = lower_bounds(&i.generics, &scope, defs, traits, tcx, diagnostics);
     let self_ty = lower_type(&i.self_ty, defs, &scope, tcx, diagnostics, Some(i.self_span));
     let trait_args: Vec<TyId> =
         i.trait_args.iter().map(|arg| lower_type(arg, defs, &scope, tcx, diagnostics, head)).collect();
@@ -178,6 +220,7 @@ fn check_impl(
         generics: i.generics.iter().map(|g| g.name.name.clone()).collect(),
         trait_args,
         self_ty,
+        predicates,
         methods: implemented,
     })
 }

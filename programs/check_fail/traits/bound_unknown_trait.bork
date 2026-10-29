@@ -1,0 +1,3 @@
+// diag: unknown trait `Nope`
+fun f<T: Nope>(t: &T) { }
+fun main() {}

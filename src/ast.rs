@@ -153,10 +153,38 @@ pub struct Function {
     pub body: Block,
 }
 
-/// `T` in `fun f<T>` / `class Box<T>`. Bounds are a later ticket.
+/// `T` in `fun f<T>` / `class Box<T>`, with the bounds of `T: A + B<i32>` and `where T: C`.
+/// Only function, method and impl parameters may have bounds (`generics::validate`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeParam {
     pub name: crate::span::SpannedName,
+    pub bounds: Vec<TraitRef>,
+}
+
+/// A bound `Trait<args>`; the bounded type is the implicit `Self`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitRef {
+    pub name: crate::span::SpannedName,
+    pub args: Vec<Type>,
+}
+
+/// `T: A + B` in a `where` clause, merged into `T`'s bounds by the parser.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WherePred {
+    pub param: crate::span::SpannedName,
+    pub bounds: Vec<TraitRef>,
+}
+
+/// Adds the bounds of `preds` to the type parameter they name. `Err` is the first name in `preds`
+/// that is not one of `generics`.
+pub fn merge_where(generics: &mut [TypeParam], preds: Vec<WherePred>) -> Result<(), crate::span::SpannedName> {
+    for pred in preds {
+        match generics.iter_mut().find(|g| g.name.name == pred.param.name) {
+            Some(param) => param.bounds.extend(pred.bounds),
+            None => return Err(pred.param),
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq)]

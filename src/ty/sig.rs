@@ -13,11 +13,13 @@ pub struct FnSig<T> {
     pub generic_names: Vec<String>,
     pub params: Vec<T>,
     pub ret: T,
+    /// `T: Trait` bounds of the generics; empty for a non-generic or unbounded signature.
+    pub predicates: Vec<super::Predicate<T>>,
 }
 
 impl<T> FnSig<T> {
     pub fn new(params: Vec<T>, ret: T) -> FnSig<T> {
-        FnSig { generics: Vec::new(), generic_names: Vec::new(), params, ret }
+        FnSig { generics: Vec::new(), generic_names: Vec::new(), params, ret, predicates: Vec::new() }
     }
 }
 

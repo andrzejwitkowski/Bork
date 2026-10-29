@@ -12,6 +12,7 @@
 //! - `Named(name)` becomes `Class(DefId, args)`; a name that is not a class cannot be interned.
 
 mod fold;
+mod predicate;
 mod print;
 mod query;
 mod sig;
@@ -23,6 +24,7 @@ use crate::hir::Prim;
 
 pub use fold::{normalize, subst, super_fold, walk, TypeFolder, TypeVisitor};
 pub use print::TyPrinter;
+pub use predicate::{Predicate, TraitRef};
 pub use sig::{FnSig, FnSigs};
 
 /// Index of an interned type; only meaningful within the `TyCtx` that issued it.
@@ -83,6 +85,10 @@ pub struct TyCtx {
 impl TyCtx {
     pub fn set_param_names(&mut self, names: Vec<String>) {
         self.param_names = names;
+    }
+
+    pub fn param_names(&self) -> &[String] {
+        &self.param_names
     }
 
     /// A context that resolves class and enum names through a snapshot of `defs`.

@@ -796,4 +796,11 @@ programs/check/option/option_check.bork: 443..446 Box Lexical LexicalScope(2)
 programs/check/option/option_check.bork: 447..458 Option Lexical LexicalScope(2)
 programs/check/option/option_of_nullable.bork: 187..197 Option Lexical LexicalScope(0)
 programs/check/option/option_of_nullable.bork: 192..196 Option Lexical LexicalScope(0)
+programs/check/traits/bounds_basic.bork: 354..360 Circle Dynamic Program
+programs/check/traits/bounds_basic.bork: 391..394 Box Dynamic Program
+programs/check/traits/bounds_basic.bork: 395..401 Circle Lexical LexicalScope(2)
+programs/check/traits/bounds_method.bork: 273..279 Holder Dynamic Program
+programs/check/traits/bounds_method.bork: 295..301 Circle Dynamic Program
+programs/check/traits/bounds_where.bork: 432..438 Circle Dynamic Program
+programs/check/traits/bounds_where.bork: 456..462 Circle Dynamic Program
 programs/check/vec/push_via_this_field.bork: 156..157 H Dynamic Program

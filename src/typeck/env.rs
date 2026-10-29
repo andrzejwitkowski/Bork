@@ -98,6 +98,11 @@ pub(super) struct Env<'a> {
     pub(super) tparams: Vec<(String, crate::ty::ParamIdx)>,
     /// Type parameters instantiated at calls; any still unbound at the end of the body are errors.
     pub(super) pending: Vec<PendingParam>,
+    /// Traits and impls the solver selects from (#56).
+    pub(super) traits: &'a HashMap<DefId, super::traits::TraitInfo>,
+    pub(super) impls: &'a super::traits::ImplTable,
+    /// The bounds of the function being checked: what its type parameters are known to implement.
+    pub(super) param_env: Vec<crate::ty::Predicate<TyId>>,
 }
 
 /// One type parameter of a generic callee, instantiated with a fresh variable at a call.
@@ -115,6 +120,8 @@ impl<'a> Env<'a> {
         fun_sigs: &'a FnSigs,
         classes: &'a ClassTable,
         enums: &'a EnumTable,
+        traits: &'a HashMap<DefId, super::traits::TraitInfo>,
+        impls: &'a super::traits::ImplTable,
         constants: &'a ConstantTable,
     ) -> Self {
         Self {
@@ -134,6 +141,9 @@ impl<'a> Env<'a> {
             infcx: InferCtxt::new(),
             tparams: Vec::new(),
             pending: Vec::new(),
+            traits,
+            impls,
+            param_env: Vec::new(),
         }
     }
 
@@ -324,6 +334,14 @@ impl<'a> Env<'a> {
         } else {
             ""
         }
+    }
+
+    /// `Self: Trait<args>` as diagnostics print it.
+    pub(super) fn show_predicate(&self, predicate: &crate::ty::Predicate<TyId>) -> String {
+        let shown = |ty| self.show(ty).to_string();
+        let args: Vec<String> = predicate.trait_ref.args.iter().map(|&a| shown(a)).collect();
+        let args = if args.is_empty() { String::new() } else { format!("<{}>", args.join(", ")) };
+        format!("{}: {}{args}", shown(predicate.self_ty), self.defs.get(predicate.trait_ref.trait_id).name)
     }
 
     /// The one place a type mismatch is reported: `{what} has type X, expected Y`. Unknown

@@ -1,0 +1,29 @@
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+impl Show for Circle {
+    fun show(): String { return "circle" }
+}
+trait Conv<U> {
+    fun conv(u: U): U
+}
+impl Conv<i32> for Circle {
+    fun conv(u: i32): i32 { return u }
+}
+fun both<T, U>(t: &T, u: &U) where T: Show + Conv<i32>, U: Show { }
+fun multi<T: Show + Conv<i32>>(t: &T) { }
+fun main() {
+    val a = Circle(1.0)
+    val b = Circle(2.0)
+    both(&a, &b)
+    multi(&a)
+}

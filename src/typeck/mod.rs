@@ -3,6 +3,7 @@ mod exhaustive;
 mod expr;
 mod generics;
 mod lower;
+mod solve;
 mod stmt;
 mod traits;
 
@@ -65,21 +66,22 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let enums = build_enums(program, &defs, &mut tcx, &mut diagnostics);
     validate_owned_layouts(&classes, &enums, &mut tcx, &mut diagnostics);
     let trait_infos = traits::build_traits(program, &defs, &mut tcx, &mut diagnostics);
-    // The impl table is read by the solver and dispatch (#56, #58).
-    let _impls = traits::build_impls(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
-    let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
+    let impls = traits::build_impls(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
+    let mut fun_sigs = collect_fun_sigs(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     let mut option_if_vals = HashSet::new();
     for (name, constant) in &constants {
         members.insert(constant.id.numbered(), constant.member(name));
     }
-    collect_method_sigs(program, &defs, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
+    collect_method_sigs(program, &defs, &trait_infos, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
     let mut node_tys = NodeTypes::new();
     let mut checker = FunctionChecker {
         defs: &defs,
         fun_sigs: &fun_sigs,
         classes: &classes,
         enums: &enums,
+        traits: &trait_infos,
+        impls: &impls,
         constants: &constants,
         tcx: &mut tcx,
         diagnostics: &mut diagnostics,
@@ -270,6 +272,7 @@ fn build_enums(program: &Program, defs: &DefTable, tcx: &mut TyCtx, diagnostics:
 fn collect_fun_sigs(
     program: &Program,
     defs: &DefTable,
+    traits: &HashMap<DefId, traits::TraitInfo>,
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> FnSigs {
@@ -291,6 +294,7 @@ fn collect_fun_sigs(
         let mut sig = FnSig::new(params, ret);
         sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
         sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
+        sig.predicates = traits::lower_bounds(&function.generics, &scope, defs, traits, tcx, diagnostics);
         fun_sigs.insert(id, sig);
     }
     for (name, sig) in crate::builtins::signatures(tcx) {
@@ -307,6 +311,7 @@ fn collect_fun_sigs(
 fn collect_method_sigs(
     program: &Program,
     defs: &DefTable,
+    traits: &HashMap<DefId, traits::TraitInfo>,
     tcx: &mut TyCtx,
     classes: &mut ClassTable,
     fun_sigs: &mut FnSigs,
@@ -349,6 +354,7 @@ fn collect_method_sigs(
             let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty);
             sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
             sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
+            sig.predicates = traits::lower_bounds(&method.generics, &scope, defs, traits, tcx, diagnostics);
             fun_sigs.insert(key, sig);
             if let Some(info) = classes.get_mut(&owner) {
                 info.methods.insert(key, signature.clone());
@@ -372,6 +378,8 @@ struct FunctionChecker<'a> {
     fun_sigs: &'a FnSigs,
     classes: &'a ClassTable,
     enums: &'a EnumTable,
+    traits: &'a HashMap<DefId, traits::TraitInfo>,
+    impls: &'a traits::ImplTable,
     constants: &'a crate::constants::ConstantTable,
     tcx: &'a mut TyCtx,
     diagnostics: &'a mut Vec<Diagnostic>,
@@ -381,7 +389,7 @@ struct FunctionChecker<'a> {
 }
 
 fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<DefId>) -> HirFunction {
-    let FunctionChecker { defs, fun_sigs, classes, enums, constants, tcx, diagnostics, node_tys, members, option_if_vals } = checker;
+    let FunctionChecker { defs, fun_sigs, classes, enums, traits, impls, constants, tcx, diagnostics, node_tys, members, option_if_vals } = checker;
     let def = match owner {
         Some(class) => defs.lookup_method(class, &function.name),
         None => defs.lookup_fn(&function.name),
@@ -403,7 +411,8 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         .chain(function.generics.iter().map(|param| param.name.name.clone()))
         .collect();
     tcx.set_param_names(generics.clone());
-    let mut env = Env::new(defs, tcx, fun_sigs, classes, enums, constants);
+    let mut env = Env::new(defs, tcx, fun_sigs, classes, enums, traits, impls, constants);
+    env.param_env = signature.predicates.clone();
     env.self_class = owner;
     // The owner class's parameters come first, as in the method signature.
     env.tparams = generics.iter().enumerate().map(|(i, name)| (name.clone(), crate::ty::ParamIdx(i as u32))).collect();
@@ -430,7 +439,9 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
     }
     // Defaulting happens once, here; after it no literal variable remains.
     env.infcx.default_literals(env.tcx);
+    solve::select_where_possible(&mut env);
     report_uninferred(&mut env);
+    solve::report_unsolved(&mut env);
     let mut body = body;
     let (infcx, tcx, errors) = (&env.infcx, &mut *env.tcx, &mut env.diagnostics);
     let mut settle = |ty: TyId| match infcx.resolve(tcx, ty) {

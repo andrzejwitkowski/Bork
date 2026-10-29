@@ -2,12 +2,14 @@
 //! for untyped literal locals. Every method takes the `TyCtx` that issued the variables' ids.
 
 mod error;
+mod obligation;
 mod unify;
 
 #[cfg(test)]
 mod tests;
 
 pub use error::TypeError;
+pub use obligation::Obligation;
 
 use crate::hir::Prim;
 use crate::ty::{InferVar, NestedNullable, TyCtx, TyData, TyId, TypeFolder};
@@ -49,6 +51,7 @@ struct VarData {
 pub struct Snapshot {
     vars_len: usize,
     log_len: usize,
+    obligations_len: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -57,6 +60,8 @@ pub struct InferCtxt {
     /// Previous contents of every variable slot changed while a snapshot is open.
     log: Vec<(u32, VarData)>,
     open: usize,
+    /// Trait requirements registered by calls, not yet solved (#56). The solver is in `typeck`.
+    obligations: Vec<Obligation>,
 }
 
 impl InferCtxt {
@@ -73,7 +78,7 @@ impl InferCtxt {
 
     pub fn snapshot(&mut self) -> Snapshot {
         self.open += 1;
-        Snapshot { vars_len: self.vars.len(), log_len: self.log.len() }
+        Snapshot { vars_len: self.vars.len(), log_len: self.log.len(), obligations_len: self.obligations.len() }
     }
 
     /// Undoes everything since `snap`, including variables created since.
@@ -83,6 +88,7 @@ impl InferCtxt {
             self.vars[index as usize] = old;
         }
         self.vars.truncate(snap.vars_len);
+        self.obligations.truncate(snap.obligations_len);
         self.end_snapshot();
     }
 

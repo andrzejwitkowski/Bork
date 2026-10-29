@@ -983,3 +983,21 @@ fn rejects_trait_method_bodies_and_impl_without_for() {
     assert!(parse("trait T {\n    fun a() { }\n}\n").is_err());
     assert!(parse("impl T Circle {\n}\n").is_err());
 }
+
+#[test]
+fn parses_bounds_and_where_clauses() {
+    let src = "trait A {}\ntrait B<U> {}\nfun f<T: A + B<i32>, U>(t: T, u: U) where U: A, T: A {}\nimpl<T> A for Box<T> where T: A {}\nclass Box<T> {}\nfun main() {}\n";
+    let prog = parse(src).expect("parses");
+    let f = &prog.functions[0];
+    assert_eq!(f.generics[0].bounds.len(), 3);
+    assert_eq!(f.generics[0].bounds[1].args.len(), 1);
+    assert_eq!(f.generics[1].bounds.len(), 1);
+    assert_eq!(prog.impls[0].generics[0].bounds.len(), 1);
+}
+
+#[test]
+fn rejects_where_clauses_on_foreign_parameters_and_empty_bounds() {
+    assert!(parse("fun f<T>() where U: A {}\n").is_err());
+    assert!(parse("fun f<T:>() {}\n").is_err());
+    assert!(parse("fun f<T>() where T {}\n").is_err());
+}

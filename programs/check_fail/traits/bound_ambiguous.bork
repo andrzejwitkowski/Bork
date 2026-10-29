@@ -1,0 +1,27 @@
+// diag: it is ambiguous, several impls apply
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+impl Show for Circle {
+    fun show(): String { return "circle" }
+}
+impl<T: Show> Show for Box<T> {
+    fun show(): String { return "box" }
+}
+impl Show for Box<Circle> {
+    fun show(): String { return "overlap" }
+}
+fun need<T: Show>(t: &T) { }
+fun main() {
+    val b = Box(Circle(1.0))
+    need(&b)
+}

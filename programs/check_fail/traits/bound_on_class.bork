@@ -1,0 +1,20 @@
+// diag: bounds on the type parameters of a class are not supported yet
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+impl Show for Circle {
+    fun show(): String { return "circle" }
+}
+class Holder<T: Show> {
+    v: T
+}
+fun main() {}
