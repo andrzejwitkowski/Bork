@@ -1,6 +1,6 @@
 //! Type-parameter scopes and validation of generic declarations (#43).
 
-use crate::ast::{Program, Type, TypeParam};
+use crate::ast::{Program, TypeParam};
 use crate::defs::DefTable;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::ty::ParamIdx;
@@ -53,11 +53,7 @@ fn check_list(outer: &[TypeParam], own: &[TypeParam], defs: &DefTable, diagnosti
             format!("duplicate type parameter `{name}`")
         } else if outer.iter().any(|class_param| class_param.name.name == *name) {
             format!("type parameter `{name}` shadows the class type parameter `{name}`")
-        } else if name == "String"
-            || defs.lookup_class(name).is_some()
-            || defs.lookup_enum(name).is_some()
-            || !matches!(Type::from_ident(name, false), Type::Named { .. })
-        {
+        } else if defs.type_name_taken(name) {
             format!("type parameter `{name}` conflicts with the type `{name}`")
         } else {
             continue;

@@ -57,6 +57,7 @@ fn header_errors() {
     has("trait T {\n}\nimpl T for i32 {\n}\nfun main() {}\n", "only classes and enums");
     has("trait T {\n}\ntrait T {\n}\nfun main() {}\n", "conflicts with another type, trait or function");
     has("class T {\n    r: f64\n}\ntrait T {\n}\nfun main() {}\n", "conflicts with another type, trait or function");
+    has("trait Show {\n}\nfun f<Show>() {}\nfun main() {}\n", "type parameter `Show` conflicts with the type `Show`");
     has("trait T {\n    fun a()\n    fun a()\n}\nfun main() {}\n", "duplicate method `a` in trait `T`");
 }
 

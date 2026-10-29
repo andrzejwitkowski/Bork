@@ -148,7 +148,7 @@ impl DefTable {
             let span = class.fields.first().map(|field| field.name.span);
             let id = self.add(DefKind::Class, &class.name, None, span);
             let mut clashes = Vec::new();
-            if class.name == "String" || !matches!(Type::from_ident(&class.name, false), Type::Named { .. }) {
+            if is_builtin_type_name(&class.name) {
                 clashes.push(Clash::ClassBuiltinType);
             }
             if self.classes.contains_key(&class.name) {
@@ -169,11 +169,7 @@ impl DefTable {
         for e in &program.enums {
             let name = &e.name.name;
             let id = self.add(DefKind::Enum, name, None, Some(e.name.span));
-            let conflict = name == "String"
-                || !matches!(Type::from_ident(name, false), Type::Named { .. })
-                || self.enums.contains_key(name)
-                || self.classes.contains_key(name)
-                || fn_names.contains(name);
+            let conflict = self.type_name_taken(name) || fn_names.contains(name);
             if conflict {
                 self.defs[id.0 as usize].clashes.push(Clash::EnumConflict);
             } else {
@@ -229,12 +225,7 @@ impl DefTable {
         for t in &program.traits {
             let name = &t.name.name;
             let id = self.add(DefKind::Trait, name, None, Some(t.name.span));
-            let conflict = name == "String"
-                || !matches!(Type::from_ident(name, false), Type::Named { .. })
-                || self.traits.contains_key(name)
-                || self.classes.contains_key(name)
-                || self.enums.contains_key(name)
-                || fn_names.contains(name);
+            let conflict = self.type_name_taken(name) || fn_names.contains(name);
             if conflict {
                 self.defs[id.0 as usize].clashes.push(Clash::TraitConflict);
             } else {
@@ -345,6 +336,15 @@ impl DefTable {
         self.consts.get(name).copied()
     }
 
+    /// Whether `name` is a builtin type or already names a class, enum or trait. Enums, traits and
+    /// type parameters all use this one rule for the shared type namespace.
+    pub fn type_name_taken(&self, name: &str) -> bool {
+        is_builtin_type_name(name)
+            || self.classes.contains_key(name)
+            || self.enums.contains_key(name)
+            || self.traits.contains_key(name)
+    }
+
     pub fn lookup_trait(&self, name: &str) -> Option<DefId> {
         self.traits.get(name).copied()
     }
@@ -440,6 +440,11 @@ impl DefTable {
             }
         }
     }
+}
+
+/// `String` or a primitive type name.
+fn is_builtin_type_name(name: &str) -> bool {
+    name == "String" || !matches!(Type::from_ident(name, false), Type::Named { .. })
 }
 
 /// Builtin functions, registered as `Intrinsic` definitions (mirrors `builtins::resolve`).
