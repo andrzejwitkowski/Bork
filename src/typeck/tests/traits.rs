@@ -72,3 +72,11 @@ fn trait_and_impl_def_ids() {
     assert_eq!(defs.get(defs.impl_id(0)).kind, crate::defs::DefKind::Impl);
     assert_eq!(defs.get(defs.impl_method_id(0, 1)).kind, crate::defs::DefKind::ImplMethod);
 }
+
+#[test]
+fn an_error_in_the_trait_signature_is_not_reported_again_at_the_impl() {
+    let src = "trait T {\n    fun f(x: Nope): Nope2\n}\nclass C {\n    r: f64\n}\nimpl T for C {\n    fun f(x: i32): i32 { return x }\n}\nfun main() {}\n";
+    let messages = diags(src);
+    assert_eq!(messages.len(), 2, "{messages:?}");
+    assert!(messages.iter().all(|m| m.contains("unknown named type")), "{messages:?}");
+}

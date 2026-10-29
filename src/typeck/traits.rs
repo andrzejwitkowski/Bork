@@ -228,7 +228,7 @@ fn check_method(
     for (k, param) in method.params.iter().enumerate() {
         let found = lower_type(&param.ty.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, Some(param.name.span));
         let Ok(want) = subst(tcx, expected.params[k], &args) else { continue };
-        if found != want && !tcx.is_error(found) {
+        if found != want && !tcx.is_error(found) && !tcx.is_error(want) {
             let message = format!(
                 "parameter `{}` of `{name}` has type `{}` but trait `{trait_name}` declares `{}`",
                 expected.param_names[k],
@@ -240,7 +240,7 @@ fn check_method(
     }
     let found = lower_type(&method.return_type.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, span);
     if let Ok(want) = subst(tcx, expected.ret, &args) {
-        if found != want && !tcx.is_error(found) {
+        if found != want && !tcx.is_error(found) && !tcx.is_error(want) {
             let message = format!(
                 "`{name}` returns `{}` but trait `{trait_name}` declares `{}`",
                 shown(tcx, found),
