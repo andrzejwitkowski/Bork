@@ -91,7 +91,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
             chunk.needs.iter().for_each(|&need| wanted[need] = true);
         }
     }
-    let mut extra = Program { constants: Vec::new(), classes: Vec::new(), enums: Vec::new(), functions: Vec::new() };
+    let mut extra = Program { constants: Vec::new(), classes: Vec::new(), enums: Vec::new(), functions: Vec::new(), traits: Vec::new(), impls: Vec::new() };
     for (index, chunk) in CHUNKS.iter().enumerate().filter(|(index, _)| wanted[*index]) {
         let parsed = crate::parse_unnumbered(chunk.source)
             .unwrap_or_else(|err| panic!("prelude chunk {index} does not parse: {err:?}"));

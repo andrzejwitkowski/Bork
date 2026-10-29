@@ -1,0 +1,12 @@
+// diag: is not a member of trait
+trait Shape {
+    fun area(): f64
+}
+class C {
+    r: f64
+}
+impl Shape for C {
+    fun area(): f64 { return 1.0 }
+    fun perimeter(): f64 { return 2.0 }
+}
+fun main() {}

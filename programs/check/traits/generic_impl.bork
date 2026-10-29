@@ -1,0 +1,23 @@
+trait Show {
+    fun show(): String
+}
+trait Conv<U> {
+    fun conv<V>(u: U, v: V): V
+}
+class Box<T> {
+    v: T
+}
+enum Maybe<T> {
+    Just(v: T)
+    Nothing
+}
+impl<T> Show for Box<T> {
+    fun show(): String { return "box" }
+}
+impl<T> Show for Maybe<T> {
+    fun show(): String { return "maybe" }
+}
+impl<T> Conv<i32> for Box<T> {
+    fun conv<W>(u: i32, v: W): W { return v }
+}
+fun main() {}

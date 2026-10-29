@@ -960,3 +960,26 @@ fn enum_name_clashes_are_reported() {
     assert_eq!(errors("enum E { A }\nconst E: i32 = 1\nfun main() {}"), 1);
     assert_eq!(errors("enum String { A }\nfun main() {}"), 1);
 }
+
+#[test]
+fn parses_traits_and_impls() {
+    let src = "trait Shape {\n    fun area(): f64\n    fun scale<T>(k: T, j: i32): T\n}\nclass Circle {\n    r: f64\n}\nimpl Shape for Circle {\n    fun area(): f64 { return 1.0 }\n    fun scale<T>(k: T, j: i32): T { return k }\n}\nimpl<T> Show<i32> for Box<T> {\n}\ntrait Empty {}\nfun main() {}\n";
+    let prog = parse(src).expect("parses");
+    assert_eq!(prog.traits.len(), 2);
+    assert_eq!(prog.traits[0].name.name, "Shape");
+    assert_eq!(prog.traits[0].methods.len(), 2);
+    assert_eq!(prog.traits[0].methods[1].generics.len(), 1);
+    assert_eq!(prog.traits[0].methods[1].params.len(), 2);
+    assert_eq!(prog.impls.len(), 2);
+    assert_eq!(prog.impls[0].trait_name.name, "Shape");
+    assert_eq!(prog.impls[0].methods.len(), 2);
+    assert_eq!(prog.impls[1].generics.len(), 1);
+    assert_eq!(prog.impls[1].trait_args.len(), 1);
+    assert_eq!(prog.classes.len(), 1);
+}
+
+#[test]
+fn rejects_trait_method_bodies_and_impl_without_for() {
+    assert!(parse("trait T {\n    fun a() { }\n}\n").is_err());
+    assert!(parse("impl T Circle {\n}\n").is_err());
+}

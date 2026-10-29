@@ -1,0 +1,11 @@
+// diag: has 0 parameters but trait
+trait Shape {
+    fun scaled(k: f64): f64
+}
+class C {
+    r: f64
+}
+impl Shape for C {
+    fun scaled(): f64 { return 1.0 }
+}
+fun main() {}

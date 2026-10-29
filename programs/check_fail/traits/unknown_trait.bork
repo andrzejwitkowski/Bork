@@ -1,0 +1,7 @@
+// diag: unknown trait `Nope`
+class C {
+    r: f64
+}
+impl Nope for C {
+}
+fun main() {}

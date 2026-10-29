@@ -8,6 +8,8 @@ pub struct Program {
     pub classes: Vec<Class>,
     pub enums: Vec<Enum>,
     pub functions: Vec<Function>,
+    pub traits: Vec<Trait>,
+    pub impls: Vec<Impl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -80,6 +82,8 @@ pub enum Item {
     Class(Class),
     Enum(Enum),
     Fun(Function),
+    Trait(Trait),
+    Impl(Impl),
 }
 
 impl Program {
@@ -88,12 +92,16 @@ impl Program {
         let mut classes = Vec::new();
         let mut enums = Vec::new();
         let mut functions = Vec::new();
+        let mut traits = Vec::new();
+        let mut impls = Vec::new();
         for item in items {
             match item {
                 Item::Const(constant) => constants.push(constant),
                 Item::Class(class) => classes.push(class),
                 Item::Enum(e) => enums.push(e),
                 Item::Fun(function) => functions.push(function),
+                Item::Trait(t) => traits.push(t),
+                Item::Impl(i) => impls.push(i),
             }
         }
         Self {
@@ -101,8 +109,37 @@ impl Program {
             classes,
             enums,
             functions,
+            traits,
+            impls,
         }
     }
+}
+
+/// `trait Shape { fun area(): f64 }`. Methods are signatures; they take `this: &Self` implicitly.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Trait {
+    pub name: crate::span::SpannedName,
+    pub generics: Vec<TypeParam>,
+    pub methods: Vec<TraitMethod>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TraitMethod {
+    pub name: crate::span::SpannedName,
+    pub generics: Vec<TypeParam>,
+    pub params: Vec<Param>,
+    pub return_type: Type,
+}
+
+/// `impl<T> Show for Box<T> { .. }`. `trait_args` are the `<..>` after the trait name.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Impl {
+    pub generics: Vec<TypeParam>,
+    pub trait_name: crate::span::SpannedName,
+    pub trait_args: Vec<Type>,
+    pub self_ty: Type,
+    pub self_span: crate::span::Span,
+    pub methods: Vec<Function>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -163,6 +200,30 @@ pub enum Type {
 }
 
 impl Type {
+    /// This type with every `Self` replaced by `self_ty` (the type an `impl` is for).
+    pub fn with_self(&self, self_ty: &Type) -> Type {
+        let sub = |t: &Type| Box::new(t.with_self(self_ty));
+        match self {
+            Type::Named { name, args, nullable } if name == "Self" && args.is_empty() => match self_ty {
+                Type::Named { name, args, nullable: inner } => {
+                    Type::Named { name: name.clone(), args: args.clone(), nullable: *inner || *nullable }
+                }
+                other => other.clone(),
+            },
+            Type::Named { name, args, nullable } => {
+                Type::Named { name: name.clone(), args: args.iter().map(|a| a.with_self(self_ty)).collect(), nullable: *nullable }
+            }
+            Type::Primitive { .. } => self.clone(),
+            Type::Array { elem, len, nullable } => Type::Array { elem: sub(elem), len: *len, nullable: *nullable },
+            Type::Func { params, ret, nullable } => {
+                Type::Func { params: params.iter().map(|p| p.with_self(self_ty)).collect(), ret: sub(ret), nullable: *nullable }
+            }
+            Type::Ref { inner, nullable } => Type::Ref { inner: sub(inner), nullable: *nullable },
+            Type::ManagedRef { inner } => Type::ManagedRef { inner: sub(inner) },
+            Type::Vec { elem } => Type::Vec { elem: sub(elem) },
+        }
+    }
+
     pub fn from_ident(name: &str, nullable: bool) -> Self {
         let canonical = match name {
             "Int" => "i32",

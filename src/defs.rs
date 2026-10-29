@@ -22,6 +22,13 @@ pub enum DefKind {
     Method,
     Const,
     Intrinsic,
+    Trait,
+    /// A trait method signature; its owner is the trait.
+    TraitMethod,
+    /// An `impl Trait for Type` block.
+    Impl,
+    /// A method of an impl; its owner is the impl.
+    ImplMethod,
 }
 
 /// A declaration that clashes with another one. Each variant is reported at the site that
@@ -44,6 +51,9 @@ pub enum Clash {
     VariantDuplicate,
     MethodFieldName,
     MethodDuplicate,
+    /// A trait named like another trait, a class, an enum, a primitive, `String` or a function.
+    TraitConflict,
+    TraitMethodDuplicate,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +82,8 @@ pub struct DefTable {
     consts: HashMap<String, DefId>,
     methods: HashMap<(DefId, String), DefId>,
     intrinsics: HashMap<String, DefId>,
+    traits: HashMap<String, DefId>,
+    trait_items: HashMap<(DefId, String), DefId>,
     // Program order, parallel to `Program::{constants, functions, classes}` and `Class::methods`.
     const_ids: Vec<DefId>,
     fn_ids: Vec<DefId>,
@@ -79,6 +91,10 @@ pub struct DefTable {
     enum_ids: Vec<DefId>,
     variant_ids: Vec<Vec<DefId>>,
     method_ids: Vec<Vec<DefId>>,
+    trait_ids: Vec<DefId>,
+    trait_method_ids: Vec<Vec<DefId>>,
+    impl_ids: Vec<DefId>,
+    impl_method_ids: Vec<Vec<DefId>>,
 }
 
 fn is_option_shaped(e: &crate::ast::Enum) -> bool {
@@ -102,6 +118,8 @@ impl DefTable {
         table.add_classes(program, &fn_names);
         table.add_enums(program, &fn_names);
         table.add_methods(program);
+        table.add_traits(program, &fn_names);
+        table.add_impls(program);
         table.add_constants(program);
         table
     }
@@ -207,6 +225,50 @@ impl DefTable {
         }
     }
 
+    fn add_traits(&mut self, program: &Program, fn_names: &HashSet<String>) {
+        for t in &program.traits {
+            let name = &t.name.name;
+            let id = self.add(DefKind::Trait, name, None, Some(t.name.span));
+            let conflict = name == "String"
+                || !matches!(Type::from_ident(name, false), Type::Named { .. })
+                || self.traits.contains_key(name)
+                || self.classes.contains_key(name)
+                || self.enums.contains_key(name)
+                || fn_names.contains(name);
+            if conflict {
+                self.defs[id.0 as usize].clashes.push(Clash::TraitConflict);
+            } else {
+                self.traits.insert(name.clone(), id);
+            }
+            self.defs[id.0 as usize].arity = t.generics.len();
+            self.trait_ids.push(id);
+            let mut ids = Vec::new();
+            for method in &t.methods {
+                let mid = self.add(DefKind::TraitMethod, &method.name.name, Some(id), Some(method.name.span));
+                // A rejected trait keeps its items out of the table, so one mistake is one error.
+                if !conflict && self.trait_items.insert((id, method.name.name.clone()), mid).is_some() {
+                    self.defs[mid.0 as usize].clashes.push(Clash::TraitMethodDuplicate);
+                }
+                ids.push(mid);
+            }
+            self.trait_method_ids.push(ids);
+        }
+    }
+
+    fn add_impls(&mut self, program: &Program) {
+        for i in &program.impls {
+            let id = self.add(DefKind::Impl, &i.trait_name.name, None, Some(i.trait_name.span));
+            self.defs[id.0 as usize].arity = i.generics.len();
+            self.impl_ids.push(id);
+            let ids = i
+                .methods
+                .iter()
+                .map(|m| self.add(DefKind::ImplMethod, &m.name, Some(id), Some(m.name_span)))
+                .collect();
+            self.impl_method_ids.push(ids);
+        }
+    }
+
     fn add_constants(&mut self, program: &Program) {
         for decl in &program.constants {
             let name = &decl.name.name;
@@ -283,6 +345,30 @@ impl DefTable {
         self.consts.get(name).copied()
     }
 
+    pub fn lookup_trait(&self, name: &str) -> Option<DefId> {
+        self.traits.get(name).copied()
+    }
+
+    pub fn lookup_trait_item(&self, t: DefId, name: &str) -> Option<DefId> {
+        self.trait_items.get(&(t, name.to_string())).copied()
+    }
+
+    pub fn trait_id(&self, index: usize) -> DefId {
+        self.trait_ids[index]
+    }
+
+    pub fn trait_method_id(&self, trait_index: usize, method_index: usize) -> DefId {
+        self.trait_method_ids[trait_index][method_index]
+    }
+
+    pub fn impl_id(&self, index: usize) -> DefId {
+        self.impl_ids[index]
+    }
+
+    pub fn impl_method_id(&self, impl_index: usize, method_index: usize) -> DefId {
+        self.impl_method_ids[impl_index][method_index]
+    }
+
     pub fn lookup_method(&self, class: DefId, name: &str) -> Option<DefId> {
         self.methods.get(&(class, name.to_string())).copied()
     }
@@ -338,6 +424,11 @@ impl DefTable {
             Clash::VariantDuplicate => {
                 let owner = def.owner.map(|owner| self.get(owner).name.as_str()).unwrap_or("?");
                 format!("duplicate variant `{name}` in enum `{owner}`")
+            }
+            Clash::TraitConflict => format!("trait `{name}` conflicts with another type, trait or function"),
+            Clash::TraitMethodDuplicate => {
+                let owner = def.owner.map(|owner| self.get(owner).name.as_str()).unwrap_or("?");
+                format!("duplicate method `{name}` in trait `{owner}`")
             }
             Clash::MethodFieldName | Clash::MethodDuplicate => {
                 let class = def.owner.map(|owner| self.get(owner).name.as_str()).unwrap_or("?");

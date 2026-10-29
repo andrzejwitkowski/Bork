@@ -26,6 +26,18 @@ pub(super) fn validate(program: &Program, defs: &DefTable, diagnostics: &mut Vec
     for e in &program.enums {
         check_list(&[], &e.generics, defs, diagnostics);
     }
+    for t in &program.traits {
+        check_list(&[], &t.generics, defs, diagnostics);
+        for method in &t.methods {
+            check_list(&t.generics, &method.generics, defs, diagnostics);
+        }
+    }
+    for i in &program.impls {
+        check_list(&[], &i.generics, defs, diagnostics);
+        for method in &i.methods {
+            check_list(&i.generics, &method.generics, defs, diagnostics);
+        }
+    }
     for class in &program.classes {
         check_list(&[], &class.generics, defs, diagnostics);
         for method in &class.methods {

@@ -3483,6 +3483,12 @@ Arenas
 │   ├── n [Local]
 │   └── IfThen
 └── fun main
+== programs/check/traits/basic.bork
+Arenas
+└── fun main
+== programs/check/traits/generic_impl.bork
+Arenas
+└── fun main
 == programs/check/vec/push_via_this_field.bork
 Arenas
 ├── fun main
@@ -4342,6 +4348,34 @@ Type Error [133..134] initializer for `o` has type i32, expected i32?
 Arenas
 └── fun main
     └── o [Local]
+== programs/check_fail/traits/arity_mismatch.bork
+Type Error [130..136] method `scaled` has 0 parameters but trait `Shape` declares 1
+Arenas
+└── fun main
+== programs/check_fail/traits/extra_item.bork
+Type Error [155..164] method `perimeter` is not a member of trait `Shape`
+Arenas
+└── fun main
+== programs/check_fail/traits/missing_item.bork
+Type Error [119..124] not all trait items implemented, missing: `scaled`
+Arenas
+└── fun main
+== programs/check_fail/traits/param_type_mismatch.bork
+Type Error [136..137] parameter `k` of `scaled` has type `i32` but trait `Shape` declares `f64`
+Arenas
+└── fun main
+== programs/check_fail/traits/trait_arity.bork
+Type Error [108..112] trait `Conv` takes 1 type argument(s) but 0 were supplied
+Arenas
+└── fun main
+== programs/check_fail/traits/type_mismatch.bork
+Type Error [119..123] `area` returns `i32` but trait `Shape` declares `f64`
+Arenas
+└── fun main
+== programs/check_fail/traits/unknown_trait.bork
+Type Error [58..62] unknown trait `Nope`
+Arenas
+└── fun main
 == programs/check_fail/vec/class_element.bork
 Type Error [89..100] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
 Arenas

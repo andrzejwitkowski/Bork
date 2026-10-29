@@ -1,0 +1,12 @@
+trait Shape {
+    fun area(): f64
+    fun scaled(k: f64): f64
+}
+class Circle {
+    r: f64
+}
+impl Shape for Circle {
+    fun area(): f64 { return r * r }
+    fun scaled(k: f64): f64 { return k * r }
+}
+fun main() {}

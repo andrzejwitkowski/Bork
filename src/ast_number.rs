@@ -31,6 +31,20 @@ pub fn number_nodes_from(program: &mut Program, first: u32) -> Vec<(Span, AstId)
         }
     }
     program.functions.iter_mut().for_each(|f| n.function(f));
+    for t in &mut program.traits {
+        n.name(&mut t.name);
+        t.generics.iter_mut().for_each(|g| n.name(&mut g.name));
+        for m in &mut t.methods {
+            n.name(&mut m.name);
+            m.generics.iter_mut().for_each(|g| n.name(&mut g.name));
+            m.params.iter_mut().for_each(|p| n.name(&mut p.name));
+        }
+    }
+    for i in &mut program.impls {
+        i.generics.iter_mut().for_each(|g| n.name(&mut g.name));
+        n.name(&mut i.trait_name);
+        i.methods.iter_mut().for_each(|m| n.function(m));
+    }
     n.index
 }
 
