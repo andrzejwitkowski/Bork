@@ -175,13 +175,13 @@ pub struct WherePred {
     pub bounds: Vec<TraitRef>,
 }
 
-/// Adds the bounds of `preds` to the type parameter they name. `Err` is the first name in `preds`
-/// that is not one of `generics`.
-pub fn merge_where(generics: &mut [TypeParam], preds: Vec<WherePred>) -> Result<(), crate::span::SpannedName> {
+/// Adds the bounds of `preds` to the type parameter they name. `Err` when one names no parameter
+/// of `generics`.
+pub fn merge_where(generics: &mut [TypeParam], preds: Vec<WherePred>) -> Result<(), ()> {
     for pred in preds {
         match generics.iter_mut().find(|g| g.name.name == pred.param.name) {
             Some(param) => param.bounds.extend(pred.bounds),
-            None => return Err(pred.param),
+            None => return Err(()),
         }
     }
     Ok(())

@@ -62,7 +62,7 @@ fn a_bound_in_scope_discharges_a_call_inside_a_generic_body() {
 
 #[test]
 fn a_requirement_waits_until_its_type_is_known() {
-    // `need`'s argument is only fixed by the later `let`'s annotation-free initializer.
+    // `make()` has no type of its own: the `val` annotation fixes it, and without one nothing does.
     clean("fun make<U>(): U { return make() }\nfun main() {\n    val c: Circle = make()\n    need(&c)\n}\n");
     rejected("fun make<U>(): U { return make() }\nfun main() {\n    val x = make()\n    need(&x)\n}\n", "cannot infer");
 }
@@ -112,4 +112,10 @@ fn method_and_impl_bounds_are_checked() {
         "class Holder {\n    n: i32\n    fun put<T: Show>(t: &T) { }\n}\nfun main() {\n    val h = Holder(1)\n    val s = Square(1.0)\n    h.put(&s)\n}\n",
         "the trait bound `Square: Show` is not satisfied",
     );
+}
+
+#[test]
+fn a_repeated_bound_is_an_error() {
+    rejected("fun f<T: Show + Show>(t: &T) { }\nfun main() {}\n", "duplicate bound `Show` on `T`");
+    rejected("fun f<T: Show>(t: &T) where T: Show { }\nfun main() {}\n", "duplicate bound `Show` on `T`");
 }

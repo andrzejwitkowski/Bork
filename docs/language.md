@@ -129,6 +129,7 @@ impl<T: Show> Show for Box<T> { ... }
 - A type parameter of a function, method or impl may carry bounds, written `T: A + B<i32>` or in a `where` clause (`where` is a reserved word; it may only name the item's own type parameters). Class, enum and trait parameters cannot have bounds yet.
 - Every call checks the callee's bounds against the type arguments. A class or enum satisfies `Trait` if an impl matches; an impl's own bounds are then required of its type arguments (`Box<Square>: Show` needs `Square: Show`). Inside a generic body, `T` implements exactly the traits in its bounds.
 - A requirement whose type is still unknown waits until it is fixed; at the end of the function an unfixed one is an error. Several matching impls (until overlap is rejected, #57) is an ambiguity error that names them. Following impl bounds stops at depth 32.
+- A type parameter that appears only in a bound (`fun g<T: Show>()`) is not monomorphized yet: calling it is rejected until dispatch lands (#58). A method in an impl may not add bounds the trait method does not declare, and a repeated bound is an error.
 - Primitives, `Vec` and other non-class types implement no traits yet, so a bound such as `T: Show` is never satisfied by an `i32`.
 
 For the complete strong/weak classification rules, arena-ID algorithm, and

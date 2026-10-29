@@ -87,10 +87,6 @@ impl TyCtx {
         self.param_names = names;
     }
 
-    pub fn param_names(&self) -> &[String] {
-        &self.param_names
-    }
-
     /// A context that resolves class and enum names through a snapshot of `defs`.
     pub fn new(defs: &DefTable) -> TyCtx {
         let class_ids: HashMap<String, DefId> =

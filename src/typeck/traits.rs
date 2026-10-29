@@ -74,8 +74,12 @@ pub(super) fn lower_bounds(
             if args.iter().any(|&a| tcx.is_error(a)) {
                 continue;
             }
-            let self_ty = tcx.param(idx);
-            predicates.push(Predicate { self_ty, trait_ref: TraitRef { trait_id, args } });
+            let predicate = Predicate { self_ty: tcx.param(idx), trait_ref: TraitRef { trait_id, args } };
+            if predicates.contains(&predicate) {
+                diagnostics.push(type_error(format!("duplicate bound `{}` on `{}`", bound.name.name, param.name.name), span));
+                continue;
+            }
+            predicates.push(predicate);
         }
     }
     predicates
@@ -246,6 +250,11 @@ fn check_method(
         );
         diagnostics.push(type_error(message, span));
         return;
+    }
+    // Trait methods cannot declare bounds yet, so any bound here is stricter than the trait.
+    if let Some(bound) = method.generics.iter().flat_map(|g| &g.bounds).next() {
+        let message = format!("method `{name}` has bounds that trait `{trait_name}` does not declare");
+        diagnostics.push(type_error(message, Some(bound.name.span)));
     }
     if method.params.len() != expected.params.len() {
         let message = format!(

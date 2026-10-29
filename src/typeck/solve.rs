@@ -205,12 +205,8 @@ fn solve_from_impls(env: &mut Env<'_>, predicate: &Predicate<TyId>, obligation: 
 }
 
 /// An impl's self type with the impl's own parameter names (`Box<T>`).
-fn impl_self(env: &mut Env<'_>, info: &super::traits::ImplInfo) -> String {
-    let saved = env.tcx.param_names().to_vec();
-    env.tcx.set_param_names(info.generics.clone());
-    let shown = env.tcx.display(info.self_ty).to_string();
-    env.tcx.set_param_names(saved);
-    shown
+fn impl_self(env: &Env<'_>, info: &super::traits::ImplInfo) -> String {
+    env.tcx.display_with(info.self_ty, &info.generics).to_string()
 }
 
 fn unsatisfied(env: &Env<'_>, predicate: &Predicate<TyId>, hint: &str) -> String {

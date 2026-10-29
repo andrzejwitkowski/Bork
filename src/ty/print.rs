@@ -7,17 +7,24 @@ use super::{TyCtx, TyData, TyId};
 pub struct TyPrinter<'a> {
     ctx: &'a TyCtx,
     id: TyId,
+    /// Parameter names to print instead of the context's, e.g. an impl's own.
+    names: Option<&'a [String]>,
 }
 
 impl TyCtx {
     pub fn display(&self, id: TyId) -> TyPrinter<'_> {
-        TyPrinter { ctx: self, id }
+        TyPrinter { ctx: self, id, names: None }
+    }
+
+    /// Like [`TyCtx::display`], naming `Param(i)` as `names[i]`.
+    pub fn display_with<'a>(&'a self, id: TyId, names: &'a [String]) -> TyPrinter<'a> {
+        TyPrinter { ctx: self, id, names: Some(names) }
     }
 }
 
 impl fmt::Display for TyPrinter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let show = |id| TyPrinter { ctx: self.ctx, id };
+        let show = |id| TyPrinter { ctx: self.ctx, id, names: self.names };
         match self.ctx.data(self.id) {
             TyData::Prim(prim) => write!(f, "{prim}"),
             TyData::String => f.write_str("String"),
@@ -51,7 +58,7 @@ impl fmt::Display for TyPrinter<'_> {
             TyData::Vec(t) => write!(f, "Vec<{}>", show(*t)),
             TyData::Range(t) => write!(f, "Range<{}>", show(*t)),
             // No source syntax yet; chosen so they cannot be mistaken for a written type.
-            TyData::Param(idx) => match self.ctx.param_names.get(idx.0 as usize) {
+            TyData::Param(idx) => match self.names.unwrap_or(&self.ctx.param_names).get(idx.0 as usize) {
                 Some(name) => f.write_str(name),
                 None => write!(f, "T{}", idx.0),
             },

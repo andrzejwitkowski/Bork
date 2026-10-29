@@ -81,3 +81,9 @@ fn an_error_in_the_trait_signature_is_not_reported_again_at_the_impl() {
     assert_eq!(messages.len(), 2, "{messages:?}");
     assert!(messages.iter().all(|m| m.contains("unknown named type")), "{messages:?}");
 }
+
+#[test]
+fn an_impl_method_may_not_add_bounds_the_trait_lacks() {
+    let src = "trait Show {\n}\ntrait T {\n    fun m<U>(u: &U)\n}\nclass C {\n    r: f64\n}\nimpl T for C {\n    fun m<U: Show>(u: &U) { }\n}\nfun main() {}\n";
+    has(src, "method `m` has bounds that trait `T` does not declare");
+}
