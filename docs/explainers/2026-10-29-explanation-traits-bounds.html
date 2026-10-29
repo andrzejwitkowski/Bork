@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork PR #184 — Trait bounds and a basic solver</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfbf8; --card:#fff; --line:#dfe2e8; --accent:#2b5fd9; --ok:#1a7f4b; --bad:#b3261e; --warn:#fff6d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1,h2,h3,nav,.box,.quiz button,.tag { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1 { font-size: 2rem; line-height:1.2; margin: 12px 0 4px; }
+  h2 { font-size: 1.5rem; margin-top: 2.6em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3 { font-size: 1.1rem; margin-top: 1.8em; }
+  .sub { color: var(--muted); margin-top: 0; }
+  nav { background: var(--card); border:1px solid var(--line); border-radius:10px; padding: 12px 18px; margin: 18px 0; font-size:.95rem; }
+  nav a { color: var(--accent); text-decoration:none; }
+  nav ol { margin: 6px 0 0; padding-left: 20px; }
+  code { font: .88em ui-monospace, Menlo, Consolas, monospace; background:#eef0f5; padding: 1px 5px; border-radius:4px; }
+  pre { background:#171b26; color:#e6e9f2; padding: 14px 16px; border-radius:10px; overflow-x:auto; font: .85rem/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre code { background:none; padding:0; color:inherit; }
+  .callout { border-left: 4px solid var(--accent); background:#eef3ff; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 1.2em 0; font-size:.97rem; }
+  .callout.warn { border-color:#c98a00; background: var(--warn); }
+  .skip { color: var(--muted); font-size:.9rem; font-style: italic; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:1.2em 0; }
+  .box { flex: 1 1 130px; background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.88rem; }
+  .box b { display:block; margin-bottom:4px; }
+  .box.hl { border-color: var(--accent); background:#eef3ff; }
+  .box.bad { border-color: var(--bad); background:#fdecea; }
+  .box.ok { border-color: var(--ok); background:#e8f6ee; }
+  .box.wait { border-color:#c98a00; background: var(--warn); }
+  .arrow { align-self:center; font-size:1.3rem; color:var(--muted); }
+  .cols { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 1.2em 0; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .arrow { display:none; } }
+  table { border-collapse: collapse; width:100%; font-family: -apple-system, "Segoe UI", sans-serif; font-size:.9rem; margin: 1em 0; }
+  th,td { border:1px solid var(--line); padding: 6px 9px; text-align:left; vertical-align: top; }
+  th { background:#f1f3f8; }
+  .tag { display:inline-block; font-size:.72rem; padding:1px 8px; border-radius:99px; background:#e4e8f3; color:#334; }
+  .quiz { background:var(--card); border:1px solid var(--line); border-radius:12px; padding: 14px 18px; margin: 18px 0; }
+  .quiz p.q { font-weight:600; margin-top:0; }
+  .quiz button { display:block; width:100%; text-align:left; margin: 6px 0; padding: 9px 12px; border:1.5px solid var(--line); border-radius:8px; background:#fff; font-size:.92rem; cursor:pointer; color:var(--fg); }
+  .quiz button:hover:not(:disabled) { border-color: var(--accent); }
+  .quiz button.right { border-color: var(--ok); background:#e8f6ee; }
+  .quiz button.wrong { border-color: var(--bad); background:#fdecea; }
+  .fb { display:none; margin-top:8px; font-size:.95rem; padding: 8px 12px; background:#f3f5fa; border-radius:8px; }
+  #score { font-family: -apple-system, sans-serif; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Making a trait bound mean something</h1>
+<p class="sub">PR #184 · branch <code>feat/traits-bounds</code> · TS-P5-02, issue #56 · second of five Phase 5 (traits) tickets</p>
+
+<nav>
+  <b>Contents</b>
+  <ol>
+    <li><a href="#background">Background</a></li>
+    <li><a href="#intuition">Intuition</a></li>
+    <li><a href="#code">Code walkthrough</a></li>
+    <li><a href="#limits">What this PR deliberately does not do</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">1. Background</h2>
+
+<p class="skip">If you know what a bound and a trait solver are, skip to “Where Bork stood after #55”.</p>
+
+<h3>What is a bound?</h3>
+<p>A generic function such as <code>fun show_twice&lt;T&gt;(t: &amp;T)</code> works for <em>every</em> type, which means its body can do almost nothing with <code>t</code>. A <em>bound</em> narrows the promise: <code>fun show_twice&lt;T: Show&gt;(t: &amp;T)</code> says “only types that implement <code>Show</code>”. In return the body may rely on that. The caller carries the burden: before the call is accepted, someone has to check that the type really implements the trait.</p>
+
+<h3>What does a solver do?</h3>
+<p>That “someone” is a <em>trait solver</em>. It is given a requirement such as <code>Circle: Show</code> and answers one of three things: <em>yes</em> (an impl exists), <em>no</em> (none does), or <em>not yet</em> (the type is not known so far). Rust’s solver is large; Bork’s, per RFC 0001, is deliberately small: no negative reasoning, no specialization, a depth limit.</p>
+
+<div class="flow">
+  <div class="box"><b>Call</b><code>need(&amp;c)</code><br>with <code>c: Circle</code></div><div class="arrow">→</div>
+  <div class="box hl"><b>Requirement</b><code>Circle: Show</code></div><div class="arrow">→</div>
+  <div class="box"><b>Solver</b>looks for <code>impl Show for Circle</code></div><div class="arrow">→</div>
+  <div class="box ok"><b>Answer</b>yes / no / not yet</div>
+</div>
+
+<h3>Where Bork stood after #55</h3>
+<p>The previous PR taught the compiler to <em>read</em> traits and impls and to check that an impl matches its trait. It built an impl table and then threw it away: nothing consulted it. A type parameter was just a name (<code>TypeParam { name }</code>), and a diagnostic even said “a type parameter has no bounds yet”. Inference, from earlier phases, deliberately knew nothing about traits.</p>
+
+<div class="callout"><b>Key concept — inference variables.</b> While checking <code>need(make())</code>, the argument’s type is not known at the moment of the call. Bork gives it a placeholder, an <em>inference variable</em>, to be filled in later by unification. A requirement on a placeholder cannot be judged yet; this is why the solver needs the answer “not yet”.</div>
+
+<h2 id="intuition">2. Intuition</h2>
+
+<p>The core idea fits in one sentence: <em>a bound on a generic function is a list of requirements, and each call turns that list into obligations that the solver must discharge before the function ends.</em></p>
+
+<h3>The life of one obligation</h3>
+<p>Take this program (the toy data used throughout):</p>
+<pre><code>trait Show { fun show(): String }
+class Circle { r: f64 }
+class Square { s: f64 }
+class Box&lt;T&gt; { v: T }
+impl Show for Circle { ... }
+impl&lt;T: Show&gt; Show for Box&lt;T&gt; { ... }
+
+fun need&lt;T: Show&gt;(t: &amp;T) { }</code></pre>
+
+<p>The signature of <code>need</code> now carries one <em>predicate</em>: <code>Param(0): Show</code>. At a call, the type parameter is replaced by the real (or placeholder) type, and the predicate becomes an obligation:</p>
+
+<table>
+  <tr><th>Call</th><th>Obligation</th><th>Outcome</th></tr>
+  <tr><td><code>need(&amp;Circle(1.0))</code></td><td><code>Circle: Show</code></td><td>direct impl → solved</td></tr>
+  <tr><td><code>need(&amp;Box(Circle(2.0)))</code></td><td><code>Box&lt;Circle&gt;: Show</code></td><td>impl for <code>Box&lt;T&gt;</code> matches with <code>T = Circle</code> → solved, but it brings a <em>nested</em> obligation <code>Circle: Show</code> → solved</td></tr>
+  <tr><td><code>need(&amp;Box(Square(1.0)))</code></td><td><code>Box&lt;Square&gt;: Show</code></td><td>nested <code>Square: Show</code> has no impl → <b>error</b></td></tr>
+  <tr><td><code>need(&amp;5)</code></td><td><code>i32: Show</code></td><td>only classes and enums implement traits yet → <b>error</b></td></tr>
+</table>
+
+<div class="flow">
+  <div class="box wait"><b>Box&lt;Square&gt;: Show</b></div><div class="arrow">→ impl&lt;T: Show&gt; for Box&lt;T&gt;, T=Square →</div>
+  <div class="box wait"><b>Square: Show</b> <small>(depth 1)</small></div><div class="arrow">→ no impl →</div>
+  <div class="box bad"><b>error</b><br>“the trait bound <code>Square: Show</code> is not satisfied; it is implemented for: Circle, Box&lt;T&gt;”</div>
+</div>
+
+<h3>Three more cases the solver must get right</h3>
+<ul>
+  <li><b>Inside a generic body.</b> In <code>fun pass&lt;T: Show&gt;(t: &amp;T) { need(&amp;t) }</code> the requirement is <code>T: Show</code>, and <code>T</code> is an opaque parameter, not a class. It is satisfied only by the function’s <em>own</em> bounds (its “param-env”). Without <code>: Show</code> on <code>pass</code>, the same call is an error.</li>
+  <li><b>Not yet.</b> In <code>val c: Circle = make(); need(&amp;c)</code> the type is known by the time of the call. In <code>val x = make(); need(&amp;x)</code> it never becomes known: the obligation waits, and at the end of the function it is reported as “cannot infer”.</li>
+  <li><b>Too deep.</b> A value of type <code>Box&lt;Box&lt;…Circle&gt;&gt;</code> nested forty times needs forty nested obligations. The solver stops at depth 32 with an overflow error instead of looping or using unbounded memory.</li>
+</ul>
+
+<div class="callout"><b>Key concept — why the list lives in <code>InferCtxt</code> but the solving does not.</b> The obligation list sits next to the inference variables so that a <em>snapshot</em> (a point to roll back to when a guess fails) restores both together. But picking impls needs the impl table, which is a type-checker concern, so the logic lives in <code>typeck/solve.rs</code>. Unification itself stays free of traits, as the issue asks.</div>
+
+<h2 id="code">3. Code walkthrough</h2>
+
+<h3>3.1 Syntax — <code>parser.lalrpop</code>, <code>ast.rs</code></h3>
+<p><code>TypeParam</code> grows a <code>bounds: Vec&lt;TraitRef&gt;</code>. The grammar accepts <code>T: A + B&lt;i32&gt;</code> in declaration position, and a <code>where</code> clause on functions and impls. The parser merges the <code>where</code> predicates into the parameters’ own bound lists (<code>ast::merge_where</code>), so everything downstream sees one list per parameter. <code>where</code> becomes a reserved word. Class, enum and trait parameters parse bounds too, but <code>generics::validate</code> then rejects them with one message, because nothing checks them at construction yet.</p>
+
+<h3>3.2 Predicates — <code>ty/predicate.rs</code>, <code>ty/sig.rs</code></h3>
+<pre><code>pub struct TraitRef&lt;T&gt;  { trait_id: DefId, args: Vec&lt;T&gt; }   // args exclude Self
+pub struct Predicate&lt;T&gt;  { self_ty: T, trait_ref: TraitRef&lt;T&gt; }  // "self_ty: Trait&lt;args&gt;"</code></pre>
+<p><code>FnSig</code> gets <code>predicates</code>. Because generics are positional (<code>Param(i)</code>), a predicate is substituted at a call with the very same <code>subst</code> that substitutes parameter types. <code>typeck/traits.rs::lower_bounds</code> turns written bounds into predicates (unknown trait, wrong argument count and duplicate bounds are diagnosed); <code>collect_fun_sigs</code>, <code>collect_method_sigs</code> and <code>build_impls</code> call it. An <code>ImplInfo</code> now also keeps the impl’s own predicates.</p>
+
+<h3>3.3 The obligation list — <code>infer/obligation.rs</code>, <code>infer/mod.rs</code></h3>
+<p><code>Obligation { predicate, span, depth, origin }</code> and a list in <code>InferCtxt</code>. <code>Snapshot</code> records the list length and <code>rollback_to</code> truncates it, so a probe that registers obligations and then fails leaves no trace. There is a unit test for exactly that.</p>
+
+<h3>3.4 The solver — <code>typeck/solve.rs</code></h3>
+<ol>
+  <li><b><code>register</code></b> (called from <code>subst_sig</code>, so both function calls and method calls share it) substitutes the callee’s predicates with the call’s type arguments, queues them, and runs <code>select_where_possible</code>.</li>
+  <li><b><code>solve_one</code></b> resolves the types and branches on the head: an inference variable → <em>stall</em>; a <code>Param</code> → look in the function’s bounds (<code>solve_from_bounds</code>); a class or enum → <code>solve_from_impls</code>; anything else → error. Already-erroneous types are dropped silently, so one mistake is one error.</li>
+  <li><b><code>solve_from_impls</code></b> probes every impl of the trait inside a snapshot (<code>try_impl</code>: fresh variables for the impl’s parameters, unify header). Zero matches is an error listing the impls; one match is committed and its bounds become nested obligations at <code>depth + 1</code>; several matches is an ambiguity error, or a stall if a variable is still open.</li>
+  <li><b><code>report_unsolved</code></b> runs at the end of <code>check_function</code>, after literal defaulting and <code>report_uninferred</code>; whatever is still waiting is reported.</li>
+</ol>
+
+<h3>3.5 Tests, corpus and docs</h3>
+<ul>
+  <li><code>src/typeck/tests/bounds.rs</code>: lowering, satisfied and unsatisfied calls, nested impl bounds, in-body bounds, waiting, literal defaulting, ambiguity, depth limit, no-cascade, declaration errors, methods.</li>
+  <li>Programs under <code>programs/check/traits/bound*</code> and <code>programs/check_fail/traits/bound*</code>; five golden snapshots re-blessed with additions only.</li>
+  <li>Follow-ups from review: an impl method cannot add bounds its trait method lacks; <code>TyCtx::display_with</code> prints an impl’s own parameter names without mutating shared state.</li>
+</ul>
+
+<h2 id="limits">4. What this PR deliberately does not do</h2>
+<div class="callout warn"><b>No method calls through bounds.</b> Inside <code>fun f&lt;T: Show&gt;(t: &amp;T)</code> you still cannot write <code>t.show()</code>. Bounds only decide whether <em>other calls</em> are allowed. Method resolution and the static dispatch that makes it run come in #58.</div>
+<ul>
+  <li>A parameter that appears only in a bound (<code>fun g&lt;T: Show&gt;()</code>) is accepted by the type checker but rejected by monomorphization, which cannot recover <code>T</code> from the signature yet.</li>
+  <li>Primitives and <code>Vec</code> implement no traits (impl Self is still class or enum only).</li>
+  <li>Overlapping impls are an <em>ambiguity</em> error at the use site until #57 rejects them at the declaration.</li>
+  <li>The <code>--features codegen</code> suite was not run locally (no LLVM 23).</li>
+</ul>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Five questions. Click an answer.</p>
+<div id="quizroot"></div>
+<p id="score"></p>
+
+</main>
+
+<script>
+const questions = [
+  {
+    q: "With `impl<T: Show> Show for Box<T>` and no impl for `Square`, what happens at `need(&Box(Square(1.0)))` where `need<T: Show>`?",
+    a: [
+      "It is accepted, because `Box<T>: Show` has an impl",
+      "The solver matches the `Box<T>` impl, which brings the nested requirement `Square: Show`; that has no impl, so it is an error",
+      "A parse error, because bounds cannot appear on impls",
+      "It is accepted and fails at runtime"
+    ],
+    c: 1,
+    why: "Selecting an impl turns the impl’s own bounds into new obligations at depth + 1. `Box<Square>: Show` is only as true as `Square: Show`."
+  },
+  {
+    q: "Why does `fun forgot<T>(t: &T) { need(&t) }` fail, while the same body with `T: Show` on `forgot` passes?",
+    a: [
+      "`T` is a class, so it needs an impl",
+      "A type parameter is opaque: the requirement `T: Show` can only be discharged from the enclosing function’s own bounds",
+      "Because `need` is generic, it can only be called with concrete types",
+      "Because the call has no explicit type arguments"
+    ],
+    c: 1,
+    why: "For `Param` the solver consults the param-env (the function’s own predicates) and never the impl table. No bound, no proof."
+  },
+  {
+    q: "Why is the obligation list stored in `InferCtxt` while the logic that solves it lives in `typeck/solve.rs`?",
+    a: [
+      "Because `typeck` cannot access `InferCtxt`",
+      "So that snapshots and rollbacks restore obligations together with variables, while unification stays independent of traits and the impl table",
+      "Because obligations are only needed at code generation",
+      "To avoid a dependency on `DefId`"
+    ],
+    c: 1,
+    why: "A failed probe must leave neither variable bindings nor queued obligations behind, hence the shared snapshot. Selecting impls needs typeck’s tables, hence the split."
+  },
+  {
+    q: "What happens to `val x = make(); need(&x)` where `make<U>(): U` and nothing else fixes the type of `x`?",
+    a: [
+      "The solver guesses `i32`",
+      "The obligation stalls; typeck reports the unfixed type parameter, and the pending requirement does not produce a second misleading error",
+      "The program compiles and `x` is unit",
+      "The solver reports an ambiguity between all impls of `Show`"
+    ],
+    c: 1,
+    why: "A requirement on an unbound variable waits. At the end of the body the existing `report_uninferred` flags the parameter; `report_unsolved` skips obligations whose types are already poisoned, so there is no cascade."
+  },
+  {
+    q: "Inside `fun f<T: Show>(t: &T)`, can the body write `t.show()` after this PR?",
+    a: [
+      "Yes, bounds make trait methods callable",
+      "No: bounds only gate other generic calls; resolving and dispatching trait methods is ticket #58",
+      "Yes, but only for classes",
+      "No, because `show` is not declared in the trait"
+    ],
+    c: 1,
+    why: "#56 decides whether a call is allowed. How `t.show()` finds the method and becomes a direct call after monomorphization is the job of #58."
+  }
+];
+
+const root = document.getElementById('quizroot');
+let answered = 0, correct = 0;
+questions.forEach((item, qi) => {
+  const box = document.createElement('div');
+  box.className = 'quiz';
+  const p = document.createElement('p');
+  p.className = 'q';
+  p.textContent = (qi + 1) + '. ' + item.q;
+  box.appendChild(p);
+  const fb = document.createElement('div');
+  fb.className = 'fb';
+  const buttons = item.a.map((text, ai) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.addEventListener('click', () => {
+      buttons.forEach(x => x.disabled = true);
+      buttons[item.c].classList.add('right');
+      if (ai === item.c) { correct++; fb.textContent = '✔ Correct. ' + item.why; }
+      else { b.classList.add('wrong'); fb.textContent = '✘ Not quite. ' + item.why; }
+      fb.style.display = 'block';
+      answered++;
+      if (answered === questions.length) {
+        document.getElementById('score').textContent = 'Score: ' + correct + ' / ' + questions.length;
+      }
+    });
+    box.appendChild(b);
+    return b;
+  });
+  box.appendChild(fb);
+  root.appendChild(box);
+});
+</script>
+</body>
+</html>
