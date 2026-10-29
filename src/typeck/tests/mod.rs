@@ -16,6 +16,7 @@ mod patterns;
 mod modes;
 mod reference;
 mod text;
+mod traits;
 
 /// Typed HIR for a source that must check cleanly.
 fn hir_of(source: &str) -> HirProgram {

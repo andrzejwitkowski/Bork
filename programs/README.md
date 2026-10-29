@@ -26,6 +26,7 @@ Runnable `.bork` sources grouped by language feature. They complement `tests/*.r
 | [`constants/`](build/constants/) | File-level `const`, shadowing in functions and methods |
 | [`vec/`](build/vec/) | Growable `Vec<T>`: push/pop/get/set/len/clear, doubling across pages, `String` and `Ref<T>` elements, `promote` between arenas, exact `strongCount` / `weakCount` across older and newer arenas |
 | [`enums/`](build/enums/) | `enum` construction and `when`: every variant shape, mixed-size payloads, `Ref` payload counts, generic enums, literal/nested patterns, an expression evaluator, a linked list |
+| [`traits/`](check/traits/) | `trait` / `impl Trait for Type` declarations and impl-item checks (check-only until dispatch lands, #58) |
 | [`option/`](build/option/) | prelude `Option` / `Result`, `T?` as `Option<T>`: `Some` / `None`, `when` over them, `Ref<T>` conversions, a user `Option` shadowing the prelude |
 | [`text/`](build/text/) | `String` bytes and content equality, `stringFromUtf8` (copy, `None`, sinks), a small HTTP-style example |
 

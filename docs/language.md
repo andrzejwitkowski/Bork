@@ -94,7 +94,29 @@ fun main(): i32 {
 - A bare name resolves to a local or parameter first, then a field or method of the class, then a top-level function or class. Write `this.x` to reach a shadowed field.
 - `recv.m(args)` borrows the receiver implicitly (no `&`). The receiver is a named value, a `&T`, or a field chain such as `this.inner.m()`. `Ref<T>` receivers need `if val` / `when`; nullable receivers and temporaries (`Point(1, 2).sum()`) are errors.
 - No overloading. Methods in different classes may share a name; inside a class, a method shadows a top-level function of the same name.
-- Not supported: static/companion methods, visibility, inheritance, interfaces, extension functions, method references, `?.m()`.
+- Not supported: static/companion methods, visibility, inheritance, extension functions, method references, `?.m()`. Shared behaviour is expressed with traits (below), not inheritance.
+
+### Traits (declarations only)
+
+```
+trait Shape {
+    fun area(): f64
+    fun scaled(k: f64): f64
+}
+
+impl Shape for Circle {
+    fun area(): f64 { return r * r }
+    fun scaled(k: f64): f64 { return k * r }
+}
+
+impl<T> Show for Box<T> { ... }
+```
+
+- A trait lists method signatures (no bodies, no default methods). `Self` names the implementing type; methods take `this: &Self` implicitly, like class methods. Traits and impls may be generic (`trait Conv<U>`, `impl<T> Conv<i32> for Box<T>`).
+- Each impl must provide exactly the trait's methods with the same parameter count and types (after substituting `Self` and the trait arguments). Missing, extra, duplicate and mismatched items are errors at the impl.
+- Only classes and enums can implement a trait for now. `Self` is usable in impl signatures too.
+- `trait` and `impl` are now reserved words: they can no longer be used as variable, function or field names.
+- Not yet: bounds (`T: Trait`), calling trait methods, impl bodies are parsed but not type-checked (no errors for bad names or return values inside them until calls can reach them, #58), overlap checks and associated types (#56–#59).
 
 For the complete strong/weak classification rules, arena-ID algorithm, and
 cleanup diagrams, see [references.md](references.md).

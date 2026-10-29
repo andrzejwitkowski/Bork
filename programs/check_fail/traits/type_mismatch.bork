@@ -1,0 +1,11 @@
+// diag: returns `i32` but trait
+trait Shape {
+    fun area(): f64
+}
+class C {
+    r: f64
+}
+impl Shape for C {
+    fun area(): i32 { return 1 }
+}
+fun main() {}

@@ -4,6 +4,7 @@ mod expr;
 mod generics;
 mod lower;
 mod stmt;
+mod traits;
 
 use std::collections::{HashMap, HashSet};
 
@@ -63,6 +64,9 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
     let enums = build_enums(program, &defs, &mut tcx, &mut diagnostics);
     validate_owned_layouts(&classes, &enums, &mut tcx, &mut diagnostics);
+    let trait_infos = traits::build_traits(program, &defs, &mut tcx, &mut diagnostics);
+    // The impl table is read by the solver and dispatch (#56, #58).
+    let _impls = traits::build_impls(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     let mut option_if_vals = HashSet::new();

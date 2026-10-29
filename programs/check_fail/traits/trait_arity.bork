@@ -1,0 +1,11 @@
+// diag: takes 1 type argument(s) but 0
+trait Conv<U> {
+    fun conv(u: U): U
+}
+class C {
+    r: f64
+}
+impl Conv for C {
+    fun conv(u: i32): i32 { return u }
+}
+fun main() {}

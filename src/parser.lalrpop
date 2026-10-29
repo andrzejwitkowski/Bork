@@ -1,6 +1,6 @@
 use crate::ast::{
     unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, Enum, Variant, ClassField, ClassMember, Closure,
-    ConditionalBinding, ConditionalBindings, Expr, Function, Item, MatchArm, Param, PatLit, Pattern, Program, Stmt, Type, TypeParam,
+    ConditionalBinding, ConditionalBindings, Expr, Function, Impl, Item, MatchArm, Param, PatLit, Pattern, Program, Stmt, Trait, TraitMethod, Type, TypeParam,
     UnaryOp,
 };
 use crate::span::{AstId, Span, SpannedName};
@@ -28,6 +28,8 @@ match {
     "return" => "return",
     "move" => "move",
     "promote" => "promote",
+    "trait" => "trait",
+    "impl" => "impl",
     "::" => "::",
 } else {
     _
@@ -72,6 +74,86 @@ Item: Item = {
     <class:ClassDecl> => Item::Class(class),
     <e:EnumDecl> => Item::Enum(e),
     <f:Function> => Item::Fun(f),
+    <t:TraitDecl> => Item::Trait(t),
+    <i:ImplDecl> => Item::Impl(i),
+};
+
+TraitDecl: Trait = {
+    "trait" <name:SpannedIdent> <generics:TypeParams?> "{" <methods:TraitBody> "}" => Trait {
+        name,
+        generics: generics.unwrap_or_default(),
+        methods,
+    },
+};
+
+TraitBody: Vec<TraitMethod> = {
+    => vec![],
+    "NL" => vec![],
+    <first:TraitMethodDecl> <rest:TraitMethodRest> => {
+        let mut methods = vec![first];
+        methods.extend(rest);
+        methods
+    },
+    "NL" <first:TraitMethodDecl> <rest:TraitMethodRest> => {
+        let mut methods = vec![first];
+        methods.extend(rest);
+        methods
+    },
+};
+
+TraitMethodRest: Vec<TraitMethod> = {
+    => vec![],
+    "NL" => vec![],
+    "NL" <method:TraitMethodDecl> <rest:TraitMethodRest> => {
+        let mut methods = vec![method];
+        methods.extend(rest);
+        methods
+    },
+};
+
+TraitMethodDecl: TraitMethod = {
+    "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> => TraitMethod {
+        name,
+        generics: generics.unwrap_or_default(),
+        params: params.unwrap_or_default(),
+        return_type: ret,
+    },
+};
+
+ImplDecl: Impl = {
+    "impl" <generics:TypeParams?> <trait_name:SpannedIdent> <trait_args:TypeArgs?> "for" <start:@L> <self_ty:Type> <end:@R> "{" <methods:ImplBody> "}" => Impl {
+        generics: generics.unwrap_or_default(),
+        trait_name,
+        trait_args: trait_args.unwrap_or_default(),
+        self_ty,
+        self_span: Span::new(start, end),
+        methods,
+    },
+};
+
+ImplBody: Vec<Function> = {
+    => vec![],
+    "NL" => vec![],
+    <first:Function> <rest:ImplBodyRest> => {
+        let mut methods = vec![first];
+        methods.extend(rest);
+        methods
+    },
+    "NL" <first:Function> <rest:ImplBodyRest> => {
+        let mut methods = vec![first];
+        methods.extend(rest);
+        methods
+    },
+};
+
+ImplBodyRest: Vec<Function> = {
+    => vec![],
+    "NL" => vec![],
+    "NL" <method:Function> <rest:ImplBodyRest> => {
+        let mut methods = vec![method];
+        methods.extend(rest);
+        methods
+    },
 };
 
 ConstDecl: ConstDecl = {

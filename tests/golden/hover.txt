@@ -233,6 +233,8 @@ programs/check/option/nullable_is_option.bork: hits=8 hash=b907ae1da5a6e826
 programs/check/option/option_check.bork: hits=20 hash=65400fd946b27717
 programs/check/option/option_of_nullable.bork: hits=3 hash=6509fe91aac7e273
 programs/check/recursions/self_call.bork: hits=3 hash=f64d37e350e4b406
+programs/check/traits/basic.bork: hits=0 hash=cbf29ce484222325
+programs/check/traits/generic_impl.bork: hits=0 hash=cbf29ce484222325
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=090d8c00b584074e
@@ -335,6 +337,13 @@ programs/check_fail/option/option_to_ref.bork: hits=10 hash=6cb29c36e0253a51
 programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764
 programs/check_fail/option/return_some_loop_local.bork: hits=58 hash=a172b475e3566b6d
 programs/check_fail/option/t_to_option.bork: hits=1 hash=38267fa358db6232
+programs/check_fail/traits/arity_mismatch.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/extra_item.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/missing_item.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/param_type_mismatch.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/trait_arity.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/type_mismatch.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/unknown_trait.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/vec/class_element.bork: hits=5 hash=d0a707928e787eec
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
 programs/check_fail/vec/push_on_val.bork: hits=10 hash=e15315bf4cac4746

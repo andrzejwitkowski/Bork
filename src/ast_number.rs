@@ -13,25 +13,73 @@ pub fn number_nodes(program: &mut Program) -> Vec<(Span, AstId)> {
 /// user's program, and its index is dropped.
 pub fn number_nodes_from(program: &mut Program, first: u32) -> Vec<(Span, AstId)> {
     let mut n = Numberer { next: first, ..Numberer::default() };
-    for constant in &mut program.constants {
-        n.name(&mut constant.name);
-        n.expr(&mut constant.value);
+    program.constants.iter_mut().for_each(|c| c.number(&mut n));
+    program.classes.iter_mut().for_each(|c| c.number(&mut n));
+    program.enums.iter_mut().for_each(|e| e.number(&mut n));
+    program.functions.iter_mut().for_each(|f| f.number(&mut n));
+    program.traits.iter_mut().for_each(|t| t.number(&mut n));
+    program.impls.iter_mut().for_each(|i| i.number(&mut n));
+    n.index
+}
+
+/// A declaration that numbers its own names; the walk above is then one line per item kind.
+trait Numbered {
+    fn number(&mut self, n: &mut Numberer);
+}
+
+impl Numbered for crate::ast::ConstDecl {
+    fn number(&mut self, n: &mut Numberer) {
+        n.name(&mut self.name);
+        n.expr(&mut self.value);
     }
-    for class in &mut program.classes {
-        class.generics.iter_mut().for_each(|g| n.name(&mut g.name));
-        class.fields.iter_mut().for_each(|f| n.name(&mut f.name));
-        class.methods.iter_mut().for_each(|m| n.function(m));
+}
+
+impl Numbered for crate::ast::Class {
+    fn number(&mut self, n: &mut Numberer) {
+        n.generics(&mut self.generics);
+        self.fields.iter_mut().for_each(|f| n.name(&mut f.name));
+        self.methods.iter_mut().for_each(|m| m.number(n));
     }
-    for e in &mut program.enums {
-        n.name(&mut e.name);
-        e.generics.iter_mut().for_each(|g| n.name(&mut g.name));
-        for variant in &mut e.variants {
+}
+
+impl Numbered for crate::ast::Enum {
+    fn number(&mut self, n: &mut Numberer) {
+        n.name(&mut self.name);
+        n.generics(&mut self.generics);
+        for variant in &mut self.variants {
             n.name(&mut variant.name);
             variant.fields.iter_mut().for_each(|f| n.name(&mut f.name));
         }
     }
-    program.functions.iter_mut().for_each(|f| n.function(f));
-    n.index
+}
+
+impl Numbered for crate::ast::Function {
+    fn number(&mut self, n: &mut Numberer) {
+        self.id = n.fresh(self.name_span);
+        n.generics(&mut self.generics);
+        n.params(&mut self.params);
+        n.block(&mut self.body);
+    }
+}
+
+impl Numbered for crate::ast::Trait {
+    fn number(&mut self, n: &mut Numberer) {
+        n.name(&mut self.name);
+        n.generics(&mut self.generics);
+        for m in &mut self.methods {
+            n.name(&mut m.name);
+            n.generics(&mut m.generics);
+            n.params(&mut m.params);
+        }
+    }
+}
+
+impl Numbered for crate::ast::Impl {
+    fn number(&mut self, n: &mut Numberer) {
+        n.generics(&mut self.generics);
+        n.name(&mut self.trait_name);
+        self.methods.iter_mut().for_each(|m| m.number(n));
+    }
 }
 
 #[derive(Default)]
@@ -56,11 +104,12 @@ impl Numberer {
         names.iter_mut().for_each(|n| self.name(n));
     }
 
-    fn function(&mut self, f: &mut crate::ast::Function) {
-        f.id = self.fresh(f.name_span);
-        f.generics.iter_mut().for_each(|g| self.name(&mut g.name));
-        f.params.iter_mut().for_each(|p| self.name(&mut p.name));
-        self.block(&mut f.body);
+    fn generics(&mut self, generics: &mut [crate::ast::TypeParam]) {
+        generics.iter_mut().for_each(|g| self.name(&mut g.name));
+    }
+
+    fn params(&mut self, params: &mut [crate::ast::Param]) {
+        params.iter_mut().for_each(|p| self.name(&mut p.name));
     }
 
     fn block(&mut self, block: &mut Block) {
