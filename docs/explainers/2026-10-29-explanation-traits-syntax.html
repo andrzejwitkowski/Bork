@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork PR #182 — Traits: syntax, DefIds and impl checking</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfbf8; --card:#fff; --line:#dfe2e8; --accent:#2b5fd9; --ok:#1a7f4b; --bad:#b3261e; --warn:#fff6d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1,h2,h3,nav,.box,.quiz button,.tag { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1 { font-size: 2rem; line-height:1.2; margin: 12px 0 4px; }
+  h2 { font-size: 1.5rem; margin-top: 2.6em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3 { font-size: 1.1rem; margin-top: 1.8em; }
+  .sub { color: var(--muted); margin-top: 0; }
+  nav { background: var(--card); border:1px solid var(--line); border-radius:10px; padding: 12px 18px; margin: 18px 0; font-size:.95rem; }
+  nav a { color: var(--accent); text-decoration:none; }
+  nav ol { margin: 6px 0 0; padding-left: 20px; }
+  code { font: .88em ui-monospace, Menlo, Consolas, monospace; background:#eef0f5; padding: 1px 5px; border-radius:4px; }
+  pre { background:#171b26; color:#e6e9f2; padding: 14px 16px; border-radius:10px; overflow-x:auto; font: .85rem/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre code { background:none; padding:0; color:inherit; }
+  .callout { border-left: 4px solid var(--accent); background:#eef3ff; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 1.2em 0; font-size:.97rem; }
+  .callout.warn { border-color:#c98a00; background: var(--warn); }
+  .skip { color: var(--muted); font-size:.9rem; font-style: italic; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:1.2em 0; }
+  .box { flex: 1 1 130px; background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.88rem; }
+  .box b { display:block; margin-bottom:4px; }
+  .box.hl { border-color: var(--accent); background:#eef3ff; }
+  .box.bad { border-color: var(--bad); background:#fdecea; }
+  .box.ok { border-color: var(--ok); background:#e8f6ee; }
+  .arrow { align-self:center; font-size:1.3rem; color:var(--muted); }
+  .cols { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 1.2em 0; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .arrow { display:none; } }
+  table { border-collapse: collapse; width:100%; font-family: -apple-system, "Segoe UI", sans-serif; font-size:.9rem; margin: 1em 0; }
+  th,td { border:1px solid var(--line); padding: 6px 9px; text-align:left; vertical-align: top; }
+  th { background:#f1f3f8; }
+  .tag { display:inline-block; font-size:.72rem; padding:1px 8px; border-radius:99px; background:#e4e8f3; color:#334; }
+  .quiz { background:var(--card); border:1px solid var(--line); border-radius:12px; padding: 14px 18px; margin: 18px 0; }
+  .quiz p.q { font-weight:600; margin-top:0; }
+  .quiz button { display:block; width:100%; text-align:left; margin: 6px 0; padding: 9px 12px; border:1.5px solid var(--line); border-radius:8px; background:#fff; font-size:.92rem; cursor:pointer; color:var(--fg); }
+  .quiz button:hover:not(:disabled) { border-color: var(--accent); }
+  .quiz button.right { border-color: var(--ok); background:#e8f6ee; }
+  .quiz button.wrong { border-color: var(--bad); background:#fdecea; }
+  .fb { display:none; margin-top:8px; font-size:.95rem; padding: 8px 12px; background:#f3f5fa; border-radius:8px; }
+  #score { font-family: -apple-system, sans-serif; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Teaching Bork what a trait is</h1>
+<p class="sub">PR #182 · branch <code>feat/traits-syntax</code> · TS-P5-01, issue #55 · first of five Phase 5 (traits) tickets</p>
+
+<nav>
+  <b>Contents</b>
+  <ol>
+    <li><a href="#background">Background</a></li>
+    <li><a href="#intuition">Intuition</a></li>
+    <li><a href="#code">Code walkthrough</a></li>
+    <li><a href="#limits">What this PR deliberately does not do</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">1. Background</h2>
+
+<p class="skip">If you already know what traits are and how a compiler front end is laid out, skip to the second half of this section, “How Bork checks a program today”.</p>
+
+<h3>What is a trait?</h3>
+<p>A <em>trait</em> is a named list of method signatures. It says “anything that wants to be a <code>Shape</code> must be able to compute an <code>area</code>”, without saying how. A separate <em>impl</em> block then declares that a concrete type, say <code>Circle</code>, satisfies the trait by supplying the bodies. The same idea is called an interface in Java or Go, a protocol in Swift, and a trait in Rust, which is the closest relative of what Bork is building.</p>
+
+<div class="flow">
+  <div class="box hl"><b>trait Shape</b>fun area(): f64</div>
+  <div class="arrow">⇠ promises</div>
+  <div class="box ok"><b>impl Shape for Circle</b>fun area(): f64 { … }</div>
+  <div class="arrow">⇠ provided by</div>
+  <div class="box"><b>class Circle</b>r: f64</div>
+</div>
+
+<p>Bork’s design (RFC 0001) chooses <em>monomorphization</em>: generic code is copied once per concrete type, so a call through a trait becomes an ordinary direct call. No vtables, no inheritance. That decision shapes this whole phase, but it only matters from ticket #58 on.</p>
+
+<h3>The five-ticket plan</h3>
+<table>
+  <tr><th>Ticket</th><th>Adds</th><th>Status</th></tr>
+  <tr><td>#55 <span class="tag">this PR</span></td><td>Syntax, definitions, impl table, impl-vs-trait checking</td><td>PR #182</td></tr>
+  <tr><td>#56</td><td>Bounds (<code>T: Trait</code>) and a solver</td><td>next</td></tr>
+  <tr><td>#57</td><td>Overlapping-impl detection</td><td></td></tr>
+  <tr><td>#58</td><td>Method resolution and static dispatch</td><td></td></tr>
+  <tr><td>#59</td><td>Associated types</td><td></td></tr>
+</table>
+
+<h3>How Bork checks a program today</h3>
+<p>The front end is a pipeline. Source text is parsed (by a LALRPOP grammar in <code>src/parser.lalrpop</code>) into an AST (<code>src/ast.rs</code>). A <code>DefTable</code> (<code>src/defs.rs</code>) then gives every declaration a stable <code>DefId</code> and records name clashes. Finally <code>typeck::check_with_members</code> lowers written types to interned <code>TyId</code>s, collects function signatures, and checks bodies.</p>
+
+<div class="flow">
+  <div class="box"><b>Source</b>trait Shape {…}</div><div class="arrow">→</div>
+  <div class="box"><b>Parser → AST</b>Program { classes, enums, functions, <i>traits, impls</i> }</div><div class="arrow">→</div>
+  <div class="box"><b>DefTable</b>DefId per declaration, clash list</div><div class="arrow">→</div>
+  <div class="box"><b>Typeck</b>lower types, collect sigs, check bodies</div>
+</div>
+
+<div class="callout"><b>Key concept — generics are positional.</b> A type parameter is not stored by name inside a type; it is <code>Param(i)</code>, an index into a flat list: the owner’s parameters first, then the item’s own. <code>generics::scope</code> builds that numbering. Anything that wants parameters, such as <code>Self</code>, has to fit into this numbering.</div>
+
+<p>Before this PR the language had classes with methods inside them and nothing else. <code>docs/language.md</code> even listed interfaces as unsupported, and the grammar had no <code>trait</code> or <code>impl</code> tokens.</p>
+
+<h2 id="intuition">2. Intuition</h2>
+
+<p>The essential job of this PR is small to state: <em>when the programmer writes an impl, check that it keeps the trait’s promise</em>. Take a toy program.</p>
+
+<pre><code>trait Shape {
+    fun area(): f64
+    fun scaled(k: f64): f64
+}
+class Circle { r: f64 }
+impl Shape for Circle {
+    fun area(): f64 { return r * r }
+}</code></pre>
+
+<p>The checker holds the trait’s method list in one hand and the impl’s in the other, and compares them like a checklist:</p>
+
+<div class="cols">
+  <div class="box hl"><b>Trait says</b>
+    area() → f64<br>scaled(k: f64) → f64</div>
+  <div class="box bad"><b>Impl provides</b>
+    area() → f64 ✔<br>scaled … ✘ <i>missing</i></div>
+</div>
+
+<p>The result is one error at the impl: <code>not all trait items implemented, missing: `scaled`</code>. The same comparison produces five other errors, shown here with the toy data that triggers each one:</p>
+
+<table>
+  <tr><th>Impl contains</th><th>Diagnostic</th></tr>
+  <tr><td><code>fun perimeter()</code></td><td>method <code>perimeter</code> is not a member of trait <code>Shape</code></td></tr>
+  <tr><td><code>fun scaled()</code></td><td>has 0 parameters but trait <code>Shape</code> declares 1</td></tr>
+  <tr><td><code>fun scaled(k: i32)</code></td><td>parameter <code>k</code> of <code>scaled</code> has type <code>i32</code> but … declares <code>f64</code></td></tr>
+  <tr><td><code>fun area(): i32</code></td><td><code>area</code> returns <code>i32</code> but … declares <code>f64</code></td></tr>
+  <tr><td><code>area</code> twice</td><td>duplicate method <code>area</code></td></tr>
+</table>
+
+<h3>The one subtle part: comparing types across generics</h3>
+<p>A trait signature can mention <code>Self</code> and the trait’s own parameters; an impl states them concretely. For <code>trait Conv&lt;U&gt; { fun conv(u: U): U }</code> and <code>impl&lt;T&gt; Conv&lt;i32&gt; for Box&lt;T&gt;</code>, the trait signature is stored with <code>Self</code> as <code>Param(0)</code> and <code>U</code> as <code>Param(1)</code>. To compare, the checker substitutes real types for those slots, then compares the result with what the impl wrote.</p>
+
+<div class="flow">
+  <div class="box"><b>Trait signature</b>conv(u: <code>Param(1)</code>)</div><div class="arrow">→ subst [Self=Box&lt;T&gt;, U=i32] →</div>
+  <div class="box hl"><b>Expected</b>conv(u: <code>i32</code>)</div><div class="arrow">=?</div>
+  <div class="box ok"><b>Impl wrote</b>conv(u: <code>i32</code>) ✔</div>
+</div>
+
+<div class="callout"><b>Key concept — <code>Self</code> in an impl.</b> Inside an impl, <code>Self</code> is simply rewritten to the impl’s type at the AST level (<code>Type::with_self</code>) before lowering. So <code>fun dup(other: Self): Self</code> in <code>impl Dup for C</code> is checked as if the author had written <code>C</code>.</div>
+
+<h2 id="code">3. Code walkthrough</h2>
+
+<h3>3.1 Grammar and AST — <code>parser.lalrpop</code>, <code>ast.rs</code></h3>
+<p>Two new keywords and two new item kinds. <code>for</code> already existed as a keyword, so <code>impl Shape for Circle</code> reuses it. Trait bodies list signatures only (no block, so a method body in a trait is a parse error). Bodies of traits and impls copy the newline-separated pattern of <code>ClassBody</code>.</p>
+<pre><code>pub struct Trait     { name, generics, methods: Vec&lt;TraitMethod&gt; }
+pub struct TraitMethod { name, generics, params, return_type }       // no body
+pub struct Impl      { generics, trait_name, trait_args, self_ty, self_span, methods: Vec&lt;Function&gt; }</code></pre>
+<p><code>Program</code> gains <code>traits</code> and <code>impls</code>. <code>ast_number.rs</code> assigns node ids to the new names so the numbering test (every id dense and unique) still holds. A consequence: <code>trait</code> and <code>impl</code> are now reserved words.</p>
+
+<h3>3.2 Definitions — <code>defs.rs</code></h3>
+<p>Four new <code>DefKind</code>s: <code>Trait</code>, <code>TraitMethod</code>, <code>Impl</code>, <code>ImplMethod</code>. <code>add_traits</code> and <code>add_impls</code> run in <code>DefTable::build</code>, and keep the existing convention of program-order parallel vectors (<code>trait_ids</code>, <code>impl_method_ids</code>…) so typeck can map AST index → <code>DefId</code>. A trait that shares a name with a class, enum, primitive, function or earlier trait gets a <code>TraitConflict</code> clash and keeps its methods out of the lookup table, so one mistake yields one error.</p>
+
+<h3>3.3 The checking pass — <code>typeck/traits.rs</code> (new)</h3>
+<ol>
+  <li><b><code>build_traits</code></b> lowers each trait’s methods. The scope is <code>[Self, trait params…, method params…]</code>, so <code>Self</code> is <code>Param(0)</code>.</li>
+  <li><b><code>build_impls</code></b> resolves the trait name, checks the trait-argument count, lowers the self type (only classes and enums are accepted), and builds an <code>ImplInfo</code> in an <code>ImplTable</code> keyed by trait.</li>
+  <li><b><code>check_impl</code> / <code>check_method</code></b> perform the checklist comparison from the Intuition section, substituting <code>[self_ty, trait_args…, method params…]</code> into the trait’s stored types.</li>
+</ol>
+<p>It is wired into <code>check_with_members</code> after the enums are built and before function signatures are collected, so it cannot disturb how existing classes are processed. <code>generics::validate</code> also learns to check type-parameter lists of traits and impls.</p>
+
+<h3>3.4 Tests, corpus and docs</h3>
+<ul>
+  <li><code>tests/parser.rs</code>: parse shapes and two rejection cases.</li>
+  <li><code>src/typeck/tests/traits.rs</code>: clean impls, each impl-item error, header errors, <code>Self</code>, DefId kinds.</li>
+  <li><code>programs/check/traits/*</code> and <code>programs/check_fail/traits/*</code> with <code>// diag:</code> directives.</li>
+  <li>Three golden files regenerated; the diff is additions only.</li>
+  <li><code>docs/language.md</code>: a new Traits section.</li>
+</ul>
+
+<h2 id="limits">4. What this PR deliberately does not do</h2>
+<div class="callout warn"><b>Impl bodies are parsed but not type-checked.</b> The existing function checker assumes a class owner with the class’s own type parameters, which does not fit <code>impl&lt;T&gt; … for Box&lt;T&gt;</code>. Since nothing can call an impl until #58, a body that returns the wrong type passes for now.</div>
+<ul>
+  <li>No bounds, no solver, no method calls through traits (#56, #58).</li>
+  <li>The impl table is built but nothing reads it yet (hence one <code>#[allow(dead_code)]</code> with a <code>shortcut:</code> note).</li>
+  <li>Only classes and enums can be the self type of an impl.</li>
+  <li>The <code>--features codegen</code> suite was not run in the author’s environment (no LLVM 23).</li>
+</ul>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Five questions. Click an answer.</p>
+<div id="quizroot"></div>
+<p id="score"></p>
+
+</main>
+
+<script>
+const questions = [
+  {
+    q: "A program contains `impl Shape for Circle` that defines `area` but forgets `scaled`. Where, and what kind of problem is reported?",
+    a: [
+      "A parse error, because the grammar requires every trait method to appear in the impl",
+      "A type error at the impl, listing `scaled` as missing",
+      "A runtime error when `scaled` is first called",
+      "Nothing, because impl bodies are not checked yet"
+    ],
+    c: 1,
+    why: "The grammar cannot know the trait’s contents. The comparison happens in typeck (`check_impl`), which reports `not all trait items implemented, missing: `scaled``. Missing items are checked even though bodies are not."
+  },
+  {
+    q: "Why is `Self` stored as `Param(0)` in a trait’s method signatures?",
+    a: [
+      "Because generics in Bork are positional indexes, so `Self` and the trait’s parameters can be replaced by real types with the existing `subst` function",
+      "Because `Self` is always the first field of a class",
+      "Because LALRPOP requires the first type parameter to be reserved",
+      "To make trait methods callable without a receiver"
+    ],
+    c: 0,
+    why: "Types refer to parameters by index. Giving `Self` slot 0 (then the trait’s params, then the method’s) lets `check_method` substitute `[self_ty, trait_args…, method params…]` and compare with what the impl wrote."
+  },
+  {
+    q: "Which statement about `Self` inside an impl is true?",
+    a: [
+      "It is rewritten to the impl’s type in the AST before lowering",
+      "It is a new `TyData::SelfType` variant",
+      "It is an error; you must write the concrete type",
+      "It is resolved at monomorphization time"
+    ],
+    c: 0,
+    why: "`Type::with_self` substitutes the impl’s written self type for every `Self`, so `fun dup(other: Self): Self` in `impl Dup for C` is checked as `C`."
+  },
+  {
+    q: "A reviewer asks: “what existing programs could this PR break?” What is the correct answer?",
+    a: [
+      "None; the grammar change is purely additive",
+      "Any program that uses `trait` or `impl` as an identifier, since both became reserved words",
+      "Every program with generic classes, because `generics::validate` changed",
+      "Programs that call methods on classes, because `lookup_method` now consults the impl table"
+    ],
+    c: 1,
+    why: "Adding keywords to the lexer takes those words away from identifiers. The class-method path was deliberately left untouched, and nothing reads the impl table yet."
+  },
+  {
+    q: "The impl below has a wrong return type inside its body (`return \"x\"` in a function declared `: f64`). What does this PR do?",
+    a: [
+      "Reports a type mismatch in the body",
+      "Accepts it silently, because impl bodies are parsed but not type-checked yet",
+      "Rejects it because the body is not allowed to contain `return`",
+      "Compiles it, but fails at link time"
+    ],
+    c: 1,
+    why: "Only the impl’s *signatures* are compared with the trait. Checking bodies needs a general `Self` owner in `check_function` and is deferred until calls can reach impls (#58). The docs and PR description say so."
+  }
+];
+
+const root = document.getElementById('quizroot');
+let answered = 0, correct = 0;
+questions.forEach((item, qi) => {
+  const box = document.createElement('div');
+  box.className = 'quiz';
+  const p = document.createElement('p');
+  p.className = 'q';
+  p.textContent = (qi + 1) + '. ' + item.q;
+  box.appendChild(p);
+  const fb = document.createElement('div');
+  fb.className = 'fb';
+  const buttons = item.a.map((text, ai) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.addEventListener('click', () => {
+      buttons.forEach(x => x.disabled = true);
+      buttons[item.c].classList.add('right');
+      if (ai === item.c) { correct++; fb.textContent = '✔ Correct. ' + item.why; }
+      else { b.classList.add('wrong'); fb.textContent = '✘ Not quite. ' + item.why; }
+      fb.style.display = 'block';
+      answered++;
+      if (answered === questions.length) {
+        document.getElementById('score').textContent = 'Score: ' + correct + ' / ' + questions.length;
+      }
+    });
+    box.appendChild(b);
+    return b;
+  });
+  box.appendChild(fb);
+  root.appendChild(box);
+});
+</script>
+</body>
+</html>
