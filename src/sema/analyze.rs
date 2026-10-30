@@ -69,7 +69,22 @@ pub fn analyze_with_members(
             );
         }
     }
-    // Same order as typeck's HIR functions: top-level, then methods class by class.
+    // A call through a trait (`Show.show`) takes its modes from the trait's declaration. Its `this`
+    // is the implementing type, which arena analysis never inspects, so any borrow type will do.
+    for t in &program.traits {
+        for method in &t.methods {
+            let qualified = format!("{}.{}", t.name.name, method.name.name);
+            az.fun_sigs.insert(
+                qualified.clone(),
+                std::iter::once(BindingKind::Val).chain(method.params.iter().map(|p| p.kind)).collect(),
+            );
+            az.fun_param_tys.insert(
+                qualified,
+                std::iter::once(this_type(&t.name.name)).chain(method.params.iter().map(|p| p.ty.clone())).collect(),
+            );
+        }
+    }
+    // Same order as typeck's HIR functions: top-level, then methods class by class, then impl methods.
     let mut roots: Vec<ArenaNode> = program
         .functions
         .iter()
@@ -77,7 +92,14 @@ pub fn analyze_with_members(
         .collect();
     for class in &program.classes {
         for method in &class.methods {
-            roots.push(analyze_function(&mut az, method, Some(&class.name)));
+            roots.push(analyze_function(&mut az, method, Some((&class.name, this_type(&class.name)))));
+        }
+    }
+    for (index, i) in program.impls.iter().enumerate() {
+        let this = Type::Ref { inner: Box::new(i.self_ty.clone()), nullable: false };
+        let label = format!("{}@{index}", i.trait_name.name);
+        for method in &i.methods {
+            roots.push(analyze_function(&mut az, method, Some((&label, this.clone()))));
         }
     }
     (ArenaReport { roots }, az.errors)
@@ -94,10 +116,12 @@ fn this_type(class: &str) -> Type {
     }
 }
 
-fn analyze_function(az: &mut Analyzer, func: &Function, owner: Option<&str>) -> ArenaNode {
-    let this = owner.map(|class| RegionParam {
+/// `owner` is the label prefix (`Class`, or `Trait@index` for an impl) and the type of `this`.
+fn analyze_function(az: &mut Analyzer, func: &Function, owner: Option<(&str, Type)>) -> ArenaNode {
+    let label_owner = owner.as_ref().map(|(label, _)| *label);
+    let this = owner.map(|(_, this_ty)| RegionParam {
         name: "this".to_string(),
-        ty: Ty::Known(this_type(class)),
+        ty: Ty::Known(this_ty),
         kind: BindingKind::Val,
         span: None,
         borrow_from: super::region::REF_PARAM_BORROW_FROM,
@@ -112,7 +136,7 @@ fn analyze_function(az: &mut Analyzer, func: &Function, owner: Option<&str>) -> 
             borrow_from: super::region::REF_PARAM_BORROW_FROM,
         }))
         .collect();
-    let label = match owner {
+    let label = match label_owner {
         Some(class) => format!("fun {class}.{}", func.name),
         None => format!("fun {}", func.name),
     };

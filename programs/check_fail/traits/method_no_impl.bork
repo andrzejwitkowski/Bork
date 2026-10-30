@@ -1,0 +1,17 @@
+// diag: class `Square` has no method `show`
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+impl Show for Circle {
+    fun show(): String { return "c" }
+}
+fun main() {
+    val s = Square(1.0)
+    val x = s.show()
+}

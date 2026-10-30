@@ -1,0 +1,17 @@
+// exit: 0
+// stdout: inherent\n
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+    fun show(): String { return "inherent" }
+}
+impl Show for Circle {
+    fun show(): String { return "trait" }
+}
+fun main(): i32 {
+    val c = Circle(1.0)
+    println(c.show())
+    return 0
+}

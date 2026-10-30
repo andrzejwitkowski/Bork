@@ -117,7 +117,20 @@ impl<T> Show for Box<T> { ... }
 - Two impls of one trait may not overlap: if their headers unify (`impl<T> Show for Box<T>` and `impl Show for Box<Circle>`), the later one is an error naming both. Bounds are not considered (`impl<T: A> ..` and `impl<T: B> ..` for `Box<T>` overlap). Impls of different traits never overlap, and neither do impls of one trait whose trait arguments cannot unify (`Conv<i32>` and `Conv<bool>`); arguments that can unify do overlap (`impl<T> Conv<T> for Box<T>` and `impl Conv<Circle> for Box<Circle>`).
 - Only classes and enums can implement a trait for now. `Self` is usable in impl signatures too.
 - `trait` and `impl` are now reserved words: they can no longer be used as variable, function or field names.
-- Not yet: calling trait methods (#58), associated types (#59). Impl bodies are parsed but not type-checked (no errors for bad names or return values inside them until calls can reach them, #58).
+- Not yet: associated types (#59), default method bodies, trait objects, `Trait.method(x)` call syntax. Impl bodies are parsed but not type-checked (no errors for bad names or return values inside them until calls can reach them, #58).
+
+#### Calling trait methods
+
+```
+fun say<T: Show>(t: &T) { println(t.show()) }   // through a bound
+val c = Circle(1.0)
+println(c.show())                                // through an impl
+```
+
+- `x.m()` looks for an inherent method first (a class method always wins), then for a trait method: in the receiver's bounds when it is a type parameter, in the impls when it is a class or enum. Two traits providing `m` is an error naming both.
+- Inside an impl, the body is type-checked like a class method: `this` is `&Self`, and a class's fields are reachable by bare name.
+- Calls are resolved when generics are instantiated: `say(&c)` becomes a direct call of `Circle`'s `show`. There are no vtables and no dynamic dispatch.
+- A bound gives a type parameter its trait methods only; operators and fields on `T` still need more than a bound.
 
 #### Bounds
 
@@ -130,7 +143,7 @@ impl<T: Show> Show for Box<T> { ... }
 - A type parameter of a function, method or impl may carry bounds, written `T: A + B<i32>` or in a `where` clause (`where` is a reserved word; it may only name the item's own type parameters). Class, enum and trait parameters cannot have bounds yet.
 - Every call checks the callee's bounds against the type arguments. A class or enum satisfies `Trait` if an impl matches; an impl's own bounds are then required of its type arguments (`Box<Square>: Show` needs `Square: Show`). Inside a generic body, `T` implements exactly the traits in its bounds.
 - A requirement whose type is still unknown waits until it is fixed; at the end of the function an unfixed one is an error. Following impl bounds stops at depth 32.
-- A type parameter that appears only in a bound (`fun g<T: Show>()`) is not monomorphized yet: calling it is rejected until dispatch lands (#58). A method in an impl may not add bounds the trait method does not declare, and a repeated bound is an error.
+- A type parameter that appears only in a bound (`fun g<T: Show>()`) is not monomorphized yet: calling it is rejected, because the instance cannot be recovered from the call's types. A method in an impl may not add bounds the trait method does not declare, and a repeated bound is an error.
 - Primitives, `Vec` and other non-class types implement no traits yet, so a bound such as `T: Show` is never satisfied by an `i32`.
 
 For the complete strong/weak classification rules, arena-ID algorithm, and

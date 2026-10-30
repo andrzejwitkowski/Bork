@@ -8,6 +8,7 @@ mod constants;
 mod bounds;
 mod coherence;
 mod defs;
+mod dispatch;
 mod enums;
 mod generics;
 mod inference;

@@ -76,6 +76,9 @@ pub fn check_with_members(program: &Program) -> Typeck {
         members.insert(constant.id.numbered(), constant.member(name));
     }
     collect_method_sigs(program, &defs, &trait_infos, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
+    for info in impls.values().flatten() {
+        fun_sigs.extend(info.sigs.iter().map(|(id, sig)| (*id, sig.clone())));
+    }
     let mut node_tys = NodeTypes::new();
     let mut checker = FunctionChecker {
         defs: &defs,
@@ -101,6 +104,22 @@ pub fn check_with_members(program: &Program) -> Typeck {
     for class in &program.classes {
         let owner = defs.lookup_class(&class.name).expect("every class is registered");
         for method in &class.methods {
+            functions.push(check_function(&mut checker, method, Some(Owner::Class(owner))));
+        }
+    }
+    // Then impl methods, impl by impl in source order (the table is a map, so sort by index).
+    let mut impl_infos: Vec<&traits::ImplInfo> = impls.values().flatten().collect();
+    impl_infos.sort_by_key(|info| info.index);
+    for info in impl_infos {
+        let decl = &program.impls[info.index];
+        for method in &decl.methods {
+            let Some(&method_id) = info.methods.get(&method.name) else { continue };
+            // Only methods whose header matched the trait have a signature; the rest are reported already.
+            if !info.sigs.contains_key(&method_id) {
+                continue;
+            }
+            let name = traits::impl_method_name(&defs.get(info.trait_id).name, info.index, &method.name);
+            let owner = Owner::Impl { method: method_id, name, self_ty: info.self_ty, generics: info.generics.clone() };
             functions.push(check_function(&mut checker, method, Some(owner)));
         }
     }
@@ -142,11 +161,14 @@ pub fn check_with_members(program: &Program) -> Typeck {
                 .collect(),
         })
         .collect();
+    let (hir_traits, hir_impls) = traits::hir_signatures(program, &defs, &trait_infos, &impls, &mut tcx);
     Typeck {
         hir: HirProgram {
             classes: hir_classes,
             enums: hir_enums,
             functions,
+            traits: hir_traits,
+            impls: hir_impls,
         },
         node_tys,
         members,
@@ -390,13 +412,20 @@ struct FunctionChecker<'a> {
     option_if_vals: &'a mut HashSet<AstId>,
 }
 
-fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<DefId>) -> HirFunction {
+/// What a method belongs to: a class, or an `impl Trait for Type` block.
+#[derive(Clone)]
+enum Owner {
+    Class(DefId),
+    Impl { method: DefId, name: String, self_ty: TyId, generics: Vec<String> },
+}
+
+fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<Owner>) -> HirFunction {
     let FunctionChecker { defs, fun_sigs, classes, enums, traits, impls, constants, tcx, diagnostics, node_tys, members, option_if_vals } = checker;
-    let (signature, name, generics) = function_header(defs, fun_sigs, classes, function, owner);
+    let (signature, name, generics) = function_header(defs, fun_sigs, classes, function, owner.as_ref());
     tcx.set_param_names(generics.clone());
     let mut env = Env::new(defs, tcx, fun_sigs, classes, enums, traits, impls, constants);
     let return_ty = signature.ret;
-    let params = enter_function(&mut env, function, owner, &generics, signature);
+    let params = enter_function(&mut env, function, owner.as_ref(), &generics, signature);
     let body = check_body(&mut env, function, return_ty);
     let body = settle_body(&mut env, body);
     env.tcx.set_param_names(Vec::new());
@@ -421,26 +450,23 @@ fn function_header(
     fun_sigs: &FnSigs,
     classes: &ClassTable,
     function: &Function,
-    owner: Option<DefId>,
+    owner: Option<&Owner>,
 ) -> (FnSig<TyId>, String, Vec<String>) {
-    let def = match owner {
-        Some(class) => defs.lookup_method(class, &function.name),
-        None => defs.lookup_fn(&function.name),
-    }
-    .expect("every function and method is registered");
-    let signature = fun_sigs.get(&def).cloned().expect("signature was collected for every function");
-    let name = match owner {
-        Some(class) => format!("{}.{}", defs.get(class).name, function.name),
-        None => function.name.clone(),
+    let (def, name, generics) = match owner {
+        Some(Owner::Impl { method, name, generics, .. }) => (Some(*method), name.clone(), generics.clone()),
+        Some(Owner::Class(class)) => {
+            // The owner class's parameters come first, as in the method signature.
+            let generics = classes.get(class).map_or(&[][..], |info| &info.generics[..]).iter().cloned();
+            let generics = generics.chain(function.generics.iter().map(|param| param.name.name.clone())).collect();
+            (defs.lookup_method(*class, &function.name), format!("{}.{}", defs.get(*class).name, function.name), generics)
+        }
+        None => {
+            let generics = function.generics.iter().map(|param| param.name.name.clone()).collect();
+            (defs.lookup_fn(&function.name), function.name.clone(), generics)
+        }
     };
-    // The owner class's parameters come first, as in the method signature.
-    let generics = owner
-        .and_then(|class| classes.get(&class))
-        .map_or(&[][..], |class| &class.generics[..])
-        .iter()
-        .cloned()
-        .chain(function.generics.iter().map(|param| param.name.name.clone()))
-        .collect();
+    let def = def.expect("every function and method is registered");
+    let signature = fun_sigs.get(&def).cloned().expect("signature was collected for every function");
     (signature, name, generics)
 }
 
@@ -448,12 +474,17 @@ fn function_header(
 fn enter_function(
     env: &mut Env<'_>,
     function: &Function,
-    owner: Option<DefId>,
+    owner: Option<&Owner>,
     generics: &[String],
     signature: FnSig<TyId>,
 ) -> Vec<HirParam> {
     env.param_env = signature.predicates;
-    env.self_class = owner;
+    match owner {
+        Some(Owner::Class(class)) => env.self_class = Some(*class),
+        // Only a class has fields to reach by bare name; an enum impl still has `this`.
+        Some(Owner::Impl { self_ty, .. }) => env.self_class = env.tcx.record_def(*self_ty),
+        None => {}
+    }
     env.tparams = generics.iter().enumerate().map(|(i, name)| (name.clone(), crate::ty::ParamIdx(i as u32))).collect();
     let mut param_tys = signature.params;
     let mut params = Vec::new();

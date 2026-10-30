@@ -319,7 +319,7 @@ pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind,
         use_kind,
     };
     if name == "this" {
-        if env.self_class.is_none() {
+        if env.binding("this").is_none() {
             env.error("`this` is only available inside a class method", Some(span));
             let unknown = env.tcx.error();
             return env.expr_at(ident(requested), unknown, span);

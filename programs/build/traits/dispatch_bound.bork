@@ -1,0 +1,27 @@
+// exit: 0
+// stdout: circle\nsquare\n
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+impl Show for Circle {
+    fun show(): String { return "circle" }
+}
+impl Show for Square {
+    fun show(): String { return "square" }
+}
+fun say<T: Show>(t: &T) {
+    println(t.show())
+}
+fun main(): i32 {
+    val c = Circle(1.0)
+    val s = Square(2.0)
+    say(&c)
+    say(&s)
+    return 0
+}

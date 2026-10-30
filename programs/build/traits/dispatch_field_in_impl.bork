@@ -1,0 +1,16 @@
+// exit: 0
+// stdout: 25\n
+trait Area {
+    fun area(): i32
+}
+class Sq {
+    side: i32
+}
+impl Area for Sq {
+    fun area(): i32 { return side * side }
+}
+fun main(): i32 {
+    val s = Sq(5)
+    println(s.area())
+    return 0
+}

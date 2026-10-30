@@ -23,6 +23,12 @@ pub(super) fn register(env: &mut Env<'_>, predicates: &[Predicate<TyId>], args: 
     select_where_possible(env);
 }
 
+/// Registers a requirement that is already in terms of the current function's types.
+pub(super) fn require(env: &mut Env<'_>, predicate: Predicate<TyId>, span: Span, origin: &str) {
+    env.infcx.register(Obligation { predicate, span: Some(span), depth: 0, origin: origin.to_string() });
+    select_where_possible(env);
+}
+
 enum Outcome {
     /// Solved; these requirements of the chosen impl remain.
     Solved(Vec<Obligation>),
