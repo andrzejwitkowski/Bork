@@ -58,61 +58,128 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let defs = DefTable::build(program);
     let mut tcx = TyCtx::new(&defs);
     let constants = crate::constants::collect_into(program, &defs, &mut tcx, &mut diagnostics);
+    report_function_clashes(program, &defs, &mut diagnostics);
+
+    let (mut classes, enums) = declare_types(program, &defs, &mut tcx, &mut diagnostics);
+    let (trait_infos, impls) = declare_traits(program, &defs, &mut tcx, &mut diagnostics);
+
+    let mut members = constant_members(&constants);
+    let mut fun_sigs = collect_fun_sigs(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
+    collect_method_sigs(program, &defs, &trait_infos, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
+    fun_sigs.extend(impls.values().flatten().flat_map(|info| info.sigs.iter().map(|(id, sig)| (*id, sig.clone()))));
+
+    let mut node_tys = NodeTypes::new();
+    let mut option_if_vals = HashSet::new();
+    let functions = {
+        let mut checker = FunctionChecker {
+            defs: &defs,
+            fun_sigs: &fun_sigs,
+            classes: &classes,
+            enums: &enums,
+            traits: &trait_infos,
+            impls: &impls,
+            constants: &constants,
+            tcx: &mut tcx,
+            diagnostics: &mut diagnostics,
+            node_tys: &mut node_tys,
+            members: &mut members,
+            option_if_vals: &mut option_if_vals,
+        };
+        check_bodies(&mut checker, program, &defs, &impls)
+    };
+
+    let (hir_traits, hir_impls) = traits::hir_signatures(program, &defs, &trait_infos, &impls, &mut tcx);
+    Typeck {
+        hir: HirProgram {
+            classes: lower_classes(program, &defs, &classes),
+            enums: lower_enums(program, &defs, &enums),
+            functions,
+            traits: hir_traits,
+            impls: hir_impls,
+        },
+        node_tys,
+        members,
+        option_if_vals,
+        diagnostics,
+        tcx,
+    }
+}
+
+/// Redeclared or builtin-named top-level functions.
+fn report_function_clashes(program: &Program, defs: &DefTable, diagnostics: &mut Vec<Diagnostic>) {
     for index in 0..program.functions.len() {
         diagnostics.extend(defs.diagnostics(defs.fn_id(index), |_| true));
     }
+}
 
-    generics::validate(program, &defs, &mut diagnostics);
-    let mut classes = build_classes(program, &defs, &mut tcx, &mut diagnostics);
-    let enums = build_enums(program, &defs, &mut tcx, &mut diagnostics);
-    validate_owned_layouts(&classes, &enums, &mut tcx, &mut diagnostics);
-    let trait_infos = traits::build_traits(program, &defs, &mut tcx, &mut diagnostics);
-    let mut impls = traits::build_impls(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
-    coherence::check_overlaps(&mut impls, &defs, &mut tcx, &mut diagnostics);
-    let mut fun_sigs = collect_fun_sigs(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
-    let mut members = MemberResolutions::new();
-    let mut option_if_vals = HashSet::new();
-    for (name, constant) in &constants {
-        members.insert(constant.id.numbered(), constant.member(name));
-    }
-    collect_method_sigs(program, &defs, &trait_infos, &mut tcx, &mut classes, &mut fun_sigs, &mut members, &mut diagnostics);
-    for info in impls.values().flatten() {
-        fun_sigs.extend(info.sigs.iter().map(|(id, sig)| (*id, sig.clone())));
-    }
-    let mut node_tys = NodeTypes::new();
-    let mut checker = FunctionChecker {
-        defs: &defs,
-        fun_sigs: &fun_sigs,
-        classes: &classes,
-        enums: &enums,
-        traits: &trait_infos,
-        impls: &impls,
-        constants: &constants,
-        tcx: &mut tcx,
-        diagnostics: &mut diagnostics,
-        node_tys: &mut node_tys,
-        members: &mut members,
-        option_if_vals: &mut option_if_vals,
-    };
+/// Classes and enums: their type parameters, fields, variants and by-value layouts.
+fn declare_types(
+    program: &Program,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (ClassTable, EnumTable) {
+    generics::validate(program, defs, diagnostics);
+    let classes = build_classes(program, defs, tcx, diagnostics);
+    let enums = build_enums(program, defs, tcx, diagnostics);
+    validate_owned_layouts(&classes, &enums, tcx, diagnostics);
+    (classes, enums)
+}
+
+/// Traits, then the impls of them, then the check that no two impls overlap.
+fn declare_traits(
+    program: &Program,
+    defs: &DefTable,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (HashMap<DefId, traits::TraitInfo>, traits::ImplTable) {
+    let trait_infos = traits::build_traits(program, defs, tcx, diagnostics);
+    let mut impls = traits::build_impls(program, defs, &trait_infos, tcx, diagnostics);
+    coherence::check_overlaps(&mut impls, defs, tcx, diagnostics);
+    (trait_infos, impls)
+}
+
+/// Global constants, recorded at their declaration name for sema and the language server.
+fn constant_members(constants: &crate::constants::ConstantTable) -> MemberResolutions {
+    constants.iter().map(|(name, constant)| (constant.id.numbered(), constant.member(name))).collect()
+}
+
+/// Every function body, in the order sema numbers its roots: top-level functions, then methods
+/// class by class, then impl methods impl by impl.
+fn check_bodies(
+    checker: &mut FunctionChecker<'_>,
+    program: &Program,
+    defs: &DefTable,
+    impls: &traits::ImplTable,
+) -> Vec<HirFunction> {
     let mut functions: Vec<HirFunction> = program
         .functions
         .iter()
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
-        .map(|function| check_function(&mut checker, function, None))
+        .map(|function| check_function(checker, function, None))
         .collect();
-    // Same order as sema roots: top-level functions, then methods class by class.
     for class in &program.classes {
         let owner = defs.lookup_class(&class.name).expect("every class is registered");
         for method in &class.methods {
-            functions.push(check_function(&mut checker, method, Some(Owner::Class(owner))));
+            functions.push(check_function(checker, method, Some(Owner::Class(owner))));
         }
     }
-    // Then impl methods, impl by impl in source order (the table is a map, so sort by index).
-    let mut impl_infos: Vec<&traits::ImplInfo> = impls.values().flatten().collect();
-    impl_infos.sort_by_key(|info| info.index);
-    for info in impl_infos {
-        let decl = &program.impls[info.index];
-        for method in &decl.methods {
+    functions.extend(check_impl_methods(checker, program, defs, impls));
+    functions
+}
+
+/// The bodies of impl methods, in source order (the table is a map, so sort by index).
+fn check_impl_methods(
+    checker: &mut FunctionChecker<'_>,
+    program: &Program,
+    defs: &DefTable,
+    impls: &traits::ImplTable,
+) -> Vec<HirFunction> {
+    let mut infos: Vec<&traits::ImplInfo> = impls.values().flatten().collect();
+    infos.sort_by_key(|info| info.index);
+    let mut functions = Vec::new();
+    for info in infos {
+        for method in &program.impls[info.index].methods {
             let Some(&method_id) = info.methods.get(&method.name) else { continue };
             // Only methods whose header matched the trait have a signature; the rest are reported already.
             if !info.sigs.contains_key(&method_id) {
@@ -120,11 +187,14 @@ pub fn check_with_members(program: &Program) -> Typeck {
             }
             let name = traits::impl_method_name(&defs.get(info.trait_id).name, info.index, &method.name);
             let owner = Owner::Impl { method: method_id, name, self_ty: info.self_ty, generics: info.generics.clone() };
-            functions.push(check_function(&mut checker, method, Some(owner)));
+            functions.push(check_function(checker, method, Some(owner)));
         }
     }
+    functions
+}
 
-    let hir_classes = program
+fn lower_classes(program: &Program, defs: &DefTable, classes: &ClassTable) -> Vec<HirClass> {
+    program
         .classes
         .iter()
         .filter_map(|class| classes.get(&defs.lookup_class(&class.name)?))
@@ -134,16 +204,14 @@ pub fn check_with_members(program: &Program) -> Typeck {
             fields: class
                 .fields
                 .iter()
-                .map(|field| HirClassField {
-                    name: field.name.clone(),
-                    ty: field.ty,
-                    span: field.span,
-                    source: None,
-                })
+                .map(|field| HirClassField { name: field.name.clone(), ty: field.ty, span: field.span, source: None })
                 .collect(),
         })
-        .collect();
-    let hir_enums = program
+        .collect()
+}
+
+fn lower_enums(program: &Program, defs: &DefTable, enums: &EnumTable) -> Vec<HirEnum> {
+    program
         .enums
         .iter()
         .enumerate()
@@ -156,26 +224,15 @@ pub fn check_with_members(program: &Program) -> Typeck {
                 .iter()
                 .map(|variant| HirVariant {
                     name: variant.name.clone(),
-                    fields: variant.fields.iter().map(|f| HirClassField { name: f.name.clone(), ty: f.ty, span: f.span, source: None }).collect(),
+                    fields: variant
+                        .fields
+                        .iter()
+                        .map(|f| HirClassField { name: f.name.clone(), ty: f.ty, span: f.span, source: None })
+                        .collect(),
                 })
                 .collect(),
         })
-        .collect();
-    let (hir_traits, hir_impls) = traits::hir_signatures(program, &defs, &trait_infos, &impls, &mut tcx);
-    Typeck {
-        hir: HirProgram {
-            classes: hir_classes,
-            enums: hir_enums,
-            functions,
-            traits: hir_traits,
-            impls: hir_impls,
-        },
-        node_tys,
-        members,
-        option_if_vals,
-        diagnostics,
-        tcx,
-    }
+        .collect()
 }
 
 fn build_classes(
