@@ -338,10 +338,7 @@ impl<'a> Env<'a> {
 
     /// `Self: Trait<args>` as diagnostics print it.
     pub(super) fn show_predicate(&self, predicate: &crate::ty::Predicate<TyId>) -> String {
-        let shown = |ty| self.show(ty).to_string();
-        let args: Vec<String> = predicate.trait_ref.args.iter().map(|&a| shown(a)).collect();
-        let args = if args.is_empty() { String::new() } else { format!("<{}>", args.join(", ")) };
-        format!("{}: {}{args}", shown(predicate.self_ty), self.defs.get(predicate.trait_ref.trait_id).name)
+        predicate.render(self.defs, |ty| self.show(ty).to_string())
     }
 
     /// The one place a type mismatch is reported: `{what} has type X, expected Y`. Unknown

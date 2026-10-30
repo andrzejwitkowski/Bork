@@ -32,6 +32,8 @@ pub(super) struct TraitInfo {
 }
 
 /// One `impl Trait<args> for self_ty`; read by the solver (#56) and by dispatch (#58).
+// shortcut: `id` and `methods` are read by method dispatch (#58).
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(super) struct ImplInfo {
     pub id: DefId,

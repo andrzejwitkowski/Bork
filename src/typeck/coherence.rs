@@ -10,7 +10,7 @@ use super::type_error;
 use crate::defs::DefTable;
 use crate::diag::Diagnostic;
 use crate::infer::InferCtxt;
-use crate::ty::TyCtx;
+use crate::ty::{TraitRef, TyCtx};
 
 pub(super) fn check_overlaps(
     table: &mut ImplTable,
@@ -27,7 +27,7 @@ pub(super) fn check_overlaps(
                 Some(earlier) => {
                     let trait_name = &defs.get(trait_id).name;
                     let message = format!(
-                        "conflicting implementations of trait `{trait_name}`: `{}` overlaps with `{}`; make the types differ or remove one",
+                        "conflicting implementations of trait `{trait_name}`: `{}` overlaps with the earlier impl `{}`; make the types differ or remove one",
                         header(tcx, defs, &info),
                         header(tcx, defs, earlier)
                     );
@@ -55,20 +55,33 @@ fn overlap(infcx: &mut InferCtxt, tcx: &mut TyCtx, a: &ImplInfo, b: &ImplInfo) -
     unified.is_some()
 }
 
-/// `impl<T: Eq> Show for Box<T>`, with the impl's own parameter names and bounds.
+/// `Show for Box<T> where T: Eq`, with the impl's own parameter names and bounds.
 fn header(tcx: &TyCtx, defs: &DefTable, info: &ImplInfo) -> String {
     let show = |ty| tcx.display_with(ty, &info.generics).to_string();
-    let args: Vec<String> = info.trait_args.iter().map(|&a| show(a)).collect();
-    let args = if args.is_empty() { String::new() } else { format!("<{}>", args.join(", ")) };
-    let bounds: Vec<String> = info
-        .predicates
-        .iter()
-        .map(|p| {
-            let trait_args: Vec<String> = p.trait_ref.args.iter().map(|&a| show(a)).collect();
-            let trait_args = if trait_args.is_empty() { String::new() } else { format!("<{}>", trait_args.join(", ")) };
-            format!("{}: {}{trait_args}", show(p.self_ty), defs.get(p.trait_ref.trait_id).name)
-        })
-        .collect();
+    let trait_ref = TraitRef { trait_id: info.trait_id, args: info.trait_args.clone() };
+    let bounds: Vec<String> = info.predicates.iter().map(|p| p.render(defs, show)).collect();
     let bounds = if bounds.is_empty() { String::new() } else { format!(" where {}", bounds.join(", ")) };
-    format!("{}{args} for {}{bounds}", defs.get(info.trait_id).name, show(info.self_ty))
+    format!("{} for {}{bounds}", trait_ref.render(defs, show), show(info.self_ty))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ty::InferVar;
+
+    #[test]
+    fn checking_a_pair_leaves_no_inference_variables_behind() {
+        let src = "trait S {\n}\nclass Box<T> {\n    v: T\n}\nclass A {\n    r: f64\n}\nimpl<T> S for Box<T> {\n}\nimpl S for Box<A> {\n}\nfun main() {}\n";
+        let program = crate::parse(src).unwrap();
+        let defs = DefTable::build(&program);
+        let mut tcx = TyCtx::new(&defs);
+        let mut diagnostics = Vec::new();
+        let traits = super::super::traits::build_traits(&program, &defs, &mut tcx, &mut diagnostics);
+        let table = super::super::traits::build_impls(&program, &defs, &traits, &mut tcx, &mut diagnostics);
+        let impls = &table[&defs.trait_id(0)];
+        let mut infcx = InferCtxt::new();
+        assert!(overlap(&mut infcx, &mut tcx, &impls[0], &impls[1]));
+        let next = infcx.new_var(&mut tcx, crate::infer::VarKind::General);
+        assert_eq!(*tcx.data(next), crate::ty::TyData::Infer(InferVar(0)));
+    }
 }

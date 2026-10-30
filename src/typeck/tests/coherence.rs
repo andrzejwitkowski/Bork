@@ -43,7 +43,7 @@ fn trait_arguments_take_part_in_the_overlap() {
 fn bounds_are_not_considered() {
     overlaps("impl<T: Show> Eq for Box<T> {\n}\nimpl<T: Eq> Eq for Box<T> {\n}\n");
     let found = diags("impl<T: Show> Eq for Box<T> {\n}\nimpl<T: Eq> Eq for Box<T> {\n}\n");
-    assert!(found[0].0.contains("`Eq for Box<T> where T: Eq` overlaps with `Eq for Box<T> where T: Show`"), "{found:?}");
+    assert!(found[0].0.contains("`Eq for Box<T> where T: Eq` overlaps with the earlier impl `Eq for Box<T> where T: Show`"), "{found:?}");
 }
 
 #[test]
@@ -60,9 +60,9 @@ fn later_impls_are_reported_in_source_order_and_name_both() {
     let impls = "impl<T> Show for Box<T> {\n}\nimpl Eq for Circle {\n}\nimpl Show for Box<Circle> {\n}\nimpl Eq for Circle {\n}\nimpl Show for Box<Square> {\n}\n";
     let found = diags(impls);
     assert_eq!(found.len(), 3, "{found:?}");
-    assert!(found[0].0.contains("`Show for Box<Circle>` overlaps with `Show for Box<T>`"), "{found:?}");
-    assert!(found[1].0.contains("`Eq for Circle` overlaps with `Eq for Circle`"), "{found:?}");
-    assert!(found[2].0.contains("`Show for Box<Square>` overlaps with `Show for Box<T>`"), "{found:?}");
+    assert!(found[0].0.contains("`Show for Box<Circle>` overlaps with the earlier impl `Show for Box<T>`"), "{found:?}");
+    assert!(found[1].0.contains("`Eq for Circle` overlaps with the earlier impl `Eq for Circle`"), "{found:?}");
+    assert!(found[2].0.contains("`Show for Box<Square>` overlaps with the earlier impl `Show for Box<T>`"), "{found:?}");
     let src = format!("{HEAD}{impls}fun main() {{}}\n");
     let starts: Vec<usize> = found.iter().map(|(_, span)| span.unwrap().start).collect();
     assert!(starts.windows(2).all(|w| w[0] < w[1]), "{starts:?}");
