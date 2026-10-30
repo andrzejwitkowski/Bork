@@ -137,7 +137,30 @@ fn solve_from_bounds(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome 
     Outcome::Failed(unsatisfied(env, predicate, "a type parameter only implements the traits in its bounds"))
 }
 
-/// An impl header instantiated with fresh variables, unified with the requirement.
+/// An impl header instantiated with fresh variables and unified with `self_ty` and, when known,
+/// the trait arguments. Returns the impl's own bounds; the bindings stay until the caller rolls back.
+fn unify_header(
+    env: &mut Env<'_>,
+    info: &super::traits::ImplInfo,
+    self_ty: TyId,
+    trait_args: Option<&[TyId]>,
+) -> Option<Vec<Predicate<TyId>>> {
+    let (head, args, nested) = info.instantiate(&mut env.infcx, env.tcx)?;
+    env.infcx.unify(env.tcx, head, self_ty).ok()?;
+    for (&want, &have) in args.iter().zip(trait_args.unwrap_or(&[])) {
+        env.infcx.unify(env.tcx, want, have).ok()?;
+    }
+    Some(nested)
+}
+
+/// Whether the impl could apply to `self_ty` for some trait arguments. Leaves no bindings.
+pub(super) fn impl_applies(env: &mut Env<'_>, info: &super::traits::ImplInfo, self_ty: TyId) -> bool {
+    let snap = env.infcx.snapshot();
+    let applies = unify_header(env, info, self_ty, None).is_some();
+    env.infcx.rollback_to(snap);
+    applies
+}
+
 /// `commit` keeps the bindings and returns the impl's own bounds as nested requirements.
 fn try_impl(
     env: &mut Env<'_>,
@@ -146,14 +169,7 @@ fn try_impl(
     commit: bool,
 ) -> Option<Vec<Predicate<TyId>>> {
     let snap = env.infcx.snapshot();
-    let header = (|| {
-        let (self_ty, trait_args, nested) = info.instantiate(&mut env.infcx, env.tcx)?;
-        env.infcx.unify(env.tcx, self_ty, predicate.self_ty).ok()?;
-        for (&want, &have) in trait_args.iter().zip(&predicate.trait_ref.args) {
-            env.infcx.unify(env.tcx, want, have).ok()?;
-        }
-        Some(nested)
-    })();
+    let header = unify_header(env, info, predicate.self_ty, Some(&predicate.trait_ref.args));
     match header {
         Some(nested) if commit => {
             env.infcx.commit(snap);

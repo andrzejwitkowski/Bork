@@ -108,9 +108,7 @@ fn check_trait_method_call(
     let mut subst_args = vec![self_ty];
     subst_args.extend(&candidate.args);
     subst_args.extend(super::call::fresh_params(&own_names, &name, span, env));
-    let mut sig = FnSig::new(sig_params, sig_ret);
-    sig.generics = (0..subst_args.len() as u32).map(crate::ty::ParamIdx).collect();
-    sig.generic_names = subst_args.iter().map(|_| String::new()).collect();
+    let sig = FnSig::new(sig_params, sig_ret);
     let Some((params, ret)) = subst_sig(&name, span, &sig, &subst_args, env) else {
         return poisoned(args, span, return_ty, env);
     };
@@ -121,6 +119,17 @@ fn check_trait_method_call(
     env.members.insert(id.numbered(), MemberRef::Method { class: trait_name, name: method.to_string(), signature });
     let receiver = borrow(checked, env);
     finish_call(name, params, ret, Some(receiver), site, env)
+}
+
+/// A hint for `recv.name` without a call when `name` is a method of the receiver.
+pub(super) fn method_hint(ty: TyId, name: &str, env: &mut Env<'_>) -> String {
+    let self_ty = env.tcx.ref_inner(ty).unwrap_or(ty);
+    let inherent = env.tcx.record_def(ty).is_some_and(|class| env.defs.lookup_method(class, name).is_some());
+    if inherent || !trait_candidates(self_ty, name, env).is_empty() {
+        format!("; `{name}` is a method, call it as `{name}()`")
+    } else {
+        String::new()
+    }
 }
 
 /// The traits that could provide `method` for `self_ty`, in a stable order.
@@ -138,7 +147,7 @@ fn trait_candidates(self_ty: TyId, method: &str, env: &mut Env<'_>) -> Vec<Trait
         return candidates;
     }
     let mut trait_ids: Vec<DefId> = env.traits.keys().copied().collect();
-    trait_ids.sort_by_key(|id| env.defs.get(*id).name.clone());
+    trait_ids.sort_by(|a, b| env.defs.get(*a).name.cmp(&env.defs.get(*b).name));
     for trait_id in trait_ids {
         let info = &env.traits[&trait_id];
         if !info.methods.iter().any(|m| m.name == method) {
@@ -146,16 +155,7 @@ fn trait_candidates(self_ty: TyId, method: &str, env: &mut Env<'_>) -> Vec<Trait
         }
         let arity = info.generics.len();
         let impls = env.impls;
-        let applies = impls.get(&trait_id).is_some_and(|all| {
-            all.iter().any(|imp| {
-                let snap = env.infcx.snapshot();
-                let unified = imp
-                    .instantiate(&mut env.infcx, env.tcx)
-                    .is_some_and(|(head, _, _)| env.infcx.unify(env.tcx, head, self_ty).is_ok());
-                env.infcx.rollback_to(snap);
-                unified
-            })
-        });
+        let applies = impls.get(&trait_id).is_some_and(|all| all.iter().any(|imp| super::super::solve::impl_applies(env, imp, self_ty)));
         if applies {
             let args = (0..arity).map(|_| env.infcx.new_var(env.tcx, crate::infer::VarKind::General)).collect();
             candidates.push(TraitCandidate { trait_id, args });

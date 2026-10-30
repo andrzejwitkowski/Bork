@@ -266,3 +266,14 @@ fn generic_impls_of_different_types_get_different_instances() {
         assert!(names.contains(&expected), "{expected}: {names:?}");
     }
 }
+
+#[test]
+fn a_trait_argument_and_a_method_parameter_are_both_part_of_the_instance() {
+    let m = mono(
+        "trait Conv<U> {\n    fun conv<V>(u: U, v: V): V\n}\nclass B {\n    n: i32\n}\nimpl Conv<i32> for B {\n    fun conv<W>(u: i32, v: W): W { return v }\n}\nfun main() {\n    val b = B(1)\n    val x = b.conv(5, true)\n    val y = b.conv(6, \"s\")\n}\n",
+    );
+    let names = names(&m);
+    for expected in ["Conv@0.conv<bool>", "Conv@0.conv<String>"] {
+        assert!(names.contains(&expected), "{expected}: {names:?}");
+    }
+}

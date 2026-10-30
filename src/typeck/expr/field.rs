@@ -75,9 +75,10 @@ pub(super) fn check_field(
     });
     let Some((class, field_index, field)) = field else {
         if !env.tcx.is_unknown(receiver.ty) {
+            let hint = super::method::method_hint(receiver.ty, name, env);
             env.error(
                 format!(
-                    "unknown field `{name}` on type {}{}",
+                    "unknown field `{name}` on type {}{}{hint}",
                     env.show(receiver.ty),
                     env.bounds_hint(&[receiver.ty])
                 ),

@@ -76,3 +76,9 @@ fn an_unsatisfied_receiver_is_reported_once() {
     let found = run("fun f<T: Show>(t: &T): String { return t.show() }\nfun main() {\n    val n = 5\n    val x = f(&n)\n}\n");
     assert_eq!(found.iter().filter(|m| m.contains("trait bound")).count(), 1, "{found:?}");
 }
+
+#[test]
+fn a_method_named_without_a_call_says_so() {
+    rejected("fun main() {\n    val s = Square(1.0)\n    val f = s.show\n}\n", "`show` is a method, call it as `show()`");
+    rejected("fun main() {\n    val s = Square(1.0)\n    val f = s.nope\n}\n", "unknown field `nope` on type Square");
+}
