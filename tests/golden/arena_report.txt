@@ -3513,6 +3513,9 @@ Arenas
 └── fun main
     ├── a [Local]
     └── b [Local]
+== programs/check/traits/coherence_ok.bork
+Arenas
+└── fun main
 == programs/check/traits/generic_impl.bork
 Arenas
 └── fun main
@@ -4380,7 +4383,7 @@ Type Error [130..136] method `scaled` has 0 parameters but trait `Shape` declare
 Arenas
 └── fun main
 == programs/check_fail/traits/bound_ambiguous.bork
-Type Error [457..461] the trait bound `Box<Circle>: Show` is not satisfied; it is ambiguous, several impls apply: Box<T>, Box<Circle>
+Type Error [320..324] conflicting implementations of trait `Show`: `Show for Box<Circle>` overlaps with `Show for Box<T> where T: Show`; make the types differ or remove one
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
@@ -4438,6 +4441,22 @@ Arenas
 └── fun main
 == programs/check_fail/traits/missing_item.bork
 Type Error [119..124] not all trait items implemented, missing: `scaled`
+Arenas
+└── fun main
+== programs/check_fail/traits/overlap_bounds_ignored.bork
+Type Error [309..313] conflicting implementations of trait `Show`: `Show for Box<T> where T: Eq` overlaps with `Show for Box<T> where T: Show`; make the types differ or remove one
+Arenas
+└── fun main
+== programs/check_fail/traits/overlap_generic.bork
+Type Error [283..287] conflicting implementations of trait `Show`: `Show for Box<Circle>` overlaps with `Show for Box<T>`; make the types differ or remove one
+Arenas
+└── fun main
+== programs/check_fail/traits/overlap_identical.bork
+Type Error [280..284] conflicting implementations of trait `Show`: `Show for Circle` overlaps with `Show for Circle`; make the types differ or remove one
+Arenas
+└── fun main
+== programs/check_fail/traits/overlap_repeated_param.bork
+Type Error [287..291] conflicting implementations of trait `Show`: `Show for Pair<Circle, Circle>` overlaps with `Show for Pair<T, T>`; make the types differ or remove one
 Arenas
 └── fun main
 == programs/check_fail/traits/param_type_mismatch.bork

@@ -10,6 +10,8 @@ use super::{generics, lower::lower_type, type_error};
 use crate::ast::{Impl, Program, Trait};
 use crate::defs::{DefId, DefTable};
 use crate::diag::Diagnostic;
+use crate::infer::{InferCtxt, VarKind};
+use crate::span::Span;
 use crate::ty::{subst, ParamIdx, Predicate, TraitRef, TyCtx, TyData, TyId};
 
 /// A trait method signature without the implicit `this: &Self`. In `params`/`ret`, `Param(0)` is
@@ -33,12 +35,33 @@ pub(super) struct TraitInfo {
 #[derive(Debug, Clone)]
 pub(super) struct ImplInfo {
     pub id: DefId,
+    pub trait_id: DefId,
+    /// Program order among all impls; coherence reports in this order.
+    pub index: usize,
+    /// The impl's trait name, where its diagnostics point.
+    pub span: Span,
     pub generics: Vec<String>,
     pub trait_args: Vec<TyId>,
     pub self_ty: TyId,
     /// The impl's own bounds (`impl<T: Show> ..`); they become obligations when it is selected.
     pub predicates: Vec<Predicate<TyId>>,
     pub methods: HashMap<String, DefId>,
+}
+
+impl ImplInfo {
+    /// The header with a fresh inference variable for each impl parameter: self type, trait
+    /// arguments and the impl's own bounds. `None` if a substitution would make `T??`.
+    pub(super) fn instantiate(
+        &self,
+        infcx: &mut InferCtxt,
+        tcx: &mut TyCtx,
+    ) -> Option<(TyId, Vec<TyId>, Vec<Predicate<TyId>>)> {
+        let fresh: Vec<TyId> = self.generics.iter().map(|_| infcx.new_var(tcx, VarKind::General)).collect();
+        let self_ty = subst(tcx, self.self_ty, &fresh).ok()?;
+        let args = self.trait_args.iter().map(|&a| subst(tcx, a, &fresh)).collect::<Result<_, _>>().ok()?;
+        let predicates = self.predicates.iter().map(|p| p.subst(tcx, &fresh)).collect::<Result<_, _>>().ok()?;
+        Some((self_ty, args, predicates))
+    }
 }
 
 /// The predicates of `T: Trait<..>` bounds on `generics`; `scope` numbers the parameters. An unknown
@@ -177,7 +200,7 @@ pub(super) fn build_impls(
             diagnostics.push(type_error(format!("unknown trait `{}`", i.trait_name.name), Some(i.trait_name.span)));
             continue;
         };
-        if let Some(info) = check_impl(i, index, &traits[&trait_id], traits, defs, tcx, diagnostics) {
+        if let Some(info) = check_impl(i, index, trait_id, &traits[&trait_id], traits, defs, tcx, diagnostics) {
             table.entry(trait_id).or_default().push(info);
         }
     }
@@ -187,6 +210,7 @@ pub(super) fn build_impls(
 fn check_impl(
     i: &Impl,
     index: usize,
+    trait_id: DefId,
     t: &TraitInfo,
     traits: &HashMap<DefId, TraitInfo>,
     defs: &DefTable,
@@ -246,6 +270,9 @@ fn check_impl(
     tcx.set_param_names(Vec::new());
     Some(ImplInfo {
         id: defs.impl_id(index),
+        trait_id,
+        index,
+        span: i.trait_name.span,
         generics: i.generics.iter().map(|g| g.name.name.clone()).collect(),
         trait_args,
         self_ty,

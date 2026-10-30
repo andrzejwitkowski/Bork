@@ -73,14 +73,6 @@ fn literals_are_defaulted_before_a_pending_bound_is_judged() {
 }
 
 #[test]
-fn overlapping_impls_are_ambiguous_for_now() {
-    rejected(
-        "impl Show for Box<Circle> {\n    fun show(): String { return \"x\" }\n}\nfun main() {\n    val b = Box(Circle(1.0))\n    need(&b)\n}\n",
-        "it is ambiguous, several impls apply: Box<T>, Box<Circle>",
-    );
-}
-
-#[test]
 fn recursive_requirements_stop_at_the_depth_limit() {
     let mut expr = "Circle(1.0)".to_string();
     for _ in 0..40 {

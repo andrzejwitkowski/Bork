@@ -1,4 +1,4 @@
-// diag: it is ambiguous, several impls apply
+// diag: conflicting implementations of trait `Show`
 trait Show {
     fun show(): String
 }

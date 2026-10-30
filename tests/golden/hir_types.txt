@@ -580,6 +580,7 @@ programs/check/traits/bounds_method.bork::Holder.put(this: &Holder, t: &T0) -> u
 programs/check/traits/bounds_where.bork::both(t: &T0, u: &T1) -> unit
 programs/check/traits/bounds_where.bork::multi(t: &T0) -> unit
 programs/check/traits/bounds_where.bork::main() -> unit
+programs/check/traits/coherence_ok.bork::main() -> unit
 programs/check/traits/generic_impl.bork::main() -> unit
 programs/check/vec/push_via_this_field.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::H.add(this: &H, k: i32) -> i32

@@ -1,0 +1,26 @@
+// diag: conflicting implementations of trait `Show`
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+class Pair<A, B> {
+    a: A
+    b: B
+}
+trait Eq {
+}
+impl<T: Show> Show for Box<T> {
+    fun show(): String { return "a" }
+}
+impl<T: Eq> Show for Box<T> {
+    fun show(): String { return "b" }
+}
+fun main() {}
