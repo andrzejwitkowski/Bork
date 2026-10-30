@@ -221,3 +221,11 @@ fn enum_payloads_instantiate_the_classes_they_use() {
     assert!(m.hir.classes.iter().any(|c| c.name == "Pair<i32,String>"));
     assert_eq!(m.hir.enums.len(), 1);
 }
+
+#[test]
+fn a_parameter_that_only_appears_in_a_bound_is_not_monomorphized_yet() {
+    // Typeck accepts `g::<C>()`; mono cannot recover `T` from the signature until dispatch (#58).
+    let src = "trait Show {\n}\nclass C {\n    r: f64\n}\nimpl Show for C {\n}\nfun g<T: Show>() { }\nfun main() {\n    g::<C>()\n}\n";
+    let diags = rejected(src);
+    assert!(diags.iter().any(|d| d.message.contains("is not determined by its signature")), "{diags:?}");
+}

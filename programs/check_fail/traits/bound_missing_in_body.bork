@@ -1,0 +1,19 @@
+// diag: the trait bound `T: Show` is not satisfied
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+impl Show for Circle {
+    fun show(): String { return "circle" }
+}
+fun need<T: Show>(t: &T) { }
+fun forgot<T>(t: &T) { need(&t) }
+fun main() {}

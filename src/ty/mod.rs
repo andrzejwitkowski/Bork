@@ -12,6 +12,7 @@
 //! - `Named(name)` becomes `Class(DefId, args)`; a name that is not a class cannot be interned.
 
 mod fold;
+mod predicate;
 mod print;
 mod query;
 mod sig;
@@ -23,6 +24,7 @@ use crate::hir::Prim;
 
 pub use fold::{normalize, subst, super_fold, walk, TypeFolder, TypeVisitor};
 pub use print::TyPrinter;
+pub use predicate::{Predicate, TraitRef};
 pub use sig::{FnSig, FnSigs};
 
 /// Index of an interned type; only meaningful within the `TyCtx` that issued it.

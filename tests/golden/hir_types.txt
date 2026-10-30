@@ -572,6 +572,14 @@ programs/check/option/option_of_nullable.bork::main() -> unit
 programs/check/recursions/self_call.bork::down(n: i32) -> i32
 programs/check/recursions/self_call.bork::main() -> i32
 programs/check/traits/basic.bork::main() -> unit
+programs/check/traits/bounds_basic.bork::need(t: &T0) -> unit
+programs/check/traits/bounds_basic.bork::pass(t: &T0) -> unit
+programs/check/traits/bounds_basic.bork::main() -> unit
+programs/check/traits/bounds_method.bork::main() -> unit
+programs/check/traits/bounds_method.bork::Holder.put(this: &Holder, t: &T0) -> unit
+programs/check/traits/bounds_where.bork::both(t: &T0, u: &T1) -> unit
+programs/check/traits/bounds_where.bork::multi(t: &T0) -> unit
+programs/check/traits/bounds_where.bork::main() -> unit
 programs/check/traits/generic_impl.bork::main() -> unit
 programs/check/vec/push_via_this_field.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::H.add(this: &H, k: i32) -> i32

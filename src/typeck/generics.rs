@@ -19,16 +19,32 @@ pub(super) fn names(outer: &[TypeParam], own: &[TypeParam]) -> Vec<String> {
     outer.iter().chain(own).map(|param| param.name.name.clone()).collect()
 }
 
+/// Bounds are checked at calls of functions and methods and by impls; a class, enum or trait
+/// parameter has nothing to check them against yet.
+fn reject_bounds(owner: &str, list: &[TypeParam], diagnostics: &mut Vec<Diagnostic>) {
+    for bound in list.iter().flat_map(|param| &param.bounds) {
+        diagnostics.push(Diagnostic {
+            phase: Phase::Type,
+            severity: Severity::Error,
+            message: format!("bounds on the type parameters of {owner} are not supported yet"),
+            span: Some(bound.name.span),
+        });
+    }
+}
+
 pub(super) fn validate(program: &Program, defs: &DefTable, diagnostics: &mut Vec<Diagnostic>) {
     for function in &program.functions {
         check_list(&[], &function.generics, defs, diagnostics);
     }
     for e in &program.enums {
+        reject_bounds("an enum", &e.generics, diagnostics);
         check_list(&[], &e.generics, defs, diagnostics);
     }
     for t in &program.traits {
+        reject_bounds("a trait", &t.generics, diagnostics);
         check_list(&[], &t.generics, defs, diagnostics);
         for method in &t.methods {
+            reject_bounds("a trait method", &method.generics, diagnostics);
             check_list(&t.generics, &method.generics, defs, diagnostics);
         }
     }
@@ -39,6 +55,7 @@ pub(super) fn validate(program: &Program, defs: &DefTable, diagnostics: &mut Vec
         }
     }
     for class in &program.classes {
+        reject_bounds("a class", &class.generics, diagnostics);
         check_list(&[], &class.generics, defs, diagnostics);
         for method in &class.methods {
             check_list(&class.generics, &method.generics, defs, diagnostics);

@@ -354,3 +354,30 @@ fn enum_arguments_unify_and_mismatch_by_definition() {
     let other_ty = fx.t.enum_ty(other, vec![i32_ty]);
     assert!(fx.unify(concrete, other_ty).is_err());
 }
+
+#[test]
+fn rollback_drops_obligations_registered_since_the_snapshot() {
+    use crate::defs::DefTable;
+    use crate::infer::Obligation;
+    use crate::ty::{Predicate, TraitRef};
+    let program = crate::parse("trait T {\n}\nfun main() {}\n").unwrap();
+    let defs = DefTable::build(&program);
+    let mut tcx = TyCtx::new(&defs);
+    let mut infcx = InferCtxt::new();
+    let ob = |tcx: &mut TyCtx| Obligation {
+        predicate: Predicate { self_ty: tcx.i32(), trait_ref: TraitRef { trait_id: defs.trait_id(0), args: vec![] } },
+        span: None,
+        depth: 0,
+        origin: String::new(),
+    };
+    infcx.register(ob(&mut tcx));
+    let snap = infcx.snapshot();
+    infcx.register(ob(&mut tcx));
+    assert_eq!(infcx.pending_obligations(), 2);
+    infcx.rollback_to(snap);
+    assert_eq!(infcx.pending_obligations(), 1);
+    let snap = infcx.snapshot();
+    infcx.register(ob(&mut tcx));
+    infcx.commit(snap);
+    assert_eq!(infcx.pending_obligations(), 2);
+}

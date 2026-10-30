@@ -95,7 +95,10 @@ pub(super) fn subst_sig(
 ) -> Option<(Vec<TyId>, TyId)> {
     let params: Result<Vec<_>, _> = sig.params.iter().map(|&ty| crate::ty::subst(env.tcx, ty, args)).collect();
     match (params, crate::ty::subst(env.tcx, sig.ret, args)) {
-        (Ok(params), Ok(ret)) => Some((params, ret)),
+        (Ok(params), Ok(ret)) => {
+            super::super::solve::register(env, &sig.predicates, args, span, name);
+            Some((params, ret))
+        }
         _ => {
             env.error(format!("type arguments of `{name}` would make a nullable of a nullable"), Some(span));
             None

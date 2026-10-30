@@ -1,9 +1,10 @@
 use crate::ast::{
     unescape_string_literal, AssignTarget, BindingKind, BinOp, Block, Class, ConstDecl, Enum, Variant, ClassField, ClassMember, Closure,
-    ConditionalBinding, ConditionalBindings, Expr, Function, Impl, Item, MatchArm, Param, PatLit, Pattern, Program, Stmt, Trait, TraitMethod, Type, TypeParam,
+    ConditionalBinding, ConditionalBindings, Expr, Function, Impl, Item, MatchArm, Param, PatLit, Pattern, Program, Stmt, Trait, TraitMethod, TraitRef, Type, TypeParam, WherePred,
     UnaryOp,
 };
 use crate::span::{AstId, Span, SpannedName};
+use crate::ast;
 use lalrpop_util::ParseError;
 
 grammar;
@@ -30,6 +31,7 @@ match {
     "promote" => "promote",
     "trait" => "trait",
     "impl" => "impl",
+    "where" => "where",
     "::" => "::",
 } else {
     _
@@ -121,13 +123,19 @@ TraitMethodDecl: TraitMethod = {
 };
 
 ImplDecl: Impl = {
-    "impl" <generics:TypeParams?> <trait_name:SpannedIdent> <trait_args:TypeArgs?> "for" <start:@L> <self_ty:Type> <end:@R> "{" <methods:ImplBody> "}" => Impl {
-        generics: generics.unwrap_or_default(),
-        trait_name,
-        trait_args: trait_args.unwrap_or_default(),
-        self_ty,
-        self_span: Span::new(start, end),
-        methods,
+    "impl" <generics:TypeParams?> <trait_name:SpannedIdent> <trait_args:TypeArgs?> "for" <start:@L> <self_ty:Type> <end:@R> <wh:WhereClause?> "{" <methods:ImplBody> "}" =>? {
+        let mut generics = generics.unwrap_or_default();
+        ast::merge_where(&mut generics, wh.unwrap_or_default()).map_err(|_| ParseError::User {
+            error: "a `where` clause may only bound the impl's own type parameters",
+        })?;
+        Ok(Impl {
+            generics,
+            trait_name,
+            trait_args: trait_args.unwrap_or_default(),
+            self_ty,
+            self_span: Span::new(start, end),
+            methods,
+        })
     },
 };
 
@@ -242,7 +250,31 @@ ClassFieldDecl: ClassField = {
 };
 
 TypeParams: Vec<TypeParam> = {
-    "<" <names:Comma<SpannedIdent>> ">" => names.into_iter().map(|name| TypeParam { name }).collect(),
+    "<" <params:Comma<TypeParamDecl>> ">" => params,
+};
+
+TypeParamDecl: TypeParam = {
+    <name:SpannedIdent> <bounds:(":" <BoundList>)?> => TypeParam { name, bounds: bounds.unwrap_or_default() },
+};
+
+BoundList: Vec<TraitRef> = {
+    <first:TraitRefDecl> <rest:("+" <TraitRefDecl>)*> => {
+        let mut bounds = vec![first];
+        bounds.extend(rest);
+        bounds
+    },
+};
+
+TraitRefDecl: TraitRef = {
+    <name:SpannedIdent> <args:TypeArgs?> => TraitRef { name, args: args.unwrap_or_default() },
+};
+
+WhereClause: Vec<WherePred> = {
+    "where" <preds:Comma<WherePredDecl>> => preds,
+};
+
+WherePredDecl: WherePred = {
+    <param:SpannedIdent> ":" <bounds:BoundList> => WherePred { param, bounds },
 };
 
 TypeArgs: Vec<Type> = {
@@ -250,16 +282,20 @@ TypeArgs: Vec<Type> = {
 };
 
 Function: Function = {
-    "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <body:Block> => {
-        Function {
+    "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <wh:WhereClause?> <body:Block> =>? {
+        let mut generics = generics.unwrap_or_default();
+        ast::merge_where(&mut generics, wh.unwrap_or_default()).map_err(|_| ParseError::User {
+            error: "a `where` clause may only bound the function's own type parameters",
+        })?;
+        Ok(Function {
             name: name.name,
             name_span: name.span,
             id: AstId::DUMMY,
-            generics: generics.unwrap_or_default(),
+            generics,
             params: params.unwrap_or_default(),
             return_type: ret,
             body,
-        }
+        })
     },
 };
 

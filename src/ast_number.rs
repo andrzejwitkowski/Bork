@@ -105,7 +105,10 @@ impl Numberer {
     }
 
     fn generics(&mut self, generics: &mut [crate::ast::TypeParam]) {
-        generics.iter_mut().for_each(|g| self.name(&mut g.name));
+        for g in generics {
+            self.name(&mut g.name);
+            g.bounds.iter_mut().for_each(|b| self.name(&mut b.name));
+        }
     }
 
     fn params(&mut self, params: &mut [crate::ast::Param]) {

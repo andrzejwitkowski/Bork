@@ -3486,6 +3486,33 @@ Arenas
 == programs/check/traits/basic.bork
 Arenas
 └── fun main
+== programs/check/traits/bounds_basic.bork
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+├── fun pass
+│   └── t [Borrow ← call site]
+└── fun main
+    ├── c [Local]
+    └── b [Local]
+== programs/check/traits/bounds_method.bork
+Arenas
+├── fun main
+│   ├── h [Local]
+│   └── c [Local]
+└── fun Holder.put
+    ├── this [Borrow ← call site]
+    └── t [Borrow ← call site]
+== programs/check/traits/bounds_where.bork
+Arenas
+├── fun both
+│   ├── t [Borrow ← call site]
+│   └── u [Borrow ← call site]
+├── fun multi
+│   └── t [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    └── b [Local]
 == programs/check/traits/generic_impl.bork
 Arenas
 └── fun main
@@ -4352,6 +4379,59 @@ Arenas
 Type Error [130..136] method `scaled` has 0 parameters but trait `Shape` declares 1
 Arenas
 └── fun main
+== programs/check_fail/traits/bound_ambiguous.bork
+Type Error [457..461] the trait bound `Box<Circle>: Show` is not satisfied; it is ambiguous, several impls apply: Box<T>, Box<Circle>
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+└── fun main
+    └── b [Local]
+== programs/check_fail/traits/bound_depth.bork
+Type Error [577..581] overflow evaluating the requirement `Box<Box<Box<Box<Box<Box<Box<Circle>>>>>>>: Show`: bounds are followed at most 32 levels deep
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+└── fun main
+    └── b [Local]
+== programs/check_fail/traits/bound_missing_in_body.bork
+Type Error [292..296] the trait bound `T: Show` is not satisfied; a type parameter only implements the traits in its bounds
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+├── fun forgot
+│   └── t [Borrow ← call site]
+└── fun main
+== programs/check_fail/traits/bound_nested.bork
+Type Error [394..398] the trait bound `Square: Show` is not satisfied; it is implemented for: Circle, Box<T>
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+└── fun main
+    └── b [Local]
+== programs/check_fail/traits/bound_on_class.bork
+Type Error [276..280] bounds on the type parameters of a class are not supported yet
+Arenas
+└── fun main
+== programs/check_fail/traits/bound_primitive.bork
+Type Error [302..306] the trait bound `i32: Show` is not satisfied; only classes and enums implement traits yet
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+└── fun main
+    └── n [Local]
+== programs/check_fail/traits/bound_unknown_trait.bork
+Type Error [39..43] unknown trait `Nope`
+Arenas
+├── fun f
+│   └── t [Borrow ← call site]
+└── fun main
+== programs/check_fail/traits/bound_unsatisfied.bork
+Type Error [315..319] the trait bound `Square: Show` is not satisfied; it is implemented for: Circle
+Arenas
+├── fun need
+│   └── t [Borrow ← call site]
+└── fun main
+    └── s [Local]
 == programs/check_fail/traits/extra_item.bork
 Type Error [155..164] method `perimeter` is not a member of trait `Shape`
 Arenas
