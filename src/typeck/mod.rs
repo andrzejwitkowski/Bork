@@ -1,3 +1,4 @@
+mod coherence;
 mod env;
 mod exhaustive;
 mod expr;
@@ -66,7 +67,8 @@ pub fn check_with_members(program: &Program) -> Typeck {
     let enums = build_enums(program, &defs, &mut tcx, &mut diagnostics);
     validate_owned_layouts(&classes, &enums, &mut tcx, &mut diagnostics);
     let trait_infos = traits::build_traits(program, &defs, &mut tcx, &mut diagnostics);
-    let impls = traits::build_impls(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
+    let mut impls = traits::build_impls(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
+    coherence::check_overlaps(&mut impls, &defs, &mut tcx, &mut diagnostics);
     let mut fun_sigs = collect_fun_sigs(program, &defs, &trait_infos, &mut tcx, &mut diagnostics);
     let mut members = MemberResolutions::new();
     let mut option_if_vals = HashSet::new();

@@ -97,5 +97,9 @@ fun both<Circle,Circle>
 fun multi<Circle>
 class Circle
 class Square
+== programs/check/traits/coherence_ok.bork
+fun main
+class Circle
+class Square
 == programs/check/traits/generic_impl.bork
 fun main

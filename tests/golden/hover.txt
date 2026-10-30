@@ -237,6 +237,7 @@ programs/check/traits/basic.bork: hits=0 hash=cbf29ce484222325
 programs/check/traits/bounds_basic.bork: hits=9 hash=f98c7475ce5315a0
 programs/check/traits/bounds_method.bork: hits=11 hash=a6ac4430f07568e2
 programs/check/traits/bounds_where.bork: hits=8 hash=5b1669ca6be81d86
+programs/check/traits/coherence_ok.bork: hits=0 hash=cbf29ce484222325
 programs/check/traits/generic_impl.bork: hits=0 hash=cbf29ce484222325
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
@@ -341,7 +342,7 @@ programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764
 programs/check_fail/option/return_some_loop_local.bork: hits=58 hash=a172b475e3566b6d
 programs/check_fail/option/t_to_option.bork: hits=1 hash=38267fa358db6232
 programs/check_fail/traits/arity_mismatch.bork: hits=0 hash=cbf29ce484222325
-programs/check_fail/traits/bound_ambiguous.bork: hits=3 hash=90784ae84b75065b
+programs/check_fail/traits/bound_ambiguous.bork: hits=3 hash=5c2b8360a863be9a
 programs/check_fail/traits/bound_depth.bork: hits=3 hash=ac9bb1148b46459c
 programs/check_fail/traits/bound_missing_in_body.bork: hits=3 hash=719bc97e7663ce90
 programs/check_fail/traits/bound_nested.bork: hits=3 hash=e0fe83f551ae15ac
@@ -351,6 +352,10 @@ programs/check_fail/traits/bound_unknown_trait.bork: hits=1 hash=6e792d6a8956bb2
 programs/check_fail/traits/bound_unsatisfied.bork: hits=3 hash=1da8ea2623af17dd
 programs/check_fail/traits/extra_item.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/missing_item.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/overlap_bounds_ignored.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/overlap_generic.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/overlap_identical.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/overlap_repeated_param.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/param_type_mismatch.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/trait_arity.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/type_mismatch.bork: hits=0 hash=cbf29ce484222325

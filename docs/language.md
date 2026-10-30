@@ -114,9 +114,10 @@ impl<T> Show for Box<T> { ... }
 
 - A trait lists method signatures (no bodies, no default methods). `Self` names the implementing type; methods take `this: &Self` implicitly, like class methods. Traits and impls may be generic (`trait Conv<U>`, `impl<T> Conv<i32> for Box<T>`).
 - Each impl must provide exactly the trait's methods with the same parameter count and types (after substituting `Self` and the trait arguments). Missing, extra, duplicate and mismatched items are errors at the impl.
+- Two impls of one trait may not overlap: if their headers unify (`impl<T> Show for Box<T>` and `impl Show for Box<Circle>`), the later one is an error naming both. Bounds are not considered (`impl<T: A> ..` and `impl<T: B> ..` for `Box<T>` overlap). Impls of different traits never overlap, and neither do impls of one trait whose trait arguments cannot unify (`Conv<i32>` and `Conv<bool>`); arguments that can unify do overlap (`impl<T> Conv<T> for Box<T>` and `impl Conv<Circle> for Box<Circle>`).
 - Only classes and enums can implement a trait for now. `Self` is usable in impl signatures too.
 - `trait` and `impl` are now reserved words: they can no longer be used as variable, function or field names.
-- Not yet: calling trait methods (#58), overlap checks (#57), associated types (#59). Impl bodies are parsed but not type-checked (no errors for bad names or return values inside them until calls can reach them, #58).
+- Not yet: calling trait methods (#58), associated types (#59). Impl bodies are parsed but not type-checked (no errors for bad names or return values inside them until calls can reach them, #58).
 
 #### Bounds
 
@@ -128,7 +129,7 @@ impl<T: Show> Show for Box<T> { ... }
 
 - A type parameter of a function, method or impl may carry bounds, written `T: A + B<i32>` or in a `where` clause (`where` is a reserved word; it may only name the item's own type parameters). Class, enum and trait parameters cannot have bounds yet.
 - Every call checks the callee's bounds against the type arguments. A class or enum satisfies `Trait` if an impl matches; an impl's own bounds are then required of its type arguments (`Box<Square>: Show` needs `Square: Show`). Inside a generic body, `T` implements exactly the traits in its bounds.
-- A requirement whose type is still unknown waits until it is fixed; at the end of the function an unfixed one is an error. Several matching impls (until overlap is rejected, #57) is an ambiguity error that names them. Following impl bounds stops at depth 32.
+- A requirement whose type is still unknown waits until it is fixed; at the end of the function an unfixed one is an error. Following impl bounds stops at depth 32.
 - A type parameter that appears only in a bound (`fun g<T: Show>()`) is not monomorphized yet: calling it is rejected until dispatch lands (#58). A method in an impl may not add bounds the trait method does not declare, and a repeated bound is an error.
 - Primitives, `Vec` and other non-class types implement no traits yet, so a bound such as `T: Show` is never satisfied by an `i32`.
 

@@ -5,7 +5,7 @@
 //! an unbound variable waits. There is no negative reasoning and no specialization.
 
 use super::env::Env;
-use crate::infer::{Obligation, VarKind};
+use crate::infer::Obligation;
 use crate::span::Span;
 use crate::ty::{Predicate, TyData, TyId};
 
@@ -85,10 +85,6 @@ fn has_unknown(env: &Env<'_>, predicate: &Predicate<TyId>) -> bool {
     std::iter::once(&predicate.self_ty).chain(&predicate.trait_ref.args).any(|&t| env.tcx.is_unknown(t))
 }
 
-fn has_variable(env: &Env<'_>, predicate: &Predicate<TyId>) -> bool {
-    std::iter::once(&predicate.self_ty).chain(&predicate.trait_ref.args).any(|&t| super::has_infer(env.tcx, t))
-}
-
 fn solve_one(env: &mut Env<'_>, obligation: &Obligation) -> Outcome {
     let Some(predicate) = resolved(env, obligation) else { return Outcome::Solved(Vec::new()) };
     // Already reported: do not pile a second error on an unknown type.
@@ -144,15 +140,13 @@ fn try_impl(
     commit: bool,
 ) -> Option<Vec<Predicate<TyId>>> {
     let snap = env.infcx.snapshot();
-    let fresh: Vec<TyId> = info.generics.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
     let header = (|| {
-        let self_ty = crate::ty::subst(env.tcx, info.self_ty, &fresh).ok()?;
+        let (self_ty, trait_args, nested) = info.instantiate(&mut env.infcx, env.tcx)?;
         env.infcx.unify(env.tcx, self_ty, predicate.self_ty).ok()?;
-        for (&want, &have) in info.trait_args.iter().zip(&predicate.trait_ref.args) {
-            let want = crate::ty::subst(env.tcx, want, &fresh).ok()?;
+        for (&want, &have) in trait_args.iter().zip(&predicate.trait_ref.args) {
             env.infcx.unify(env.tcx, want, have).ok()?;
         }
-        info.predicates.iter().map(|p| p.subst(env.tcx, &fresh).ok()).collect::<Option<Vec<_>>>()
+        Some(nested)
     })();
     match header {
         Some(nested) if commit => {
@@ -195,12 +189,8 @@ fn solve_from_impls(env: &mut Env<'_>, predicate: &Predicate<TyId>, obligation: 
                     .collect(),
             )
         }
-        _ if has_variable(env, predicate) => Outcome::Stalled,
-        many => {
-            let names: Vec<String> = many.iter().map(|info| impl_self(env, info)).collect();
-            let hint = format!("it is ambiguous, several impls apply: {}", names.join(", "));
-            Outcome::Failed(unsatisfied(env, predicate, &hint))
-        }
+        // Impls cannot overlap (coherence), so several can match only while a variable is still open.
+        _ => Outcome::Stalled,
     }
 }
 

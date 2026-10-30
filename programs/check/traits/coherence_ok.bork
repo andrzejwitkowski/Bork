@@ -1,0 +1,29 @@
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+class Pair<A, B> {
+    a: A
+    b: B
+}
+impl Show for Box<Circle> {
+    fun show(): String { return "a" }
+}
+impl Show for Box<Square> {
+    fun show(): String { return "b" }
+}
+impl<T> Show for Pair<T, T> {
+    fun show(): String { return "same" }
+}
+impl Show for Pair<Circle, Square> {
+    fun show(): String { return "mixed" }
+}
+fun main() {}
