@@ -117,7 +117,7 @@ impl<T> Show for Box<T> { ... }
 - Two impls of one trait may not overlap: if their headers unify (`impl<T> Show for Box<T>` and `impl Show for Box<Circle>`), the later one is an error naming both. Bounds are not considered (`impl<T: A> ..` and `impl<T: B> ..` for `Box<T>` overlap). Impls of different traits never overlap, and neither do impls of one trait whose trait arguments cannot unify (`Conv<i32>` and `Conv<bool>`); arguments that can unify do overlap (`impl<T> Conv<T> for Box<T>` and `impl Conv<Circle> for Box<Circle>`).
 - Only classes and enums can implement a trait for now. `Self` is usable in impl signatures too.
 - `trait` and `impl` are now reserved words: they can no longer be used as variable, function or field names.
-- Not yet: associated types (#59), default method bodies, trait objects, `Trait.method(x)` call syntax. Impl bodies are parsed but not type-checked (no errors for bad names or return values inside them until calls can reach them, #58).
+- Not yet: associated types (#59), default method bodies, trait objects, `Trait.method(x)` call syntax.
 
 #### Calling trait methods
 

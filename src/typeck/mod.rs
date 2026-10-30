@@ -453,7 +453,11 @@ fn function_header(
     owner: Option<&Owner>,
 ) -> (FnSig<TyId>, String, Vec<String>) {
     let (def, name, generics) = match owner {
-        Some(Owner::Impl { method, name, generics, .. }) => (Some(*method), name.clone(), generics.clone()),
+        Some(Owner::Impl { method, name, generics, .. }) => {
+            // The impl's parameters come first, then the method's own, as in its signature.
+            let own = function.generics.iter().map(|param| param.name.name.clone());
+            (Some(*method), name.clone(), generics.iter().cloned().chain(own).collect())
+        }
         Some(Owner::Class(class)) => {
             // The owner class's parameters come first, as in the method signature.
             let generics = classes.get(class).map_or(&[][..], |info| &info.generics[..]).iter().cloned();

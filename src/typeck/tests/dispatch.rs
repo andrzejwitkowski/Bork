@@ -82,3 +82,23 @@ fn a_method_named_without_a_call_says_so() {
     rejected("fun main() {\n    val s = Square(1.0)\n    val f = s.show\n}\n", "`show` is a method, call it as `show()`");
     rejected("fun main() {\n    val s = Square(1.0)\n    val f = s.nope\n}\n", "unknown field `nope` on type Square");
 }
+
+#[test]
+fn a_method_generic_parameter_is_in_scope_in_an_impl_body() {
+    let src = "trait Conv {\n    fun conv<V>(v: V): V\n}\nclass B {\n    n: i32\n}\nimpl Conv for B {\n    fun conv<W>(v: W): W {\n        val x: W = v\n        return x\n    }\n}\nfun main() {}\n";
+    let program = crate::parse(src).unwrap();
+    let typeck = crate::typeck::check_with_members(&program);
+    assert!(typeck.diagnostics.is_empty(), "{:?}", typeck.diagnostics);
+    let conv = typeck.hir.functions.iter().find(|f| f.name == "Conv@0.conv").unwrap();
+    assert_eq!(conv.generics, ["W"]);
+}
+
+#[test]
+fn an_impl_method_with_impl_and_own_generics_lists_the_impl_first() {
+    let src = "trait Conv {\n    fun conv<V>(v: V): V\n}\nclass Box<T> {\n    t: T\n}\nimpl<T> Conv for Box<T> {\n    fun conv<W>(v: W): W { return v }\n}\nfun main() {}\n";
+    let program = crate::parse(src).unwrap();
+    let typeck = crate::typeck::check_with_members(&program);
+    assert!(typeck.diagnostics.is_empty(), "{:?}", typeck.diagnostics);
+    let conv = typeck.hir.functions.iter().find(|f| f.name == "Conv@0.conv").unwrap();
+    assert_eq!(conv.generics, ["T", "W"]);
+}
