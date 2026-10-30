@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork PR #186 — Coherence: rejecting overlapping impls</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfbf8; --card:#fff; --line:#dfe2e8; --accent:#2b5fd9; --ok:#1a7f4b; --bad:#b3261e; --warn:#fff6d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1,h2,h3,nav,.box,.quiz button,.tag { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1 { font-size: 2rem; line-height:1.2; margin: 12px 0 4px; }
+  h2 { font-size: 1.5rem; margin-top: 2.6em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3 { font-size: 1.1rem; margin-top: 1.8em; }
+  .sub { color: var(--muted); margin-top: 0; }
+  nav { background: var(--card); border:1px solid var(--line); border-radius:10px; padding: 12px 18px; margin: 18px 0; font-size:.95rem; }
+  nav a { color: var(--accent); text-decoration:none; }
+  nav ol { margin: 6px 0 0; padding-left: 20px; }
+  code { font: .88em ui-monospace, Menlo, Consolas, monospace; background:#eef0f5; padding: 1px 5px; border-radius:4px; }
+  pre { background:#171b26; color:#e6e9f2; padding: 14px 16px; border-radius:10px; overflow-x:auto; font: .85rem/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre code { background:none; padding:0; color:inherit; }
+  .callout { border-left: 4px solid var(--accent); background:#eef3ff; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 1.2em 0; font-size:.97rem; }
+  .callout.warn { border-color:#c98a00; background: var(--warn); }
+  .skip { color: var(--muted); font-size:.9rem; font-style: italic; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:1.2em 0; }
+  .box { flex: 1 1 130px; background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.88rem; }
+  .box b { display:block; margin-bottom:4px; }
+  .box.hl { border-color: var(--accent); background:#eef3ff; }
+  .box.bad { border-color: var(--bad); background:#fdecea; }
+  .box.ok { border-color: var(--ok); background:#e8f6ee; }
+  .box.wait { border-color:#c98a00; background: var(--warn); }
+  .arrow { align-self:center; font-size:1.3rem; color:var(--muted); }
+  .cols { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 1.2em 0; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .arrow { display:none; } }
+  table { border-collapse: collapse; width:100%; font-family: -apple-system, "Segoe UI", sans-serif; font-size:.9rem; margin: 1em 0; }
+  th,td { border:1px solid var(--line); padding: 6px 9px; text-align:left; vertical-align: top; }
+  th { background:#f1f3f8; }
+  td.y { background:#fdecea; } td.n { background:#e8f6ee; }
+  .tag { display:inline-block; font-size:.72rem; padding:1px 8px; border-radius:99px; background:#e4e8f3; color:#334; }
+  .quiz { background:var(--card); border:1px solid var(--line); border-radius:12px; padding: 14px 18px; margin: 18px 0; }
+  .quiz p.q { font-weight:600; margin-top:0; }
+  .quiz button { display:block; width:100%; text-align:left; margin: 6px 0; padding: 9px 12px; border:1.5px solid var(--line); border-radius:8px; background:#fff; font-size:.92rem; cursor:pointer; color:var(--fg); }
+  .quiz button:hover:not(:disabled) { border-color: var(--accent); }
+  .quiz button.right { border-color: var(--ok); background:#e8f6ee; }
+  .quiz button.wrong { border-color: var(--bad); background:#fdecea; }
+  .fb { display:none; margin-top:8px; font-size:.95rem; padding: 8px 12px; background:#f3f5fa; border-radius:8px; }
+  #score { font-family: -apple-system, sans-serif; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>One type, one answer: rejecting overlapping impls</h1>
+<p class="sub">PR #186 · branch <code>feat/traits-coherence</code> · TS-P5-03, issue #57 · third of five Phase 5 (traits) tickets</p>
+
+<nav>
+  <b>Contents</b>
+  <ol>
+    <li><a href="#background">Background</a></li>
+    <li><a href="#intuition">Intuition</a></li>
+    <li><a href="#code">Code walkthrough</a></li>
+    <li><a href="#limits">What this PR deliberately does not do</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">1. Background</h2>
+
+<p class="skip">If you know what coherence means in a trait system, skip to “Where Bork stood after #56”.</p>
+
+<h3>Why two impls for one type are a problem</h3>
+<p>A trait says what a type can do; an <em>impl</em> says how. Suppose someone writes two impls of <code>Show</code> that both apply to <code>Box&lt;Circle&gt;</code>. When code later asks “show this box”, the compiler must choose one. If it picks differently in two places, or depending on the order of declarations, the same program means different things after an innocent reordering. Languages that care about predictability demand <em>coherence</em>: for any type and trait, at most one impl applies.</p>
+
+<h3>Overlap is about <em>some</em> type, not <em>this</em> type</h3>
+<p>The check cannot wait for a call. A generic impl such as <code>impl&lt;T&gt; Show for Box&lt;T&gt;</code> covers infinitely many types, and a second impl <code>impl Show for Box&lt;Circle&gt;</code> collides with it for exactly one of them. The question the compiler asks is therefore: <em>does there exist a type that both impls would apply to?</em> That is a question about the impl <em>headers</em>, not about any program that uses them.</p>
+
+<div class="flow">
+  <div class="box"><b>impl A</b><code>Show for Box&lt;T&gt;</code><br>covers Box&lt;Circle&gt;, Box&lt;Square&gt;, …</div>
+  <div class="arrow">∩</div>
+  <div class="box"><b>impl B</b><code>Show for Box&lt;Circle&gt;</code><br>covers Box&lt;Circle&gt;</div>
+  <div class="arrow">=</div>
+  <div class="box bad"><b>non-empty</b><code>Box&lt;Circle&gt;</code> is covered twice</div>
+</div>
+
+<h3>Where Bork stood after #56</h3>
+<p>The previous two PRs added trait declarations and impls (#55), then bounds and a solver (#56). The solver looks up impls for a requirement like <code>Box&lt;Circle&gt;: Show</code>. With two matching impls it did the only honest thing it could: it reported an <em>ambiguity</em> at the use site. That worked, but the error appeared far from the real mistake, only when someone happened to call a bounded function, and the program could be full of overlapping impls that nobody used.</p>
+
+<div class="callout"><b>Key concept — unification.</b> Bork already has unification for type inference: two types <em>unify</em> if replacing inference variables can make them equal. <code>Box&lt;?1&gt;</code> and <code>Box&lt;Circle&gt;</code> unify with <code>?1 = Circle</code>; <code>Box&lt;Circle&gt;</code> and <code>Box&lt;Square&gt;</code> do not. Overlap detection reuses exactly this machine.</div>
+
+<h2 id="intuition">2. Intuition</h2>
+
+<p>The idea fits in one line: <em>two impls overlap if their headers unify, once each impl’s own parameters are replaced by fresh variables.</em></p>
+
+<h3>Fresh variables for each impl</h3>
+<p>Each impl has its own parameter names. The <code>T</code> in <code>impl&lt;T&gt; Show for Box&lt;T&gt;</code> has nothing to do with a <code>T</code> in another impl. So before comparing, each impl’s parameters become <em>separate</em> inference variables:</p>
+
+<div class="flow">
+  <div class="box"><b>impl A</b><code>Show for Box&lt;T&gt;</code></div><div class="arrow">T → ?1</div>
+  <div class="box hl"><b>header A</b><code>Box&lt;?1&gt;</code></div>
+  <div class="arrow">unify</div>
+  <div class="box hl"><b>header B</b><code>Box&lt;Circle&gt;</code></div><div class="arrow">no variables</div>
+  <div class="box"><b>impl B</b><code>Show for Box&lt;Circle&gt;</code></div>
+</div>
+<p>Unifying <code>Box&lt;?1&gt;</code> with <code>Box&lt;Circle&gt;</code> succeeds with <code>?1 = Circle</code>. The two impls overlap. Then the compiler rolls the bindings back, because this was only a question.</p>
+
+<h3>A table of cases</h3>
+<table>
+  <tr><th>Impl 1</th><th>Impl 2</th><th>Overlap?</th><th>Why</th></tr>
+  <tr><td><code>Show for Circle</code></td><td><code>Show for Circle</code></td><td class="y">yes</td><td>identical</td></tr>
+  <tr><td><code>Show for Box&lt;T&gt;</code></td><td><code>Show for Box&lt;Circle&gt;</code></td><td class="y">yes</td><td><code>T = Circle</code></td></tr>
+  <tr><td><code>Show for Box&lt;Box&lt;T&gt;&gt;</code></td><td><code>Show for Box&lt;U&gt;</code></td><td class="y">yes</td><td><code>U = Box&lt;T&gt;</code>: needs real unification, not text equality</td></tr>
+  <tr><td><code>Show for Pair&lt;T, T&gt;</code></td><td><code>Show for Pair&lt;Circle, Circle&gt;</code></td><td class="y">yes</td><td>both slots forced equal, <code>T = Circle</code></td></tr>
+  <tr><td><code>Show for Pair&lt;T, T&gt;</code></td><td><code>Show for Pair&lt;Circle, Square&gt;</code></td><td class="n">no</td><td><code>T</code> cannot be <code>Circle</code> and <code>Square</code></td></tr>
+  <tr><td><code>Conv&lt;i32&gt; for Box&lt;T&gt;</code></td><td><code>Conv&lt;bool&gt; for Box&lt;T&gt;</code></td><td class="n">no</td><td>trait arguments differ</td></tr>
+  <tr><td><code>Show for Circle</code></td><td><code>Eq for Circle</code></td><td class="n">no</td><td>different traits never overlap</td></tr>
+</table>
+
+<div class="callout"><b>Key concept — bounds are ignored.</b> <code>impl&lt;T: A&gt; Show for Box&lt;T&gt;</code> and <code>impl&lt;T: B&gt; Show for Box&lt;T&gt;</code> overlap even if no type implements both <code>A</code> and <code>B</code>. Deciding that would need negative reasoning (“this type will never implement <code>B</code>”), which the issue excludes. Being conservative can reject a program that would have been fine; it never accepts one that is ambiguous.</div>
+
+<h3>What happens to the error</h3>
+<p>The <em>later</em> impl in the file is reported, and the message names both:</p>
+<pre><code>error: conflicting implementations of trait `Show`:
+  `Show for Box&lt;Circle&gt;` overlaps with the earlier impl `Show for Box&lt;T&gt;`;
+  make the types differ or remove one</code></pre>
+<p>The offending impl is also <em>dropped</em> from the impl table. Otherwise the solver would still see two matches, and every use of that type would pile a second, confusing error on top of the first.</p>
+
+<h2 id="code">3. Code walkthrough</h2>
+
+<h3>3.1 A shared header instantiation — <code>typeck/traits.rs</code></h3>
+<p>The solver already built “this impl with fresh variables” inside <code>try_impl</code>. That logic moves into one method, <code>ImplInfo::instantiate</code>, which returns the self type, the trait arguments and the impl’s own bounds. The solver unifies the result with a requirement; coherence unifies two of them. <code>ImplInfo</code> also learns its <code>trait_id</code>, its program-order <code>index</code> and a <code>span</code> (the trait name in the impl header) so diagnostics can point at it.</p>
+
+<h3>3.2 The check — <code>typeck/coherence.rs</code> (new)</h3>
+<pre><code>for each trait:
+    accepted = []
+    for impl in impls of that trait (source order):
+        if some earlier accepted impl overlaps it:   // header unification
+            report: impl overlaps with the earlier impl
+        else:
+            accepted.push(impl)
+    table[trait] = accepted
+sort reports by impl index, then emit</code></pre>
+<p><code>overlap</code> takes a snapshot, instantiates both headers with fresh variables, unifies self types and then each pair of trait arguments, and always rolls back. One throw-away <code>InferCtxt</code> serves all pairs. Because the impl table is a <code>HashMap</code>, iteration order is arbitrary; sorting the collected diagnostics by source index makes the output identical on every run.</p>
+
+<div class="callout"><b>Edge case — three impls.</b> With <code>Box&lt;T&gt;</code>, <code>Box&lt;A&gt;</code>, <code>Box&lt;A&gt;</code>, both later impls are compared with the <em>accepted</em> list, so each is reported against <code>Box&lt;T&gt;</code>. A rejected impl is never used as a reference for the next one.</div>
+
+<h3>3.3 Printing the headers</h3>
+<p>The message prints each impl with <em>its own</em> parameter names (<code>Box&lt;T&gt;</code>, not <code>Box&lt;T0&gt;</code>) and its bounds (<code>Show for Box&lt;T&gt; where T: Eq</code>). A single <code>TraitRef::render</code> and <code>Predicate::render</code> in <code>ty/predicate.rs</code> now build every “<code>Trait&lt;args&gt;</code>” string in the compiler, shared with the solver’s diagnostics.</p>
+
+<h3>3.4 The solver gets simpler — <code>typeck/solve.rs</code></h3>
+<p>The “several impls apply” error is gone. With overlap rejected at declaration time, two impls can match one requirement only while some variable is still unbound, so that case now just <em>waits</em> (<code>Outcome::Stalled</code>) like any other unresolved requirement.</p>
+
+<h3>3.5 Tests, corpus and docs</h3>
+<ul>
+  <li><code>src/typeck/tests/coherence.rs</code>: unification-not-text overlaps, trait arguments, bounds ignored, disjoint impls accepted, source-order output that names both impls, no cascade into a use site.</li>
+  <li>A unit test in <code>coherence.rs</code> that checking a pair leaves no inference variables behind.</li>
+  <li>Programs under <code>programs/check/traits/coherence_ok.bork</code> and <code>programs/check_fail/traits/overlap_*.bork</code>. The old <code>bound_ambiguous.bork</code> now fails with the coherence message, which is the only change to existing golden lines.</li>
+  <li><code>docs/language.md</code> and a note in RFC 0001 covering #55–#57.</li>
+</ul>
+
+<h2 id="limits">4. What this PR deliberately does not do</h2>
+<div class="callout warn"><b>No specialization.</b> A more specific impl does not override a general one; it is simply an error. Rust has an unstable feature for that, and the issue puts it out of scope.</div>
+<ul>
+  <li>Impl self types are still classes and enums only, so blanket impls such as <code>impl&lt;T&gt; Show for T</code> cannot be written yet. The same check will handle them once they can (a bare parameter just becomes a fresh variable).</li>
+  <li>There is no orphan rule: Bork is a single crate, so nothing outside it can add a conflicting impl.</li>
+  <li>The check is conservative: bounds are not considered, so some programs that would have been unambiguous are rejected.</li>
+  <li>The <code>--features codegen</code> suite was not run locally (no LLVM 23).</li>
+</ul>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Five questions. Click an answer.</p>
+<div id="quizroot"></div>
+<p id="score"></p>
+
+</main>
+
+<script>
+const questions = [
+  {
+    q: "Which pair of impls is rejected as overlapping?",
+    a: [
+      "`Show for Pair<T, T>` and `Show for Pair<Circle, Square>`",
+      "`Conv<i32> for Box<T>` and `Conv<bool> for Box<T>`",
+      "`Show for Box<Box<T>>` and `Show for Box<U>`",
+      "`Show for Circle` and `Eq for Circle`"
+    ],
+    c: 2,
+    why: "`Box<U>` can be made equal to `Box<Box<T>>` by `U = Box<T>`, so some type is covered by both. In the first pair `T` cannot be both `Circle` and `Square`; in the others the trait arguments or the traits themselves differ."
+  },
+  {
+    q: "Why does each impl get its own fresh inference variables before the two headers are unified?",
+    a: [
+      "Because inference variables are cheaper than type parameters",
+      "Because a `T` in one impl is unrelated to a `T` in another; sharing variables would wrongly force them equal",
+      "Because the solver cannot read `Param` types",
+      "To make the error message print `?1`"
+    ],
+    c: 1,
+    why: "Impl parameters are local names. If both impls shared one variable for `T`, `Box<T>` against `Pair<T, ..>`-like cases could look equal or unequal for the wrong reason. Separate variables ask the real question: is there any assignment that makes the headers equal?"
+  },
+  {
+    q: "`impl<T: A> Show for Box<T>` and `impl<T: B> Show for Box<T>` are declared, and no type implements both `A` and `B`. What does this PR do?",
+    a: [
+      "Accepts them, because no type can satisfy both bounds",
+      "Rejects the later one: bounds are ignored, and proving that no type has both would need negative reasoning",
+      "Accepts them but reports an ambiguity at each use",
+      "Rejects both impls"
+    ],
+    c: 1,
+    why: "The check is conservative by design. It compares headers only; the later impl is reported against the earlier one and dropped."
+  },
+  {
+    q: "Why is the offending impl removed from the impl table after it is reported?",
+    a: [
+      "To save memory",
+      "So the solver never sees two matches, and uses of that type do not get a second, confusing error",
+      "Because the impl’s methods are invalid",
+      "So that codegen skips it"
+    ],
+    c: 1,
+    why: "Keeping both would make every requirement on that type stall or fail in the solver. Dropping the later impl leaves the earlier one to satisfy uses, so one mistake yields one error."
+  },
+  {
+    q: "What happened to the solver’s old “several impls apply” error?",
+    a: [
+      "It stayed as a second line of defence",
+      "It was removed; several matching impls now only mean a variable is still open, so the requirement waits",
+      "It became a warning",
+      "It moved into the parser"
+    ],
+    c: 1,
+    why: "With overlap rejected at declaration, a fully known type has at most one matching impl. Multiple matches can only occur while a variable is unbound, and that case already stalls."
+  }
+];
+
+const root = document.getElementById('quizroot');
+let answered = 0, correct = 0;
+questions.forEach((item, qi) => {
+  const box = document.createElement('div');
+  box.className = 'quiz';
+  const p = document.createElement('p');
+  p.className = 'q';
+  p.textContent = (qi + 1) + '. ' + item.q;
+  box.appendChild(p);
+  const fb = document.createElement('div');
+  fb.className = 'fb';
+  const buttons = item.a.map((text, ai) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.addEventListener('click', () => {
+      buttons.forEach(x => x.disabled = true);
+      buttons[item.c].classList.add('right');
+      if (ai === item.c) { correct++; fb.textContent = '✔ Correct. ' + item.why; }
+      else { b.classList.add('wrong'); fb.textContent = '✘ Not quite. ' + item.why; }
+      fb.style.display = 'block';
+      answered++;
+      if (answered === questions.length) {
+        document.getElementById('score').textContent = 'Score: ' + correct + ' / ' + questions.length;
+      }
+    });
+    box.appendChild(b);
+    return b;
+  });
+  box.appendChild(fb);
+  root.appendChild(box);
+});
+</script>
+</body>
+</html>
