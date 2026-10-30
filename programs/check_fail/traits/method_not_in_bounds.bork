@@ -1,0 +1,12 @@
+// diag: has no method `nope`; its bounds are: `Show`
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+fun f<T: Show>(t: &T): String { return t.nope() }
+fun main() {}

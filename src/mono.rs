@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{self, HirClass, HirClassField, HirEnum, HirExpr, HirExprKind, HirFunction, HirProgram, HirVariant};
+use crate::hir::{self, HirClass, HirClassField, HirEnum, HirExpr, HirExprKind, HirFunction, HirImpl, HirProgram, HirTraitMethod, HirVariant};
 use crate::memory::MemoryPlan;
 use crate::sema::ArenaReport;
 use crate::span::Span;
@@ -159,31 +159,83 @@ impl<'a> Collector<'a> {
 
     /// Type arguments of a call to `callee` seen at type `callee_ty`, `None` once reported.
     fn infer_type_args(&mut self, tcx: &TyCtx, callee: &HirFunction, callee_ty: TyId, span: Option<Span>) -> Option<Vec<TyId>> {
-        if callee.generics.is_empty() {
+        let params = callee.params.iter().map(|p| p.ty).collect();
+        let sig = GenericSig { name: &callee.name, generics: &callee.generics, params, ret: callee.return_ty };
+        self.bind_signature(tcx, &sig, callee_ty, span)
+    }
+
+    /// Matches a generic signature against the call's concrete function type; the value of each
+    /// of its parameters, `None` once reported.
+    fn bind_signature(&mut self, tcx: &TyCtx, sig: &GenericSig<'_>, callee_ty: TyId, span: Option<Span>) -> Option<Vec<TyId>> {
+        if sig.generics.is_empty() {
             return Some(Vec::new());
         }
-        let mut out = vec![None; callee.generics.len()];
+        let mut out = vec![None; sig.generics.len()];
         let matched = match tcx.data(callee_ty) {
-            TyData::Func { params, ret } => {
-                params.len() == callee.params.len()
-                    && callee.params.iter().zip(params).all(|(p, &actual)| bind(tcx, p.ty, actual, &mut out))
-                    && bind(tcx, callee.return_ty, *ret, &mut out)
+            TyData::Func { params: actual, ret: actual_ret } => {
+                sig.params.len() == actual.len()
+                    && sig.params.iter().zip(actual).all(|(&p, &a)| bind(tcx, p, a, &mut out))
+                    && bind(tcx, sig.ret, *actual_ret, &mut out)
             }
             _ => false,
         };
         let missing = out.iter().position(Option::is_none);
         if !matched || missing.is_some() {
+            let name = sig.name;
             let why = match missing {
                 Some(index) if matched => format!(
-                    "type parameter `{}` of `{}` is not determined by its signature, which monomorphization does not support yet",
-                    callee.generics[index], callee.name
+                    "type parameter `{}` of `{name}` is not determined by its signature, which monomorphization does not support yet",
+                    sig.generics[index]
                 ),
-                _ => format!("cannot determine the type arguments of this call to `{}`", callee.name),
+                _ => format!("cannot determine the type arguments of this call to `{name}`"),
             };
             self.diagnostics.push(error(why, span));
             return None;
         }
         Some(out.into_iter().flatten().collect())
+    }
+
+    /// The instance of the impl method that a call of `Trait.method` at the concrete type
+    /// `callee_ty` runs. Coherence leaves at most one impl whose header matches `Self` and the trait
+    /// arguments, so this is a direct call; no table is consulted at run time. `None` when `name`
+    /// is no trait method, or once an error is reported.
+    fn resolve_trait_call(&mut self, tcx: &TyCtx, name: &str, callee_ty: TyId, span: Option<Span>) -> Option<String> {
+        let hir = self.hir;
+        let (trait_name, method) = name.split_once('.')?;
+        let declared = find_trait_method(hir, trait_name, method)?;
+        let call = self.bind_trait_call(tcx, name, declared, callee_ty, span)?;
+        let Some((imp, impl_args)) = select_impl(hir, tcx, trait_name, &call) else {
+            self.diagnostics.push(error(format!("no impl of `{trait_name}` for `{}`", tcx.display(call.self_ty)), span));
+            return None;
+        };
+        let mut args = self.impl_arguments(trait_name, imp, impl_args, span)?;
+        args.extend(call.method_args);
+        let function = &imp.methods.iter().find(|(m, _)| m == method)?.1;
+        let origin = *self.by_name.get(function.as_str())?;
+        self.request_instance(tcx, origin, args, span)
+    }
+
+    /// `Self`, the trait's arguments and the method's own arguments of a call of a trait method.
+    fn bind_trait_call(&mut self, tcx: &TyCtx, name: &str, declared: &HirTraitMethod, callee_ty: TyId, span: Option<Span>) -> Option<TraitCall> {
+        let sig = GenericSig { name, generics: &declared.generics, params: declared.params.clone(), ret: declared.ret };
+        let bound = self.bind_signature(tcx, &sig, callee_ty, span)?;
+        // `bound` lists `Self`, then the trait's parameters, then the method's own.
+        let trait_arity = declared.generics.len() - declared.own_generics;
+        let (trait_args, method_args) = bound[1..].split_at(trait_arity - 1);
+        Some(TraitCall { self_ty: bound[0], trait_args: trait_args.to_vec(), method_args: method_args.to_vec() })
+    }
+
+    /// The impl's own type arguments, all of which its header must determine; reported otherwise.
+    fn impl_arguments(&mut self, trait_name: &str, imp: &HirImpl, found: Vec<Option<TyId>>, span: Option<Span>) -> Option<Vec<TyId>> {
+        if let Some(index) = found.iter().position(Option::is_none) {
+            let why = format!(
+                "type parameter `{}` of an impl of `{trait_name}` is not determined by its type, which monomorphization does not support yet",
+                imp.generics[index]
+            );
+            self.diagnostics.push(error(why, span));
+            return None;
+        }
+        Some(found.into_iter().flatten().collect())
     }
 
     /// Points a call, construction or field access at the instance it now refers to.
@@ -192,7 +244,12 @@ impl<'a> Collector<'a> {
             HirExprKind::Call { callee, .. } => {
                 let (callee_ty, span) = (callee.ty, callee.span);
                 let HirExprKind::Ident { name, .. } = &mut callee.kind else { return };
-                let Some(&origin) = self.by_name.get(name.as_str()) else { return };
+                let Some(&origin) = self.by_name.get(name.as_str()) else {
+                    if let Some(instance) = self.resolve_trait_call(tcx, name, callee_ty, span) {
+                        *name = instance;
+                    }
+                    return;
+                };
                 let hir = self.hir;
                 let Some(args) = self.infer_type_args(tcx, &hir.functions[origin], callee_ty, span) else { return };
                 if let Some(instance) = self.request_instance(tcx, origin, args, span) {
@@ -209,6 +266,36 @@ impl<'a> Collector<'a> {
             _ => {}
         }
     }
+}
+
+/// A generic signature to match against a call: `Param(i)` in `params`/`ret` is `generics[i]`.
+struct GenericSig<'s> {
+    name: &'s str,
+    generics: &'s [String],
+    params: Vec<TyId>,
+    ret: TyId,
+}
+
+/// The arguments of one call of a trait method, read off its concrete type.
+struct TraitCall {
+    self_ty: TyId,
+    trait_args: Vec<TyId>,
+    method_args: Vec<TyId>,
+}
+
+fn find_trait_method<'h>(hir: &'h HirProgram, trait_name: &str, method: &str) -> Option<&'h HirTraitMethod> {
+    hir.traits.iter().find(|t| t.name == trait_name)?.methods.iter().find(|m| m.name == method)
+}
+
+/// The impl of `trait_name` whose header fits the call's `Self` and trait arguments, with the value
+/// each of its parameters takes (`None` where the header does not determine it).
+fn select_impl<'h>(hir: &'h HirProgram, tcx: &TyCtx, trait_name: &str, call: &TraitCall) -> Option<(&'h HirImpl, Vec<Option<TyId>>)> {
+    hir.impls.iter().filter(|i| i.trait_name == trait_name).find_map(|i| {
+        let mut out = vec![None; i.generics.len()];
+        let fits = bind(tcx, i.self_ty, call.self_ty, &mut out)
+            && i.trait_args.iter().zip(&call.trait_args).all(|(&pattern, &actual)| bind(tcx, pattern, actual, &mut out));
+        fits.then_some((i, out))
+    })
 }
 
 fn retarget_class(tcx: &TyCtx, ty: TyId, class_name: &mut String) {
@@ -250,7 +337,7 @@ fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, ev
 
     let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
     let mut report = collector.report_per_instance(report);
-    let mut program = HirProgram { classes, enums, functions };
+    let mut program = HirProgram { classes, enums, functions, traits: Vec::new(), impls: Vec::new() };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter survived monomorphization");
     hir::number_nodes(&mut program);
     let memory_plan = plan_instances(&program, tcx, &mut report)?;

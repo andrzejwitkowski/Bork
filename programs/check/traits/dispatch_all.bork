@@ -1,0 +1,39 @@
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+class Box<T> {
+    v: T
+}
+enum Maybe<T> {
+    Some(v: T)
+    None
+}
+trait Name {
+    fun name(): String
+}
+impl Show for Circle {
+    fun show(): String { return "circle" }
+}
+impl<T: Show> Show for Box<T> {
+    fun show(): String { return v.show() }
+}
+impl<T> Show for Maybe<T> {
+    fun show(): String { return "maybe" }
+}
+impl Name for Square {
+    fun name(): String { return "sq" }
+}
+fun both<T: Show + Name>(t: &T): String { return t.name() }
+fun twice<T: Show>(t: &T): String { return t.show() }
+fun main() {
+    val b = Box(Circle(1.0))
+    val x = twice(&b)
+    val m = Maybe.Some(1)
+    val y = m.show()
+}

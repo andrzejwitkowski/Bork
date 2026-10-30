@@ -1,0 +1,15 @@
+// diag: ambiguous method `show`
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+trait Name {
+    fun show(): String
+}
+fun f<T: Show + Name>(t: &T): String { return t.show() }
+fun main() {}

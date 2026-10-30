@@ -1,0 +1,25 @@
+// exit: 0
+// stdout: 7\n0\n
+trait Code {
+    fun code(): i32
+}
+enum Maybe {
+    Some(v: i32),
+    None,
+}
+impl Code for Maybe {
+    fun code(): i32 {
+        val c: i32 = when this {
+            Some(v) => { v }
+            None => { 0 }
+        }
+        return c
+    }
+}
+fun main(): i32 {
+    val a = Maybe.Some(7)
+    val b = Maybe.None
+    println(a.code())
+    println(b.code())
+    return 0
+}

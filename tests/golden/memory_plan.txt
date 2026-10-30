@@ -735,6 +735,17 @@ programs/build/text/utf8_empty_is_present.bork: 129..133 Option Lexical LexicalS
 programs/build/text/utf8_invalid_is_none.bork: 118..122 Option Lexical LexicalScope(0)
 programs/build/text/utf8_outer_sink_survives.bork: 52..56 Option Dynamic Program
 programs/build/text/utf8_outer_sink_survives.bork: 175..179 Option Lexical LexicalScope(0)
+programs/build/traits/dispatch_bound.bork: 349..355 Circle Dynamic Program
+programs/build/traits/dispatch_bound.bork: 373..379 Square Dynamic Program
+programs/build/traits/dispatch_enum.bork: 304..314 Maybe Lexical LexicalScope(0)
+programs/build/traits/dispatch_enum.bork: 330..340 Maybe Lexical LexicalScope(0)
+programs/build/traits/dispatch_field_in_impl.bork: 183..185 Sq Dynamic Program
+programs/build/traits/dispatch_generic_impl.bork: 402..405 Box Dynamic Program
+programs/build/traits/dispatch_generic_impl.bork: 406..412 Circle Lexical LexicalScope(0)
+programs/build/traits/dispatch_generic_impl.bork: 431..434 Box Dynamic Program
+programs/build/traits/dispatch_generic_impl.bork: 435..441 Square Lexical LexicalScope(0)
+programs/build/traits/dispatch_impl.bork: 223..229 Circle Dynamic Program
+programs/build/traits/dispatch_inherent_shadows.bork: 241..247 Circle Dynamic Program
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program
 programs/build/vec/ref_nodes.bork: 279..283 Node Dynamic Program
 programs/build/vec/ref_promote.bork: 352..356 Node Dynamic Program
@@ -803,4 +814,7 @@ programs/check/traits/bounds_method.bork: 273..279 Holder Dynamic Program
 programs/check/traits/bounds_method.bork: 295..301 Circle Dynamic Program
 programs/check/traits/bounds_where.bork: 432..438 Circle Dynamic Program
 programs/check/traits/bounds_where.bork: 456..462 Circle Dynamic Program
+programs/check/traits/dispatch_all.bork: 620..623 Box Dynamic Program
+programs/check/traits/dispatch_all.bork: 624..630 Circle Lexical LexicalScope(2)
+programs/check/traits/dispatch_all.bork: 671..681 Maybe Lexical LexicalScope(2)
 programs/check/vec/push_via_this_field.bork: 156..157 H Dynamic Program

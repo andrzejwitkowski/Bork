@@ -1,0 +1,14 @@
+// diag: has type i32, expected String
+trait Show {
+    fun show(): String
+}
+class Circle {
+    r: f64
+}
+class Square {
+    s: f64
+}
+impl Show for Circle {
+    fun show(): String { return 5 }
+}
+fun main() {}

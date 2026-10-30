@@ -451,6 +451,23 @@ programs/build/text/utf8_empty_is_present.bork::main() -> i32
 programs/build/text/utf8_invalid_is_none.bork::main() -> i32
 programs/build/text/utf8_multibyte_range.bork::main() -> i32
 programs/build/text/utf8_outer_sink_survives.bork::main() -> i32
+programs/build/traits/dispatch_bound.bork::say(t: &T0) -> unit
+programs/build/traits/dispatch_bound.bork::main() -> i32
+programs/build/traits/dispatch_bound.bork::Show@0.show(this: &Circle) -> String
+programs/build/traits/dispatch_bound.bork::Show@1.show(this: &Square) -> String
+programs/build/traits/dispatch_enum.bork::main() -> i32
+programs/build/traits/dispatch_enum.bork::Code@0.code(this: &Maybe) -> i32
+programs/build/traits/dispatch_field_in_impl.bork::main() -> i32
+programs/build/traits/dispatch_field_in_impl.bork::Area@0.area(this: &Sq) -> i32
+programs/build/traits/dispatch_generic_impl.bork::main() -> i32
+programs/build/traits/dispatch_generic_impl.bork::Show@0.show(this: &Circle) -> String
+programs/build/traits/dispatch_generic_impl.bork::Show@1.show(this: &Square) -> String
+programs/build/traits/dispatch_generic_impl.bork::Show@2.show(this: &Box<T0>) -> String
+programs/build/traits/dispatch_impl.bork::main() -> i32
+programs/build/traits/dispatch_impl.bork::Show@0.show(this: &Circle) -> String
+programs/build/traits/dispatch_inherent_shadows.bork::main() -> i32
+programs/build/traits/dispatch_inherent_shadows.bork::Circle.show(this: &Circle) -> String
+programs/build/traits/dispatch_inherent_shadows.bork::Show@0.show(this: &Circle) -> String
 programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/move_to_outer.bork::main() -> i32
 programs/build/vec/negative_capacity_aborts.bork::main() -> i32
@@ -572,15 +589,36 @@ programs/check/option/option_of_nullable.bork::main() -> unit
 programs/check/recursions/self_call.bork::down(n: i32) -> i32
 programs/check/recursions/self_call.bork::main() -> i32
 programs/check/traits/basic.bork::main() -> unit
+programs/check/traits/basic.bork::Shape@0.area(this: &Circle) -> f64
+programs/check/traits/basic.bork::Shape@0.scaled(this: &Circle, k: f64) -> f64
 programs/check/traits/bounds_basic.bork::need(t: &T0) -> unit
 programs/check/traits/bounds_basic.bork::pass(t: &T0) -> unit
 programs/check/traits/bounds_basic.bork::main() -> unit
+programs/check/traits/bounds_basic.bork::Show@0.show(this: &Circle) -> String
+programs/check/traits/bounds_basic.bork::Show@1.show(this: &Box<T0>) -> String
 programs/check/traits/bounds_method.bork::main() -> unit
 programs/check/traits/bounds_method.bork::Holder.put(this: &Holder, t: &T0) -> unit
+programs/check/traits/bounds_method.bork::Show@0.show(this: &Circle) -> String
 programs/check/traits/bounds_where.bork::both(t: &T0, u: &T1) -> unit
 programs/check/traits/bounds_where.bork::multi(t: &T0) -> unit
 programs/check/traits/bounds_where.bork::main() -> unit
+programs/check/traits/bounds_where.bork::Show@0.show(this: &Circle) -> String
+programs/check/traits/bounds_where.bork::Conv@1.conv(this: &Circle, u: i32) -> i32
 programs/check/traits/coherence_ok.bork::main() -> unit
+programs/check/traits/coherence_ok.bork::Show@0.show(this: &Box<Circle>) -> String
+programs/check/traits/coherence_ok.bork::Show@1.show(this: &Box<Square>) -> String
+programs/check/traits/coherence_ok.bork::Show@2.show(this: &Pair<T0, T0>) -> String
+programs/check/traits/coherence_ok.bork::Show@3.show(this: &Pair<Circle, Square>) -> String
+programs/check/traits/dispatch_all.bork::both(t: &T0) -> String
+programs/check/traits/dispatch_all.bork::twice(t: &T0) -> String
+programs/check/traits/dispatch_all.bork::main() -> unit
+programs/check/traits/dispatch_all.bork::Show@0.show(this: &Circle) -> String
+programs/check/traits/dispatch_all.bork::Show@1.show(this: &Box<T0>) -> String
+programs/check/traits/dispatch_all.bork::Show@2.show(this: &Maybe<T0>) -> String
+programs/check/traits/dispatch_all.bork::Name@3.name(this: &Square) -> String
 programs/check/traits/generic_impl.bork::main() -> unit
+programs/check/traits/generic_impl.bork::Show@0.show(this: &Box<T0>) -> String
+programs/check/traits/generic_impl.bork::Show@1.show(this: &Maybe<T0>) -> String
+programs/check/traits/generic_impl.bork::Conv@2.conv(this: &Box<T0>, u: i32, v: T1) -> T1
 programs/check/vec/push_via_this_field.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::H.add(this: &H, k: i32) -> i32

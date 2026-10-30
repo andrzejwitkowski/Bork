@@ -2745,6 +2745,59 @@ Arenas
     │   └── bytes [Local]
     ├── IfThen
     └── IfThen
+== programs/build/traits/dispatch_bound.bork
+Arenas
+├── fun say
+│   └── t [Borrow ← call site]
+├── fun main
+│   ├── c [Local]
+│   └── s [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
+== programs/build/traits/dispatch_enum.bork
+Arenas
+├── fun main
+│   ├── a [Local]
+│   └── b [Local]
+└── fun Code@0.code
+    ├── this [Borrow ← call site]
+    ├── c [Local]
+    ├── MatchArm
+    │   └── v [Local]
+    └── MatchArm
+== programs/build/traits/dispatch_field_in_impl.bork
+Arenas
+├── fun main
+│   └── s [Local]
+└── fun Area@0.area
+    └── this [Borrow ← call site]
+== programs/build/traits/dispatch_generic_impl.bork
+Arenas
+├── fun main
+│   ├── a [Local]
+│   └── b [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+├── fun Show@1.show
+│   └── this [Borrow ← call site]
+└── fun Show@2.show
+    └── this [Borrow ← call site]
+== programs/build/traits/dispatch_impl.bork
+Arenas
+├── fun main
+│   └── c [Local]
+└── fun Show@0.show
+    └── this [Borrow ← call site]
+== programs/build/traits/dispatch_inherent_shadows.bork
+Arenas
+├── fun main
+│   └── c [Local]
+├── fun Circle.show
+│   └── this [Borrow ← call site]
+└── fun Show@0.show
+    └── this [Borrow ← call site]
 == programs/build/vec/grow_past_page.bork
 Arenas
 └── fun main
@@ -3485,24 +3538,35 @@ Arenas
 └── fun main
 == programs/check/traits/basic.bork
 Arenas
-└── fun main
+├── fun main
+├── fun Shape@0.area
+│   └── this [Borrow ← call site]
+└── fun Shape@0.scaled
+    ├── this [Borrow ← call site]
+    └── k [Local]
 == programs/check/traits/bounds_basic.bork
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
 ├── fun pass
 │   └── t [Borrow ← call site]
-└── fun main
-    ├── c [Local]
-    └── b [Local]
+├── fun main
+│   ├── c [Local]
+│   └── b [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check/traits/bounds_method.bork
 Arenas
 ├── fun main
 │   ├── h [Local]
 │   └── c [Local]
-└── fun Holder.put
-    ├── this [Borrow ← call site]
-    └── t [Borrow ← call site]
+├── fun Holder.put
+│   ├── this [Borrow ← call site]
+│   └── t [Borrow ← call site]
+└── fun Show@0.show
+    └── this [Borrow ← call site]
 == programs/check/traits/bounds_where.bork
 Arenas
 ├── fun both
@@ -3510,15 +3574,55 @@ Arenas
 │   └── u [Borrow ← call site]
 ├── fun multi
 │   └── t [Borrow ← call site]
-└── fun main
-    ├── a [Local]
-    └── b [Local]
+├── fun main
+│   ├── a [Local]
+│   └── b [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Conv@1.conv
+    ├── this [Borrow ← call site]
+    └── u [Local]
 == programs/check/traits/coherence_ok.bork
 Arenas
-└── fun main
+├── fun main
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+├── fun Show@1.show
+│   └── this [Borrow ← call site]
+├── fun Show@2.show
+│   └── this [Borrow ← call site]
+└── fun Show@3.show
+    └── this [Borrow ← call site]
+== programs/check/traits/dispatch_all.bork
+Arenas
+├── fun both
+│   └── t [Borrow ← call site]
+├── fun twice
+│   └── t [Borrow ← call site]
+├── fun main
+│   ├── b [Local]
+│   ├── x [Local]
+│   ├── m [Local]
+│   └── y [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+├── fun Show@1.show
+│   └── this [Borrow ← call site]
+├── fun Show@2.show
+│   └── this [Borrow ← call site]
+└── fun Name@3.name
+    └── this [Borrow ← call site]
 == programs/check/traits/generic_impl.bork
 Arenas
-└── fun main
+├── fun main
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+├── fun Show@1.show
+│   └── this [Borrow ← call site]
+└── fun Conv@2.conv
+    ├── this [Borrow ← call site]
+    ├── u [Local]
+    └── v [Local]
 == programs/check/vec/push_via_this_field.bork
 Arenas
 ├── fun main
@@ -4381,21 +4485,33 @@ Arenas
 == programs/check_fail/traits/arity_mismatch.bork
 Type Error [130..136] method `scaled` has 0 parameters but trait `Shape` declares 1
 Arenas
-└── fun main
+├── fun main
+└── fun Shape@0.scaled
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_ambiguous.bork
 Type Error [320..324] conflicting implementations of trait `Show`: `Show for Box<Circle>` overlaps with the earlier impl `Show for Box<T> where T: Show`; make the types differ or remove one
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
-└── fun main
-    └── b [Local]
+├── fun main
+│   └── b [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+├── fun Show@1.show
+│   └── this [Borrow ← call site]
+└── fun Show@2.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_depth.bork
 Type Error [577..581] overflow evaluating the requirement `Box<Box<Box<Box<Box<Box<Box<Circle>>>>>>>: Show`: bounds are followed at most 32 levels deep
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
-└── fun main
-    └── b [Local]
+├── fun main
+│   └── b [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_missing_in_body.bork
 Type Error [292..296] the trait bound `T: Show` is not satisfied; a type parameter only implements the traits in its bounds
 Arenas
@@ -4403,25 +4519,35 @@ Arenas
 │   └── t [Borrow ← call site]
 ├── fun forgot
 │   └── t [Borrow ← call site]
-└── fun main
+├── fun main
+└── fun Show@0.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_nested.bork
 Type Error [394..398] the trait bound `Square: Show` is not satisfied; it is implemented for: Circle, Box<T>
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
-└── fun main
-    └── b [Local]
+├── fun main
+│   └── b [Local]
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_on_class.bork
 Type Error [276..280] bounds on the type parameters of a class are not supported yet
 Arenas
-└── fun main
+├── fun main
+└── fun Show@0.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_primitive.bork
 Type Error [302..306] the trait bound `i32: Show` is not satisfied; only classes and enums implement traits yet
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
-└── fun main
-    └── n [Local]
+├── fun main
+│   └── n [Local]
+└── fun Show@0.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/bound_unknown_trait.bork
 Type Error [39..43] unknown trait `Nope`
 Arenas
@@ -4433,44 +4559,102 @@ Type Error [315..319] the trait bound `Square: Show` is not satisfied; it is imp
 Arenas
 ├── fun need
 │   └── t [Borrow ← call site]
-└── fun main
-    └── s [Local]
+├── fun main
+│   └── s [Local]
+└── fun Show@0.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/extra_item.bork
 Type Error [155..164] method `perimeter` is not a member of trait `Shape`
 Arenas
+├── fun main
+├── fun Shape@0.area
+│   └── this [Borrow ← call site]
+└── fun Shape@0.perimeter
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/impl_body_type_error.bork
+Type Error [] return value has type i32, expected String
+Arenas
+├── fun main
+└── fun Show@0.show
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/method_ambiguous.bork
+Type Error [211..217] ambiguous method `show`: it is provided by the traits `Show`, `Name`
+Arenas
+├── fun f
+│   └── t [Borrow ← call site]
+└── fun main
+== programs/check_fail/traits/method_no_impl.bork
+Type Error [251..257] class `Square` has no method `show`
+Arenas
+├── fun main
+│   ├── s [Local]
+│   └── x [Local]
+└── fun Show@0.show
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/method_not_in_bounds.bork
+Type Error [187..193] type parameter `T` has no method `nope`; its bounds are: `Show`
+Arenas
+├── fun f
+│   └── t [Borrow ← call site]
 └── fun main
 == programs/check_fail/traits/missing_item.bork
 Type Error [119..124] not all trait items implemented, missing: `scaled`
 Arenas
-└── fun main
+├── fun main
+└── fun Shape@0.area
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/overlap_bounds_ignored.bork
 Type Error [309..313] conflicting implementations of trait `Show`: `Show for Box<T> where T: Eq` overlaps with the earlier impl `Show for Box<T> where T: Show`; make the types differ or remove one
 Arenas
-└── fun main
+├── fun main
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/overlap_generic.bork
 Type Error [283..287] conflicting implementations of trait `Show`: `Show for Box<Circle>` overlaps with the earlier impl `Show for Box<T>`; make the types differ or remove one
 Arenas
-└── fun main
+├── fun main
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/overlap_identical.bork
 Type Error [280..284] conflicting implementations of trait `Show`: `Show for Circle` overlaps with the earlier impl `Show for Circle`; make the types differ or remove one
 Arenas
-└── fun main
+├── fun main
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/overlap_repeated_param.bork
 Type Error [287..291] conflicting implementations of trait `Show`: `Show for Pair<Circle, Circle>` overlaps with the earlier impl `Show for Pair<T, T>`; make the types differ or remove one
 Arenas
-└── fun main
+├── fun main
+├── fun Show@0.show
+│   └── this [Borrow ← call site]
+└── fun Show@1.show
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/param_type_mismatch.bork
 Type Error [136..137] parameter `k` of `scaled` has type `i32` but trait `Shape` declares `f64`
 Arenas
-└── fun main
+├── fun main
+└── fun Shape@0.scaled
+    ├── this [Borrow ← call site]
+    └── k [Local]
 == programs/check_fail/traits/trait_arity.bork
 Type Error [108..112] trait `Conv` takes 1 type argument(s) but 0 were supplied
 Arenas
-└── fun main
+├── fun main
+└── fun Conv@0.conv
+    ├── this [Borrow ← call site]
+    └── u [Local]
 == programs/check_fail/traits/type_mismatch.bork
 Type Error [119..123] `area` returns `i32` but trait `Shape` declares `f64`
 Arenas
-└── fun main
+├── fun main
+└── fun Shape@0.area
+    └── this [Borrow ← call site]
 == programs/check_fail/traits/unknown_trait.bork
 Type Error [58..62] unknown trait `Nope`
 Arenas

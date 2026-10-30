@@ -79,6 +79,40 @@ pub struct HirProgram {
     pub classes: Vec<HirClass>,
     pub enums: Vec<HirEnum>,
     pub functions: Vec<HirFunction>,
+    /// Trait and impl signatures, so monomorphization can turn a call of `Trait.method` into a call
+    /// of the impl's method. Empty after monomorphization.
+    pub traits: Vec<HirTrait>,
+    pub impls: Vec<HirImpl>,
+}
+
+/// `trait Name<..> { fun m(..) }`. In a method, `Param(0)` is `Self`, then come the trait's
+/// parameters and the method's own; `generics` names them in that order.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirTrait {
+    pub name: String,
+    pub methods: Vec<HirTraitMethod>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirTraitMethod {
+    pub name: String,
+    pub generics: Vec<String>,
+    /// How many of `generics` are the method's own (the last ones).
+    pub own_generics: usize,
+    /// Starts with `this: &Self`.
+    pub params: Vec<TyId>,
+    pub ret: TyId,
+}
+
+/// `impl<..> Trait<trait_args> for self_ty`, over the impl's own `Param`s.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirImpl {
+    pub trait_name: String,
+    pub generics: Vec<String>,
+    pub trait_args: Vec<TyId>,
+    pub self_ty: TyId,
+    /// Method name and the name of its `HirFunction`.
+    pub methods: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

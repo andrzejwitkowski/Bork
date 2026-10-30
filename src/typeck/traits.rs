@@ -12,7 +12,7 @@ use crate::defs::{DefId, DefTable};
 use crate::diag::Diagnostic;
 use crate::infer::{InferCtxt, VarKind};
 use crate::span::Span;
-use crate::ty::{subst, ParamIdx, Predicate, TraitRef, TyCtx, TyData, TyId};
+use crate::ty::{subst, FnSig, ParamIdx, Predicate, TraitRef, TyCtx, TyData, TyId};
 
 /// A trait method signature without the implicit `this: &Self`. In `params`/`ret`, `Param(0)` is
 /// `Self`, then come the trait's parameters, then the method's own.
@@ -20,6 +20,7 @@ use crate::ty::{subst, ParamIdx, Predicate, TraitRef, TyCtx, TyData, TyId};
 pub(super) struct TraitMethodInfo {
     pub name: String,
     pub generics: usize,
+    pub generic_names: Vec<String>,
     pub param_names: Vec<String>,
     pub params: Vec<TyId>,
     pub ret: TyId,
@@ -32,11 +33,8 @@ pub(super) struct TraitInfo {
 }
 
 /// One `impl Trait<args> for self_ty`; read by the solver (#56) and by dispatch (#58).
-// shortcut: `id` and `methods` are read by method dispatch (#58).
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(super) struct ImplInfo {
-    pub id: DefId,
     pub trait_id: DefId,
     /// Program order among all impls; coherence reports in this order.
     pub index: usize,
@@ -48,6 +46,62 @@ pub(super) struct ImplInfo {
     /// The impl's own bounds (`impl<T: Show> ..`); they become obligations when it is selected.
     pub predicates: Vec<Predicate<TyId>>,
     pub methods: HashMap<String, DefId>,
+    /// Signature of each method whose header matches the trait, `this: &Self` first; only those get bodies checked.
+    pub sigs: HashMap<DefId, FnSig<TyId>>,
+}
+
+/// The trait and impl signatures monomorphization resolves a `Trait.method` call with.
+pub(super) fn hir_signatures(
+    program: &Program,
+    defs: &DefTable,
+    traits: &HashMap<DefId, TraitInfo>,
+    impls: &ImplTable,
+    tcx: &mut TyCtx,
+) -> (Vec<crate::hir::HirTrait>, Vec<crate::hir::HirImpl>) {
+    let this_ty = tcx.param(ParamIdx(0));
+    let this_ref = tcx.ref_to(this_ty);
+    let mut hir_traits = Vec::new();
+    for (index, t) in program.traits.iter().enumerate() {
+        let id = defs.trait_id(index);
+        // A rejected or repeated trait name keeps the first declaration.
+        let Some(info) = traits.get(&id).filter(|_| defs.lookup_trait(&t.name.name) == Some(id)) else { continue };
+        let methods = info
+            .methods
+            .iter()
+            .map(|m| crate::hir::HirTraitMethod {
+                name: m.name.clone(),
+                generics: std::iter::once("Self".to_string()).chain(info.generics.clone()).chain(m.generic_names.clone()).collect(),
+                own_generics: m.generic_names.len(),
+                params: std::iter::once(this_ref).chain(m.params.iter().copied()).collect(),
+                ret: m.ret,
+            })
+            .collect();
+        hir_traits.push(crate::hir::HirTrait { name: t.name.name.clone(), methods });
+    }
+    let mut infos: Vec<&ImplInfo> = impls.values().flatten().collect();
+    infos.sort_by_key(|info| info.index);
+    let hir_impls = infos
+        .into_iter()
+        .map(|info| crate::hir::HirImpl {
+            trait_name: defs.get(info.trait_id).name.clone(),
+            generics: info.generics.clone(),
+            trait_args: info.trait_args.clone(),
+            self_ty: info.self_ty,
+            methods: program.impls[info.index]
+                .methods
+                .iter()
+                .map(|m| (m.name.clone(), impl_method_name(&defs.get(info.trait_id).name, info.index, &m.name)))
+                .collect(),
+        })
+        .collect();
+    (hir_traits, hir_impls)
+}
+
+/// The HIR name of a method of the `index`th impl of `trait_name`. `@` cannot appear in an
+/// identifier, so it never collides with a user function, and the index keeps `impl Show for
+/// Box<i32>` apart from `impl Show for Box<String>`.
+pub(super) fn impl_method_name(trait_name: &str, index: usize, method: &str) -> String {
+    format!("{trait_name}@{index}.{method}")
 }
 
 impl ImplInfo {
@@ -180,6 +234,7 @@ fn lower_trait(t: &Trait, defs: &DefTable, tcx: &mut TyCtx, diagnostics: &mut Ve
         methods.push(TraitMethodInfo {
             name: method.name.name.clone(),
             generics: method.generics.len(),
+            generic_names: method.generics.iter().map(|g| g.name.name.clone()).collect(),
             param_names: method.params.iter().map(|p| p.name.name.clone()).collect(),
             params,
             ret,
@@ -248,6 +303,7 @@ fn check_impl(
     }
 
     let mut implemented = HashMap::new();
+    let mut sigs = HashMap::new();
     for (method_index, method) in i.methods.iter().enumerate() {
         let id = defs.impl_method_id(index, method_index);
         if implemented.contains_key(&method.name) {
@@ -261,7 +317,10 @@ fn check_impl(
             diagnostics.push(type_error(message, Some(method.name_span)));
             continue;
         };
-        check_method(i, method, expected, self_ty, &trait_args, &scope, defs, tcx, diagnostics);
+        if let Some(mut sig) = check_method(i, method, expected, self_ty, &trait_args, &scope, defs, tcx, diagnostics) {
+            sig.predicates = predicates.clone();
+            sigs.insert(id, sig);
+        }
     }
     let missing: Vec<String> =
         t.methods.iter().filter(|m| !implemented.contains_key(&m.name)).map(|m| format!("`{}`", m.name)).collect();
@@ -271,7 +330,6 @@ fn check_impl(
     }
     tcx.set_param_names(Vec::new());
     Some(ImplInfo {
-        id: defs.impl_id(index),
         trait_id,
         index,
         span: i.trait_name.span,
@@ -280,6 +338,7 @@ fn check_impl(
         self_ty,
         predicates,
         methods: implemented,
+        sigs,
     })
 }
 
@@ -294,7 +353,8 @@ fn check_method(
     defs: &DefTable,
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Option<FnSig<TyId>> {
+    let errors_before = diagnostics.len();
     let (name, trait_name, span) = (&method.name, &i.trait_name.name, Some(method.name_span));
     if method.generics.len() != expected.generics {
         let message = format!(
@@ -303,7 +363,7 @@ fn check_method(
             expected.generics
         );
         diagnostics.push(type_error(message, span));
-        return;
+        return None;
     }
     // Trait methods cannot declare bounds yet, so any bound here is stricter than the trait.
     if let Some(bound) = method.generics.iter().flat_map(|g| &g.bounds).next() {
@@ -317,7 +377,7 @@ fn check_method(
             expected.params.len()
         );
         diagnostics.push(type_error(message, span));
-        return;
+        return None;
     }
     let scope: Vec<_> = impl_scope
         .iter()
@@ -331,8 +391,10 @@ fn check_method(
         .chain((0..expected.generics).map(|j| tcx.param(ParamIdx((impl_scope.len() + j) as u32))))
         .collect();
     let shown = |tcx: &TyCtx, ty: TyId| tcx.display(ty).to_string();
+    let mut params = Vec::new();
     for (k, param) in method.params.iter().enumerate() {
         let found = lower_type(&param.ty.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, Some(param.name.span));
+        params.push(found);
         let Ok(want) = subst(tcx, expected.params[k], &args) else { continue };
         if found != want && !tcx.is_error(found) && !tcx.is_error(want) {
             let message = format!(
@@ -344,7 +406,8 @@ fn check_method(
             diagnostics.push(type_error(message, Some(param.name.span)));
         }
     }
-    let found = lower_type(&method.return_type.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, span);
+    let ret = lower_type(&method.return_type.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, span);
+    let found = ret;
     if let Ok(want) = subst(tcx, expected.ret, &args) {
         if found != want && !tcx.is_error(found) && !tcx.is_error(want) {
             let message = format!(
@@ -355,4 +418,12 @@ fn check_method(
             diagnostics.push(type_error(message, span));
         }
     }
+    if diagnostics.len() != errors_before {
+        return None;
+    }
+    let this_ty = tcx.ref_to(self_ty);
+    let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), ret);
+    sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
+    sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
+    Some(sig)
 }

@@ -99,8 +99,6 @@ pub(super) struct Env<'a> {
     /// Type parameters instantiated at calls; any still unbound at the end of the body are errors.
     pub(super) pending: Vec<PendingParam>,
     /// Traits and impls the solver selects from (#56).
-    // shortcut: read by trait method resolution (#58).
-    #[allow(dead_code)]
     pub(super) traits: &'a HashMap<DefId, super::traits::TraitInfo>,
     pub(super) impls: &'a super::traits::ImplTable,
     /// The bounds of the function being checked: what its type parameters are known to implement.
@@ -331,7 +329,10 @@ impl<'a> Env<'a> {
 
     /// Explains why an operation fails on a type parameter; empty for other types.
     pub(super) fn bounds_hint(&self, types: &[TyId]) -> &'static str {
-        if types.iter().any(|&ty| self.is_param(ty)) {
+        let bounded = |ty| self.param_env.iter().any(|p| p.self_ty == ty);
+        if types.iter().any(|&ty| self.is_param(ty) && bounded(ty)) {
+            "; a bound gives a type parameter trait methods only, not operators or fields"
+        } else if types.iter().any(|&ty| self.is_param(ty)) {
             "; a type parameter has no bounds yet, so operators and members need a bound (not supported yet)"
         } else {
             ""

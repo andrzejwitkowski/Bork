@@ -229,3 +229,51 @@ fn a_parameter_that_only_appears_in_a_bound_is_not_monomorphized_yet() {
     let diags = rejected(src);
     assert!(diags.iter().any(|d| d.message.contains("is not determined by its signature")), "{diags:?}");
 }
+
+const SHOW: &str = "trait Show {\n    fun show(): String\n}\nclass Circle {\n    r: f64\n}\nclass Square {\n    s: f64\n}\nclass Box<T> {\n    v: T\n}\nimpl Show for Circle {\n    fun show(): String { return \"c\" }\n}\nimpl Show for Square {\n    fun show(): String { return \"s\" }\n}\nimpl<T: Show> Show for Box<T> {\n    fun show(): String { return v.show() }\n}\nfun twice<T: Show>(t: &T): String { return t.show() }\n";
+
+#[test]
+fn a_trait_call_becomes_a_direct_call_of_the_impl_method_instance() {
+    let m = mono(&format!(
+        "{SHOW}fun main() {{\n    val c = Circle(1.0)\n    val s = Square(2.0)\n    val b = Box(Circle(3.0))\n    val x = twice(&c)\n    val y = twice(&s)\n    val z = twice(&b)\n}}\n"
+    ));
+    let names = names(&m);
+    for expected in ["twice<Circle>", "twice<Square>", "twice<Box<Circle>>", "Show@0.show", "Show@1.show", "Show@2.show<Circle>"] {
+        assert!(names.contains(&expected), "{expected}: {names:?}");
+    }
+    // No trait callee survives: every call is a call of a concrete function.
+    let mut callees = Vec::new();
+    for f in &m.hir.functions {
+        let mut body = f.body.clone();
+        crate::hir::rewrite(&mut body, &mut |ty| ty, &mut |e| {
+            if let crate::hir::HirExprKind::Call { callee, .. } = &e.kind {
+                if let crate::hir::HirExprKind::Ident { name, .. } = &callee.kind {
+                    callees.push(name.clone());
+                }
+            }
+        });
+    }
+    assert!(callees.iter().all(|c| !c.starts_with("Show.")), "{callees:?}");
+}
+
+#[test]
+fn generic_impls_of_different_types_get_different_instances() {
+    let m = mono(&format!(
+        "{SHOW}fun main() {{\n    val a = Box(Circle(1.0))\n    val b = Box(Square(2.0))\n    val x = twice(&a)\n    val y = twice(&b)\n}}\n"
+    ));
+    let names = names(&m);
+    for expected in ["Show@2.show<Circle>", "Show@2.show<Square>"] {
+        assert!(names.contains(&expected), "{expected}: {names:?}");
+    }
+}
+
+#[test]
+fn a_trait_argument_and_a_method_parameter_are_both_part_of_the_instance() {
+    let m = mono(
+        "trait Conv<U> {\n    fun conv<V>(u: U, v: V): V\n}\nclass B {\n    n: i32\n}\nimpl Conv<i32> for B {\n    fun conv<W>(u: i32, v: W): W { return v }\n}\nfun main() {\n    val b = B(1)\n    val x = b.conv(5, true)\n    val y = b.conv(6, \"s\")\n}\n",
+    );
+    let names = names(&m);
+    for expected in ["Conv@0.conv<bool>", "Conv@0.conv<String>"] {
+        assert!(names.contains(&expected), "{expected}: {names:?}");
+    }
+}

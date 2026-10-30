@@ -4,7 +4,7 @@ use crate::ast::{Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::{AstId, Span};
 use crate::defs::DefId;
-use crate::ty::{FnSig, TyId};
+use crate::ty::{FnSig, Predicate, TraitRef, TyData, TyId};
 
 use super::super::env::{Checked, Env};
 use super::super::MemberRef;
@@ -44,10 +44,10 @@ pub(super) fn check_method_call(
         let borrowed = borrow(checked, env);
         return super::vec::check_vec_method(receiver, borrowed, elem, method, id, site, env);
     }
-    let Some(class) = env.tcx.record_def(checked.ty) else {
-        let hint = env.bounds_hint(&[checked.ty]);
-        env.error(format!("only named functions can be called{hint}"), Some(span));
-        return poisoned(args, span, return_ty, env);
+    // An inherent method shadows a trait method of the same name.
+    let inherent = env.tcx.record_def(checked.ty).filter(|&class| env.defs.lookup_method(class, method).is_some());
+    let Some(class) = inherent else {
+        return check_trait_method_call(checked, method, id, site, env);
     };
     let class_name = env.tcx.class_name(class).to_string();
     let method_def = env.defs.lookup_method(class, method);
@@ -72,6 +72,126 @@ pub(super) fn check_method_call(
     };
     let receiver = borrow(checked, env);
     finish_call(name, params, ret, Some(receiver), site, env)
+}
+
+/// A trait that provides the method being called, with the trait arguments of the bound or impl.
+struct TraitCandidate {
+    trait_id: DefId,
+    args: Vec<TyId>,
+}
+
+/// `recv.m(args)` where `m` is not an inherent method: a trait method from the receiver's bounds
+/// (type parameter) or from an impl (class or enum), compiled to a call of `Trait.m`.
+fn check_trait_method_call(
+    checked: Checked,
+    method: &str,
+    id: AstId,
+    site: CallSite<'_>,
+    env: &mut Env<'_>,
+) -> Checked {
+    let CallSite { span, args, return_ty, .. } = site;
+    let self_ty = env.tcx.ref_inner(checked.ty).unwrap_or(checked.ty);
+    let candidates = trait_candidates(self_ty, method, env);
+    let [candidate] = candidates.as_slice() else {
+        report_unresolved_method(&checked, self_ty, method, &candidates, span, env);
+        return poisoned(args, span, return_ty, env);
+    };
+    let trait_id = candidate.trait_id;
+    let trait_name = env.defs.get(trait_id).name.clone();
+    let info = &env.traits[&trait_id];
+    let tm = info.methods.iter().find(|m| m.name == method).expect("the candidate declares the method");
+    let (own_names, mut sig_params, sig_ret) = (tm.generic_names.clone(), tm.params.clone(), tm.ret);
+    let this_ty = env.tcx.param(crate::ty::ParamIdx(0));
+    sig_params.insert(0, env.tcx.ref_to(this_ty));
+    let name = format!("{trait_name}.{method}");
+    // `Self`, the trait's arguments, then the method's own parameters, as the signature was lowered.
+    let mut subst_args = vec![self_ty];
+    subst_args.extend(&candidate.args);
+    subst_args.extend(super::call::fresh_params(&own_names, &name, span, env));
+    let sig = FnSig::new(sig_params, sig_ret);
+    let Some((params, ret)) = subst_sig(&name, span, &sig, &subst_args, env) else {
+        return poisoned(args, span, return_ty, env);
+    };
+    let required = Predicate { self_ty, trait_ref: TraitRef { trait_id, args: candidate.args.clone() } };
+    super::super::solve::require(env, required, span, &name);
+    let shown: Vec<String> = params[1..].iter().map(|&p| env.show(p).to_string()).collect();
+    let signature = format!("fun {name}({}): {}", shown.join(", "), env.show(ret));
+    env.members.insert(id.numbered(), MemberRef::Method { class: trait_name, name: method.to_string(), signature });
+    let receiver = borrow(checked, env);
+    finish_call(name, params, ret, Some(receiver), site, env)
+}
+
+/// A hint for `recv.name` without a call when `name` is a method of the receiver.
+pub(super) fn method_hint(ty: TyId, name: &str, env: &mut Env<'_>) -> String {
+    let self_ty = env.tcx.ref_inner(ty).unwrap_or(ty);
+    let inherent = env.tcx.record_def(ty).is_some_and(|class| env.defs.lookup_method(class, name).is_some());
+    if inherent || !trait_candidates(self_ty, name, env).is_empty() {
+        format!("; `{name}` is a method, call it as `{name}()`")
+    } else {
+        String::new()
+    }
+}
+
+/// The traits that could provide `method` for `self_ty`, in a stable order.
+fn trait_candidates(self_ty: TyId, method: &str, env: &mut Env<'_>) -> Vec<TraitCandidate> {
+    let mut candidates = Vec::new();
+    if env.is_param(self_ty) {
+        for bound in env.param_env.iter().filter(|p| p.self_ty == self_ty) {
+            if env.traits[&bound.trait_ref.trait_id].methods.iter().any(|m| m.name == method) {
+                candidates.push(TraitCandidate { trait_id: bound.trait_ref.trait_id, args: bound.trait_ref.args.clone() });
+            }
+        }
+        return candidates;
+    }
+    if !matches!(env.tcx.data(self_ty), TyData::Class(..) | TyData::Enum(..)) {
+        return candidates;
+    }
+    let mut trait_ids: Vec<DefId> = env.traits.keys().copied().collect();
+    trait_ids.sort_by(|a, b| env.defs.get(*a).name.cmp(&env.defs.get(*b).name));
+    for trait_id in trait_ids {
+        let info = &env.traits[&trait_id];
+        if !info.methods.iter().any(|m| m.name == method) {
+            continue;
+        }
+        let arity = info.generics.len();
+        let impls = env.impls;
+        let applies = impls.get(&trait_id).is_some_and(|all| all.iter().any(|imp| super::super::solve::impl_applies(env, imp, self_ty)));
+        if applies {
+            let args = (0..arity).map(|_| env.infcx.new_var(env.tcx, crate::infer::VarKind::General)).collect();
+            candidates.push(TraitCandidate { trait_id, args });
+        }
+    }
+    candidates
+}
+
+fn report_unresolved_method(
+    checked: &Checked,
+    self_ty: TyId,
+    method: &str,
+    candidates: &[TraitCandidate],
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if candidates.len() > 1 {
+        let names: Vec<String> = candidates.iter().map(|c| format!("`{}`", env.defs.get(c.trait_id).name)).collect();
+        env.error(format!("ambiguous method `{method}`: it is provided by the traits {}", names.join(", ")), Some(span));
+    } else if env.is_param(self_ty) && env.param_env.iter().any(|p| p.self_ty == self_ty) {
+        let bounds: Vec<String> = env
+            .param_env
+            .iter()
+            .filter(|p| p.self_ty == self_ty)
+            .map(|p| format!("`{}`", env.defs.get(p.trait_ref.trait_id).name))
+            .collect();
+        env.error(
+            format!("type parameter `{}` has no method `{method}`; its bounds are: {}", env.show(self_ty), bounds.join(", ")),
+            Some(span),
+        );
+    } else if let Some(class) = env.tcx.record_def(checked.ty) {
+        env.error(format!("class `{}` has no method `{method}`", env.tcx.class_name(class)), Some(span));
+    } else {
+        let hint = env.bounds_hint(&[self_ty]);
+        env.error(format!("only named functions can be called{hint}"), Some(span));
+    }
 }
 
 /// The signature of a call to the method `sig` of `class`: the receiver fixes the class parameters
