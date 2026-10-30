@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork PR #188 — Trait method calls and static dispatch</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfbf8; --card:#fff; --line:#dfe2e8; --accent:#2b5fd9; --ok:#1a7f4b; --bad:#b3261e; --warn:#fff6d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1,h2,h3,nav,.box,.quiz button,.tag { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  h1 { font-size: 2rem; line-height:1.2; margin: 12px 0 4px; }
+  h2 { font-size: 1.5rem; margin-top: 2.6em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  h3 { font-size: 1.1rem; margin-top: 1.8em; }
+  .sub { color: var(--muted); margin-top: 0; }
+  nav { background: var(--card); border:1px solid var(--line); border-radius:10px; padding: 12px 18px; margin: 18px 0; font-size:.95rem; }
+  nav a { color: var(--accent); text-decoration:none; }
+  nav ol { margin: 6px 0 0; padding-left: 20px; }
+  code { font: .88em ui-monospace, Menlo, Consolas, monospace; background:#eef0f5; padding: 1px 5px; border-radius:4px; }
+  pre { background:#171b26; color:#e6e9f2; padding: 14px 16px; border-radius:10px; overflow-x:auto; font: .85rem/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre code { background:none; padding:0; color:inherit; }
+  .callout { border-left: 4px solid var(--accent); background:#eef3ff; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 1.2em 0; font-size:.97rem; }
+  .callout.warn { border-color:#c98a00; background: var(--warn); }
+  .skip { color: var(--muted); font-size:.9rem; font-style: italic; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:1.2em 0; }
+  .box { flex: 1 1 130px; background:var(--card); border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:.88rem; }
+  .box b { display:block; margin-bottom:4px; }
+  .box.hl { border-color: var(--accent); background:#eef3ff; }
+  .box.bad { border-color: var(--bad); background:#fdecea; }
+  .box.ok { border-color: var(--ok); background:#e8f6ee; }
+  .box.wait { border-color:#c98a00; background: var(--warn); }
+  .arrow { align-self:center; font-size:1.3rem; color:var(--muted); }
+  .cols { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 1.2em 0; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } .arrow { display:none; } }
+  table { border-collapse: collapse; width:100%; font-family: -apple-system, "Segoe UI", sans-serif; font-size:.9rem; margin: 1em 0; }
+  th,td { border:1px solid var(--line); padding: 6px 9px; text-align:left; vertical-align: top; }
+  th { background:#f1f3f8; }
+  .tag { display:inline-block; font-size:.72rem; padding:1px 8px; border-radius:99px; background:#e4e8f3; color:#334; }
+  .quiz { background:var(--card); border:1px solid var(--line); border-radius:12px; padding: 14px 18px; margin: 18px 0; }
+  .quiz p.q { font-weight:600; margin-top:0; }
+  .quiz button { display:block; width:100%; text-align:left; margin: 6px 0; padding: 9px 12px; border:1.5px solid var(--line); border-radius:8px; background:#fff; font-size:.92rem; cursor:pointer; color:var(--fg); }
+  .quiz button:hover:not(:disabled) { border-color: var(--accent); }
+  .quiz button.right { border-color: var(--ok); background:#e8f6ee; }
+  .quiz button.wrong { border-color: var(--bad); background:#fdecea; }
+  .fb { display:none; margin-top:8px; font-size:.95rem; padding: 8px 12px; background:#f3f5fa; border-radius:8px; }
+  #score { font-family: -apple-system, sans-serif; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>From “this type has the trait” to “this call runs that code”</h1>
+<p class="sub">PR #188 · branch <code>feat/traits-dispatch</code> · TS-P5-04, issue #58 · fourth of five Phase 5 (traits) tickets</p>
+
+<nav>
+  <b>Contents</b>
+  <ol>
+    <li><a href="#background">Background</a></li>
+    <li><a href="#intuition">Intuition</a></li>
+    <li><a href="#code">Code walkthrough</a></li>
+    <li><a href="#limits">What this PR deliberately does not do</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">1. Background</h2>
+
+<p class="skip">If you know what static dispatch and monomorphization are, skip to “Where Bork stood after #57”.</p>
+
+<h3>Two ways to run “the right code”</h3>
+<p>Given <code>x.show()</code>, where <code>x</code> might be a <code>Circle</code> or a <code>Square</code>, a compiler has to decide which <code>show</code> runs. There are two classic answers. With <em>dynamic dispatch</em> the decision waits until the program runs: each value carries a pointer to a table of functions (a vtable) and the call jumps through it. With <em>static dispatch</em> the compiler decides while compiling and writes an ordinary direct call. Bork’s RFC 0001 chooses the second, and the issue says it plainly: “no vtables”.</p>
+
+<div class="flow">
+  <div class="box"><b>Dynamic</b>value → vtable → <code>show</code><br><small>decided at run time</small></div>
+  <div class="arrow">vs</div>
+  <div class="box ok"><b>Static (Bork)</b><code>Circle.show</code> called directly<br><small>decided at compile time</small></div>
+</div>
+
+<h3>Monomorphization in one paragraph</h3>
+<p>Bork compiles generic code by <em>monomorphization</em>: a generic function <code>fun say&lt;T&gt;(t: &amp;T)</code> is copied once per concrete type it is used with, so <code>say&lt;Circle&gt;</code> and <code>say&lt;Square&gt;</code> are two real functions with no type parameters left. That is what makes static dispatch possible: by the time the copy for <code>Circle</code> exists, the compiler <em>knows</em> that <code>T = Circle</code>.</p>
+
+<h3>Where Bork stood after #57</h3>
+<p>The first three tickets built the declarations (#55), the bounds and solver (#56), and the rule that two impls never overlap (#57). Together they say <em>whether</em> a type implements a trait. They did not yet let anyone <em>use</em> that. Three things were missing:</p>
+<ul>
+  <li><code>t.show()</code> on a <code>T: Show</code> failed with “only named functions can be called”, because a type parameter has no class to look methods up in.</li>
+  <li>A class with only an impl method said “class has no method”.</li>
+  <li><b>Impl bodies were never type-checked and never emitted.</b> The compiler compared an impl’s <em>signatures</em> with its trait and then ignored the code inside.</li>
+</ul>
+
+<div class="callout"><b>Key concept — a method call is just a call.</b> In the HIR (the typed intermediate form), <code>c.area()</code> is already an ordinary function call to a function named <code>Circle.area</code> with the receiver as the first argument. There is no separate “method call” node, so teaching the compiler a new kind of method means giving it a new kind of <em>function name</em>, not a new kind of expression.</div>
+
+<h2 id="intuition">2. Intuition</h2>
+
+<p>The change has two halves that meet in the middle. Type checking turns <code>x.m()</code> into a call of an <em>abstract</em> name, <code>Show.show</code>. Monomorphization, which later knows the concrete type, replaces that name with the <em>real</em> function.</p>
+
+<h3>Half one: record the intent</h3>
+<p>For <code>fun say&lt;T: Show&gt;(t: &amp;T) { t.show() }</code>, the checker cannot know which <code>show</code> will run, but it knows two things: <code>T</code> has the bound <code>Show</code>, and <code>Show</code> declares <code>show</code>. So it emits a call to <code>Show.show</code> and registers the obligation <code>T: Show</code> with the solver from #56.</p>
+
+<h3>Half two: pick the code</h3>
+<p>When <code>say</code> is specialised for <code>Circle</code>, the call’s type becomes concrete, <code>(&amp;Circle) → String</code>. Monomorphization matches that against the trait’s signature, learns <code>Self = Circle</code>, finds the one impl that fits, and rewrites the callee:</p>
+
+<div class="flow">
+  <div class="box"><b>Type check</b><code>say&lt;T&gt;</code> calls <code>Show.show(t)</code></div><div class="arrow">→ specialise T=Circle →</div>
+  <div class="box hl"><b>Mono</b>Self = Circle<br>which impl? <code>impl Show for Circle</code></div><div class="arrow">→</div>
+  <div class="box ok"><b>Result</b><code>say&lt;Circle&gt;</code> calls <code>Show@0.show</code></div>
+</div>
+
+<p>Note that coherence (#57) is what makes this safe. Because no two impls overlap, “the one impl that fits” always exists or does not; it is never a choice between two.</p>
+
+<h3>Lookup order</h3>
+<p>The checker tries the places in a fixed order, and the first hit wins:</p>
+<table>
+  <tr><th>Receiver</th><th>Looked up in</th><th>Example</th></tr>
+  <tr><td>class or enum with an inherent method <code>m</code></td><td>the class itself (always wins)</td><td><code>Circle.show</code> defined in <code>class Circle</code></td></tr>
+  <tr><td>type parameter <code>T</code></td><td>the function’s own bounds</td><td><code>T: Show</code> ⇒ <code>Show.show</code></td></tr>
+  <tr><td>class or enum without an inherent <code>m</code></td><td>impls whose header unifies with the receiver</td><td><code>impl Show for Box&lt;T&gt;</code></td></tr>
+  <tr><td>nothing found</td><td>error: lists the bounds, or “class has no method”</td><td><code>type parameter T has no method nope; its bounds are: Show</code></td></tr>
+</table>
+<p>If two bounds both declare <code>m</code>, the call is rejected as ambiguous and both traits are named.</p>
+
+<div class="callout"><b>Key concept — instances get unique names.</b> Impl methods become real functions named <code>Trait@&lt;impl index&gt;.&lt;method&gt;</code>. The index matters: <code>impl Show for Box&lt;i32&gt;</code> and <code>impl Show for Box&lt;String&gt;</code> are different impls with the same method name. The <code>@</code> cannot occur in an identifier, so these names can never clash with anything a user wrote.</div>
+
+<h3>A worked example</h3>
+<pre><code>trait Show { fun show(): String }
+class Circle { r: f64 }
+class Box&lt;T&gt; { v: T }
+impl Show for Circle { fun show(): String { return "circle" } }
+impl&lt;T: Show&gt; Show for Box&lt;T&gt; { fun show(): String { return v.show() } }
+
+fun twice&lt;T: Show&gt;(t: &amp;T): String { return t.show() }
+fun main() { val b = Box(Circle(1.0));  twice(&amp;b) }</code></pre>
+<table>
+  <tr><th>Instance created</th><th>What it calls</th></tr>
+  <tr><td><code>main</code></td><td><code>twice&lt;Box&lt;Circle&gt;&gt;</code></td></tr>
+  <tr><td><code>twice&lt;Box&lt;Circle&gt;&gt;</code></td><td><code>Show@1.show&lt;Circle&gt;</code> (the <code>Box&lt;T&gt;</code> impl with <code>T = Circle</code>)</td></tr>
+  <tr><td><code>Show@1.show&lt;Circle&gt;</code></td><td><code>Show@0.show</code> (<code>v.show()</code>, with <code>v: Circle</code>)</td></tr>
+</table>
+<p>Every arrow in that chain is a direct call. Nothing looks anything up while the program runs.</p>
+
+<h2 id="code">3. Code walkthrough</h2>
+
+<h3>3.1 Type-checking impl bodies — <code>typeck/traits.rs</code>, <code>typeck/mod.rs</code></h3>
+<p><code>check_method</code>, which already compared each impl method with the trait, now also returns the method’s lowered signature (<code>this: &amp;Self</code> first). It is stored in <code>ImplInfo.sigs</code>, so the types are lowered exactly once and a mistake is reported exactly once. <code>check_function</code>’s owner, previously “a class or nothing”, becomes an <code>Owner</code> enum: <code>Class</code> or <code>Impl</code>. After the class methods, <code>check_with_members</code> checks each impl method in source order; because the impl table is a <code>HashMap</code>, it sorts by impl index first so the output is deterministic.</p>
+<p>Inside an impl, <code>self_class</code> is set only when <code>Self</code> is a class. That is why bare field names work (<code>r * r</code>) in a class impl, while an enum impl still gets <code>this</code> but no implicit fields.</p>
+
+<h3>3.2 Finding the method — <code>typeck/expr/method.rs</code></h3>
+<p><code>check_method_call</code> keeps its old path when the class has an inherent method. Otherwise it calls <code>check_trait_method_call</code>, which:</p>
+<ol>
+  <li>collects <em>candidates</em> with <code>trait_candidates</code>: bounds for a type parameter, applicable impls (via the shared <code>solve::impl_applies</code>) for a class or enum;</li>
+  <li>requires exactly one, else reports ambiguity or the list of bounds;</li>
+  <li>builds the signature by substituting <code>[Self, trait arguments, fresh variables for the method’s own parameters]</code> into the trait’s stored signature, with <code>&amp;Self</code> prepended;</li>
+  <li>registers <code>Self: Trait&lt;args&gt;</code> with the solver, which fixes the trait arguments from the unique impl or waits;</li>
+  <li>finishes the call as <code>Trait.method</code> and records a <code>MemberRef::Method</code> for sema and the language server.</li>
+</ol>
+<p><code>bounds_hint</code> is also made honest: a type parameter that <em>has</em> bounds no longer claims to have none.</p>
+
+<h3>3.3 Carrying signatures to monomorphization — <code>hir/mod.rs</code>, <code>mono.rs</code></h3>
+<p><code>HirProgram</code> gains <code>traits</code> and <code>impls</code>: signatures only, over the generic parameters. In <code>mono.rs</code>, <code>retarget_expr</code> already rewrote calls to generic functions. When a callee name is <em>not</em> a function but looks like <code>Trait.method</code>, <code>resolve_trait_call</code> takes over:</p>
+<ul>
+  <li>it binds the trait method’s signature (<code>Self</code>, trait arguments, method parameters) against the call’s now-concrete type, reusing the same <code>bind</code> that functions use;</li>
+  <li>it finds the one impl whose self type and trait arguments bind against those values;</li>
+  <li>it requests an instance of that impl’s method with the impl’s arguments followed by the method’s own.</li>
+</ul>
+<p>The shared part of <code>infer_type_args</code> was lifted into <code>bind_signature</code> so functions and trait methods use one matcher. Codegen is untouched, because by now the callee is a plain name of a plain function.</p>
+
+<h3>3.4 Sema — <code>sema/analyze.rs</code></h3>
+<p>Sema works on the AST and must produce one analysis root per HIR function, in the same order. Impl methods are appended after class methods, with <code>this</code> typed as the impl’s self type. The trait’s declaration also registers borrow modes under <code>Trait.method</code>, so a call through a trait still knows which arguments are borrowed. Without this, escape analysis would treat such a call as an unknown function and quietly lose information.</p>
+
+<h3>3.5 Tests, corpus and docs</h3>
+<ul>
+  <li><code>typeck/tests/dispatch.rs</code> (bounds, impls, shadowing, ambiguity, impl-body errors, fields in impls, trait arguments, method hints) and mono tests asserting instance names and that no <code>Show.*</code> callee survives.</li>
+  <li>Six programs in <code>programs/build/traits/</code> that compile and run natively with expected output; they run only with the <code>codegen</code> feature, so CI’s LLVM job is what exercises them.</li>
+  <li>Goldens re-blessed; <code>docs/language.md</code> and an RFC 0001 note updated; the <code>dead_code</code> shortcuts left by #55 and #56 are gone.</li>
+</ul>
+
+<h2 id="limits">4. What this PR deliberately does not do</h2>
+<div class="callout warn"><b>Parameters that no type determines.</b> If a trait argument or an impl parameter appears nowhere in the call’s types, monomorphization cannot recover it and reports the same “not determined” error as for a bound-only type parameter.</div>
+<ul>
+  <li>No default method bodies, no <code>Trait.method(x)</code> call syntax, no trait objects.</li>
+  <li>Impl self types are still classes and enums only.</li>
+  <li>A bound gives a type parameter trait <em>methods</em> only; operators and field access on <code>T</code> still need more than a bound.</li>
+  <li>Associated types arrive in #59.</li>
+</ul>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Five questions. Click an answer.</p>
+<div id="quizroot"></div>
+<p id="score"></p>
+
+</main>
+
+<script>
+const questions = [
+  {
+    q: "A class has an inherent method `show` and also an impl of `Show` whose `show` does something else. What does `c.show()` call?",
+    a: [
+      "The trait method, because traits are more general",
+      "The inherent method; it shadows trait methods of the same name",
+      "Neither: it is reported as ambiguous",
+      "Whichever is declared last in the file"
+    ],
+    c: 1,
+    why: "Lookup tries the class’s own methods first and only falls back to bounds and impls when there is none. Ambiguity is reserved for two traits both providing the method."
+  },
+  {
+    q: "Inside `fun say<T: Show>(t: &T)`, what does the checker emit for `t.show()`?",
+    a: [
+      "A dynamic lookup in a vtable stored in `t`",
+      "A call of the abstract name `Show.show` with `t` as first argument, plus the obligation `T: Show`",
+      "A call of `Circle.show`, chosen from the first call site it sees",
+      "An error, because `T` is not a class"
+    ],
+    c: 1,
+    why: "The checker knows the bound but not the concrete type. It records the intent as `Show.show` and leaves the choice to monomorphization, which runs once `T` is known."
+  },
+  {
+    q: "Why is the call `Show.show` always resolvable to at most one impl during monomorphization?",
+    a: [
+      "Because each trait may have only one impl",
+      "Because coherence (#57) rejects overlapping impls, so at most one header fits the concrete `Self` and trait arguments",
+      "Because the solver picks the first impl in the file",
+      "Because impls are sorted alphabetically"
+    ],
+    c: 1,
+    why: "A trait may have many impls; they just may not overlap. Given a concrete type and trait arguments, at most one impl’s header can match, so the rewrite is a direct call."
+  },
+  {
+    q: "Why are impl methods named `Show@0.show`, `Show@1.show`… rather than `Show.show` or `Circle.show`?",
+    a: [
+      "To make stack traces shorter",
+      "So `impl Show for Box<i32>` and `impl Show for Box<String>` get different functions, and no user identifier can collide, since `@` is not allowed in names",
+      "Because LLVM requires an `@` in function names",
+      "To mark them as unsafe"
+    ],
+    c: 1,
+    why: "The mono collector finds functions by name and the first match wins, so names must be unique per impl. The index separates impls with the same trait and method; `@` keeps the name out of the user’s namespace."
+  },
+  {
+    q: "Before this PR, an impl method `fun show(): String { return nope }` with an undefined name passed the compiler. Why, and what changed?",
+    a: [
+      "Undefined names were never checked anywhere",
+      "Only impl signatures were compared with the trait; bodies were skipped, and now they are type-checked as functions owned by the impl",
+      "The parser rejected it before, but now accepts it",
+      "Bodies are still skipped; only calls are checked"
+    ],
+    c: 1,
+    why: "Nothing could call an impl method until #58, so bodies were deliberately left unchecked and not emitted. Dispatch makes them reachable, so `check_function` now handles an `Owner::Impl`, and sema adds a root for each impl method."
+  }
+];
+
+const root = document.getElementById('quizroot');
+let answered = 0, correct = 0;
+questions.forEach((item, qi) => {
+  const box = document.createElement('div');
+  box.className = 'quiz';
+  const p = document.createElement('p');
+  p.className = 'q';
+  p.textContent = (qi + 1) + '. ' + item.q;
+  box.appendChild(p);
+  const fb = document.createElement('div');
+  fb.className = 'fb';
+  const buttons = item.a.map((text, ai) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.addEventListener('click', () => {
+      buttons.forEach(x => x.disabled = true);
+      buttons[item.c].classList.add('right');
+      if (ai === item.c) { correct++; fb.textContent = '✔ Correct. ' + item.why; }
+      else { b.classList.add('wrong'); fb.textContent = '✘ Not quite. ' + item.why; }
+      fb.style.display = 'block';
+      answered++;
+      if (answered === questions.length) {
+        document.getElementById('score').textContent = 'Score: ' + correct + ' / ' + questions.length;
+      }
+    });
+    box.appendChild(b);
+    return b;
+  });
+  box.appendChild(fb);
+  root.appendChild(box);
+});
+</script>
+</body>
+</html>
