@@ -390,72 +390,13 @@ struct FunctionChecker<'a> {
 
 fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner: Option<DefId>) -> HirFunction {
     let FunctionChecker { defs, fun_sigs, classes, enums, traits, impls, constants, tcx, diagnostics, node_tys, members, option_if_vals } = checker;
-    let def = match owner {
-        Some(class) => defs.lookup_method(class, &function.name),
-        None => defs.lookup_fn(&function.name),
-    }
-    .expect("every function and method is registered");
-    let signature = fun_sigs
-        .get(&def)
-        .cloned()
-        .expect("signature was collected for every function");
-    let name = match owner {
-        Some(class) => format!("{}.{}", defs.get(class).name, function.name),
-        None => function.name.clone(),
-    };
-    let generics: Vec<String> = owner
-        .and_then(|class| classes.get(&class))
-        .map_or(&[][..], |class| &class.generics[..])
-        .iter()
-        .cloned()
-        .chain(function.generics.iter().map(|param| param.name.name.clone()))
-        .collect();
+    let (signature, name, generics) = function_header(defs, fun_sigs, classes, function, owner);
     tcx.set_param_names(generics.clone());
     let mut env = Env::new(defs, tcx, fun_sigs, classes, enums, traits, impls, constants);
-    env.param_env = signature.predicates.clone();
-    env.self_class = owner;
-    // The owner class's parameters come first, as in the method signature.
-    env.tparams = generics.iter().enumerate().map(|(i, name)| (name.clone(), crate::ty::ParamIdx(i as u32))).collect();
-    let mut param_tys = signature.params;
-    let mut params = Vec::new();
-    if owner.is_some() {
-        let this_ty = param_tys.remove(0);
-        env.bind("this".to_string(), crate::ast::BindingKind::Val, this_ty, true);
-        params.push(HirParam {
-            kind: crate::ast::BindingKind::Val,
-            name: "this".to_string(),
-            ty: this_ty,
-        });
-    }
-    params.extend(bind_params(function, param_tys, &mut env));
     let return_ty = signature.ret;
-    let body = stmt::check_block(&function.body, return_ty, &mut env, false);
-    let unit = env.tcx.unit();
-    if return_ty != unit && !stmt::block_always_returns(&body) {
-        env.error(
-            format!("function must return a value of type {} on all paths", env.show(return_ty)),
-            None,
-        );
-    }
-    // Defaulting happens once, here; after it no literal variable remains.
-    env.infcx.default_literals(env.tcx);
-    solve::select_where_possible(&mut env);
-    report_uninferred(&mut env);
-    solve::report_unsolved(&mut env);
-    let mut body = body;
-    let (infcx, tcx, errors) = (&env.infcx, &mut *env.tcx, &mut env.diagnostics);
-    let mut settle = |ty: TyId| match infcx.resolve(tcx, ty) {
-        Ok(ty) => {
-            debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
-            ty
-        }
-        Err(_) => {
-            errors.push(type_error("a type argument would make a nullable of a nullable", None));
-            tcx.error()
-        }
-    };
-    crate::hir::resolve_types(&mut body, &mut settle);
-    env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
+    let params = enter_function(&mut env, function, owner, &generics, signature);
+    let body = check_body(&mut env, function, return_ty);
+    let body = settle_body(&mut env, body);
     env.tcx.set_param_names(Vec::new());
     diagnostics.append(&mut env.diagnostics);
     node_tys.extend(std::mem::take(&mut env.node_tys));
@@ -470,6 +411,93 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         return_ty,
         body,
     }
+}
+
+/// The collected signature, the HIR name and the type parameter names in scope of `function`.
+fn function_header(
+    defs: &DefTable,
+    fun_sigs: &FnSigs,
+    classes: &ClassTable,
+    function: &Function,
+    owner: Option<DefId>,
+) -> (FnSig<TyId>, String, Vec<String>) {
+    let def = match owner {
+        Some(class) => defs.lookup_method(class, &function.name),
+        None => defs.lookup_fn(&function.name),
+    }
+    .expect("every function and method is registered");
+    let signature = fun_sigs.get(&def).cloned().expect("signature was collected for every function");
+    let name = match owner {
+        Some(class) => format!("{}.{}", defs.get(class).name, function.name),
+        None => function.name.clone(),
+    };
+    // The owner class's parameters come first, as in the method signature.
+    let generics = owner
+        .and_then(|class| classes.get(&class))
+        .map_or(&[][..], |class| &class.generics[..])
+        .iter()
+        .cloned()
+        .chain(function.generics.iter().map(|param| param.name.name.clone()))
+        .collect();
+    (signature, name, generics)
+}
+
+/// Puts the function's type parameters, bounds, `this` and parameters in scope; returns the HIR params.
+fn enter_function(
+    env: &mut Env<'_>,
+    function: &Function,
+    owner: Option<DefId>,
+    generics: &[String],
+    signature: FnSig<TyId>,
+) -> Vec<HirParam> {
+    env.param_env = signature.predicates;
+    env.self_class = owner;
+    env.tparams = generics.iter().enumerate().map(|(i, name)| (name.clone(), crate::ty::ParamIdx(i as u32))).collect();
+    let mut param_tys = signature.params;
+    let mut params = Vec::new();
+    if owner.is_some() {
+        let this_ty = param_tys.remove(0);
+        env.bind("this".to_string(), crate::ast::BindingKind::Val, this_ty, true);
+        params.push(HirParam { kind: crate::ast::BindingKind::Val, name: "this".to_string(), ty: this_ty });
+    }
+    params.extend(bind_params(function, param_tys, env));
+    params
+}
+
+fn check_body(env: &mut Env<'_>, function: &Function, return_ty: TyId) -> crate::hir::HirBlock {
+    let body = stmt::check_block(&function.body, return_ty, env, false);
+    let unit = env.tcx.unit();
+    if return_ty != unit && !stmt::block_always_returns(&body) {
+        env.error(
+            format!("function must return a value of type {} on all paths", env.show(return_ty)),
+            None,
+        );
+    }
+    body
+}
+
+/// End of a body: default literals, solve what bounds can be solved, report what is still unknown,
+/// and replace every inference variable in the HIR by its type.
+fn settle_body(env: &mut Env<'_>, mut body: crate::hir::HirBlock) -> crate::hir::HirBlock {
+    // Defaulting happens once, here; after it no literal variable remains.
+    env.infcx.default_literals(env.tcx);
+    solve::select_where_possible(env);
+    report_uninferred(env);
+    solve::report_unsolved(env);
+    let (infcx, tcx, errors) = (&env.infcx, &mut *env.tcx, &mut env.diagnostics);
+    let mut settle = |ty: TyId| match infcx.resolve(tcx, ty) {
+        Ok(ty) => {
+            debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
+            ty
+        }
+        Err(_) => {
+            errors.push(type_error("a type argument would make a nullable of a nullable", None));
+            tcx.error()
+        }
+    };
+    crate::hir::resolve_types(&mut body, &mut settle);
+    env.node_tys.values_mut().for_each(|ty| *ty = settle(*ty));
+    body
 }
 
 /// A type parameter instantiated at a call and fixed by nothing is an error, and is then poisoned

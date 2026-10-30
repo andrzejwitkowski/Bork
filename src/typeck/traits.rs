@@ -55,34 +55,59 @@ pub(super) fn lower_bounds(
     for param in generics {
         let Some(&(_, idx)) = scope.iter().find(|(name, _)| *name == param.name.name) else { continue };
         for bound in &param.bounds {
-            let span = Some(bound.name.span);
-            let Some(trait_id) = defs.lookup_trait(&bound.name.name).filter(|id| traits.contains_key(id)) else {
-                diagnostics.push(type_error(format!("unknown trait `{}`", bound.name.name), span));
-                continue;
-            };
-            let wanted = traits[&trait_id].generics.len();
-            if bound.args.len() != wanted {
-                let message = format!(
-                    "trait `{}` takes {wanted} type argument(s) but {} were supplied",
-                    bound.name.name,
-                    bound.args.len()
-                );
-                diagnostics.push(type_error(message, span));
-                continue;
-            }
-            let args: Vec<TyId> = bound.args.iter().map(|a| lower_type(a, defs, scope, tcx, diagnostics, span)).collect();
-            if args.iter().any(|&a| tcx.is_error(a)) {
-                continue;
-            }
-            let predicate = Predicate { self_ty: tcx.param(idx), trait_ref: TraitRef { trait_id, args } };
+            let Some(trait_ref) = lower_trait_ref(bound, scope, defs, traits, tcx, diagnostics) else { continue };
+            let predicate = Predicate { self_ty: tcx.param(idx), trait_ref };
             if predicates.contains(&predicate) {
-                diagnostics.push(type_error(format!("duplicate bound `{}` on `{}`", bound.name.name, param.name.name), span));
-                continue;
+                let message = format!("duplicate bound `{}` on `{}`", bound.name.name, param.name.name);
+                diagnostics.push(type_error(message, Some(bound.name.span)));
+            } else {
+                predicates.push(predicate);
             }
-            predicates.push(predicate);
         }
     }
     predicates
+}
+
+/// One written bound `Trait<args>`; `None` once an error is reported (or an argument is already one).
+fn lower_trait_ref(
+    bound: &crate::ast::TraitRef,
+    scope: &[(String, ParamIdx)],
+    defs: &DefTable,
+    traits: &HashMap<DefId, TraitInfo>,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<TraitRef<TyId>> {
+    let span = Some(bound.name.span);
+    let trait_id = resolve_trait(bound, defs, traits, diagnostics)?;
+    check_trait_arity(bound, traits[&trait_id].generics.len(), diagnostics)?;
+    let args: Vec<TyId> = bound.args.iter().map(|a| lower_type(a, defs, scope, tcx, diagnostics, span)).collect();
+    (!args.iter().any(|&a| tcx.is_error(a))).then_some(TraitRef { trait_id, args })
+}
+
+fn resolve_trait(
+    bound: &crate::ast::TraitRef,
+    defs: &DefTable,
+    traits: &HashMap<DefId, TraitInfo>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<DefId> {
+    let found = defs.lookup_trait(&bound.name.name).filter(|id| traits.contains_key(id));
+    if found.is_none() {
+        diagnostics.push(type_error(format!("unknown trait `{}`", bound.name.name), Some(bound.name.span)));
+    }
+    found
+}
+
+fn check_trait_arity(bound: &crate::ast::TraitRef, wanted: usize, diagnostics: &mut Vec<Diagnostic>) -> Option<()> {
+    if bound.args.len() == wanted {
+        return Some(());
+    }
+    let message = format!(
+        "trait `{}` takes {wanted} type argument(s) but {} were supplied",
+        bound.name.name,
+        bound.args.len()
+    );
+    diagnostics.push(type_error(message, Some(bound.name.span)));
+    None
 }
 
 /// Impls by trait, in program order.
