@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typy asocjowane w Bork (PR #190)</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#222; --muted:#666; --acc:#2b5fb4; --box:#eef2fa; --warn:#fff4dc; --ok:#e3f4e6; --bad:#fde6e6; --code:#f3f1ec; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; border-bottom: 2px solid var(--acc); padding-bottom: .2em; }
+  h3 { margin-top: 1.6em; }
+  .sub { color: var(--muted); }
+  nav.toc { background: var(--box); border-radius: 8px; padding: 12px 20px; margin: 20px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 22px; }
+  a { color: var(--acc); }
+  code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+  pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: .88em; line-height: 1.45; white-space: pre; }
+  pre code { background: none; padding: 0; }
+  .callout { border-left: 5px solid var(--acc); background: var(--box); padding: 10px 16px; margin: 18px 0; border-radius: 0 8px 8px 0; }
+  .callout.warn { border-color: #d89a1c; background: var(--warn); }
+  .callout b.t { display:block; margin-bottom: 2px; }
+  details.skip { background:#f4f4f4; border-radius:8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor: pointer; font-weight: bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:16px 0; font:14px/1.35 system-ui, sans-serif; }
+  .node { border:2px solid var(--acc); background:#fff; border-radius:8px; padding:8px 12px; text-align:center; }
+  .node small { display:block; color:var(--muted); }
+  .node.rigid { border-color:#9a4dc2; }
+  .node.done { border-color:#2d8a43; }
+  .node.bad { border-color:#c33; }
+  .arrow { font-size: 22px; color: var(--muted); }
+  .cols { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+  .card { background:#fff; border:1px solid #ddd; border-radius:8px; padding: 10px 14px; font: 15px/1.5 system-ui, sans-serif; }
+  .card h4 { margin: 0 0 6px; }
+  table.t { border-collapse: collapse; width:100%; font: 14px/1.4 system-ui, sans-serif; margin: 14px 0; }
+  table.t th, table.t td { border:1px solid #ccc; padding: 6px 10px; text-align:left; vertical-align: top; }
+  table.t th { background: var(--box); }
+  .q { background:#fff; border:1px solid #ddd; border-radius:10px; padding: 14px 18px; margin: 18px 0; }
+  .q p.qt { font-weight: bold; margin-top: 0; }
+  .q button { display:block; width:100%; text-align:left; margin: 6px 0; padding: 9px 12px; border:1px solid #bbb; background:#fafafa; border-radius:8px; font: 15px/1.4 system-ui, sans-serif; cursor:pointer; }
+  .q button:hover:not([disabled]) { background:#eef2fa; }
+  .q button.right { background: var(--ok); border-color:#2d8a43; }
+  .q button.wrong { background: var(--bad); border-color:#c33; }
+  .fb { display:none; margin-top:8px; padding: 8px 12px; border-radius: 8px; font: 15px/1.5 system-ui, sans-serif; background: var(--box); }
+  #score { font: bold 16px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<main>
+<h1>Typy asocjowane w Bork</h1>
+<p class="sub">PR #190 · TS-P5-05 (#59) · gałąź <code>feat/traits-assoc</code> względem <code>main</code></p>
+
+<nav class="toc">
+  <b>Spis treści</b>
+  <ol>
+    <li><a href="#background">Tło</a></li>
+    <li><a href="#intuition">Intuicja</a></li>
+    <li><a href="#code">Kod</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="background">1. Tło</h2>
+
+<details class="skip">
+<summary>Dla początkujących: czym są traity i typy asocjowane (można pominąć)</summary>
+<p>Trait to obietnica: „każdy typ, który mnie implementuje, ma te metody". Funkcja generyczna <code>fun say&lt;T: Show&gt;(t: &amp;T)</code> przyjmuje dowolny typ <code>T</code>, o którym wiadomo tylko tyle, że implementuje <code>Show</code>. Kompilator nie zna <code>T</code>, więc w ciele funkcji wolno użyć wyłącznie tego, co obiecuje trait.</p>
+<p>Czasem obietnica musi dotyczyć też <em>typu</em>. Kontener ma metodę <code>get()</code>, ale co ona zwraca? Dla kontenera liczb <code>i32</code>, dla kontenera napisów <code>String</code>. Trait mówi więc: „każdy implementujący wybiera sobie typ <code>Item</code>". To właśnie typ asocjowany.</p>
+</details>
+
+<h3>Co Bork miał przed tą zmianą</h3>
+<p>Po zadaniach #55–#58 Bork umie deklarować traity i implementacje, sprawdzać ograniczenia (<code>T: Show</code>), odrzucać nakładające się implementacje i kompilować wywołanie <code>x.show()</code> do bezpośredniego wywołania metody konkretnej klasy, bez vtable. Brakowało jednak sposobu, żeby sygnatura metody traitu powiedziała „zwracam to, co wybierze implementacja".</p>
+
+<div class="callout"><b class="t">Monomorfizacja</b>
+Funkcja generyczna jest kompilowana osobno dla każdego konkretnego typu, z którym ją wywołano: <code>first&lt;IntBox&gt;</code>, <code>first&lt;Named&gt;</code>. W Borku robi to <code>src/mono.rs</code>. Po niej w programie nie zostaje żaden parametr typu, więc generator kodu widzi wyłącznie typy konkretne.</div>
+
+<h3>Co jest ważne dla tej zmiany</h3>
+<ul>
+  <li>Typy są internowane (<code>TyId</code>): równe typy mają równe identyfikatory, więc porównanie to porównanie liczb.</li>
+  <li>Ograniczenia z <code>fun f&lt;T: Container&gt;</code> trafiają do <em>param_env</em> funkcji; to jedyne, co o <code>T</code> wiadomo w jej ciele.</li>
+  <li>Solver (<code>typeck/solve.rs</code>) rozwiązuje zobowiązania w pętli. Jeśli typ jest jeszcze zmienną wnioskowania, zobowiązanie <em>czeka</em>.</li>
+</ul>
+
+<h2 id="intuition">2. Intuicja</h2>
+
+<p>Nowy rodzaj typu to <strong>projekcja</strong>: „typ <code>Item</code>, który wybrał <code>X</code> w traicie <code>Container</code>". Zapisujemy ją <code>T::Item</code>. Projekcja jest wyrażeniem, które trzeba <em>obliczyć</em>, kiedy wiadomo, czym jest <code>X</code>.</p>
+
+<pre><code>trait Container {
+    type Item
+    fun get(): Self::Item
+}
+impl Container for IntBox { type Item = i32;    fun get(): i32    { ... } }
+impl Container for Named  { type Item = String; fun get(): String { ... } }
+fun first&lt;T: Container&gt;(c: &amp;T): T::Item { return c.get() }</code></pre>
+
+<h3>Trzy losy projekcji</h3>
+<div class="flow">
+  <div class="node">projekcja<small>Container::Item<br>bazy: <b>IntBox</b></small></div><div class="arrow">→</div>
+  <div class="node done">szukamy impla<small>impl Container for IntBox</small></div><div class="arrow">→</div>
+  <div class="node done">i32<small>konkretny typ</small></div>
+</div>
+<div class="flow">
+  <div class="node">projekcja<small>Container::Item<br>bazy: <b>T</b> (parametr)</small></div><div class="arrow">→</div>
+  <div class="node rigid">zostaje jako T::Item<small>nieprzezroczysta,<br>równa tylko sobie</small></div>
+</div>
+<div class="flow">
+  <div class="node">projekcja<small>Container::Item<br>bazy: <b>?0</b> (zmienna)</small></div><div class="arrow">→</div>
+  <div class="node bad">czeka<small>zastąpiona zmienną ?v<br>i zapisana jako „pending"</small></div><div class="arrow">→</div>
+  <div class="node done">po poznaniu ?0 liczymy jak wyżej</div>
+</div>
+
+<div class="callout"><b class="t">Dlaczego parametr zostaje nieprzezroczysty</b>
+W ciele <code>first&lt;T&gt;</code> nie wiemy, czym jest <code>T</code>. Wiemy tylko, że <code>c.get()</code> zwraca <code>T::Item</code>, a sygnatura obiecuje <code>T::Item</code>. Te dwa typy są <em>tym samym</em> internowanym typem, więc funkcja się sprawdza bez żadnej wiedzy o implementacji. Dopiero monomorfizacja podstawia konkretne <code>T</code> i oblicza wynik.</div>
+
+<h3>Wiązania równościowe</h3>
+<p>Czasem funkcja chce <em>wiedzieć</em>, że <code>Item</code> to konkretny typ. <code>T: Container&lt;Item = i32&gt;</code> dodaje do ograniczeń równość <code>T::Item == i32</code>. W ciele funkcji projekcja normalizuje się wtedy do <code>i32</code>, a każde wywołanie sprawdza, czy argument tę równość spełnia.</p>
+<table class="t">
+<tr><th>Wywołanie <code>total(&amp;x)</code></th><th>Wynik</th></tr>
+<tr><td><code>x: IntBox</code> (<code>Item = i32</code>)</td><td>poprawne</td></tr>
+<tr><td><code>x: Named</code> (<code>Item = String</code>)</td><td>błąd: <code>expected the associated type to be `i32`, but it is `String`</code></td></tr>
+</table>
+
+<h3>Pułapka: dwa traity z tym samym <code>Item</code></h3>
+<p>Pierwsza wersja projekcji trzymała tylko <code>(baza, nazwa)</code>. Jeśli <code>Foo</code> implementuje <code>Container</code> (<code>Item = i32</code>) i <code>Other</code> (<code>Item = String</code>), to po podstawieniu <code>T := Foo</code> zostawało <code>Foo::Item</code> i nie było wiadomo, o który trait chodzi. Dlatego projekcja niesie też <strong>nazwę traitu</strong>, ustaloną z ograniczeń funkcji.</p>
+<div class="cols">
+  <div class="card"><h4>Zapisane w kodzie</h4><code>T::Item</code> — trait jeszcze nie znany (<code>None</code>)</div>
+  <div class="card"><h4>Po „kwalifikacji"</h4>jedyne ograniczenie <code>T: Container</code> deklaruje <code>Item</code> → <code>Projection(T, Container, Item)</code>. Zero takich — błąd. Dwa — błąd niejednoznaczności.</div>
+</div>
+
+<h2 id="code">3. Kod</h2>
+
+<h3>1. Składnia i AST</h3>
+<ul>
+  <li><code>src/parser.lalrpop</code>: słowo kluczowe <code>type</code> (zastrzeżone), <code>type Item</code> w traicie, <code>type Item = X</code> w implu, typ <code>T::Item</code>, argumenty traitu z wiązaniami <code>&lt;A, Item = X&gt;</code>.</li>
+  <li><code>src/ast.rs</code>: <code>Trait.assoc_types</code>, <code>Impl.assoc_types</code>, <code>TraitRef.bindings</code>, <code>Type::Assoc</code>.</li>
+  <li><code>src/ast_number.rs</code>: nowe nazwy dostają numery węzłów (test korpusowy pilnuje, żeby żaden nie został bez numeru).</li>
+</ul>
+
+<h3>2. Reprezentacja typu</h3>
+<ul>
+  <li><code>src/ty/mod.rs</code>: <code>TyData::Projection(baza, Option&lt;trait&gt;, nazwa)</code> i <code>TyCtx::projection</code>.</li>
+  <li><code>src/ty/fold.rs</code>: <code>children()</code> i <code>super_fold</code> znają projekcję. Gałąź <code>_ =&gt; vec![]</code> sprawiłaby, że kompilator nie ostrzegłby o pominięciu — dlatego dodane jawnie. Nowe <code>subst_with</code> podmienia wskazane typy.</li>
+  <li><code>src/ty/predicate.rs</code>, <code>sig.rs</code>: <code>ProjectionPredicate</code> i pole <code>proj_predicates</code> w <code>FnSig</code>.</li>
+</ul>
+
+<h3>3. Tabela definicji i sprawdzanie implementacji</h3>
+<ul>
+  <li><code>src/defs.rs</code>: rejestr nazw typów asocjowanych.</li>
+  <li><code>src/typeck/traits.rs</code>: <code>lower_assoc</code> zgłasza brakujące, nadmiarowe i zduplikowane typy oraz cykle (<code>type Item = Self::Item</code>); <code>qualify_sig</code> nadaje projekcjom trait; <code>lower_bounds</code> zwraca teraz też wiązania równościowe i odrzuca zduplikowane.</li>
+  <li>Impl z wiązaniem równościowym na własnych parametrach jest odrzucany (świadomy skrót).</li>
+</ul>
+
+<h3>4. Normalizacja w typeck</h3>
+<ul>
+  <li><code>src/typeck/solve.rs</code>: <code>normalize</code> zbiera „liście" projekcji (te bez zagnieżdżonej projekcji w bazie) i dla każdego pyta <code>project</code>, które zwraca <code>Done</code>, <code>Rigid</code>, <code>Stalled</code> lub <code>Failed</code>. <code>Stalled</code> tworzy zmienną i wpis „pending", ponawiany w <code>select_where_possible</code>.</li>
+  <li><code>project_from_impls</code> czyta wartość impla w snapshocie i go cofa, żeby nie zawężać zmiennych bazy.</li>
+  <li>Punkty wejścia: <code>subst_sig</code> (<code>expr/call.rs</code>), początek <code>check_function</code> (<code>typeck/mod.rs</code>) i <code>Env::lower</code>.</li>
+</ul>
+
+<h3>5. Monomorfizacja</h3>
+<ul>
+  <li><code>src/hir/mod.rs</code>: <code>HirImpl.assoc</code> niesie <code>type Item = X</code> do mono.</li>
+  <li><code>src/mono.rs</code>: <code>normalize_projections</code> po podstawieniu typów wybiera impl <em>tego</em> traitu, którego nagłówek pasuje do bazy, i podstawia parametry impla. <code>no_params_left</code> sprawdza też brak projekcji.</li>
+</ul>
+
+<div class="callout warn"><b class="t">Znane ograniczenia</b>
+Pisz <code>Self::Item</code> (samo <code>Item</code> nie jest aliasem). Brak <code>&lt;T as Trait&gt;::Item</code>, ograniczeń na typach asocjowanych, domyślnych wartości i GAT. <code>C::Item?</code> się nie parsuje. Normalizator istnieje w dwóch kopiach (typeck i mono), bo pierwszy działa na kontekście wnioskowania, drugi na samych typach.</div>
+
+<h3>6. Testy</h3>
+<p>11 testów typeck (<code>typeck/tests/assoc.rs</code>), 2 testy mono, test parsera i programy w korpusie (3 <code>check</code>, 13 <code>check_fail</code>, 3 <code>build</code> uruchamiane natywnie).</p>
+
+<h2 id="quiz">4. Quiz</h2>
+<p id="score">Wynik: 0 / 5</p>
+<div id="quizbox"></div>
+
+</main>
+<script>
+const QUESTIONS = [
+  { q: "W ciele `fun first<T: Container>(c: &T): T::Item { return c.get() }` kompilator nie zna T. Dlaczego mimo to funkcja się sprawdza?",
+    a: ["Bo T::Item jest od razu zamieniane na i32.",
+        "Bo `c.get()` i zadeklarowany wynik to ta sama internowana projekcja, więc typy są równe.",
+        "Bo kompilator pomija sprawdzanie typu zwracanego w funkcjach generycznych.",
+        "Bo `Container` ma tylko jedną implementację."],
+    c: 1, fb: "Projekcja na parametrze zostaje nieprzezroczysta i jest równa tylko sobie. Typy są internowane, więc to samo wyrażenie daje ten sam TyId. Konkretny typ pojawia się dopiero w monomorfizacji." },
+  { q: "Foo implementuje Container (Item = i32) oraz Other (Item = String). Dlaczego projekcja musi nieść nazwę traitu?",
+    a: ["Żeby ładniej wypisywać błędy.",
+        "Bo po podstawieniu T := Foo samo `Foo::Item` nie mówi, którą implementację wybrać.",
+        "Bo parser tego wymaga.",
+        "Bo coherence zabrania dwóch traitów z tą samą nazwą typu."],
+    c: 1, fb: "Bez traitu normalizacja albo zgłaszała fałszywą niejednoznaczność, albo mono mogło wziąć pierwszy impl z kolejności w programie. Trait jest ustalany z ograniczeń funkcji (qualify_sig)." },
+  { q: "Wywołujesz funkcję zwracającą T::Item z argumentem `Box(1)`, którego typ to Box<?int> (literał jeszcze nie ma typu). Co robi normalizacja, gdy nie da się wybrać impla?",
+    a: ["Zgłasza od razu błąd „no impl".",
+        "Zgadza się na pierwszy pasujący impl i na stałe wiąże ?int.",
+        "Podstawia zmienną i zapisuje projekcję jako oczekującą; ponawia ją, gdy typ się wyjaśni.",
+        "Zamienia projekcję na typ błędu."],
+    c: 2, fb: "Gdy baza zawiera zmienną wnioskowania, a kandydatów nie jest dokładnie jeden, projekcja czeka (Stalled). Zobowiązanie wraca do pętli select_where_possible. Przy jednym kandydacie wartość jest czytana w snapshocie, bez zawężania zmiennych." },
+  { q: "`fun total<T: Container<Item = i32>>(c: &T): i32` wywołano z klasą, której Item to String. Co się dzieje?",
+    a: ["Program się kompiluje, a błąd wychodzi w czasie działania.",
+        "Typeck zgłasza, że oczekiwano `i32`, a jest `String`.",
+        "Mono odrzuca program dopiero przy generowaniu kodu.",
+        "T::Item jest cicho zamieniane na String."],
+    c: 1, fb: "Wiązanie równościowe jest zapisane jako ProjectionPredicate i sprawdzane przy każdym wywołaniu (register_projections). Nie ma żadnego odroczenia do czasu działania." },
+  { q: "Po monomorfizacji w programie nie powinna zostać żadna projekcja. Co to gwarantuje?",
+    a: ["normalize_projections w mono.rs podstawia typ z impla właściwego traitu, a no_params_left sprawdza brak projekcji.",
+        "Typeck usuwa wszystkie projekcje przed mono.",
+        "Generator kodu LLVM sam rozwiązuje projekcje.",
+        "Projekcje nigdy nie trafiają do HIR."],
+    c: 0, fb: "Projekcje na parametrach trafiają do HIR funkcji generycznych, więc mono musi je obliczyć po podstawieniu argumentów. Ocalała projekcja byłaby błędem wewnętrznym, a nie po cichu źle wygenerowanym kodem." }
+];
+const box = document.getElementById("quizbox");
+let score = 0, answered = 0;
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/`([^`]+)`/g,"<code>$1</code>");
+QUESTIONS.forEach((item, qi) => {
+  const d = document.createElement("div");
+  d.className = "q";
+  d.innerHTML = `<p class="qt">${qi+1}. ${esc(item.q)}</p>`;
+  const fb = document.createElement("div");
+  fb.className = "fb";
+  const buttons = item.a.map((text, ai) => {
+    const b = document.createElement("button");
+    b.innerHTML = esc(text);
+    b.onclick = () => {
+      buttons.forEach(x => x.disabled = true);
+      const ok = ai === item.c;
+      b.classList.add(ok ? "right" : "wrong");
+      if (!ok) buttons[item.c].classList.add("right");
+      fb.style.display = "block";
+      fb.innerHTML = (ok ? "<b>Dobrze.</b> " : "<b>Niezupełnie.</b> ") + esc(item.fb);
+      answered++; if (ok) score++;
+      document.getElementById("score").textContent = "Wynik: " + score + " / " + QUESTIONS.length + (answered === QUESTIONS.length ? " — koniec" : "");
+    };
+    d.appendChild(b);
+    return b;
+  });
+  d.appendChild(fb);
+  box.appendChild(d);
+});
+</script>
+</body>
+</html>
