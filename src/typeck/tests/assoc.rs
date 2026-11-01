@@ -115,3 +115,19 @@ fn an_equality_binding_may_name_another_projection() {
         "expected the associated type to be",
     );
 }
+
+#[test]
+fn a_generic_impls_projection_keeps_the_literal_variable_of_its_base() {
+    let src = "trait Container {\n    type Item\n    fun get(): Self::Item\n}\nclass Box<T> {\n    v: T\n}\n\
+impl<T> Container for Box<T> {\n    type Item = T\n    fun get(): T { return this.v }\n}\n\
+fun first<C: Container>(c: &C): C::Item { return c.get() }\n\
+fun main() {\n    val b = Box(1)\n    val x: i32 = first(&b)\n}\n";
+    clean(src);
+}
+
+#[test]
+fn a_trait_method_projection_no_bound_declares_is_reported() {
+    let other = "trait Other {\n    type Item\n}\n";
+    has(&format!("{other}trait B {{\n    fun f(): Self::Item\n}}\nfun main() {{}}\n"), "no bound on");
+    has(&format!("{other}trait B {{\n    fun f<U>(u: U): U::Item\n}}\nfun main() {{}}\n"), "no bound on");
+}

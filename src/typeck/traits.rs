@@ -278,14 +278,18 @@ fn lower_trait(t: &Trait, defs: &DefTable, tcx: &mut TyCtx, diagnostics: &mut Ve
     }
     // `Self::Item` in a method is this trait's own `Item`.
     let this = tcx.param(ParamIdx(0));
+    let mut errors = Vec::new();
     for m in &mut methods {
         let declares = |base: TyId, name: &str| -> Vec<String> {
             if base == this && assoc_types.iter().any(|n| n == name) { vec![t.name.name.clone()] } else { Vec::new() }
         };
-        let mut qualify = Qualify { declares: &declares, names: &[], errors: Vec::new() };
+        let names: Vec<String> = ["Self".to_string()].into_iter().chain(t.generics.iter().map(|g| g.name.name.clone())).chain(m.generic_names.clone()).collect();
+        let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new() };
         m.params = m.params.iter().map(|&p| qualify.apply(tcx, p)).collect();
         m.ret = qualify.apply(tcx, m.ret);
+        errors.append(&mut qualify.errors);
     }
+    report_once(errors, Some(t.name.span), diagnostics);
     TraitInfo { generics: t.generics.iter().map(|g| g.name.name.clone()).collect(), assoc_types, methods }
 }
 
@@ -572,6 +576,17 @@ impl crate::ty::TypeFolder for Qualify<'_> {
     }
 }
 
+/// The same type is often written twice (a parameter and the return); say it once.
+fn report_once(errors: Vec<String>, span: Option<Span>, diagnostics: &mut Vec<Diagnostic>) {
+    let mut seen = Vec::new();
+    for message in errors {
+        if !seen.contains(&message) {
+            diagnostics.push(type_error(message.clone(), span));
+            seen.push(message);
+        }
+    }
+}
+
 /// Qualifies the projections in the parameters and return type of `sig` against its own bounds.
 pub(super) fn qualify_sig(
     sig: &mut FnSig<TyId>,
@@ -595,15 +610,7 @@ pub(super) fn qualify_sig(
     for predicate in &mut sig.proj_predicates {
         predicate.ty = qualify.apply(tcx, predicate.ty);
     }
-    let errors = std::mem::take(&mut qualify.errors);
-    // The same type is often written twice (`this` and the return); say it once.
-    let mut seen = Vec::new();
-    for message in errors {
-        if !seen.contains(&message) {
-            diagnostics.push(type_error(message.clone(), span));
-            seen.push(message);
-        }
-    }
+    report_once(std::mem::take(&mut qualify.errors), span, diagnostics);
     sig.params = params;
     sig.ret = ret;
 }
