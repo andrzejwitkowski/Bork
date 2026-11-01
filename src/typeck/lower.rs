@@ -56,6 +56,15 @@ impl LowerCx<'_> {
                 self.nullable_if(func, *nullable)
             }
             Type::Ref { inner, nullable } => self.lower_ref(inner, *nullable),
+            Type::Assoc { base, name } => {
+                let base = self.lower(base);
+                if self.defs.assoc_type_declared(name) {
+                    self.tcx.projection(base, None, name)
+                } else {
+                    self.error(format!("no trait declares an associated type `{name}`"));
+                    self.tcx.error()
+                }
+            }
             Type::Primitive { name, nullable } => match Prim::from_name(name) {
                 Some(prim) => {
                     let ty = self.tcx.prim(prim);

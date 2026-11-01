@@ -735,6 +735,10 @@ programs/build/text/utf8_empty_is_present.bork: 129..133 Option Lexical LexicalS
 programs/build/text/utf8_invalid_is_none.bork: 118..122 Option Lexical LexicalScope(0)
 programs/build/text/utf8_outer_sink_survives.bork: 52..56 Option Dynamic Program
 programs/build/text/utf8_outer_sink_survives.bork: 175..179 Option Lexical LexicalScope(0)
+programs/build/traits/assoc_container.bork: 427..433 IntBox Dynamic Program
+programs/build/traits/assoc_container.bork: 449..454 Named Dynamic Program
+programs/build/traits/assoc_equality.bork: 306..312 IntBox Dynamic Program
+programs/build/traits/assoc_two_traits.bork: 371..374 Foo Dynamic Program
 programs/build/traits/dispatch_bound.bork: 349..355 Circle Dynamic Program
 programs/build/traits/dispatch_bound.bork: 373..379 Square Dynamic Program
 programs/build/traits/dispatch_enum.bork: 304..314 Maybe Lexical LexicalScope(0)
@@ -807,6 +811,10 @@ programs/check/option/option_check.bork: 443..446 Box Lexical LexicalScope(2)
 programs/check/option/option_check.bork: 447..458 Option Lexical LexicalScope(2)
 programs/check/option/option_of_nullable.bork: 187..197 Option Lexical LexicalScope(0)
 programs/check/option/option_of_nullable.bork: 192..196 Option Lexical LexicalScope(0)
+programs/check/traits/assoc_basic.bork: 389..395 IntBox Dynamic Program
+programs/check/traits/assoc_basic.bork: 438..443 Named Dynamic Program
+programs/check/traits/assoc_equality.bork: 275..281 IntBox Dynamic Program
+programs/check/traits/assoc_generic_impl.bork: 259..262 Box Dynamic Program
 programs/check/traits/bounds_basic.bork: 354..360 Circle Dynamic Program
 programs/check/traits/bounds_basic.bork: 391..394 Box Dynamic Program
 programs/check/traits/bounds_basic.bork: 395..401 Circle Lexical LexicalScope(2)

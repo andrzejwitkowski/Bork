@@ -113,6 +113,8 @@ pub struct HirImpl {
     pub self_ty: TyId,
     /// Method name and the name of its `HirFunction`.
     pub methods: Vec<(String, String)>,
+    /// `type Item = X`, for normalizing projections of the impl's self type.
+    pub assoc: Vec<(String, TyId)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

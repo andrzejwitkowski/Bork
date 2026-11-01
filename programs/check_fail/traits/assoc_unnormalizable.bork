@@ -1,0 +1,15 @@
+// diag: implements no trait with an associated type
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+class Plain {
+    x: i32
+}
+fun main() {
+    val p = Plain(1)
+    val y: Plain::Item = 3
+}

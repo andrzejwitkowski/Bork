@@ -103,6 +103,17 @@ pub(super) struct Env<'a> {
     pub(super) impls: &'a super::traits::ImplTable,
     /// The bounds of the function being checked: what its type parameters are known to implement.
     pub(super) param_env: Vec<crate::ty::Predicate<TyId>>,
+    /// The equality bounds (`T: Container<Item = i32>`) of the function being checked.
+    pub(super) proj_env: Vec<crate::ty::ProjectionPredicate<TyId>>,
+    /// Projections whose base type was still unknown when they were met; `var` stands in for them.
+    pub(super) projections: Vec<PendingProjection>,
+}
+
+/// A projection waiting for its base type; solved by `solve::select_where_possible`.
+pub(super) struct PendingProjection {
+    pub(super) projection: TyId,
+    pub(super) var: TyId,
+    pub(super) span: Option<Span>,
 }
 
 /// One type parameter of a generic callee, instantiated with a fresh variable at a call.
@@ -144,6 +155,8 @@ impl<'a> Env<'a> {
             traits,
             impls,
             param_env: Vec::new(),
+            proj_env: Vec::new(),
+            projections: Vec::new(),
         }
     }
 
@@ -274,7 +287,8 @@ impl<'a> Env<'a> {
 
     /// Lowers a written type, reporting problems at `span`.
     pub(super) fn lower(&mut self, ty: &crate::ast::Type, span: Option<Span>) -> TyId {
-        super::lower_type(ty, self.defs, &self.tparams, self.tcx, &mut self.diagnostics, span)
+        let lowered = super::lower_type(ty, self.defs, &self.tparams, self.tcx, &mut self.diagnostics, span);
+        super::solve::normalize(self, lowered, span)
     }
 
     /// A class member type seen through `receiver`: the class parameters replaced by its arguments.

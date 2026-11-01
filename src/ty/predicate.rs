@@ -17,6 +17,20 @@ pub struct Predicate<T> {
     pub trait_ref: TraitRef<T>,
 }
 
+/// `projection == ty`, where `projection` is a `Projection` type: the equality bound
+/// `T: Container<Item = ty>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionPredicate<T> {
+    pub projection: T,
+    pub ty: T,
+}
+
+impl ProjectionPredicate<TyId> {
+    pub fn subst(&self, tcx: &mut TyCtx, args: &[TyId]) -> Result<ProjectionPredicate<TyId>, NestedNullable> {
+        Ok(ProjectionPredicate { projection: subst(tcx, self.projection, args)?, ty: subst(tcx, self.ty, args)? })
+    }
+}
+
 impl TraitRef<TyId> {
     /// `Trait<args>`, each type printed by `show`.
     pub fn render(&self, defs: &DefTable, show: impl Fn(TyId) -> String) -> String {

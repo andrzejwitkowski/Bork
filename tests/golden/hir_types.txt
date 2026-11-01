@@ -451,6 +451,16 @@ programs/build/text/utf8_empty_is_present.bork::main() -> i32
 programs/build/text/utf8_invalid_is_none.bork::main() -> i32
 programs/build/text/utf8_multibyte_range.bork::main() -> i32
 programs/build/text/utf8_outer_sink_survives.bork::main() -> i32
+programs/build/traits/assoc_container.bork::first(c: &T0) -> T0::Item
+programs/build/traits/assoc_container.bork::main() -> i32
+programs/build/traits/assoc_container.bork::Container@0.get(this: &IntBox) -> i32
+programs/build/traits/assoc_container.bork::Container@1.get(this: &Named) -> String
+programs/build/traits/assoc_equality.bork::total(c: &T0) -> i32
+programs/build/traits/assoc_equality.bork::main() -> i32
+programs/build/traits/assoc_equality.bork::Container@0.get(this: &IntBox) -> i32
+programs/build/traits/assoc_two_traits.bork::first(c: &T0) -> T0::Item
+programs/build/traits/assoc_two_traits.bork::main() -> i32
+programs/build/traits/assoc_two_traits.bork::Container@1.get(this: &Foo) -> i32
 programs/build/traits/dispatch_bound.bork::say(t: &T0) -> unit
 programs/build/traits/dispatch_bound.bork::main() -> i32
 programs/build/traits/dispatch_bound.bork::Show@0.show(this: &Circle) -> String
@@ -588,6 +598,16 @@ programs/check/option/option_check.bork::main() -> unit
 programs/check/option/option_of_nullable.bork::main() -> unit
 programs/check/recursions/self_call.bork::down(n: i32) -> i32
 programs/check/recursions/self_call.bork::main() -> i32
+programs/check/traits/assoc_basic.bork::first(c: &T0) -> T0::Item
+programs/check/traits/assoc_basic.bork::main() -> unit
+programs/check/traits/assoc_basic.bork::Container@0.get(this: &IntBox) -> i32
+programs/check/traits/assoc_basic.bork::Container@1.get(this: &Named) -> String
+programs/check/traits/assoc_equality.bork::total(c: &T0) -> i32
+programs/check/traits/assoc_equality.bork::main() -> unit
+programs/check/traits/assoc_equality.bork::Container@0.get(this: &IntBox) -> i32
+programs/check/traits/assoc_generic_impl.bork::first(c: &T0) -> T0::Item
+programs/check/traits/assoc_generic_impl.bork::main() -> unit
+programs/check/traits/assoc_generic_impl.bork::Container@0.get(this: &Box<i32>) -> i32
 programs/check/traits/basic.bork::main() -> unit
 programs/check/traits/basic.bork::Shape@0.area(this: &Circle) -> f64
 programs/check/traits/basic.bork::Shape@0.scaled(this: &Circle, k: f64) -> f64

@@ -1,0 +1,18 @@
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+impl Container for IntBox {
+    type Item = i32
+    fun get(): i32 { return this.v }
+}
+fun total<T: Container<Item = i32>>(c: &T): i32 {
+    return c.get() + 1
+}
+fun main() {
+    val b = IntBox(3)
+    val n: i32 = total(&b)
+}

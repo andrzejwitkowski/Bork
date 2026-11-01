@@ -1,0 +1,17 @@
+// diag: type parameter of the impl is not determined
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class Foo {
+    v: i32
+}
+impl<U> Container for Foo {
+    type Item = Vec<U>
+    fun get(): Vec<U> { return Vec<U>() }
+}
+fun first<T: Container>(c: &T): T::Item { return c.get() }
+fun main() {
+    val f = Foo(1)
+    val x = first(&f)
+}

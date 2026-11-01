@@ -1,0 +1,13 @@
+// diag: refers to itself
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+impl Container for IntBox {
+    type Item = Self::Item
+    fun get(): i32 { return this.v }
+}
+fun main() {}

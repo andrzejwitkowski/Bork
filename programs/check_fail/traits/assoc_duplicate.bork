@@ -1,0 +1,14 @@
+// diag: duplicate associated type
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+impl Container for IntBox {
+    type Item = i32
+    type Item = i32
+    fun get(): i32 { return this.v }
+}
+fun main() {}

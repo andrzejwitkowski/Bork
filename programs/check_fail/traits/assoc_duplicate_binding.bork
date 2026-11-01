@@ -1,0 +1,7 @@
+// diag: duplicate binding of `Item`
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+fun f<T: Container<Item = i32, Item = bool>>(c: &T) {}
+fun main() {}

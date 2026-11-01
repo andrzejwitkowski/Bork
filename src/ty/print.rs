@@ -62,6 +62,10 @@ impl fmt::Display for TyPrinter<'_> {
                 Some(name) => f.write_str(name),
                 None => write!(f, "T{}", idx.0),
             },
+            TyData::Projection(self_ty, _, name) => match self.ctx.data(*self_ty) {
+                TyData::Param(_) | TyData::Class(..) | TyData::Enum(..) => write!(f, "{}::{name}", show(*self_ty)),
+                _ => write!(f, "<{}>::{name}", show(*self_ty)),
+            },
             TyData::Infer(var) => write!(f, "?{}", var.0),
             TyData::Error => f.write_str("<unknown>"),
         }

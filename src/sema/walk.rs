@@ -895,6 +895,7 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
         TyData::Func { .. }
         | TyData::Range(_)
         | TyData::Param(_)
+        | TyData::Projection(..)
         | TyData::Infer(_)
         | TyData::Error => return None,
     };

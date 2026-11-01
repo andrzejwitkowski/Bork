@@ -97,6 +97,9 @@ pub(super) fn subst_sig(
     match (params, crate::ty::subst(env.tcx, sig.ret, args)) {
         (Ok(params), Ok(ret)) => {
             super::super::solve::register(env, &sig.predicates, args, span, name);
+            let params = params.into_iter().map(|p| super::super::solve::normalize(env, p, Some(span))).collect();
+            let ret = super::super::solve::normalize(env, ret, Some(span));
+            super::super::solve::register_projections(env, &sig.proj_predicates, args, span);
             Some((params, ret))
         }
         _ => {
@@ -205,7 +208,9 @@ pub(super) fn check_call(
 
     // The expected type fixes the type parameters before the arguments are read. It is a hint, so a
     // failed unification leaves everything as it was and the caller reports the mismatch.
-    if let Some(expected) = expected.filter(|_| is_generic_fn(callee, env)) {
+    // A return type that is still a pending `T::Item` is not a type parameter: only the impl fixes it.
+    let pending_projection = env.projections.iter().any(|p| p.var == call_return_ty);
+    if let Some(expected) = expected.filter(|_| is_generic_fn(callee, env) && !pending_projection) {
         env.same(call_return_ty, expected);
     }
     finish_call(name, params, call_return_ty, None, CallSite { span, args, trailing, return_ty }, env)
@@ -265,6 +270,8 @@ pub(super) fn finish_call(
     for (index, (argument, &expected)) in checked_args.iter().zip(regular_params).enumerate() {
         check_argument(&name, index, argument, expected, env);
     }
+    // The arguments may have fixed the type a returned `T::Item` was waiting for.
+    super::super::solve::select_where_possible(env);
 
     if let (Some(closure), Some((closure_params, closure_ret))) = (trailing, trailing_signature) {
         check_trailing_closure(closure, &closure_params, closure_ret, env);

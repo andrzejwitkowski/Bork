@@ -1,0 +1,12 @@
+// diag: no bound on `T` declares an associated type `Item`
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+fun f<T>(c: &T): T::Item {
+    return c.get()
+}
+fun main() {}

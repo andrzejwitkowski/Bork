@@ -89,6 +89,8 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
         return pattern == actual;
     }
     match (tcx.data(pattern), tcx.data(actual)) {
+        // A projection says nothing about its base's shape; the other parameters fix it.
+        (TyData::Projection(..), _) => true,
         (TyData::Param(idx), _) => match out.get_mut(idx.0 as usize) {
             Some(slot) => *slot.get_or_insert(actual) == actual,
             None => false,
@@ -107,6 +109,58 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
         | (TyData::Vec(p), TyData::Vec(a))
         | (TyData::Range(p), TyData::Range(a)) => bind(tcx, *p, *a, out),
         _ => false,
+    }
+}
+
+/// `ty` with each projection `Base::Item` of a concrete `Base` replaced by the `type Item` of the impl
+/// whose header fits `Base`. Typeck already rejected a missing or ambiguous impl, so `Err` is only a
+/// cycle or a projection no impl of this program defines.
+fn normalize_projections(tcx: &mut TyCtx, hir: &HirProgram, ty: TyId) -> Result<TyId, String> {
+    let mut ty = ty;
+    for _ in 0..=MAX_PROJECTION_DEPTH {
+        let mut leaves = Vec::new();
+        projection_leaves(tcx, ty, &mut leaves);
+        if leaves.is_empty() {
+            return Ok(ty);
+        }
+        let mut replaced = HashMap::new();
+        for leaf in leaves {
+            let TyData::Projection(base, trait_name, name) = tcx.data(leaf).clone() else { continue };
+            let found = hir.impls.iter().filter(|i| trait_name.as_ref().is_none_or(|t| *t == i.trait_name)).find_map(|i| {
+                let (_, value) = i.assoc.iter().find(|(n, _)| *n == name)?;
+                let mut out = vec![None; i.generics.len()];
+                bind(tcx, i.self_ty, base, &mut out).then(|| (*value, out))
+            });
+            let Some((value, out)) = found else {
+                return Err(format!("cannot normalize `{}`: no impl defines the associated type `{name}`", tcx.display(leaf)));
+            };
+            let shown = tcx.display(leaf).to_string();
+            let Some(args) = out.into_iter().collect::<Option<Vec<TyId>>>() else {
+                return Err(format!("cannot normalize `{shown}`: a type parameter of the impl is not determined by its type"));
+            };
+            let Ok(value) = subst(tcx, value, &args) else {
+                return Err(format!("cannot normalize `{shown}`: it would make a nullable of a nullable"));
+            };
+            replaced.insert(leaf, value);
+        }
+        let Ok(next) = crate::ty::subst_with(tcx, ty, &replaced) else {
+            return Err(format!("`{}`: it would make a nullable of a nullable", tcx.display(ty)));
+        };
+        ty = next;
+    }
+    Err(format!("cannot normalize `{}`: associated types are followed at most {MAX_PROJECTION_DEPTH} levels deep", tcx.display(ty)))
+}
+
+const MAX_PROJECTION_DEPTH: u32 = 32;
+
+/// The innermost projections of `ty`: those whose base holds no other projection.
+fn projection_leaves(tcx: &TyCtx, ty: TyId, out: &mut Vec<TyId>) {
+    let before = out.len();
+    for child in tcx.data(ty).children() {
+        projection_leaves(tcx, child, out);
+    }
+    if matches!(tcx.data(ty), TyData::Projection(..)) && out.len() == before && !out.contains(&ty) {
+        out.push(ty);
     }
 }
 
@@ -338,7 +392,7 @@ fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, ev
     let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
     let mut report = collector.report_per_instance(report);
     let mut program = HirProgram { classes, enums, functions, traits: Vec::new(), impls: Vec::new() };
-    debug_assert!(no_params_left(&mut program, tcx), "a type parameter survived monomorphization");
+    debug_assert!(no_params_left(&mut program, tcx), "a type parameter or projection survived monomorphization");
     hir::number_nodes(&mut program);
     let memory_plan = plan_instances(&program, tcx, &mut report)?;
     Ok(Mono { hir: program, report, memory_plan, instances: collector.instances })
@@ -439,9 +493,14 @@ impl<'a> Collector<'a> {
     ) {
         let (mut nested_nullable, mut ill_formed) = (false, Vec::<String>::new());
         let mut checked = HashSet::new();
+        let (hir, mut unnormalized) = (self.hir, Vec::<String>::new());
         let mut substitute = |ty: TyId| {
             let ty = subst(tcx, ty, args).unwrap_or_else(|_| {
                 nested_nullable = true;
+                tcx.error()
+            });
+            let ty = normalize_projections(tcx, hir, ty).unwrap_or_else(|message| {
+                unnormalized.push(message);
                 tcx.error()
             });
             if checked.insert(ty) {
@@ -455,6 +514,10 @@ impl<'a> Collector<'a> {
         if nested_nullable {
             let message = format!("type arguments of `{}` would make a nullable of a nullable", function.name);
             self.diagnostics.push(error(message, Some(function.name_span)));
+        }
+        unnormalized.dedup();
+        for message in unnormalized {
+            self.diagnostics.push(error(format!("`{}`: {message}", function.name), call_span.or(Some(function.name_span))));
         }
         for rule in ill_formed {
             let span = call_span.or(Some(function.name_span));
@@ -610,7 +673,7 @@ fn plan_instances(program: &HirProgram, tcx: &TyCtx, report: &mut ArenaReport) -
 fn no_params_left(program: &mut HirProgram, tcx: &TyCtx) -> bool {
     let mut clean = true;
     let mut check = |ty: TyId| {
-        clean &= !tcx.has_param(ty);
+        clean &= !tcx.has_param(ty) && !tcx.has_projection(ty);
         ty
     };
     for class in &program.classes {

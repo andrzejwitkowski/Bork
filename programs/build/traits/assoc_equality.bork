@@ -1,0 +1,21 @@
+// exit: 0
+// stdout: 8\n
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+impl Container for IntBox {
+    type Item = i32
+    fun get(): i32 { return this.v }
+}
+fun total<T: Container<Item = i32>>(c: &T): i32 {
+    return c.get() + 5
+}
+fun main(): i32 {
+    val b = IntBox(3)
+    println(total(&b))
+    return 0
+}

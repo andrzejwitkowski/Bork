@@ -5,6 +5,7 @@ use crate::ty::{TyCtx, TyId};
 
 mod closures;
 mod constants;
+mod assoc;
 mod bounds;
 mod coherence;
 mod defs;
