@@ -12,7 +12,7 @@ This RFC decides where a borrow `&T` may appear. It changes no code. Where it sa
 
 `&T` is allowed only on parameters and `val` locals. The restriction is enforced by scattered checks that cite "until region parameters exist (#61)", and two gaps were found while writing this RFC (both reproduced through `frontend::check`, which reported no diagnostics):
 
-1. `val a: [i32; 2] = ...; fill(&a)` where `fill(buf: &[i32; 2])` writes `buf[0]` mutates a `val`.
+1. `val a: [i32; 2] = ...; fill(&a)` where `fill(buf: &[i32; 2])` writes `buf[0]` mutates a `val`. Fixed by section 5 (`&` is read-only).
 2. `id::<&P>(&p)` is accepted: a written type argument can be a borrow, although an inferred one is rejected (`check_argument`, `typeck/expr/call.rs`: "parameter expects owned").
 
 #62-#64 need a stable list of what v1 accepts.
@@ -46,18 +46,32 @@ This RFC decides where a borrow `&T` may appear. It changes no code. Where it sa
 
 **Consequences.** Reborrows (`val d = b`) share the view of `b` and end with the region (`docs/memory-model.md`).
 
-## 5. Mutation through a borrow
+## 5. Borrow forms: `&`, `&edit`, `&unique`
 
-**Decision.** `&` is the only borrow form. There is no `&mut` and no shared/mutable split, now or as a planned follow-up. A borrow of an array or `Vec` allows element writes in the callee (`docs/language.md`; `typeck/stmt/assign.rs`). To keep `val` immutable, **`&name` is rejected when `name` is a `val` array or `Vec`**; only a `var` can be borrowed.
+**Decision.** Three borrow forms, written the same way in types and at call sites (`p: &edit [i32; 3]`, `f(&edit a)`):
 
-**Rationale.** The user's constraint is one borrow form. Element writes through `&` are an existing, documented feature. `val` is documented as immutable, so a `val` must not be borrowable by something that can write.
+| Form | Meaning | v1 |
+|---|---|---|
+| `&T` | immutable borrow: reads only. An element write through it is an error. | yes |
+| `&edit T` | editable borrow: the callee may write elements. Only a `var` can be borrowed this way; `&edit` of a `val` is an error. | yes |
+| `&unique T` | exclusively locked object: no other access while the borrow lives. | **reserved, not implemented** |
+
+Rules for v1:
+- `&name` is allowed for `val` and `var`; it never allows writes. This closes the `val`-mutated-through-a-borrow gap (section 1).
+- `&edit name` requires `name` to be a `var` (array, `Vec`; further types when they gain element writes).
+- A call cannot borrow the same name twice when one of the borrows is `&edit` (`f(&edit a, &a)`, `f(&edit a, &edit a)`). This is the only aliasing rule in v1.
+- Inside a callee, a `&edit` parameter may be passed on as `&edit buf` or `&buf` (reborrow); a `&` parameter can only be passed on as `&`.
+- `&edit` follows every `&` restriction in section 6 (not a type argument, not a field, not returned, not in containers, not nullable).
+- `unique` is reserved: using `&unique` is an error ("not implemented"), so the syntax stays free. Its semantics are for a later RFC (candidate use: exclusive access across a region boundary, Send-like rules).
+
+**Rationale.** The call site and the signature both show whether a function can change its argument. A `val` stays immutable. The `&edit`-only-on-`var` rule is the same rule `val` already follows for assignment.
 
 **Rejected.**
-- `&mut` or a read-only `&`: a second borrow form.
-- Forbidding element writes through `&`: removes a documented feature.
-- Documenting `val` as shallowly immutable: weakens `val`.
+- One borrow form where `&` may write (previous draft): the signature does not say whether the callee writes, so `val` arrays had to be unborrowable, even for reads.
+- Inferring "callee writes" from its body: rule depends on another function's body; unclear for generic and trait methods.
+- `&mut`: `edit` is the chosen spelling.
 
-**Consequences.** Breaking for programs that borrow a `val` array or `Vec`, including read-only ones. No program in `programs/` does (checked by script on 2026-11-02). Follow-up D.
+**Consequences.** Breaking. `&` no longer allows `p[i] = v` (documented today at `docs/language.md`, checked in `typeck/stmt/assign.rs`). 16 programs under `programs/` and the repo root write through a `&` parameter and must change to `&edit` (e.g. `programs/build/borrow/reference_in_while.bork`, `programs/build/recursions/recursive_qsort_small.bork`). Follow-ups D and F.
 
 ## 6. v1 restriction list
 
@@ -70,17 +84,21 @@ This RFC decides where a borrow `&T` may appear. It changes no code. Where it sa
 | `var` binding | rejected | `cannot bind var ... to a reference type` / `... to a borrow` | `typeck/stmt/mod.rs` and `sema/walk.rs` (duplicate) | B |
 | `Vec<&T>`, `Ref<&T>`, `[&T; N]` | rejected | `vec_elem_message`, `managed_ref_target_message` | `typeck/lower.rs`, `ill_formed` | with fields |
 | `&T?` | rejected | `nullable reference types ... are not supported` | `typeck/lower.rs` | none |
-| type argument `T = &U` | rejected | inferred: `... parameter expects owned ...`; written: **not enforced** | `check_argument`; none | A |
-| `&name`, `name` a `val` array/`Vec` | rejected | **not enforced** | none | D |
-| element write through `&[T; N]` / `&Vec` | allowed on `var` | `cannot index-assign through ...` otherwise | `typeck/stmt/assign.rs` | none |
+| type argument `T = &U` / `&edit U` | rejected | inferred: `... parameter expects owned ...`; written: **not enforced** | `check_argument`; none | A |
+| element write through `&[T; N]` / `&Vec` | rejected (changed) | today allowed on explicit `&` | `typeck/stmt/assign.rs` | D |
+| `&edit name`, `name` a `var` array/`Vec` | allowed (new) | n/a | new | D |
+| `&edit name`, `name` a `val` | rejected (new) | new | new | D |
+| `&edit` twice, or `&edit` plus `&`, of one name in one call | rejected (new) | new | new | D |
+| `&unique` | reserved, error "not implemented" | new | parser | F |
 
 ## 7. Follow-up issues
 
 - **A.** Reject a borrow as an explicit type argument and in `ill_formed`; note pointing at the generic definition (#63, #64).
 - **B.** Collapse the duplicated `var`-binding borrow checks (with #37).
 - **C.** Region-parameterised class types (borrow fields): design after v1.
-- **D.** Reject `&name` of a `val` array/`Vec`; add `programs/check_fail/borrow/borrow_val_array.bork`; update `docs/language.md`.
+- **D.** Introduce `&edit`; make `&` immutable (element writes through `&` become errors); `&edit` only on `var`; the one call-site aliasing rule; migrate the 16 programs; add `programs/check_fail/borrow/{write_through_shared,edit_on_val,edit_aliased}.bork`; update `docs/language.md` and `docs/memory-model.md`.
 - **E.** Region-annotated signatures for returned borrows: design after v1.
+- **F.** Reserve `&unique` in the parser (error "not implemented"); its semantics get their own RFC.
 
 ## 8. Threads
 
@@ -89,5 +107,6 @@ No `Send`/`Sync` exists. Constraint for any future thread RFC: a borrow never cr
 ## Reviewer checklist
 
 - Every cited diagnostic and path matches the source.
-- Section 5 breakage is acceptable (no corpus program is affected).
+- Section 5 breakage is acceptable (16 programs move to `&edit`).
+- `&edit` spelling and the single call-site aliasing rule are the intended v1 scope.
 - Follow-up issues A-E are opened after this RFC is approved.
