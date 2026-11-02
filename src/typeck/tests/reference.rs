@@ -186,11 +186,11 @@ fn written_borrow_type_argument_is_rejected() {
 }
 
 #[test]
-fn inferred_borrow_type_argument_is_still_rejected() {
+fn inferred_borrow_type_argument_is_rejected() {
     let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val q = id(&p)\n}}\n"));
     assert!(!m.is_empty(), "{m:?}");
     let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val h = Holder(&p)\n}}\n"));
-    assert!(!m.is_empty(), "constructor: {m:?}");
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `Holder`")), "constructor: {m:?}");
 }
 
 #[test]

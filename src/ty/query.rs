@@ -281,11 +281,14 @@ impl TyCtx {
             TyData::Vec(elem) if !self.is_unknown(*elem) && !self.is_array_elem_supported(*elem) => {
                 Some(self.vec_elem_message(*elem))
             }
-            TyData::Class(def, args) | TyData::Enum(def, args) if args.iter().any(|&arg| self.contains_borrow(arg)) => {
-                let arg = args.iter().copied().find(|&arg| self.contains_borrow(arg)).expect("checked above");
-                Some(self.borrow_type_arg_message(arg, self.class_name(*def)))
+            data => {
+                if let TyData::Class(def, args) | TyData::Enum(def, args) = data {
+                    if let Some(&arg) = args.iter().find(|&&arg| self.contains_borrow(arg)) {
+                        return Some(self.borrow_type_arg_message(arg, self.class_name(*def)));
+                    }
+                }
+                data.children().into_iter().find_map(|child| self.ill_formed(child))
             }
-            data => data.children().into_iter().find_map(|child| self.ill_formed(child)),
         }
     }
 
