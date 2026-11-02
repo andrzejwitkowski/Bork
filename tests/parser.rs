@@ -962,6 +962,17 @@ fn enum_name_clashes_are_reported() {
 }
 
 #[test]
+fn parses_associated_types_and_equality_bounds() {
+    let src = "trait C {\n    type Item\n    fun get(): Self::Item\n}\nclass B {\n    v: i32\n}\nimpl C for B {\n    type Item = i32\n    fun get(): i32 { return 1 }\n}\nfun f<T: C<Item = i32>>(c: &T): T::Item {\n    return c.get()\n}\nfun main() {}\n";
+    let prog = parse(src).expect("parses");
+    assert_eq!(prog.traits[0].assoc_types[0].name, "Item");
+    assert_eq!(prog.impls[0].assoc_types[0].0.name, "Item");
+    let bound = &prog.functions[0].generics[0].bounds[0];
+    assert_eq!((bound.args.len(), bound.bindings.len()), (0, 1));
+    assert_eq!(prog.functions[0].return_type.to_string(), "T::Item");
+}
+
+#[test]
 fn parses_traits_and_impls() {
     let src = "trait Shape {\n    fun area(): f64\n    fun scale<T>(k: T, j: i32): T\n}\nclass Circle {\n    r: f64\n}\nimpl Shape for Circle {\n    fun area(): f64 { return 1.0 }\n    fun scale<T>(k: T, j: i32): T { return k }\n}\nimpl<T> Show<i32> for Box<T> {\n}\ntrait Empty {}\nfun main() {}\n";
     let prog = parse(src).expect("parses");

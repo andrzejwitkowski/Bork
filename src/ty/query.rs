@@ -61,6 +61,17 @@ impl TyCtx {
         find.0
     }
 
+    /// Whether `ty` mentions a projection `T::Item` anywhere.
+    pub fn has_projection(&self, ty: TyId) -> bool {
+        matches!(self.data(ty), TyData::Projection(..)) || self.data(ty).children().into_iter().any(|c| self.has_projection(c))
+    }
+
+    /// Whether `ty` still contains a projection whose base is `base`.
+    pub fn has_projection_of(&self, ty: TyId, base: TyId) -> bool {
+        matches!(self.data(ty), TyData::Projection(b, _, _) if *b == base)
+            || self.data(ty).children().into_iter().any(|c| self.has_projection_of(c, base))
+    }
+
     /// An opaque type parameter (through `?`): any concrete type may stand for it after mono.
     pub fn is_param(&self, id: TyId) -> bool {
         matches!(self.data(self.base(id)), TyData::Param(_))

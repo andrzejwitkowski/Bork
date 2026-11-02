@@ -1,0 +1,15 @@
+// diag: equality bounds (`Item = X`) on an impl's parameters are not supported yet
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+trait Show {
+    fun show(): String
+}
+class Wrapper<T> {
+    v: T
+}
+impl<T: Container<Item = i32>> Show for Wrapper<T> {
+    fun show(): String { return "w" }
+}
+fun main() {}

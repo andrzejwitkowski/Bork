@@ -92,6 +92,8 @@ pub struct DefTable {
     variant_ids: Vec<Vec<DefId>>,
     method_ids: Vec<Vec<DefId>>,
     trait_ids: Vec<DefId>,
+    /// Every name some trait declares with `type Name`.
+    assoc_names: HashSet<String>,
     trait_method_ids: Vec<Vec<DefId>>,
     impl_ids: Vec<DefId>,
     impl_method_ids: Vec<Vec<DefId>>,
@@ -243,6 +245,7 @@ impl DefTable {
                 ids.push(mid);
             }
             self.trait_method_ids.push(ids);
+            self.assoc_names.extend(t.assoc_types.iter().map(|a| a.name.clone()));
         }
     }
 
@@ -343,6 +346,11 @@ impl DefTable {
             || self.classes.contains_key(name)
             || self.enums.contains_key(name)
             || self.traits.contains_key(name)
+    }
+
+    /// Whether some trait declares `type name`.
+    pub fn assoc_type_declared(&self, name: &str) -> bool {
+        self.assoc_names.contains(name)
     }
 
     pub fn lookup_trait(&self, name: &str) -> Option<DefId> {

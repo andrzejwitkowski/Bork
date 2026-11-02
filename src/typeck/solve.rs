@@ -4,10 +4,12 @@
 //! parameter, and from the impl table when it is a class or enum. A requirement whose type is still
 //! an unbound variable waits. There is no negative reasoning and no specialization.
 
-use super::env::Env;
+use std::collections::{HashMap, HashSet};
+
+use super::env::{Env, PendingProjection};
 use crate::infer::Obligation;
 use crate::span::Span;
-use crate::ty::{Predicate, TyData, TyId};
+use crate::ty::{Predicate, ProjectionPredicate, TyData, TyId};
 
 /// How many impl bounds may be followed to solve one requirement.
 const MAX_DEPTH: u32 = 32;
@@ -57,6 +59,7 @@ pub(super) fn select_where_possible(env: &mut Env<'_>) {
             }
         }
         stalled.into_iter().for_each(|o| env.infcx.register(o));
+        progress |= solve_projections(env);
         if !progress {
             return;
         }
@@ -65,6 +68,13 @@ pub(super) fn select_where_possible(env: &mut Env<'_>) {
 
 /// What is still pending at the end of the body is waiting for a type that nothing fixes.
 pub(super) fn report_unsolved(env: &mut Env<'_>) {
+    for pending in std::mem::take(&mut env.projections) {
+        let Ok(projection) = env.infcx.resolve(env.tcx, pending.projection) else { continue };
+        if !env.tcx.is_unknown(projection) {
+            let message = format!("cannot normalize `{}`: a type is not known; add a type annotation", env.show(projection));
+            env.error(message, pending.span);
+        }
+    }
     for obligation in env.infcx.take_obligations() {
         let Some(predicate) = resolved(env, &obligation) else { continue };
         // A variable already reported by `report_uninferred` was poisoned and resolves to an error.
@@ -223,4 +233,227 @@ fn impl_self(env: &Env<'_>, info: &super::traits::ImplInfo) -> String {
 
 fn unsatisfied(env: &Env<'_>, predicate: &Predicate<TyId>, hint: &str) -> String {
     format!("the trait bound `{}` is not satisfied; {hint}", env.show_predicate(predicate))
+}
+
+/// What a projection `base::name` turned out to be.
+enum Projected {
+    Done(TyId),
+    /// A type parameter's own associated type: no further than itself.
+    Rigid,
+    /// Its base is still an unbound variable.
+    Stalled,
+    Failed(String),
+}
+
+/// Registers the equality bounds `Item = X` of a callee, instantiated with `args`.
+pub(super) fn register_projections(
+    env: &mut Env<'_>,
+    predicates: &[ProjectionPredicate<TyId>],
+    args: &[TyId],
+    span: Span,
+) {
+    for predicate in predicates {
+        let Ok(ProjectionPredicate { projection, ty }) = predicate.subst(env.tcx, args) else { continue };
+        let actual = normalize(env, projection, Some(span));
+        let ty = normalize(env, ty, Some(span));
+        unify_projection(env, actual, ty, Some(span));
+    }
+}
+
+fn unify_projection(env: &mut Env<'_>, actual: TyId, wanted: TyId, span: Option<Span>) {
+    if env.infcx.unify(env.tcx, actual, wanted).is_err() {
+        let message = format!("expected the associated type to be `{}`, but it is `{}`", env.show(wanted), env.show(actual));
+        env.error(message, span);
+    }
+}
+
+/// Retries the pending projections; true when one was settled.
+fn solve_projections(env: &mut Env<'_>) -> bool {
+    let mut progress = false;
+    for pending in std::mem::take(&mut env.projections) {
+        let Ok(projection) = env.infcx.resolve(env.tcx, pending.projection) else { continue };
+        let TyData::Projection(base, trait_name, name) = env.tcx.data(projection).clone() else {
+            // The base turned out to be an error, which collapsed the projection.
+            progress = true;
+            unify_projection(env, pending.var, projection, pending.span);
+            continue;
+        };
+        let found = match project(env, projection, base, trait_name.as_deref(), &name) {
+            Projected::Stalled => {
+                env.projections.push(pending);
+                continue;
+            }
+            Projected::Done(ty) => normalize(env, ty, pending.span),
+            Projected::Rigid => projection,
+            Projected::Failed(message) => {
+                env.error(message, pending.span);
+                env.tcx.error()
+            }
+        };
+        progress = true;
+        unify_projection(env, found, pending.var, pending.span);
+    }
+    progress
+}
+
+/// `ty` with every projection replaced by what it names. A projection of a type parameter that is
+/// only bounded stays; one whose base is not yet known becomes a variable that is solved later.
+pub(super) fn normalize(env: &mut Env<'_>, ty: TyId, span: Option<Span>) -> TyId {
+    if !env.tcx.has_projection(ty) {
+        return ty;
+    }
+    let mut ty = ty;
+    let mut rigid = HashSet::new();
+    for _ in 0..=MAX_DEPTH {
+        // Leaves are keyed by their interned id, so the type must carry the resolved bases.
+        ty = env.infcx.resolve(env.tcx, ty).unwrap_or(ty);
+        let mut leaves = Vec::new();
+        collect_leaves(env, ty, &rigid, &mut leaves);
+        if leaves.is_empty() {
+            return ty;
+        }
+        let mut replaced = HashMap::new();
+        for leaf in leaves {
+            let TyData::Projection(base, trait_name, name) = env.tcx.data(leaf).clone() else { continue };
+            match project(env, leaf, base, trait_name.as_deref(), &name) {
+                Projected::Done(found) => {
+                    replaced.insert(leaf, found);
+                }
+                Projected::Rigid => {
+                    rigid.insert(leaf);
+                }
+                Projected::Stalled => {
+                    let var = env.infcx.new_var(env.tcx, crate::infer::VarKind::General);
+                    env.projections.push(PendingProjection { projection: leaf, var, span });
+                    replaced.insert(leaf, var);
+                }
+                Projected::Failed(message) => {
+                    env.error(message, span);
+                    replaced.insert(leaf, env.tcx.error());
+                }
+            }
+        }
+        let Ok(next) = crate::ty::subst_with(env.tcx, ty, &replaced) else {
+            let message = format!("`{}`: an associated type here would make a nullable of a nullable", env.show(ty));
+            env.error(message, span);
+            return env.tcx.error();
+        };
+        ty = next;
+    }
+    let message = format!(
+        "overflow normalizing `{}`: associated types are followed at most {MAX_DEPTH} levels deep",
+        env.show(ty)
+    );
+    env.error(message, span);
+    env.tcx.error()
+}
+
+/// The projections in `ty` not yet known to be rigid whose base holds no other such projection.
+fn collect_leaves(env: &Env<'_>, ty: TyId, rigid: &HashSet<TyId>, out: &mut Vec<TyId>) {
+    let before = out.len();
+    for child in env.tcx.data(ty).children() {
+        collect_leaves(env, child, rigid, out);
+    }
+    if matches!(env.tcx.data(ty), TyData::Projection(..)) && !rigid.contains(&ty) && out.len() == before && !out.contains(&ty) {
+        out.push(ty);
+    }
+}
+
+fn project(env: &mut Env<'_>, projection: TyId, base: TyId, trait_name: Option<&str>, name: &str) -> Projected {
+    match env.tcx.data(base).clone() {
+        TyData::Infer(_) => Projected::Stalled,
+        TyData::Error => Projected::Done(base),
+        TyData::Param(_) => project_param(env, projection, base, trait_name, name),
+        // A projection of a projection (`T::A::B`) has no bounds to look in.
+        TyData::Projection(..) => Projected::Rigid,
+        TyData::Class(..) | TyData::Enum(..) => project_from_impls(env, base, trait_name, name),
+        _ => Projected::Failed(format!(
+            "cannot normalize `{}::{name}`: only classes and enums implement traits yet",
+            env.show(base)
+        )),
+    }
+}
+
+/// A type parameter's projection is fixed by an equality bound, else it is its own rigid type.
+/// Signatures are already qualified (`qualify_sig`); a type written in a body is qualified here.
+fn project_param(env: &mut Env<'_>, projection: TyId, base: TyId, trait_name: Option<&str>, name: &str) -> Projected {
+    if let Some(bound) = env.proj_env.iter().find(|p| p.projection == projection) {
+        return Projected::Done(bound.ty);
+    }
+    let mut declaring: Vec<_> = env
+        .param_env
+        .iter()
+        .filter(|p| p.self_ty == base && env.traits[&p.trait_ref.trait_id].assoc_types.iter().any(|n| n == name))
+        .map(|p| env.defs.get(p.trait_ref.trait_id).name.clone())
+        .filter(|t| trait_name.is_none_or(|want| want == t))
+        .collect();
+    declaring.sort();
+    declaring.dedup();
+    match (declaring.as_slice(), trait_name) {
+        (_, Some(_)) if declaring.len() == 1 => Projected::Rigid,
+        ([only], None) => Projected::Done(env.tcx.projection(base, Some(only), name)),
+        ([], _) => Projected::Failed(format!(
+            "no bound on `{}` declares an associated type `{name}`; add a bound such as `{}: Trait`",
+            env.show(base),
+            env.show(base)
+        )),
+        _ => Projected::Failed(format!(
+            "`{0}::{name}` is ambiguous: the bounds {1} on `{0}` all declare `{name}`",
+            env.show(base),
+            declaring.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(", ")
+        )),
+    }
+}
+
+fn project_from_impls(env: &mut Env<'_>, base: TyId, trait_name: Option<&str>, name: &str) -> Projected {
+    let (impls, traits) = (env.impls, env.traits);
+    let mut candidates: Vec<(&str, &super::traits::ImplInfo)> = Vec::new();
+    for (trait_id, infos) in impls {
+        let declared = &env.defs.get(*trait_id).name;
+        if !traits[trait_id].assoc_types.iter().any(|n| n == name) || trait_name.is_some_and(|want| want != declared) {
+            continue;
+        }
+        for info in infos {
+            if impl_applies(env, info, base) {
+                candidates.push((declared, info));
+            }
+        }
+    }
+    candidates.sort_by_key(|(trait_name, info)| (*trait_name, info.index));
+    let shown = env.show(base).to_string();
+    // With a variable in `base`, a later statement may still pick the impl.
+    if candidates.len() != 1 && super::has_infer(env.tcx, base) {
+        return Projected::Stalled;
+    }
+    match candidates.as_slice() {
+        [] => Projected::Failed(format!(
+            "cannot normalize `{shown}::{name}`: `{shown}` implements no trait with an associated type `{name}`"
+        )),
+        [(_, info)] => {
+            let Some(&value) = info.assoc.get(name) else { return Projected::Done(env.tcx.error()) };
+            // Bind the impl's variables only to read its value; they must not constrain `base`.
+            let snap = env.infcx.snapshot();
+            let fresh: Vec<TyId> = info.generics.iter().map(|_| env.infcx.new_var(env.tcx, crate::infer::VarKind::General)).collect();
+            let value = match (crate::ty::subst(env.tcx, info.self_ty, &fresh), crate::ty::subst(env.tcx, value, &fresh)) {
+                (Ok(head), Ok(value)) if env.infcx.unify(env.tcx, head, base).is_ok() => env.infcx.resolve(env.tcx, value).ok(),
+                _ => None,
+            };
+            env.infcx.rollback_to(snap);
+            // A variable the header leaves open would outlive the rollback.
+            let Some(value) = value.filter(|&v| !fresh.iter().any(|&f| mentions(env.tcx, v, f))) else {
+                return Projected::Failed(format!(
+                    "cannot normalize `{shown}::{name}`: a type parameter of the impl is not determined by its type"
+                ));
+            };
+            Projected::Done(value)
+        }
+        many => Projected::Failed(format!(
+            "`{shown}::{name}` is ambiguous: it is declared by {}",
+            many.iter().map(|(t, _)| format!("`{t}`")).collect::<Vec<_>>().join(", ")
+        )),
+    }
+}
+
+fn mentions(tcx: &crate::ty::TyCtx, ty: TyId, var: TyId) -> bool {
+    ty == var || tcx.data(ty).children().into_iter().any(|c| mentions(tcx, c, var))
 }

@@ -1,0 +1,13 @@
+// diag: returns `String` but trait `Container` declares `i32`
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+impl Container for IntBox {
+    type Item = i32
+    fun get(): String { return "x" }
+}
+fun main() {}

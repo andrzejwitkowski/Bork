@@ -22,9 +22,9 @@ use std::collections::HashMap;
 use crate::defs::{DefId, DefTable};
 use crate::hir::Prim;
 
-pub use fold::{normalize, subst, super_fold, walk, TypeFolder, TypeVisitor};
+pub use fold::{normalize, subst, subst_with, super_fold, walk, TypeFolder, TypeVisitor};
 pub use print::TyPrinter;
-pub use predicate::{Predicate, TraitRef};
+pub use predicate::{Predicate, ProjectionPredicate, TraitRef};
 pub use sig::{FnSig, FnSigs};
 
 /// Index of an interned type; only meaningful within the `TyCtx` that issued it.
@@ -48,6 +48,10 @@ pub enum TyData {
     Range(TyId),
     /// A generic parameter, opaque inside its own item; reaches HIR only in generic items.
     Param(ParamIdx),
+    /// `T::Item`: the associated type `name` of `self_ty`, declared by the trait `trait_name`.
+    /// The trait is `None` only as written, until typeck finds the bound that declares `name`.
+    /// Normalized away once `self_ty` is concrete; it stays only on a type parameter.
+    Projection(TyId, Option<String>, String),
     /// An inference variable, local to one body; never reaches HIR.
     Infer(InferVar),
     /// A type that already has a diagnostic; checks against it stay silent.
@@ -99,6 +103,13 @@ impl TyCtx {
             ctx.add(TyData::Prim(prim));
         }
         ctx
+    }
+
+    pub fn projection(&mut self, self_ty: TyId, trait_name: Option<&str>, name: &str) -> TyId {
+        if self.is_error(self_ty) {
+            return self_ty;
+        }
+        self.add(TyData::Projection(self_ty, trait_name.map(str::to_string), name.to_string()))
     }
 
     fn add(&mut self, data: TyData) -> TyId {

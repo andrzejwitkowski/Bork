@@ -1,0 +1,12 @@
+// diag: not all trait items implemented, missing: type `Item`
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+impl Container for IntBox {
+    fun get(): i32 { return this.v }
+}
+fun main() {}

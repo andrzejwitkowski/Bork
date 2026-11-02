@@ -12,7 +12,7 @@ use crate::defs::{DefId, DefTable};
 use crate::diag::Diagnostic;
 use crate::infer::{InferCtxt, VarKind};
 use crate::span::Span;
-use crate::ty::{subst, FnSig, ParamIdx, Predicate, TraitRef, TyCtx, TyData, TyId};
+use crate::ty::{subst, FnSig, ParamIdx, Predicate, ProjectionPredicate, TraitRef, TyCtx, TyData, TyId};
 
 /// A trait method signature without the implicit `this: &Self`. In `params`/`ret`, `Param(0)` is
 /// `Self`, then come the trait's parameters, then the method's own.
@@ -29,6 +29,8 @@ pub(super) struct TraitMethodInfo {
 #[derive(Debug, Clone)]
 pub(super) struct TraitInfo {
     pub generics: Vec<String>,
+    /// `type Item` declarations.
+    pub assoc_types: Vec<String>,
     pub methods: Vec<TraitMethodInfo>,
 }
 
@@ -46,6 +48,8 @@ pub(super) struct ImplInfo {
     /// The impl's own bounds (`impl<T: Show> ..`); they become obligations when it is selected.
     pub predicates: Vec<Predicate<TyId>>,
     pub methods: HashMap<String, DefId>,
+    /// `type Item = X`, as written in the impl (may mention other projections of `self_ty`).
+    pub assoc: HashMap<String, TyId>,
     /// Signature of each method whose header matches the trait, `this: &Self` first; only those get bodies checked.
     pub sigs: HashMap<DefId, FnSig<TyId>>,
 }
@@ -87,6 +91,11 @@ pub(super) fn hir_signatures(
             generics: info.generics.clone(),
             trait_args: info.trait_args.clone(),
             self_ty: info.self_ty,
+            assoc: {
+                let mut assoc: Vec<_> = info.assoc.iter().map(|(name, &ty)| (name.clone(), ty)).collect();
+                assoc.sort_by(|a, b| a.0.cmp(&b.0));
+                assoc
+            },
             methods: program.impls[info.index]
                 .methods
                 .iter()
@@ -120,8 +129,9 @@ impl ImplInfo {
     }
 }
 
-/// The predicates of `T: Trait<..>` bounds on `generics`; `scope` numbers the parameters. An unknown
-/// trait or a wrong argument count is reported and the bound dropped.
+/// The predicates of `T: Trait<..>` bounds on `generics`, and the equality bounds of `Item = X`
+/// bindings; `scope` numbers the parameters. An unknown trait or a wrong argument count is
+/// reported and the bound dropped.
 pub(super) fn lower_bounds(
     generics: &[crate::ast::TypeParam],
     scope: &[(String, ParamIdx)],
@@ -129,13 +139,30 @@ pub(super) fn lower_bounds(
     traits: &HashMap<DefId, TraitInfo>,
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<Predicate<TyId>> {
+) -> (Vec<Predicate<TyId>>, Vec<ProjectionPredicate<TyId>>) {
     let mut predicates = Vec::new();
+    let mut proj_predicates = Vec::new();
     for param in generics {
         let Some(&(_, idx)) = scope.iter().find(|(name, _)| *name == param.name.name) else { continue };
         for bound in &param.bounds {
             let Some(trait_ref) = lower_trait_ref(bound, scope, defs, traits, tcx, diagnostics) else { continue };
-            let predicate = Predicate { self_ty: tcx.param(idx), trait_ref };
+            let self_ty = tcx.param(idx);
+            for (name, ty) in &bound.bindings {
+                if !traits[&trait_ref.trait_id].assoc_types.contains(&name.name) {
+                    let message = format!("trait `{}` has no associated type `{}`", bound.name.name, name.name);
+                    diagnostics.push(type_error(message, Some(name.span)));
+                    continue;
+                }
+                let ty = lower_type(ty, defs, scope, tcx, diagnostics, Some(name.span));
+                let projection = tcx.projection(self_ty, Some(&bound.name.name), &name.name);
+                if proj_predicates.iter().any(|p: &ProjectionPredicate<TyId>| p.projection == projection) {
+                    let message = format!("duplicate binding of `{}` on `{}`", name.name, param.name.name);
+                    diagnostics.push(type_error(message, Some(name.span)));
+                    continue;
+                }
+                proj_predicates.push(ProjectionPredicate { projection, ty });
+            }
+            let predicate = Predicate { self_ty, trait_ref };
             if predicates.contains(&predicate) {
                 let message = format!("duplicate bound `{}` on `{}`", bound.name.name, param.name.name);
                 diagnostics.push(type_error(message, Some(bound.name.span)));
@@ -144,7 +171,7 @@ pub(super) fn lower_bounds(
             }
         }
     }
-    predicates
+    (predicates, proj_predicates)
 }
 
 /// One written bound `Trait<args>`; `None` once an error is reported (or an argument is already one).
@@ -241,7 +268,29 @@ fn lower_trait(t: &Trait, defs: &DefTable, tcx: &mut TyCtx, diagnostics: &mut Ve
         });
     }
     tcx.set_param_names(Vec::new());
-    TraitInfo { generics: t.generics.iter().map(|g| g.name.name.clone()).collect(), methods }
+    let mut assoc_types: Vec<String> = Vec::new();
+    for a in &t.assoc_types {
+        if assoc_types.contains(&a.name) {
+            diagnostics.push(type_error(format!("duplicate associated type `{}` in trait `{}`", a.name, t.name.name), Some(a.span)));
+        } else {
+            assoc_types.push(a.name.clone());
+        }
+    }
+    // `Self::Item` in a method is this trait's own `Item`.
+    let this = tcx.param(ParamIdx(0));
+    let mut errors = Vec::new();
+    for m in &mut methods {
+        let declares = |base: TyId, name: &str| -> Vec<String> {
+            if base == this && assoc_types.iter().any(|n| n == name) { vec![t.name.name.clone()] } else { Vec::new() }
+        };
+        let names: Vec<String> = ["Self".to_string()].into_iter().chain(t.generics.iter().map(|g| g.name.name.clone())).chain(m.generic_names.clone()).collect();
+        let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new() };
+        m.params = m.params.iter().map(|&p| qualify.apply(tcx, p)).collect();
+        m.ret = qualify.apply(tcx, m.ret);
+        errors.append(&mut qualify.errors);
+    }
+    report_once(errors, Some(t.name.span), diagnostics);
+    TraitInfo { generics: t.generics.iter().map(|g| g.name.name.clone()).collect(), assoc_types, methods }
 }
 
 pub(super) fn build_impls(
@@ -287,7 +336,13 @@ fn check_impl(
     }
     let scope = generics::scope(&[], &i.generics);
     tcx.set_param_names(generics::names(&[], &i.generics));
-    let predicates = lower_bounds(&i.generics, &scope, defs, traits, tcx, diagnostics);
+    let (predicates, proj_predicates) = lower_bounds(&i.generics, &scope, defs, traits, tcx, diagnostics);
+    // shortcut: the impl is rejected rather than enforcing the bound on selection; add it to the nested obligations when needed.
+    if !proj_predicates.is_empty() {
+        diagnostics.push(type_error("equality bounds (`Item = X`) on an impl's parameters are not supported yet", head));
+        tcx.set_param_names(Vec::new());
+        return None;
+    }
     let self_ty = lower_type(&i.self_ty, defs, &scope, tcx, diagnostics, Some(i.self_span));
     let trait_args: Vec<TyId> =
         i.trait_args.iter().map(|arg| lower_type(arg, defs, &scope, tcx, diagnostics, head)).collect();
@@ -302,6 +357,7 @@ fn check_impl(
         return None;
     }
 
+    let assoc = lower_assoc(i, t, self_ty, &scope, defs, tcx, diagnostics);
     let mut implemented = HashMap::new();
     let mut sigs = HashMap::new();
     for (method_index, method) in i.methods.iter().enumerate() {
@@ -317,7 +373,7 @@ fn check_impl(
             diagnostics.push(type_error(message, Some(method.name_span)));
             continue;
         };
-        if let Some(mut sig) = check_method(i, method, expected, self_ty, &trait_args, &scope, defs, tcx, diagnostics) {
+        if let Some(mut sig) = check_method(i, method, expected, self_ty, &trait_args, &assoc, &scope, defs, tcx, diagnostics) {
             sig.predicates = predicates.clone();
             sigs.insert(id, sig);
         }
@@ -338,6 +394,7 @@ fn check_impl(
         self_ty,
         predicates,
         methods: implemented,
+        assoc,
         sigs,
     })
 }
@@ -349,6 +406,7 @@ fn check_method(
     expected: &TraitMethodInfo,
     self_ty: TyId,
     trait_args: &[TyId],
+    assoc: &HashMap<String, TyId>,
     impl_scope: &[(String, ParamIdx)],
     defs: &DefTable,
     tcx: &mut TyCtx,
@@ -394,9 +452,11 @@ fn check_method(
     let mut params = Vec::new();
     for (k, param) in method.params.iter().enumerate() {
         let found = lower_type(&param.ty.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, Some(param.name.span));
+        let found = normalize_in_impl(tcx, found, trait_name, self_ty, assoc);
         params.push(found);
         let Ok(want) = subst(tcx, expected.params[k], &args) else { continue };
-        if found != want && !tcx.is_error(found) && !tcx.is_error(want) {
+        let want = normalize_in_impl(tcx, want, trait_name, self_ty, assoc);
+        if found != want && !tcx.is_error(found) && !tcx.is_error(want) && !tcx.has_projection_of(want, self_ty) {
             let message = format!(
                 "parameter `{}` of `{name}` has type `{}` but trait `{trait_name}` declares `{}`",
                 expected.param_names[k],
@@ -407,9 +467,11 @@ fn check_method(
         }
     }
     let ret = lower_type(&method.return_type.with_self(&i.self_ty), defs, &scope, tcx, diagnostics, span);
+    let ret = normalize_in_impl(tcx, ret, trait_name, self_ty, assoc);
     let found = ret;
     if let Ok(want) = subst(tcx, expected.ret, &args) {
-        if found != want && !tcx.is_error(found) && !tcx.is_error(want) {
+        let want = normalize_in_impl(tcx, want, trait_name, self_ty, assoc);
+        if found != want && !tcx.is_error(found) && !tcx.is_error(want) && !tcx.has_projection_of(want, self_ty) {
             let message = format!(
                 "`{name}` returns `{}` but trait `{trait_name}` declares `{}`",
                 shown(tcx, found),
@@ -426,4 +488,159 @@ fn check_method(
     sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
     sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
     Some(sig)
+}
+
+/// Lowers the `type Item = X` items of `i`, reporting duplicate, unknown and missing ones.
+fn lower_assoc(
+    i: &Impl,
+    t: &TraitInfo,
+    self_ty: TyId,
+    scope: &[(String, ParamIdx)],
+    defs: &DefTable,
+    tcx: &mut TyCtx,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> HashMap<String, TyId> {
+    let trait_name = &i.trait_name.name;
+    let mut assoc = HashMap::new();
+    for (name, ty) in &i.assoc_types {
+        if assoc.contains_key(&name.name) {
+            diagnostics.push(type_error(format!("duplicate associated type `{}` in impl of `{trait_name}`", name.name), Some(name.span)));
+        } else if !t.assoc_types.contains(&name.name) {
+            diagnostics.push(type_error(format!("`{}` is not an associated type of trait `{trait_name}`", name.name), Some(name.span)));
+        } else {
+            let ty = lower_type(&ty.with_self(&i.self_ty), defs, scope, tcx, diagnostics, Some(name.span));
+            assoc.insert(name.name.clone(), ty);
+        }
+    }
+    let missing: Vec<String> =
+        t.assoc_types.iter().filter(|n| !assoc.contains_key(*n)).map(|n| format!("type `{n}`")).collect();
+    if !missing.is_empty() {
+        let message = format!("not all trait items implemented, missing: {}", missing.join(", "));
+        diagnostics.push(type_error(message, Some(i.trait_name.span)));
+    }
+    // A cycle (`type Item = Self::Item`) is reported once, here, not at every use.
+    for (name, &ty) in &assoc {
+        let normalized = normalize_in_impl(tcx, ty, trait_name, self_ty, &assoc);
+        if tcx.has_projection_of(normalized, self_ty) {
+            let message = format!("the associated type `{name}` of `{}` refers to itself", tcx.display(self_ty));
+            diagnostics.push(type_error(message, Some(i.trait_name.span)));
+        }
+    }
+    assoc
+}
+
+/// How many `type Item = ..` definitions may be followed to normalize one type.
+const MAX_NORMALIZE_DEPTH: u32 = 32;
+
+/// Gives each `T::Item` written on a type parameter the trait that declares `Item`, found through
+/// `declares(T, "Item")`; reports the ones no bound declares, or several do.
+pub(super) struct Qualify<'a> {
+    pub declares: &'a dyn Fn(TyId, &str) -> Vec<String>,
+    /// Names of the type parameters, for messages.
+    pub names: &'a [String],
+    pub errors: Vec<String>,
+}
+
+impl Qualify<'_> {
+    pub fn apply(&mut self, tcx: &mut TyCtx, ty: TyId) -> TyId {
+        use crate::ty::TypeFolder;
+        self.fold(tcx, ty).unwrap_or(ty)
+    }
+}
+
+impl crate::ty::TypeFolder for Qualify<'_> {
+    fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, crate::ty::NestedNullable> {
+        let id = crate::ty::super_fold(self, ctx, id)?;
+        let TyData::Projection(base, None, name) = ctx.data(id).clone() else { return Ok(id) };
+        if !matches!(ctx.data(base), TyData::Param(_)) {
+            return Ok(id);
+        }
+        let mut declaring = (self.declares)(base, &name);
+        declaring.sort();
+        declaring.dedup();
+        let shown = ctx.display_with(base, self.names).to_string();
+        match declaring.as_slice() {
+            [only] => Ok(ctx.projection(base, Some(only), &name)),
+            [] => {
+                self.errors.push(format!(
+                    "no bound on `{shown}` declares an associated type `{name}`; add a bound such as `{shown}: Trait`"
+                ));
+                Ok(ctx.error())
+            }
+            _ => {
+                let traits = declaring.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(", ");
+                self.errors.push(format!("`{shown}::{name}` is ambiguous: the bounds {traits} on `{shown}` all declare `{name}`"));
+                Ok(ctx.error())
+            }
+        }
+    }
+}
+
+/// The same type is often written twice (a parameter and the return); say it once.
+fn report_once(errors: Vec<String>, span: Option<Span>, diagnostics: &mut Vec<Diagnostic>) {
+    let mut seen = Vec::new();
+    for message in errors {
+        if !seen.contains(&message) {
+            diagnostics.push(type_error(message.clone(), span));
+            seen.push(message);
+        }
+    }
+}
+
+/// Qualifies the projections in the parameters and return type of `sig` against its own bounds.
+pub(super) fn qualify_sig(
+    sig: &mut FnSig<TyId>,
+    traits: &HashMap<DefId, TraitInfo>,
+    tcx: &mut TyCtx,
+    span: Option<Span>,
+    diagnostics: &mut Vec<Diagnostic>,
+    defs: &DefTable,
+) {
+    let declares = |base: TyId, name: &str| -> Vec<String> {
+        sig.predicates
+            .iter()
+            .filter(|p| p.self_ty == base && traits[&p.trait_ref.trait_id].assoc_types.iter().any(|n| n == name))
+            .map(|p| defs.get(p.trait_ref.trait_id).name.clone())
+            .collect()
+    };
+    let names = sig.generic_names.clone();
+    let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new() };
+    let params: Vec<TyId> = sig.params.iter().map(|&p| qualify.apply(tcx, p)).collect();
+    let ret = qualify.apply(tcx, sig.ret);
+    for predicate in &mut sig.proj_predicates {
+        predicate.ty = qualify.apply(tcx, predicate.ty);
+    }
+    report_once(std::mem::take(&mut qualify.errors), span, diagnostics);
+    sig.params = params;
+    sig.ret = ret;
+}
+
+struct ImplNormalizer<'a> {
+    trait_name: &'a str,
+    self_ty: TyId,
+    assoc: &'a HashMap<String, TyId>,
+    depth: u32,
+}
+
+impl crate::ty::TypeFolder for ImplNormalizer<'_> {
+    fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, crate::ty::NestedNullable> {
+        let id = crate::ty::super_fold(self, ctx, id)?;
+        if let TyData::Projection(base, trait_name, name) = ctx.data(id).clone() {
+            let ours = trait_name.as_deref().is_none_or(|t| t == self.trait_name);
+            if let (true, true, Some(&value)) = (ours, base == self.self_ty, self.assoc.get(&name)) {
+                self.depth += 1;
+                if self.depth <= MAX_NORMALIZE_DEPTH {
+                    return self.fold(ctx, value);
+                }
+            }
+        }
+        Ok(id)
+    }
+}
+
+/// `ty` with the projections of the impl's own `self_ty` replaced by the impl's `type` items. A
+/// cycle stops at the depth limit and leaves a projection behind.
+fn normalize_in_impl(tcx: &mut TyCtx, ty: TyId, trait_name: &str, self_ty: TyId, assoc: &HashMap<String, TyId>) -> TyId {
+    use crate::ty::TypeFolder;
+    ImplNormalizer { trait_name, self_ty, assoc, depth: 0 }.fold(tcx, ty).unwrap_or(ty)
 }

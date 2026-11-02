@@ -1,0 +1,30 @@
+// exit: 0
+// stdout: 4\nhi\n
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+class Named {
+    n: String
+}
+impl Container for IntBox {
+    type Item = i32
+    fun get(): Self::Item { return this.v }
+}
+impl Container for Named {
+    type Item = String
+    fun get(): String { return this.n }
+}
+fun first<T: Container>(c: &T): T::Item {
+    return c.get()
+}
+fun main(): i32 {
+    val b = IntBox(3)
+    val s = Named("hi")
+    println(first(&b) + 1)
+    println(first(&s))
+    return 0
+}

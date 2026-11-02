@@ -116,8 +116,8 @@ impl<T> Show for Box<T> { ... }
 - Each impl must provide exactly the trait's methods with the same parameter count and types (after substituting `Self` and the trait arguments). Missing, extra, duplicate and mismatched items are errors at the impl.
 - Two impls of one trait may not overlap: if their headers unify (`impl<T> Show for Box<T>` and `impl Show for Box<Circle>`), the later one is an error naming both. Bounds are not considered (`impl<T: A> ..` and `impl<T: B> ..` for `Box<T>` overlap). Impls of different traits never overlap, and neither do impls of one trait whose trait arguments cannot unify (`Conv<i32>` and `Conv<bool>`); arguments that can unify do overlap (`impl<T> Conv<T> for Box<T>` and `impl Conv<Circle> for Box<Circle>`).
 - Only classes and enums can implement a trait for now. `Self` is usable in impl signatures too.
-- `trait` and `impl` are now reserved words: they can no longer be used as variable, function or field names.
-- Not yet: associated types (#59), default method bodies, trait objects, `Trait.method(x)` call syntax.
+- `trait`, `impl` and `type` are reserved words: they can no longer be used as variable, function or field names.
+- Not yet: default method bodies, trait objects, `Trait.method(x)` call syntax.
 
 #### Calling trait methods
 
@@ -145,6 +145,28 @@ impl<T: Show> Show for Box<T> { ... }
 - A requirement whose type is still unknown waits until it is fixed; at the end of the function an unfixed one is an error. Following impl bounds stops at depth 32.
 - A type parameter that appears only in a bound (`fun g<T: Show>()`) is not monomorphized yet: calling it is rejected, because the instance cannot be recovered from the call's types. A method in an impl may not add bounds the trait method does not declare, and a repeated bound is an error.
 - Primitives, `Vec` and other non-class types implement no traits yet, so a bound such as `T: Show` is never satisfied by an `i32`.
+
+#### Associated types
+
+```
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+impl Container for IntBox {
+    type Item = i32
+    fun get(): i32 { return this.v }
+}
+fun first<T: Container>(c: &T): T::Item { return c.get() }
+fun total<T: Container<Item = i32>>(c: &T): i32 { return c.get() + 1 }
+```
+
+- A trait declares `type Name`; each impl must define every one (`type Name = Type`). Missing, extra and duplicate ones are errors at the impl, and an impl's `type` may refer to others through `Self::Other`; a cycle is an error.
+- Write `Self::Item` (a bare `Item` is not an alias) and `T::Item`. `T::Item` finds `Item` in the bounds of `T`: no bound declaring it, or two bounds declaring it, is an error.
+- A projection is normalized when its type is known: `IntBox::Item` is `i32`. On a type parameter it stays `T::Item`, opaque, equal only to itself, unless a bound fixes it with `Container<Item = i32>`. A call whose type is not yet known waits for it like a bound does.
+- `Container<Item = X>` is an equality bound on functions and methods. Impl parameters cannot carry one yet.
+- Monomorphization normalizes every projection, so none reaches code generation.
+- Not yet: `<T as Trait>::Item`, bounds on associated types (`type Item: Show`), defaults, a trait bound on a projection (`T::Item: Show`), generic associated types.
 
 For the complete strong/weak classification rules, arena-ID algorithm, and
 cleanup diagrams, see [references.md](references.md).

@@ -1,0 +1,26 @@
+// diag: expected the associated type to be
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+class Named {
+    n: String
+}
+impl Container for IntBox {
+    type Item = i32
+    fun get(): i32 { return this.v }
+}
+impl Container for Named {
+    type Item = String
+    fun get(): String { return this.n }
+}
+fun total<T: Container<Item = i32>>(c: &T): i32 {
+    return c.get()
+}
+fun main() {
+    val s = Named("a")
+    val n = total(&s)
+}

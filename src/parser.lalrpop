@@ -32,6 +32,7 @@ match {
     "trait" => "trait",
     "impl" => "impl",
     "where" => "where",
+    "type" => "type",
     "::" => "::",
 } else {
     _
@@ -81,36 +82,46 @@ Item: Item = {
 };
 
 TraitDecl: Trait = {
-    "trait" <name:SpannedIdent> <generics:TypeParams?> "{" <methods:TraitBody> "}" => Trait {
-        name,
-        generics: generics.unwrap_or_default(),
-        methods,
+    "trait" <name:SpannedIdent> <generics:TypeParams?> "{" <items:TraitBody> "}" => {
+        let (mut methods, mut assoc_types) = (vec![], vec![]);
+        for item in items {
+            match item {
+                ast::TraitItem::Method(m) => methods.push(m),
+                ast::TraitItem::Assoc(a) => assoc_types.push(a),
+            }
+        }
+        Trait { name, generics: generics.unwrap_or_default(), methods, assoc_types }
     },
 };
 
-TraitBody: Vec<TraitMethod> = {
+TraitBody: Vec<ast::TraitItem> = {
     => vec![],
     "NL" => vec![],
-    <first:TraitMethodDecl> <rest:TraitMethodRest> => {
-        let mut methods = vec![first];
-        methods.extend(rest);
-        methods
+    <first:TraitItem> <rest:TraitItemRest> => {
+        let mut items = vec![first];
+        items.extend(rest);
+        items
     },
-    "NL" <first:TraitMethodDecl> <rest:TraitMethodRest> => {
-        let mut methods = vec![first];
-        methods.extend(rest);
-        methods
+    "NL" <first:TraitItem> <rest:TraitItemRest> => {
+        let mut items = vec![first];
+        items.extend(rest);
+        items
     },
 };
 
-TraitMethodRest: Vec<TraitMethod> = {
+TraitItemRest: Vec<ast::TraitItem> = {
     => vec![],
     "NL" => vec![],
-    "NL" <method:TraitMethodDecl> <rest:TraitMethodRest> => {
-        let mut methods = vec![method];
-        methods.extend(rest);
-        methods
+    "NL" <item:TraitItem> <rest:TraitItemRest> => {
+        let mut items = vec![item];
+        items.extend(rest);
+        items
     },
+};
+
+TraitItem: ast::TraitItem = {
+    <m:TraitMethodDecl> => ast::TraitItem::Method(m),
+    "type" <name:SpannedIdent> => ast::TraitItem::Assoc(name),
 };
 
 TraitMethodDecl: TraitMethod = {
@@ -123,11 +134,18 @@ TraitMethodDecl: TraitMethod = {
 };
 
 ImplDecl: Impl = {
-    "impl" <generics:TypeParams?> <trait_name:SpannedIdent> <trait_args:TypeArgs?> "for" <start:@L> <self_ty:Type> <end:@R> <wh:WhereClause?> "{" <methods:ImplBody> "}" =>? {
+    "impl" <generics:TypeParams?> <trait_name:SpannedIdent> <trait_args:TypeArgs?> "for" <start:@L> <self_ty:Type> <end:@R> <wh:WhereClause?> "{" <items:ImplBody> "}" =>? {
         let mut generics = generics.unwrap_or_default();
         ast::merge_where(&mut generics, wh.unwrap_or_default()).map_err(|_| ParseError::User {
             error: "a `where` clause may only bound the impl's own type parameters",
         })?;
+        let (mut methods, mut assoc_types) = (vec![], vec![]);
+        for item in items {
+            match item {
+                ast::ImplItem::Method(m) => methods.push(m),
+                ast::ImplItem::Assoc(n, t) => assoc_types.push((n, t)),
+            }
+        }
         Ok(Impl {
             generics,
             trait_name,
@@ -135,33 +153,39 @@ ImplDecl: Impl = {
             self_ty,
             self_span: Span::new(start, end),
             methods,
+            assoc_types,
         })
     },
 };
 
-ImplBody: Vec<Function> = {
+ImplBody: Vec<ast::ImplItem> = {
     => vec![],
     "NL" => vec![],
-    <first:Function> <rest:ImplBodyRest> => {
-        let mut methods = vec![first];
-        methods.extend(rest);
-        methods
+    <first:ImplItem> <rest:ImplBodyRest> => {
+        let mut items = vec![first];
+        items.extend(rest);
+        items
     },
-    "NL" <first:Function> <rest:ImplBodyRest> => {
-        let mut methods = vec![first];
-        methods.extend(rest);
-        methods
+    "NL" <first:ImplItem> <rest:ImplBodyRest> => {
+        let mut items = vec![first];
+        items.extend(rest);
+        items
     },
 };
 
-ImplBodyRest: Vec<Function> = {
+ImplBodyRest: Vec<ast::ImplItem> = {
     => vec![],
     "NL" => vec![],
-    "NL" <method:Function> <rest:ImplBodyRest> => {
-        let mut methods = vec![method];
-        methods.extend(rest);
-        methods
+    "NL" <item:ImplItem> <rest:ImplBodyRest> => {
+        let mut items = vec![item];
+        items.extend(rest);
+        items
     },
+};
+
+ImplItem: ast::ImplItem = {
+    <f:Function> => ast::ImplItem::Method(f),
+    "type" <name:SpannedIdent> "=" <ty:Type> => ast::ImplItem::Assoc(name, ty),
 };
 
 ConstDecl: ConstDecl = {
@@ -266,7 +290,10 @@ BoundList: Vec<TraitRef> = {
 };
 
 TraitRefDecl: TraitRef = {
-    <name:SpannedIdent> <args:TypeArgs?> => TraitRef { name, args: args.unwrap_or_default() },
+    <name:SpannedIdent> <args:TraitArgs?> => {
+        let (args, bindings) = args.unwrap_or_default();
+        TraitRef { name, args, bindings }
+    },
 };
 
 WhereClause: Vec<WherePred> = {
@@ -275,6 +302,25 @@ WhereClause: Vec<WherePred> = {
 
 WherePredDecl: WherePred = {
     <param:SpannedIdent> ":" <bounds:BoundList> => WherePred { param, bounds },
+};
+
+// `<A, B, Item = X>`: positional arguments and associated-type bindings, in any order.
+TraitArgs: (Vec<Type>, Vec<(SpannedName, Type)>) = {
+    "<" <items:Comma<TraitArg>> ">" => {
+        let (mut args, mut bindings) = (vec![], vec![]);
+        for item in items {
+            match item {
+                Ok(ty) => args.push(ty),
+                Err(binding) => bindings.push(binding),
+            }
+        }
+        (args, bindings)
+    },
+};
+
+TraitArg: Result<Type, (SpannedName, Type)> = {
+    <ty:Type> => Ok(ty),
+    <name:SpannedIdent> "=" <ty:Type> => Err((name, ty)),
 };
 
 TypeArgs: Vec<Type> = {
@@ -327,6 +373,7 @@ Type: Type = {
     },
     <name:Ident> <q:"?"?> => Type::from_ident(&name, q.is_some()),
     <name:Ident> <args:TypeArgs> <q:"?"?> => Type::Named { name, args, nullable: q.is_some() },
+    <base:Ident> "::" <name:Ident> => Type::Assoc { base: Box::new(Type::from_ident(&base, false)), name },
     "(" <ty:ParenType> => ty,
 };
 
@@ -363,7 +410,8 @@ ParenType: Type = {
                 | Type::Array { .. }
                 | Type::Ref { .. }
                 | Type::ManagedRef { .. }
-                | Type::Vec { .. } => Err(ParseError::User {
+                | Type::Vec { .. }
+                | Type::Assoc { .. } => Err(ParseError::User {
                     error: "only function types may be parenthesized for nullability",
                 }),
             }

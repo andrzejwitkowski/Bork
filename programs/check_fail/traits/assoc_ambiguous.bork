@@ -1,0 +1,15 @@
+// diag: is ambiguous
+trait Container {
+    type Item
+    fun get(): Self::Item
+}
+class IntBox {
+    v: i32
+}
+trait Other {
+    type Item
+}
+fun f<T: Container + Other>(c: &T): T::Item {
+    return c.get()
+}
+fun main() {}

@@ -121,6 +121,20 @@ pub struct Trait {
     pub name: crate::span::SpannedName,
     pub generics: Vec<TypeParam>,
     pub methods: Vec<TraitMethod>,
+    /// `type Item` declarations.
+    pub assoc_types: Vec<crate::span::SpannedName>,
+}
+
+/// One entry of a trait body, before the parser splits them into `methods` and `assoc_types`.
+pub enum TraitItem {
+    Method(TraitMethod),
+    Assoc(crate::span::SpannedName),
+}
+
+/// One entry of an impl body, before the parser splits them into `methods` and `assoc_types`.
+pub enum ImplItem {
+    Method(Function),
+    Assoc(crate::span::SpannedName, Type),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -140,6 +154,8 @@ pub struct Impl {
     pub self_ty: Type,
     pub self_span: crate::span::Span,
     pub methods: Vec<Function>,
+    /// `type Item = i32` definitions.
+    pub assoc_types: Vec<(crate::span::SpannedName, Type)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -166,6 +182,8 @@ pub struct TypeParam {
 pub struct TraitRef {
     pub name: crate::span::SpannedName,
     pub args: Vec<Type>,
+    /// `Item = X` in `Container<Item = X>`.
+    pub bindings: Vec<(crate::span::SpannedName, Type)>,
 }
 
 /// `T: A + B` in a `where` clause, merged into `T`'s bounds by the parser.
@@ -225,6 +243,11 @@ pub enum Type {
     Vec {
         elem: Box<Type>,
     },
+    /// `T::Item` / `Self::Item`.
+    Assoc {
+        base: Box<Type>,
+        name: String,
+    },
 }
 
 impl Type {
@@ -249,6 +272,7 @@ impl Type {
             Type::Ref { inner, nullable } => Type::Ref { inner: sub(inner), nullable: *nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner: sub(inner) },
             Type::Vec { elem } => Type::Vec { elem: sub(elem) },
+            Type::Assoc { base, name } => Type::Assoc { base: sub(base), name: name.clone() },
         }
     }
 
@@ -309,6 +333,7 @@ impl Type {
             Type::Ref { inner, .. } => Type::Ref { inner, nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner },
             Type::Vec { elem } => Type::Vec { elem },
+            assoc @ Type::Assoc { .. } => assoc,
         }
     }
 
@@ -337,7 +362,7 @@ impl Type {
             | Type::Array { nullable, .. }
             | Type::Func { nullable, .. }
             | Type::Ref { nullable, .. } => *nullable,
-            Type::ManagedRef { .. } | Type::Vec { .. } => false,
+            Type::ManagedRef { .. } | Type::Vec { .. } | Type::Assoc { .. } => false,
         }
     }
 }
@@ -359,6 +384,7 @@ impl fmt::Display for Type {
                     f.write_str(">")?;
                 }
             }
+            Type::Assoc { base, name } => write!(f, "{base}::{name}")?,
             Type::Array { elem, len, .. } => write!(f, "[{elem}; {len}]")?,
             Type::Func { params, ret, .. } => {
                 f.write_str("(")?;

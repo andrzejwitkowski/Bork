@@ -13,6 +13,7 @@ impl TyData {
                 vec![*t]
             }
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
+            TyData::Projection(self_ty, _, _) => vec![*self_ty],
             _ => Vec::new(),
         }
     }
@@ -78,8 +79,28 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
             }
             ctx.add(TyData::Enum(def, args))
         }
+        TyData::Projection(self_ty, trait_name, name) => {
+            let self_ty = folder.fold(ctx, self_ty)?;
+            ctx.projection(self_ty, trait_name.as_deref(), &name)
+        }
         TyData::Prim(_) | TyData::String | TyData::Param(_) | TyData::Infer(_) | TyData::Error => id,
     })
+}
+
+struct Replace<'a>(&'a std::collections::HashMap<TyId, TyId>);
+
+impl TypeFolder for Replace<'_> {
+    fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, NestedNullable> {
+        match self.0.get(&id) {
+            Some(&to) => Ok(to),
+            None => super_fold(self, ctx, id),
+        }
+    }
+}
+
+/// `id` with each type in `map` replaced by its image.
+pub fn subst_with(ctx: &mut TyCtx, id: TyId, map: &std::collections::HashMap<TyId, TyId>) -> Result<TyId, NestedNullable> {
+    Replace(map).fold(ctx, id)
 }
 
 struct Subst<'a>(&'a [TyId]);

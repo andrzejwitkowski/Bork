@@ -2745,6 +2745,33 @@ Arenas
     │   └── bytes [Local]
     ├── IfThen
     └── IfThen
+== programs/build/traits/assoc_container.bork
+Arenas
+├── fun first
+│   └── c [Borrow ← call site]
+├── fun main
+│   ├── b [Local]
+│   └── s [Local]
+├── fun Container@0.get
+│   └── this [Borrow ← call site]
+└── fun Container@1.get
+    └── this [Borrow ← call site]
+== programs/build/traits/assoc_equality.bork
+Arenas
+├── fun total
+│   └── c [Borrow ← call site]
+├── fun main
+│   └── b [Local]
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/build/traits/assoc_two_traits.bork
+Arenas
+├── fun first
+│   └── c [Borrow ← call site]
+├── fun main
+│   └── f [Local]
+└── fun Container@1.get
+    └── this [Borrow ← call site]
 == programs/build/traits/dispatch_bound.bork
 Arenas
 ├── fun say
@@ -3536,6 +3563,38 @@ Arenas
 │   ├── n [Local]
 │   └── IfThen
 └── fun main
+== programs/check/traits/assoc_basic.bork
+Arenas
+├── fun first
+│   └── c [Borrow ← call site]
+├── fun main
+│   ├── b [Local]
+│   ├── x [Local]
+│   ├── s [Local]
+│   ├── y [Local]
+│   └── z [Local]
+├── fun Container@0.get
+│   └── this [Borrow ← call site]
+└── fun Container@1.get
+    └── this [Borrow ← call site]
+== programs/check/traits/assoc_equality.bork
+Arenas
+├── fun total
+│   └── c [Borrow ← call site]
+├── fun main
+│   ├── b [Local]
+│   └── n [Local]
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check/traits/assoc_generic_impl.bork
+Arenas
+├── fun first
+│   └── c [Borrow ← call site]
+├── fun main
+│   ├── b [Local]
+│   └── x [Local]
+└── fun Container@0.get
+    └── this [Borrow ← call site]
 == programs/check/traits/basic.bork
 Arenas
 ├── fun main
@@ -4488,6 +4547,89 @@ Arenas
 ├── fun main
 └── fun Shape@0.scaled
     └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_ambiguous.bork
+Type Error [144..145] `T::Item` is ambiguous: the bounds `Container`, `Other` on `T` all declare `Item`
+Arenas
+├── fun f
+│   └── c [Borrow ← call site]
+└── fun main
+== programs/check_fail/traits/assoc_cycle.bork
+Type Error [119..128] the associated type `Item` of `IntBox` refers to itself
+Arenas
+├── fun main
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_duplicate.bork
+Type Error [180..184] duplicate associated type `Item` in impl of `Container`
+Arenas
+├── fun main
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_duplicate_binding.bork
+Type Error [128..132] duplicate binding of `Item` on `T`
+Arenas
+├── fun f
+│   └── c [Borrow ← call site]
+└── fun main
+== programs/check_fail/traits/assoc_equality_unsat.bork
+Type Error [460..465] expected the associated type to be `i32`, but it is `String`
+Arenas
+├── fun total
+│   └── c [Borrow ← call site]
+├── fun main
+│   ├── s [Local]
+│   └── n [Local]
+├── fun Container@0.get
+│   └── this [Borrow ← call site]
+└── fun Container@1.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_extra.bork
+Type Error [189..194] `Other` is not an associated type of trait `Container`
+Arenas
+├── fun main
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_impl_equality.bork
+Type Error [243..247] equality bounds (`Item = X`) on an impl's parameters are not supported yet
+Arenas
+├── fun main
+└── fun Show@0.show
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_impl_undetermined.bork
+Type Error [337..342] cannot normalize `Foo::Item`: a type parameter of the impl is not determined by its type
+Arenas
+├── fun first
+│   └── c [Borrow ← call site]
+├── fun main
+│   ├── f [Local]
+│   └── x [Local]
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_mismatch.bork
+Type Error [207..210] `get` returns `String` but trait `Container` declares `i32`
+Arenas
+├── fun main
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_missing.bork
+Type Error [156..165] not all trait items implemented, missing: type `Item`
+Arenas
+├── fun main
+└── fun Container@0.get
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/assoc_no_bound.bork
+Type Error [152..153] no bound on `T` declares an associated type `Item`; add a bound such as `T: Trait`
+Type Error [186..191] only named functions can be called; a type parameter has no bounds yet, so operators and members need a bound (not supported yet)
+Arenas
+├── fun f
+│   └── c [Borrow ← call site]
+└── fun main
+== programs/check_fail/traits/assoc_unnormalizable.bork
+Type Error [210..211] cannot normalize `Plain::Item`: `Plain` implements no trait with an associated type `Item`
+Arenas
+└── fun main
+    ├── p [Local]
+    └── y [Local]
 == programs/check_fail/traits/bound_ambiguous.bork
 Type Error [320..324] conflicting implementations of trait `Show`: `Show for Box<Circle>` overlaps with the earlier impl `Show for Box<T> where T: Show`; make the types differ or remove one
 Arenas

@@ -71,6 +71,9 @@ impl Numbered for crate::ast::Trait {
             n.generics(&mut m.generics);
             n.params(&mut m.params);
         }
+        for a in &mut self.assoc_types {
+            n.name(a);
+        }
     }
 }
 
@@ -79,6 +82,9 @@ impl Numbered for crate::ast::Impl {
         n.generics(&mut self.generics);
         n.name(&mut self.trait_name);
         self.methods.iter_mut().for_each(|m| m.number(n));
+        for (name, _) in &mut self.assoc_types {
+            n.name(name);
+        }
     }
 }
 
@@ -107,7 +113,10 @@ impl Numberer {
     fn generics(&mut self, generics: &mut [crate::ast::TypeParam]) {
         for g in generics {
             self.name(&mut g.name);
-            g.bounds.iter_mut().for_each(|b| self.name(&mut b.name));
+            for b in &mut g.bounds {
+                self.name(&mut b.name);
+                b.bindings.iter_mut().for_each(|(name, _)| self.name(name));
+            }
         }
     }
 

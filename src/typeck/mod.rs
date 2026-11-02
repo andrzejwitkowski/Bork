@@ -375,7 +375,9 @@ fn collect_fun_sigs(
         let mut sig = FnSig::new(params, ret);
         sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
         sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
-        sig.predicates = traits::lower_bounds(&function.generics, &scope, defs, traits, tcx, diagnostics);
+        (sig.predicates, sig.proj_predicates) =
+            traits::lower_bounds(&function.generics, &scope, defs, traits, tcx, diagnostics);
+        traits::qualify_sig(&mut sig, traits, tcx, Some(function.name_span), diagnostics, defs);
         fun_sigs.insert(id, sig);
     }
     for (name, sig) in crate::builtins::signatures(tcx) {
@@ -435,7 +437,9 @@ fn collect_method_sigs(
             let mut sig = FnSig::new(std::iter::once(this_ty).chain(params).collect(), return_ty);
             sig.generics = scope.iter().map(|(_, idx)| *idx).collect();
             sig.generic_names = scope.iter().map(|(name, _)| name.clone()).collect();
-            sig.predicates = traits::lower_bounds(&method.generics, &scope, defs, traits, tcx, diagnostics);
+            (sig.predicates, sig.proj_predicates) =
+                traits::lower_bounds(&method.generics, &scope, defs, traits, tcx, diagnostics);
+            traits::qualify_sig(&mut sig, traits, tcx, Some(method.name_span), diagnostics, defs);
             fun_sigs.insert(key, sig);
             if let Some(info) = classes.get_mut(&owner) {
                 info.methods.insert(key, signature.clone());
@@ -481,6 +485,13 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
     let (signature, name, generics) = function_header(defs, fun_sigs, classes, function, owner.as_ref());
     tcx.set_param_names(generics.clone());
     let mut env = Env::new(defs, tcx, fun_sigs, classes, enums, traits, impls, constants);
+    // The signature's `T::Item` is normalized against the function's own bounds.
+    env.param_env = signature.predicates.clone();
+    env.proj_env = signature.proj_predicates.clone();
+    let mut signature = signature;
+    let span = Some(function.name_span);
+    signature.params = signature.params.iter().map(|&p| solve::normalize(&mut env, p, span)).collect();
+    signature.ret = solve::normalize(&mut env, signature.ret, span);
     let return_ty = signature.ret;
     let params = enter_function(&mut env, function, owner.as_ref(), &generics, signature);
     let body = check_body(&mut env, function, return_ty);
@@ -757,7 +768,7 @@ fn validate_owned_layouts(classes: &ClassTable, enums: &EnumTable, tcx: &mut TyC
 mod tests;
 
 /// Whether `ty` still contains an inference variable.
-fn has_infer(tcx: &TyCtx, ty: TyId) -> bool {
+pub(super) fn has_infer(tcx: &TyCtx, ty: TyId) -> bool {
     struct Find(bool);
     impl crate::ty::TypeVisitor for Find {
         fn visit(&mut self, ctx: &TyCtx, id: TyId) {

@@ -277,3 +277,24 @@ fn a_trait_argument_and_a_method_parameter_are_both_part_of_the_instance() {
         assert!(names.contains(&expected), "{expected}: {names:?}");
     }
 }
+
+const TWO_TRAITS: &str = "trait Other {\n    type Item\n}\ntrait Container {\n    type Item\n    fun get(): Self::Item\n}\nclass Foo {\n    v: i32\n}\nimpl Other for Foo {\n    type Item = String\n}\nimpl Container for Foo {\n    type Item = i32\n    fun get(): i32 { return this.v }\n}\nfun first<T: Container>(c: &T): T::Item {\n    return c.get()\n}\n";
+
+#[test]
+fn an_instance_returns_the_impls_associated_type_not_a_projection() {
+    let (result, tcx) = run(&format!("{TWO_TRAITS}fun main() {{\n    val f = Foo(1)\n    val x = first(&f)\n}}\n"));
+    let m = result.unwrap_or_else(|d| panic!("{d:?}"));
+    let first = m.hir.functions.iter().find(|f| f.name == "first<Foo>").expect("first<Foo> is instantiated");
+    // The other trait's `Item = String` comes first in the program; the bound picks `Container`'s.
+    assert_eq!(tcx.display(first.return_ty).to_string(), "i32");
+    assert!(m.hir.functions.iter().all(|f| f.params.iter().all(|p| !tcx.has_projection(p.ty)) && !tcx.has_projection(f.return_ty)));
+}
+
+#[test]
+fn an_instance_of_a_generic_impls_projection_substitutes_the_impls_parameters() {
+    let src = "trait Container {\n    type Item\n    fun get(): Self::Item\n}\nclass Box<T> {\n    v: T\n}\nimpl<T> Container for Box<T> {\n    type Item = T\n    fun get(): T { return this.v }\n}\nfun first<C: Container>(c: &C): C::Item {\n    return c.get()\n}\nfun main() {\n    val b = Box(\"s\")\n    val x = first(&b)\n}\n";
+    let (result, tcx) = run(src);
+    let m = result.unwrap_or_else(|d| panic!("{d:?}"));
+    let first = m.hir.functions.iter().find(|f| f.name == "first<Box<String>>").expect("instantiated");
+    assert_eq!(tcx.display(first.return_ty).to_string(), "String");
+}
