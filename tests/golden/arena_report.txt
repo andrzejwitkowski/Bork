@@ -3689,6 +3689,13 @@ Arenas
 └── fun H.add
     ├── this [Borrow ← call site]
     └── k [Local]
+== programs/check_fail/borrow/assign_view_to_var.bork
+Type Error [155..156] assignment to `d` has type &[i32; 2], expected [i32; 2]
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── d [Local]
+    └── b [Local]
 == programs/check_fail/borrow/lift_borrow_in_if.bork
 Ownership Error [87..88] cannot lift borrow `a` out of fun outer
 Arenas
@@ -3707,6 +3714,19 @@ Arenas
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/check_fail/borrow/var_binds_borrow.bork
+Type Error [112..113] cannot bind `var` `x` to a reference type; use `val`
+Arenas
+└── fun main
+    ├── a [Local]
+    └── x [Local]
+== programs/check_fail/borrow/var_binds_view.bork
+Type Error [127..128] cannot bind `var` `c` to a reference type; use `val`
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── c [Local]
 == programs/check_fail/classes/owned_layout_cycle.bork
 Type Error [45..46] class `A` has a recursive by-value layout (A -> B -> A); use `Ref<..>` for the recursive field
 Type Error [62..63] class `B` has a recursive by-value layout (B -> A -> B); use `Ref<..>` for the recursive field
@@ -4386,7 +4406,6 @@ Arenas
     └── IfValNone
         └── fallback [Shared ← fun main]
 == programs/check_fail/methods/assign_this.bork
-Ownership Error [92..97] cannot bind a borrow view to `var`; use `val` for `other`
 Type Error [85..89] cannot assign to `this`
 Arenas
 ├── fun main

@@ -67,12 +67,6 @@ pub(super) fn bare_ident_move_message(
     }
     if matches!(binding.origin, BindingOrigin::View) {
         return match sink {
-            TransferSink::Binding {
-                dest: BindingKind::Var,
-                ..
-            } => Some(format!(
-                "cannot bind a borrow view to `var`; use `val` for `{name}`"
-            )),
             TransferSink::CallArg { .. } => Some(format!(
                 "cannot move borrow `{name}`; pass it with `&` to a reference parameter"
             )),

@@ -552,24 +552,6 @@ fun main() {
 }
 
 #[test]
-fn var_from_view_binding_is_rejected() {
-    let src = r#"
-fun main() {
-    var s: String = "hi"
-    {
-        val b = &s
-        var c = b
-    }
-}
-"#;
-    let (_, errs) = analyze(&parse(src).unwrap());
-    assert!(
-        errs.iter().any(|e| e.message.contains("borrow") || e.message.contains("var")),
-        "{errs:?}"
-    );
-}
-
-#[test]
 fn move_of_borrow_binding_is_rejected() {
     let src = r#"
 fun main() {

@@ -81,7 +81,7 @@ Rules for v1:
 | class field | rejected | `borrowed references cannot be stored in class fields` | `typeck/mod.rs` | region-parameterised types |
 | enum payload | rejected | `borrowed references cannot be stored in enum payloads` | `typeck/mod.rs` | same |
 | return type or returned value | rejected | `returning a reference is not supported` | `escape.rs` | region-annotated signatures |
-| `var` binding | rejected | `cannot bind var ... to a reference type` / `... to a borrow` | `typeck/stmt/mod.rs` and `sema/walk.rs` (duplicate) | B |
+| `var` binding | rejected | `cannot bind var ... to a reference type; use val` | `typeck/stmt/mod.rs` (sema duplicates removed, #196) | done |
 | `Vec<&T>`, `Ref<&T>`, `[&T; N]` | rejected | `vec_elem_message`, `managed_ref_target_message` | `typeck/lower.rs`, `ill_formed` | with fields |
 | `&T?` | rejected | `nullable reference types ... are not supported` | `typeck/lower.rs` | none |
 | type argument `T = &U` / `&edit U` | rejected | inferred: `... parameter expects owned ...`; written: **not enforced** | `check_argument`; none | A |
@@ -94,7 +94,7 @@ Rules for v1:
 ## 7. Follow-up issues
 
 - **A.** Reject a borrow as an explicit type argument and in `ill_formed`; note pointing at the generic definition (#63, #64).
-- **B.** Collapse the duplicated `var`-binding borrow checks (with #37).
+- **B.** Collapse the duplicated `var`-binding borrow checks (#196, done: sema no longer reports it; `tests/restriction_sites.rs` guards one site per rule).
 - **C.** Region-parameterised class types (borrow fields): design after v1.
 - **D.** Introduce `&edit`; make `&` immutable (element writes through `&` become errors); `&edit` only on `var`; the one call-site aliasing rule; migrate the 16 programs; add `programs/check_fail/borrow/{write_through_shared,edit_on_val,edit_aliased}.bork`; update `docs/language.md` and `docs/memory-model.md`.
 - **E.** Region-annotated signatures for returned borrows: design after v1.

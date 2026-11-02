@@ -160,13 +160,6 @@ fn walk_var_decl(az: &mut Analyzer, decl: VarDecl<'_>, node: &mut ArenaNode, sha
     );
     let view =
         is_view_init(az, value) || matches!(&inferred, Ty::Known(ty) if ty.is_reference());
-    if view && *kind == BindingKind::Var {
-        az.error(
-            format!("cannot bind `var` `{name}` to a borrow; use `val`"),
-            Some(name.clone()),
-            Some(*name_span),
-        );
-    }
     shadows.push(bind_with(
         az,
         name,

@@ -1,0 +1,5 @@
+// diag: cannot bind `var` `x` to a reference type; use `val`
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    var x = &a
+}
