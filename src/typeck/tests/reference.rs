@@ -164,3 +164,37 @@ fun main() {
         "{diags:?}"
     );
 }
+
+fn messages(src: &str) -> Vec<String> {
+    crate::frontend::check(src).diagnostics.into_iter().map(|d| d.message).collect()
+}
+
+const PRELUDE: &str = "class P {\n    x: i32\n}\nclass Holder<T> {\n    v: T\n}\nfun id<T>(x: T): T {\n    return x\n}\n";
+
+#[test]
+fn explicit_borrow_type_argument_is_rejected() {
+    let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val q = id::<&P>(&p)\n}}\n"));
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `id`")), "{m:?}");
+}
+
+#[test]
+fn written_borrow_type_argument_is_rejected() {
+    for ty in ["Holder<&P>", "Option<&P>"] {
+        let m = messages(&format!("{PRELUDE}fun f(h: {ty}) {{\n}}\nfun main() {{\n}}\n"));
+        assert!(m.iter().any(|d| d.contains("cannot be a type argument")), "{ty}: {m:?}");
+    }
+}
+
+#[test]
+fn inferred_borrow_type_argument_is_still_rejected() {
+    let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val q = id(&p)\n}}\n"));
+    assert!(!m.is_empty(), "{m:?}");
+    let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val h = Holder(&p)\n}}\n"));
+    assert!(!m.is_empty(), "constructor: {m:?}");
+}
+
+#[test]
+fn enum_variant_borrow_type_argument_is_rejected() {
+    let m = messages(&format!("{PRELUDE}enum E<T> {{\n    A(v: T)\n}}\nfun main() {{\n    val p = P(1)\n    val e = E.A(&p)\n}}\n"));
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `E`")), "{m:?}");
+}

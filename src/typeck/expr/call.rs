@@ -80,7 +80,12 @@ fn instantiate(
         );
         return None;
     } else {
-        type_args.iter().map(|ty| env.lower(ty, Some(span))).collect()
+        let lowered: Vec<TyId> = type_args.iter().map(|ty| env.lower(ty, Some(span))).collect();
+        if let Some(&arg) = lowered.iter().find(|&&arg| env.tcx.contains_borrow(arg)) {
+            env.error(env.tcx.borrow_type_arg_message(arg, name), Some(span));
+            return None;
+        }
+        lowered
     };
     subst_sig(name, span, sig, &args, env)
 }

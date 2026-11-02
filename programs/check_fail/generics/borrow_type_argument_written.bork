@@ -1,0 +1,11 @@
+// diag: `&P` cannot be a type argument of `Holder`
+class P {
+    n: i32
+}
+class Holder<T> {
+    v: T
+}
+fun f(h: Holder<&P>) {
+}
+fun main() {
+}

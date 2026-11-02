@@ -1,0 +1,11 @@
+// diag: `&P` cannot be a type argument of `Holder`
+class P {
+    n: i32
+}
+class Holder<T> {
+    v: T
+}
+fun main() {
+    val p = P(1)
+    val h = Holder(&p)
+}

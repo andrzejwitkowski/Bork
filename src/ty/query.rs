@@ -265,6 +265,11 @@ impl TyCtx {
         )
     }
 
+    /// RFC 0003 section 2: a type argument is never a borrow.
+    pub fn borrow_type_arg_message(&self, arg: TyId, owner: &str) -> String {
+        format!("`{}` cannot be a type argument of `{owner}`: a borrow cannot be stored in a generic type", self.display(arg))
+    }
+
     /// The first rule a concrete type breaks, for instances of generic code: `lower_type` checks
     /// these on written types, but exempts a type parameter ("checked at instantiation"), so the
     /// instantiated type has to be checked again once the parameter is known.
@@ -275,6 +280,10 @@ impl TyCtx {
             }
             TyData::Vec(elem) if !self.is_unknown(*elem) && !self.is_array_elem_supported(*elem) => {
                 Some(self.vec_elem_message(*elem))
+            }
+            TyData::Class(def, args) | TyData::Enum(def, args) if args.iter().any(|&arg| self.contains_borrow(arg)) => {
+                let arg = args.iter().copied().find(|&arg| self.contains_borrow(arg)).expect("checked above");
+                Some(self.borrow_type_arg_message(arg, self.class_name(*def)))
             }
             data => data.children().into_iter().find_map(|child| self.ill_formed(child)),
         }
@@ -396,6 +405,19 @@ mod tests {
         assert!(c.is_array_elem_supported(i) && c.is_array_elem_supported(managed));
         assert!(c.is_array_elem_supported(string) && !c.is_array_elem_supported(opt_string));
         assert!(c.supports_nullable(i) && !c.supports_nullable(ref_point) && !c.supports_nullable(vec_ty));
+    }
+
+    #[test]
+    fn ill_formed_rejects_a_borrow_type_argument() {
+        let mut c = ctx();
+        let point = named(&mut c, "Point");
+        let borrow = c.ref_to(point);
+        let (def, _) = c.class_args(point).unwrap();
+        let holder = c.class(def, vec![borrow]);
+        let message = c.ill_formed(holder).expect("a borrow argument is ill-formed");
+        assert!(message.contains("cannot be a type argument of `Point`"), "{message}");
+        let owned = c.class(def, vec![point]);
+        assert_eq!(c.ill_formed(owned), None);
     }
 
     #[test]

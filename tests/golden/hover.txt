@@ -294,6 +294,9 @@ programs/check_fail/enums/when_missing_return_in_one_arm.bork: hits=4 hash=0d4ff
 programs/check_fail/enums/wrong_arity.bork: hits=1 hash=b61abe766f2c2c54
 programs/check_fail/enums/wrong_payload_type.bork: hits=1 hash=c1330217383dfc53
 programs/check_fail/generics/borrow_conflicting_type_args.bork: hits=6 hash=2da8407760577851
+programs/check_fail/generics/borrow_type_argument_constructor.bork: hits=3 hash=1a9b035353dafd0c
+programs/check_fail/generics/borrow_type_argument_explicit.bork: hits=5 hash=d73a0b650f6a20cc
+programs/check_fail/generics/borrow_type_argument_written.bork: hits=1 hash=3bec819e6494b1f4
 programs/check_fail/generics/cannot_infer.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/constructor_cannot_infer.bork: hits=1 hash=c93764347d643c61
 programs/check_fail/generics/dup.bork: hits=1 hash=098131f3dbe72066

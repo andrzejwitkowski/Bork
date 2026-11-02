@@ -158,6 +158,11 @@ impl LowerCx<'_> {
         if args.iter().any(|&arg| self.tcx.is_error(arg)) {
             return self.tcx.error();
         }
+        if let Some(&arg) = args.iter().find(|&&arg| self.tcx.contains_borrow(arg)) {
+            let message = self.tcx.borrow_type_arg_message(arg, name);
+            self.error(message);
+            return self.tcx.error();
+        }
         let ty = if enum_def.is_some() { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
         self.nullable_if(ty, nullable)
     }

@@ -4022,6 +4022,26 @@ Arenas
 └── fun main
     ├── x [Local]
     └── y [Local]
+== programs/check_fail/generics/borrow_type_argument_constructor.bork
+Type Error [146..152] `&P` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
+Arenas
+└── fun main
+    ├── p [Local]
+    └── h [Local]
+== programs/check_fail/generics/borrow_type_argument_explicit.bork
+Type Error [149..151] `&P` cannot be a type argument of `id`: a borrow cannot be stored in a generic type
+Arenas
+├── fun id
+│   └── x [Local]
+└── fun main
+    ├── p [Local]
+    └── q [Local]
+== programs/check_fail/generics/borrow_type_argument_written.bork
+Type Error [110..111] `&P` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
+Arenas
+├── fun f
+│   └── h [Local]
+└── fun main
 == programs/check_fail/generics/cannot_infer.bork
 Type Error [130..134] cannot infer type parameter `T` of `make`; specify it explicitly, e.g. `make::<..>(..)`
 Arenas
