@@ -15,7 +15,7 @@ pub(super) fn check_borrow(
     env: &mut Env<'_>,
 ) -> Checked {
     let inner = check_ident(name, name_span, name_id, UseKind::Borrow, env);
-    if env.tcx.is_copy(inner.ty) {
+    if env.tcx.is_trivially_copy(inner.ty) {
         env.error(format!("cannot borrow Copy type `{}`", env.show(inner.ty)), Some(span));
     }
     let ref_ty = if env.tcx.is_ref(inner.ty) {

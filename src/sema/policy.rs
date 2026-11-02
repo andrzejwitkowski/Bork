@@ -32,7 +32,7 @@ pub(super) fn classify_use(
     if is_copy {
         return UseOutcome::Observe(Ownership::Copy);
     }
-    if matches!(binding.kind, BindingKind::Val) || binding.ty.is_managed_ref() {
+    if matches!(binding.kind, BindingKind::Val) || binding.ty.is_handle_clone() {
         return UseOutcome::Observe(Ownership::Shared {
             from: binding.arena_label.clone(),
         });
@@ -59,7 +59,7 @@ pub(super) fn bare_ident_move_message(
     sink: &TransferSink,
 ) -> Option<String> {
     if binding.ty.is_copy()
-        || binding.ty.is_managed_ref()
+        || binding.ty.is_handle_clone()
         || binding.moved
         || matches!(sink, TransferSink::ManagedRef)
     {

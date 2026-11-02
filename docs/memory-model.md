@@ -486,3 +486,7 @@ existing unwind path. Owned results are materialized into the outer sink before
 cleanup. Target arenas remain separate; a longer header adds observation slots,
 not success arenas or object copies. Conditional moves of outer owners are
 checked conservatively across executed prefixes.
+
+## Type capability queries
+
+Copy, handle-clone, move-only, needs-drop and contains-borrow are answered in one place, `src/ty/caps.rs` (`TyCtx::is_trivially_copy`, `is_handle_clone`, `is_move_only`, `contains_borrow`, `TyCaps::needs_drop`). A `Ref<T>` is never trivially copy: copying it is a refcount operation. `is_managed_ref` answers the shape question (is this a `Ref<T>`), `is_handle_clone` the ownership one. `is_move_only`, `contains_borrow` and `needs_drop` are defined for #62 and #61 and have no callers yet. A generic `T` is move-only, maybe-droppable and not handle-clone.

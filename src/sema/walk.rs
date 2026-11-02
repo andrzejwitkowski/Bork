@@ -409,7 +409,7 @@ fn walk_ident(az: &mut Analyzer, name: &String, span: &Span, id: &AstId, node: &
         if az
             .env
             .get(name)
-            .is_some_and(|binding| binding.ty.is_managed_ref())
+            .is_some_and(|binding| binding.ty.is_handle_clone())
         {
             note_use(az, name, Some(*span), node);
         } else {

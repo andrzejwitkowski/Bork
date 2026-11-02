@@ -92,8 +92,10 @@ fn named_variant(name: &str, ty: TyId, env: &Env<'_>) -> Option<(EnumInfo, usize
     Some((e.clone(), index))
 }
 
-fn is_copy(ty: TyId, env: &Env<'_>) -> bool {
-    env.tcx.is_numeric(ty) || matches!(env.tcx.data(ty), TyData::Prim(Prim::Bool))
+/// Binding mode, not a capability: a pattern binds `unit` by borrow even though it is trivially
+/// copy (changing it alters the arena report, see `tests/golden/arena_report.txt`).
+fn binds_by_value(ty: TyId, env: &Env<'_>) -> bool {
+    env.tcx.is_trivially_copy(ty) && !matches!(env.tcx.data(ty), TyData::Prim(Prim::Unit))
 }
 
 fn bind(
@@ -106,7 +108,7 @@ fn bind(
     if !names.insert(name.name.clone()) {
         env.error(format!("duplicate pattern binding '{}'", name.name), Some(name.span));
     }
-    let borrowed = by_borrow && !is_copy(ty, env) && !env.tcx.is_managed_ref(ty) && !env.tcx.is_unknown(ty);
+    let borrowed = by_borrow && !binds_by_value(ty, env) && !env.tcx.is_handle_clone(ty) && !env.tcx.is_unknown(ty);
     let binding_ty = if borrowed { env.tcx.ref_to(ty) } else { ty };
     env.node_tys.insert(name.id.numbered(), binding_ty);
     env.bind(name.name.clone(), BindingKind::Val, binding_ty, borrowed);

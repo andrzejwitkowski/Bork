@@ -64,7 +64,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let buf = self.vec_load_ptr(header, BUF)?;
         let slot = self.vec_slot(buf, idx, stride)?;
         let loaded = self.cx.builder.build_load(llvm_elem, slot, "vec.get")?;
-        if self.cx.tcx.is_managed_ref(elem_ty) {
+        if self.cx.tcx.is_handle_clone(elem_ty) {
             self.clone_ref(loaded)
         } else {
             Ok(loaded)

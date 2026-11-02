@@ -648,7 +648,7 @@ fun main(): i32 {
             ty,
             value: HirExpr { kind: HirExprKind::ObjectConstruct { .. }, .. },
             ..
-        } if !tcx.is_copy(*ty)
+        } if !tcx.is_trivially_copy(*ty)
     ));
 }
 

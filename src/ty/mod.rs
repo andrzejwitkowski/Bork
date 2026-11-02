@@ -11,6 +11,7 @@
 //! - `String` is its own variant, not a class: it has no `DefId`.
 //! - `Named(name)` becomes `Class(DefId, args)`; a name that is not a class cannot be interned.
 
+mod caps;
 mod fold;
 mod predicate;
 mod print;
@@ -22,6 +23,7 @@ use std::collections::HashMap;
 use crate::defs::{DefId, DefTable};
 use crate::hir::Prim;
 
+pub use caps::TyCaps;
 pub use fold::{normalize, subst, subst_with, super_fold, walk, TypeFolder, TypeVisitor};
 pub use print::TyPrinter;
 pub use predicate::{Predicate, ProjectionPredicate, TraitRef};
@@ -158,11 +160,6 @@ impl TyCtx {
         matches!(self.data(id), TyData::Error)
     }
 
-    /// A non-nullable primitive.
-    pub fn is_copy(&self, id: TyId) -> bool {
-        matches!(self.data(id), TyData::Prim(_))
-    }
-
     /// `T?` or a managed reference.
     pub fn is_presence_capable(&self, id: TyId) -> bool {
         self.is_nullable(id) || matches!(self.data(id), TyData::ManagedRef(_))
@@ -291,7 +288,7 @@ mod tests {
         let i = ctx.i32();
         let opt = ctx.nullable(i).unwrap();
         let (managed, string, point) = (ctx.managed_ref(i), ctx.string(false), named(&mut ctx, "Point"));
-        assert!(ctx.is_copy(i) && !ctx.is_copy(opt) && !ctx.is_copy(string) && !ctx.is_copy(point));
+        assert!(ctx.is_trivially_copy(i) && !ctx.is_trivially_copy(opt) && !ctx.is_trivially_copy(string) && !ctx.is_trivially_copy(point));
         assert!(ctx.is_presence_capable(opt) && ctx.is_presence_capable(managed));
         assert!(!ctx.is_presence_capable(i) && !ctx.is_presence_capable(string));
     }
