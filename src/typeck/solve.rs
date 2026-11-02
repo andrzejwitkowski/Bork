@@ -304,14 +304,23 @@ pub(super) fn normalize(env: &mut Env<'_>, ty: TyId, span: Option<Span>) -> TyId
     }
     let mut ty = ty;
     let mut rigid = HashSet::new();
+    let mut replaced_any = false;
     for _ in 0..=MAX_DEPTH {
         // Leaves are keyed by their interned id, so the type must carry the resolved bases.
         ty = env.infcx.resolve(env.tcx, ty).unwrap_or(ty);
         let mut leaves = Vec::new();
         collect_leaves(env, ty, &rigid, &mut leaves);
         if leaves.is_empty() {
+            // The writer's `lower_class` check could not see through `Holder<W::Item>` (RFC 0003 section 2).
+            if replaced_any {
+                if let Some(message) = env.tcx.borrow_type_arg_in(ty) {
+                    env.error(message, span);
+                    return env.tcx.error();
+                }
+            }
             return ty;
         }
+        replaced_any = true;
         let mut replaced = HashMap::new();
         for leaf in leaves {
             let TyData::Projection(base, trait_name, name) = env.tcx.data(leaf).clone() else { continue };

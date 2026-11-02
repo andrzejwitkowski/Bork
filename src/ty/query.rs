@@ -280,6 +280,18 @@ impl TyCtx {
         args.iter().copied().find(|&arg| self.stores_borrow(arg))
     }
 
+    /// The borrow-type-argument error for this node alone (not its children).
+    fn borrow_arg_at(&self, data: &TyData) -> Option<String> {
+        let (TyData::Class(def, args) | TyData::Enum(def, args)) = data else { return None };
+        self.first_borrow_arg(args).map(|arg| self.borrow_type_arg_message(arg, self.class_name(*def)))
+    }
+
+    /// The first class or enum anywhere in `id` that takes a borrow as a type argument.
+    pub fn borrow_type_arg_in(&self, id: TyId) -> Option<String> {
+        let data = self.data(id);
+        self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.borrow_type_arg_in(child)))
+    }
+
     /// RFC 0003 section 2: a type argument is never a borrow.
     pub fn borrow_type_arg_message(&self, arg: TyId, owner: &str) -> String {
         format!("`{}` cannot be a type argument of `{owner}`: a borrow cannot be stored in a generic type", self.display(arg))
@@ -296,14 +308,7 @@ impl TyCtx {
             TyData::Vec(elem) if !self.is_unknown(*elem) && !self.is_array_elem_supported(*elem) => {
                 Some(self.vec_elem_message(*elem))
             }
-            data => {
-                if let TyData::Class(def, args) | TyData::Enum(def, args) = data {
-                    if let Some(arg) = self.first_borrow_arg(args) {
-                        return Some(self.borrow_type_arg_message(arg, self.class_name(*def)));
-                    }
-                }
-                data.children().into_iter().find_map(|child| self.ill_formed(child))
-            }
+            data => self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.ill_formed(child))),
         }
     }
 

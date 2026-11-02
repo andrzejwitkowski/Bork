@@ -224,3 +224,10 @@ fn enum_variant_borrow_type_argument_is_rejected() {
     let m = messages(&format!("{PRELUDE}enum E<T> {{\n    A(v: T)\n}}\nfun main() {{\n    val p = P(1)\n    val e = E.A(&p)\n}}\n"));
     assert!(m.iter().any(|d| d.contains("cannot be a type argument of `E`")), "{m:?}");
 }
+
+#[test]
+fn a_projection_that_resolves_to_a_borrow_is_a_rejected_type_argument() {
+    let src = "trait Tr {\n    type Item\n}\nclass P {\n    x: i32\n}\nclass Holder<T> {\n    v: T\n}\nclass W {\n    n: i32\n}\nimpl Tr for W {\n    type Item = &P\n}\nfun f(h: Holder<W::Item>) {\n}\nfun main() {\n}\n";
+    let m = messages(src);
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `Holder`")), "{m:?}");
+}

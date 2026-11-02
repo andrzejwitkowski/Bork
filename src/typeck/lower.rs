@@ -1,7 +1,7 @@
 //! AST type → interned `TyId` lowering.
 
 use crate::ast::Type;
-use crate::defs::DefTable;
+use crate::defs::{DefId, DefTable};
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::Prim;
 use crate::span::Span;
@@ -138,33 +138,47 @@ impl LowerCx<'_> {
 
     /// A class or enum name applied to the lowered type arguments `args`.
     fn lower_class(&mut self, name: &str, args: Vec<TyId>, nullable: bool) -> TyId {
-        let enum_def = self.defs.lookup_enum(name).filter(|_| self.defs.lookup_class(name).is_none());
-        let Some(class) = self.defs.lookup_class(name).or(enum_def) else {
-            self.error(format!("unknown named type `{name}`"));
-            return self.tcx.error();
-        };
-        let arity = self.defs.get(class).arity;
-        let given = args.len();
-        if given != arity {
-            let message = match arity {
-                0 => format!("`{name}` takes no type arguments"),
-                1 => format!("`{name}` expects 1 type argument, got {given}"),
-                _ => format!("`{name}` expects {arity} type arguments, got {given}"),
-            };
-            self.error(message);
+        let Some((class, is_enum)) = self.resolve_class(name) else { return self.tcx.error() };
+        if !self.check_arity(name, self.defs.get(class).arity, args.len()) || !self.check_type_args(name, &args) {
             return self.tcx.error();
         }
-        // An argument that already has a diagnostic must not leave a `Class(_, [Error])` behind.
-        if args.iter().any(|&arg| self.tcx.is_error(arg)) {
-            return self.tcx.error();
-        }
-        if let Some(arg) = self.tcx.first_borrow_arg(&args) {
-            let message = self.tcx.borrow_type_arg_message(arg, name);
-            self.error(message);
-            return self.tcx.error();
-        }
-        let ty = if enum_def.is_some() { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
+        let ty = if is_enum { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
         self.nullable_if(ty, nullable)
+    }
+
+    /// The definition `name` refers to and whether it is an enum; reports an unknown name.
+    fn resolve_class(&mut self, name: &str) -> Option<(DefId, bool)> {
+        let enum_def = self.defs.lookup_enum(name).filter(|_| self.defs.lookup_class(name).is_none());
+        let found = self.defs.lookup_class(name).or(enum_def).map(|class| (class, enum_def.is_some()));
+        if found.is_none() {
+            self.error(format!("unknown named type `{name}`"));
+        }
+        found
+    }
+
+    fn check_arity(&mut self, name: &str, arity: usize, given: usize) -> bool {
+        if given == arity {
+            return true;
+        }
+        let message = match arity {
+            0 => format!("`{name}` takes no type arguments"),
+            1 => format!("`{name}` expects 1 type argument, got {given}"),
+            _ => format!("`{name}` expects {arity} type arguments, got {given}"),
+        };
+        self.error(message);
+        false
+    }
+
+    /// An argument that already has a diagnostic must not leave a `Class(_, [Error])` behind, and
+    /// no argument may store a borrow (RFC 0003 section 2).
+    fn check_type_args(&mut self, name: &str, args: &[TyId]) -> bool {
+        if args.iter().any(|&arg| self.tcx.is_error(arg)) {
+            return false;
+        }
+        let Some(arg) = self.tcx.first_borrow_arg(args) else { return true };
+        let message = self.tcx.borrow_type_arg_message(arg, name);
+        self.error(message);
+        false
     }
 
     fn lower_ref(&mut self, inner: &Type, nullable: bool) -> TyId {
