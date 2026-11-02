@@ -129,7 +129,7 @@ fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
         HirExprKind::Some(inner)
         | HirExprKind::RefCreate(inner)
         | HirExprKind::Unary {
-            op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow,
+            op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow { .. },
             expr: inner,
         } => gate_expr(tcx, inner, diagnostics),
         HirExprKind::EnumConstruct { fields, .. } => {

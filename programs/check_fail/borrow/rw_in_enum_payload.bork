@@ -1,0 +1,8 @@
+// diag: borrowed references cannot be stored in enum payloads
+class P {
+    x: i32
+}
+enum E {
+    A(v: &rw P)
+}
+fun main() {}

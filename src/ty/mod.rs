@@ -44,7 +44,8 @@ pub enum TyData {
     Enum(DefId, Vec<TyId>),
     Array { elem: TyId, len: u32 },
     Func { params: Vec<TyId>, ret: TyId },
-    Ref(TyId),
+    /// `&T`, or `&rw T` (the editable borrow, RFC 0003) when the flag is set.
+    Ref(TyId, bool),
     ManagedRef(TyId),
     Vec(TyId),
     Range(TyId),

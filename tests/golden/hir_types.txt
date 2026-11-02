@@ -15,6 +15,8 @@ programs/build/borrow/reference_in_while.bork::bump(buf: &[i32; 2]) -> unit
 programs/build/borrow/reference_in_while.bork::main() -> i32
 programs/build/borrow/reference_index_read.bork::first(buf: &[i32; 3]) -> i32
 programs/build/borrow/reference_index_read.bork::main() -> i32
+programs/build/borrow/rw_param.bork::set(buf: &rw [i32; 3]) -> unit
+programs/build/borrow/rw_param.bork::main() -> i32
 programs/build/classes/call_arg.bork::take(p: Point) -> i32
 programs/build/classes/call_arg.bork::main() -> i32
 programs/build/classes/mutable_field.bork::main() -> i32

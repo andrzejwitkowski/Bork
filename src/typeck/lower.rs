@@ -55,7 +55,7 @@ impl LowerCx<'_> {
                 let func = self.tcx.func(params, ret);
                 self.nullable_if(func, *nullable)
             }
-            Type::Ref { inner, nullable } => self.lower_ref(inner, *nullable),
+            Type::Ref { inner, rw, nullable } => self.lower_ref(inner, *rw, *nullable),
             Type::Assoc { base, name } => {
                 let base = self.lower(base);
                 if self.defs.assoc_type_declared(name) {
@@ -181,7 +181,7 @@ impl LowerCx<'_> {
         false
     }
 
-    fn lower_ref(&mut self, inner: &Type, nullable: bool) -> TyId {
+    fn lower_ref(&mut self, inner: &Type, rw: bool, nullable: bool) -> TyId {
         if nullable {
             self.error("nullable reference types `&T?` are not supported");
         }
@@ -190,7 +190,7 @@ impl LowerCx<'_> {
             let message = format!("cannot borrow Copy type `{}`", self.tcx.display(inner_ty));
             self.error(message);
         }
-        self.tcx.ref_to(inner_ty)
+        self.tcx.ref_to_flag(inner_ty, rw)
     }
 }
 

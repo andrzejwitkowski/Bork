@@ -434,7 +434,7 @@ fn walk_unary(
     transfer: Option<&TransferSink>,
     record_borrow: bool,
 ) {
-    if *op == UnaryOp::Borrow {
+    if matches!(op, UnaryOp::Borrow { .. }) {
         if record_borrow {
             match inner {
                 Expr::Ident { name, span: name_span, .. } => {
@@ -696,7 +696,7 @@ fn apply_expr_move(
 fn is_view_init(az: &Analyzer, value: &Expr) -> bool {
     match value {
         Expr::Unary {
-            op: UnaryOp::Borrow,
+            op: UnaryOp::Borrow { .. },
             expr,
             ..
         } => matches!(expr.as_ref(), Expr::Ident { .. }),
@@ -875,8 +875,9 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
             len: *len,
             nullable,
         },
-        TyData::Ref(inner) => Type::Ref {
+        TyData::Ref(inner, rw) => Type::Ref {
             inner: Box::new(id_to_ast(tcx, *inner)?),
+            rw: *rw,
             nullable: false,
         },
         TyData::ManagedRef(inner) => Type::ManagedRef {

@@ -1,0 +1,7 @@
+// diag: `Vec` element must be
+class P {
+    x: i32
+}
+fun f(v: Vec<&rw P>) {
+}
+fun main() {}

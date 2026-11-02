@@ -96,7 +96,7 @@ pub fn analyze_with_members(
         }
     }
     for (index, i) in program.impls.iter().enumerate() {
-        let this = Type::Ref { inner: Box::new(i.self_ty.clone()), nullable: false };
+        let this = Type::Ref { inner: Box::new(i.self_ty.clone()), rw: false, nullable: false };
         let label = format!("{}@{index}", i.trait_name.name);
         for method in &i.methods {
             roots.push(analyze_function(&mut az, method, Some((&label, this.clone()))));
@@ -112,6 +112,7 @@ fn this_type(class: &str) -> Type {
                 args: Vec::new(),
             nullable: false,
         }),
+        rw: false,
         nullable: false,
     }
 }

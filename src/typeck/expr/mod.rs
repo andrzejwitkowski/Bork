@@ -89,10 +89,10 @@ pub(super) fn dispatch(
         Expr::Ident { name, span, id } => method::implicit_field(name, *span, *id, return_ty, env)
             .unwrap_or_else(|| check_ident(name, *span, *id, UseKind::Local, env)),
         Expr::Unary {
-            op: UnaryOp::Borrow,
+            op: UnaryOp::Borrow { rw },
             expr,
             span,
-        } => check_borrow_operand(expr, *span, expected, env),
+        } => check_borrow_operand(expr, *span, *rw, expected, env),
         Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
         // A local, constant or function of the same name wins over the prelude's `None` / `Some`.
@@ -190,13 +190,13 @@ fn check_float(value: f64, expected: Option<TyId>, env: &mut Env<'_>) -> Checked
 }
 
 /// `&name`; anything else after `&` is an error.
-fn check_borrow_operand(operand: &Expr, span: Span, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+fn check_borrow_operand(operand: &Expr, span: Span, rw: bool, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
     match operand {
         Expr::Ident { name, span: name_span, id } => {
-            borrow::check_borrow(name, *name_span, *id, span, expected, env)
+            borrow::check_borrow(name, *name_span, *id, span, rw, expected, env)
         }
         _ => {
-            env.error("`&` borrows a name", Some(span));
+            env.error(if rw { "`&rw` borrows a name" } else { "`&` borrows a name" }, Some(span));
             let unknown = env.tcx.error();
             env.expr_at(HirExprKind::None, unknown, span)
         }

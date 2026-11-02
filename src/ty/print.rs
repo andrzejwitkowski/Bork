@@ -53,7 +53,7 @@ impl fmt::Display for TyPrinter<'_> {
                 }
                 write!(f, ")->{}", show(*ret))
             }
-            TyData::Ref(t) => write!(f, "&{}", show(*t)),
+            TyData::Ref(t, rw) => write!(f, "&{}{}", if *rw { "rw " } else { "" }, show(*t)),
             TyData::ManagedRef(t) => write!(f, "Ref<{}>", show(*t)),
             TyData::Vec(t) => write!(f, "Vec<{}>", show(*t)),
             TyData::Range(t) => write!(f, "Range<{}>", show(*t)),

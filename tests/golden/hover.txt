@@ -8,6 +8,7 @@ programs/build/borrow/reborrow_in_for.bork: hits=19 hash=c278c21bcc276ce6
 programs/build/borrow/reborrow_in_if.bork: hits=25 hash=caa8ff143a008259
 programs/build/borrow/reference_in_while.bork: hits=12 hash=fdbd96471377b7ee
 programs/build/borrow/reference_index_read.bork: hits=8 hash=9f26bce4645d5d96
+programs/build/borrow/rw_param.bork: hits=9 hash=7d5d3f76b78b1218
 programs/build/classes/call_arg.bork: hits=3 hash=e78e04710ecea6e2
 programs/build/classes/mutable_field.bork: hits=5 hash=cd3878e5291db128
 programs/build/classes/nested_field.bork: hits=2 hash=35c04f12e683a17a
@@ -256,6 +257,14 @@ programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/assign_view_to_var.bork: hits=6 hash=956b21b38f209d1d
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=090d8c00b584074e
+programs/check_fail/borrow/rw_as_managed_ref_target.bork: hits=1 hash=2d77552a6fa27925
+programs/check_fail/borrow/rw_as_type_argument.bork: hits=1 hash=fc89457af01b9c92
+programs/check_fail/borrow/rw_bound_to_var.bork: hits=3 hash=e27b3c3d8209d5f0
+programs/check_fail/borrow/rw_in_class_field.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/borrow/rw_in_enum_payload.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/borrow/rw_in_vec.bork: hits=1 hash=a9d88c8ada073da1
+programs/check_fail/borrow/rw_returned.bork: hits=2 hash=648c4864e2bb9098
+programs/check_fail/borrow/shared_borrow_for_rw_param.bork: hits=5 hash=7416dfff071fce01
 programs/check_fail/borrow/var_binds_borrow.bork: hits=3 hash=7426602efc62f0ec
 programs/check_fail/borrow/var_binds_view.bork: hits=5 hash=1899c72d6e25d655
 programs/check_fail/classes/owned_layout_cycle.bork: hits=0 hash=cbf29ce484222325

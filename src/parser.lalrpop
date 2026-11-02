@@ -33,6 +33,7 @@ match {
     "impl" => "impl",
     "where" => "where",
     "type" => "type",
+    "rw" => "rw",
     "::" => "::",
 } else {
     _
@@ -364,6 +365,12 @@ Type: Type = {
     },
     "&" <inner:Type> => Type::Ref {
         inner: Box::new(inner),
+        rw: false,
+        nullable: false,
+    },
+    "&" "rw" <inner:Type> => Type::Ref {
+        inner: Box::new(inner),
+        rw: true,
         nullable: false,
     },
     "[" <elem:Type> ";" <len:ArrayTypeLen> "]" <q:"?"?> => Type::Array {
@@ -493,7 +500,7 @@ Stmt: Stmt = {
                     value,
                 }),
                 Expr::Unary {
-                    op: UnaryOp::Borrow,
+                    op: UnaryOp::Borrow { .. },
                     expr,
                     ..
                 } => match *expr {
@@ -587,7 +594,12 @@ ExprUnary: Expr = {
         span: Span::new(start, end),
     },
     <start:@L> "&" <inner:ExprUnary> <end:@R> => Expr::Unary {
-        op: UnaryOp::Borrow,
+        op: UnaryOp::Borrow { rw: false },
+        expr: Box::new(inner),
+        span: Span::new(start, end),
+    },
+    <start:@L> "&" "rw" <inner:ExprUnary> <end:@R> => Expr::Unary {
+        op: UnaryOp::Borrow { rw: true },
         expr: Box::new(inner),
         span: Span::new(start, end),
     },
