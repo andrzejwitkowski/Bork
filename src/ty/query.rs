@@ -265,6 +265,21 @@ impl TyCtx {
         )
     }
 
+    /// Whether a value of `id` stores a borrow. A function type's own parameters do not: a callback
+    /// that takes `&P` holds none.
+    fn stores_borrow(&self, id: TyId) -> bool {
+        match self.data(id) {
+            TyData::Ref(_) => true,
+            TyData::Func { .. } => false,
+            data => data.children().into_iter().any(|child| self.stores_borrow(child)),
+        }
+    }
+
+    /// The first of `args` that stores a borrow (RFC 0003 section 2). `args` must be fully resolved.
+    pub fn first_borrow_arg(&self, args: &[TyId]) -> Option<TyId> {
+        args.iter().copied().find(|&arg| self.stores_borrow(arg))
+    }
+
     /// RFC 0003 section 2: a type argument is never a borrow.
     pub fn borrow_type_arg_message(&self, arg: TyId, owner: &str) -> String {
         format!("`{}` cannot be a type argument of `{owner}`: a borrow cannot be stored in a generic type", self.display(arg))
@@ -283,7 +298,7 @@ impl TyCtx {
             }
             data => {
                 if let TyData::Class(def, args) | TyData::Enum(def, args) = data {
-                    if let Some(&arg) = args.iter().find(|&&arg| self.contains_borrow(arg)) {
+                    if let Some(arg) = self.first_borrow_arg(args) {
                         return Some(self.borrow_type_arg_message(arg, self.class_name(*def)));
                     }
                 }
@@ -421,6 +436,13 @@ mod tests {
         assert!(message.contains("cannot be a type argument of `Point`"), "{message}");
         let owned = c.class(def, vec![point]);
         assert_eq!(c.ill_formed(owned), None);
+        let callback = c.func(vec![borrow], point);
+        let with_callback = c.class(def, vec![callback]);
+        assert_eq!(c.ill_formed(with_callback), None);
+        let opt_point = c.nullable(point).unwrap();
+        let (option_def, _) = c.enum_args(opt_point).unwrap();
+        let option = c.enum_ty(option_def, vec![borrow]);
+        assert!(c.ill_formed(option).is_some_and(|m| m.contains("of `Option`")), "enum owner name");
     }
 
     #[test]

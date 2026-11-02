@@ -81,7 +81,7 @@ fn instantiate(
         return None;
     } else {
         let lowered: Vec<TyId> = type_args.iter().map(|ty| env.lower(ty, Some(span))).collect();
-        if let Some(&arg) = lowered.iter().find(|&&arg| env.tcx.contains_borrow(arg)) {
+        if let Some(arg) = env.tcx.first_borrow_arg(&lowered) {
             env.error(env.tcx.borrow_type_arg_message(arg, name), Some(span));
             return None;
         }

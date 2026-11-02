@@ -158,7 +158,7 @@ impl LowerCx<'_> {
         if args.iter().any(|&arg| self.tcx.is_error(arg)) {
             return self.tcx.error();
         }
-        if let Some(&arg) = args.iter().find(|&&arg| self.tcx.contains_borrow(arg)) {
+        if let Some(arg) = self.tcx.first_borrow_arg(&args) {
             let message = self.tcx.borrow_type_arg_message(arg, name);
             self.error(message);
             return self.tcx.error();

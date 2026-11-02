@@ -185,12 +185,38 @@ fn written_borrow_type_argument_is_rejected() {
     }
 }
 
+/// Asserts `body` reports the borrow rule exactly `times` for `owner`.
+fn rejects_times(body: &str, owner: &str, times: usize) {
+    let m = messages(&format!("{PRELUDE}enum E<T> {{\n    A(v: T)\n}}\n{body}"));
+    let want = format!("cannot be a type argument of `{owner}`");
+    assert_eq!(m.iter().filter(|d| d.contains(&want)).count(), times, "{owner}: {m:?}");
+}
+
+fn rejects(body: &str, owner: &str) {
+    rejects_times(body, owner, 1);
+}
+
 #[test]
 fn inferred_borrow_type_argument_is_rejected() {
-    let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val q = id(&p)\n}}\n"));
-    assert!(!m.is_empty(), "{m:?}");
-    let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val h = Holder(&p)\n}}\n"));
-    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `Holder`")), "constructor: {m:?}");
+    rejects("fun main() {\n    val p = P(1)\n    val q = id(&p)\n}\n", "id");
+    rejects("fun main() {\n    val p = P(1)\n    val h = Holder(&p)\n}\n", "Holder");
+}
+
+#[test]
+fn a_borrow_nested_in_an_inferred_type_argument_is_rejected() {
+    // `T = Option<?X>` with `?X` bound to `&P`: found only by resolving the whole type.
+    rejects("fun main() {\n    val p = P(1)\n    val h = Holder(Some(&p))\n}\n", "Holder");
+}
+
+#[test]
+fn a_callback_taking_a_borrow_is_not_a_stored_borrow() {
+    let m = messages(&format!("{PRELUDE}fun f(h: Holder<(&P) -> i32>) {{\n}}\nfun main() {{\n}}\n"));
+    assert!(!m.iter().any(|d| d.contains("cannot be a type argument")), "{m:?}");
+}
+
+#[test]
+fn an_annotated_borrow_type_argument_is_reported_at_the_annotation_and_the_constructor() {
+    rejects_times("fun main() {\n    val p = P(1)\n    val h: Holder<&P> = Holder(&p)\n}\n", "Holder", 2);
 }
 
 #[test]

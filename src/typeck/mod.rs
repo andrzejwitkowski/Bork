@@ -606,11 +606,17 @@ fn settle_body(env: &mut Env<'_>, mut body: crate::hir::HirBlock) -> crate::hir:
 }
 
 /// A type parameter instantiated at a call and fixed by nothing is an error, and is then poisoned
-/// so its dependents report nothing further.
+/// so its dependents report nothing further. One fixed to a borrow is an error too (RFC 0003
+/// section 2): this is the one place that sees inferred arguments of calls, constructors and
+/// variants once every variable is resolved.
 fn report_uninferred(env: &mut Env<'_>) {
     for pending in std::mem::take(&mut env.pending) {
         let ty = env.infcx.resolve_shallow(env.tcx, pending.var);
         if !matches!(env.tcx.data(ty), crate::ty::TyData::Infer(_)) {
+            let resolved = env.infcx.resolve(env.tcx, ty).unwrap_or(ty);
+            if let Some(arg) = env.tcx.first_borrow_arg(&[resolved]) {
+                env.error(env.tcx.borrow_type_arg_message(arg, &pending.callee), Some(pending.span));
+            }
             continue;
         }
         let PendingParam { span, callee, param, .. } = pending;

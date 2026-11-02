@@ -18,18 +18,6 @@ pub(super) fn instantiate_field(ty: TyId, type_args: &[TyId], owner: &str, span:
     })
 }
 
-/// RFC 0003 section 2: once the fields are checked, no type argument of the new value may be a
-/// borrow (`Holder(&p)` would otherwise fix `T = &P` by unification).
-// shortcut: only sees arguments resolved by now; one fixed by a later statement is caught by mono's `ill_formed`.
-fn reject_borrow_type_args(type_args: &[TyId], owner: &str, span: Span, env: &mut Env<'_>) {
-    for &arg in type_args {
-        let arg = env.settle(arg);
-        if env.tcx.contains_borrow(arg) {
-            env.error(env.tcx.borrow_type_arg_message(arg, owner), Some(span));
-        }
-    }
-}
-
 pub(super) fn check_construct(
     class: ClassInfo,
     span: Span,
@@ -84,7 +72,6 @@ pub(super) fn check_construct(
     for extra in args.iter().skip(class.fields.len()) {
         let _ = synthesize(extra, return_ty, env);
     }
-    reject_borrow_type_args(&type_args, &class.name, span, env);
 
     env.expr_at(
         HirExprKind::ObjectConstruct {
@@ -147,7 +134,6 @@ pub(super) fn check_variant(
         env.same(ty, expected);
     }
     let values = check_payload(&e, variant, info, &type_args, site, env);
-    reject_borrow_type_args(&type_args, &e.name, span, env);
     env.expr_at(
         HirExprKind::EnumConstruct { enum_name: e.name, variant: variant.to_string(), fields: values },
         ty,
