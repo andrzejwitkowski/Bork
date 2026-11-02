@@ -253,8 +253,11 @@ programs/check/traits/coherence_ok.bork: hits=0 hash=cbf29ce484222325
 programs/check/traits/dispatch_all.bork: hits=27 hash=2cf71ec12fa5cd9b
 programs/check/traits/generic_impl.bork: hits=3 hash=37568ab25063e631
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
+programs/check_fail/borrow/assign_view_to_var.bork: hits=6 hash=956b21b38f209d1d
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=090d8c00b584074e
+programs/check_fail/borrow/var_binds_borrow.bork: hits=3 hash=7426602efc62f0ec
+programs/check_fail/borrow/var_binds_view.bork: hits=5 hash=1899c72d6e25d655
 programs/check_fail/classes/owned_layout_cycle.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/classes/ref_dot.bork: hits=2 hash=0631e700de510247
 programs/check_fail/conditionals/assign_to_val.bork: hits=3 hash=28acaca210a801f8
@@ -337,7 +340,7 @@ programs/check_fail/managed_refs/chained_val_move_then_use.bork: hits=15 hash=8b
 programs/check_fail/managed_refs/chained_val_shadowed_move_then_use.bork: hits=27 hash=5a2753cda6e68688
 programs/check_fail/managed_refs/chained_wrong_type.bork: hits=4 hash=1420c440cb7996e9
 programs/check_fail/managed_refs/guard_borrow_field.bork: hits=80 hash=8a9f08e51cd11e04
-programs/check_fail/methods/assign_this.bork: hits=10 hash=9504af012c640d29
+programs/check_fail/methods/assign_this.bork: hits=15 hash=e8bd2ba87b42be9e
 programs/check_fail/methods/borrow_bare_field.bork: hits=8 hash=075c07f90490a6ca
 programs/check_fail/methods/duplicate_method.bork: hits=1 hash=aee1cbdbfa4f45b6
 programs/check_fail/methods/method_field_clash.bork: hits=1 hash=cfb6cc83c69ce327

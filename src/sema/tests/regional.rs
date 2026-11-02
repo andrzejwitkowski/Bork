@@ -553,20 +553,10 @@ fun main() {
 
 #[test]
 fn var_from_view_binding_is_rejected() {
-    let src = r#"
-fun main() {
-    var s: String = "hi"
-    {
-        val b = &s
-        var c = b
-    }
-}
-"#;
-    let (_, errs) = analyze(&parse(src).unwrap());
-    assert!(
-        errs.iter().any(|e| e.message.contains("borrow") || e.message.contains("var")),
-        "{errs:?}"
-    );
+    // The rule is typeck's (one site, RFC 0003 section 6); sema alone no longer reports it.
+    let src = "fun main() {\n    var s: String = \"hi\"\n    {\n        val b = &s\n        var c = b\n    }\n}\n";
+    let diagnostics = crate::frontend::check(src).diagnostics;
+    assert!(diagnostics.iter().any(|d| d.message.contains("to a reference type; use `val`")), "{diagnostics:?}");
 }
 
 #[test]

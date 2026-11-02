@@ -1,0 +1,7 @@
+// diag: assignment to `d` has type &[i32; 2], expected [i32; 2]
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    var d: [i32; 2] = [3, 4]
+    val b = &a
+    d = b
+}
