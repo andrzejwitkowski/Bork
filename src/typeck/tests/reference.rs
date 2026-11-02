@@ -164,3 +164,70 @@ fun main() {
         "{diags:?}"
     );
 }
+
+fn messages(src: &str) -> Vec<String> {
+    crate::frontend::check(src).diagnostics.into_iter().map(|d| d.message).collect()
+}
+
+const PRELUDE: &str = "class P {\n    x: i32\n}\nclass Holder<T> {\n    v: T\n}\nfun id<T>(x: T): T {\n    return x\n}\n";
+
+#[test]
+fn explicit_borrow_type_argument_is_rejected() {
+    let m = messages(&format!("{PRELUDE}fun main() {{\n    val p = P(1)\n    val q = id::<&P>(&p)\n}}\n"));
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `id`")), "{m:?}");
+}
+
+#[test]
+fn written_borrow_type_argument_is_rejected() {
+    for ty in ["Holder<&P>", "Option<&P>"] {
+        let m = messages(&format!("{PRELUDE}fun f(h: {ty}) {{\n}}\nfun main() {{\n}}\n"));
+        assert!(m.iter().any(|d| d.contains("cannot be a type argument")), "{ty}: {m:?}");
+    }
+}
+
+/// Asserts `body` reports the borrow rule exactly `times` for `owner`.
+fn rejects_times(body: &str, owner: &str, times: usize) {
+    let m = messages(&format!("{PRELUDE}enum E<T> {{\n    A(v: T)\n}}\n{body}"));
+    let want = format!("cannot be a type argument of `{owner}`");
+    assert_eq!(m.iter().filter(|d| d.contains(&want)).count(), times, "{owner}: {m:?}");
+}
+
+fn rejects(body: &str, owner: &str) {
+    rejects_times(body, owner, 1);
+}
+
+#[test]
+fn inferred_borrow_type_argument_is_rejected() {
+    rejects("fun main() {\n    val p = P(1)\n    val q = id(&p)\n}\n", "id");
+    rejects("fun main() {\n    val p = P(1)\n    val h = Holder(&p)\n}\n", "Holder");
+}
+
+#[test]
+fn a_borrow_nested_in_an_inferred_type_argument_is_rejected() {
+    // `T = Option<?X>` with `?X` bound to `&P`: found only by resolving the whole type.
+    rejects("fun main() {\n    val p = P(1)\n    val h = Holder(Some(&p))\n}\n", "Holder");
+}
+
+#[test]
+fn a_callback_taking_a_borrow_is_not_a_stored_borrow() {
+    let m = messages(&format!("{PRELUDE}fun f(h: Holder<(&P) -> i32>) {{\n}}\nfun main() {{\n}}\n"));
+    assert!(!m.iter().any(|d| d.contains("cannot be a type argument")), "{m:?}");
+}
+
+#[test]
+fn an_annotated_borrow_type_argument_is_reported_at_the_annotation_and_the_constructor() {
+    rejects_times("fun main() {\n    val p = P(1)\n    val h: Holder<&P> = Holder(&p)\n}\n", "Holder", 2);
+}
+
+#[test]
+fn enum_variant_borrow_type_argument_is_rejected() {
+    let m = messages(&format!("{PRELUDE}enum E<T> {{\n    A(v: T)\n}}\nfun main() {{\n    val p = P(1)\n    val e = E.A(&p)\n}}\n"));
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `E`")), "{m:?}");
+}
+
+#[test]
+fn a_projection_that_resolves_to_a_borrow_is_a_rejected_type_argument() {
+    let src = "trait Tr {\n    type Item\n}\nclass P {\n    x: i32\n}\nclass Holder<T> {\n    v: T\n}\nclass W {\n    n: i32\n}\nimpl Tr for W {\n    type Item = &P\n}\nfun f(h: Holder<W::Item>) {\n}\nfun main() {\n}\n";
+    let m = messages(src);
+    assert!(m.iter().any(|d| d.contains("cannot be a type argument of `Holder`")), "{m:?}");
+}

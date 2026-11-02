@@ -1,0 +1,11 @@
+// diag: `&P` cannot be a type argument of `id`
+class P {
+    n: i32
+}
+fun id<T>(x: T): T {
+    return x
+}
+fun main() {
+    val p = P(1)
+    val q = id::<&P>(&p)
+}

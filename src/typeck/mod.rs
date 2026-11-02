@@ -605,12 +605,22 @@ fn settle_body(env: &mut Env<'_>, mut body: crate::hir::HirBlock) -> crate::hir:
     body
 }
 
+/// RFC 0003 section 2: a type parameter fixed to a borrow. This is the one place that sees the
+/// inferred arguments of calls, constructors and variants once every variable is resolved.
+fn report_borrow_type_arg(env: &mut Env<'_>, fixed: TyId, pending: &PendingParam) {
+    let resolved = env.infcx.resolve(env.tcx, fixed).unwrap_or(fixed);
+    if let Some(arg) = env.tcx.first_borrow_arg(&[resolved]) {
+        env.error(env.tcx.borrow_type_arg_message(arg, &pending.callee), Some(pending.span));
+    }
+}
+
 /// A type parameter instantiated at a call and fixed by nothing is an error, and is then poisoned
 /// so its dependents report nothing further.
 fn report_uninferred(env: &mut Env<'_>) {
     for pending in std::mem::take(&mut env.pending) {
         let ty = env.infcx.resolve_shallow(env.tcx, pending.var);
         if !matches!(env.tcx.data(ty), crate::ty::TyData::Infer(_)) {
+            report_borrow_type_arg(env, ty, &pending);
             continue;
         }
         let PendingParam { span, callee, param, .. } = pending;

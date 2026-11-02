@@ -265,6 +265,38 @@ impl TyCtx {
         )
     }
 
+    /// Whether a value of `id` stores a borrow. A function type's own parameters do not: a callback
+    /// that takes `&P` holds none.
+    fn stores_borrow(&self, id: TyId) -> bool {
+        match self.data(id) {
+            TyData::Ref(_) => true,
+            TyData::Func { .. } => false,
+            data => data.children().into_iter().any(|child| self.stores_borrow(child)),
+        }
+    }
+
+    /// The first of `args` that stores a borrow (RFC 0003 section 2). `args` must be fully resolved.
+    pub fn first_borrow_arg(&self, args: &[TyId]) -> Option<TyId> {
+        args.iter().copied().find(|&arg| self.stores_borrow(arg))
+    }
+
+    /// The borrow-type-argument error for this node alone (not its children).
+    fn borrow_arg_at(&self, data: &TyData) -> Option<String> {
+        let (TyData::Class(def, args) | TyData::Enum(def, args)) = data else { return None };
+        self.first_borrow_arg(args).map(|arg| self.borrow_type_arg_message(arg, self.class_name(*def)))
+    }
+
+    /// The first class or enum anywhere in `id` that takes a borrow as a type argument.
+    pub fn borrow_type_arg_in(&self, id: TyId) -> Option<String> {
+        let data = self.data(id);
+        self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.borrow_type_arg_in(child)))
+    }
+
+    /// RFC 0003 section 2: a type argument is never a borrow.
+    pub fn borrow_type_arg_message(&self, arg: TyId, owner: &str) -> String {
+        format!("`{}` cannot be a type argument of `{owner}`: a borrow cannot be stored in a generic type", self.display(arg))
+    }
+
     /// The first rule a concrete type breaks, for instances of generic code: `lower_type` checks
     /// these on written types, but exempts a type parameter ("checked at instantiation"), so the
     /// instantiated type has to be checked again once the parameter is known.
@@ -276,7 +308,7 @@ impl TyCtx {
             TyData::Vec(elem) if !self.is_unknown(*elem) && !self.is_array_elem_supported(*elem) => {
                 Some(self.vec_elem_message(*elem))
             }
-            data => data.children().into_iter().find_map(|child| self.ill_formed(child)),
+            data => self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.ill_formed(child))),
         }
     }
 
@@ -396,6 +428,26 @@ mod tests {
         assert!(c.is_array_elem_supported(i) && c.is_array_elem_supported(managed));
         assert!(c.is_array_elem_supported(string) && !c.is_array_elem_supported(opt_string));
         assert!(c.supports_nullable(i) && !c.supports_nullable(ref_point) && !c.supports_nullable(vec_ty));
+    }
+
+    #[test]
+    fn ill_formed_rejects_a_borrow_type_argument() {
+        let mut c = ctx();
+        let point = named(&mut c, "Point");
+        let borrow = c.ref_to(point);
+        let (def, _) = c.class_args(point).unwrap();
+        let holder = c.class(def, vec![borrow]);
+        let message = c.ill_formed(holder).expect("a borrow argument is ill-formed");
+        assert!(message.contains("cannot be a type argument of `Point`"), "{message}");
+        let owned = c.class(def, vec![point]);
+        assert_eq!(c.ill_formed(owned), None);
+        let callback = c.func(vec![borrow], point);
+        let with_callback = c.class(def, vec![callback]);
+        assert_eq!(c.ill_formed(with_callback), None);
+        let opt_point = c.nullable(point).unwrap();
+        let (option_def, _) = c.enum_args(opt_point).unwrap();
+        let option = c.enum_ty(option_def, vec![borrow]);
+        assert!(c.ill_formed(option).is_some_and(|m| m.contains("of `Option`")), "enum owner name");
     }
 
     #[test]
