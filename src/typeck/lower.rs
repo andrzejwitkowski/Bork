@@ -167,7 +167,7 @@ impl LowerCx<'_> {
             self.error("nullable reference types `&T?` are not supported");
         }
         let inner_ty = self.lower(inner);
-        if !self.tcx.is_unknown(inner_ty) && self.tcx.is_copy(inner_ty) {
+        if !self.tcx.is_unknown(inner_ty) && self.tcx.is_trivially_copy(inner_ty) {
             let message = format!("cannot borrow Copy type `{}`", self.tcx.display(inner_ty));
             self.error(message);
         }

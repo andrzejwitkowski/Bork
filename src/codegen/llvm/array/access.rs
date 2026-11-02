@@ -29,7 +29,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
         let ptr = self.elem_ptr_at(base, idx, stride)?;
         let loaded = builder_load(self, llvm_elem, ptr)?;
-        if self.cx.tcx.is_managed_ref(elem_ty) {
+        if self.cx.tcx.is_handle_clone(elem_ty) {
             self.clone_ref(loaded)
         } else {
             Ok(loaded)

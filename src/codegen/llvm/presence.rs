@@ -179,7 +179,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let value = if self.cx.tcx.is_managed_ref(field_ty) || self.cx.tcx.is_array(field_ty) || self.cx.tcx.is_string(field_ty) {
             let sink = self.sink_arena();
             self.materialize_owned_value(loaded, field_ty, sink)?
-        } else if self.cx.tcx.is_copy(field_ty) {
+        } else if self.cx.tcx.is_trivially_copy(field_ty) {
             loaded
         } else {
             return Err(not_yet_supported(

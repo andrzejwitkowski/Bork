@@ -50,7 +50,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.builder.build_unconditional_branch(done)?;
             self.cx.position_at_end(done);
         }
-        if self.cx.tcx.is_managed_ref(elem_ty) {
+        if self.cx.tcx.is_handle_clone(elem_ty) {
             // One drop per vector: the buffer moves on growth, so slot addresses cannot be registered.
             let drop_fn = self
                 .cx

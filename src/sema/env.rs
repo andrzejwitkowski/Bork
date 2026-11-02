@@ -30,7 +30,7 @@ impl Ty {
         matches!(self, Ty::Known(t) if t.is_copy())
     }
 
-    pub(super) fn is_managed_ref(&self) -> bool {
+    pub(super) fn is_handle_clone(&self) -> bool {
         matches!(self, Ty::Known(Type::ManagedRef { .. }))
     }
 }

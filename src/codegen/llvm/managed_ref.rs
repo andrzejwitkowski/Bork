@@ -48,7 +48,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         field_ty: TyId,
         owner: PointerValue<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        if self.cx.tcx.is_managed_ref(field_ty) {
+        if self.cx.tcx.is_handle_clone(field_ty) {
             return self.rehome_ref(owner, value);
         }
         if self.cx.tcx.is_vec(field_ty) {
@@ -228,7 +228,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         source: Option<&'static str>,
         register_drop: bool,
     ) -> Result<(), Diagnostic> {
-        if self.cx.tcx.is_managed_ref(field_ty) {
+        if self.cx.tcx.is_handle_clone(field_ty) {
             self.cx.builder.build_store(slot, self.cx.ref_handle_type().const_zero())?;
             self.store_ref(slot, arena, value)?;
             if register_drop {
@@ -420,7 +420,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic_type(result_ty)
             .ok_or_else(|| not_yet_supported(&format!("field type `{}`", self.cx.tcx.display(result_ty)), span))?;
         let loaded = self.cx.builder.build_load(ty, slot, "field")?;
-        if self.cx.tcx.is_managed_ref(result_ty) {
+        if self.cx.tcx.is_handle_clone(result_ty) {
             return self.clone_ref(loaded);
         }
         Ok(loaded)

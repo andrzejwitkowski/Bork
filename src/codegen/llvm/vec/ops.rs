@@ -50,7 +50,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 Ok(None)
             }
             VecOp::Clear => {
-                if self.cx.tcx.is_managed_ref(elem_ty) {
+                if self.cx.tcx.is_handle_clone(elem_ty) {
                     let len = self.vec_load_word(header, LEN)?;
                     let buf = self.vec_load_ptr(header, BUF)?;
                     let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;

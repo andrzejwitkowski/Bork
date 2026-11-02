@@ -347,16 +347,16 @@ pub(super) fn check_ident(name: &str, span: Span, id: AstId, requested: UseKind,
     };
     let (binding_ty, binding_kind) = (binding.ty, binding.kind);
     let ty = env.settle(binding_ty);
-    let use_kind = if requested == UseKind::Move && env.tcx.is_managed_ref(ty) {
+    let use_kind = if requested == UseKind::Move && env.tcx.is_handle_clone(ty) {
         UseKind::RefMove
     } else if requested == UseKind::Move
         || requested == UseKind::Promote
         || requested == UseKind::Borrow
     {
         requested
-    } else if env.tcx.is_managed_ref(ty) {
+    } else if env.tcx.is_handle_clone(ty) {
         UseKind::RefCopy
-    } else if env.tcx.is_copy(ty) || env.is_literal_var(ty, VarKind::Int) || env.is_literal_var(ty, VarKind::Float) {
+    } else if env.tcx.is_trivially_copy(ty) || env.is_literal_var(ty, VarKind::Int) || env.is_literal_var(ty, VarKind::Float) {
         UseKind::Copy
     } else if binding_kind == BindingKind::Val {
         UseKind::Shared

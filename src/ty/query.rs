@@ -77,6 +77,11 @@ impl TyCtx {
         matches!(self.data(self.base(id)), TyData::Param(_))
     }
 
+    /// Type shape: `Ref<T>`, also through `T?`. Ownership questions ask `is_handle_clone`.
+    pub fn is_managed_ref(&self, id: TyId) -> bool {
+        matches!(self.data(self.base(id)), TyData::ManagedRef(_))
+    }
+
     pub fn is_unknown(&self, id: TyId) -> bool {
         self.is_error(id)
     }
@@ -90,10 +95,6 @@ impl TyCtx {
             TyData::Ref(inner) => Some(*inner),
             _ => None,
         }
-    }
-
-    pub fn is_managed_ref(&self, id: TyId) -> bool {
-        matches!(self.data(self.base(id)), TyData::ManagedRef(_))
     }
 
     pub fn managed_ref_inner(&self, id: TyId) -> Option<TyId> {
@@ -243,7 +244,7 @@ impl TyCtx {
     }
 
     pub fn is_array_elem_supported(&self, id: TyId) -> bool {
-        self.is_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
+        self.is_trivially_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
     }
 
     /// Whether `Ref<inner>` is a valid type (the parameter case is the caller's to exempt).
@@ -378,7 +379,7 @@ mod tests {
         let (ref_point, ref_string) = (c.ref_to(point), c.ref_to(string));
         let managed = c.managed_ref(point);
         assert!(c.is_string(opt_string) && !c.is_text(opt_string) && c.is_text(ref_string));
-        assert!(c.is_copy(i) && !c.is_copy(opt_i) && c.is_numeric(i) && !c.is_numeric(opt_i));
+        assert!(c.is_trivially_copy(i) && !c.is_trivially_copy(opt_i) && c.is_numeric(i) && !c.is_numeric(opt_i));
         assert!(c.is_integer(i) && !c.is_integer(c.prim_id(Prim::F64)));
         assert_eq!(c.record_name(opt_point), Some("Point"));
         assert_eq!(c.record_name(ref_point), Some("Point"));

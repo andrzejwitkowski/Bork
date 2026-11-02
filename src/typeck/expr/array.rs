@@ -134,7 +134,7 @@ pub(super) fn check_index(
     }
     let use_kind = if env.tcx.is_unknown(elem_ty) {
         UseKind::Local
-    } else if env.tcx.is_copy(elem_ty) {
+    } else if env.tcx.is_trivially_copy(elem_ty) {
         UseKind::Copy
     } else {
         UseKind::Shared

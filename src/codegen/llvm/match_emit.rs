@@ -146,7 +146,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             // shortcut: a bound `unit` payload declares no local, so reading it in the arm is not supported yet.
             HirPatKind::Bind { binding_ty, .. } if self.cx.tcx.deref_ty(*binding_ty) == self.cx.unit_ty() => Ok(()),
             HirPatKind::Bind { name, binding_ty } => {
-                let value = if self.cx.tcx.is_managed_ref(*binding_ty) { self.clone_ref(value)? } else { value };
+                let value = if self.cx.tcx.is_handle_clone(*binding_ty) { self.clone_ref(value)? } else { value };
                 self.declare_local(&name.name, *binding_ty, value, None)
             }
             HirPatKind::Variant { index, fields, .. } => {

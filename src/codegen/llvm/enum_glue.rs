@@ -11,7 +11,7 @@ impl<'ctx> Codegen<'ctx> {
     /// Drop glue for enum `e`: switches on the tag and releases the `Ref` payloads of that variant
     /// only, so a slot never releases a payload another variant wrote. ``None` without `Ref` payloads.
     pub(super) fn emit_enum_drop(&self, e: &HirEnum) -> Result<Option<FunctionValue<'ctx>>, String> {
-        let has_ref = |v: &crate::hir::HirVariant| v.fields.iter().any(|f| self.tcx.is_managed_ref(f.ty));
+        let has_ref = |v: &crate::hir::HirVariant| v.fields.iter().any(|f| self.tcx.is_handle_clone(f.ty));
         if !e.variants.iter().any(has_ref) {
             return Ok(None);
         }
@@ -42,7 +42,7 @@ impl<'ctx> Codegen<'ctx> {
                     ?;
                 builder.build_conditional_branch(hit, arm, after)?;
                 builder.position_at_end(arm);
-                for (field_index, _) in variant.fields.iter().enumerate().filter(|(_, f)| self.tcx.is_managed_ref(f.ty)) {
+                for (field_index, _) in variant.fields.iter().enumerate().filter(|(_, f)| self.tcx.is_handle_clone(f.ty)) {
                     let field_ptr = builder
                         .build_struct_gep(layout.variants[index], slot, field_index as u32 + 1, "payload")
                         ?;

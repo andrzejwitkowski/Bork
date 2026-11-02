@@ -688,7 +688,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 declaration: self.statement_span.unwrap_or(self.function.name_span),
             },
         );
-        if self.cx.tcx.is_managed_ref(ty) {
+        if self.cx.tcx.is_handle_clone(ty) {
             self.register_ref_drop(home_arena, ptr)?;
         }
         self.debug_local(name, ty, ptr, home_arena, argument)?;
