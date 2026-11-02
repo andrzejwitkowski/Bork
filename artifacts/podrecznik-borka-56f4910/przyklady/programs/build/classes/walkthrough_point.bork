@@ -1,0 +1,15 @@
+// exit: 8
+class Point {
+    name: String
+    x: i32
+    y: i32
+}
+
+fun sum(p: &Point): i32 {
+    return p.x + p.y
+}
+
+fun main(): i32 {
+    val p = Point("a", 3, 4)
+    return sum(&p) + p.name.length
+}

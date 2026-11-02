@@ -1,0 +1,30 @@
+{
+  "commit": "56f4910a24b689087fe2dee30247651b7b432268",
+  "branch": "main",
+  "prepared": "2026-11-02",
+  "pages": 119,
+  "chapters": 24,
+  "appendices": 2,
+  "figures": 46,
+  "bork_code_blocks": 25,
+  "all_code_blocks": 36,
+  "source_words": 21716,
+  "index_terms": 114,
+  "external_pdf_links": 121,
+  "internal_pdf_links": 352,
+  "distinct_source_paths": 83,
+  "included_programs": 29,
+  "pdf_sha256": "c5da3e9dad0b42be06c5c35dc7694e3562be5d276de6158176a2547881a72eac",
+  "pdf_bytes": 576913,
+  "corpus_test_command": "cargo test --offline --no-default-features --features codegen --test programs -- --nocapture",
+  "corpus_test_result": "3 passed; 0 failed; 25.04s",
+  "corpus_fixture_counts": {
+    "check": 50,
+    "check_fail": 128,
+    "build": 189,
+    "build_fail": 10
+  },
+  "environment": "LLVM 23; GCC used only as clang-named final linker; snapshot-built bork",
+  "verification_scope": "Corpus fixtures executed. Explanatory fragments and schematic IR are not independent runnable programs.",
+  "visual_review": "Rendered page samples, Polish glyphs, diagram placement, tables and navigation checked separately."
+}

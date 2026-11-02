@@ -1,0 +1,8 @@
+// diag: argument 1 to `takes_i64` has type u8, expected i64
+fun takes_u8(a: u8) {}
+fun takes_i64(a: i64) {}
+fun main() {
+    val x = 1
+    takes_u8(x)
+    takes_i64(x)
+}

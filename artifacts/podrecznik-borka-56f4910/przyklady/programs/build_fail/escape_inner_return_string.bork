@@ -1,0 +1,12 @@
+// diag: inner region
+fun mk(): String {
+    var s = "esc"
+    {
+        val x = move s
+        return x
+    }
+}
+
+fun main() {
+    println(mk())
+}

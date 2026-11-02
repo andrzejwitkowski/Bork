@@ -1,0 +1,12 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+m[label="Kolejka: main"];
+i[label="id<i32>"];s[label="id<String>"];p[label="id<Point>"];
+m->{i s p};again[label="Drugie id<i32>"];
+again->i[label="trafienie w mapie",style=dashed];
+k[label="Klucz:\nfunkcja + typy\nargumentów",shape=note];k->i[style=dashed];
+
+}

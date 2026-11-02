@@ -1,0 +1,17 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+
+a[label="Guard 1"];b[label="Guard 2"];c[label="Guard 3"];
+body[label="Ciało → wynik w sink"];
+cl1[label="Zwolnij guard 1"];
+cl2[label="Zwolnij guard 2 i 1"];
+els[label="else"];
+a->b[label="sukces"];b->c[label="sukces"];c->body[label="sukces"];
+a->els[label="brak"];b->cl1[label="brak"];c->cl2[label="brak"];
+cl1->els;cl2->els;
+
+{rank=same;a;b;c} {rank=same;cl1;cl2;els}
+}

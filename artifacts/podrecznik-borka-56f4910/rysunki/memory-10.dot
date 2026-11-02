@@ -1,0 +1,14 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+rankdir=LR;
+subgraph cluster_main {label="main: właściciel";color="#087e83";
+buf[shape=record,label="Bufor|1|2|3"];
+subgraph cluster_outer {label="outer: pożyczka p";color="#80b6b0";
+p[label="p: &[i32; 3]"];
+subgraph cluster_inner {label="inner";color="#cbdadb";q[label="buf: &[i32; 3]"];}}}
+p->buf[style=dashed];q->buf[style=dashed];
+
+}

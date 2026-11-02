@@ -1,0 +1,777 @@
+[
+  [
+    "1. Jak czytać kompilator Borka",
+    4,
+    "c-1"
+  ],
+  [
+    "Książka przypięta do kodu",
+    4,
+    "s-1-1"
+  ],
+  [
+    "Dwa sposoby korzystania",
+    4,
+    "s-1-2"
+  ],
+  [
+    "Kompilator jako ciąg zobowiązań",
+    5,
+    "s-1-3"
+  ],
+  [
+    "Język, implementacja i granica backendu",
+    6,
+    "s-1-4"
+  ],
+  [
+    "Jak oceniać decyzję projektową",
+    7,
+    "s-1-5"
+  ],
+  [
+    "2. Anatomia języka: składnia, wartości i sterowanie",
+    8,
+    "c-2"
+  ],
+  [
+    "Najpierw program, potem jego reprezentacja",
+    8,
+    "s-2-1"
+  ],
+  [
+    "Wiązanie nie jest obiektem",
+    9,
+    "s-2-2"
+  ],
+  [
+    "Wyrażenia i przepływ sterowania",
+    10,
+    "s-2-3"
+  ],
+  [
+    "Pułapka i ćwiczenie",
+    11,
+    "s-2-4"
+  ],
+  [
+    "3. Od tekstu do AST: lexer, LALRPOP i tożsamość węzłów",
+    12,
+    "c-3"
+  ],
+  [
+    "Parser jest pierwszą umową między fazami",
+    12,
+    "s-3-1"
+  ],
+  [
+    "Nowa linia zależy od otoczenia",
+    12,
+    "s-3-2"
+  ],
+  [
+    "Priorytety zapisane jako warstwy gramatyki",
+    13,
+    "s-3-3"
+  ],
+  [
+    "Pozycja i tożsamość to różne informacje",
+    14,
+    "s-3-4"
+  ],
+  [
+    "Pułapka i ćwiczenie",
+    15,
+    "s-3-5"
+  ],
+  [
+    "4. Nazwy, DefId i HIR: od napisu do znaczenia",
+    16,
+    "c-4"
+  ],
+  [
+    "Wspólny napis nie oznacza wspólnej deklaracji",
+    16,
+    "s-4-1"
+  ],
+  [
+    "Konkretne rozstrzygnięcie: pole w metodzie",
+    16,
+    "s-4-2"
+  ],
+  [
+    "HIR utrwala rozstrzygnięcia semantyczne",
+    18,
+    "s-4-3"
+  ],
+  [
+    "Orkiestracja i granice reprezentacji",
+    19,
+    "s-4-4"
+  ],
+  [
+    "5. System typów i inferencja: rzeczywisty solver Borka",
+    20,
+    "c-5"
+  ],
+  [
+    "Typ jako zainternowana struktura",
+    20,
+    "s-5-1"
+  ],
+  [
+    "Informacja płynie w obu kierunkach",
+    20,
+    "s-5-2"
+  ],
+  [
+    "Unifikacja, ograniczenia i transakcje",
+    21,
+    "s-5-3"
+  ],
+  [
+    "Sprzeczność jest błędem, nie przeciążeniem",
+    22,
+    "s-5-4"
+  ],
+  [
+    "6. Enum, Option, Result i wyczerpujące when",
+    24,
+    "c-6"
+  ],
+  [
+    "Suma wariantów jest zwykłym typem nominalnym",
+    24,
+    "s-6-1"
+  ],
+  [
+    "Option i Result nie są magicznymi klasami",
+    24,
+    "s-6-2"
+  ],
+  [
+    "Dopasowanie sprawdza strukturę i sposób dostępu",
+    25,
+    "s-6-3"
+  ],
+  [
+    "Pokrycie to analiza macierzy wzorców",
+    26,
+    "s-6-4"
+  ],
+  [
+    "7. Generyki i monomorfizacja: od Param do konkretnego programu",
+    28,
+    "c-7"
+  ],
+  [
+    "Parametr typu jest niewiedzą kontrolowaną",
+    28,
+    "s-7-1"
+  ],
+  [
+    "Jedna funkcja źródłowa, trzy instancje",
+    28,
+    "s-7-2"
+  ],
+  [
+    "Kolejka osiągalnych specjalizacji",
+    29,
+    "s-7-3"
+  ],
+  [
+    "Własność i plan pamięci muszą widzieć konkretne typy",
+    30,
+    "s-7-4"
+  ],
+  [
+    "8. Traity, bounds, coherence i wywołania statyczne",
+    32,
+    "c-8"
+  ],
+  [
+    "Kontrakt zachowania bez dziedziczenia",
+    32,
+    "s-8-1"
+  ],
+  [
+    "Przejście przez przykład z ograniczeniem",
+    32,
+    "s-8-2"
+  ],
+  [
+    "Solver zobowiązań pracuje do zatrzymania postępu",
+    33,
+    "s-8-3"
+  ],
+  [
+    "Coherence zapewnia jednoznaczność deklaracji",
+    34,
+    "s-8-4"
+  ],
+  [
+    "Rozstrzyganie metody ma osobne pułapki",
+    35,
+    "s-8-5"
+  ],
+  [
+    "9. Własność, pożyczki, move i analiza rozgałęzień",
+    37,
+    "c-9"
+  ],
+  [
+    "Własność jest informacją o użyciu",
+    37,
+    "s-9-1"
+  ],
+  [
+    "Dwa znaczenia słowa „referencja”",
+    38,
+    "s-9-2"
+  ],
+  [
+    "Co dokładnie robi move",
+    38,
+    "s-9-3"
+  ],
+  [
+    "Łączenie stanów po if",
+    39,
+    "s-9-4"
+  ],
+  [
+    "Pułapki i ćwiczenie",
+    41,
+    "s-9-5"
+  ],
+  [
+    "Miejsca w implementacji",
+    41,
+    "s-9-6"
+  ],
+  [
+    "10. Regiony, outlives, escape, hoist i plan pamięci",
+    42,
+    "c-10"
+  ],
+  [
+    "Dłuższe życie jest relacją",
+    42,
+    "s-10-1"
+  ],
+  [
+    "Arena odbiorcy jako parametr kontekstu",
+    42,
+    "s-10-2"
+  ],
+  [
+    "Escape sprawdza to, czego hoist nie rozwiązał",
+    43,
+    "s-10-3"
+  ],
+  [
+    "Planowanie obiektów dostępnych przez Ref",
+    44,
+    "s-10-4"
+  ],
+  [
+    "Granice i ćwiczenie",
+    45,
+    "s-10-5"
+  ],
+  [
+    "Miejsca w implementacji",
+    45,
+    "s-10-6"
+  ],
+  [
+    "11. Areny stronicowane i runtime alokacji",
+    47,
+    "c-11"
+  ],
+  [
+    "Dwie implementacje, jeden właściwy punkt odniesienia",
+    47,
+    "s-11-1"
+  ],
+  [
+    "Strony, wyrównanie i klasy rozmiaru",
+    47,
+    "s-11-2"
+  ],
+  [
+    "Ślad przydziału i zwrotu",
+    48,
+    "s-11-3"
+  ],
+  [
+    "Wzrost nie gwarantuje stałego adresu",
+    49,
+    "s-11-4"
+  ],
+  [
+    "Reset, pula i generacje",
+    50,
+    "s-11-5"
+  ],
+  [
+    "Integracja i ćwiczenie",
+    50,
+    "s-11-6"
+  ],
+  [
+    "Miejsca w implementacji",
+    51,
+    "s-11-7"
+  ],
+  [
+    "12. Zarządzane Ref, guardy obecności i cykle",
+    52,
+    "c-12"
+  ],
+  [
+    "Ref nie jest pożyczką &T",
+    52,
+    "s-12-1"
+  ],
+  [
+    "Rodzaj zależy od właściciela uchwytu",
+    52,
+    "s-12-2"
+  ],
+  [
+    "Ślad: dziecko przeżywa rodzica",
+    53,
+    "s-12-3"
+  ],
+  [
+    "Guard obserwuje i przypina",
+    54,
+    "s-12-4"
+  ],
+  [
+    "Pętle, przeniesienia i granice",
+    55,
+    "s-12-5"
+  ],
+  [
+    "Miejsca w implementacji",
+    56,
+    "s-12-6"
+  ],
+  [
+    "13. String, bufory bajtowe, UTF-8, tablice i slice",
+    57,
+    "c-13"
+  ],
+  [
+    "Deskryptor nie jest buforem",
+    57,
+    "s-13-1"
+  ],
+  [
+    "Bajt tekstu to nie znak",
+    58,
+    "s-13-2"
+  ],
+  [
+    "Od bajtów do tekstu",
+    58,
+    "s-13-3"
+  ],
+  [
+    "Tablica i widok slice",
+    59,
+    "s-13-4"
+  ],
+  [
+    "Kopiowanie i ćwiczenie",
+    61,
+    "s-13-5"
+  ],
+  [
+    "Miejsca w implementacji",
+    61,
+    "s-13-6"
+  ],
+  [
+    "14. Vec: wzrost, elementy oraz relokacja i promocja",
+    62,
+    "c-14"
+  ],
+  [
+    "Nagłówek zarządza zmiennym buforem",
+    62,
+    "s-14-1"
+  ],
+  [
+    "Operacje i ich warunki",
+    62,
+    "s-14-2"
+  ],
+  [
+    "Dwa różne powody kopiowania",
+    63,
+    "s-14-3"
+  ],
+  [
+    "Elementy wymagają własnych reguł życia",
+    64,
+    "s-14-4"
+  ],
+  [
+    "Promocja może zmienić słabe odwołanie w silne",
+    64,
+    "s-14-5"
+  ],
+  [
+    "Koszt i ćwiczenie",
+    65,
+    "s-14-6"
+  ],
+  [
+    "Miejsca w implementacji",
+    66,
+    "s-14-7"
+  ],
+  [
+    "15. Bramka backendu, lowering i fizyczny kształt danych",
+    67,
+    "c-15"
+  ],
+  [
+    "Poprawny program i program wykonywalny",
+    67,
+    "s-15-1"
+  ],
+  [
+    "Co naprawdę trafia do LLVM",
+    68,
+    "s-15-2"
+  ],
+  [
+    "Typ logiczny a reprezentacja",
+    69,
+    "s-15-3"
+  ],
+  [
+    "Granice i kontrola zgodności",
+    70,
+    "s-15-4"
+  ],
+  [
+    "Ćwiczenie z odpowiedzią",
+    71,
+    "s-15-5"
+  ],
+  [
+    "16. LLVM IR: wartości SSA, bloki i konwencja wywołań",
+    72,
+    "c-16"
+  ],
+  [
+    "Graf zamiast kolejnych wierszy",
+    72,
+    "s-16-1"
+  ],
+  [
+    "Ślad wyrażenia warunkowego",
+    72,
+    "s-16-2"
+  ],
+  [
+    "Leniwe operatory są sterowaniem",
+    74,
+    "s-16-3"
+  ],
+  [
+    "ABI jako umowa obu stron wywołania",
+    75,
+    "s-16-4"
+  ],
+  [
+    "Ograniczenia i ćwiczenie",
+    76,
+    "s-16-5"
+  ],
+  [
+    "17. Cleanup regionów i Ref na wszystkich drogach wyjścia",
+    77,
+    "c-17"
+  ],
+  [
+    "Dwa stosy, których nie wolno pomylić",
+    77,
+    "s-17-1"
+  ],
+  [
+    "Powrót, przerwanie i kontynuowanie",
+    77,
+    "s-17-2"
+  ],
+  [
+    "Ślad warunkowej obserwacji",
+    78,
+    "s-17-3"
+  ],
+  [
+    "Uchwyt lokalny, wynik gałęzi i pole obiektu",
+    79,
+    "s-17-4"
+  ],
+  [
+    "Ograniczenia i ćwiczenie",
+    80,
+    "s-17-5"
+  ],
+  [
+    "18. Od modułu do pliku: obiekt, linker i profile wykonania",
+    81,
+    "c-18"
+  ],
+  [
+    "Trzy różne produkty kompilacji",
+    81,
+    "s-18-1"
+  ],
+  [
+    "Minimalny ślad przez CLI",
+    81,
+    "s-18-2"
+  ],
+  [
+    "Cel natywny i rzeczywiste optymalizacje",
+    82,
+    "s-18-3"
+  ],
+  [
+    "Archiwum runtime i linkowanie",
+    84,
+    "s-18-4"
+  ],
+  [
+    "Ograniczenia i ćwiczenie",
+    85,
+    "s-18-5"
+  ],
+  [
+    "19. Diagnostyka, dumpy i obserwowanie programu w debuggerze",
+    86,
+    "c-19"
+  ],
+  [
+    "Zachować pochodzenie informacji",
+    86,
+    "s-19-1"
+  ],
+  [
+    "Cztery obserwacje na różnych poziomach",
+    86,
+    "s-19-2"
+  ],
+  [
+    "Przykład: pole osiągalne przez Ref",
+    87,
+    "s-19-3"
+  ],
+  [
+    "DWARF i rejestr runtime",
+    89,
+    "s-19-4"
+  ],
+  [
+    "Ograniczenia i ćwiczenie",
+    90,
+    "s-19-5"
+  ],
+  [
+    "20. LSP, testy i bezpieczne rozszerzanie języka",
+    91,
+    "c-20"
+  ],
+  [
+    "Edytor korzysta z kompilatora",
+    91,
+    "s-20-1"
+  ],
+  [
+    "Rzeczywisty ślad aktualizacji dokumentu",
+    91,
+    "s-20-2"
+  ],
+  [
+    "Korpus jako zestaw kontraktów",
+    93,
+    "s-20-3"
+  ],
+  [
+    "Co naprawdę obejmuje CI",
+    93,
+    "s-20-4"
+  ],
+  [
+    "Jak dodać cechę bez rozsuwania faz",
+    94,
+    "s-20-5"
+  ],
+  [
+    "Ćwiczenie z odpowiedzią",
+    95,
+    "s-20-6"
+  ],
+  [
+    "21. Jeden program przez cały kompilator",
+    96,
+    "c-21"
+  ],
+  [
+    "Przykład, który łączy fazy",
+    96,
+    "s-21-1"
+  ],
+  [
+    "Tekst, struktura i znaczenie nazw",
+    96,
+    "s-21-2"
+  ],
+  [
+    "Typowanie krok po kroku",
+    97,
+    "s-21-3"
+  ],
+  [
+    "Własność i plan pamięci",
+    98,
+    "s-21-4"
+  ],
+  [
+    "Dane i instrukcje",
+    99,
+    "s-21-5"
+  ],
+  [
+    "Jak debugować ten przebieg",
+    100,
+    "s-21-6"
+  ],
+  [
+    "22. Laboratorium: przewiduj, uruchamiaj, wyjaśniaj",
+    101,
+    "c-22"
+  ],
+  [
+    "Metoda pracy z ćwiczeniem",
+    101,
+    "s-22-1"
+  ],
+  [
+    "Laboratorium A: inferencja jako przepływ informacji",
+    101,
+    "s-22-2"
+  ],
+  [
+    "Laboratorium B: własność po rozgałęzieniu",
+    102,
+    "s-22-3"
+  ],
+  [
+    "Laboratorium C: decyzja kompilatora a liczniki runtime'u",
+    102,
+    "s-22-4"
+  ],
+  [
+    "Laboratorium D: koszt wzrostu Vec",
+    103,
+    "s-22-5"
+  ],
+  [
+    "Laboratorium E: statyczne wywołanie traitu",
+    104,
+    "s-22-6"
+  ],
+  [
+    "Laboratorium F: check i build",
+    105,
+    "s-22-7"
+  ],
+  [
+    "23. Kompendium: gdzie szukać odpowiedzi",
+    106,
+    "c-23"
+  ],
+  [
+    "Trzy zapisy, trzy znaczenia",
+    106,
+    "s-23-1"
+  ],
+  [
+    "Szybka mapa składni",
+    107,
+    "s-23-2"
+  ],
+  [
+    "Komendy, które rzeczywiście istnieją",
+    107,
+    "s-23-3"
+  ],
+  [
+    "Diagnoza według pierwszego niespełnionego kontraktu",
+    109,
+    "s-23-4"
+  ],
+  [
+    "24. Słownik pojęć i mapa powiązań",
+    110,
+    "c-24"
+  ],
+  [
+    "Reprezentacje i identyfikacja",
+    110,
+    "s-24-1"
+  ],
+  [
+    "Typy i wybór operacji",
+    110,
+    "s-24-2"
+  ],
+  [
+    "Pamięć i czas życia",
+    111,
+    "s-24-3"
+  ],
+  [
+    "Kod natywny i narzędzia",
+    112,
+    "s-24-4"
+  ],
+  [
+    "Dodatek A. Źródła, wersja i weryfikacja",
+    114,
+    "c-25"
+  ],
+  [
+    "Dokładny punkt odniesienia",
+    114,
+    "s-25-1"
+  ],
+  [
+    "Co sprawdzono podczas przygotowania",
+    114,
+    "s-25-2"
+  ],
+  [
+    "Dokumentacja narzędzi do dalszej nauki",
+    115,
+    "s-25-3"
+  ],
+  [
+    "Jak odświeżyć książkę po zmianie main",
+    115,
+    "s-25-4"
+  ],
+  [
+    "Dodatek B. Indeks tematyczny",
+    116,
+    "c-26"
+  ]
+]

@@ -1,0 +1,40 @@
+// exit: 21
+// Six nodes are owned by block X and pushed (growing the buffer 4 -> 8) into a vector made in the
+// newer block Y, so every slot starts as a weak back-edge. `promote` rehomes the vector into the
+// older `saved`: each slot becomes strong and keeps its node alive after X ends. A stale weak kind
+// would let the nodes expire and the sum would be 0.
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var saved = Vec<Ref<Node>>()
+    {
+        val n1 = Node(1)
+        val n2 = Node(2)
+        val n3 = Node(3)
+        val n4 = Node(4)
+        val n5 = Node(5)
+        val n6 = Node(6)
+        {
+            var tmp = Vec<Ref<Node>>()
+            tmp.push(n1)
+            tmp.push(n2)
+            tmp.push(n3)
+            tmp.push(n4)
+            tmp.push(n5)
+            tmp.push(n6)
+            saved = promote tmp
+        }
+    }
+    var total = 0
+    var i = 0
+    while (i < saved.len()) {
+        val item = saved.get(i)
+        if val node = item {
+            total = total + node.id
+        }
+        i = i + 1
+    }
+    return total
+}

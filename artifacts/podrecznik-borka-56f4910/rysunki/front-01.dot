@@ -1,0 +1,13 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+
+a[label="class Point\nx: i32, y: i32"];b[label="Point(3, 4)"];
+p[label="p: Point\nx=3, y=4"];m[label="sum(this: &Point)\nx + y"];
+r[label="main: return 7",fillcolor="#d5ebe6"];
+a->b->p;p->m[style=dashed,label="borrow"];m->r[label="i32"];
+
+{rank=same;a;b;p} {rank=same;m;r}
+}

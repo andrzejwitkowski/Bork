@@ -1,0 +1,14 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+
+a[label="A\nwynik funkcji\nProgram",fillcolor="#d5ebe6"];
+b[label="B\nobiekt zagnieżdżony\nProgram",fillcolor="#d5ebe6"];
+c[label="C\nProgram po propagacji"];
+d[label="D\nProgram po kolejnym\nkroku"];
+a->b[label="posiada"];b->c[label="Ref"];c->d[label="Ref"];
+
+{rank=same;a;b} {rank=same;c;d}
+}

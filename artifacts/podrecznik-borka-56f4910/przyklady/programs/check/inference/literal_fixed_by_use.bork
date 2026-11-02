@@ -1,0 +1,9 @@
+fun takes_u8(a: u8) {}
+fun takes_f32(a: f32) {}
+fun main() {
+    val x = 1
+    takes_u8(x)
+    var f = 1.5
+    f = f + 2.0
+    takes_f32(f)
+}

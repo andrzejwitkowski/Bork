@@ -1,0 +1,15 @@
+class Node {
+    next: Ref<Node>
+}
+fun take(var n: Node): Ref<Node> {
+    return n.next
+}
+fun run(flag: bool): i32 {
+    var owner = Node()
+    if (flag) {
+        take(move owner)
+        return 0
+    }
+    owner.next
+    return 1
+}

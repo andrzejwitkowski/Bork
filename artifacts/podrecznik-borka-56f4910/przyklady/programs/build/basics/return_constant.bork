@@ -1,0 +1,4 @@
+// exit: 7
+fun main(): i32 {
+    return 7
+}

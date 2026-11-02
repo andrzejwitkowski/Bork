@@ -1,0 +1,15 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+
+s[label="saved\nstarsza arena"];
+c[label="C: child\npayload żywy",fillcolor="#d5ebe6"];
+p[label="P: parent\npayload wygasł\nkontrola pozostała",color="#b15f36"];
+s->c[label="Strong"];c->p[label="Weak",style=dashed];
+g1[label="guard saved: obecny"];g2[label="guard parent: None"];
+c->g1;p->g2;
+
+{rank=same;s;c;p} {rank=same;g1;g2}
+}

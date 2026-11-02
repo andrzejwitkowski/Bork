@@ -1,0 +1,10 @@
+// exit: 3
+fun main(): i32 {
+    var bytes: [u8; 3] = [71, 69, 84]
+    val method = stringFromUtf8(&bytes, 0, 3) ?: "none"
+    bytes[0] = 80
+    if (method == "GET") {
+        return 3
+    }
+    return 0
+}

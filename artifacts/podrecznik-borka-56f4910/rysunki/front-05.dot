@@ -1,0 +1,16 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+
+x[label="x w metodzie"];local[label="Lokalne zasięgi\ni parametry"];
+field[label="Pole klasy\nprzez this"];
+global[label="Nazwy globalne"];
+explicit[label="this.x"];idx[label="Indeks pola x"];
+x->local;local->field[label="brak trafienia"];field->global[label="brak trafienia"];
+local->stop[label="parametr x istnieje"];stop[label="Użyj parametru",fillcolor="#d5ebe6"];
+explicit->idx;
+
+
+}

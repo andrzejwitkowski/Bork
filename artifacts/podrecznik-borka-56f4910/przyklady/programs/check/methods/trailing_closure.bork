@@ -1,0 +1,12 @@
+class P {
+    x: i32
+
+    fun apply(k: i32, f: (i32) -> i32): i32 {
+        return f(k)
+    }
+}
+
+fun main(): i32 {
+    val p = P(1)
+    return p.apply(2) { v -> v + 1 }
+}

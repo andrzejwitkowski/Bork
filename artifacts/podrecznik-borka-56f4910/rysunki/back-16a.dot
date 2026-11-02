@@ -1,0 +1,12 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+c[label="flag == 1 ?",shape=diamond];
+t[label="then\n40"];f[label="else\n7"];
+m[label="merge\nφ [40, then], [7,\nelse]",fillcolor="#d5ebe6"];
+r[label="v + 2 → return"];
+c->t[label="tak"];c->f[label="nie"];t->m[label="then"];f->m[label="else"];m->r;
+
+}

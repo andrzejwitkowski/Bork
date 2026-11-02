@@ -1,0 +1,11 @@
+// exit: 3
+fun main(): i32 {
+    var i: i32 = 0
+    while (i < 10) {
+        if (i == 3) {
+            break
+        }
+        i = i + 1
+    }
+    return i
+}

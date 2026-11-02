@@ -1,0 +1,9 @@
+// stdout: inner\n
+fun main() {
+    var outer = "x"
+    {
+        var inner = "inner"
+        outer = move inner
+    }
+    println(outer)
+}

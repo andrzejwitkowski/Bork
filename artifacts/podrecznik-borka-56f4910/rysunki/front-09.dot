@@ -1,0 +1,13 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+o[label="Option<Option<i32>>"];
+n[label="None"];s[label="Some(wewnętrzna opcja)"];
+sn[label="Some(None)"];ss[label="Some(Some(liczba))"];
+o->{n s};s->{sn ss};
+r[label="Ref<Node>\nNone lub obecny cel",color="#b15f36"];
+{rank=same;o;r}
+
+}

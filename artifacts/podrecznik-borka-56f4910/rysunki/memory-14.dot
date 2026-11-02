@@ -1,0 +1,17 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+
+a[label="Alive\nControl id=41"];
+b[label="Destroying\nwykonaj dropy"];
+c[label="Dead\nControl id=41\nbez payloadu",color="#b15f36"];
+a->b->c;
+w[label="Słaby uchwyt\ndo id=41"];w->c[style=dashed];
+p[label="Strony: recykling"];
+n[label="Nowa arena\nid=42",fillcolor="#d5ebe6"];
+b->p->n;c->end[label="ostatni weak znika"];end[label="Zwolnienie kontroli"];
+
+{rank=same;a;b;c} {rank=same;w;p;n}
+}

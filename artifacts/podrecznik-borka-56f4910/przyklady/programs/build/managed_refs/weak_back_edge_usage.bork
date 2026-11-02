@@ -1,0 +1,28 @@
+// exit: 1
+class Node {
+    id: i32
+    parent: Ref<Node>
+    child: Ref<Node>
+}
+
+fun read_parent(child: Ref<Node>): i32 {
+    if val live_child = child {
+        if val parent = live_child.parent {
+            // The weak back-edge is live while parent still has a strong owner.
+            return parent.id
+        }
+    }
+    // An expired weak edge is observed as None.
+    return 0
+}
+
+fun main(): i32 {
+    val parent = Node(1, None, None)
+    val child = Node(2, parent, None)
+
+    parent.child = child
+    // parent -> child: STRONG; child -> parent: WEAK back-edge.
+    val child_ref: Ref<Node> = child
+    // Passing the handle as a parameter does not change its RefKind.
+    return read_parent(child_ref)
+}

@@ -1,0 +1,14 @@
+// exit: 7
+class Point {
+    x: i32
+    y: i32
+
+    fun sum(): i32 {
+        return x + y
+    }
+}
+
+fun main(): i32 {
+    val p = Point(3, 4)
+    return p.sum()
+}

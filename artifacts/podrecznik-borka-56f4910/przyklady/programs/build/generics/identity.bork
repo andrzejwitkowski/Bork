@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: 7\nhello\n3\n
+// `id<T>` is instantiated per argument type: `id<i32>`, `id<String>` and `id<Point>`.
+class Point {
+    x: i32
+    y: i32
+}
+
+fun id<T>(x: T): T {
+    return x
+}
+
+fun main(): i32 {
+    val n = id(7)
+    val s = id("hello")
+    val p = Point(1, 2)
+    val q = id(p)
+    println(n)
+    println(s)
+    println(q.x + q.y)
+    return 0
+}

@@ -1,0 +1,14 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+subgraph cluster_before {label="Przed promocją";color="#cbdadb";
+t[label="tmp: Vec<Ref>\narena id=30"];
+n1[label="N1\nid=20"];n2[label="N2\nid=21"];
+t->n1[label="Weak",style=dashed];t->n2[label="Weak",style=dashed];}
+s[label="saved: kopia Vec\narena id=10",fillcolor="#d5ebe6"];
+t->s[label="promote",color="#b15f36"];
+s->n1[label="Strong"];s->n2[label="Strong"];
+
+}

@@ -1,0 +1,13 @@
+digraph G {
+graph [rankdir=TB, bgcolor="transparent", pad="0.12", nodesep="0.25", ranksep="0.35", fontname="DejaVu Sans", fontsize=11];
+node [shape=box, style="rounded,filled", fillcolor="#edf4f4", color="#087e83", penwidth=1.1, fontname="DejaVu Sans", fontsize=11, margin="0.15,0.10"];
+edge [color="#46636d", penwidth=1.1, arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+
+rankdir=LR;
+c[label="Wywołujący"];
+f[label="Zwykła funkcja\n(parent, argumenty)"];
+g[label="Zwraca String\n(parent, sink,\nargumenty)"];
+sink[label="Arena wyniku\nbajty String",fillcolor="#d5ebe6"];
+c->f[label="parent"];c->g[label="parent + sink"];g->sink[label="alokuj wynik"];
+
+}
