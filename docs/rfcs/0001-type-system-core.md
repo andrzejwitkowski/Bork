@@ -50,7 +50,7 @@ class hierarchy. Dynamic dispatch, if ever wanted, arrives as trait objects (#69
 Changing this requires a new RFC (see #69).
 
 **Rationale.** Without subtyping (section 1) variance has nothing to act on except lifetimes/regions,
-which are deferred to the region RFC (#61). Invariance is the only choice that is sound without
+which are decided in [RFC 0003](0003-borrows-regions-generics.md) (#61). Invariance is the only choice that is sound without
 that machinery.
 
 **Rejected.**

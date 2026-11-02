@@ -136,7 +136,7 @@ Each invariant has a number and, where it can be checked, a check site. Tests an
 | INV-1 | After typeck succeeds, HIR contains no `Unknown` or inference type. **Target**, owned by #33 and #41. | typeck -> sema | Builtin callee idents now carry a function type (`check_builtin_call`, #85). |
 | INV-2 | Every HIR expression has a `UseKind` consistent with its type's capabilities (`Copy` implies copyable). Holds after typeck and again after mono. | typeck -> sema; mono -> codegen | Unchecked. |
 | INV-2b | Post-mono passes (escape sink check, memory plan, stamp, codegen) emit no user diagnostics; failure is an ICE. The gate is the exception. | mono -> codegen | `memory::plan` returns diagnostics (`memory.rs:60-68`). |
-| INV-3 | A `&T` never appears in a class field, a return type, or a `var` binding, until region parameters exist (#61). | typeck, sema | Enforced in three places (see section 3). |
+| INV-3 | A `&T` never appears in a class field, a return type, or a `var` binding, until region parameters exist; the v1 list is [RFC 0003](0003-borrows-regions-generics.md) section 6 (#61). | typeck, sema | Enforced in three places (see section 3). |
 | INV-4 | No `T??` (RFC 0001 section 3). | type lowering | Unrepresentable today. |
 | INV-5 | HIR function and method order matches the sema roots. | typeck -> sema | Count and order are checked in `region_walk::check_roots`; a mismatch is an ICE (#75). |
 | INV-6 | Every sema region node matches exactly one HIR region site. Failure is an ICE. | sema -> region_walk | `stamp_codegen_push` and `memory::plan` both report via `WalkError::ice_diagnostic` (#75). |
