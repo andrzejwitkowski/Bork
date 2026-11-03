@@ -118,7 +118,7 @@ mod tests {
     fn an_editable_borrow_is_a_borrow_with_its_own_type() {
         let mut c = ctx();
         let point = named(&mut c, "Point");
-        let (shared, editable) = (c.ref_to(point), c.ref_to_rw(point));
+        let (shared, editable) = (c.ref_to(point), c.ref_to_flag(point, true));
         assert!(c.is_ref(editable) && c.is_rw_ref(editable) && !c.is_rw_ref(shared));
         assert_eq!(c.ref_inner(editable), Some(point));
         assert!(c.contains_borrow(editable) && c.first_borrow_arg(&[editable]) == Some(editable));

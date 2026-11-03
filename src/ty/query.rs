@@ -372,11 +372,6 @@ impl TyCtx {
         self.ref_to_flag(inner, false)
     }
 
-    /// `&rw T`, the editable borrow (RFC 0003 section 5).
-    pub fn ref_to_rw(&mut self, inner: TyId) -> TyId {
-        self.ref_to_flag(inner, true)
-    }
-
     pub fn ref_to_flag(&mut self, inner: TyId, rw: bool) -> TyId {
         self.add(TyData::Ref(inner, rw))
     }

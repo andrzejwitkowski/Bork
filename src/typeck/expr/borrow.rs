@@ -25,10 +25,12 @@ pub(super) fn check_borrow(
         env.tcx.ref_to_flag(inner.ty, rw)
     };
     if let Some(expected) = expected {
+        // `&T` and `&rw T` are different types, so the target only matches in the same form.
+        let same_form = env.tcx.is_rw_ref(expected) == env.tcx.is_rw_ref(ref_ty);
         let target = env.tcx.ref_inner(expected);
         if !env.tcx.is_unknown(expected)
             && !env.same(expected, ref_ty)
-            && !target.is_some_and(|target| env.same(target, inner.ty) && env.tcx.is_rw_ref(expected) == env.tcx.is_rw_ref(ref_ty))
+            && !target.is_some_and(|target| same_form && env.same(target, inner.ty))
         {
             env.error(
                 format!("borrow has type {}, expected {}", env.show(ref_ty), env.show(expected)),
