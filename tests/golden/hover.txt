@@ -70,6 +70,7 @@ programs/build/enums/variants.bork: hits=14 hash=dfb3ad7d0aed6521
 programs/build/enums/when_result_inferred.bork: hits=10 hash=b697a9394be7a57d
 programs/build/enums/when_returns_in_every_arm.bork: hits=39 hash=36e25f6ee1ce0f9d
 programs/build/generics/borrow_infers_enum_arg.bork: hits=5 hash=e23c4866f14b801e
+programs/build/generics/glue_no_leak.bork: hits=190 hash=61930cb960d7f918
 programs/build/generics/identity.bork: hits=35 hash=0e2b0c1547885102
 programs/build/generics/list_node.bork: hits=183 hash=84200d48feaacbec
 programs/build/generics/pair.bork: hits=73 hash=06514e8abdb60be3

@@ -290,6 +290,16 @@ programs/build/enums/when_returns_in_every_arm.bork: 596..599 E Lexical LexicalS
 programs/build/enums/when_returns_in_every_arm.bork: 612..615 E Lexical LexicalScope(11)
 programs/build/enums/when_returns_in_every_arm.bork: 628..631 F Lexical LexicalScope(11)
 programs/build/generics/borrow_infers_enum_arg.bork: 123..126 E Lexical LexicalScope(2)
+programs/build/generics/glue_no_leak.bork: 846..850 Node Dynamic Program
+programs/build/generics/glue_no_leak.bork: 976..980 Pair Lexical LexicalScope(1)
+programs/build/generics/glue_no_leak.bork: 1268..1273 Outer Lexical LexicalScope(4)
+programs/build/generics/glue_no_leak.bork: 1274..1280 Holder Lexical LexicalScope(4)
+programs/build/generics/glue_no_leak.bork: 1590..1602 Wrapped Lexical LexicalScope(7)
+programs/build/generics/glue_no_leak.bork: 1603..1609 Holder Lexical LexicalScope(7)
+programs/build/generics/glue_no_leak.bork: 1639..1652 Wrapped Lexical LexicalScope(7)
+programs/build/generics/glue_no_leak.bork: 1798..1802 Link Dynamic LexicalScope(9)
+programs/build/generics/glue_no_leak.bork: 1831..1835 Link Lexical LexicalScope(9)
+programs/build/generics/glue_no_leak.bork: 1861..1865 Pair Lexical LexicalScope(9)
 programs/build/generics/identity.bork: 271..276 Point Dynamic Program
 programs/build/generics/list_node.bork: 431..435 Node Dynamic Program
 programs/build/generics/list_node.bork: 460..464 Node Dynamic Program

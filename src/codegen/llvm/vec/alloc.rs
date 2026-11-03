@@ -50,16 +50,10 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.builder.build_unconditional_branch(done)?;
             self.cx.position_at_end(done);
         }
-        if self.cx.tcx.is_handle_clone(elem_ty) {
-            // One drop per vector: the buffer moves on growth, so slot addresses cannot be registered.
-            let drop_fn = self
-                .cx
-                .vec_drop_refs_fn()
-                .as_global_value()
-                .as_pointer_value();
+        if let Some(drop_fn) = self.cx.vec_drop_glue(elem_ty) {
             self.cx.builder.build_call(
                 self.cx.arena_register_drop_fn(),
-                &[arena.into(), header.into(), drop_fn.into()],
+                &[arena.into(), header.into(), drop_fn.as_global_value().as_pointer_value().into()],
                 "",
             )?;
         }

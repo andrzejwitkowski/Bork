@@ -7,8 +7,8 @@ mod call_abi;
 mod context;
 mod debug;
 mod emit_fn;
-mod enum_glue;
 mod expr;
+mod glue;
 mod managed_ref;
 mod match_emit;
 mod nullable;
@@ -998,6 +998,39 @@ mod tests {
             block(&ir, "for.exit").contains("call void @bork_arena_pop(ptr %arena.gen)"),
             "loop exit drops the loop generation once:\n{ir}"
         );
+    }
+
+    #[test]
+    fn copy_only_instances_emit_no_drop_glue() {
+        let ir = ir_of(
+            "enum Shape { Dot(x: i32), Line(a: i32, b: i32) }\n\
+             class Pair<A, B> { a: A\n b: B }\n\
+             fun main() {\n\
+                 val s = Shape.Dot(1)\n\
+                 val p = Pair(1, 2)\n\
+                 var v = Vec<i32>()\n\
+                 v.push(3)\n\
+             }\n",
+        );
+        assert!(!ir.contains("bork.drop."), "{ir}");
+        assert!(!ir.contains("bork_arena_register_drop"), "{ir}");
+    }
+
+    #[test]
+    fn ref_payload_enum_and_ref_vec_get_exactly_one_glue_each() {
+        let ir = ir_of(
+            "class Node { id: i32 }\n\
+             enum Slot { Empty, Held(node: Ref<Node>) }\n\
+             fun main() {\n\
+                 val n = Node(1)\n\
+                 val r: Ref<Node> = n\n\
+                 val s = Slot.Held(r)\n\
+                 var v = Vec<Ref<Node>>()\n\
+                 v.push(r)\n\
+             }\n",
+        );
+        assert_eq!(ir.matches("define internal void @bork.drop.Slot(").count(), 1, "{ir}");
+        assert!(ir.contains("@bork_vec_drop_refs"), "{ir}");
     }
 
     #[test]

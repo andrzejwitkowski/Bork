@@ -7,6 +7,14 @@ class P
 == programs/build/generics/borrow_infers_enum_arg.bork
 fun main
 fun f<i32>
+== programs/build/generics/glue_no_leak.bork
+fun main
+class Node
+class Holder
+class Outer
+class Pair<Ref<Node>,Link<i32>>
+class Link<i32>
+class Pair<Ref<Node>,String>
 == programs/build/generics/identity.bork
 fun main
 fun id<i32>
