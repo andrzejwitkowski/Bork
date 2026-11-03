@@ -18,10 +18,19 @@ use super::super::env::{EnumInfo, Env};
 use super::super::exhaustive::{self, Ctor, Pat, Sig};
 use super::object::instantiate_field;
 
+/// How a pattern binds the payloads of its scrutinee: by value, or as borrows of it. A borrow of
+/// an `&rw` scrutinee is itself `&rw` (RFC 0003 section 5).
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum Binds {
+    Value,
+    Shared,
+    Rw,
+}
+
 pub(super) fn check_pat(
     pat: &Pattern,
     ty: TyId,
-    by_borrow: bool,
+    by_borrow: Binds,
     names: &mut HashSet<String>,
     env: &mut Env<'_>,
 ) -> HirPat {
@@ -53,12 +62,12 @@ pub(super) fn check_pat(
         }
         Pattern::Some { inner, .. } => {
             let (inner_ty, inner_borrow) = match env.tcx.managed_ref_inner(ty) {
-                Some(target) => (target, true),
+                Some(target) => (target, Binds::Shared),
                 None => {
                     if !env.tcx.is_unknown(ty) {
                         env.error(format!("`Some` pattern requires `Ref<T>` or an enum with a `Some` variant, got {}", env.show(ty)), Some(span));
                     }
-                    (env.tcx.error(), false)
+                    (env.tcx.error(), Binds::Value)
                 }
             };
             HirPatKind::Some(Box::new(check_pat(inner, inner_ty, inner_borrow, names, env)))
@@ -101,15 +110,15 @@ fn binds_by_value(ty: TyId, env: &Env<'_>) -> bool {
 fn bind(
     name: &crate::span::SpannedName,
     ty: TyId,
-    by_borrow: bool,
+    by_borrow: Binds,
     names: &mut HashSet<String>,
     env: &mut Env<'_>,
 ) -> HirPatKind {
     if !names.insert(name.name.clone()) {
         env.error(format!("duplicate pattern binding '{}'", name.name), Some(name.span));
     }
-    let borrowed = by_borrow && !binds_by_value(ty, env) && !env.tcx.is_handle_clone(ty) && !env.tcx.is_unknown(ty);
-    let binding_ty = if borrowed { env.tcx.ref_to(ty) } else { ty };
+    let borrowed = by_borrow != Binds::Value && !binds_by_value(ty, env) && !env.tcx.is_handle_clone(ty) && !env.tcx.is_unknown(ty);
+    let binding_ty = if borrowed { env.tcx.ref_to_flag(ty, by_borrow == Binds::Rw) } else { ty };
     env.node_tys.insert(name.id.numbered(), binding_ty);
     env.bind(name.name.clone(), BindingKind::Val, binding_ty, borrowed);
     HirPatKind::Bind { name: name.clone(), binding_ty }
@@ -132,14 +141,14 @@ fn literal(value: &PatLit, ty: TyId, span: Span, env: &mut Env<'_>) -> HirPatKin
     HirPatKind::Lit(value.clone())
 }
 
-fn check_variant(pat: &Pattern, ty: TyId, by_borrow: bool, names: &mut HashSet<String>, env: &mut Env<'_>) -> HirPat {
+fn check_variant(pat: &Pattern, ty: TyId, by_borrow: Binds, names: &mut HashSet<String>, env: &mut Env<'_>) -> HirPat {
     let Pattern::Variant { enum_name, name, args, span } = pat else { unreachable!("caller matched a variant pattern") };
     let (enum_name, span) = (enum_name.as_ref(), *span);
     let rejected = |args: &[Pattern], names: &mut HashSet<String>, env: &mut Env<'_>| {
         // Sub-patterns still bind their names, so their uses in the arm do not cascade.
         let unknown = env.tcx.error();
         for arg in args {
-            check_pat(arg, unknown, false, names, env);
+            check_pat(arg, unknown, Binds::Value, names, env);
         }
         HirPat { kind: HirPatKind::Wildcard, ty: unknown, span }
     };

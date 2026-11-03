@@ -316,3 +316,25 @@ fn borrowing_where_an_editable_borrow_is_expected_hints_at_rw() {
     let m = borrow_messages("fun w(p: &rw [i32; 2]) {\n}\n", "    var a: [i32; 2] = [1, 2]\n    w(&a)\n");
     assert!(m.iter().any(|d| d.contains("write `&rw` to borrow it editable")), "{m:?}");
 }
+
+#[test]
+fn the_editable_form_follows_field_reads_and_pattern_bindings() {
+    let items = "class P {\n    x: i32\n}\nclass O {\n    inner: P\n}\nenum E {\n    A(v: P)\n}\nfun take(p: &rw P) {}\n";
+    let ok = |body: &str| borrow_messages(&format!("{items}{body}"), "");
+    let m = ok("fun f(o: &rw O) {\n    val i = o.inner\n    take(&rw i)\n}\n");
+    assert!(m.is_empty(), "field of an &rw borrow: {m:?}");
+    let m = ok("fun f(e: &rw E) {\n    when e {\n        E.A(x) => { take(&rw x) }\n    }\n}\n");
+    assert!(m.is_empty(), "binding on an &rw scrutinee: {m:?}");
+    let m = ok("fun f(o: &O) {\n    val i = o.inner\n    take(&rw i)\n}\n");
+    assert!(m.iter().any(|d| d.contains("cannot take `&rw` of the read-only borrow `i`")), "field of a & borrow: {m:?}");
+    let m = ok("fun f(e: &E) {\n    when e {\n        E.A(x) => { take(&rw x) }\n    }\n}\n");
+    assert!(m.iter().any(|d| d.contains("cannot take `&rw` of the read-only borrow `x`")), "binding on a & scrutinee: {m:?}");
+}
+
+#[test]
+fn a_borrow_cannot_be_an_array_element() {
+    for ty in ["[&P; 2]", "[&rw P; 2]"] {
+        let m = messages(&format!("class P {{\n    x: i32\n}}\nclass C {{\n    a: {ty}\n}}\nfun f(a: {ty}) {{\n}}\nfun main() {{\n}}\n"));
+        assert_eq!(m.iter().filter(|d| d.contains("array element type")).count(), 2, "{ty}: {m:?}");
+    }
+}

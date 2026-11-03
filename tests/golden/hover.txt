@@ -257,7 +257,9 @@ programs/check/traits/dispatch_all.bork: hits=27 hash=2cf71ec12fa5cd9b
 programs/check/traits/generic_impl.bork: hits=3 hash=37568ab25063e631
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/assign_view_to_var.bork: hits=6 hash=956b21b38f209d1d
+programs/check_fail/borrow/borrow_array_element.bork: hits=1 hash=9b804be4edfe91f1
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
+programs/check_fail/borrow/pass_view_without_ampersand.bork: hits=5 hash=92de35cb20004ec1
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=de7dd57043178e2e
 programs/check_fail/borrow/rw_as_managed_ref_target.bork: hits=1 hash=2d77552a6fa27925
 programs/check_fail/borrow/rw_as_type_argument.bork: hits=1 hash=fc89457af01b9c92

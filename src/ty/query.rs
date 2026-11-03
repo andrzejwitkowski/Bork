@@ -258,6 +258,10 @@ impl TyCtx {
     }
 
     /// The message for an invalid `Vec<elem>` element.
+    pub fn array_elem_message(&self, elem: TyId) -> String {
+        format!("array element type `{}` is not supported", self.display(elem))
+    }
+
     pub fn vec_elem_message(&self, elem: TyId) -> String {
         format!(
             "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{}`",

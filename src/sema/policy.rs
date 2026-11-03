@@ -65,13 +65,9 @@ pub(super) fn bare_ident_move_message(
     {
         return None;
     }
+    // Moving a borrow into a call or a `var` is typeck's rule (one site, RFC 0003 section 6).
     if matches!(binding.origin, BindingOrigin::View) {
-        return match sink {
-            TransferSink::CallArg { .. } => Some(format!(
-                "cannot move borrow `{name}`; pass it with `&` to a reference parameter"
-            )),
-            _ => None,
-        };
+        return None;
     }
     if matches!(
         sink,

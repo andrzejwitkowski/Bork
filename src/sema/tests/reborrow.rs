@@ -145,10 +145,7 @@ fun main() {
     outer(&a, 1)
 }
 "#;
-    let prog = parse(src).unwrap();
-    let (_, errs) = analyze(&prog);
-    assert!(
-        errs.iter().any(|e| e.message.contains("cannot move borrow")),
-        "{errs:?}"
-    );
+    // The rule is typeck's (one site, RFC 0003 section 6): a borrow is passed as `&x`, never as `x`.
+    let diagnostics = crate::frontend::check(src).diagnostics;
+    assert!(diagnostics.iter().any(|d| d.message.contains("expects borrow")), "{diagnostics:?}");
 }

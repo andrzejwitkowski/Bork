@@ -3716,6 +3716,12 @@ Arenas
     ├── a [Local]
     ├── d [Local]
     └── b [Local]
+== programs/check_fail/borrow/borrow_array_element.bork
+Type Error [79..80] array element type `&P` is not supported
+Arenas
+├── fun f
+│   └── a [Local]
+└── fun main
 == programs/check_fail/borrow/lift_borrow_in_if.bork
 Ownership Error [87..88] cannot lift borrow `a` out of fun outer
 Arenas
@@ -3725,6 +3731,14 @@ Arenas
 │       └── p [Local]
 └── fun main
     └── a [Local]
+== programs/check_fail/borrow/pass_view_without_ampersand.bork
+Type Error [128..129] argument 1 to `r` expects borrow `&…`, got &[i32; 2]
+Arenas
+├── fun r
+│   └── p [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    └── b [Local]
 == programs/check_fail/borrow/reference_requires_ampersand.bork
 Ownership Error [123..124] use `move a` to pass ownership
 Type Error [123..124] argument 1 to `bump` expects borrow `&…`, got [i32; 2]

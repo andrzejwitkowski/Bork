@@ -82,9 +82,9 @@ Rules for v1:
 | enum payload | rejected | `borrowed references cannot be stored in enum payloads` | `typeck/mod.rs` | same |
 | return type or returned value | rejected | `returning a reference is not supported` | `escape.rs` | region-annotated signatures |
 | `var` binding | rejected | `cannot bind var ... to a reference type; use val` | `typeck/stmt/mod.rs` (sema duplicates removed, #196) | done |
-| `Vec<&T>`, `Ref<&T>`, `[&T; N]` | rejected | `vec_elem_message`, `managed_ref_target_message` | `typeck/lower.rs`, `ill_formed` | with fields |
+| `Vec<&T>`, `Ref<&T>`, `[&T; N]` | rejected | `vec_elem_message`, `managed_ref_target_message`, `array_elem_message` | `typeck/lower.rs`, `ill_formed` | with fields |
 | `&T?` | rejected | `nullable reference types ... are not supported` | `typeck/lower.rs` | none |
-| type argument `T = &U` / `&rw U` | rejected | inferred: `... parameter expects owned ...`; written: **not enforced** | `check_argument`; none | A |
+| type argument `T = &U` / `&rw U` | rejected | `` `&P` cannot be a type argument of `X` `` (written, explicit, inferred and after instantiation) | `first_borrow_arg` sites, #195 | done |
 | element write through `&[T; N]` / `&Vec` | rejected (changed) | today allowed on explicit `&` | `typeck/stmt/assign.rs` | D |
 | `&rw name`, `name` a `var` array/`Vec` | allowed (new) | n/a | new | D |
 | `&rw name`, `name` a `val` | rejected (new) | new | new | D |

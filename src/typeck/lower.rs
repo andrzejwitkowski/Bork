@@ -44,6 +44,11 @@ impl LowerCx<'_> {
             }
             Type::Array { elem, len, .. } => {
                 let elem = self.lower(elem);
+                // A borrow cannot be stored in an array either (RFC 0003 section 3).
+                if self.tcx.contains_borrow(elem) {
+                    let message = self.tcx.array_elem_message(elem);
+                    self.error(message);
+                }
                 self.tcx.array(elem, *len)
             }
             Type::Named { name, args, nullable } => self.lower_named(name, args, *nullable),

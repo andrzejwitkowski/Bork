@@ -9,6 +9,7 @@ use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
 use super::super::stmt;
+use super::pat::Binds;
 use super::{check, dispatch, synthesize};
 
 pub(super) fn check_if(
@@ -164,7 +165,13 @@ fn match_arms(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let by_borrow = super::method::is_place(scrutinee) || env.tcx.is_ref(scrutinee_hir.ty);
+    let by_borrow = if env.tcx.is_rw_ref(scrutinee_hir.ty) {
+        Binds::Rw
+    } else if super::method::is_place(scrutinee) || env.tcx.is_ref(scrutinee_hir.ty) {
+        Binds::Shared
+    } else {
+        Binds::Value
+    };
     let ty = env.tcx.deref_ty(scrutinee_hir.ty);
     let mut pattern_errors = 0;
     let mut checked_arms = Vec::with_capacity(arms.len());
@@ -195,7 +202,7 @@ struct CheckedArm {
 fn check_arm(
     arm: &MatchArm,
     ty: TyId,
-    by_borrow: bool,
+    by_borrow: Binds,
     expected: Option<TyId>,
     return_ty: TyId,
     env: &mut Env<'_>,

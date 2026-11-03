@@ -30,9 +30,11 @@ fn every_borrow_restriction_has_one_enforcement_site() {
         ("cannot mutate through the read-only borrow", Some("src/typeck/expr/vec.rs")),
         ("as `&rw`; declare it `var`", Some("src/typeck/expr/borrow.rs")),
         ("cannot take `&rw` of the read-only borrow", Some("src/typeck/expr/borrow.rs")),
+        ("array element type `{}` is not supported", Some("src/ty/query.rs")),
         // Removed sema duplicates must stay gone.
         ("to a borrow; use `val`", None),
         ("cannot bind a borrow view", None),
+        ("cannot move borrow `{name}`", None),
     ];
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
