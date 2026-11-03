@@ -409,14 +409,14 @@ For the full story of how the compiler picks an arena for each `String`, see the
 
 ### References (`&T` and `&name`)
 
-Use-site `&name` borrows an outer **`var`** without moving it. The owner stays alive until its region ends.
+Use-site `&name` borrows an outer **`var`** without moving it. The owner stays alive until its region ends. `&name` is read-only; to let the callee write elements, borrow with `&rw name` and take the parameter as `&rw [T; N]`.
 
 ```bork
 fun peek(msg: &String) {
     println(msg)
 }
 
-fun bump(buf: &[i32; 3]) {
+fun bump(buf: &rw [i32; 3]) {
     buf[0] = buf[0] + 1
 }
 
@@ -426,7 +426,7 @@ fun main() {
     {
         val view = &s
         peek(&s)
-        bump(&a)
+        bump(&rw a)
     }
 }
 ```
