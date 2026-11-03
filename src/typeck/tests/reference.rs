@@ -4,7 +4,7 @@ use crate::typeck::check;
 #[test]
 fn reference_param_requires_borrow_at_call_site() {
     let src = r#"
-fun bump(buf: &[i32; 2]) {
+fun bump(buf: &rw [i32; 2]) {
     buf[0] = 1
 }
 fun main() {
@@ -44,12 +44,12 @@ fun main() {
 #[test]
 fn reference_call_with_ampersand_typechecks() {
     let src = r#"
-fun bump(buf: &[i32; 2]) {
+fun bump(buf: &rw [i32; 2]) {
     buf[0] = 1
 }
 fun main() {
     var a: [i32; 2] = [1, 2]
-    bump(&a)
+    bump(&rw a)
 }
 "#;
     let prog = parse(src).unwrap();
@@ -66,7 +66,7 @@ fn val_local_with_ref_type_and_borrow_init() {
 fun main() {
     var a: [i32; 2] = [1, 2]
     {
-        val p: &[i32; 2] = &a
+        val p: &rw [i32; 2] = &rw a
         p[0] = 9
     }
 }
@@ -100,15 +100,15 @@ fun main() {
 #[test]
 fn reference_param_can_reborrow_to_nested_call() {
     let src = r#"
-fun inner(buf: &[i32; 2]) {
+fun inner(buf: &rw [i32; 2]) {
     buf[0] = 1
 }
-fun outer(p: &[i32; 2]) {
-    inner(&p)
+fun outer(p: &rw [i32; 2]) {
+    inner(&rw p)
 }
 fun main() {
     var a: [i32; 2] = [1, 2]
-    outer(&a)
+    outer(&rw a)
 }
 "#;
     let prog = parse(src).unwrap();
@@ -127,12 +127,12 @@ fn reference_param_index_read_and_assign() {
 fun read(buf: &[i32; 3], i: i32): i32 {
     return buf[i]
 }
-fun write(buf: &[i32; 3]) {
+fun write(buf: &rw [i32; 3]) {
     buf[2] = 9
 }
 fun main(): i32 {
     var a: [i32; 3] = [1, 2, 3]
-    write(&a)
+    write(&rw a)
     return read(&a, 1)
 }
 "#;
@@ -266,4 +266,38 @@ fn every_borrow_restriction_also_covers_the_editable_borrow() {
         let m = rw_messages(items, body);
         assert!(m.iter().any(|d| d.contains(want)), "{want}: {m:?}");
     }
+}
+
+fn borrow_messages(items: &str, main_body: &str) -> Vec<String> {
+    messages(&format!("{items}fun main() {{\n{main_body}}}\n"))
+}
+
+#[test]
+fn a_write_needs_an_editable_borrow_on_a_var() {
+    let m = borrow_messages("fun w(p: &[i32; 2]) {\n    p[0] = 1\n}\n", "");
+    assert!(m.iter().any(|d| d.contains("cannot index-assign through the read-only borrow `p`")), "{m:?}");
+    let m = borrow_messages("fun w(v: &Vec<i32>) {\n    v.push(1)\n}\n", "");
+    assert!(m.iter().any(|d| d.contains("cannot mutate through the read-only borrow `v`")), "{m:?}");
+    let m = borrow_messages("fun w(p: &rw [i32; 2]) {\n}\n", "    val a: [i32; 2] = [1, 2]\n    w(&rw a)\n");
+    assert!(m.iter().any(|d| d.contains("cannot borrow `val` `a` as `&rw`; declare it `var`")), "{m:?}");
+    let m = borrow_messages(
+        "fun w(p: &rw [i32; 2]) {\n    p[0] = 1\n}\nfun v(p: &Vec<i32>) {\n}\n",
+        "    var a: [i32; 2] = [1, 2]\n    w(&rw a)\n    var b = Vec<i32>()\n    v(&b)\n",
+    );
+    assert!(m.is_empty(), "{m:?}");
+}
+
+#[test]
+fn a_val_array_can_be_borrowed_read_only() {
+    let m = borrow_messages("fun r(p: &[i32; 2]): i32 {\n    return p[0]\n}\n", "    val a: [i32; 2] = [1, 2]\n    val x = r(&a)\n");
+    assert!(m.is_empty(), "{m:?}");
+}
+
+#[test]
+fn an_editable_borrow_can_be_passed_on_as_editable_or_downgraded_but_not_upgraded() {
+    let readers = "fun r(p: &[i32; 2]): i32 {\n    return p[0]\n}\nfun w(p: &rw [i32; 2]) {\n    p[0] = 1\n}\n";
+    let m = borrow_messages(&format!("{readers}fun f(p: &rw [i32; 2]): i32 {{\n    w(&rw p)\n    return r(&p)\n}}\n"), "");
+    assert!(m.is_empty(), "{m:?}");
+    let m = borrow_messages(&format!("{readers}fun f(p: &[i32; 2]) {{\n    w(&rw p)\n}}\n"), "");
+    assert!(m.iter().any(|d| d.contains("cannot take `&rw` of the read-only borrow `p`")), "{m:?}");
 }

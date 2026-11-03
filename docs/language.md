@@ -173,7 +173,7 @@ cleanup diagrams, see [references.md](references.md).
 
 `String` and `[T; N]` have one field: `.length` (`i32`, always **N** for arrays of that type). Unknown fields are type errors.
 
-`strongCount(r)` and `weakCount(r)` return the reference counters of the arena a `Ref<T>` points into (diagnostics, see [memory-model.md](memory-model.md#strongcount--weakcount)). `Vec<T>` is a built-in growable array: `Vec<i32>()`, `Vec<String>(16)`; see [memory-model.md](memory-model.md#vect). Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]` on `[T; N]` and on **`&[T; N]`** (including reference parameters). A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. A `&[T; N]` parameter supports `p[i] = v` in the callee. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
+`strongCount(r)` and `weakCount(r)` return the reference counters of the arena a `Ref<T>` points into (diagnostics, see [memory-model.md](memory-model.md#strongcount--weakcount)). `Vec<T>` is a built-in growable array: `Vec<i32>()`, `Vec<String>(16)`; see [memory-model.md](memory-model.md#vect). Array literals use Rust-style brackets: `[1, 2, 3]` has type `[i32; 3]`. Index from zero: `a[i]` on `[T; N]` and on **`&[T; N]`** (including reference parameters). A slice `a[lo..hi]` requires **integer literal** bounds and has type `[T; hi - lo]` (a view of the same buffer, no copy). Codegen uses that length as-is and does not re-check the slice at runtime. An out-of-range slice is a type error. An out-of-range index aborts at runtime, because the index is not part of the type. Assigning or moving whole arrays requires matching `[T; N]` (same `T` and **N**). Empty `[]` needs an annotation such as `[i32; 0]`. A `var` array binding supports element assignment `a[i] = v` when `i` is `i32` and `v` has the element type; `val` arrays cannot be mutated. A `&rw [T; N]` parameter supports `p[i] = v` in the callee; a `&[T; N]` parameter is read-only. `String` elements require `move` or `promote` on the right-hand side. There is no per-element `move` (only whole-array `move` / `promote`).
 
 ## Enums
 
@@ -370,7 +370,7 @@ Each `{ ... }` region has an arena. Leaving the region frees that arena in one s
 | Read or pass a parent `var` of `String` | `move name`, or `&name` when the callee takes `&String` (read-only in callee) |
 | Borrow a parent `var` array in a child or loop | `&name` at use or call; formal `p: &[T; N]` requires `f(&a)` |
 | Pass a `&[T; N]` parameter into another call from `if` / `while` / `for` | `other(&param)` — re-borrow at the call site only |
-| Mutate parent array elements from a child | `a[i] = v` or `(&a)[i] = v`; inside `fun f(p: &[T; N])`, `p[i] = v` |
+| Mutate parent array elements from a child | `a[i] = v` or `(&a)[i] = v`; inside `fun f(p: &rw [T; N])`, `p[i] = v` (a `&[T; N]` parameter is read-only) |
 | Pass a `val` `String` into a `var` parameter | `move name` |
 | Fresh expression into a `var` parameter (`f("hi")`, `f(concat(a, b))`) | no `move` |
 | Assign a `String` up to an outer `var` | `outer = move inner` or `outer = promote held` |
@@ -432,10 +432,10 @@ fun main() {
 ```
 
 - **`&String`:** read and pass to callees; **no** assigning a new string through the borrow (no `&mut String` yet).
-- **`&[T; N]`:** read `buf[i]` and **assign** `buf[i] = v` in the callee (mutates the owner’s buffer).
-- **`&rw T`:** the editable borrow ([RFC 0003](rfcs/0003-borrows-regions-generics.md) section 5), written in types (`buf: &rw [i32; 3]`) and at call sites (`set(&rw a)`). It is a different type from `&T`: neither is accepted where the other is expected. For now it behaves like `&` otherwise (every restriction on `&` also applies); making `&` read-only and `&rw` var-only is #198.
+- **`&[T; N]`:** read-only: read `buf[i]`; `buf[i] = v` is an error. A `val` array can be borrowed this way. Pass an `&rw` borrow on as `&buf` to downgrade it.
+- **`&rw T`:** the editable borrow ([RFC 0003](rfcs/0003-borrows-regions-generics.md) section 5), written in types (`buf: &rw [i32; 3]`) and at call sites (`set(&rw a)`). It is a different type from `&T`: neither is accepted where the other is expected. Only a `var` can be borrowed as `&rw` (`&rw a` with `val a` is an error), element writes (`p[i] = v`, `v.push(..)`) need it, an `&rw` borrow can be passed on as `&rw p` or downgraded to `&p`, and a read-only `&p` can never become `&rw`. Every other restriction on `&` also applies.
 - **Nested control flow:** inside `if`, `while`, or `for`, you may call `helper(&param)` when `param` is a `&[T; N]` (or other `&T`) parameter and `helper` takes the matching reference type. You may **not** write `val view = &param` in that inner region (lifting the borrow into the child).
-- **`val view = &a`:** read through `view`; do not write `view[i] =` — use `(&a)[i]` or a `&[T; N]` parameter.
+- **`val view = &a`:** read through `view`; do not write `view[i] =` — write through the `var` (`a[i] =`, `(&rw a)[i] =`) or an `&rw [T; N]` parameter.
 - **`var view = &a`:** error.
 
 See [memory-model.md](memory-model.md) (**Borrow**) for `T` vs `&T` formals and the re-borrow table. A plain `[T; N]` parameter requires ownership (`move` at the call site); `&a` is only for parameters declared `&[T; N]` (or `&String`, etc.).

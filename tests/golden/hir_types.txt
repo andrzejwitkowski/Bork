@@ -5,18 +5,23 @@ programs/build/basics/println_string.bork::main() -> unit
 programs/build/basics/return_constant.bork::main() -> i32
 programs/build/basics/unit_main.bork::main() -> unit
 programs/build/borrow/array_slice.bork::main() -> i32
-programs/build/borrow/reborrow_in_for.bork::bump(buf: &[i32; 2]) -> unit
-programs/build/borrow/reborrow_in_for.bork::outer(buf: &[i32; 2]) -> unit
+programs/build/borrow/reborrow_in_for.bork::bump(buf: &rw [i32; 2]) -> unit
+programs/build/borrow/reborrow_in_for.bork::outer(buf: &rw [i32; 2]) -> unit
 programs/build/borrow/reborrow_in_for.bork::main() -> i32
-programs/build/borrow/reborrow_in_if.bork::set_head(buf: &[i32; 2], v: i32) -> unit
-programs/build/borrow/reborrow_in_if.bork::outer(buf: &[i32; 2], flag: bool) -> unit
+programs/build/borrow/reborrow_in_if.bork::set_head(buf: &rw [i32; 2], v: i32) -> unit
+programs/build/borrow/reborrow_in_if.bork::outer(buf: &rw [i32; 2], flag: bool) -> unit
 programs/build/borrow/reborrow_in_if.bork::main() -> i32
-programs/build/borrow/reference_in_while.bork::bump(buf: &[i32; 2]) -> unit
+programs/build/borrow/reference_in_while.bork::bump(buf: &rw [i32; 2]) -> unit
 programs/build/borrow/reference_in_while.bork::main() -> i32
 programs/build/borrow/reference_index_read.bork::first(buf: &[i32; 3]) -> i32
 programs/build/borrow/reference_index_read.bork::main() -> i32
+programs/build/borrow/rw_downgrade_to_shared.bork::first(a: &[i32; 2]) -> i32
+programs/build/borrow/rw_downgrade_to_shared.bork::set_and_read(a: &rw [i32; 2]) -> i32
+programs/build/borrow/rw_downgrade_to_shared.bork::main() -> i32
 programs/build/borrow/rw_param.bork::set(buf: &rw [i32; 3]) -> unit
 programs/build/borrow/rw_param.bork::main() -> i32
+programs/build/borrow/shared_borrow_of_val_array.bork::sum(a: &[i32; 3]) -> i32
+programs/build/borrow/shared_borrow_of_val_array.bork::main() -> i32
 programs/build/classes/call_arg.bork::take(p: Point) -> i32
 programs/build/classes/call_arg.bork::main() -> i32
 programs/build/classes/mutable_field.bork::main() -> i32
@@ -435,8 +440,8 @@ programs/build/recursions/factorial.bork::fact(n: i32) -> i32
 programs/build/recursions/factorial.bork::main() -> i32
 programs/build/recursions/recursive_in_if.bork::walk(n: i32) -> i32
 programs/build/recursions/recursive_in_if.bork::main() -> i32
-programs/build/recursions/recursive_qsort_small.bork::partition(a: &[i32; 8], lo: i32, hi: i32) -> i32
-programs/build/recursions/recursive_qsort_small.bork::qsort(a: &[i32; 8], lo: i32, hi: i32) -> unit
+programs/build/recursions/recursive_qsort_small.bork::partition(a: &rw [i32; 8], lo: i32, hi: i32) -> i32
+programs/build/recursions/recursive_qsort_small.bork::qsort(a: &rw [i32; 8], lo: i32, hi: i32) -> unit
 programs/build/recursions/recursive_qsort_small.bork::main() -> i32
 programs/build/text/byte_index.bork::first(s: &String) -> u8
 programs/build/text/byte_index.bork::main() -> i32
@@ -496,14 +501,14 @@ programs/build/vec/return_vec_of_linked_refs.bork::main() -> i32
 programs/build/vec/strings.bork::main() -> i32
 programs/build/vec/with_capacity.bork::main() -> i32
 programs/check/borrow/array_slice_length.bork::main() -> i32
-programs/check/borrow/reborrow_in_for.bork::inner(a: &[i32; 2]) -> unit
-programs/check/borrow/reborrow_in_for.bork::outer(a: &[i32; 2]) -> unit
+programs/check/borrow/reborrow_in_for.bork::inner(a: &rw [i32; 2]) -> unit
+programs/check/borrow/reborrow_in_for.bork::outer(a: &rw [i32; 2]) -> unit
 programs/check/borrow/reborrow_in_for.bork::main() -> unit
-programs/check/borrow/reborrow_in_if.bork::inner(a: &[i32; 2]) -> unit
-programs/check/borrow/reborrow_in_if.bork::outer(a: &[i32; 2], flag: bool) -> unit
+programs/check/borrow/reborrow_in_if.bork::inner(a: &rw [i32; 2]) -> unit
+programs/check/borrow/reborrow_in_if.bork::outer(a: &rw [i32; 2], flag: bool) -> unit
 programs/check/borrow/reborrow_in_if.bork::main() -> unit
-programs/check/borrow/reference_nested_call.bork::inner(buf: &[i32; 2]) -> unit
-programs/check/borrow/reference_nested_call.bork::outer(p: &[i32; 2]) -> unit
+programs/check/borrow/reference_nested_call.bork::inner(buf: &rw [i32; 2]) -> unit
+programs/check/borrow/reference_nested_call.bork::outer(p: &rw [i32; 2]) -> unit
 programs/check/borrow/reference_nested_call.bork::main() -> unit
 programs/check/conditionals/if_mismatch.bork::pick(flag: i32) -> i32
 programs/check/conditionals/if_mismatch.bork::main() -> i32

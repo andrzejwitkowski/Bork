@@ -1,5 +1,5 @@
 // diag: expects borrow
-fun bump(buf: &[i32; 2]) {
+fun bump(buf: &rw [i32; 2]) {
     buf[0] = 1
 }
 

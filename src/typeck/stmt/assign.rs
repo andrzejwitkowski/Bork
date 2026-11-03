@@ -169,6 +169,11 @@ fn assign_binding(
                             format!("cannot index-assign through borrow `{name}`"),
                             Some(span),
                         );
+                    } else if !env.tcx.is_rw_ref(b.ty) {
+                        env.error(
+                            format!("cannot index-assign through the read-only borrow `{name}`; take it as `&rw` (RFC 0003)"),
+                            Some(span),
+                        );
                     }
                 } else {
                     env.error(

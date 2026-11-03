@@ -69,10 +69,24 @@ Arenas
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/build/borrow/rw_downgrade_to_shared.bork
+Arenas
+├── fun first
+│   └── a [Borrow ← call site]
+├── fun set_and_read
+│   └── a [Borrow ← call site]
+└── fun main
+    └── a [Local]
 == programs/build/borrow/rw_param.bork
 Arenas
 ├── fun set
 │   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/build/borrow/shared_borrow_of_val_array.bork
+Arenas
+├── fun sum
+│   └── a [Borrow ← call site]
 └── fun main
     └── a [Local]
 == programs/build/classes/call_arg.bork
@@ -3712,9 +3726,9 @@ Arenas
 └── fun main
     └── a [Local]
 == programs/check_fail/borrow/reference_requires_ampersand.bork
-Ownership Error [120..121] use `move a` to pass ownership
-Type Error [120..121] argument 1 to `bump` expects borrow `&…`, got [i32; 2]
-Type Error [120..121] argument 1 to `bump` has type [i32; 2], expected &[i32; 2]
+Ownership Error [123..124] use `move a` to pass ownership
+Type Error [123..124] argument 1 to `bump` expects borrow `&…`, got [i32; 2]
+Type Error [123..124] argument 1 to `bump` has type [i32; 2], expected &rw [i32; 2]
 Arenas
 ├── fun bump
 │   └── buf [Borrow ← call site]
@@ -3752,6 +3766,22 @@ Arenas
 ├── fun f
 │   └── v [Local]
 └── fun main
+== programs/check_fail/borrow/rw_of_shared_borrow.bork
+Type Error [123..128] cannot take `&rw` of the read-only borrow `p`
+Arenas
+├── fun w
+│   └── p [Borrow ← call site]
+├── fun f
+│   └── p [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/check_fail/borrow/rw_on_val.bork
+Type Error [148..153] cannot borrow `val` `a` as `&rw`; declare it `var`
+Arenas
+├── fun w
+│   └── p [Borrow ← call site]
+└── fun main
+    └── a [Local]
 == programs/check_fail/borrow/rw_returned.bork
 Ownership Error [107..108] returning a reference is not supported
 Arenas
@@ -3779,6 +3809,20 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── c [Local]
+== programs/check_fail/borrow/vec_push_through_shared.bork
+Type Error [82..88] cannot mutate through the read-only borrow `v`; take it as `&rw` (RFC 0003)
+Arenas
+├── fun f
+│   └── v [Borrow ← call site]
+└── fun main
+    └── v [Local]
+== programs/check_fail/borrow/write_through_shared.bork
+Type Error [88..89] cannot index-assign through the read-only borrow `p`; take it as `&rw` (RFC 0003)
+Arenas
+├── fun w
+│   └── p [Borrow ← call site]
+└── fun main
+    └── a [Local]
 == programs/check_fail/classes/owned_layout_cycle.bork
 Type Error [45..46] class `A` has a recursive by-value layout (A -> B -> A); use `Ref<..>` for the recursive field
 Type Error [62..63] class `B` has a recursive by-value layout (B -> A -> B); use `Ref<..>` for the recursive field

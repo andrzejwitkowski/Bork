@@ -1,0 +1,8 @@
+// diag: cannot index-assign through the read-only borrow `p`
+fun w(p: &[i32; 2]) {
+    p[0] = 1
+}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    w(&a)
+}

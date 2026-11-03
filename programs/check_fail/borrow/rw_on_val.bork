@@ -1,0 +1,8 @@
+// diag: cannot borrow `val` `a` as `&rw`; declare it `var`
+fun w(p: &rw [i32; 2]) {
+    p[0] = 1
+}
+fun main() {
+    val a: [i32; 2] = [1, 2]
+    w(&rw a)
+}

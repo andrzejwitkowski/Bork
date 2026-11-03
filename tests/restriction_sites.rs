@@ -25,6 +25,11 @@ fn every_borrow_restriction_has_one_enforcement_site() {
         ("borrowed references cannot be stored in enum payloads", Some("src/typeck/mod.rs")),
         ("returning a reference is not supported", Some("src/escape.rs")),
         ("to a reference type; use `val`", Some("src/typeck/stmt/mod.rs")),
+        // RFC 0003 section 5 (#198).
+        ("cannot index-assign through the read-only borrow", Some("src/typeck/stmt/assign.rs")),
+        ("cannot mutate through the read-only borrow", Some("src/typeck/expr/vec.rs")),
+        ("as `&rw`; declare it `var`", Some("src/typeck/expr/borrow.rs")),
+        ("cannot take `&rw` of the read-only borrow", Some("src/typeck/expr/borrow.rs")),
         // Removed sema duplicates must stay gone.
         ("to a borrow; use `val`", None),
         ("cannot bind a borrow view", None),

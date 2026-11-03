@@ -5,19 +5,19 @@ use crate::parse;
 #[test]
 fn reference_param_reborrow_in_while_loop() {
     let src = r#"
-fun inner(a: &[i32; 3]) {
+fun inner(a: &rw [i32; 3]) {
     a[0] = 7
 }
-fun outer(a: &[i32; 3], n: i32) {
+fun outer(a: &rw [i32; 3], n: i32) {
     var i = 0
     while (i < n) {
-        inner(&a)
+        inner(&rw a)
         i = i + 1
     }
 }
 fun main() {
     var x: [i32; 3] = [1, 2, 3]
-    outer(&x, 1)
+    outer(&rw x, 1)
 }
 "#;
     let prog = parse(src).unwrap();
@@ -36,17 +36,17 @@ fun main() {
 #[test]
 fn reference_param_reborrow_in_if() {
     let src = r#"
-fun inner(a: &[i32; 2]) {
+fun inner(a: &rw [i32; 2]) {
     a[0] = 1
 }
-fun outer(a: &[i32; 2], flag: bool) {
+fun outer(a: &rw [i32; 2], flag: bool) {
     if (flag) {
-        inner(&a)
+        inner(&rw a)
     }
 }
 fun main() {
     var x: [i32; 2] = [1, 2]
-    outer(&x, true)
+    outer(&rw x, true)
 }
 "#;
     let prog = parse(src).unwrap();
@@ -72,17 +72,17 @@ fun main() {
 #[test]
 fn reference_param_reborrow_in_for_loop() {
     let src = r#"
-fun inner(a: &[i32; 2]) {
+fun inner(a: &rw [i32; 2]) {
     a[0] = 1
 }
-fun outer(a: &[i32; 2]) {
+fun outer(a: &rw [i32; 2]) {
     for (i in 0..1) {
-        inner(&a)
+        inner(&rw a)
     }
 }
 fun main() {
     var x: [i32; 2] = [1, 2]
-    outer(&x)
+    outer(&rw x)
 }
 "#;
     let prog = parse(src).unwrap();
@@ -93,14 +93,14 @@ fun main() {
 #[test]
 fn recursive_reborrow_inside_if() {
     let src = r#"
-fun step(a: &[i32; 4], lo: i32, hi: i32) {
+fun step(a: &rw [i32; 4], lo: i32, hi: i32) {
     if (hi - lo > 1) {
-        step(&a, lo, hi - 1)
+        step(&rw a, lo, hi - 1)
     }
 }
 fun main() {
     var a: [i32; 4] = [4, 3, 2, 1]
-    step(&a, 0, 4)
+    step(&rw a, 0, 4)
 }
 "#;
     let prog = parse(src).unwrap();
