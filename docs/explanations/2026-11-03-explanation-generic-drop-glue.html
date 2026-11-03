@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drop glue in Bork (PR #210, issue #62)</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#22252a; --muted:#6a707a; --accent:#2a5db0; --ok:#1f7a45; --bad:#b3372f; --card:#fff; --line:#e3e0d8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 24px 0 4px; }
+  h2 { margin-top: 56px; border-top: 1px solid var(--line); padding-top: 24px; }
+  h3 { margin-top: 32px; }
+  .sub { color: var(--muted); }
+  nav { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 18px; margin: 20px 0; }
+  nav a { display:block; color: var(--accent); text-decoration:none; padding: 2px 0; }
+  code { font: 0.9em ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { white-space: pre; overflow-x:auto; background:#1e2229; color:#e8e6df; padding:14px 16px; border-radius:8px; font: 0.85rem/1.5 ui-monospace, Menlo, Consolas, monospace; }
+  .callout { border-left:4px solid var(--accent); background:#eef3fb; padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 20px 0; }
+  .callout.warn { border-color:#c98a1b; background:#fbf3e2; }
+  .skip { color: var(--muted); font-style: italic; }
+  /* diagram family: boxes in a row (arenas) */
+  .arena { border:2px solid #7d8794; border-radius:10px; background:var(--card); padding:10px 12px; margin:12px 0; }
+  .arena > .title { font: 600 0.8rem ui-monospace, monospace; color:var(--muted); margin-bottom:6px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .obj { border:1.5px solid #3d4653; border-radius:6px; padding:4px 10px; background:#f5f3ec; font: 0.85rem ui-monospace, monospace; }
+  .obj.drop { border-color: var(--ok); background:#e7f5ec; }
+  .obj.none { border-color: var(--bad); border-style:dashed; background:#fbeceb; }
+  .tag { font: 0.75rem ui-monospace, monospace; color: var(--muted); }
+  .arrow { font-size: 1.2rem; color: var(--muted); }
+  table { border-collapse: collapse; width:100%; font-size: 0.92rem; }
+  th, td { border:1px solid var(--line); padding: 6px 10px; text-align:left; vertical-align: top; }
+  th { background:#efece4; }
+  /* quiz */
+  .q { background:var(--card); border:1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 20px 0; }
+  .q button { display:block; width:100%; text-align:left; margin:8px 0; padding:9px 12px; font: inherit; font-size: 0.95rem; background:#f6f4ee; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .q button:hover:enabled { border-color: var(--accent); }
+  .q button.right { background:#e7f5ec; border-color: var(--ok); }
+  .q button.wrong { background:#fbeceb; border-color: var(--bad); }
+  .fb { margin-top:8px; font-size: 0.93rem; color: var(--muted); display:none; }
+  #score { font-weight:bold; }
+  @media (max-width: 520px) { body { font-size: 16px; } h1 { font-size: 1.6rem; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Who lets go of a reference when the memory goes away?</h1>
+<p class="sub">An explanation of PR #210 (issue #62, "generic drop glue") in the Bork compiler.</p>
+
+<nav>
+  <a href="#background">1. Background</a>
+  <a href="#intuition">2. Intuition</a>
+  <a href="#code">3. The code</a>
+  <a href="#quiz">4. Quiz</a>
+</nav>
+
+<h2 id="background">1. Background</h2>
+
+<p class="skip">If you already know how Bork's arenas and <code>Ref</code> counts work, skip to the second part of this section.</p>
+
+<h3>Arenas: memory freed all at once</h3>
+<p>Bork does not free objects one by one. Every <code>{ ... }</code> block owns an <em>arena</em>, a chunk of memory. Objects created in the block are carved out of that arena, and when the block ends the whole arena is released in one step. There is no per-object <code>free</code>.</p>
+
+<div class="arena"><div class="title">arena of block { ... }</div>
+  <div class="row"><span class="obj">Pair</span><span class="obj">Vec header</span><span class="obj">"x" bytes</span></div>
+</div>
+
+<h3>Ref&lt;T&gt;: a counted handle</h3>
+<p>A <code>Ref&lt;Node&gt;</code> points at an object that lives in some arena. The arena keeps two counters, <code>strongCount</code> and <code>weakCount</code>. A reference stored in an <em>older</em> arena than its target is strong (it keeps the target alive); one stored in a <em>newer</em> arena is weak (a back-edge). Whenever a <code>Ref</code> is stored, a counter goes up. So when the arena holding the reference dies, the counter must go down, or the target's arena would believe somebody still points at it. That is a leak.</p>
+
+<div class="callout"><b>Drop function.</b> An arena can be told: "when you die, call this function on that object". Bork uses this to release the <code>Ref</code>s inside an object. The runtime call is <code>bork_arena_register_drop(arena, object, drop_fn)</code>.</div>
+
+<h3>What was already there</h3>
+<p>Before this PR, three places decided on their own whether a value needed a drop function:</p>
+<table>
+  <tr><th>Value</th><th>Drop registered</th><th>Where</th></tr>
+  <tr><td><code>Ref</code> field of a class</td><td>one drop per slot</td><td><code>managed_ref.rs</code></td></tr>
+  <tr><td>enum with <code>Ref</code> payload</td><td>one tag-switching function per enum</td><td><code>enum_glue.rs</code></td></tr>
+  <tr><td><code>Vec&lt;Ref&lt;T&gt;&gt;</code></td><td>one drop on the header (<code>bork_vec_drop_refs</code>)</td><td><code>vec/alloc.rs</code></td></tr>
+</table>
+<p>Issue #62 asked for "glue generated from type capabilities, per generic instance". The concern: a generic container such as <code>Pair&lt;Ref&lt;Node&gt;, String&gt;</code> might leak its reference.</p>
+
+<h2 id="intuition">2. Intuition</h2>
+
+<p>The first idea is the obvious one: write a function that looks at a type, recursively finds every <code>Ref</code> inside it, and emits one big drop function. The compiler even has a query for that, <code>TyCaps::needs_drop</code>. But look at what actually happens when a class holds a <code>Vec&lt;Ref&lt;Node&gt;&gt;</code>:</p>
+
+<div class="arena"><div class="title">arena A</div>
+  <div class="row">
+    <span class="obj">Outer</span>
+    <span class="arrow">→ field</span>
+    <span class="obj drop">Vec header <span class="tag">has its own drop</span></span>
+    <span class="arrow">→</span>
+    <span class="obj">slot: Ref&lt;Node&gt;</span>
+  </div>
+</div>
+
+<p>The vector is an object in its own right. It was created by <code>vec_alloc</code>, which registered <code>bork_vec_drop_refs</code> on it at that moment. When arena A dies, that drop runs and releases the slot. <code>Outer</code> does not need to know. The same is true for a class inside a class and for an enum that holds a class: each piece registers itself when it is built.</p>
+
+<div class="callout warn"><b>So recursion would double-drop.</b> If <code>Outer</code> also walked into the vector and released its slots, each reference would be released twice. The correct rule is local: <em>register a drop for what you inline-own, and let every nested object register its own</em>.</div>
+
+<p>I checked this by running programs, not by reading code. The new test builds each shape in an inner block and checks that <code>weakCount</code> returns to its baseline afterwards. It does, for every shape.</p>
+
+<table>
+  <tr><th>Shape built in an inner block</th><th>weak count after block</th></tr>
+  <tr><td><code>Pair(r, "x")</code></td><td>back to baseline</td></tr>
+  <tr><td><code>Outer(Holder(Vec&lt;Ref&gt;), r)</code></td><td>back to baseline</td></tr>
+  <tr><td><code>Wrapped.Full(Holder(...))</code></td><td>back to baseline</td></tr>
+  <tr><td>recursive <code>Link&lt;T&gt;</code> plus <code>Pair(r, head)</code></td><td>back to baseline</td></tr>
+</table>
+
+<p>So the PR does the modest thing: it makes the existing decision visible and testable in one place, and pins the behaviour with a regression program.</p>
+
+<h2 id="code">3. The code</h2>
+
+<h3>One module decides</h3>
+<p><code>enum_glue.rs</code> is renamed <code>glue.rs</code> and gains two small functions:</p>
+<pre>pub(super) fn vec_drop_glue(&amp;self, elem: TyId) -&gt; Option&lt;FunctionValue&gt; {
+    self.tcx.is_handle_clone(elem).then(|| self.vec_drop_refs_fn())
+}
+
+pub(super) fn enum_drop_glue(&amp;self, name: &amp;str) -&gt; Option&lt;FunctionValue&gt; {
+    self.enum_drops.get(name).copied()
+}</pre>
+<p><code>None</code> means "this type owns no inline <code>Ref</code>": no glue is emitted at all, which is the "no glue for Copy types" acceptance criterion.</p>
+
+<h3>Call sites ask the module</h3>
+<p><code>vec/alloc.rs</code> used to test <code>is_handle_clone(elem_ty)</code> and look up the drop function itself; <code>managed_ref.rs</code> read <code>enum_drops</code> directly. Both now call the helpers above. The emitted IR is identical.</p>
+
+<h3>Tests</h3>
+<ul>
+  <li><b>IR test:</b> Copy-only enums, <code>Pair&lt;i32,i32&gt;</code> and <code>Vec&lt;i32&gt;</code> produce no <code>bork.drop.*</code> and no <code>bork_arena_register_drop</code>.</li>
+  <li><b>IR test:</b> an enum with a <code>Ref</code> payload gets exactly one <code>bork.drop.Slot</code>; a <code>Vec&lt;Ref&gt;</code> uses <code>bork_vec_drop_refs</code>.</li>
+  <li><b>Program:</b> <code>programs/build/generics/glue_no_leak.bork</code> with seven numbered checks (the exit code names the last failed one).</li>
+  <li><b>Goldens:</b> five snapshot files gained lines for the new program; nothing was removed.</li>
+</ul>
+
+<h3>What is not here</h3>
+<p><code>TyCaps::needs_drop</code> still has no codegen caller, clone glue is unchanged, and #63 (cross-region moves of generic structures) and #64 (negative tests) are untouched. Linking in my environment used a <code>gcc</code> stand-in for <code>clang</code>, so a run with the real one is worth doing.</p>
+
+<h2 id="quiz">4. Quiz</h2>
+<p>Score: <span id="score">0</span> / 5</p>
+<div id="quizbox"></div>
+</main>
+
+<script>
+const quiz = [
+  { q: "Why does the PR NOT generate one recursive drop function for a class that holds a Vec<Ref<Node>>?",
+    a: ["Recursion is too slow at compile time.",
+        "The vector registers its own drop when it is allocated, so a recursive drop would release each slot twice.",
+        "Vec<Ref<T>> is Copy, so it needs no drop.",
+        "Classes can never contain a Vec."],
+    c: 1, fb: "Each nested object registers itself on its arena. Walking into it again would double-release the references." },
+  { q: "What does a return value of None from vec_drop_glue or enum_drop_glue mean?",
+    a: ["The compiler failed to build the function.",
+        "The type owns no inline Ref, so no glue is emitted and nothing is registered.",
+        "The type is generic and must wait for monomorphization.",
+        "The drop will be registered later at runtime."],
+    c: 1, fb: "None is the 'no glue for types without a Ref' rule, checked by the Copy-only IR test." },
+  { q: "In glue_no_leak.bork, why are the objects built inside an inner block?",
+    a: ["Inner blocks run faster.",
+        "The block's arena is newer than the target's, so the slots are weak and the arena's death must bring weakCount back to the baseline.",
+        "Blocks are required for generic classes.",
+        "It avoids the need for a baseline."],
+    c: 1, fb: "Leaving the block frees its arena; if a drop were missing, weakCount would stay above the baseline." },
+  { q: "Which part of the change alters the emitted LLVM IR?",
+    a: ["The rename of enum_glue.rs.",
+        "The new helper functions in glue.rs.",
+        "None of the source changes; they only move the decision into one place.",
+        "The re-blessed golden files."],
+    c: 2, fb: "The refactor is behaviour-preserving. The goldens only gained lines for the new test program." },
+  { q: "What did the original issue ask for that this PR deliberately does not do yet?",
+    a: ["Glue generated from TyCaps::needs_drop per mono instance with structural recursion.",
+        "A regression test for generic containers.",
+        "A check that Copy types get no glue.",
+        "Documentation of the glue rules."],
+    c: 0, fb: "needs_drop still has no codegen caller, because nested objects already drop themselves." }
+];
+let score = 0;
+const box = document.getElementById("quizbox");
+quiz.forEach((item, i) => {
+  const d = document.createElement("div"); d.className = "q";
+  d.innerHTML = "<b>" + (i+1) + ". " + item.q + "</b>";
+  const fb = document.createElement("div"); fb.className = "fb";
+  item.a.forEach((text, j) => {
+    const b = document.createElement("button"); b.textContent = text;
+    b.onclick = () => {
+      d.querySelectorAll("button").forEach(x => x.disabled = true);
+      if (j === item.c) { b.classList.add("right"); score++; document.getElementById("score").textContent = score; fb.textContent = "Correct. " + item.fb; }
+      else { b.classList.add("wrong"); d.querySelectorAll("button")[item.c].classList.add("right"); fb.textContent = "Not quite. " + item.fb; }
+      fb.style.display = "block";
+    };
+    d.appendChild(b);
+  });
+  d.appendChild(fb); box.appendChild(d);
+});
+</script>
+</body>
+</html>
