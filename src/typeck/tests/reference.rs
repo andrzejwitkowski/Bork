@@ -338,3 +338,34 @@ fn a_borrow_cannot_be_an_array_element() {
         assert_eq!(m.iter().filter(|d| d.contains("array element type")).count(), 2, "{ty}: {m:?}");
     }
 }
+
+#[test]
+fn a_call_cannot_borrow_one_name_twice_when_one_borrow_is_editable() {
+    let fns = "fun f(a: &rw [i32; 2], b: &[i32; 2]) {\n}\nfun g(a: &rw [i32; 2], b: &rw [i32; 2]) {\n}\nfun r(a: &[i32; 2], b: &[i32; 2]) {\n}\nfun id(a: &[i32; 2]): i32 {\n    return a[0]\n}\nfun h(a: &rw [i32; 2], n: i32) {\n}\n";
+    let vars = "    var a: [i32; 2] = [1, 2]\n    var b: [i32; 2] = [3, 4]\n";
+    let rejected = |call: &str, want: &str| {
+        let m = borrow_messages(fns, &format!("{vars}    {call}\n"));
+        assert!(m.iter().any(|d| d.contains(want)), "{call}: {m:?}");
+    };
+    rejected("f(&rw a, &a)", "argument 1 (`&rw a`) and argument 2 (`&a`) of `f` borrow `a`");
+    rejected("g(&rw a, &rw a)", "argument 1 (`&rw a`) and argument 2 (`&rw a`) of `g` borrow `a`");
+    // Reversed order is reported at the second (shared) borrow.
+    let m = borrow_messages(fns, &format!("{vars}    f(&rw b, &a)\n    r(&a, &a)\n    g(&rw a, &rw b)\n"));
+    assert!(m.is_empty(), "distinct names and two shared borrows are fine: {m:?}");
+    let m = borrow_messages(fns, &format!("{vars}    h(&rw a, id(&a))\n"));
+    assert!(m.is_empty(), "a nested call is a separate call: {m:?}");
+}
+
+#[test]
+fn a_reborrowed_parameter_and_a_method_receiver_count_as_borrows() {
+    let m = borrow_messages(
+        "fun f(a: &rw [i32; 2], b: &[i32; 2]) {\n}\nfun outer(p: &rw [i32; 2]) {\n    f(&rw p, &p)\n}\n",
+        "",
+    );
+    assert!(m.iter().any(|d| d.contains("argument 1 (`&rw p`) and argument 2 (`&p`) of `f` borrow `p`")), "{m:?}");
+    let class = "class C {\n    n: i32\n    fun m(c: &rw C) {\n    }\n}\n";
+    let m = borrow_messages(class, "    var c = C(1)\n    c.m(&rw c)\n");
+    assert!(m.iter().any(|d| d.contains("the receiver (`&c`) and argument 1 (`&rw c`) of `C.m` borrow `c`")), "{m:?}");
+    let m = borrow_messages(class, "    var c = C(1)\n    var d = C(2)\n    c.m(&rw d)\n");
+    assert!(m.is_empty(), "{m:?}");
+}

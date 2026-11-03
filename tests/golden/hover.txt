@@ -10,6 +10,7 @@ programs/build/borrow/reference_in_while.bork: hits=12 hash=bcec40434c709af2
 programs/build/borrow/reference_index_read.bork: hits=8 hash=9f26bce4645d5d96
 programs/build/borrow/rw_downgrade_to_shared.bork: hits=7 hash=a284d49cd0aa69d4
 programs/build/borrow/rw_param.bork: hits=9 hash=7d5d3f76b78b1218
+programs/build/borrow/rw_two_distinct.bork: hits=17 hash=c5347569c00e8021
 programs/build/borrow/shared_borrow_of_val_array.bork: hits=6 hash=58ec55fddf0b8415
 programs/build/classes/call_arg.bork: hits=3 hash=e78e04710ecea6e2
 programs/build/classes/mutable_field.bork: hits=5 hash=cd3878e5291db128
@@ -261,6 +262,8 @@ programs/check_fail/borrow/borrow_array_element.bork: hits=1 hash=9b804be4edfe91
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
 programs/check_fail/borrow/pass_view_without_ampersand.bork: hits=5 hash=92de35cb20004ec1
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=de7dd57043178e2e
+programs/check_fail/borrow/rw_aliased.bork: hits=7 hash=18268769b994910b
+programs/check_fail/borrow/rw_aliased_receiver.bork: hits=10 hash=7fc2ef4abd656296
 programs/check_fail/borrow/rw_as_managed_ref_target.bork: hits=1 hash=2d77552a6fa27925
 programs/check_fail/borrow/rw_as_type_argument.bork: hits=1 hash=fc89457af01b9c92
 programs/check_fail/borrow/rw_bound_to_var.bork: hits=3 hash=e27b3c3d8209d5f0
