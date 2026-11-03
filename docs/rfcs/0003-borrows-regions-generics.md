@@ -38,7 +38,7 @@ This RFC decides where a borrow `&T` may appear. It changes no code. Where it sa
 - Making `&T` a counted handle like `Ref<T>`: defeats region arenas.
 - Region parameters inferred per call without annotations: not decidable for fields.
 
-**Consequences.** The existing messages stay the contract (section 6). Future work: borrow-carrying class types are designed in [RFC 0004](0004-borrow-carrying-types.md) (no region parameters); region-annotated signatures are not designed yet (#202).
+**Consequences.** The existing messages stay the contract (section 6). Future work: borrow-carrying class types are designed in [RFC 0004](0004-borrow-carrying-types.md) (no region parameters); returned borrows are designed in [RFC 0005](0005-returned-borrows.md) (#202).
 
 ## 4. Region parameters
 
@@ -97,7 +97,7 @@ Rules for v1:
 - **B.** Collapse the duplicated `var`-binding borrow checks (#196, done: sema no longer reports it; `tests/restriction_sites.rs` guards one site per rule).
 - **C.** Borrow fields: designed in [RFC 0004](0004-borrow-carrying-types.md) (#201).
 - **D.** Introduce `&rw`; make `&` immutable (element writes through `&` become errors); `&rw` only on `var`; the one call-site aliasing rule; migrate the 14 programs (#198); add `programs/check_fail/borrow/{write_through_shared,rw_on_val,rw_aliased}.bork`; update `docs/language.md` and `docs/memory-model.md`.
-- **E.** Region-annotated signatures for returned borrows: design after v1.
+- **E.** Returned borrows: designed in [RFC 0005](0005-returned-borrows.md) (#202).
 - **F.** Reserve `&unique` in the parser (error "not implemented"); its semantics get their own RFC.
 
 ## 8. Threads
