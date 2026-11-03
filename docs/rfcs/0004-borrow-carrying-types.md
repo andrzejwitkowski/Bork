@@ -56,7 +56,7 @@ This covers `val b = &rw a; f(&rw a, &b)` and subsumes the call-site rule of #19
 ## 4. Interaction with other work
 
 - **Generics (#63).** Instantiating a generic class with an owned `T` never creates a view type from `T`. `ill_formed` already rejects `T = view type` (3.1). Diagnostics keep the note pointing at the generic definition (#195).
-- **Returned borrows (#202).** Out of scope here. 3.3 keeps functions from returning views. RFC 0005 will add the signature-level rule that ties a returned view to a parameter. It can reuse the borrow set from 3.2 as its vocabulary, so E needs no new type-level concept either. If it turns out to need one, that is a reason to revisit this RFC, not to add lifetimes.
+- **Returned borrows (#202).** Out of scope here. 3.3 keeps functions from returning views. [RFC 0005](0005-returned-borrows.md) adds the signature-level rule that ties a returned view to a parameter. It can reuse the borrow set from 3.2 as its vocabulary, so E needs no new type-level concept either. If it turns out to need one, that is a reason to revisit this RFC, not to add lifetimes.
 - **`&unique` (#200).** Stays reserved. If it ever arrives it is a third form of borrow in a field; 3.6 is already the exclusive case it would need.
 - **Threads (RFC 0003 section 8).** View types are not Send-like: they hold a borrow that never crosses a region boundary.
 
