@@ -376,6 +376,7 @@ impl<'a> Env<'a> {
             severity: Severity::Error,
             message: message.into(),
             span,
+            notes: Vec::new(),
         });
     }
 }

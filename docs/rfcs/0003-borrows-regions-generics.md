@@ -93,7 +93,7 @@ Rules for v1:
 
 ## 7. Follow-up issues
 
-- **A.** Reject a borrow as an explicit type argument and in `ill_formed`; note pointing at the generic definition (#63, #64).
+- **A.** Reject a borrow as an explicit type argument and in `ill_formed`; note pointing at the generic definition (#63 done: `Diagnostic::notes`; #64 tests).
 - **B.** Collapse the duplicated `var`-binding borrow checks (#196, done: sema no longer reports it; `tests/restriction_sites.rs` guards one site per rule).
 - **C.** Borrow fields: designed in [RFC 0004](0004-borrow-carrying-types.md) (#201).
 - **D.** Introduce `&rw`; make `&` immutable (element writes through `&` become errors); `&rw` only on `var`; the one call-site aliasing rule; migrate the 14 programs (#198); add `programs/check_fail/borrow/{write_through_shared,rw_on_val,rw_aliased}.bork`; update `docs/language.md` and `docs/memory-model.md`.

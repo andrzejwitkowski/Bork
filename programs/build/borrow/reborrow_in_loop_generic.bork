@@ -1,0 +1,24 @@
+// exit: 0
+// stdout: 7\n
+// The generic counterpart of `reborrow_in_loop`: a generic function passes an `&rw` borrow on from
+// inside a `while`, together with a `&T` borrow of its type-parameter value (instantiated for `String`).
+fun inner<T>(a: &rw [i32; 3], tag: &T) {
+    a[0] = 7
+}
+
+fun outer<T>(a: &rw [i32; 3], tag: &T, n: i32) {
+    var i = 0
+    while (i < n) {
+        inner(&rw a, &tag)
+        i = i + 1
+    }
+}
+
+fun main(): i32 {
+    var x: [i32; 3] = [1, 2, 3]
+    var name = "n"
+    outer(&rw x, &name, 2)
+    val r = x[0..3]
+    println(r[0])
+    return 0
+}

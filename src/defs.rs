@@ -413,6 +413,7 @@ impl DefTable {
                 severity: Severity::Error,
                 message: self.message(def, clash),
                 span: def.span,
+                notes: Vec::new(),
             })
             .collect()
     }

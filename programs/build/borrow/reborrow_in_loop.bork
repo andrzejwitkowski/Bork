@@ -1,0 +1,23 @@
+// exit: 0
+// stdout: 7\n
+// Regression: passing an `&rw` borrow on from inside a `while` (a nested region) must not be
+// rejected with "cannot lift borrow out of fun".
+fun inner(a: &rw [i32; 3]) {
+    a[0] = 7
+}
+
+fun outer(a: &rw [i32; 3], n: i32) {
+    var i = 0
+    while (i < n) {
+        inner(&rw a)
+        i = i + 1
+    }
+}
+
+fun main(): i32 {
+    var x: [i32; 3] = [1, 2, 3]
+    outer(&rw x, 2)
+    val r = x[0..3]
+    println(r[0])
+    return 0
+}

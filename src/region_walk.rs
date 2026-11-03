@@ -185,6 +185,7 @@ impl WalkError {
             severity: crate::diag::Severity::Error,
             message: format!("internal compiler error: region walk mismatch {}", self.message),
             span: None,
+            notes: Vec::new(),
         })
     }
 

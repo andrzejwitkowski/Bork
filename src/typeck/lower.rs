@@ -205,5 +205,6 @@ fn push_err(diagnostics: &mut Vec<Diagnostic>, message: impl Into<String>, span:
         severity: Severity::Error,
         message: message.into(),
         span,
+        notes: Vec::new(),
     });
 }

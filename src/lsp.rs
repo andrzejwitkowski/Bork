@@ -145,7 +145,10 @@ fn frontend_diagnostic_to_lsp(source: &str, diagnostic: &crate::diag::Diagnostic
         range,
         severity: Some(severity),
         source: Some("bork".into()),
-        message: format!("{}: {}", diagnostic.phase, diagnostic.message),
+        message: std::iter::once(format!("{}: {}", diagnostic.phase, diagnostic.message))
+            .chain(diagnostic.notes.iter().map(|note| format!("note: {}", note.message)))
+            .collect::<Vec<_>>()
+            .join("\n"),
         ..LspDiagnostic::default()
     }
 }

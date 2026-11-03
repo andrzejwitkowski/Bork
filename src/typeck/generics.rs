@@ -28,6 +28,7 @@ fn reject_bounds(owner: &str, list: &[TypeParam], diagnostics: &mut Vec<Diagnost
             severity: Severity::Error,
             message: format!("bounds on the type parameters of {owner} are not supported yet"),
             span: Some(bound.name.span),
+            notes: Vec::new(),
         });
     }
 }
@@ -80,6 +81,7 @@ fn check_list(outer: &[TypeParam], own: &[TypeParam], defs: &DefTable, diagnosti
             severity: Severity::Error,
             message,
             span: Some(param.name.span),
+            notes: Vec::new(),
         });
     }
 }

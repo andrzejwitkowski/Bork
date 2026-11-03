@@ -156,6 +156,7 @@ fn codegen_error(message: String, span: Option<Span>) -> Diagnostic {
         severity: Severity::Error,
         message,
         span,
+        notes: Vec::new(),
     }
 }
 
