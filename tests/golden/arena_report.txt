@@ -3267,6 +3267,12 @@ Arenas
 │       ├── x [Local]
 │       └── s [Moved ← fun mk]
 └── fun main
+== programs/build_fail/generics/promote_class_object.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── inner [Moved ← Block]
 == programs/build_fail/methods/trailing_closure.bork
 Arenas
 ├── fun main
@@ -4317,14 +4323,22 @@ Arenas
 └── fun main
     ├── x [Local]
     └── y [Local]
+== programs/check_fail/generics/borrow_in_box_generic_fn.bork
+Type Error [304..305] `&T` cannot be a type argument of `Box`: a borrow cannot be stored in a generic type
+Type Error [317..320] `&T` cannot be a type argument of `Box`: a borrow cannot be stored in a generic type
+Arenas
+├── fun f
+│   ├── x [Borrow ← call site]
+│   └── b [Local]
+└── fun main
 == programs/check_fail/generics/borrow_type_argument_constructor.bork
-Type Error [146..152] `&P` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
+Type Error [159..165] `&P` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
 Arenas
 └── fun main
     ├── p [Local]
     └── h [Local]
 == programs/check_fail/generics/borrow_type_argument_explicit.bork
-Type Error [149..151] `&P` cannot be a type argument of `id`: a borrow cannot be stored in a generic type
+Type Error [162..164] `&P` cannot be a type argument of `id`: a borrow cannot be stored in a generic type
 Arenas
 ├── fun id
 │   └── x [Local]
@@ -4332,7 +4346,7 @@ Arenas
     ├── p [Local]
     └── q [Local]
 == programs/check_fail/generics/borrow_type_argument_written.bork
-Type Error [110..111] `&P` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
+Type Error [121..122] `&P` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
 Arenas
 ├── fun f
 │   └── h [Local]
@@ -4359,6 +4373,26 @@ Arenas
 ├── fun f
 │   └── x [Local]
 └── fun main
+== programs/check_fail/generics/escape_after_move.bork
+Ownership Error [234..237] use of `out` after move from fun lift
+Ownership Error [276..279] cannot move `out`: already moved from fun lift
+Arenas
+├── fun lift
+│   ├── a [Moved ← fun lift]
+│   ├── out [Local]
+│   └── Block
+│       ├── inner [Local]
+│       ├── out [Moved ← fun lift]
+│       └── inner [Moved ← Block]
+└── fun main
+    └── s [Local]
+== programs/check_fail/generics/escape_local_without_move.bork
+Ownership Error [276..281] use `move inner` to transfer ownership
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── inner [Local]
 == programs/check_fail/generics/explicit_arity.bork
 Type Error [98..100] `id` expects 1 type argument, got 2
 Arenas
@@ -4384,6 +4418,14 @@ Arenas
 Type Error [110..111] class `A` has a recursive by-value layout (A -> Box<A> -> A); use `Ref<..>` for the recursive field
 Arenas
 └── fun main
+== programs/check_fail/generics/move_twice_string_instance.bork
+Ownership Error [258..259] cannot move `x`: already moved from fun twice
+Arenas
+├── fun twice
+│   ├── x [Moved ← fun twice]
+│   └── a [Local]
+└── fun main
+    └── s [Local]
 == programs/check_fail/generics/opaque_add.bork
 Type Error [154..155] arithmetic operands must have the same numeric type, got T and T; a type parameter has no bounds yet, so operators and members need a bound (not supported yet)
 Arenas
@@ -4415,14 +4457,34 @@ Arenas
     ├── h [Local]
     └── n [Local]
 == programs/check_fail/generics/ref_of_non_class.bork
-Type Error [186..187] `g<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
+Type Error [214..215] `g<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
 Arenas
 ├── fun g
 │   └── x [Local]
 └── fun main
     └── r [Local]
+== programs/check_fail/generics/ref_of_non_class_param.bork
+Type Error [251..255] `take<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
+Arenas
+├── fun take
+│   └── r [Local]
+└── fun main
+== programs/check_fail/generics/return_borrow_local.bork
+Ownership Error [193..195] returning a reference is not supported
+Arenas
+├── fun leak
+│   └── x [Local]
+└── fun main
+== programs/check_fail/generics/return_borrow_param.bork
+Ownership Error [188..189] returning a reference is not supported
+Arenas
+├── fun pass
+│   └── x [Borrow ← call site]
+└── fun main
+    ├── s [Local]
+    └── r [Local]
 == programs/check_fail/generics/return_moved.bork
-Ownership Error [80..81] returning a moved or promoted `String` is not supported yet: use `return s` for parameters and locals, or return a string literal (a type parameter is judged as its strictest instance, `String`)
+Ownership Error [92..93] returning a moved or promoted `String` is not supported yet: use `return s` for parameters and locals, or return a string literal (a type parameter is judged as its strictest instance, `String`)
 Arenas
 ├── fun id
 │   └── x [Moved ← fun id]
@@ -4453,7 +4515,7 @@ Arenas
 │   └── x [Local]
 └── fun main
 == programs/check_fail/generics/use_after_move.bork
-Ownership Error [80..81] cannot move `x`: already moved from fun f
+Ownership Error [92..93] cannot move `x`: already moved from fun f
 Arenas
 ├── fun f
 │   ├── x [Moved ← fun f]
@@ -4461,7 +4523,7 @@ Arenas
 │   └── z [Local]
 └── fun main
 == programs/check_fail/generics/vec_of_class.bork
-Type Error [182..183] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
+Type Error [210..211] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
 Arenas
 ├── fun f
 │   ├── x [Local]

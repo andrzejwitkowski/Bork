@@ -1,4 +1,5 @@
 // diag: `&P` cannot be a type argument of `id`
+// at: 11:13
 class P {
     n: i32
 }

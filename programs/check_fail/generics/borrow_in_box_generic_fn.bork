@@ -1,0 +1,14 @@
+// diag: `&T` cannot be a type argument of `Box`
+// diag: a borrow cannot be stored in a generic type
+// at: 11:9
+// `Box<&T>` is rejected where it is written inside a generic function, and the constructor call
+// that would build it is rejected too.
+class Box<T> {
+    v: T
+}
+
+fun f<T>(x: &T) {
+    val b: Box<&T> = Box(x)
+}
+
+fun main() {}

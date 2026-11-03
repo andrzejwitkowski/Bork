@@ -1,0 +1,8 @@
+// diag: returning a reference is not supported
+// at: 5:12
+// Borrowing a local of a generic function and returning it would dangle once its arena is freed.
+fun leak<T>(x: T): &T {
+    return &x
+}
+
+fun main() {}

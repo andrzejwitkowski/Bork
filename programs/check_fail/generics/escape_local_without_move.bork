@@ -1,0 +1,14 @@
+// diag: use `move inner` to transfer ownership
+// at: 12:17
+// A generic object made in an inner block cannot be assigned to an outer variable without `move`.
+class Box<T> {
+    v: T
+}
+
+fun main() {
+    var outer = Box("a")
+    {
+        val inner = Box("b")
+        outer = inner
+    }
+}

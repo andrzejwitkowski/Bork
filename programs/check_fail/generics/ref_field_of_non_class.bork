@@ -1,5 +1,6 @@
 // diag: field `r` of `Holder<i32>`: managed Ref target must be a non-nullable class
 // diag: field of a generic type, declared here
+// note-at: 5:5
 class Holder<T> {
     r: Ref<T>
 }

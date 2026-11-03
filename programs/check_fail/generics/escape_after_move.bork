@@ -1,0 +1,15 @@
+// diag: use of `out` after move
+// at: 8:9
+// Moving the outer variable into the inner block and then promoting back reads it after the move.
+fun lift<T>(var a: T): T {
+    var out = move a
+    {
+        val inner = move out
+        out = promote inner
+    }
+    return move out
+}
+
+fun main() {
+    val s = lift("a")
+}

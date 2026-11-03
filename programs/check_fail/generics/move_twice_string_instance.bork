@@ -1,0 +1,12 @@
+// diag: already moved
+// at: 7:17
+// A generic body that moves its parameter twice is rejected once, in the generic definition,
+// whatever `T` is (here the call instantiates it with `String`).
+fun twice<T>(var x: T): T {
+    val a = move x
+    return move x
+}
+
+fun main() {
+    val s = twice("a")
+}
