@@ -3790,7 +3790,7 @@ Arenas
 └── fun main
 == programs/check_fail/borrow/shared_borrow_for_rw_param.bork
 Type Error [108..110] argument 1 to `w` has type &[i32; 2], expected &rw [i32; 2]
-Type Error [108..110] borrow has type &[i32; 2], expected &rw [i32; 2]
+Type Error [108..110] borrow has type &[i32; 2], expected &rw [i32; 2]; write `&rw` to borrow it editable
 Arenas
 ├── fun w
 │   └── buf [Borrow ← call site]
@@ -3809,6 +3809,13 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── c [Local]
+== programs/check_fail/borrow/vec_field_push_through_shared.bork
+Type Error [125..137] cannot mutate through the read-only borrow `h` (through a field); take it as `&rw` (RFC 0003)
+Arenas
+├── fun f
+│   └── h [Borrow ← call site]
+└── fun main
+    └── h [Local]
 == programs/check_fail/borrow/vec_push_through_shared.bork
 Type Error [82..88] cannot mutate through the read-only borrow `v`; take it as `&rw` (RFC 0003)
 Arenas

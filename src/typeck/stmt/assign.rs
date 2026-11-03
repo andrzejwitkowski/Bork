@@ -159,21 +159,17 @@ fn assign_binding(
         if b.kind == BindingKind::Val {
             if env.tcx.is_ref(b.ty) {
                 if index_assign {
-                    if !b.explicit_ref {
-                        env.error(
-                            format!("cannot index-assign through inferred view `{name}`"),
-                            Some(span),
-                        );
-                    } else if !env.tcx.ref_inner(b.ty).is_some_and(|inner| env.tcx.is_array(inner) || env.tcx.is_vec(inner)) {
-                        env.error(
-                            format!("cannot index-assign through borrow `{name}`"),
-                            Some(span),
-                        );
-                    } else if !env.tcx.is_rw_ref(b.ty) {
-                        env.error(
-                            format!("cannot index-assign through the read-only borrow `{name}`; take it as `&rw` (RFC 0003)"),
-                            Some(span),
-                        );
+                    let indexable = env.tcx.ref_inner(b.ty).is_some_and(|inner| env.tcx.is_array(inner) || env.tcx.is_vec(inner));
+                    let message = match () {
+                        _ if !b.explicit_ref => Some(format!("cannot index-assign through inferred view `{name}`")),
+                        _ if !indexable => Some(format!("cannot index-assign through borrow `{name}`")),
+                        _ if !env.tcx.is_rw_ref(b.ty) => Some(format!(
+                            "cannot index-assign through the read-only borrow `{name}`; take it as `&rw` (RFC 0003)"
+                        )),
+                        _ => None,
+                    };
+                    if let Some(message) = message {
+                        env.error(message, Some(span));
                     }
                 } else {
                     env.error(

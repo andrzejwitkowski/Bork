@@ -128,7 +128,8 @@ fn reject_immutable(receiver: &Expr, env: &mut Env<'_>, span: Span) {
     if kind == BindingKind::Val && !env.tcx.is_ref(ty) && !env.tcx.is_managed_ref(ty) {
         let via = if direct { "" } else { " (through a field)" };
         env.error(format!("cannot mutate immutable `val` binding `{name}`{via}"), Some(span));
-    } else if direct && env.tcx.is_ref(ty) && !env.tcx.is_rw_ref(ty) {
-        env.error(format!("cannot mutate through the read-only borrow `{name}`; take it as `&rw` (RFC 0003)"), Some(span));
+    } else if env.tcx.is_ref(ty) && !env.tcx.is_rw_ref(ty) {
+        let via = if direct { "" } else { " (through a field)" };
+        env.error(format!("cannot mutate through the read-only borrow `{name}`{via}; take it as `&rw` (RFC 0003)"), Some(span));
     }
 }

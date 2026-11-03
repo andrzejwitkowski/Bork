@@ -271,6 +271,7 @@ programs/check_fail/borrow/rw_returned.bork: hits=2 hash=648c4864e2bb9098
 programs/check_fail/borrow/shared_borrow_for_rw_param.bork: hits=5 hash=7416dfff071fce01
 programs/check_fail/borrow/var_binds_borrow.bork: hits=3 hash=7426602efc62f0ec
 programs/check_fail/borrow/var_binds_view.bork: hits=5 hash=1899c72d6e25d655
+programs/check_fail/borrow/vec_field_push_through_shared.bork: hits=8 hash=fc7a7d084bf42cea
 programs/check_fail/borrow/vec_push_through_shared.bork: hits=8 hash=d12c3d3b8561e272
 programs/check_fail/borrow/write_through_shared.bork: hits=4 hash=b16c4a808b713dd6
 programs/check_fail/classes/owned_layout_cycle.bork: hits=0 hash=cbf29ce484222325

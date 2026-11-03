@@ -301,3 +301,18 @@ fn an_editable_borrow_can_be_passed_on_as_editable_or_downgraded_but_not_upgrade
     let m = borrow_messages(&format!("{readers}fun f(p: &[i32; 2]) {{\n    w(&rw p)\n}}\n"), "");
     assert!(m.iter().any(|d| d.contains("cannot take `&rw` of the read-only borrow `p`")), "{m:?}");
 }
+
+#[test]
+fn a_vec_field_cannot_be_mutated_through_a_read_only_borrow() {
+    let holder = "class H {\n    items: Vec<i32>\n}\n";
+    let m = borrow_messages(&format!("{holder}fun f(h: &H) {{\n    h.items.push(1)\n}}\n"), "");
+    assert!(m.iter().any(|d| d.contains("read-only borrow `h` (through a field)")), "{m:?}");
+    let m = borrow_messages(&format!("{holder}fun f(h: &rw H) {{\n    h.items.push(1)\n}}\n"), "");
+    assert!(m.is_empty(), "{m:?}");
+}
+
+#[test]
+fn borrowing_where_an_editable_borrow_is_expected_hints_at_rw() {
+    let m = borrow_messages("fun w(p: &rw [i32; 2]) {\n}\n", "    var a: [i32; 2] = [1, 2]\n    w(&a)\n");
+    assert!(m.iter().any(|d| d.contains("write `&rw` to borrow it editable")), "{m:?}");
+}

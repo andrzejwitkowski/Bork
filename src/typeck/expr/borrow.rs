@@ -28,8 +28,9 @@ pub(super) fn check_borrow(
             && !env.same(expected, ref_ty)
             && !target.is_some_and(|target| same_form && env.same(target, inner.ty))
         {
+            let hint = if env.tcx.is_rw_ref(expected) && !env.tcx.is_rw_ref(ref_ty) { "; write `&rw` to borrow it editable" } else { "" };
             env.error(
-                format!("borrow has type {}, expected {}", env.show(ref_ty), env.show(expected)),
+                format!("borrow has type {}, expected {}{hint}", env.show(ref_ty), env.show(expected)),
                 Some(span),
             );
         }
