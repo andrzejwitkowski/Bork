@@ -1,0 +1,11 @@
+// diag: cannot take `&rw` of the read-only borrow `p`
+fun w(p: &rw [i32; 2]) {
+    p[0] = 1
+}
+fun f(p: &[i32; 2]) {
+    w(&rw p)
+}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    f(&a)
+}

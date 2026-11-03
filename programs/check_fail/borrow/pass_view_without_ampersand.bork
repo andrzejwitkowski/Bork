@@ -1,0 +1,7 @@
+// diag: argument 1 to `r` expects borrow
+fun r(p: &[i32; 2]) {}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    val b = &a
+    r(b)
+}

@@ -99,7 +99,7 @@ pub(super) fn check_field(
 
     let field_ty = env.member_ty(receiver.ty, field.ty);
     let result_ty = if env.tcx.is_ref(receiver.ty) && env.tcx.record_def(field_ty).is_some() {
-        env.tcx.ref_to(field_ty)
+        env.tcx.ref_to_flag(field_ty, env.tcx.is_rw_ref(receiver.ty))
     } else if through_managed_ref && safe && !env.tcx.is_managed_ref(field_ty) {
         if env.tcx.supports_nullable(field_ty) {
             env.tcx.with_nullable(field_ty, true)

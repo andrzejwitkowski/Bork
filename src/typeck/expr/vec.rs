@@ -123,8 +123,13 @@ fn reject_immutable(receiver: &Expr, env: &mut Env<'_>, span: Span) {
     let Some(binding) = env.binding(name) else {
         return;
     };
-    if binding.kind == BindingKind::Val && !env.tcx.is_ref(binding.ty) && !env.tcx.is_managed_ref(binding.ty) {
-        let via = if std::ptr::eq(root, receiver) { "" } else { " (through a field)" };
+    let direct = std::ptr::eq(root, receiver);
+    let (kind, ty) = (binding.kind, binding.ty);
+    if kind == BindingKind::Val && !env.tcx.is_ref(ty) && !env.tcx.is_managed_ref(ty) {
+        let via = if direct { "" } else { " (through a field)" };
         env.error(format!("cannot mutate immutable `val` binding `{name}`{via}"), Some(span));
+    } else if env.tcx.is_ref(ty) && !env.tcx.is_rw_ref(ty) {
+        let via = if direct { "" } else { " (through a field)" };
+        env.error(format!("cannot mutate through the read-only borrow `{name}`{via}; take it as `&rw` (RFC 0003)"), Some(span));
     }
 }

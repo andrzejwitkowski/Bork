@@ -1,0 +1,7 @@
+// diag: array element type `&P` is not supported
+class P {
+    x: i32
+}
+fun f(a: [&P; 2]) {
+}
+fun main() {}

@@ -1,0 +1,14 @@
+// exit: 8
+fun first(a: &[i32; 2]): i32 {
+    return a[0]
+}
+
+fun set_and_read(a: &rw [i32; 2]): i32 {
+    a[0] = 8
+    return first(&a)
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    return set_and_read(&rw a)
+}

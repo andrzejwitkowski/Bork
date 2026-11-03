@@ -45,10 +45,7 @@ pub(super) fn check_array_lit(
             continue;
         }
         if !env.tcx.is_array_elem_supported(hir.ty) {
-            env.error(
-                format!("array element type `{}` is not supported", env.show(hir.ty)),
-                hir.span.or(Some(span)),
-            );
+            env.error(env.tcx.array_elem_message(hir.ty), hir.span.or(Some(span)));
         }
         if let Some(elem) = inferred {
             if !env.tcx.is_unknown(hir.ty) && !env.same(hir.ty, elem) {

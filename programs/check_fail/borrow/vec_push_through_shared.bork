@@ -1,0 +1,8 @@
+// diag: cannot mutate through the read-only borrow `v`
+fun f(v: &Vec<i32>) {
+    v.push(1)
+}
+fun main() {
+    var v = Vec<i32>()
+    f(&v)
+}

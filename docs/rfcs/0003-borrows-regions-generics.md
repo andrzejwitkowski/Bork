@@ -71,7 +71,7 @@ Rules for v1:
 - Inferring "callee writes" from its body: rule depends on another function's body; unclear for generic and trait methods.
 - `&mut`: `rw` is the chosen spelling (`edit` was rejected because it is a natural variable name, and `rw` is a reserved word).
 
-**Consequences.** Breaking. `&` no longer allows `p[i] = v` (documented today at `docs/language.md`, checked in `typeck/stmt/assign.rs`). 16 programs under `programs/` and the repo root write through a `&` parameter and must change to `&rw` (e.g. `programs/build/borrow/reference_in_while.bork`, `programs/build/recursions/recursive_qsort_small.bork`). Follow-ups D and F.
+**Consequences.** Breaking. `&` no longer allows `p[i] = v` (documented today at `docs/language.md`, checked in `typeck/stmt/assign.rs`). 14 programs (8 under `programs/` and 6 scratch files at the repo root) wrote through a `&` parameter and moved to `&rw` in #198 (e.g. `programs/build/borrow/reference_in_while.bork`, `programs/build/recursions/recursive_qsort_small.bork`). Follow-ups D and F.
 
 ## 6. v1 restriction list
 
@@ -82,9 +82,9 @@ Rules for v1:
 | enum payload | rejected | `borrowed references cannot be stored in enum payloads` | `typeck/mod.rs` | same |
 | return type or returned value | rejected | `returning a reference is not supported` | `escape.rs` | region-annotated signatures |
 | `var` binding | rejected | `cannot bind var ... to a reference type; use val` | `typeck/stmt/mod.rs` (sema duplicates removed, #196) | done |
-| `Vec<&T>`, `Ref<&T>`, `[&T; N]` | rejected | `vec_elem_message`, `managed_ref_target_message` | `typeck/lower.rs`, `ill_formed` | with fields |
+| `Vec<&T>`, `Ref<&T>`, `[&T; N]` | rejected | `vec_elem_message`, `managed_ref_target_message`, `array_elem_message` | `typeck/lower.rs`, `ill_formed` | with fields |
 | `&T?` | rejected | `nullable reference types ... are not supported` | `typeck/lower.rs` | none |
-| type argument `T = &U` / `&rw U` | rejected | inferred: `... parameter expects owned ...`; written: **not enforced** | `check_argument`; none | A |
+| type argument `T = &U` / `&rw U` | rejected | `` `&P` cannot be a type argument of `X` `` (written, explicit, inferred and after instantiation) | `first_borrow_arg` sites, #195 | done |
 | element write through `&[T; N]` / `&Vec` | rejected (changed) | today allowed on explicit `&` | `typeck/stmt/assign.rs` | D |
 | `&rw name`, `name` a `var` array/`Vec` | allowed (new) | n/a | new | D |
 | `&rw name`, `name` a `val` | rejected (new) | new | new | D |
@@ -96,7 +96,7 @@ Rules for v1:
 - **A.** Reject a borrow as an explicit type argument and in `ill_formed`; note pointing at the generic definition (#63, #64).
 - **B.** Collapse the duplicated `var`-binding borrow checks (#196, done: sema no longer reports it; `tests/restriction_sites.rs` guards one site per rule).
 - **C.** Region-parameterised class types (borrow fields): design after v1.
-- **D.** Introduce `&rw`; make `&` immutable (element writes through `&` become errors); `&rw` only on `var`; the one call-site aliasing rule; migrate the 16 programs; add `programs/check_fail/borrow/{write_through_shared,edit_on_val,edit_aliased}.bork`; update `docs/language.md` and `docs/memory-model.md`.
+- **D.** Introduce `&rw`; make `&` immutable (element writes through `&` become errors); `&rw` only on `var`; the one call-site aliasing rule; migrate the 14 programs (#198); add `programs/check_fail/borrow/{write_through_shared,rw_on_val,rw_aliased}.bork`; update `docs/language.md` and `docs/memory-model.md`.
 - **E.** Region-annotated signatures for returned borrows: design after v1.
 - **F.** Reserve `&unique` in the parser (error "not implemented"); its semantics get their own RFC.
 
@@ -107,6 +107,6 @@ No `Send`/`Sync` exists. Constraint for any future thread RFC: a borrow never cr
 ## Reviewer checklist
 
 - Every cited diagnostic and path matches the source.
-- Section 5 breakage is acceptable (16 programs move to `&rw`).
+- Section 5 breakage is acceptable (14 programs moved to `&rw`).
 - `&rw` spelling and the single call-site aliasing rule are the intended v1 scope.
 - Follow-up issues A-E are opened after this RFC is approved.

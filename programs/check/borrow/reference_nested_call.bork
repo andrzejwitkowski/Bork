@@ -1,12 +1,12 @@
-fun inner(buf: &[i32; 2]) {
+fun inner(buf: &rw [i32; 2]) {
     buf[0] = 1
 }
 
-fun outer(p: &[i32; 2]) {
-    inner(&p)
+fun outer(p: &rw [i32; 2]) {
+    inner(&rw p)
 }
 
 fun main() {
     var a: [i32; 2] = [1, 2]
-    outer(&a)
+    outer(&rw a)
 }

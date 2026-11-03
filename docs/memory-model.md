@@ -205,8 +205,8 @@ Two related ideas:
 | Action in child / loop | Outer `var a: [T; N]` |
 |------------------------|------------------------|
 | Read element | `val b = &a` and `b[i]`, or `val r = a[lo..hi]` and `r[i]`; bare `a[i]` in the child **errors** |
-| Write element | `a[i] = v` or `(&a)[i] = v` (mutation of outer `var`, not a move into the child) |
-| View `val b = &a` | read `b[i]` OK; `b[i] = v` rejected (`b` is `val`) — use `(&a)[i] =` or a `&[T; N]` parameter |
+| Write element | `a[i] = v` or `(&rw a)[i] = v` (mutation of outer `var`, not a move into the child) |
+| View `val b = &a` | read `b[i]` OK; `b[i] = v` rejected (`b` is `val`) — write through the `var` (`a[i] =`) or an `&rw [T; N]` parameter |
 
 `&` binds looser than indexing: `&a[i]` is not a borrow of `a`.
 
@@ -237,7 +237,7 @@ Bare `f(param)` without `&` when the formal is `&T` is still an error (`cannot m
 
 A `var` formal `[T; N]` requires `move` at the call site. Passing `&outer` is a type error unless the parameter is written `&[T; N]`.
 
-`&rw T` is the editable borrow (RFC 0003 section 5). It is a distinct type from `&T` with the same representation (a pointer to the owner's storage); every restriction in this section applies to it. Its write permission rules arrive with #198.
+`&rw T` is the editable borrow (RFC 0003 section 5). It is a distinct type from `&T` with the same representation (a pointer to the owner's storage); every restriction in this section applies to it. Element writes through a borrow need `&rw`, and `&rw` can only borrow a `var` (RFC 0003 section 5).
 
 ### Loops
 
@@ -404,7 +404,7 @@ Examples:
 - **Whole-array** `move` / `promote` / assignment requires the same `[T; N]` on both sides.
 - **Slice** `a[lo..hi]` with compile-time literal bounds has type `[T; hi - lo]`. Codegen uses that **N** as the descriptor length and points into the same buffer (no copy). It does not emit a runtime bounds abort: typeck already rejected a slice that does not fit in the receiver. Escape rules treat the slice like the receiver array: it must not outlive the arena that owns the buffer.
 - **Index read:** Copy elements copy by value. A `String` element is **Shared** (a view of the array buffer), whether the array binding is `val` or `var`. The index is a runtime `i32`, so an out-of-range index aborts. Indexing applies to `[T; N]` and to **`&[T; N]`** (the element type is `T` in both cases).
-- **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). Inside a callee, `p[i] = v` for `p: &[T; N]` mutates the owner’s buffer. `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
+- **Index assign:** `a[i] = v` on a `var` `[T; N]` writes element `T` (Copy or `String`). Inside a callee, `p[i] = v` for `p: &rw [T; N]` mutates the owner’s buffer; a `p: &[T; N]` is read-only. `val` arrays reject assignment. Non-Copy elements use the array binding’s arena as the assign sink (`move` / `promote` as for whole-binding assignment). Out-of-range index aborts like a read.
 
 ### `Vec<T>`
 

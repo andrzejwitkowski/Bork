@@ -1,16 +1,16 @@
 // exit: 3
-fun bump(buf: &[i32; 2]) {
+fun bump(buf: &rw [i32; 2]) {
     buf[0] = buf[0] + 1
 }
 
-fun outer(buf: &[i32; 2]) {
+fun outer(buf: &rw [i32; 2]) {
     for (i in 0..2) {
-        bump(&buf)
+        bump(&rw buf)
     }
 }
 
 fun main(): i32 {
     var a: [i32; 2] = [1, 0]
-    outer(&a)
+    outer(&rw a)
     return a[0]
 }

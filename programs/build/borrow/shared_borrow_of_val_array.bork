@@ -1,0 +1,9 @@
+// exit: 6
+fun sum(a: &[i32; 3]): i32 {
+    return a[0] + a[1] + a[2]
+}
+
+fun main(): i32 {
+    val a: [i32; 3] = [1, 2, 3]
+    return sum(&a)
+}

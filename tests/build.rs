@@ -615,14 +615,14 @@ fn build_rejects_mvp_sample_at_codegen_gate() {
 fn builds_reference_param_in_while() {
     let run = build_and_run(
         "builds_reference_param_in_while",
-        "fun bump(buf: &[i32; 2]) {\n\
+        "fun bump(buf: &rw [i32; 2]) {\n\
             buf[0] = 9\n\
         }\n\
         fun main(): i32 {\n\
             var a: [i32; 2] = [1, 2]\n\
             var i = 0\n\
             while (i < 1) {\n\
-                bump(&a)\n\
+                bump(&rw a)\n\
                 i = i + 1\n\
             }\n\
             return a[0]\n\
