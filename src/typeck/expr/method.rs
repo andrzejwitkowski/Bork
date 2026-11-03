@@ -248,7 +248,7 @@ fn borrow(receiver: Checked, env: &mut Env<'_>) -> Checked {
         hir: HirExpr {
             id: crate::hir::NodeId::DUMMY,
             kind: HirExprKind::Unary {
-                op: UnaryOp::Borrow,
+                op: UnaryOp::Borrow { rw: false },
                 expr: Box::new(receiver),
             },
             ty,

@@ -29,7 +29,7 @@ impl TyCtx {
         struct Find(bool);
         impl super::TypeVisitor for Find {
             fn visit(&mut self, ctx: &TyCtx, id: TyId) {
-                self.0 |= matches!(ctx.data(id), TyData::Ref(_));
+                self.0 |= matches!(ctx.data(id), TyData::Ref(..));
                 super::walk(self, ctx, id);
             }
         }
@@ -79,7 +79,7 @@ impl<'a> TyCaps<'a> {
                 path.pop();
                 any
             }
-            TyData::String | TyData::Prim(_) | TyData::Ref(_) | TyData::Func { .. } | TyData::Error => false,
+            TyData::String | TyData::Prim(_) | TyData::Ref(..) | TyData::Func { .. } | TyData::Error => false,
         }
     }
 }
@@ -112,6 +112,18 @@ mod tests {
         assert!(!c.is_move_only(b) && c.contains_borrow(b) && !c.contains_borrow(r));
         let arr_of_borrow = c.array(b, 1);
         assert!(c.contains_borrow(arr_of_borrow));
+    }
+
+    #[test]
+    fn an_editable_borrow_is_a_borrow_with_its_own_type() {
+        let mut c = ctx();
+        let point = named(&mut c, "Point");
+        let (shared, editable) = (c.ref_to(point), c.ref_to_flag(point, true));
+        assert!(c.is_ref(editable) && c.is_rw_ref(editable) && !c.is_rw_ref(shared));
+        assert_eq!(c.ref_inner(editable), Some(point));
+        assert!(c.contains_borrow(editable) && c.first_borrow_arg(&[editable]) == Some(editable));
+        assert!(!c.is_move_only(editable) && !c.is_trivially_copy(editable));
+        assert_eq!(c.display(editable).to_string(), "&rw Point");
     }
 
     #[test]

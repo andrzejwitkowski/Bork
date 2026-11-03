@@ -1,0 +1,8 @@
+// diag: returning a reference is not supported
+class P {
+    x: i32
+}
+fun f(p: &rw P): &rw P {
+    return p
+}
+fun main() {}

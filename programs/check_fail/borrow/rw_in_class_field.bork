@@ -1,0 +1,8 @@
+// diag: borrowed references cannot be stored in class fields
+class P {
+    x: i32
+}
+class C {
+    r: &rw P
+}
+fun main() {}

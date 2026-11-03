@@ -381,3 +381,17 @@ fn rollback_drops_obligations_registered_since_the_snapshot() {
     infcx.commit(snap);
     assert_eq!(infcx.pending_obligations(), 2);
 }
+
+#[test]
+fn a_shared_and_an_editable_borrow_do_not_unify() {
+    let mut f = Fx::new();
+    let point = f.t.class(f.defs.lookup_class("Point").unwrap(), Vec::new());
+    let (shared, editable) = (f.t.ref_to(point), f.t.ref_to_flag(point, true));
+    assert_ne!(shared, editable);
+    assert!(matches!(f.unify(shared, editable), Err(TypeError::Mismatch { .. })));
+    let v = f.var();
+    let other = f.t.ref_to_flag(point, true);
+    f.unify(editable, other).unwrap();
+    f.unify(v, editable).unwrap();
+    assert_eq!(f.show(v), "&rw Point");
+}

@@ -1,0 +1,7 @@
+// diag: expected &rw [i32; 2]
+fun w(buf: &rw [i32; 2]) {
+}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    w(&a)
+}

@@ -73,7 +73,7 @@ fn receiver_call_lowers_to_qualified_call_with_borrowed_receiver() {
     let HirExprKind::Call { callee, args, .. } = &call.kind else { panic!("call") };
     assert!(matches!(&callee.kind, HirExprKind::Ident { name, .. } if name == "P.add"));
     assert_eq!(args.len(), 2);
-    assert!(matches!(&args[0].kind, HirExprKind::Unary { op: UnaryOp::Borrow, .. }));
+    assert!(matches!(&args[0].kind, HirExprKind::Unary { op: UnaryOp::Borrow { .. }, .. }));
     assert!(tcx.is_ref(args[0].ty));
 }
 

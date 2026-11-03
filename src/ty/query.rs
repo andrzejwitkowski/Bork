@@ -26,7 +26,7 @@ impl TyCtx {
     fn supports_nullable_payload(&self, payload: TyId) -> bool {
         !matches!(
             self.data(payload),
-            TyData::Range(_) | TyData::Ref(_) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
+            TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
         )
     }
 
@@ -43,7 +43,7 @@ impl TyCtx {
     pub fn supports_nullable(&self, id: TyId) -> bool {
         !matches!(
             self.data(self.base(id)),
-            TyData::Range(_) | TyData::Ref(_) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
+            TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
         )
     }
 
@@ -87,12 +87,12 @@ impl TyCtx {
     }
 
     pub fn is_ref(&self, id: TyId) -> bool {
-        matches!(self.data(self.base(id)), TyData::Ref(_))
+        matches!(self.data(self.base(id)), TyData::Ref(..))
     }
 
     pub fn ref_inner(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
-            TyData::Ref(inner) => Some(*inner),
+            TyData::Ref(inner, _) => Some(*inner),
             _ => None,
         }
     }
@@ -112,7 +112,7 @@ impl TyCtx {
     pub fn is_text(&self, id: TyId) -> bool {
         match self.data(id) {
             TyData::String => true,
-            TyData::Ref(inner) => self.is_text(*inner),
+            TyData::Ref(inner, _) => self.is_text(*inner),
             _ => false,
         }
     }
@@ -121,7 +121,7 @@ impl TyCtx {
     pub fn record_def(&self, id: TyId) -> Option<DefId> {
         match self.data(self.base(id)) {
             TyData::Class(def, _) => Some(*def),
-            TyData::Ref(inner) => self.record_def(*inner),
+            TyData::Ref(inner, _) => self.record_def(*inner),
             _ => None,
         }
     }
@@ -136,7 +136,7 @@ impl TyCtx {
             _ => (false, None),
         };
         match self.data(self.base(id)) {
-            TyData::Ref(inner) => {
+            TyData::Ref(inner, _) => {
                 let (named, class) = named(*inner);
                 (named, class, false)
             }
@@ -171,7 +171,7 @@ impl TyCtx {
     pub fn array_elem(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
             TyData::Array { elem, .. } => Some(*elem),
-            TyData::Ref(inner) => self.array_elem(*inner),
+            TyData::Ref(inner, _) => self.array_elem(*inner),
             _ => None,
         }
     }
@@ -187,7 +187,7 @@ impl TyCtx {
     pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
             TyData::Vec(elem) => Some(*elem),
-            TyData::Ref(inner) => self.vec_elem(*inner),
+            TyData::Ref(inner, _) => self.vec_elem(*inner),
             _ => None,
         }
     }
@@ -237,7 +237,7 @@ impl TyCtx {
             return true;
         }
         match self.data(self.base(id)) {
-            TyData::Ref(inner) => self.uses_arena_storage(*inner),
+            TyData::Ref(inner, _) => self.uses_arena_storage(*inner),
             TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } | TyData::Vec(_) => true,
             _ => false,
         }
@@ -269,7 +269,7 @@ impl TyCtx {
     /// that takes `&P` holds none.
     fn stores_borrow(&self, id: TyId) -> bool {
         match self.data(id) {
-            TyData::Ref(_) => true,
+            TyData::Ref(..) => true,
             TyData::Func { .. } => false,
             data => data.children().into_iter().any(|child| self.stores_borrow(child)),
         }
@@ -359,7 +359,7 @@ impl TyCtx {
     pub fn class_args(&self, id: TyId) -> Option<(DefId, &[TyId])> {
         match self.data(self.base(id)) {
             TyData::Class(def, args) => Some((*def, args)),
-            TyData::Ref(inner) | TyData::ManagedRef(inner) => self.class_args(*inner),
+            TyData::Ref(inner, _) | TyData::ManagedRef(inner) => self.class_args(*inner),
             _ => None,
         }
     }
@@ -369,7 +369,16 @@ impl TyCtx {
     }
 
     pub fn ref_to(&mut self, inner: TyId) -> TyId {
-        self.add(TyData::Ref(inner))
+        self.ref_to_flag(inner, false)
+    }
+
+    pub fn ref_to_flag(&mut self, inner: TyId, rw: bool) -> TyId {
+        self.add(TyData::Ref(inner, rw))
+    }
+
+    /// Whether `id` is `&rw T`.
+    pub fn is_rw_ref(&self, id: TyId) -> bool {
+        matches!(self.data(self.base(id)), TyData::Ref(_, true))
     }
 
     pub fn managed_ref(&mut self, inner: TyId) -> TyId {

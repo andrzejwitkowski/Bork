@@ -237,6 +237,8 @@ Bare `f(param)` without `&` when the formal is `&T` is still an error (`cannot m
 
 A `var` formal `[T; N]` requires `move` at the call site. Passing `&outer` is a type error unless the parameter is written `&[T; N]`.
 
+`&rw T` is the editable borrow (RFC 0003 section 5). It is a distinct type from `&T` with the same representation (a pointer to the owner's storage); every restriction in this section applies to it. Its write permission rules arrive with #198.
+
 ### Loops
 
 A `for` body runs many times at runtime, but ownership of an **outer** binding can be transferred only once. Moving a name that lives **outside** the loop is a compile error:

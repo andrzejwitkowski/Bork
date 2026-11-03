@@ -231,3 +231,39 @@ fn a_projection_that_resolves_to_a_borrow_is_a_rejected_type_argument() {
     let m = messages(src);
     assert!(m.iter().any(|d| d.contains("cannot be a type argument of `Holder`")), "{m:?}");
 }
+
+fn rw_messages(items: &str, main_body: &str) -> Vec<String> {
+    messages(&format!("class P {{\n    x: i32\n}}\nclass H<T> {{\n    v: T\n}}\n{items}fun main() {{\n{main_body}}}\n"))
+}
+
+#[test]
+fn an_editable_borrow_is_accepted_where_it_is_passed_on_unchanged() {
+    let m = rw_messages("fun w(buf: &rw [i32; 2]) {\n    buf[0] = 1\n}\n", "    var a: [i32; 2] = [1, 2]\n    w(&rw a)\n");
+    assert!(m.is_empty(), "{m:?}");
+}
+
+#[test]
+fn shared_and_editable_borrows_are_different_types() {
+    let m = rw_messages("fun w(buf: &rw [i32; 2]) {\n}\n", "    var a: [i32; 2] = [1, 2]\n    w(&a)\n");
+    assert!(m.iter().any(|d| d.contains("expected &rw [i32; 2]")), "{m:?}");
+    let m = rw_messages("fun r(buf: &[i32; 2]) {\n}\n", "    var a: [i32; 2] = [1, 2]\n    r(&rw a)\n");
+    assert!(m.iter().any(|d| d.contains("expected &[i32; 2]")), "{m:?}");
+}
+
+#[test]
+fn every_borrow_restriction_also_covers_the_editable_borrow() {
+    let rows: &[(&str, &str, &str)] = &[
+        ("class C {\n    r: &rw P\n}\n", "", "cannot be stored in class fields"),
+        ("enum E {\n    A(v: &rw P)\n}\n", "", "cannot be stored in enum payloads"),
+        ("fun f(p: &rw P): &rw P {\n    return p\n}\n", "", "returning a reference is not supported"),
+        ("", "    var a: [i32; 2] = [1, 2]\n    var x = &rw a\n", "to a reference type; use `val`"),
+        ("fun f(v: Vec<&rw P>) {\n}\n", "", "`Vec` element must be"),
+        ("fun f(v: Ref<&rw P>) {\n}\n", "", "managed Ref target must be"),
+        ("fun f(h: H<&rw P>) {\n}\n", "", "cannot be a type argument of `H`"),
+        ("fun id<T>(x: T): T {\n    return x\n}\n", "    var a: [i32; 2] = [1, 2]\n    val q = id::<&rw [i32; 2]>(&rw a)\n", "cannot be a type argument of `id`"),
+    ];
+    for (items, body, want) in rows {
+        let m = rw_messages(items, body);
+        assert!(m.iter().any(|d| d.contains(want)), "{want}: {m:?}");
+    }
+}

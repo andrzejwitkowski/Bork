@@ -1012,3 +1012,19 @@ fn rejects_where_clauses_on_foreign_parameters_and_empty_bounds() {
     assert!(parse("fun f<T:>() {}\n").is_err());
     assert!(parse("fun f<T>() where T {}\n").is_err());
 }
+
+#[test]
+fn parses_the_editable_borrow_in_types_and_expressions_and_prints_it_back() {
+    let src = "fun bump(buf: &rw [i32; 2]) {\n    buf[0] = 1\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    bump(&rw a)\n    bump(&a)\n}";
+    let prog = parse(src).expect("parse");
+    assert!(matches!(&prog.functions[0].params[0].ty, Type::Ref { rw: true, .. }));
+    assert_eq!(prog.functions[0].params[0].ty.to_string(), "&rw [i32; 2]");
+    let calls = format!("{:?}", prog.functions[1].body.stmts);
+    assert!(calls.contains("Borrow { rw: true }") && calls.contains("Borrow { rw: false }"), "{calls}");
+    assert!(matches!(parse("fun f(b: &[i32; 2]) {}").unwrap().functions[0].params[0].ty, Type::Ref { rw: false, .. }));
+}
+
+#[test]
+fn rw_is_a_reserved_word() {
+    assert!(parse("fun main() {\n    val rw = 1\n}").is_err());
+}

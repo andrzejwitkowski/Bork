@@ -1,0 +1,7 @@
+// diag: managed Ref target must be
+class P {
+    x: i32
+}
+fun f(v: Ref<&rw P>) {
+}
+fun main() {}

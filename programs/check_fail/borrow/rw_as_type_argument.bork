@@ -1,0 +1,10 @@
+// diag: cannot be a type argument of `H`
+class P {
+    x: i32
+}
+class H<T> {
+    v: T
+}
+fun f(h: H<&rw P>) {
+}
+fun main() {}

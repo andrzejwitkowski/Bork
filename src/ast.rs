@@ -235,6 +235,8 @@ pub enum Type {
     },
     Ref {
         inner: Box<Type>,
+        /// `&rw T`: the editable borrow (RFC 0003 section 5).
+        rw: bool,
         nullable: bool,
     },
     ManagedRef {
@@ -269,7 +271,7 @@ impl Type {
             Type::Func { params, ret, nullable } => {
                 Type::Func { params: params.iter().map(|p| p.with_self(self_ty)).collect(), ret: sub(ret), nullable: *nullable }
             }
-            Type::Ref { inner, nullable } => Type::Ref { inner: sub(inner), nullable: *nullable },
+            Type::Ref { inner, rw, nullable } => Type::Ref { inner: sub(inner), rw: *rw, nullable: *nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner: sub(inner) },
             Type::Vec { elem } => Type::Vec { elem: sub(elem) },
             Type::Assoc { base, name } => Type::Assoc { base: sub(base), name: name.clone() },
@@ -330,7 +332,7 @@ impl Type {
                 ret,
                 nullable,
             },
-            Type::Ref { inner, .. } => Type::Ref { inner, nullable },
+            Type::Ref { inner, rw, .. } => Type::Ref { inner, rw, nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner },
             Type::Vec { elem } => Type::Vec { elem },
             assoc @ Type::Assoc { .. } => assoc,
@@ -396,7 +398,7 @@ impl fmt::Display for Type {
                 }
                 write!(f, ")->{ret}")?;
             }
-            Type::Ref { inner, .. } => write!(f, "&{inner}")?,
+            Type::Ref { inner, rw, .. } => write!(f, "&{}{inner}", if *rw { "rw " } else { "" })?,
             Type::ManagedRef { inner } => write!(f, "Ref<{inner}>")?,
             Type::Vec { elem } => write!(f, "Vec<{elem}>")?,
         }
@@ -750,7 +752,8 @@ pub enum BinOp {
 pub enum UnaryOp {
     NotNullAssert,
     Not,
-    Borrow,
+    /// `&x`, or `&rw x` when `rw`.
+    Borrow { rw: bool },
 }
 
 pub fn unescape_string_literal(raw: &str) -> String {

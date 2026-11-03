@@ -321,7 +321,7 @@ fn check_argument(name: &str, index: usize, argument: &Checked, expected: TyId, 
         && !matches!(
             &argument.kind,
             HirExprKind::Unary {
-                op: UnaryOp::Borrow,
+                op: UnaryOp::Borrow { .. },
                 ..
             }
         )
@@ -453,7 +453,8 @@ fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {
         return true;
     }
     if let (Some(got_inner), Some(expected_inner)) = (tcx.ref_inner(got), tcx.ref_inner(expected)) {
-        return got_inner == expected_inner;
+        // `&T` and `&rw T` are different types (RFC 0003 section 5).
+        return got_inner == expected_inner && tcx.is_rw_ref(got) == tcx.is_rw_ref(expected);
     }
     false
 }
@@ -522,7 +523,7 @@ fn check_string_from_utf8(name: &str, site: CallSite<'_>, env: &mut Env<'_>) -> 
         let buffer_is_borrowed_bytes = matches!(
             &buffer.kind,
             HirExprKind::Unary {
-                op: UnaryOp::Borrow,
+                op: UnaryOp::Borrow { .. },
                 ..
             }
         ) && env.tcx.is_ref(buffer.ty)

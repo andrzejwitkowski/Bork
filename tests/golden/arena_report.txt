@@ -69,6 +69,12 @@ Arenas
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/build/borrow/rw_param.bork
+Arenas
+├── fun set
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
 == programs/build/classes/call_arg.bork
 Arenas
 ├── fun take
@@ -3711,6 +3717,52 @@ Type Error [120..121] argument 1 to `bump` expects borrow `&…`, got [i32; 2]
 Type Error [120..121] argument 1 to `bump` has type [i32; 2], expected &[i32; 2]
 Arenas
 ├── fun bump
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/check_fail/borrow/rw_as_managed_ref_target.bork
+Type Error [65..66] managed Ref target must be a non-nullable class or enum, got `&rw P`
+Arenas
+├── fun f
+│   └── v [Local]
+└── fun main
+== programs/check_fail/borrow/rw_as_type_argument.bork
+Type Error [95..96] `&rw P` cannot be a type argument of `H`: a borrow cannot be stored in a generic type
+Arenas
+├── fun f
+│   └── h [Local]
+└── fun main
+== programs/check_fail/borrow/rw_bound_to_var.bork
+Type Error [112..113] cannot bind `var` `x` to a reference type; use `val`
+Arenas
+└── fun main
+    ├── a [Local]
+    └── x [Local]
+== programs/check_fail/borrow/rw_in_class_field.bork
+Type Error [99..100] borrowed references cannot be stored in class fields
+Arenas
+└── fun main
+== programs/check_fail/borrow/rw_in_enum_payload.bork
+Type Error [101..102] borrowed references cannot be stored in enum payloads
+Arenas
+└── fun main
+== programs/check_fail/borrow/rw_in_vec.bork
+Type Error [60..61] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `&rw P`
+Arenas
+├── fun f
+│   └── v [Local]
+└── fun main
+== programs/check_fail/borrow/rw_returned.bork
+Ownership Error [107..108] returning a reference is not supported
+Arenas
+├── fun f
+│   └── p [Borrow ← call site]
+└── fun main
+== programs/check_fail/borrow/shared_borrow_for_rw_param.bork
+Type Error [108..110] argument 1 to `w` has type &[i32; 2], expected &rw [i32; 2]
+Type Error [108..110] borrow has type &[i32; 2], expected &rw [i32; 2]
+Arenas
+├── fun w
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]

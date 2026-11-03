@@ -1,0 +1,10 @@
+// exit: 7
+fun set(buf: &rw [i32; 3]) {
+    buf[1] = 7
+}
+
+fun main(): i32 {
+    var a: [i32; 3] = [1, 2, 3]
+    set(&rw a)
+    return a[1]
+}

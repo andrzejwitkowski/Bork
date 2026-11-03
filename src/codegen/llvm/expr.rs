@@ -185,7 +185,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             HirExprKind::Ident { name, use_kind } => self.emit_ident_value(name, *use_kind, expr),
             HirExprKind::Some(_) => self.emit_nullable_some(expr.ty, ops[0]).map(Some),
             HirExprKind::Unary { op, expr: inner } => match op {
-                crate::ast::UnaryOp::Borrow => Ok(Some(ops[0])),
+                crate::ast::UnaryOp::Borrow { .. } => Ok(Some(ops[0])),
                 crate::ast::UnaryOp::Not => {
                     let value = self.value_as_bool(ops[0], expr.span)?;
                     let one = self.cx.context.bool_type().const_int(1, false);

@@ -116,7 +116,7 @@ impl<T> Show for Box<T> { ... }
 - Each impl must provide exactly the trait's methods with the same parameter count and types (after substituting `Self` and the trait arguments). Missing, extra, duplicate and mismatched items are errors at the impl.
 - Two impls of one trait may not overlap: if their headers unify (`impl<T> Show for Box<T>` and `impl Show for Box<Circle>`), the later one is an error naming both. Bounds are not considered (`impl<T: A> ..` and `impl<T: B> ..` for `Box<T>` overlap). Impls of different traits never overlap, and neither do impls of one trait whose trait arguments cannot unify (`Conv<i32>` and `Conv<bool>`); arguments that can unify do overlap (`impl<T> Conv<T> for Box<T>` and `impl Conv<Circle> for Box<Circle>`).
 - Only classes and enums can implement a trait for now. `Self` is usable in impl signatures too.
-- `trait`, `impl` and `type` are reserved words: they can no longer be used as variable, function or field names.
+- `trait`, `impl`, `type` and `rw` are reserved words: they can no longer be used as variable, function or field names.
 - Not yet: default method bodies, trait objects, `Trait.method(x)` call syntax.
 
 #### Calling trait methods
@@ -433,6 +433,7 @@ fun main() {
 
 - **`&String`:** read and pass to callees; **no** assigning a new string through the borrow (no `&mut String` yet).
 - **`&[T; N]`:** read `buf[i]` and **assign** `buf[i] = v` in the callee (mutates the owner’s buffer).
+- **`&rw T`:** the editable borrow ([RFC 0003](rfcs/0003-borrows-regions-generics.md) section 5), written in types (`buf: &rw [i32; 3]`) and at call sites (`set(&rw a)`). It is a different type from `&T`: neither is accepted where the other is expected. For now it behaves like `&` otherwise (every restriction on `&` also applies); making `&` read-only and `&rw` var-only is #198.
 - **Nested control flow:** inside `if`, `while`, or `for`, you may call `helper(&param)` when `param` is a `&[T; N]` (or other `&T`) parameter and `helper` takes the matching reference type. You may **not** write `val view = &param` in that inner region (lifting the borrow into the child).
 - **`val view = &a`:** read through `view`; do not write `view[i] =` — use `(&a)[i]` or a `&[T; N]` parameter.
 - **`var view = &a`:** error.
