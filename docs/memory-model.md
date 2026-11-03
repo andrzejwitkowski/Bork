@@ -237,7 +237,7 @@ Bare `f(param)` without `&` when the formal is `&T` is still an error (`cannot m
 
 A `var` formal `[T; N]` requires `move` at the call site. Passing `&outer` is a type error unless the parameter is written `&[T; N]`.
 
-`&rw T` is the editable borrow (RFC 0003 section 5). It is a distinct type from `&T` with the same representation (a pointer to the owner's storage); every restriction in this section applies to it. Element writes through a borrow need `&rw`, and `&rw` can only borrow a `var` (RFC 0003 section 5).
+`&rw T` is the editable borrow (RFC 0003 section 5). It is a distinct type from `&T` with the same representation (a pointer to the owner's storage); every restriction in this section applies to it, and one call cannot borrow a name twice when one of the borrows is `&rw`. Element writes through a borrow need `&rw`, and `&rw` can only borrow a `var` (RFC 0003 section 5).
 
 ### Loops
 

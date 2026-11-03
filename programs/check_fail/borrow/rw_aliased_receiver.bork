@@ -1,0 +1,10 @@
+// diag: the receiver (`&c`) and argument 1 (`&rw c`) of `C.m` borrow `c`
+class C {
+    n: i32
+    fun m(other: &rw C) {
+    }
+}
+fun main() {
+    var c = C(1)
+    c.m(&rw c)
+}

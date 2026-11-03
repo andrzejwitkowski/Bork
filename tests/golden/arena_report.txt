@@ -83,6 +83,14 @@ Arenas
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/build/borrow/rw_two_distinct.bork
+Arenas
+├── fun copy_first
+│   ├── dst [Borrow ← call site]
+│   └── src [Borrow ← call site]
+└── fun main
+    ├── a [Local]
+    └── b [Local]
 == programs/build/borrow/shared_borrow_of_val_array.bork
 Arenas
 ├── fun sum
@@ -3748,6 +3756,22 @@ Arenas
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/check_fail/borrow/rw_aliased.bork
+Type Error [182..184] argument 1 (`&rw a`) and argument 2 (`&a`) of `f` borrow `a`; `&rw` needs it to itself
+Arenas
+├── fun f
+│   ├── x [Borrow ← call site]
+│   └── y [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/check_fail/borrow/rw_aliased_receiver.bork
+Type Error [167..172] the receiver (`&c`) and argument 1 (`&rw c`) of `C.m` borrow `c`; `&rw` needs it to itself
+Arenas
+├── fun main
+│   └── c [Local]
+└── fun C.m
+    ├── this [Borrow ← call site]
+    └── other [Borrow ← call site]
 == programs/check_fail/borrow/rw_as_managed_ref_target.bork
 Type Error [65..66] managed Ref target must be a non-nullable class or enum, got `&rw P`
 Arenas

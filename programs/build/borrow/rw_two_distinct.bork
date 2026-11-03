@@ -1,0 +1,11 @@
+// exit: 3
+fun copy_first(dst: &rw [i32; 2], src: &[i32; 2]) {
+    dst[0] = src[0]
+}
+
+fun main(): i32 {
+    var a: [i32; 2] = [0, 0]
+    var b: [i32; 2] = [3, 4]
+    copy_first(&rw a, &b)
+    return a[0]
+}

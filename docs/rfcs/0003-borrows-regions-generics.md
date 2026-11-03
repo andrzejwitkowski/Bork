@@ -59,7 +59,7 @@ This RFC decides where a borrow `&T` may appear. It changes no code. Where it sa
 Rules for v1:
 - `&name` is allowed for `val` and `var`; it never allows writes. This closes the `val`-mutated-through-a-borrow gap (section 1).
 - `&rw name` requires `name` to be a `var` (array, `Vec`; further types when they gain element writes).
-- A call cannot borrow the same name twice when one of the borrows is `&rw` (`f(&rw a, &a)`, `f(&rw a, &rw a)`). This is the only aliasing rule in v1.
+- A call cannot borrow the same name twice when one of the borrows is `&rw` (`f(&rw a, &a)`, `f(&rw a, &rw a)`). This is the only aliasing rule in v1. It is keyed by the borrowed name, so aliasing through another name (`val b = &a; f(&rw a, &b)`) is not detected; closing that needs region tracking (#201).
 - Inside a callee, a `&rw` parameter may be passed on as `&rw buf` or `&buf` (reborrow); a `&` parameter can only be passed on as `&`.
 - `&rw` follows every `&` restriction in section 6 (not a type argument, not a field, not returned, not in containers, not nullable).
 - `unique` is reserved: using `&unique` is an error ("not implemented"), so the syntax stays free. Its semantics are for a later RFC (candidate use: exclusive access across a region boundary, Send-like rules).
@@ -88,7 +88,7 @@ Rules for v1:
 | element write through `&[T; N]` / `&Vec` | rejected (changed) | today allowed on explicit `&` | `typeck/stmt/assign.rs` | D |
 | `&rw name`, `name` a `var` array/`Vec` | allowed (new) | n/a | new | D |
 | `&rw name`, `name` a `val` | rejected (new) | new | new | D |
-| `&rw` twice, or `&rw` plus `&`, of one name in one call | rejected (new) | new | new | D |
+| `&rw` twice, or `&rw` plus `&`, of one name in one call (the receiver counts) | rejected | `` argument 1 (`&rw a`) and argument 2 (`&a`) of `f` borrow `a` `` | `check_aliased_borrows` in `typeck/expr/call.rs`; aliasing through another name is not seen | done (#199) |
 | `&unique` | reserved, error "not implemented" | new | parser | F |
 
 ## 7. Follow-up issues

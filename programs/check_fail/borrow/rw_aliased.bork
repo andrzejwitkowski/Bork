@@ -1,0 +1,8 @@
+// diag: argument 1 (`&rw a`) and argument 2 (`&a`) of `f` borrow `a`
+fun f(x: &rw [i32; 2], y: &[i32; 2]) {
+    x[0] = y[1]
+}
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    f(&rw a, &a)
+}
