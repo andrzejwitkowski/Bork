@@ -369,3 +369,15 @@ fn a_reborrowed_parameter_and_a_method_receiver_count_as_borrows() {
     let m = borrow_messages(class, "    var c = C(1)\n    var d = C(2)\n    c.m(&rw d)\n");
     assert!(m.is_empty(), "{m:?}");
 }
+
+#[test]
+fn the_aliasing_error_is_reported_once_and_not_after_another_error() {
+    let fns = "fun f(a: &rw [i32; 2], b: &[i32; 2], c: &[i32; 2]) {\n}\nfun two(a: &rw [i32; 2], b: &[i32; 2]) {\n}\n";
+    let vars = "    var a: [i32; 2] = [1, 2]\n";
+    let count = |m: &[String]| m.iter().filter(|d| d.contains("`&rw` needs it to itself")).count();
+    let m = borrow_messages(fns, &format!("{vars}    f(&rw a, &a, &a)\n"));
+    assert_eq!(count(&m), 1, "{m:?}");
+    let m = borrow_messages(fns, &format!("{vars}    two(&rw a, &a, &a)\n"));
+    assert_eq!(count(&m), 0, "an arity error comes first: {m:?}");
+    assert!(m.iter().any(|d| d.contains("expects 2 arguments")), "{m:?}");
+}

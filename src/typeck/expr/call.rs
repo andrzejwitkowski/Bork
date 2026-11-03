@@ -251,6 +251,7 @@ pub(super) fn finish_call(
     env: &mut Env<'_>,
 ) -> Checked {
     let CallSite { span, args, trailing, return_ty } = site;
+    let errors_before = env.diagnostics.len();
     let explicit = if receiver.is_some() { &params[1..] } else { &params[..] };
     let (regular_params, trailing_signature) =
         split_trailing_param(&name, span, explicit, trailing, env);
@@ -275,7 +276,10 @@ pub(super) fn finish_call(
     for (index, (argument, &expected)) in checked_args.iter().zip(regular_params).enumerate() {
         check_argument(&name, index, argument, expected, env);
     }
-    check_aliased_borrows(&name, receiver.as_ref(), &checked_args, env);
+    // Only for an otherwise clean call, so an arity or type error is not followed by a second one.
+    if env.diagnostics.len() == errors_before {
+        check_aliased_borrows(&name, receiver.as_ref(), &checked_args, env);
+    }
     // The arguments may have fixed the type a returned `T::Item` was waiting for.
     super::super::solve::select_where_possible(env);
 
@@ -568,7 +572,7 @@ fn borrowed_root(hir: &HirExpr) -> Option<(&str, bool)> {
 
 /// RFC 0003 section 5: one call cannot borrow a name twice when one of the borrows is `&rw`
 /// (`f(&rw a, &a)`, `f(&rw a, &rw a)`); the receiver counts as the first argument. Reported at
-/// the later borrow.
+/// the later borrow, once per call.
 // shortcut: keyed by the borrowed name, so aliasing through another name (`val b = &a; f(&rw a, &b)`)
 // is not seen; closing that needs region tracking (#201).
 fn check_aliased_borrows(name: &str, receiver: Option<&Checked>, args: &[Checked], env: &mut Env<'_>) {
@@ -590,6 +594,7 @@ fn check_aliased_borrows(name: &str, receiver: Option<&Checked>, args: &[Checked
                 format!("{earlier_label} ({}) and {label} ({}) of `{name}` borrow `{root}`; `&rw` needs it to itself", shown(*earlier_rw), shown(*rw)),
                 *span,
             );
+            return;
         }
     }
 }
