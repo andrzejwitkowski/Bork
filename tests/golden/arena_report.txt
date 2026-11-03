@@ -951,6 +951,40 @@ Arenas
 │       └── v [Local]
 └── fun main
     └── e [Local]
+== programs/build/generics/glue_no_leak.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── w0 [Local]
+    ├── s0 [Local]
+    ├── code [Local]
+    ├── Block
+    │   ├── pair [Local]
+    │   ├── r [Shared ← fun main]
+    │   ├── w0 [Copy]
+    │   └── IfThen
+    ├── IfThen
+    ├── Block
+    │   ├── items [Moved ← Block]
+    │   ├── outer [Local]
+    │   ├── r [Shared ← fun main]
+    │   ├── w0 [Copy]
+    │   └── IfThen
+    ├── IfThen
+    ├── Block
+    │   ├── items [Moved ← Block]
+    │   ├── w [Local]
+    │   ├── e [Local]
+    │   └── r [Shared ← fun main]
+    ├── IfThen
+    ├── Block
+    │   ├── tail [Local]
+    │   ├── head [Local]
+    │   ├── p [Local]
+    │   └── r [Shared ← fun main]
+    ├── IfThen
+    └── IfThen
 == programs/build/generics/identity.bork
 Arenas
 ├── fun id

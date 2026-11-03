@@ -1,0 +1,81 @@
+// exit: 0
+// WHAT THIS TESTS
+// Generic and nested containers that hold a `Ref` release it when their arena ends: `Pair<Ref<Node>, String>`,
+// a class holding a `Vec<Ref<Node>>`, a class nested in a class, an enum holding a class, and a recursive
+// `Link<T>`. Everything is built in an inner block (a NEWER arena than `n`), so the slots are weak; after the
+// block the weak count must be back at the baseline taken before it (a leak would leave it higher).
+// The exit code is the number of the LAST failed check; 0 means all passed.
+class Node {
+    id: i32
+}
+
+class Holder {
+    items: Vec<Ref<Node>>
+}
+
+class Outer {
+    holder: Holder
+    node: Ref<Node>
+}
+
+class Pair<A, B> {
+    a: A
+    b: B
+}
+
+enum Wrapped {
+    Empty,
+    Full(holder: Holder),
+}
+
+class Link<T> {
+    value: T
+    next: Ref<Link<T>>
+}
+
+fun main(): i32 {
+    val n = Node(1)
+    val r: Ref<Node> = n
+    val w0 = weakCount(r)
+    val s0 = strongCount(r)
+    var code = 0
+
+    {
+        val pair = Pair(r, "x")
+        // Check 1: the pair holds one weak slot.
+        if (weakCount(r) != w0 + 1) { code = 1 }
+    }
+    // Check 2: dropping the pair released it.
+    if (weakCount(r) != w0) { code = 2 }
+
+    {
+        var items = Vec<Ref<Node>>()
+        items.push(r)
+        val outer = Outer(Holder(move items), r)
+        // Check 3: something is held weakly inside the block.
+        if (weakCount(r) <= w0) { code = 3 }
+    }
+    // Check 4: nested class + Vec<Ref> leaked nothing.
+    if (weakCount(r) != w0) { code = 4 }
+
+    {
+        var items = Vec<Ref<Node>>()
+        items.push(r)
+        val w = Wrapped.Full(Holder(move items))
+        val e = Wrapped.Empty
+    }
+    // Check 5: enum holding a class holding a Vec<Ref> leaked nothing.
+    if (weakCount(r) != w0) { code = 5 }
+
+    {
+        val tail = Link(2, None)
+        val head = Link(1, tail)
+        val p = Pair(r, head)
+    }
+    // Check 6: recursive generic list + Pair of Refs leaked nothing.
+    if (weakCount(r) != w0) { code = 6 }
+
+    // Check 7: no strong slot appeared or disappeared on the way.
+    if (strongCount(r) != s0) { code = 7 }
+    return code
+}

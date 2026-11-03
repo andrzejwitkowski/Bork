@@ -169,6 +169,7 @@ programs/build/enums/when_returns_in_every_arm.bork::nested(e: &E, f: &F) -> i32
 programs/build/enums/when_returns_in_every_arm.bork::main() -> i32
 programs/build/generics/borrow_infers_enum_arg.bork::f(e: &E<T0>) -> unit
 programs/build/generics/borrow_infers_enum_arg.bork::main() -> i32
+programs/build/generics/glue_no_leak.bork::main() -> i32
 programs/build/generics/identity.bork::id(x: T0) -> T0
 programs/build/generics/identity.bork::main() -> i32
 programs/build/generics/list_node.bork::main() -> i32

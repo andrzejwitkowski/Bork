@@ -297,7 +297,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             let slot = self.cx.builder.build_struct_gep(record, object, index as u32 + 1, "payload")?;
             self.store_owned_field(arena, slot, *ty, *value, &labels[index], declarations[index].0, declarations[index].1, false)?;
         }
-        if let Some(drop_fn) = self.cx.enum_drops.get(enum_name) {
+        if let Some(drop_fn) = self.cx.enum_drop_glue(enum_name) {
             self.cx.builder.build_call(
                 self.cx.arena_register_drop_fn(),
                 &[arena.into(), object.into(), drop_fn.as_global_value().as_pointer_value().into()],

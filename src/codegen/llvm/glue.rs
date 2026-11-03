@@ -8,6 +8,19 @@ use super::context::Codegen;
 use crate::hir::HirEnum;
 
 impl<'ctx> Codegen<'ctx> {
+    /// Drop function for a freshly built `Vec<elem>` header; `None` unless `elem` is a `Ref`.
+    /// One per vector, not per slot: the buffer moves on growth.
+    pub(super) fn vec_drop_glue(&self, elem: crate::ty::TyId) -> Option<FunctionValue<'ctx>> {
+        self.tcx
+            .is_handle_clone(elem)
+            .then(|| self.vec_drop_refs_fn())
+    }
+
+    /// Drop function for a constructed value of enum instance `name`; `None` without `Ref` payloads.
+    pub(super) fn enum_drop_glue(&self, name: &str) -> Option<FunctionValue<'ctx>> {
+        self.enum_drops.get(name).copied()
+    }
+
     /// Drop glue for enum `e`: switches on the tag and releases the `Ref` payloads of that variant
     /// only, so a slot never releases a payload another variant wrote. ``None` without `Ref` payloads.
     pub(super) fn emit_enum_drop(&self, e: &HirEnum) -> Result<Option<FunctionValue<'ctx>>, String> {
