@@ -32,6 +32,15 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::VecNew { cap, .. } => self.vec_new(e, cap.as_deref()),
             HirExprKind::VecOp { op, receiver, args } => self.vec_op_expr(e, *op, receiver, args),
             HirExprKind::ArrayLit { elements } => self.array_lit(e, elements),
+            HirExprKind::ObjectConstruct { class_name, fields } => self.object_construct(e, class_name, fields),
+            HirExprKind::EnumConstruct { enum_name, variant, fields } => self.enum_construct(e, enum_name, variant, fields),
+            HirExprKind::ObjectField { receiver, field_index, safe, .. } => self.object_field(e, receiver, *field_index, *safe),
+            HirExprKind::None => self.make_none(e.ty, span),
+            HirExprKind::Some(inner) => {
+                let v = self.expr(inner)?;
+                self.make_some(e.ty, v, inner.ty, span)
+            }
+            HirExprKind::Match { scrutinee, arms } => self.match_expr(e, scrutinee, arms),
             other => Err(BuildError::not_yet(format!("expression {}", kind_name(other)), span)),
         }
     }
@@ -58,13 +67,15 @@ impl<'a> FnBuilder<'a> {
         let span = span_of(e);
         match op {
             BinOp::And | BinOp::Or => return self.logical(e, matches!(op, BinOp::And), lhs, rhs),
-            BinOp::Elvis | BinOp::RangeTo => {
-                return Err(BuildError::not_yet(format!("binary {op:?}"), span));
-            }
+            BinOp::Elvis => return self.elvis(e, lhs, rhs),
+            BinOp::RangeTo => return Err(BuildError::not_yet("a range outside `for`", span)),
             _ => {}
         }
-        if [lhs.ty, rhs.ty].iter().any(|&t| self.tcx.is_managed_ref(t) || self.tcx.is_text(t) || self.tcx.base(t) != t) {
-            return Err(BuildError::not_yet("comparison of references, text or nullables", span));
+        let special = |t| self.tcx.is_managed_ref(t) || self.tcx.is_text(t) || self.tcx.is_nullable(t);
+        if matches!(op, BinOp::Eq | BinOp::Ne)
+            && (special(lhs.ty) || special(rhs.ty) || matches!(lhs.kind, HirExprKind::None) || matches!(rhs.kind, HirExprKind::None))
+        {
+            return self.equality(e, matches!(op, BinOp::Ne), lhs, rhs);
         }
         let l = self.expr(lhs)?;
         let r = self.expr(rhs)?;
@@ -113,13 +124,13 @@ impl<'a> FnBuilder<'a> {
                 let v = self.expr(inner)?;
                 Ok(self.assign_temp(e, Rvalue::Unary(MirUnOp::Not, v)))
             }
+            UnaryOp::NotNullAssert => self.not_null_assert(e, inner),
             UnaryOp::Borrow { rw } => {
                 let src = self.place_of(inner)?;
                 let dst = self.temp(e.ty);
                 self.stmt(StmtKind::Borrow { dst: Place::local(dst), src, rw: *rw }, span_of(e), Some(e.id));
                 Ok(Operand::Copy(Place::local(dst)))
             }
-            _ => Err(BuildError::not_yet(format!("unary {op:?}"), span_of(e))),
         }
     }
 

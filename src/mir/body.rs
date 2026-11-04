@@ -19,6 +19,8 @@ pub enum HiddenKind {
     ResultSink,
     /// Holds the arena token of one region; `RegionReset` reassigns it (3.2.2 item 4).
     RegionArena,
+    /// The arena made by `ArenaCreateDynamic`.
+    DynamicArena,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

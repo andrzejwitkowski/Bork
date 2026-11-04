@@ -99,7 +99,11 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::unsupported(Capability::FieldAccess, span));
         }
         if safe {
-            return Err(BuildError::not_yet("`?.length`", span));
+            return self.safe_navigate(e, receiver, |b, base| {
+                let len = b.temp(b.tcx.prim_id(crate::hir::Prim::I32));
+                b.stmt(StmtKind::Assign(Place::local(len), Rvalue::Len(base)), span, Some(e.id));
+                Ok(Operand::Copy(Place::local(len)))
+            });
         }
         let place = self.place_of(receiver)?;
         Ok(self.assign_temp(e, Rvalue::Len(place)))

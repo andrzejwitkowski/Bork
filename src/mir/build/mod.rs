@@ -6,6 +6,7 @@
 //! never, arms in order).
 
 mod expr;
+mod own;
 mod place;
 mod stmt;
 
