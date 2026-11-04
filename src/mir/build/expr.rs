@@ -1,0 +1,222 @@
+//! Expression lowering: every expression yields an [`Operand`], evaluated left to right.
+
+use super::{BuildError, FnBuilder, Res};
+use crate::ast::{BinOp, UnaryOp};
+use crate::builtins;
+use crate::hir::{HirBlock, HirExpr, HirExprKind, HirStmt, UseKind};
+use crate::mir::body::*;
+use crate::mir::capability::Capability;
+use crate::region_walk::RegionSite;
+use crate::span::Span;
+
+pub(super) fn span_of(e: &HirExpr) -> Span {
+    e.span.unwrap_or_default()
+}
+
+impl<'a> FnBuilder<'a> {
+    pub(super) fn expr(&mut self, e: &HirExpr) -> Res<Operand> {
+        let span = span_of(e);
+        match &e.kind {
+            HirExprKind::Int { value } => Ok(Operand::Const(Const::Int(*value))),
+            HirExprKind::Float { value } => Ok(Operand::Const(Const::Float(*value))),
+            HirExprKind::Bool { value } => Ok(Operand::Const(Const::Bool(*value))),
+            HirExprKind::Str { value } => Ok(Operand::Const(Const::Str(value.clone()))),
+            HirExprKind::Ident { name, use_kind } => self.ident(e, name, *use_kind),
+            HirExprKind::Binary { op, lhs, rhs } => self.binary(e, op, lhs, rhs),
+            HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
+            HirExprKind::Call { callee, args, has_trailing_closure } => self.call(e, callee, args, *has_trailing_closure),
+            HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
+            other => Err(BuildError::not_yet(format!("expression {}", kind_name(other)), span)),
+        }
+    }
+
+    pub(super) fn assign_temp(&mut self, e: &HirExpr, rvalue: Rvalue) -> Operand {
+        let temp = self.temp(e.ty);
+        self.stmt(StmtKind::Assign(Place::local(temp), rvalue), span_of(e), Some(e.id));
+        Operand::Copy(Place::local(temp))
+    }
+
+    fn ident(&mut self, e: &HirExpr, name: &str, use_kind: UseKind) -> Res<Operand> {
+        let local = self.lookup(name).ok_or_else(|| BuildError::not_yet(format!("name `{name}`"), span_of(e)))?;
+        let place = Place::local(local);
+        match use_kind {
+            UseKind::Local | UseKind::Shared | UseKind::Copy => Ok(Operand::Copy(place)),
+            UseKind::Borrow => Ok(Operand::Reborrow(place)),
+            UseKind::Move | UseKind::Promote | UseKind::RefCopy | UseKind::RefMove => {
+                Err(BuildError::not_yet(format!("{use_kind:?} of `{name}`"), span_of(e)))
+            }
+        }
+    }
+
+    fn binary(&mut self, e: &HirExpr, op: &BinOp, lhs: &HirExpr, rhs: &HirExpr) -> Res<Operand> {
+        let span = span_of(e);
+        match op {
+            BinOp::And | BinOp::Or => return self.logical(e, matches!(op, BinOp::And), lhs, rhs),
+            BinOp::Elvis | BinOp::RangeTo => {
+                return Err(BuildError::not_yet(format!("binary {op:?}"), span));
+            }
+            _ => {}
+        }
+        if [lhs.ty, rhs.ty].iter().any(|&t| self.tcx.is_managed_ref(t) || self.tcx.is_text(t) || self.tcx.base(t) != t) {
+            return Err(BuildError::not_yet("comparison of references, text or nullables", span));
+        }
+        let l = self.expr(lhs)?;
+        let r = self.expr(rhs)?;
+        if matches!(op, BinOp::Div) && self.tcx.is_integer(e.ty) {
+            // Division by zero aborts; `MIN / -1` is left to the backend (shortcut: M5 lowers it).
+            let zero = self.assign_temp_of(self.bool_ty, Rvalue::Binary(BinOp::Eq, r.clone(), Operand::Const(Const::Int(0))), span);
+            let abort = self.new_block();
+            let cont = self.new_block();
+            self.terminate(TermKind::Switch { value: zero, cases: vec![(1, abort)], otherwise: cont }, span, Some(e.id));
+            self.cur = abort;
+            self.terminate(TermKind::Abort(AbortReason::Binop), span, Some(e.id));
+            self.cur = cont;
+        }
+        Ok(self.assign_temp(e, Rvalue::Binary(op.clone(), l, r)))
+    }
+
+    fn assign_temp_of(&mut self, ty: crate::ty::TyId, rvalue: Rvalue, span: Span) -> Operand {
+        let temp = self.temp(ty);
+        self.stmt(StmtKind::Assign(Place::local(temp), rvalue), span, None);
+        Operand::Copy(Place::local(temp))
+    }
+
+    /// `a && b` / `a || b`: the right side only runs when the left does not decide the result.
+    fn logical(&mut self, e: &HirExpr, is_and: bool, lhs: &HirExpr, rhs: &HirExpr) -> Res<Operand> {
+        let span = span_of(e);
+        let result = self.temp(self.bool_ty);
+        let l = self.expr(lhs)?;
+        let (eval_rhs, short, end) = (self.new_block(), self.new_block(), self.new_block());
+        // `&&` continues on true, `||` on false.
+        let (cases, otherwise) = if is_and { (vec![(1, eval_rhs)], short) } else { (vec![(0, eval_rhs)], short) };
+        self.terminate(TermKind::Switch { value: l, cases, otherwise }, span, Some(e.id));
+        self.cur = eval_rhs;
+        let r = self.expr(rhs)?;
+        self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(r)), span, Some(e.id));
+        self.goto(end, span);
+        self.cur = short;
+        self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(Operand::Const(Const::Bool(!is_and)))), span, Some(e.id));
+        self.goto(end, span);
+        self.cur = end;
+        Ok(Operand::Copy(Place::local(result)))
+    }
+
+    fn unary(&mut self, e: &HirExpr, op: &UnaryOp, inner: &HirExpr) -> Res<Operand> {
+        match op {
+            UnaryOp::Not => {
+                let v = self.expr(inner)?;
+                Ok(self.assign_temp(e, Rvalue::Unary(MirUnOp::Not, v)))
+            }
+            _ => Err(BuildError::not_yet(format!("unary {op:?}"), span_of(e))),
+        }
+    }
+
+    fn call(&mut self, e: &HirExpr, callee: &HirExpr, args: &[HirExpr], trailing_closure: bool) -> Res<Operand> {
+        let span = span_of(e);
+        if trailing_closure {
+            return Err(BuildError::unsupported(Capability::Closure, span));
+        }
+        let HirExprKind::Ident { name, .. } = &callee.kind else {
+            return Err(BuildError::unsupported(Capability::IndirectCall, span));
+        };
+        let mut ops = Vec::with_capacity(args.len());
+        for arg in args {
+            ops.push(self.expr(arg)?);
+        }
+        if let Some(abi) = self.abi_of(name) {
+            let mut hidden = Vec::new();
+            if abi.caller_parent {
+                hidden.push(ArenaRef::Current);
+            }
+            if abi.result_sink {
+                hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { ArenaRef::Current });
+            }
+            let dest = self.temp(e.ty);
+            let target = self.new_block();
+            self.terminate(
+                TermKind::Call { callee: name.clone(), args: ops, hidden, dest: Place::local(dest), target: Some(target), ret_borrows: Vec::new() },
+                span,
+                Some(e.id),
+            );
+            self.cur = target;
+            return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
+        }
+        if builtins::is_print(name) {
+            let newline = name == "println";
+            let text = args.first().is_some_and(|a| self.tcx.is_text(a.ty));
+            let op = match (newline, text) {
+                (false, false) => IntrinsicOp::PrintInt,
+                (true, false) => IntrinsicOp::PrintlnInt,
+                (false, true) => IntrinsicOp::PrintStr,
+                (true, true) => IntrinsicOp::PrintlnStr,
+            };
+            self.stmt(StmtKind::Intrinsic { dst: None, op, args: ops }, span, Some(e.id));
+            return Ok(Operand::Const(Const::Unit));
+        }
+        Err(BuildError::not_yet(format!("call of `{name}`"), span))
+    }
+
+    fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {
+        let span = span_of(e);
+        let c = self.expr(cond)?;
+        let result = (!self.is_unit(e.ty)).then(|| self.temp(e.ty));
+        let then_b = self.new_block();
+        let else_b = else_block.map(|_| self.new_block());
+        let merge = self.new_block();
+        self.terminate(TermKind::Switch { value: c, cases: vec![(1, then_b)], otherwise: else_b.unwrap_or(merge) }, span, Some(e.id));
+        self.cur = then_b;
+        self.branch(RegionSite::IfThen, then_block, result, merge, span)?;
+        if let (Some(b), Some(block)) = (else_b, else_block) {
+            self.cur = b;
+            self.branch(RegionSite::IfElse, block, result, merge, span)?;
+        }
+        self.cur = merge;
+        Ok(result.map_or(Operand::Const(Const::Unit), |r| Operand::Copy(Place::local(r))))
+    }
+
+    /// One arm of an `if`: a region whose trailing value (if any) goes to `result`.
+    fn branch(&mut self, site: RegionSite, block: &HirBlock, result: Option<Local>, merge: BlockId, span: Span) -> Res<()> {
+        let (peeled, _, _) = self.enter_region(site, block, false, None, span)?;
+        self.block_value(peeled, result)?;
+        self.exit_region(span)?;
+        self.goto(merge, span);
+        Ok(())
+    }
+
+    /// Lowers `block`; with `result`, the last expression statement is its value.
+    pub(super) fn block_value(&mut self, block: &HirBlock, result: Option<Local>) -> Res<()> {
+        let Some(result) = result else { return self.stmts(block) };
+        let Some((last, prefix)) = block.stmts.split_last() else { return Ok(()) };
+        for (i, s) in prefix.iter().enumerate() {
+            self.stmt_of(s, block.statement_spans.get(i).copied().unwrap_or_default())?;
+        }
+        match last {
+            HirStmt::Expr(value) => {
+                let v = self.expr(value)?;
+                self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(v)), span_of(value), Some(value.id));
+                Ok(())
+            }
+            other => self.stmt_of(other, block.statement_spans.get(prefix.len()).copied().unwrap_or_default()),
+        }
+    }
+}
+
+fn kind_name(k: &HirExprKind) -> &'static str {
+    match k {
+        HirExprKind::ArrayLit { .. } => "ArrayLit",
+        HirExprKind::Index { .. } => "Index",
+        HirExprKind::Slice { .. } => "Slice",
+        HirExprKind::VecNew { .. } => "VecNew",
+        HirExprKind::VecOp { .. } => "VecOp",
+        HirExprKind::None => "None",
+        HirExprKind::Some(_) => "Some",
+        HirExprKind::RefCreate(_) => "RefCreate",
+        HirExprKind::ObjectConstruct { .. } => "ObjectConstruct",
+        HirExprKind::EnumConstruct { .. } => "EnumConstruct",
+        HirExprKind::ObjectField { .. } => "ObjectField",
+        HirExprKind::PresenceMatch { .. } => "PresenceMatch",
+        HirExprKind::Match { .. } => "Match",
+        HirExprKind::Field { .. } => "Field",
+        _ => "?",
+    }
+}
