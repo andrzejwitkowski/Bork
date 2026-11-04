@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: budowanie MIR z HIR i --emit-mir (#66, M2b)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Jak Bork buduje MIR z HIR i jak to sprawdzić</h1>
+<p class="sub">Wyjaśnienie PR #236 (branch <code>feat/66-mir-build</code>, krok M2b z RFC 0006, zamyka #66): builder <code>mir::build</code>, flaga <code>--emit-mir</code>, goldeny i weryfikacja całego korpusu. MIR nadal nic nie konsumuje.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+<details class="skip"><summary>Dla początkujących: HIR, MIR i regiony (można pominąć)</summary>
+<p><em>HIR</em> to drzewo programu po sprawdzeniu typów: zagnieżdżone bloki, <code>if</code>, pętle. <em>MIR</em> to ten sam program jako graf bloków połączonych skokami. Pętle, <code>break</code> i <code>return</code> stają się zwykłymi krawędziami. W Borku pamięć żyje w <em>arenach</em>, a <em>region</em> to fragment kodu, który może otworzyć własną arenę i zwolnić ją na końcu.</p>
+<div class="flow">
+  <div class="box"><h4>HIR</h4><code>while c { ... }</code></div><div class="arrow">→</div>
+  <div class="box"><h4>MIR</h4><code>header: switch c
+body: ...
+latch: reset, goto header
+exit: region_exit</code></div>
+</div></details>
+<h3>Stan przed zmianą</h3>
+<p>Po #232 i #234 istniały układ typów oraz same typy MIR z drukarką i weryfikatorem, ale testowane ręcznie zbudowanymi ciałami. Nie było nic, co zamienia prawdziwy program na MIR.</p>
+<div class="callout"><b class="t">Cel M2b</b>Zbudować MIR dla całego języka, wydrukować go, zweryfikować na całym korpusie programów i dać komendę <code>bork build --emit-mir</code>. Zgodność z dzisiejszym kodem LLVM ma być dowodzona danymi, nie opisem.</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+<h3>Regiony z raportu, nie z głowy</h3>
+<p>Czy blok ma otworzyć arenę, decyduje już dziś analiza w <code>ArenaReport</code> (flaga <code>codegen_push</code>). Builder jej nie wymyśla od nowa: <strong>idzie po HIR w tej samej kolejności co <code>region_walk</code> i bierze kolejne dzieci raportu</strong>. Raport nie ma identyfikatorów powiązanych z HIR, więc zgodność wynika wyłącznie z kolejności.</p>
+<table class="st">
+<tr><th>Konstrukcja</th><th>Kolejność dzieci raportu</th></tr>
+<tr><td><code>if</code></td><td>warunek, potem region then, potem else</td></tr>
+<tr><td><code>while</code></td><td>warunek (w regionie nadrzędnym), potem region pętli</td></tr>
+<tr><td><code>when</code></td><td>wartość, potem po jednym regionie na ramię</td></tr>
+<tr><td><code>&amp;&amp;</code>, <code>||</code>, <code>?:</code></td><td>prawa strona nie jest przetwarzana (jak w codegenie)</td></tr>
+</table>
+<h3>Jawne areny zamiast ukrytego stanu</h3>
+<p>Emiter LLVM trzyma ukryty „bieżący cel alokacji” (<code>alloc_sink</code>) i podmienia go tymczasowo. Builder ma to samo jako pole <code>sink</code>, ale każda operacja alokująca zapisuje arenę wprost. Przykład: w <code>a = id(P(2))</code> wynik wywołania ma trafić do areny zmiennej <code>a</code>, więc ukryty argument wywołania to <code>home(a)</code>, a argumenty są liczone w bieżącej arenie.</p>
+<div class="flow">
+  <div class="box"><h4>kod</h4><code>a = id(P(2))</code></div><div class="arrow">→</div>
+  <div class="box"><h4>MIR</h4><code>_4 = alloc P in fresh3
+_5 = call id(copy _4) +current +home(_2)</code></div>
+</div>
+<div class="callout warn"><b class="t">Błąd znaleziony w przeglądzie</b>Pierwsza wersja miała jako ukryty argument zawsze <code>current</code>, a argumenty liczyła w arenie przypisania. Żaden program z korpusu tego nie sprawdzał, więc goldeny były zielone. Dlatego dodano test na małym programie, który to wymusza.</div>
+<h3>Skąd wiadomo, że MIR jest dobry?</h3>
+<p>Trzy niezależne dowody: weryfikator przechodzi na 256 programach, dokładnie pięć programów odrzucanych przez bramę kończy się nazwaną „możliwością” (np. <code>closure</code>), a (z <code>--features codegen</code>) liczba wejść do regionu i resetów w MIR równa się liczbie <code>Push</code> i <code>Reset</code> w harmonogramie LLVM.</p>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+<h3>1. <code>src/mir/build/</code></h3>
+<p>Podział na pliki: <code>mod.rs</code> (stan builderu, bloki, stos regionów), <code>expr.rs</code> (wyrażenia), <code>stmt.rs</code> (instrukcje i pętle), <code>place.rs</code> (tablice, <code>Vec</code>, kontrole granic), <code>own.rs</code> (obiekty, enumy, <code>T?</code>, <code>when</code>), <code>refs.rs</code> (przeniesienia, <code>Ref</code>, <code>if val</code>). Wartość <code>if</code> trafia do jednej zmiennej wynikowej przypisywanej w każdej gałęzi, bez węzłów phi.</p>
+<h3>2. Wyjścia z pętli i funkcji</h3>
+<p><code>break</code>, <code>continue</code> i <code>return</code> emitują <code>RegionExit</code> dla każdego otwartego regionu, który opuszczają. Pętla otwiera region przed nagłówkiem, na krawędzi powrotnej robi <code>RegionReset</code>, a blok wyjścia zamyka region.</p>
+<h3>3. <code>--emit-mir</code> i testy</h3>
+<pre>bork build --emit-mir [-o plik] program.bork</pre>
+<p>Działa bez feature <code>codegen</code>. Testy: <code>mir_build</code> (budowa i weryfikacja korpusu oraz lista pięciu odrzuceń), <code>mir_golden</code> (po jednym pliku na temat w <code>tests/golden/mir/</code>), <code>mir_schedule</code> (zgodność z harmonogramem LLVM).</p>
+<div class="callout warn"><b class="t">Czego jeszcze nie ma</b>Brak <code>StorageLive/Dead</code>, etykiet debug poza deklaracjami, zabezpieczenia dzielenia <code>MIN / -1</code> oraz sprawdzania przepływu inicjalizacji i przeniesień w weryfikatorze. To wszystko ma właściciela w issue #237 (część z nich blokuje #222 i #226).</div>
+
+<h2 id="quiz">4. Quiz <span id="score" class="tag">Wynik: 0 / 0 (z 5)</span></h2>
+
+<div class="q" data-correct="1"><p>1. Skąd builder wie, czy dany blok ma otworzyć arenę (<code>RegionEnter</code>)?</p>
+<button>Sam liczy to z treści bloku.</button>
+<button>Z flagi <code>codegen_push</code> kolejnego dziecka <code>ArenaReport</code>, branego w tej samej kolejności co <code>region_walk</code>.</button>
+<button>Każdy blok zawsze otwiera arenę.</button>
+<button>Z identyfikatora zapisanego w HIR.</button>
+<div class="fb">Raport nie ma identyfikatorów powiązanych z HIR; zgodność wynika wyłącznie z kolejności przetwarzania. Dlatego builder musi przetwarzać konstrukcje w dokładnie takiej kolejności jak walker.</div></div>
+
+<div class="q" data-correct="1"><p>2. Dlaczego w <code>while</code> region pętli jest otwierany dopiero po zbudowaniu warunku, choć w czasie działania warunek liczy się w tym regionie?</p>
+<button>Bo warunek nie może alokować.</button>
+<button>Bo warunek jest w raporcie dzieckiem regionu nadrzędnego, a region pętli kolejnym; <code>RegionEnter</code> trafia jednak do bloku przed nagłówkiem.</button>
+<button>Bo pętla <code>while</code> nie ma regionu.</button>
+<button>To przypadek, kolejność nie ma znaczenia.</button>
+<div class="fb">Kolejność dzieci raportu: najpierw warunek, potem region While. Budując warunek builder jeszcze nie zna tego regionu, więc wstawia wejście do bloku poprzedzającego nagłówek.</div></div>
+
+<div class="q" data-correct="1"><p>3. W <code>a = id(P(2))</code> jaki jest ukryty argument „sink” wywołania i jak liczone są argumenty?</p>
+<button>Zawsze <code>current</code>, argumenty w arenie zmiennej <code>a</code>.</button>
+<button><code>home(a)</code>, a argumenty w bieżącej arenie (bez sinka przypisania).</button>
+<button><code>root</code>, argumenty w <code>root</code>.</button>
+<button>Nie ma ukrytych argumentów.</button>
+<div class="fb">Wynik funkcji zwracającej obiekt ma trafić tam, gdzie żyje zmienna docelowa. Argumenty są liczone bez sinka przypisania (poza <code>print</code>), żeby tymczasowe nie lądowały w arenie celu. Ten błąd wykrył dopiero przegląd, bo korpus go nie pokrywał.</div></div>
+
+<div class="q" data-correct="1"><p>4. Co dokładnie dowodzi test <code>mir_build</code>, że zatrzymuje się pięć programów?</p>
+<button>Że builder ma pięć błędów.</button>
+<button>Że programy odrzucane dziś przez bramę kodgenu dostają nazwane „możliwości” (<code>closure</code>, <code>move-aggregate</code>, <code>safe-field-enum</code>), a reszta korpusu buduje się i przechodzi weryfikator.</button>
+<button>Że pięć programów jest wolnych.</button>
+<button>Że weryfikator ich nie sprawdza.</button>
+<div class="fb">Test porównuje dokładną listę programów i nazw możliwości z oczekiwaną. Nowy nieobsługiwany program albo zmiana nazwy możliwości wywali test.</div></div>
+
+<div class="q" data-correct="1"><p>5. Które luki są zostawione i kto się nimi zajmie?</p>
+<button>Żadne, wszystko jest gotowe.</button>
+<button>Brak <code>StorageLive/Dead</code>, etykiet debug poza deklaracjami, ochrony <code>MIN / -1</code> i sprawdzeń weryfikatora; zebrane w issue #237, część musi wejść przed #222 i #226.</button>
+<button>Zajmie się nimi runtime.</button>
+<button>Nie da się ich nadrobić.</button>
+<div class="fb">Szczególnie ochrona <code>MIN / -1</code> jest ryzykowna: dziś robi to <code>guard_int_div</code> w emiterze LLVM i zniknęłaby po przejściu na backend z MIR, gdyby nikt jej nie przeniósł.</div></div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
