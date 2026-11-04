@@ -104,7 +104,7 @@ fn arena(a: &ArenaRef) -> String {
 fn rvalue(r: &Rvalue, tcx: &TyCtx) -> String {
     match r {
         Rvalue::Use(a) => op(a),
-        Rvalue::Binary(b, l, r) => format!("{b:?}({}, {})", op(l), op(r)),
+        Rvalue::Binary(b, l, r) => format!("{}({}, {})", binop(b), op(l), op(r)),
         Rvalue::Unary(u, a) => format!("{u:?}({})", op(a)),
         Rvalue::Cast(a, t) => format!("cast({}, {})", op(a), tcx.display(*t)),
         Rvalue::Aggregate(k, f) => format!("{k:?}{{{}}}", ops(f)),
@@ -179,7 +179,7 @@ fn term(k: &TermKind) -> String {
                 .iter()
                 .map(|a| {
                     let binds: String = a.bindings.iter().map(|(l, p)| format!(" _{}={}", l.0, place(p))).collect();
-                    format!("\n      {:?}{binds} -> bb{}", a.pat, a.target.0)
+                    format!("\n      {}{binds} -> bb{}", pat(&a.pat), a.target.0)
                 })
                 .collect();
             format!("match {} {{{arms}\n    }}", place(scrutinee))
@@ -193,5 +193,41 @@ fn term(k: &TermKind) -> String {
         TermKind::Return => "return".into(),
         TermKind::Unreachable => "unreachable".into(),
         TermKind::Abort(r) => format!("abort {r:?}"),
+    }
+}
+
+/// Spelled out so goldens do not depend on the AST's `Debug` output.
+fn binop(b: &crate::ast::BinOp) -> &'static str {
+    use crate::ast::BinOp::*;
+    match b {
+        Add => "add",
+        Sub => "sub",
+        Mul => "mul",
+        Div => "div",
+        Gt => "gt",
+        Lt => "lt",
+        Ge => "ge",
+        Le => "le",
+        Eq => "eq",
+        Ne => "ne",
+        RangeTo => "range_to",
+        Elvis => "elvis",
+        And => "and",
+        Or => "or",
+    }
+}
+
+fn pat(p: &MirPat) -> String {
+    match p {
+        MirPat::Wildcard => "_".into(),
+        MirPat::Bind => "bind".into(),
+        MirPat::Lit(crate::ast::PatLit::Int(v)) => v.to_string(),
+        MirPat::Lit(crate::ast::PatLit::Bool(v)) => v.to_string(),
+        MirPat::Lit(crate::ast::PatLit::Str(v)) => format!("{v:?}"),
+        MirPat::Variant { enum_name, index, fields } => {
+            format!("{enum_name}#{index}({})", fields.iter().map(pat).collect::<Vec<_>>().join(", "))
+        }
+        MirPat::Some(inner) => format!("Some({})", pat(inner)),
+        MirPat::None => "None".into(),
     }
 }

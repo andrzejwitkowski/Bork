@@ -30,7 +30,7 @@ impl<'a> FnBuilder<'a> {
         let span = span_of(e);
         match &e.kind {
             HirExprKind::Ident { name, .. } => {
-                let local = self.lookup(name).ok_or_else(|| BuildError::not_yet(format!("name `{name}`"), span))?;
+                let local = self.lookup(name)?;
                 Ok(Place::local(local))
             }
             HirExprKind::ObjectField { receiver, field_index, safe: false, .. } => {
@@ -159,7 +159,7 @@ impl<'a> FnBuilder<'a> {
 
     /// Stores into `place[idx]` / `vec[idx]`.
     pub(super) fn assign_index(&mut self, name: &str, index: &HirExpr, value: &HirExpr, span: Span) -> Res<()> {
-        let local = self.lookup(name).ok_or_else(|| BuildError::not_yet(format!("name `{name}`"), span))?;
+        let local = self.lookup(name)?;
         let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
         let idx = self.expr(index)?;
         let ty = self.locals[local.0 as usize].ty;

@@ -27,8 +27,8 @@ pub enum BuildError {
     Unsupported(Unsupported),
     /// The report and the HIR disagree: a compiler bug, not a user error.
     Internal(String),
-    /// A construct this builder does not lower yet (removed before the PR is complete).
-    NotYet { what: String, span: Span },
+    /// A construct the language accepts that the builder cannot express and RFC 3.10 has no capability for.
+    Unlowered { what: String, span: Span },
 }
 
 pub type Res<T> = Result<T, BuildError>;
@@ -37,8 +37,8 @@ impl BuildError {
     pub(super) fn unsupported(capability: Capability, span: Span) -> BuildError {
         BuildError::Unsupported(Unsupported { capability, span })
     }
-    pub(super) fn not_yet(what: impl Into<String>, span: Span) -> BuildError {
-        BuildError::NotYet { what: what.into(), span }
+    pub(super) fn unlowered(what: impl Into<String>, span: Span) -> BuildError {
+        BuildError::Unlowered { what: what.into(), span }
     }
 }
 
@@ -195,8 +195,13 @@ impl<'a> FnBuilder<'a> {
         self.scopes.last_mut().expect("a scope is always open").insert(name.to_string(), local);
     }
 
-    pub(super) fn lookup(&self, name: &str) -> Option<Local> {
-        self.scopes.iter().rev().find_map(|s| s.get(name).copied())
+    /// A name the HIR uses must be in scope; anything else is a builder bug.
+    pub(super) fn lookup(&self, name: &str) -> Res<Local> {
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|s| s.get(name).copied())
+            .ok_or_else(|| BuildError::Internal(format!("name `{name}` is not in scope in `{}`", self.function.name)))
     }
 
     pub(super) fn is_unit(&self, ty: TyId) -> bool {

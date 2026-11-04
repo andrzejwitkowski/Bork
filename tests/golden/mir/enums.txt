@@ -1,0 +1,4814 @@
+== enums/expr_eval.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Expr [Temp]
+  let _3: Expr [Val] one
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Expr [Temp]
+  let _6: Expr [Val] two
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: Expr [Temp]
+  let _9: Expr [Val] three
+  let _10: Ref<Expr> [Temp]
+  let _11: Ref<Expr> [Val] r1
+  let _12: Ref<Expr> [Temp]
+  let _13: Ref<Expr> [Val] r2
+  let _14: Ref<Expr> [Temp]
+  let _15: Ref<Expr> [Val] r3
+  let _16: unit [Hidden(DynamicArena)]
+  let _17: Ref<Expr> [Temp]
+  let _18: Ref<Expr> [Temp]
+  let _19: Expr [Temp]
+  let _20: Expr [Val] sum
+  let _21: Ref<Expr> [Temp]
+  let _22: Ref<Expr> [Val] rs
+  let _23: Ref<Expr> [Temp]
+  let _24: Expr [Temp]
+  let _25: Expr [Val] neg
+  let _26: Ref<Expr> [Temp]
+  let _27: Ref<Expr> [Temp]
+  let _28: Expr [Temp]
+  let _29: Expr [Val] prod
+  let _30: Ref<Expr> [Temp]
+  let _31: i32 [Temp]
+  let _32: i32 [Val] before
+  let _33: &Expr [Temp]
+  let _34: i32 [Temp]
+  let _35: &Expr [Temp]
+  let _36: i32 [Temp]
+  let _37: &Expr [Temp]
+  let _38: i32 [Temp]
+  let _39: Ref<Expr> [Temp]
+  let _40: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _1
+    _2 = alloc EnumSlot { enum_name: "Expr", variant: 0 } in fresh1
+    _2@0.0 = 1
+    register_drop fresh1 _2 Enum("Expr")
+    _3 = copy _2  // label "one": Expr decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc EnumSlot { enum_name: "Expr", variant: 0 } in fresh4
+    _5@0.0 = 2
+    register_drop fresh4 _5 Enum("Expr")
+    _6 = copy _5  // label "two": Expr decl
+    _7 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _7
+    _8 = alloc EnumSlot { enum_name: "Expr", variant: 0 } in fresh7
+    _8@0.0 = 3
+    register_drop fresh7 _8 Enum("Expr")
+    _9 = copy _8  // label "three": Expr decl
+    _10 = ref_create source=current target=object_arena(_3) copy _3
+    _11 = move _10  // label "r1": Ref<Expr> decl
+    register_drop current _11 RefSlot
+    _12 = ref_create source=current target=object_arena(_6) copy _6
+    _13 = move _12  // label "r2": Ref<Expr> decl
+    register_drop current _13 RefSlot
+    _14 = ref_create source=current target=object_arena(_9) copy _9
+    _15 = move _14  // label "r3": Ref<Expr> decl
+    register_drop current _15 RefSlot
+    _16 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _16
+    _17 = ref_clone copy _11
+    _18 = ref_clone copy _13
+    _19 = alloc EnumSlot { enum_name: "Expr", variant: 1 } in fresh16
+    ref_store _19@1.0 owner=fresh16 move _17
+    ref_store _19@1.1 owner=fresh16 move _18
+    register_drop fresh16 _19 Enum("Expr")
+    _20 = copy _19  // label "sum": Expr decl
+    _21 = ref_create source=current target=object_arena(_20) copy _20
+    _22 = move _21  // label "rs": Ref<Expr> decl
+    register_drop current _22 RefSlot
+    _23 = ref_clone copy _22
+    _24 = alloc EnumSlot { enum_name: "Expr", variant: 3 } in current
+    ref_store _24@3.0 owner=current move _23
+    register_drop current _24 Enum("Expr")
+    _25 = copy _24  // label "neg": Expr decl
+    _26 = ref_clone copy _13
+    _27 = ref_clone copy _15
+    _28 = alloc EnumSlot { enum_name: "Expr", variant: 2 } in current
+    ref_store _28@2.0 owner=current move _26
+    ref_store _28@2.1 owner=current move _27
+    register_drop current _28 Enum("Expr")
+    _29 = copy _28  // label "prod": Expr decl
+    _30 = ref_clone copy _13
+    _31 = ref_count move _30
+    _32 = copy _31  // label "before": i32 decl
+    _33 = borrow _25
+    _34 = call eval(copy _33) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _34)
+    _35 = borrow _29
+    _36 = call eval(copy _35) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _36)
+    _37 = borrow _20
+    _38 = call eval(copy _37) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _38)
+    intrinsic PrintlnInt(copy _32)
+    _39 = ref_clone copy _13
+    _40 = ref_count move _39
+    intrinsic PrintlnInt(copy _40)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn eval (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Expr [Arg] e
+  let _2: i32 [Temp]
+  let _3: i32 [Val] n
+  let _4: Ref<Expr> [Val] l
+  let _5: Ref<Expr> [Val] r
+  let _6: Ref<Expr> [Val] l
+  let _7: Ref<Expr> [Val] r
+  let _8: Ref<Expr> [Val] inner
+  let _9: i32 [Var] a
+  let _10: i32 [Var] b
+  let _11: Ref<Expr> [Temp]
+  let _12: unit [Temp]
+  let _13: &Expr [Val]
+  let _14: bool [Temp]
+  let _15: &Expr [Temp]
+  let _16: i32 [Temp]
+  let _17: Ref<Expr> [Temp]
+  let _18: unit [Temp]
+  let _19: &Expr [Val]
+  let _20: bool [Temp]
+  let _21: &Expr [Temp]
+  let _22: i32 [Temp]
+  let _23: i32 [Temp]
+  let _24: i32 [Var] a
+  let _25: i32 [Var] b
+  let _26: Ref<Expr> [Temp]
+  let _27: unit [Temp]
+  let _28: &Expr [Val]
+  let _29: bool [Temp]
+  let _30: &Expr [Temp]
+  let _31: i32 [Temp]
+  let _32: Ref<Expr> [Temp]
+  let _33: unit [Temp]
+  let _34: &Expr [Val]
+  let _35: bool [Temp]
+  let _36: &Expr [Temp]
+  let _37: i32 [Temp]
+  let _38: i32 [Temp]
+  let _39: i32 [Var] a
+  let _40: Ref<Expr> [Temp]
+  let _41: unit [Temp]
+  let _42: &Expr [Val]
+  let _43: bool [Temp]
+  let _44: &Expr [Temp]
+  let _45: i32 [Temp]
+  let _46: i32 [Temp]
+  let _47: i32 [Val] v
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 PresenceSome in r2
+  region r4 PresenceSome in r2
+  region r5 MatchArm in r0
+  region r6 PresenceSome in r5
+  region r7 PresenceSome in r5
+  region r8 MatchArm in r0
+  region r9 PresenceSome in r8
+  bb0:
+    region_enter r0
+    match _1 {
+      Expr#0(bind) _3=_1@0.0 -> bb2
+      Expr#1(bind, bind) -> bb3
+      Expr#2(bind, bind) -> bb4
+      Expr#3(bind) -> bb5
+    }
+  bb1:
+    _47 = copy _2  // label "v": i32 decl
+    _0 = copy _47
+    region_exit r0
+    return
+  bb2:
+    _2 = copy _3
+    goto bb1
+  bb3:
+    region_enter r2
+    _4 = ref_clone copy _1@1.0
+    register_drop current _4 RefSlot
+    _5 = ref_clone copy _1@1.1
+    register_drop current _5 RefSlot
+    _9 = 0  // label "a": i32 decl
+    _10 = 0  // label "b": i32 decl
+    _11 = ref_clone copy _4
+    (_12, _13, _14) = observe copy _11
+    ref_drop move _11
+    switch copy _14 [ 1 -> bb7, else -> bb8]
+  bb4:
+    region_enter r5
+    _6 = ref_clone copy _1@2.0
+    register_drop current _6 RefSlot
+    _7 = ref_clone copy _1@2.1
+    register_drop current _7 RefSlot
+    _24 = 0  // label "a": i32 decl
+    _25 = 0  // label "b": i32 decl
+    _26 = ref_clone copy _6
+    (_27, _28, _29) = observe copy _26
+    ref_drop move _26
+    switch copy _29 [ 1 -> bb15, else -> bb16]
+  bb5:
+    region_enter r8
+    _8 = ref_clone copy _1@3.0
+    register_drop current _8 RefSlot
+    _39 = 0  // label "a": i32 decl
+    _40 = ref_clone copy _8
+    (_41, _42, _43) = observe copy _40
+    ref_drop move _40
+    switch copy _43 [ 1 -> bb23, else -> bb24]
+  bb6:
+    _17 = ref_clone copy _5
+    (_18, _19, _20) = observe copy _17
+    ref_drop move _17
+    switch copy _20 [ 1 -> bb11, else -> bb12]
+  bb7:
+    goto bb6
+  bb8:
+    region_enter r3
+    observation_register current _12
+    _15 = borrow _13
+    _16 = call eval(copy _15) +current -> bb9
+  bb9:
+    _9 = copy _16
+    region_exit r3
+    goto bb6
+  bb10:
+    _23 = add(copy _9, copy _10)
+    _2 = copy _23
+    region_exit r2
+    goto bb1
+  bb11:
+    goto bb10
+  bb12:
+    region_enter r4
+    observation_register current _18
+    _21 = borrow _19
+    _22 = call eval(copy _21) +current -> bb13
+  bb13:
+    _10 = copy _22
+    region_exit r4
+    goto bb10
+  bb14:
+    _32 = ref_clone copy _7
+    (_33, _34, _35) = observe copy _32
+    ref_drop move _32
+    switch copy _35 [ 1 -> bb19, else -> bb20]
+  bb15:
+    goto bb14
+  bb16:
+    region_enter r6
+    observation_register current _27
+    _30 = borrow _28
+    _31 = call eval(copy _30) +current -> bb17
+  bb17:
+    _24 = copy _31
+    region_exit r6
+    goto bb14
+  bb18:
+    _38 = mul(copy _24, copy _25)
+    _2 = copy _38
+    region_exit r5
+    goto bb1
+  bb19:
+    goto bb18
+  bb20:
+    region_enter r7
+    observation_register current _33
+    _36 = borrow _34
+    _37 = call eval(copy _36) +current -> bb21
+  bb21:
+    _25 = copy _37
+    region_exit r7
+    goto bb18
+  bb22:
+    _46 = sub(0, copy _39)
+    _2 = copy _46
+    region_exit r8
+    goto bb1
+  bb23:
+    goto bb22
+  bb24:
+    region_enter r9
+    observation_register current _41
+    _44 = borrow _42
+    _45 = call eval(copy _44) +current -> bb25
+  bb25:
+    _39 = copy _45
+    region_exit r9
+    goto bb22
+}
+
+== enums/float_compare_payload.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: E [Temp]
+  let _2: E [Val] e
+  let _3: f64 [Val] x
+  let _4: bool [Temp]
+  let _5: f64 [Val] a
+  let _6: bool [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 IfThen in r1
+  region r3 IfElse in r1
+  region r4 IfThen in r0
+  region r5 IfElse in r0
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "E", variant: 0 } in current
+    _1@0.0 = 1.5
+    _2 = copy _1  // label "e": E decl
+    match _2 {
+      E#0(bind) _3=_2@0.0 -> bb2
+    }
+  bb1:
+    _5 = 1.5  // label "a": f64 decl
+    _6 = gt(copy _5, 1.0)
+    switch copy _6 [ 1 -> bb6, else -> bb7]
+  bb2:
+    _4 = gt(copy _3, 1.0)
+    switch copy _4 [ 1 -> bb3, else -> bb4]
+  bb3:
+    intrinsic PrintlnInt(1)
+    goto bb5
+  bb4:
+    intrinsic PrintlnInt(0)
+    goto bb5
+  bb5:
+    goto bb1
+  bb6:
+    intrinsic PrintlnInt(1)
+    goto bb8
+  bb7:
+    intrinsic PrintlnInt(0)
+    goto bb8
+  bb8:
+    _0 = 0
+    region_exit r0
+    return
+}
+
+== enums/generic_and_calls.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Maybe<i32> [Temp]
+  let _2: Maybe<i32> [Val] a
+  let _3: Maybe<String> [Temp]
+  let _4: String [Temp]
+  let _5: String [Temp]
+  let _6: Maybe<String> [Val] b
+  let _7: Maybe<String> [Temp]
+  let _8: Maybe<String> [Val] c
+  let _9: &Maybe<String> [Temp]
+  let _10: unit [Temp]
+  let _11: &Maybe<String> [Temp]
+  let _12: unit [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call wrap(4) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "a": Maybe<i32> decl
+    _3 = alloc EnumSlot { enum_name: "Maybe<String>", variant: 1 } in current
+    _4 = "text"
+    _5 = copy_into _4 in current
+    _3@1.0 = copy _5
+    _6 = copy _3  // label "b": Maybe<String> decl
+    _7 = alloc EnumSlot { enum_name: "Maybe<String>", variant: 0 } in current
+    _8 = copy _7  // label "c": Maybe<String> decl
+    _9 = borrow _6
+    _10 = call take(copy _9) +current -> bb2
+  bb2:
+    _11 = borrow _8
+    _12 = call take(copy _11) +current -> bb3
+  bb3:
+    intrinsic PrintlnStr("ok")
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn wrap (parent=true, sink=true) {
+  let _0: Maybe<i32> [Return]
+  let _1: i32 [Arg] n
+  let _2: Maybe<i32> [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc EnumSlot { enum_name: "Maybe<i32>", variant: 1 } in result_sink
+    _2@1.0 = copy _1
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+fn take (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Maybe<String> [Arg] m
+  region r0 Block
+  bb0:
+    region_enter r0
+    region_exit r0
+    return
+}
+
+== enums/linked_list.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: List [Temp]
+  let _3: List [Val] nil
+  let _4: Ref<List> [Temp]
+  let _5: Ref<List> [Val] r0
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: Ref<List> [Temp]
+  let _8: List [Temp]
+  let _9: List [Val] l1
+  let _10: Ref<List> [Temp]
+  let _11: Ref<List> [Val] r1
+  let _12: unit [Hidden(DynamicArena)]
+  let _13: Ref<List> [Temp]
+  let _14: List [Temp]
+  let _15: List [Val] l2
+  let _16: Ref<List> [Temp]
+  let _17: Ref<List> [Val] r2
+  let _18: Ref<List> [Temp]
+  let _19: List [Temp]
+  let _20: List [Val] l3
+  let _21: Ref<List> [Temp]
+  let _22: i32 [Temp]
+  let _23: i32 [Val] before
+  let _24: &List [Temp]
+  let _25: i32 [Temp]
+  let _26: &List [Temp]
+  let _27: i32 [Temp]
+  let _28: &List [Temp]
+  let _29: i32 [Temp]
+  let _30: Ref<List> [Temp]
+  let _31: i32 [Temp]
+  let _32: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc EnumSlot { enum_name: "List", variant: 0 } in fresh1
+    register_drop fresh1 _2 Enum("List")
+    _3 = copy _2  // label "nil": List decl
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r0": Ref<List> decl
+    register_drop current _5 RefSlot
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _6
+    _7 = ref_clone copy _5
+    _8 = alloc EnumSlot { enum_name: "List", variant: 1 } in fresh6
+    _8@1.0 = 3
+    ref_store _8@1.1 owner=fresh6 move _7
+    register_drop fresh6 _8 Enum("List")
+    _9 = copy _8  // label "l1": List decl
+    _10 = ref_create source=current target=object_arena(_9) copy _9
+    _11 = move _10  // label "r1": Ref<List> decl
+    register_drop current _11 RefSlot
+    _12 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _12
+    _13 = ref_clone copy _11
+    _14 = alloc EnumSlot { enum_name: "List", variant: 1 } in fresh12
+    _14@1.0 = 2
+    ref_store _14@1.1 owner=fresh12 move _13
+    register_drop fresh12 _14 Enum("List")
+    _15 = copy _14  // label "l2": List decl
+    _16 = ref_create source=current target=object_arena(_15) copy _15
+    _17 = move _16  // label "r2": Ref<List> decl
+    register_drop current _17 RefSlot
+    _18 = ref_clone copy _17
+    _19 = alloc EnumSlot { enum_name: "List", variant: 1 } in current
+    _19@1.0 = 1
+    ref_store _19@1.1 owner=current move _18
+    register_drop current _19 Enum("List")
+    _20 = copy _19  // label "l3": List decl
+    _21 = ref_clone copy _17
+    _22 = ref_count move _21
+    _23 = copy _22  // label "before": i32 decl
+    _24 = borrow _20
+    _25 = call length(copy _24) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _25)
+    _26 = borrow _20
+    _27 = call sum(copy _26) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _27)
+    _28 = borrow _20
+    _29 = call sum(copy _28) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _29)
+    _30 = ref_clone copy _17
+    _31 = ref_count move _30
+    _32 = sub(copy _31, copy _23)
+    intrinsic PrintlnInt(copy _32)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn length (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &List [Arg] l
+  let _2: i32 [Temp]
+  let _3: i32 [Val] v
+  let _4: Ref<List> [Val] next
+  let _5: i32 [Var] rest
+  let _6: Ref<List> [Temp]
+  let _7: unit [Temp]
+  let _8: &List [Val]
+  let _9: bool [Temp]
+  let _10: &List [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 PresenceSome in r2
+  bb0:
+    region_enter r0
+    match _1 {
+      List#0() -> bb2
+      List#1(bind, bind) _3=_1@1.0 -> bb3
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _2 = 0
+    goto bb1
+  bb3:
+    region_enter r2
+    _4 = ref_clone copy _1@1.1
+    register_drop current _4 RefSlot
+    _5 = 0  // label "rest": i32 decl
+    _6 = ref_clone copy _4
+    (_7, _8, _9) = observe copy _6
+    ref_drop move _6
+    switch copy _9 [ 1 -> bb5, else -> bb6]
+  bb4:
+    _12 = add(1, copy _5)
+    _2 = copy _12
+    region_exit r2
+    goto bb1
+  bb5:
+    goto bb4
+  bb6:
+    region_enter r3
+    observation_register current _7
+    _10 = borrow _8
+    _11 = call length(copy _10) +current -> bb7
+  bb7:
+    _5 = copy _11
+    region_exit r3
+    goto bb4
+}
+
+fn sum (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &List [Arg] l
+  let _2: i32 [Temp]
+  let _3: i32 [Val] v
+  let _4: Ref<List> [Val] next
+  let _5: i32 [Var] rest
+  let _6: Ref<List> [Temp]
+  let _7: unit [Temp]
+  let _8: &List [Val]
+  let _9: bool [Temp]
+  let _10: &List [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 PresenceSome in r2
+  bb0:
+    region_enter r0
+    match _1 {
+      List#0() -> bb2
+      List#1(bind, bind) _3=_1@1.0 -> bb3
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _2 = 0
+    goto bb1
+  bb3:
+    region_enter r2
+    _4 = ref_clone copy _1@1.1
+    register_drop current _4 RefSlot
+    _5 = 0  // label "rest": i32 decl
+    _6 = ref_clone copy _4
+    (_7, _8, _9) = observe copy _6
+    ref_drop move _6
+    switch copy _9 [ 1 -> bb5, else -> bb6]
+  bb4:
+    _12 = add(copy _3, copy _5)
+    _2 = copy _12
+    region_exit r2
+    goto bb1
+  bb5:
+    goto bb4
+  bb6:
+    region_enter r3
+    observation_register current _7
+    _10 = borrow _8
+    _11 = call sum(copy _10) +current -> bb7
+  bb7:
+    _5 = copy _11
+    region_exit r3
+    goto bb4
+}
+
+== enums/match_generic_loop.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Maybe<i32> [Temp]
+  let _2: Maybe<i32> [Val] a
+  let _3: Maybe<String> [Temp]
+  let _4: String [Temp]
+  let _5: String [Temp]
+  let _6: Maybe<String> [Val] b
+  let _7: Maybe<i32> [Temp]
+  let _8: Maybe<i32> [Val] c
+  let _9: &Maybe<i32> [Temp]
+  let _10: i32 [Temp]
+  let _11: &Maybe<String> [Temp]
+  let _12: i32 [Temp]
+  let _13: &Maybe<i32> [Temp]
+  let _14: i32 [Temp]
+  let _15: Shape [Temp]
+  let _16: P [Temp]
+  let _17: Wrap [Temp]
+  let _18: Wrap [Val] w
+  let _19: &Wrap [Temp]
+  let _20: i32 [Temp]
+  let _21: Shape [Temp]
+  let _22: Shape [Val] e
+  let _23: i32 [Var] i
+  let _24: i32 [Var] t
+  let _25: bool [Temp]
+  let _26: i32 [Temp]
+  let _27: i32 [Val] r
+  let _28: i32 [Temp]
+  let _29: bool [Temp]
+  let _30: bool [Temp]
+  let _31: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 MatchArm in r1
+  region r3 MatchArm in r1
+  region r4 IfThen in r3
+  region r5 IfThen in r3
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "Maybe<i32>", variant: 1 } in current
+    _1@1.0 = 5
+    _2 = copy _1  // label "a": Maybe<i32> decl
+    _3 = alloc EnumSlot { enum_name: "Maybe<String>", variant: 1 } in current
+    _4 = "s"
+    _5 = copy_into _4 in current
+    _3@1.0 = copy _5
+    _6 = copy _3  // label "b": Maybe<String> decl
+    _7 = alloc EnumSlot { enum_name: "Maybe<i32>", variant: 0 } in current
+    _8 = copy _7  // label "c": Maybe<i32> decl
+    _9 = borrow _2
+    _10 = call get<i32>(copy _9, 9) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _10)
+    _11 = borrow _6
+    _12 = call get<String>(copy _11, 9) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _12)
+    _13 = borrow _8
+    _14 = call get<i32>(copy _13, 9) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _14)
+    _15 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current
+    _15@0.0 = 4
+    _16 = alloc Object { class: "P" } in current
+    _16.0 = 3
+    _17 = alloc EnumSlot { enum_name: "Wrap", variant: 0 } in current
+    _17@0.0 = copy _15
+    _17@0.1 = copy _16
+    _18 = copy _17  // label "w": Wrap decl
+    _19 = borrow _18
+    _20 = call inner(copy _19) +current -> bb4
+  bb4:
+    intrinsic PrintlnInt(copy _20)
+    _21 = alloc EnumSlot { enum_name: "Shape", variant: 1 } in current
+    _22 = copy _21  // label "e": Shape decl
+    _23 = 0  // label "i": i32 decl
+    _24 = 0  // label "t": i32 decl
+    goto bb5
+  bb5:
+    _25 = lt(copy _23, 10)
+    switch copy _25 [ 1 -> bb6, else -> bb8]
+  bb6:
+    _26 = add(copy _23, 1)
+    _23 = copy _26
+    match _22 {
+      Shape#0(bind) _27=_22@0.0 -> bb10
+      Shape#1() -> bb11
+    }
+  bb7:
+    goto bb5
+  bb8:
+    intrinsic PrintlnInt(copy _24)
+    _0 = 0
+    region_exit r0
+    return
+  bb9:
+    goto bb7
+  bb10:
+    _28 = add(copy _24, 100)
+    _24 = copy _28
+    goto bb9
+  bb11:
+    _29 = eq(copy _23, 3)
+    switch copy _29 [ 1 -> bb12, else -> bb13]
+  bb12:
+    goto bb7
+  bb13:
+    _30 = eq(copy _23, 8)
+    switch copy _30 [ 1 -> bb14, else -> bb15]
+  bb14:
+    goto bb8
+  bb15:
+    _31 = add(copy _24, 1)
+    _24 = copy _31
+    goto bb9
+}
+
+fn get<i32> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Maybe<i32> [Arg] m
+  let _2: i32 [Arg] d
+  let _3: i32 [Temp]
+  let _4: &i32 [Val] v
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Maybe#1(bind) _4=_1@1.0 -> bb2
+      Maybe#0() -> bb3
+    }
+  bb1:
+    _0 = copy _3
+    region_exit r0
+    return
+  bb2:
+    _3 = 1
+    goto bb1
+  bb3:
+    _3 = copy _2
+    goto bb1
+}
+
+fn get<String> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Maybe<String> [Arg] m
+  let _2: i32 [Arg] d
+  let _3: i32 [Temp]
+  let _4: &String [Val] v
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Maybe#1(bind) _4=_1@1.0 -> bb2
+      Maybe#0() -> bb3
+    }
+  bb1:
+    _0 = copy _3
+    region_exit r0
+    return
+  bb2:
+    _3 = 1
+    goto bb1
+  bb3:
+    _3 = copy _2
+    goto bb1
+}
+
+fn inner (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Wrap [Arg] w
+  let _2: i32 [Temp]
+  let _3: &Shape [Val] s
+  let _4: &P [Val] p
+  let _5: i32 [Temp]
+  let _6: i32 [Val] r
+  let _7: i32 [Val] a
+  let _8: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r1
+  region r3 MatchArm in r1
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Wrap#0(bind, bind) _3=_1@0.0 _4=_1@0.1 -> bb2
+      Wrap#1() -> bb3
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    match _3 {
+      Shape#0(bind) _6=_3@0.0 -> bb5
+      Shape#1() -> bb6
+    }
+  bb3:
+    _2 = 0
+    goto bb1
+  bb4:
+    _7 = copy _5  // label "a": i32 decl
+    _8 = add(copy _7, copy _4.0)
+    _2 = copy _8
+    goto bb1
+  bb5:
+    _5 = copy _6
+    goto bb4
+  bb6:
+    _5 = 0
+    goto bb4
+}
+
+== enums/match_ref_counts.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Node [Temp]
+  let _3: Node [Val] node
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] r
+  let _6: Ref<Node> [Temp]
+  let _7: Slot [Temp]
+  let _8: Slot [Val] slot
+  let _9: Slot [Temp]
+  let _10: Slot [Val] empty
+  let _11: Ref<Node> [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Var] i
+  let _14: i32 [Var] total
+  let _15: bool [Temp]
+  let _16: &Slot [Temp]
+  let _17: i32 [Temp]
+  let _18: i32 [Temp]
+  let _19: &Slot [Temp]
+  let _20: i32 [Temp]
+  let _21: i32 [Temp]
+  let _22: &Slot [Temp]
+  let _23: i32 [Temp]
+  let _24: i32 [Temp]
+  let _25: &Slot [Temp]
+  let _26: i32 [Temp]
+  let _27: i32 [Temp]
+  let _28: i32 [Temp]
+  let _29: Ref<Node> [Temp]
+  let _30: i32 [Temp]
+  let _31: unit [Hidden(DynamicArena)]
+  let _32: Node [Temp]
+  let _33: Node [Val] other
+  let _34: Ref<Node> [Temp]
+  let _35: Ref<Node> [Val] r2
+  let _36: Ref<Node> [Temp]
+  let _37: i32 [Temp]
+  let _38: Ref<Node> [Temp]
+  let _39: i32 [Temp]
+  let _40: Ref<Node> [Temp]
+  let _41: i32 [Temp]
+  let _42: Ref<Node> [Temp]
+  let _43: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Node" } in fresh1
+    _2.0 = 5
+    _3 = copy _2  // label "node": Node decl
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = ref_clone copy _5
+    _7 = alloc EnumSlot { enum_name: "Slot", variant: 1 } in current
+    ref_store _7@1.0 owner=current move _6
+    _7@1.1 = 7
+    register_drop current _7 Enum("Slot")
+    _8 = copy _7  // label "slot": Slot decl
+    _9 = alloc EnumSlot { enum_name: "Slot", variant: 0 } in current
+    register_drop current _9 Enum("Slot")
+    _10 = copy _9  // label "empty": Slot decl
+    _11 = ref_clone copy _5
+    _12 = ref_count move _11
+    intrinsic PrintlnInt(copy _12)
+    _13 = 0  // label "i": i32 decl
+    _14 = 0  // label "total": i32 decl
+    goto bb1
+  bb1:
+    _15 = lt(copy _13, 100)
+    switch copy _15 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _16 = borrow _8
+    _17 = call peek(copy _16) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    intrinsic PrintlnInt(copy _14)
+    _29 = ref_clone copy _5
+    _30 = ref_count move _29
+    intrinsic PrintlnInt(copy _30)
+    _31 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _31
+    _32 = alloc Object { class: "Node" } in fresh31
+    _32.0 = 5
+    _33 = copy _32  // label "other": Node decl
+    _34 = ref_create source=current target=object_arena(_33) copy _33
+    _35 = move _34  // label "r2": Ref<Node> decl
+    register_drop current _35 RefSlot
+    _36 = ref_clone copy _35
+    _37 = ref_count move _36
+    intrinsic PrintlnInt(copy _37)
+    _38 = ref_clone copy _35
+    _39 = call probe(move _38) +current -> bb9
+  bb5:
+    _18 = add(copy _14, copy _17)
+    _19 = borrow _10
+    _20 = call peek(copy _19) +current -> bb6
+  bb6:
+    _21 = add(copy _18, copy _20)
+    _22 = borrow _8
+    _23 = call early(copy _22) +current -> bb7
+  bb7:
+    _24 = add(copy _21, copy _23)
+    _25 = borrow _10
+    _26 = call early(copy _25) +current -> bb8
+  bb8:
+    _27 = add(copy _24, copy _26)
+    _14 = copy _27
+    _28 = add(copy _13, 1)
+    _13 = copy _28
+    goto bb3
+  bb9:
+    intrinsic PrintlnInt(copy _39)
+    _40 = ref_clone copy _35
+    _41 = call probe(move _40) +current -> bb10
+  bb10:
+    intrinsic PrintlnInt(copy _41)
+    _42 = ref_clone copy _35
+    _43 = ref_count move _42
+    intrinsic PrintlnInt(copy _43)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn peek (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Slot [Arg] s
+  let _2: i32 [Temp]
+  let _3: Ref<Node> [Val] n
+  let _4: i32 [Val] t
+  let _5: i32 [Var] v
+  let _6: Ref<Node> [Temp]
+  let _7: unit [Temp]
+  let _8: &Node [Val]
+  let _9: bool [Temp]
+  let _10: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 PresenceSome in r2
+  bb0:
+    region_enter r0
+    match _1 {
+      Slot#0() -> bb2
+      Slot#1(bind, bind) _4=_1@1.1 -> bb3
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _2 = 0
+    goto bb1
+  bb3:
+    region_enter r2
+    _3 = ref_clone copy _1@1.0
+    register_drop current _3 RefSlot
+    _5 = 0  // label "v": i32 decl
+    _6 = ref_clone copy _3
+    (_7, _8, _9) = observe copy _6
+    ref_drop move _6
+    switch copy _9 [ 1 -> bb5, else -> bb6]
+  bb4:
+    _10 = add(copy _5, copy _4)
+    _2 = copy _10
+    region_exit r2
+    goto bb1
+  bb5:
+    goto bb4
+  bb6:
+    region_enter r3
+    observation_register current _7
+    _5 = copy _8.0
+    region_exit r3
+    goto bb4
+}
+
+fn early (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Slot [Arg] s
+  let _2: Ref<Node> [Val] n
+  let _3: i32 [Val] t
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Slot#1(bind, bind) _3=_1@1.1 -> bb2
+      Slot#0() -> bb3
+    }
+  bb1:
+    _0 = 2
+    region_exit r0
+    return
+  bb2:
+    region_enter r1
+    _2 = ref_clone copy _1@1.0
+    register_drop current _2 RefSlot
+    _0 = 1
+    region_exit r1
+    region_exit r0
+    return
+  bb3:
+    goto bb1
+}
+
+fn probe (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] r
+  let _2: i32 [Var] total
+  let _3: Ref<Node> [Temp]
+  let _4: Slot [Temp]
+  let _5: Ref<Node> [Val] n
+  let _6: i32 [Val] t
+  let _7: Ref<Node> [Temp]
+  let _8: unit [Temp]
+  let _9: &Node [Val]
+  let _10: bool [Temp]
+  let _11: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 PresenceSome in r1
+  region r3 MatchArm in r0
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = 0  // label "total": i32 decl
+    _3 = ref_clone copy _1
+    _4 = call make(move _3) +current +current -> bb1
+  bb1:
+    match _4 {
+      Slot#1(bind, bind) _6=_4@1.1 -> bb3
+      Slot#0() -> bb4
+    }
+  bb2:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb3:
+    region_enter r1
+    _5 = ref_clone copy _4@1.0
+    register_drop current _5 RefSlot
+    _7 = ref_clone copy _5
+    (_8, _9, _10) = observe copy _7
+    ref_drop move _7
+    switch copy _10 [ 1 -> bb6, else -> bb7]
+  bb4:
+    goto bb2
+  bb5:
+    region_exit r1
+    goto bb2
+  bb6:
+    goto bb5
+  bb7:
+    region_enter r2
+    observation_register current _8
+    _11 = add(copy _9.0, copy _6)
+    _2 = copy _11
+    region_exit r2
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Slot [Return]
+  let _1: Ref<Node> [Arg] n
+  let _2: Ref<Node> [Temp]
+  let _3: Slot [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = ref_clone copy _1
+    _3 = alloc EnumSlot { enum_name: "Slot", variant: 1 } in result_sink
+    ref_store _3@1.0 owner=result_sink move _2
+    _3@1.1 = 4
+    register_drop result_sink _3 Enum("Slot")
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+== enums/match_shapes.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Shape [Temp]
+  let _2: Shape [Val] circle
+  let _3: Shape [Temp]
+  let _4: Shape [Val] rect
+  let _5: Shape [Temp]
+  let _6: Shape [Val] empty
+  let _7: &Shape [Temp]
+  let _8: i32 [Temp]
+  let _9: &Shape [Temp]
+  let _10: i32 [Temp]
+  let _11: &Shape [Temp]
+  let _12: i32 [Temp]
+  let _13: Shape [Temp]
+  let _14: Shape [Val] c1
+  let _15: Shape [Temp]
+  let _16: Shape [Val] c5
+  let _17: Shape [Temp]
+  let _18: Shape [Val] thin
+  let _19: Shape [Temp]
+  let _20: Shape [Val] wide
+  let _21: Shape [Temp]
+  let _22: String [Temp]
+  let _23: String [Temp]
+  let _24: Shape [Val] hi
+  let _25: Shape [Temp]
+  let _26: String [Temp]
+  let _27: String [Temp]
+  let _28: Shape [Val] yo
+  let _29: &Shape [Temp]
+  let _30: unit [Temp]
+  let _31: &Shape [Temp]
+  let _32: unit [Temp]
+  let _33: &Shape [Temp]
+  let _34: unit [Temp]
+  let _35: &Shape [Temp]
+  let _36: unit [Temp]
+  let _37: &Shape [Temp]
+  let _38: unit [Temp]
+  let _39: &Shape [Temp]
+  let _40: unit [Temp]
+  let _41: &Shape [Temp]
+  let _42: unit [Temp]
+  let _43: i32 [Temp]
+  let _44: i32 [Temp]
+  let _45: i32 [Temp]
+  let _46: Shape [Temp]
+  let _47: Shape [Temp]
+  let _48: Pair [Temp]
+  let _49: Pair [Val] p1
+  let _50: Shape [Temp]
+  let _51: Shape [Temp]
+  let _52: Pair [Temp]
+  let _53: Pair [Val] p2
+  let _54: Shape [Temp]
+  let _55: Shape [Temp]
+  let _56: Pair [Temp]
+  let _57: Pair [Val] p3
+  let _58: &Pair [Temp]
+  let _59: i32 [Temp]
+  let _60: &Pair [Temp]
+  let _61: i32 [Temp]
+  let _62: &Pair [Temp]
+  let _63: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current
+    _1@0.0 = 2
+    _2 = copy _1  // label "circle": Shape decl
+    _3 = alloc EnumSlot { enum_name: "Shape", variant: 1 } in current
+    _3@1.0 = 3
+    _3@1.1 = 4
+    _4 = copy _3  // label "rect": Shape decl
+    _5 = alloc EnumSlot { enum_name: "Shape", variant: 3 } in current
+    _6 = copy _5  // label "empty": Shape decl
+    _7 = borrow _2
+    _8 = call area(copy _7) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _8)
+    _9 = borrow _4
+    _10 = call area(copy _9) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _10)
+    _11 = borrow _6
+    _12 = call area(copy _11) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _12)
+    _13 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current
+    _13@0.0 = 1
+    _14 = copy _13  // label "c1": Shape decl
+    _15 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current
+    _15@0.0 = 5
+    _16 = copy _15  // label "c5": Shape decl
+    _17 = alloc EnumSlot { enum_name: "Shape", variant: 1 } in current
+    _17@1.0 = 2
+    _17@1.1 = 1
+    _18 = copy _17  // label "thin": Shape decl
+    _19 = alloc EnumSlot { enum_name: "Shape", variant: 1 } in current
+    _19@1.0 = 2
+    _19@1.1 = 3
+    _20 = copy _19  // label "wide": Shape decl
+    _21 = alloc EnumSlot { enum_name: "Shape", variant: 2 } in current
+    _22 = "hi"
+    _23 = copy_into _22 in current
+    _21@2.0 = copy _23
+    _24 = copy _21  // label "hi": Shape decl
+    _25 = alloc EnumSlot { enum_name: "Shape", variant: 2 } in current
+    _26 = "yo"
+    _27 = copy_into _26 in current
+    _25@2.0 = copy _27
+    _28 = copy _25  // label "yo": Shape decl
+    _29 = borrow _14
+    _30 = call describe(copy _29) +current -> bb4
+  bb4:
+    _31 = borrow _16
+    _32 = call describe(copy _31) +current -> bb5
+  bb5:
+    _33 = borrow _18
+    _34 = call describe(copy _33) +current -> bb6
+  bb6:
+    _35 = borrow _20
+    _36 = call describe(copy _35) +current -> bb7
+  bb7:
+    _37 = borrow _24
+    _38 = call describe(copy _37) +current -> bb8
+  bb8:
+    _39 = borrow _28
+    _40 = call describe(copy _39) +current -> bb9
+  bb9:
+    _41 = borrow _6
+    _42 = call describe(copy _41) +current -> bb10
+  bb10:
+    _43 = call code(0) +current -> bb11
+  bb11:
+    intrinsic PrintlnInt(copy _43)
+    _44 = call code(1) +current -> bb12
+  bb12:
+    intrinsic PrintlnInt(copy _44)
+    _45 = call code(7) +current -> bb13
+  bb13:
+    intrinsic PrintlnInt(copy _45)
+    _46 = alloc EnumSlot { enum_name: "Shape", variant: 3 } in current
+    _47 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current
+    _47@0.0 = 9
+    _48 = alloc EnumSlot { enum_name: "Pair", variant: 0 } in current
+    _48@0.0 = copy _46
+    _48@0.1 = copy _47
+    _49 = copy _48  // label "p1": Pair decl
+    _50 = alloc EnumSlot { enum_name: "Shape", variant: 1 } in current
+    _50@1.0 = 3
+    _50@1.1 = 4
+    _51 = alloc EnumSlot { enum_name: "Shape", variant: 3 } in current
+    _52 = alloc EnumSlot { enum_name: "Pair", variant: 0 } in current
+    _52@0.0 = copy _50
+    _52@0.1 = copy _51
+    _53 = copy _52  // label "p2": Pair decl
+    _54 = alloc EnumSlot { enum_name: "Shape", variant: 3 } in current
+    _55 = alloc EnumSlot { enum_name: "Shape", variant: 3 } in current
+    _56 = alloc EnumSlot { enum_name: "Pair", variant: 0 } in current
+    _56@0.0 = copy _54
+    _56@0.1 = copy _55
+    _57 = copy _56  // label "p3": Pair decl
+    _58 = borrow _49
+    _59 = call both(copy _58) +current -> bb14
+  bb14:
+    intrinsic PrintlnInt(copy _59)
+    _60 = borrow _53
+    _61 = call both(copy _60) +current -> bb15
+  bb15:
+    intrinsic PrintlnInt(copy _61)
+    _62 = borrow _57
+    _63 = call both(copy _62) +current -> bb16
+  bb16:
+    intrinsic PrintlnInt(copy _63)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn area (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Shape [Arg] s
+  let _2: i32 [Temp]
+  let _3: i32 [Val] r
+  let _4: i32 [Val] w
+  let _5: i32 [Val] h
+  let _6: &String [Val] t
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  let _10: i32 [Temp]
+  let _11: i32 [Val] a
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Shape#0(bind) _3=_1@0.0 -> bb2
+      Shape#1(bind, bind) _4=_1@1.0 _5=_1@1.1 -> bb3
+      Shape#2(bind) _6=_1@2.0 -> bb4
+      Shape#3() -> bb5
+    }
+  bb1:
+    _11 = copy _2  // label "a": i32 decl
+    _0 = copy _11
+    region_exit r0
+    return
+  bb2:
+    _7 = mul(3, copy _3)
+    _8 = mul(copy _7, copy _3)
+    _2 = copy _8
+    goto bb1
+  bb3:
+    _9 = mul(copy _4, copy _5)
+    _2 = copy _9
+    goto bb1
+  bb4:
+    _10 = len(_6)
+    _2 = copy _10
+    goto bb1
+  bb5:
+    _2 = 0
+    goto bb1
+}
+
+fn describe (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Shape [Arg] s
+  let _2: i32 [Val] r
+  let _3: i32 [Val] w
+  let _4: i32 [Val] w
+  let _5: i32 [Val] h
+  let _6: &String [Val] t
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r0
+  region r5 MatchArm in r0
+  region r6 MatchArm in r0
+  region r7 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Shape#0(1) -> bb2
+      Shape#0(bind) _2=_1@0.0 -> bb3
+      Shape#1(bind, 1) _3=_1@1.0 -> bb4
+      Shape#1(bind, bind) _4=_1@1.0 _5=_1@1.1 -> bb5
+      Shape#2("hi") -> bb6
+      Shape#2(bind) _6=_1@2.0 -> bb7
+      Shape#3() -> bb8
+    }
+  bb1:
+    region_exit r0
+    return
+  bb2:
+    region_enter r1
+    intrinsic PrintlnStr("unit circle")
+    region_exit r1
+    goto bb1
+  bb3:
+    region_enter r2
+    intrinsic PrintlnStr("circle")
+    region_exit r2
+    goto bb1
+  bb4:
+    region_enter r3
+    intrinsic PrintlnStr("thin rect")
+    region_exit r3
+    goto bb1
+  bb5:
+    region_enter r4
+    intrinsic PrintlnStr("rect")
+    region_exit r4
+    goto bb1
+  bb6:
+    region_enter r5
+    intrinsic PrintlnStr("greeting")
+    region_exit r5
+    goto bb1
+  bb7:
+    _7 = len(_6)
+    intrinsic PrintlnInt(copy _7)
+    goto bb1
+  bb8:
+    region_enter r7
+    intrinsic PrintlnStr("empty")
+    region_exit r7
+    goto bb1
+}
+
+fn code (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: i32 [Temp]
+  let _3: i32 [Val] k
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      0 -> bb2
+      1 -> bb3
+      bind _3=_1 -> bb4
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _2 = 100
+    goto bb1
+  bb3:
+    _2 = 101
+    goto bb1
+  bb4:
+    _2 = copy _3
+    goto bb1
+}
+
+fn both (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Pair [Arg] p
+  let _2: i32 [Temp]
+  let _3: i32 [Val] r
+  let _4: i32 [Val] w
+  let _5: i32 [Val] h
+  let _6: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Pair#0(Shape#3(), Shape#0(bind)) _3=_1@0.1@0.0 -> bb2
+      Pair#0(Shape#1(bind, bind), _) _4=_1@0.0@1.0 _5=_1@0.0@1.1 -> bb3
+      Pair#0(_, _) -> bb4
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _2 = copy _3
+    goto bb1
+  bb3:
+    _6 = mul(copy _4, copy _5)
+    _2 = copy _6
+    goto bb1
+  bb4:
+    _2 = 0
+    goto bb1
+}
+
+== enums/ref_payload.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Node [Temp]
+  let _3: Node [Val] n
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] r
+  let _6: Slot [Temp]
+  let _7: Slot [Val] e
+  let _8: Ref<Node> [Temp]
+  let _9: i32 [Temp]
+  let _10: Ref<Node> [Temp]
+  let _11: unit [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Node" } in fresh1
+    _2.0 = 5
+    _3 = copy _2  // label "n": Node decl
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = alloc EnumSlot { enum_name: "Slot", variant: 0 } in current
+    register_drop current _6 Enum("Slot")
+    _7 = copy _6  // label "e": Slot decl
+    _8 = ref_clone copy _5
+    _9 = ref_count move _8
+    intrinsic PrintlnInt(copy _9)
+    _10 = ref_clone copy _5
+    _11 = call hold(move _10) +current -> bb1
+  bb1:
+    _12 = ref_clone copy _5
+    _13 = ref_count move _12
+    intrinsic PrintlnInt(copy _13)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn hold (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: Ref<Node> [Arg] node
+  let _2: Ref<Node> [Temp]
+  let _3: Slot [Temp]
+  let _4: Slot [Val] s
+  let _5: Ref<Node> [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = ref_clone copy _1
+    _3 = alloc EnumSlot { enum_name: "Slot", variant: 1 } in current
+    ref_store _3@1.0 owner=current move _2
+    _3@1.1 = 7
+    register_drop current _3 Enum("Slot")
+    _4 = copy _3  // label "s": Slot decl
+    _5 = ref_clone copy _1
+    _6 = ref_count move _5
+    intrinsic PrintlnInt(copy _6)
+    region_exit r0
+    return
+}
+
+== enums/ref_to_enum.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Tree [Temp]
+  let _3: Tree [Val] leaf
+  let _4: Ref<Tree> [Temp]
+  let _5: Ref<Tree> [Val] r
+  let _6: Ref<Tree> [Temp]
+  let _7: i32 [Temp]
+  let _8: Ref<Tree> [Temp]
+  let _9: unit [Temp]
+  let _10: Ref<Tree> [Temp]
+  let _11: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc EnumSlot { enum_name: "Tree", variant: 0 } in fresh1
+    _2@0.0 = 1
+    register_drop fresh1 _2 Enum("Tree")
+    _3 = copy _2  // label "leaf": Tree decl
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r": Ref<Tree> decl
+    register_drop current _5 RefSlot
+    _6 = ref_clone copy _5
+    _7 = ref_count move _6
+    intrinsic PrintlnInt(copy _7)
+    _8 = ref_clone copy _5
+    _9 = call link(move _8) +current -> bb1
+  bb1:
+    _10 = ref_clone copy _5
+    _11 = ref_count move _10
+    intrinsic PrintlnInt(copy _11)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn link (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: Ref<Tree> [Arg] leaf
+  let _2: Ref<Tree> [Temp]
+  let _3: Tree [Temp]
+  let _4: Tree [Val] node
+  let _5: Ref<Tree> [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = ref_clone copy _1
+    _3 = alloc EnumSlot { enum_name: "Tree", variant: 1 } in current
+    ref_store _3@1.0 owner=current move _2
+    _3@1.1 = 2
+    register_drop current _3 Enum("Tree")
+    _4 = copy _3  // label "node": Tree decl
+    _5 = ref_clone copy _1
+    _6 = ref_count move _5
+    intrinsic PrintlnInt(copy _6)
+    region_exit r0
+    return
+}
+
+== enums/return_construct_in_branch.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: A [Temp]
+  let _4: A [Val] s
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call make(false) +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "s": A decl
+    _5 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _6 = lt(copy _5, 100)
+    switch copy _6 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _7 = add(copy _5, 7000)
+    _8 = call churn(copy _7) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _2.0.0)
+    intrinsic PrintlnInt(copy _4.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _9 = add(copy _5, 1)
+    _5 = copy _9
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: P [Temp]
+  let _3: P [Val] p
+  let _4: P [Temp]
+  let _5: P [Val] q
+  let _6: A [Temp]
+  let _7: A [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = copy _2  // label "p": P decl
+    _4 = alloc Object { class: "P" } in result_sink
+    _4.0 = 2
+    _5 = copy _4  // label "q": P decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _6 = alloc Object { class: "A" } in result_sink
+    _6.0 = copy _3
+    _0 = copy _6
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _7 = alloc Object { class: "A" } in result_sink
+    _7.0 = copy _5
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+== enums/return_decl_in_branch.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: A [Temp]
+  let _4: A [Val] s
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call make(false) +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "s": A decl
+    _5 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _6 = lt(copy _5, 100)
+    switch copy _6 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _7 = add(copy _5, 7000)
+    _8 = call churn(copy _7) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _2.0.0)
+    intrinsic PrintlnInt(copy _4.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _9 = add(copy _5, 1)
+    _5 = copy _9
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: P [Temp]
+  let _6: A [Temp]
+  let _7: A [Val] b
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = alloc Object { class: "A" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _0 = copy _4
+    region_exit r0
+    return
+  bb2:
+    _5 = alloc Object { class: "P" } in result_sink
+    _5.0 = 2
+    _6 = alloc Object { class: "A" } in result_sink
+    _6.0 = copy _5
+    _7 = copy _6  // label "b": A decl
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+== enums/return_enum_in_branch.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: E [Temp]
+  let _2: E [Val] e
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  let _8: &N [Val] n
+  region r0 Block
+  region r1 While in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "e": E decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 100)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = add(copy _3, 7000)
+    _6 = call churn(copy _5) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    match _2 {
+      E#0(bind) _8=_2@0.0 -> bb8
+      E#1() -> bb9
+    }
+  bb6:
+    _7 = add(copy _3, 1)
+    _3 = copy _7
+    goto bb4
+  bb7:
+    _0 = 0
+    region_exit r0
+    return
+  bb8:
+    intrinsic PrintlnInt(copy _8.0)
+    goto bb7
+  bb9:
+    intrinsic PrintlnInt(0)
+    goto bb7
+}
+
+fn make (parent=true, sink=true) {
+  let _0: E [Return]
+  let _1: bool [Arg] flag
+  let _2: N [Temp]
+  let _3: N [Val] n
+  let _4: E [Temp]
+  let _5: E [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in result_sink
+    _2.0 = 42
+    _3 = copy _2  // label "n": N decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _4 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink
+    _4@0.0 = copy _3
+    _0 = copy _4
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _5 = alloc EnumSlot { enum_name: "E", variant: 1 } in result_sink
+    _0 = copy _5
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: N [Temp]
+  let _3: N [Val] x
+  let _4: i32 [Temp]
+  let _5: N [Temp]
+  let _6: N [Val] y
+  let _7: i32 [Temp]
+  let _8: N [Temp]
+  let _9: E [Temp]
+  let _10: E [Val] e
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in current
+    _2.0 = copy _1
+    _3 = copy _2  // label "x": N decl
+    _4 = add(copy _1, 1)
+    _5 = alloc Object { class: "N" } in current
+    _5.0 = copy _4
+    _6 = copy _5  // label "y": N decl
+    _7 = add(copy _1, 2)
+    _8 = alloc Object { class: "N" } in current
+    _8.0 = copy _7
+    _9 = alloc EnumSlot { enum_name: "E", variant: 0 } in current
+    _9@0.0 = copy _8
+    _10 = copy _9  // label "e": E decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+== enums/return_field_in_branch.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Box [Temp]
+  let _2: Box [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": Box decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 100)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = add(copy _3, 7000)
+    _6 = call churn(copy _5) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _7 = add(copy _3, 1)
+    _3 = copy _7
+    goto bb4
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Box [Return]
+  let _1: bool [Arg] flag
+  let _2: N [Temp]
+  let _3: Box [Temp]
+  let _4: Box [Val] local
+  let _5: Box [Temp]
+  let _6: N [Temp]
+  let _7: Box [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in result_sink
+    _2.0 = 42
+    _3 = alloc Object { class: "Box" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "local": Box decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _5 = alloc Object { class: "Box" } in result_sink
+    _5.0 = copy _4.0
+    _0 = copy _5
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _6 = alloc Object { class: "N" } in result_sink
+    _6.0 = 1
+    _7 = alloc Object { class: "Box" } in result_sink
+    _7.0 = copy _6
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: N [Temp]
+  let _3: Box [Temp]
+  let _4: Box [Val] a
+  let _5: i32 [Temp]
+  let _6: N [Temp]
+  let _7: Box [Temp]
+  let _8: Box [Val] b
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "Box" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": Box decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "N" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "Box" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": Box decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+== enums/return_field_of_local.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Outer [Temp]
+  let _2: Outer [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": Outer decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 50)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = call churn(copy _3) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb4
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Outer [Return]
+  let _1: N [Temp]
+  let _2: Box [Temp]
+  let _3: Box [Val] local
+  let _4: Box [Temp]
+  let _5: Outer [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "N" } in result_sink
+    _1.0 = 42
+    _2 = alloc Object { class: "Box" } in result_sink
+    _2.0 = copy _1
+    _3 = copy _2  // label "local": Box decl
+    _4 = alloc Object { class: "Box" } in result_sink
+    _4.0 = copy _3.0
+    _5 = alloc Object { class: "Outer" } in result_sink
+    _5.0 = copy _4
+    _0 = copy _5
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: N [Temp]
+  let _3: Box [Temp]
+  let _4: Box [Val] x
+  let _5: i32 [Temp]
+  let _6: N [Temp]
+  let _7: Box [Temp]
+  let _8: Box [Val] y
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "Box" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "x": Box decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "N" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "Box" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "y": Box decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+== enums/return_from_for_loop.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call find(10) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 100)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = add(copy _3, 7000)
+    _6 = call churn(copy _5) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _7 = add(copy _3, 1)
+    _3 = copy _7
+    goto bb4
+}
+
+fn find (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: i32 [Arg] limit
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] keep
+  let _5: i32 [Temp]
+  let _6: i32 [Var] i
+  let _7: bool [Temp]
+  let _8: bool [Temp]
+  let _9: P [Temp]
+  let _10: A [Temp]
+  region r0 Block
+  region r1 For in r0
+  region r2 IfThen in r1
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 5
+    _3 = alloc Object { class: "A" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "keep": A decl
+    _5 = copy _1
+    _6 = 0
+    goto bb1
+  bb1:
+    _7 = lt(copy _6, copy _5)
+    switch copy _7 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _8 = eq(copy _6, 2)
+    switch copy _8 [ 1 -> bb5, else -> bb6]
+  bb3:
+    _6 = add(copy _6, 1)
+    goto bb1
+  bb4:
+    _9 = alloc Object { class: "P" } in result_sink
+    _9.0 = 0
+    _10 = alloc Object { class: "A" } in result_sink
+    _10.0 = copy _9
+    _0 = copy _10
+    region_exit r0
+    return
+  bb5:
+    _0 = copy _4
+    region_exit r0
+    return
+  bb6:
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _4.0.0, copy _8.0.0)
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+== enums/return_from_loop_before.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call find(10) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 100)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = add(copy _3, 7000)
+    _6 = call churn(copy _5) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _7 = add(copy _3, 1)
+    _3 = copy _7
+    goto bb4
+}
+
+fn find (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: i32 [Arg] limit
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] keep
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: bool [Temp]
+  let _8: i32 [Temp]
+  let _9: P [Temp]
+  let _10: A [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 IfThen in r1
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 5
+    _3 = alloc Object { class: "A" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "keep": A decl
+    _5 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _6 = lt(copy _5, copy _1)
+    switch copy _6 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _7 = eq(copy _5, 2)
+    switch copy _7 [ 1 -> bb5, else -> bb6]
+  bb3:
+    goto bb1
+  bb4:
+    _9 = alloc Object { class: "P" } in result_sink
+    _9.0 = 0
+    _10 = alloc Object { class: "A" } in result_sink
+    _10.0 = copy _9
+    _0 = copy _10
+    region_exit r0
+    return
+  bb5:
+    _0 = copy _4
+    region_exit r0
+    return
+  bb6:
+    _8 = add(copy _5, 1)
+    _5 = copy _8
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _4.0.0, copy _8.0.0)
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+== enums/return_hoisted_chain.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: C [Temp]
+  let _2: C [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make2() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": C decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 50)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = call churn(copy _3) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb4
+}
+
+fn make2 (parent=true, sink=true) {
+  let _0: C [Return]
+  let _1: A [Temp]
+  let _2: A [Val] a
+  let _3: B [Temp]
+  let _4: B [Val] b
+  let _5: C [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "A" } in result_sink
+    _1.0 = 42
+    _2 = copy _1  // label "a": A decl
+    _3 = alloc Object { class: "B" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "b": B decl
+    _5 = alloc Object { class: "C" } in result_sink
+    _5.0 = copy _4
+    _0 = copy _5
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: A [Temp]
+  let _3: B [Temp]
+  let _4: C [Temp]
+  let _5: C [Val] x
+  let _6: i32 [Temp]
+  let _7: A [Temp]
+  let _8: B [Temp]
+  let _9: C [Temp]
+  let _10: C [Val] y
+  let _11: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "A" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "B" } in current
+    _3.0 = copy _2
+    _4 = alloc Object { class: "C" } in current
+    _4.0 = copy _3
+    _5 = copy _4  // label "x": C decl
+    _6 = add(copy _1, 1)
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = alloc Object { class: "B" } in current
+    _8.0 = copy _7
+    _9 = alloc Object { class: "C" } in current
+    _9.0 = copy _8
+    _10 = copy _9  // label "y": C decl
+    _11 = add(copy _5.0.0.0, copy _10.0.0.0)
+    _0 = copy _11
+    region_exit r0
+    return
+}
+
+== enums/return_hoisted_object.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: E [Temp]
+  let _2: E [Val] e
+  let _3: Box [Temp]
+  let _4: Box [Val] b
+  let _5: Top [Temp]
+  let _6: Top [Val] t
+  let _7: i32 [Var] i
+  let _8: i32 [Var] total
+  let _9: bool [Temp]
+  let _10: i32 [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  let _13: &N [Val] n
+  region r0 Block
+  region r1 While in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    _1 = call makeEnum() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "e": E decl
+    _3 = call makeBox() +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "b": Box decl
+    _5 = call makeTop() +current +current -> bb3
+  bb3:
+    _6 = copy _5  // label "t": Top decl
+    _7 = 0  // label "i": i32 decl
+    _8 = 0  // label "total": i32 decl
+    goto bb4
+  bb4:
+    _9 = lt(copy _7, 50)
+    switch copy _9 [ 1 -> bb5, else -> bb7]
+  bb5:
+    _10 = call churn(copy _7) +current -> bb8
+  bb6:
+    goto bb4
+  bb7:
+    match _2 {
+      E#0(bind) _13=_2@0.0 -> bb10
+    }
+  bb8:
+    _11 = add(copy _8, copy _10)
+    _8 = copy _11
+    _12 = add(copy _7, 1)
+    _7 = copy _12
+    goto bb6
+  bb9:
+    intrinsic PrintlnInt(copy _4.0.0)
+    intrinsic PrintlnInt(copy _6.0.0.0)
+    intrinsic PrintlnInt(copy _8)
+    _0 = 0
+    region_exit r0
+    return
+  bb10:
+    intrinsic PrintlnInt(copy _13.0)
+    goto bb9
+}
+
+fn makeEnum (parent=true, sink=true) {
+  let _0: E [Return]
+  let _1: N [Temp]
+  let _2: N [Val] n
+  let _3: E [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "N" } in result_sink
+    _1.0 = 42
+    _2 = copy _1  // label "n": N decl
+    _3 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink
+    _3@0.0 = copy _2
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn makeBox (parent=true, sink=true) {
+  let _0: Box [Return]
+  let _1: N [Temp]
+  let _2: N [Val] n
+  let _3: Box [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "N" } in result_sink
+    _1.0 = 42
+    _2 = copy _1  // label "n": N decl
+    _3 = alloc Object { class: "Box" } in result_sink
+    _3.0 = copy _2
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn makeTop (parent=true, sink=true) {
+  let _0: Top [Return]
+  let _1: Mid [Temp]
+  let _2: Mid [Val] m
+  let _3: Top [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call makeMid() +current +result_sink -> bb1
+  bb1:
+    _2 = copy _1  // label "m": Mid decl
+    _3 = alloc Object { class: "Top" } in result_sink
+    _3.0 = copy _2
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: N [Temp]
+  let _3: Box [Temp]
+  let _4: Box [Val] a
+  let _5: i32 [Temp]
+  let _6: N [Temp]
+  let _7: Box [Temp]
+  let _8: Box [Val] b
+  let _9: i32 [Temp]
+  let _10: N [Temp]
+  let _11: Box [Temp]
+  let _12: Box [Val] c
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "Box" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": Box decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "N" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "Box" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": Box decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "N" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "Box" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": Box decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+fn makeMid (parent=true, sink=true) {
+  let _0: Mid [Return]
+  let _1: N [Temp]
+  let _2: N [Val] n
+  let _3: Mid [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "N" } in result_sink
+    _1.0 = 42
+    _2 = copy _1  // label "n": N decl
+    _3 = alloc Object { class: "Mid" } in result_sink
+    _3.0 = copy _2
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+== enums/return_hoisted_via_call.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: C [Temp]
+  let _2: C [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": C decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 200)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = call churn(copy _3) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb4
+}
+
+fn make (parent=true, sink=true) {
+  let _0: C [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: A [Temp]
+  let _3: A [Val] a
+  let _4: B [Temp]
+  let _5: B [Val] b
+  let _6: C [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _1
+    _2 = alloc Object { class: "A" } in fresh1
+    _2.0 = 42
+    _3 = copy _2  // label "a": A decl
+    _4 = call mk(copy _3) +current +result_sink -> bb1
+  bb1:
+    _5 = copy _4  // label "b": B decl
+    _6 = alloc Object { class: "C" } in result_sink
+    _6.0 = copy _5
+    _0 = copy _6
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: A [Temp]
+  let _3: B [Temp]
+  let _4: B [Val] x
+  let _5: i32 [Temp]
+  let _6: A [Temp]
+  let _7: B [Temp]
+  let _8: B [Val] y
+  let _9: i32 [Temp]
+  let _10: A [Temp]
+  let _11: B [Temp]
+  let _12: B [Val] z
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "A" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "B" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "x": B decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "A" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "B" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "y": B decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "A" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "B" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "z": B decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+fn mk (parent=true, sink=true) {
+  let _0: B [Return]
+  let _1: A [Arg] a
+  let _2: B [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "B" } in result_sink
+    _2.0 = copy _1
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+== enums/return_in_method.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: F [Temp]
+  let _3: F [Val] f
+  let _4: &F [Temp]
+  let _5: A [Temp]
+  let _6: A [Val] r
+  let _7: &F [Temp]
+  let _8: A [Temp]
+  let _9: A [Val] s
+  let _10: i32 [Var] i
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "F" } in fresh1
+    _2.0 = 0
+    _3 = copy _2  // label "f": F decl
+    _4 = borrow _3
+    _5 = call F.make(copy _4) +current +current -> bb1
+  bb1:
+    _6 = copy _5  // label "r": A decl
+    _7 = borrow _3
+    _8 = call F.pick(copy _7, true) +current +current -> bb2
+  bb2:
+    _9 = copy _8  // label "s": A decl
+    _10 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _11 = lt(copy _10, 100)
+    switch copy _11 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _12 = add(copy _10, 7000)
+    _13 = call churn(copy _12) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _6.0.0)
+    intrinsic PrintlnInt(copy _9.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _14 = add(copy _10, 1)
+    _10 = copy _14
+    goto bb5
+}
+
+fn F.make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: &F [Arg] this
+  let _2: P [Temp]
+  let _3: P [Val] p
+  let _4: A [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 7
+    _3 = copy _2  // label "p": P decl
+    _4 = alloc Object { class: "A" } in result_sink
+    _4.0 = copy _3
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn F.pick (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: &F [Arg] this
+  let _2: bool [Arg] flag
+  let _3: P [Temp]
+  let _4: P [Val] p
+  let _5: A [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _3 = alloc Object { class: "P" } in result_sink
+    _3.0 = 8
+    _4 = copy _3  // label "p": P decl
+    switch copy _2 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _5 = alloc Object { class: "A" } in result_sink
+    _5.0 = copy _4
+    _0 = copy _5
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _6 = alloc Object { class: "P" } in result_sink
+    _6.0 = 9
+    _7 = alloc Object { class: "A" } in result_sink
+    _7.0 = copy _6
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _4.0.0, copy _8.0.0)
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+== enums/return_in_when_arm_stores_local.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 100)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = add(copy _3, 7000)
+    _6 = call churn(copy _5) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _7 = add(copy _3, 1)
+    _3 = copy _7
+    goto bb4
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] f
+  let _2: P [Temp]
+  let _3: P [Val] p
+  let _4: K [Temp]
+  let _5: unit [Hidden(DynamicArena)]
+  let _6: K [Temp]
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: K [Temp]
+  let _9: K [Val] k
+  let _10: A [Temp]
+  let _11: P [Temp]
+  let _12: A [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 IfElse in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = copy _2  // label "p": P decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _5 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _5
+    _6 = alloc EnumSlot { enum_name: "K", variant: 0 } in fresh5
+    _4 = copy _6
+    region_exit r1
+    goto bb3
+  bb2:
+    region_enter r2
+    _7 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _7
+    _8 = alloc EnumSlot { enum_name: "K", variant: 1 } in fresh7
+    _4 = copy _8
+    region_exit r2
+    goto bb3
+  bb3:
+    _9 = copy _4  // label "k": K decl
+    match _9 {
+      K#0() -> bb5
+      K#1() -> bb6
+    }
+  bb4:
+    unreachable
+  bb5:
+    region_enter r3
+    _10 = alloc Object { class: "A" } in result_sink
+    _10.0 = copy _3
+    _0 = copy _10
+    region_exit r3
+    region_exit r0
+    return
+  bb6:
+    region_enter r4
+    _11 = alloc Object { class: "P" } in result_sink
+    _11.0 = 2
+    _12 = alloc Object { class: "A" } in result_sink
+    _12.0 = copy _11
+    _0 = copy _12
+    region_exit r4
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _4.0.0, copy _8.0.0)
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+== enums/return_method_result_ref.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Outer [Temp]
+  let _2: Outer [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: Ref<N> [Temp]
+  let _8: unit [Temp]
+  let _9: &N [Val]
+  let _10: bool [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 PresenceSome in r0
+  bb0:
+    region_enter r0
+    _1 = call make() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": Outer decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 50)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = call churn(copy _3) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    _7 = ref_clone copy _2.0
+    (_8, _9, _10) = observe copy _7
+    ref_drop move _7
+    switch copy _10 [ 1 -> bb8, else -> bb9]
+  bb6:
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb4
+  bb7:
+    _0 = 0
+    region_exit r0
+    return
+  bb8:
+    goto bb7
+  bb9:
+    region_enter r2
+    observation_register current _8
+    intrinsic PrintlnInt(copy _9.0)
+    region_exit r2
+    goto bb7
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Outer [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: N [Temp]
+  let _4: Ref<N> [Temp]
+  let _5: Box [Temp]
+  let _6: Box [Val] local
+  let _7: &Box [Temp]
+  let _8: Ref<N> [Temp]
+  let _9: Outer [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _1
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _2
+    _3 = alloc Object { class: "N" } in fresh2
+    _3.0 = 42
+    _4 = ref_create source=fresh1 target=object_arena(_3) copy _3
+    _5 = alloc Object { class: "Box" } in fresh1
+    ref_store _5.0 owner=fresh1 move _4
+    register_drop fresh1 _5.0 RefSlot
+    _6 = copy _5  // label "local": Box decl
+    _7 = borrow _6
+    _8 = call Box.get(copy _7) +current +result_sink -> bb1
+  bb1:
+    _9 = alloc Object { class: "Outer" } in result_sink
+    ref_store _9.0 owner=result_sink move _8
+    register_drop result_sink _9.0 RefSlot
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: N [Temp]
+  let _4: Ref<N> [Temp]
+  let _5: Box [Temp]
+  let _6: Box [Val] x
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: i32 [Temp]
+  let _9: N [Temp]
+  let _10: Ref<N> [Temp]
+  let _11: Box [Temp]
+  let _12: Box [Val] y
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "N" } in fresh2
+    _3.0 = copy _1
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = alloc Object { class: "Box" } in current
+    ref_store _5.0 owner=current move _4
+    register_drop current _5.0 RefSlot
+    _6 = copy _5  // label "x": Box decl
+    _7 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _7
+    _8 = add(copy _1, 1)
+    _9 = alloc Object { class: "N" } in fresh7
+    _9.0 = copy _8
+    _10 = ref_create source=current target=object_arena(_9) copy _9
+    _11 = alloc Object { class: "Box" } in current
+    ref_store _11.0 owner=current move _10
+    register_drop current _11.0 RefSlot
+    _12 = copy _11  // label "y": Box decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+fn Box.get (parent=true, sink=true) {
+  let _0: Ref<N> [Return]
+  let _1: &Box [Arg] this
+  let _2: Ref<N> [Temp]
+  let _3: Ref<N> [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = ref_clone copy _1.0
+    _3 = ref_rehome owner=result_sink move _2
+    _0 = move _3
+    region_exit r0
+    return
+}
+
+== enums/return_nested_hoisted_object.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Holder [Temp]
+  let _2: Holder [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": Holder decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 50)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = call churn(copy _3) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    intrinsic PrintlnInt(copy _2.0.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb6:
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb4
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Holder [Return]
+  let _1: N [Temp]
+  let _2: Box [Temp]
+  let _3: Box [Val] b
+  let _4: Holder [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "N" } in result_sink
+    _1.0 = 42
+    _2 = alloc Object { class: "Box" } in result_sink
+    _2.0 = copy _1
+    _3 = copy _2  // label "b": Box decl
+    _4 = alloc Object { class: "Holder" } in result_sink
+    _4.0 = copy _3
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: N [Temp]
+  let _3: Box [Temp]
+  let _4: Box [Val] a
+  let _5: i32 [Temp]
+  let _6: N [Temp]
+  let _7: Box [Temp]
+  let _8: Box [Val] b
+  let _9: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "N" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "Box" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": Box decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "N" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "Box" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": Box decl
+    _9 = add(copy _4.0.0, copy _8.0.0)
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+== enums/return_scalar_field_in_branch.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Box [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _1.0)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Box [Return]
+  let _1: bool [Arg] flag
+  let _2: L [Temp]
+  let _3: L [Val] local
+  let _4: Box [Temp]
+  let _5: Box [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "L" } in current
+    _2.0 = 5
+    _3 = copy _2  // label "local": L decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _4 = alloc Object { class: "Box" } in result_sink
+    _4.0 = copy _3.0
+    _0 = copy _4
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _5 = alloc Object { class: "Box" } in result_sink
+    _5.0 = 1
+    _0 = copy _5
+    region_exit r0
+    return
+}
+
+== enums/return_two_paths.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: A [Temp]
+  let _4: A [Val] s
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call make(false) +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "s": A decl
+    _5 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _6 = lt(copy _5, 100)
+    switch copy _6 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _7 = add(copy _5, 7000)
+    _8 = call churn(copy _7) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _2.0.0)
+    intrinsic PrintlnInt(copy _4.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _9 = add(copy _5, 1)
+    _5 = copy _9
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: P [Temp]
+  let _6: A [Temp]
+  let _7: A [Val] b
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = alloc Object { class: "A" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = alloc Object { class: "P" } in result_sink
+    _5.0 = 2
+    _6 = alloc Object { class: "A" } in result_sink
+    _6.0 = copy _5
+    _7 = copy _6  // label "b": A decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _0 = copy _4
+    region_exit r0
+    return
+  bb2:
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+== enums/return_unreturned_local.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: A [Temp]
+  let _4: A [Val] s
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call make(false) +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "s": A decl
+    _5 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _6 = lt(copy _5, 100)
+    switch copy _6 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _7 = add(copy _5, 7000)
+    _8 = call churn(copy _7) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _2.0.0)
+    intrinsic PrintlnInt(copy _4.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _9 = add(copy _5, 1)
+    _5 = copy _9
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: P [Temp]
+  let _6: A [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = alloc Object { class: "A" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    intrinsic PrintlnInt(copy _4.0.0)
+    goto bb2
+  bb2:
+    _5 = alloc Object { class: "P" } in result_sink
+    _5.0 = 2
+    _6 = alloc Object { class: "A" } in result_sink
+    _6.0 = copy _5
+    _0 = copy _6
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+== enums/return_value_if_local_object.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: unit [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call spin() +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _2.0.0)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: P [Temp]
+  let _4: A [Temp]
+  let _5: A [Val] a
+  let _6: A [Temp]
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: P [Temp]
+  let _9: A [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 IfElse in r0
+  bb0:
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _2
+    _3 = alloc Object { class: "P" } in fresh2
+    _3.0 = 3
+    _4 = alloc Object { class: "A" } in fresh2
+    _4.0 = copy _3
+    _5 = copy _4  // label "a": A decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _6 = copy _5
+    goto bb3
+  bb2:
+    region_enter r2
+    _7 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _7
+    _8 = alloc Object { class: "P" } in fresh7
+    _8.0 = 4
+    _9 = alloc Object { class: "A" } in fresh7
+    _9.0 = copy _8
+    _6 = copy _9
+    region_exit r2
+    goto bb3
+  bb3:
+    _0 = copy _6
+    region_exit r0
+    return
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: i32 [Var] i
+  let _2: bool [Temp]
+  let _3: i32 [Temp]
+  let _4: i32 [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _2 = lt(copy _1, 200)
+    switch copy _2 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _3 = add(copy _1, 7000)
+    _4 = call churn(copy _3) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    region_exit r0
+    return
+  bb5:
+    _5 = add(copy _1, 1)
+    _1 = copy _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+== enums/return_value_if_stores_local.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: unit [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call spin() +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _2.0.0)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: P [Temp]
+  let _3: P [Val] p
+  let _4: A [Temp]
+  let _5: unit [Hidden(DynamicArena)]
+  let _6: A [Temp]
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: P [Temp]
+  let _9: A [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 IfElse in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = copy _2  // label "p": P decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _5 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _5
+    _6 = alloc Object { class: "A" } in fresh5
+    _6.0 = copy _3
+    _4 = copy _6
+    region_exit r1
+    goto bb3
+  bb2:
+    region_enter r2
+    _7 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _7
+    _8 = alloc Object { class: "P" } in fresh7
+    _8.0 = 2
+    _9 = alloc Object { class: "A" } in fresh7
+    _9.0 = copy _8
+    _4 = copy _9
+    region_exit r2
+    goto bb3
+  bb3:
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: i32 [Var] i
+  let _2: bool [Temp]
+  let _3: i32 [Temp]
+  let _4: i32 [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _2 = lt(copy _1, 200)
+    switch copy _2 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _3 = add(copy _1, 7000)
+    _4 = call churn(copy _3) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    region_exit r0
+    return
+  bb5:
+    _5 = add(copy _1, 1)
+    _1 = copy _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+== enums/return_via_local.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: Wrap [Temp]
+  let _4: Wrap [Val] w
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call makeNested() +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "w": Wrap decl
+    _5 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _6 = lt(copy _5, 100)
+    switch copy _6 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _7 = call churn(copy _5) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _2.0.0)
+    intrinsic PrintlnInt(copy _2.1.0)
+    intrinsic PrintlnInt(copy _2.2.0)
+    intrinsic PrintlnInt(copy _4.0.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _8 = add(copy _5, 1)
+    _5 = copy _8
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: P [Temp]
+  let _2: P [Val] x
+  let _3: P [Temp]
+  let _4: P [Val] y
+  let _5: P [Temp]
+  let _6: P [Val] z
+  let _7: A [Temp]
+  let _8: A [Val] a
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "P" } in result_sink
+    _1.0 = 1
+    _2 = copy _1  // label "x": P decl
+    _3 = alloc Object { class: "P" } in result_sink
+    _3.0 = 2
+    _4 = copy _3  // label "y": P decl
+    _5 = alloc Object { class: "P" } in result_sink
+    _5.0 = 3
+    _6 = copy _5  // label "z": P decl
+    _7 = alloc Object { class: "A" } in result_sink
+    _7.0 = copy _2
+    _7.1 = copy _4
+    _7.2 = copy _6
+    _8 = copy _7  // label "a": A decl
+    _0 = copy _8
+    region_exit r0
+    return
+}
+
+fn makeNested (parent=true, sink=true) {
+  let _0: Wrap [Return]
+  let _1: P [Temp]
+  let _2: P [Val] inner
+  let _3: P [Temp]
+  let _4: P [Temp]
+  let _5: A [Temp]
+  let _6: A [Val] a
+  let _7: Wrap [Temp]
+  let _8: Wrap [Val] w
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Object { class: "P" } in result_sink
+    _1.0 = 42
+    _2 = copy _1  // label "inner": P decl
+    _3 = alloc Object { class: "P" } in result_sink
+    _3.0 = 0
+    _4 = alloc Object { class: "P" } in result_sink
+    _4.0 = 0
+    _5 = alloc Object { class: "A" } in result_sink
+    _5.0 = copy _2
+    _5.1 = copy _3
+    _5.2 = copy _4
+    _6 = copy _5  // label "a": A decl
+    _7 = alloc Object { class: "Wrap" } in result_sink
+    _7.0 = copy _6
+    _8 = copy _7  // label "w": Wrap decl
+    _0 = copy _8
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: i32 [Temp]
+  let _4: P [Temp]
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] a
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: i32 [Temp]
+  let _12: P [Temp]
+  let _13: i32 [Temp]
+  let _14: P [Temp]
+  let _15: A [Temp]
+  let _16: A [Val] b
+  let _17: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = add(copy _1, 1)
+    _4 = alloc Object { class: "P" } in current
+    _4.0 = copy _3
+    _5 = add(copy _1, 2)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _2
+    _7.1 = copy _4
+    _7.2 = copy _6
+    _8 = copy _7  // label "a": A decl
+    _9 = add(copy _1, 3)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = add(copy _1, 4)
+    _12 = alloc Object { class: "P" } in current
+    _12.0 = copy _11
+    _13 = add(copy _1, 5)
+    _14 = alloc Object { class: "P" } in current
+    _14.0 = copy _13
+    _15 = alloc Object { class: "A" } in current
+    _15.0 = copy _10
+    _15.1 = copy _12
+    _15.2 = copy _14
+    _16 = copy _15  // label "b": A decl
+    _17 = add(copy _8.0.0, copy _16.2.0)
+    _0 = copy _17
+    region_exit r0
+    return
+}
+
+== enums/return_when_arms.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: A [Temp]
+  let _2: A [Val] r
+  let _3: A [Temp]
+  let _4: A [Val] s
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = call make(true) +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": A decl
+    _3 = call make(false) +current +current -> bb2
+  bb2:
+    _4 = copy _3  // label "s": A decl
+    _5 = 0  // label "i": i32 decl
+    goto bb3
+  bb3:
+    _6 = lt(copy _5, 100)
+    switch copy _6 [ 1 -> bb4, else -> bb6]
+  bb4:
+    _7 = add(copy _5, 7000)
+    _8 = call churn(copy _7) +current -> bb7
+  bb5:
+    goto bb3
+  bb6:
+    intrinsic PrintlnInt(copy _2.0.0)
+    intrinsic PrintlnInt(copy _4.0.0)
+    _0 = 0
+    region_exit r0
+    return
+  bb7:
+    _9 = add(copy _5, 1)
+    _5 = copy _9
+    goto bb5
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: P [Temp]
+  let _6: A [Temp]
+  let _7: A [Val] b
+  let _8: K [Temp]
+  let _9: unit [Hidden(DynamicArena)]
+  let _10: K [Temp]
+  let _11: unit [Hidden(DynamicArena)]
+  let _12: K [Temp]
+  let _13: K [Val] k
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 IfElse in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in result_sink
+    _2.0 = 1
+    _3 = alloc Object { class: "A" } in result_sink
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = alloc Object { class: "P" } in result_sink
+    _5.0 = 2
+    _6 = alloc Object { class: "A" } in result_sink
+    _6.0 = copy _5
+    _7 = copy _6  // label "b": A decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    _9 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _9
+    _10 = alloc EnumSlot { enum_name: "K", variant: 0 } in fresh9
+    _8 = copy _10
+    region_exit r1
+    goto bb3
+  bb2:
+    region_enter r2
+    _11 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _11
+    _12 = alloc EnumSlot { enum_name: "K", variant: 1 } in fresh11
+    _8 = copy _12
+    region_exit r2
+    goto bb3
+  bb3:
+    _13 = copy _8  // label "k": K decl
+    match _13 {
+      K#0() -> bb5
+      K#1() -> bb6
+    }
+  bb4:
+    unreachable
+  bb5:
+    _0 = copy _4
+    region_exit r0
+    return
+  bb6:
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: P [Temp]
+  let _3: A [Temp]
+  let _4: A [Val] a
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: A [Temp]
+  let _12: A [Val] c
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = alloc Object { class: "P" } in current
+    _2.0 = copy _1
+    _3 = alloc Object { class: "A" } in current
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": A decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current
+    _6.0 = copy _5
+    _7 = alloc Object { class: "A" } in current
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": A decl
+    _9 = add(copy _1, 2)
+    _10 = alloc Object { class: "P" } in current
+    _10.0 = copy _9
+    _11 = alloc Object { class: "A" } in current
+    _11.0 = copy _10
+    _12 = copy _11  // label "c": A decl
+    _13 = add(copy _4.0.0, copy _8.0.0)
+    _14 = add(copy _13, copy _12.0.0)
+    _0 = copy _14
+    region_exit r0
+    return
+}
+
+== enums/two_ref_variants.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Node [Temp]
+  let _3: Node [Val] n
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] r
+  let _6: Ref<Node> [Temp]
+  let _7: i32 [Temp]
+  let _8: Ref<Node> [Temp]
+  let _9: Link [Temp]
+  let _10: Link [Val] first
+  let _11: Ref<Node> [Temp]
+  let _12: i32 [Temp]
+  let _13: Ref<Node> [Temp]
+  let _14: Ref<Node> [Temp]
+  let _15: Link [Temp]
+  let _16: Link [Val] second
+  let _17: Ref<Node> [Temp]
+  let _18: i32 [Temp]
+  let _19: Ref<Node> [Temp]
+  let _20: unit [Temp]
+  let _21: Ref<Node> [Temp]
+  let _22: i32 [Temp]
+  let _23: Ref<Node> [Temp]
+  let _24: unit [Temp]
+  let _25: Ref<Node> [Temp]
+  let _26: i32 [Temp]
+  let _27: Ref<Node> [Temp]
+  let _28: unit [Temp]
+  let _29: Ref<Node> [Temp]
+  let _30: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Node" } in fresh1
+    _2.0 = 1
+    _3 = copy _2  // label "n": Node decl
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = ref_clone copy _5
+    _7 = ref_count move _6
+    intrinsic PrintlnInt(copy _7)
+    _8 = ref_clone copy _5
+    _9 = alloc EnumSlot { enum_name: "Link", variant: 1 } in current
+    ref_store _9@1.0 owner=current move _8
+    register_drop current _9 Enum("Link")
+    _10 = copy _9  // label "first": Link decl
+    _11 = ref_clone copy _5
+    _12 = ref_count move _11
+    intrinsic PrintlnInt(copy _12)
+    _13 = ref_clone copy _5
+    _14 = ref_clone copy _5
+    _15 = alloc EnumSlot { enum_name: "Link", variant: 2 } in current
+    _15@2.0 = 1
+    ref_store _15@2.1 owner=current move _13
+    ref_store _15@2.2 owner=current move _14
+    register_drop current _15 Enum("Link")
+    _16 = copy _15  // label "second": Link decl
+    _17 = ref_clone copy _5
+    _18 = ref_count move _17
+    intrinsic PrintlnInt(copy _18)
+    _19 = ref_clone copy _5
+    _20 = call one(move _19) +current -> bb1
+  bb1:
+    _21 = ref_clone copy _5
+    _22 = ref_count move _21
+    intrinsic PrintlnInt(copy _22)
+    _23 = ref_clone copy _5
+    _24 = call two(move _23) +current -> bb2
+  bb2:
+    _25 = ref_clone copy _5
+    _26 = ref_count move _25
+    intrinsic PrintlnInt(copy _26)
+    _27 = ref_clone copy _5
+    _28 = call nothing(move _27) +current -> bb3
+  bb3:
+    _29 = ref_clone copy _5
+    _30 = ref_count move _29
+    intrinsic PrintlnInt(copy _30)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn one (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: Ref<Node> [Arg] n
+  let _2: Ref<Node> [Temp]
+  let _3: Link [Temp]
+  let _4: Link [Val] link
+  region r0 Block
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = ref_clone copy _1
+    _3 = alloc EnumSlot { enum_name: "Link", variant: 1 } in current
+    ref_store _3@1.0 owner=current move _2
+    register_drop current _3 Enum("Link")
+    _4 = copy _3  // label "link": Link decl
+    region_exit r0
+    return
+}
+
+fn two (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: Ref<Node> [Arg] n
+  let _2: Ref<Node> [Temp]
+  let _3: Ref<Node> [Temp]
+  let _4: Link [Temp]
+  let _5: Link [Val] link
+  region r0 Block
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = ref_clone copy _1
+    _3 = ref_clone copy _1
+    _4 = alloc EnumSlot { enum_name: "Link", variant: 2 } in current
+    _4@2.0 = 1
+    ref_store _4@2.1 owner=current move _2
+    ref_store _4@2.2 owner=current move _3
+    register_drop current _4 Enum("Link")
+    _5 = copy _4  // label "link": Link decl
+    region_exit r0
+    return
+}
+
+fn nothing (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: Ref<Node> [Arg] n
+  let _2: Link [Temp]
+  let _3: Link [Val] link
+  region r0 Block
+  bb0:
+    region_enter r0
+    register_drop current _1 RefSlot
+    _2 = alloc EnumSlot { enum_name: "Link", variant: 0 } in current
+    register_drop current _2 Enum("Link")
+    _3 = copy _2  // label "link": Link decl
+    region_exit r0
+    return
+}
+
+== enums/unit_payload.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Temp]
+  let _2: Step [Temp]
+  let _3: Step [Val] a
+  let _4: Step [Temp]
+  let _5: Step [Val] b
+  let _6: &Step [Temp]
+  let _7: i32 [Temp]
+  let _8: &Step [Temp]
+  let _9: i32 [Temp]
+  let _10: unit [Temp]
+  let _11: unit? [Temp]
+  let _12: unit? [Val] some
+  let _13: unit? [Temp]
+  let _14: unit? [Val] none
+  let _15: &unit [Val] x
+  let _16: &unit [Val] x
+  let _17: unit [Temp]
+  let _18: Outcome<unit, String> [Temp]
+  let _19: Outcome<unit, String> [Val] good
+  let _20: Outcome<unit, String> [Temp]
+  let _21: String [Temp]
+  let _22: String [Temp]
+  let _23: Outcome<unit, String> [Val] bad
+  let _24: &Outcome<unit, String> [Temp]
+  let _25: unit [Temp]
+  let _26: &Outcome<unit, String> [Temp]
+  let _27: unit [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    _1 = call nothing() +current -> bb1
+  bb1:
+    _2 = alloc EnumSlot { enum_name: "Step", variant: 0 } in current
+    _2@0.1 = 7
+    _3 = copy _2  // label "a": Step decl
+    _4 = alloc EnumSlot { enum_name: "Step", variant: 1 } in current
+    _5 = copy _4  // label "b": Step decl
+    _6 = borrow _3
+    _7 = call code(copy _6) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _7)
+    _8 = borrow _5
+    _9 = call code(copy _8) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _9)
+    _10 = call nothing() +current -> bb4
+  bb4:
+    _11 = alloc EnumSlot { enum_name: "Option<unit>", variant: 0 } in current
+    _12 = copy _11  // label "some": unit? decl
+    _13 = alloc EnumSlot { enum_name: "Option<unit>", variant: 1 } in current
+    _14 = copy _13  // label "none": unit? decl
+    match _12 {
+      Option#0(bind) _15=_12@0.0 -> bb6
+      Option#1() -> bb7
+    }
+  bb5:
+    match _14 {
+      Option#0(bind) _16=_14@0.0 -> bb9
+      Option#1() -> bb10
+    }
+  bb6:
+    intrinsic PrintlnInt(1)
+    goto bb5
+  bb7:
+    intrinsic PrintlnInt(0)
+    goto bb5
+  bb8:
+    _17 = call nothing() +current -> bb11
+  bb9:
+    intrinsic PrintlnInt(1)
+    goto bb8
+  bb10:
+    intrinsic PrintlnInt(0)
+    goto bb8
+  bb11:
+    _18 = alloc EnumSlot { enum_name: "Outcome<unit,String>", variant: 0 } in current
+    _19 = copy _18  // label "good": Outcome<unit, String> decl
+    _20 = alloc EnumSlot { enum_name: "Outcome<unit,String>", variant: 1 } in current
+    _21 = "boom"
+    _22 = copy_into _21 in current
+    _20@1.0 = copy _22
+    _23 = copy _20  // label "bad": Outcome<unit, String> decl
+    _24 = borrow _19
+    _25 = call report(copy _24) +current -> bb12
+  bb12:
+    _26 = borrow _23
+    _27 = call report(copy _26) +current -> bb13
+  bb13:
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn nothing (parent=true, sink=false) {
+  let _0: unit [Return]
+  region r0 Block
+  bb0:
+    region_enter r0
+    region_exit r0
+    return
+}
+
+fn code (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Step [Arg] s
+  let _2: i32 [Temp]
+  let _3: &unit [Val] u
+  let _4: i32 [Val] n
+  let _5: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Step#0(bind, bind) _3=_1@0.0 _4=_1@0.1 -> bb2
+      Step#1() -> bb3
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _2 = copy _4
+    goto bb1
+  bb3:
+    _5 = sub(0, 1)
+    _2 = copy _5
+    goto bb1
+}
+
+fn report (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Outcome<unit, String> [Arg] r
+  let _2: &unit [Val] v
+  let _3: &String [Val] e
+  let _4: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Outcome#0(bind) _2=_1@0.0 -> bb2
+      Outcome#1(bind) _3=_1@1.0 -> bb3
+    }
+  bb1:
+    region_exit r0
+    return
+  bb2:
+    region_enter r1
+    intrinsic PrintlnStr("ok")
+    region_exit r1
+    goto bb1
+  bb3:
+    _4 = len(_3)
+    intrinsic PrintlnInt(copy _4)
+    goto bb1
+}
+
+== enums/user_option_not_generic.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Option [Temp]
+  let _2: Option [Val] o
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "Option", variant: 1 } in current
+    _2 = copy _1  // label "o": Option decl
+    match _2 {
+      Option#0() -> bb2
+      Option#1() -> bb3
+    }
+  bb1:
+    unreachable
+  bb2:
+    _0 = 1
+    region_exit r0
+    return
+  bb3:
+    _0 = 0
+    region_exit r0
+    return
+}
+
+== enums/user_option_other_shape.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Option<i32> [Temp]
+  let _2: Option<i32> [Val] o
+  let _3: i32 [Val] v
+  let _4: Option<i32> [Temp]
+  let _5: Option<i32> [Val] e
+  let _6: i32 [Val] v
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
+    _1@0.0 = 5
+    _2 = copy _1  // label "o": Option<i32> decl
+    match _2 {
+      Option#0(bind) _3=_2@0.0 -> bb2
+      Option#1() -> bb3
+    }
+  bb1:
+    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _5 = copy _4  // label "e": Option<i32> decl
+    match _5 {
+      Option#0(bind) _6=_5@0.0 -> bb5
+      Option#1() -> bb6
+    }
+  bb2:
+    intrinsic PrintlnInt(copy _3)
+    goto bb1
+  bb3:
+    intrinsic PrintlnInt(0)
+    goto bb1
+  bb4:
+    _0 = 0
+    region_exit r0
+    return
+  bb5:
+    intrinsic PrintlnInt(0)
+    goto bb4
+  bb6:
+    intrinsic PrintlnInt(1)
+    goto bb4
+}
+
+== enums/variants.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Shape [Temp]
+  let _2: Shape [Val] a
+  let _3: Shape [Temp]
+  let _4: Shape [Val] b
+  let _5: Shape [Temp]
+  let _6: Shape [Val] c
+  let _7: Shape [Temp]
+  let _8: Shape [Val] d
+  let _9: Shape [Temp]
+  let _10: String [Temp]
+  let _11: String [Temp]
+  let _12: Shape [Val] e
+  let _13: Shape [Temp]
+  let _14: String [Temp]
+  let _15: String [Temp]
+  let _16: Shape [Val] f
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current
+    _2 = copy _1  // label "a": Shape decl
+    _3 = alloc EnumSlot { enum_name: "Shape", variant: 1 } in current
+    _3@1.0 = true
+    _4 = copy _3  // label "b": Shape decl
+    _5 = alloc EnumSlot { enum_name: "Shape", variant: 2 } in current
+    _5@2.0 = 1.5
+    _6 = copy _5  // label "c": Shape decl
+    _7 = alloc EnumSlot { enum_name: "Shape", variant: 3 } in current
+    _7@3.0 = 2
+    _7@3.1 = 3
+    _8 = copy _7  // label "d": Shape decl
+    _9 = alloc EnumSlot { enum_name: "Shape", variant: 4 } in current
+    _10 = "hello"
+    _11 = copy_into _10 in current
+    _9@4.0 = copy _11
+    _12 = copy _9  // label "e": Shape decl
+    _13 = alloc EnumSlot { enum_name: "Shape", variant: 5 } in current
+    _13@5.0 = 1
+    _13@5.1 = 2
+    _13@5.2 = 3
+    _14 = "mixed"
+    _15 = copy_into _14 in current
+    _13@5.3 = copy _15
+    _16 = copy _13  // label "f": Shape decl
+    intrinsic PrintlnStr("constructed")
+    _0 = 0
+    region_exit r0
+    return
+}
+
+== enums/when_result_inferred.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: E [Temp]
+  let _2: i32 [Temp]
+  let _3: i32 [Val] n
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "E", variant: 0 } in current
+    match _1 {
+      E#0() -> bb2
+      E#1() -> bb3
+    }
+  bb1:
+    _3 = copy _2  // label "n": i32 decl
+    intrinsic PrintlnInt(copy _3)
+    _0 = 0
+    region_exit r0
+    return
+  bb2:
+    _2 = 42
+    goto bb1
+  bb3:
+    _2 = 0
+    goto bb1
+}
+
+== enums/when_returns_in_every_arm.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: E [Temp]
+  let _2: E [Val] a
+  let _3: E [Temp]
+  let _4: E [Val] b
+  let _5: F [Temp]
+  let _6: F [Val] y
+  let _7: &E [Temp]
+  let _8: i32 [Temp]
+  let _9: &E [Temp]
+  let _10: &F [Temp]
+  let _11: i32 [Temp]
+  let _12: &E [Temp]
+  let _13: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "E", variant: 0 } in current
+    _2 = copy _1  // label "a": E decl
+    _3 = alloc EnumSlot { enum_name: "E", variant: 1 } in current
+    _4 = copy _3  // label "b": E decl
+    _5 = alloc EnumSlot { enum_name: "F", variant: 1 } in current
+    _6 = copy _5  // label "y": F decl
+    _7 = borrow _2
+    _8 = call f(copy _7) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _8)
+    _9 = borrow _2
+    _10 = borrow _6
+    _11 = call nested(copy _9, copy _10) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _11)
+    _12 = borrow _4
+    _13 = call g(copy _12) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _13)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn f (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &E [Arg] e
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      E#0() -> bb2
+      E#1() -> bb3
+    }
+  bb1:
+    unreachable
+  bb2:
+    _0 = 1
+    region_exit r0
+    return
+  bb3:
+    _0 = 2
+    region_exit r0
+    return
+}
+
+fn nested (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &E [Arg] e
+  let _2: &F [Arg] f
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r1
+  region r3 MatchArm in r1
+  region r4 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      E#0() -> bb2
+      E#1() -> bb3
+    }
+  bb1:
+    unreachable
+  bb2:
+    match _2 {
+      F#0() -> bb5
+      F#1() -> bb6
+    }
+  bb3:
+    _0 = 30
+    region_exit r0
+    return
+  bb4:
+    goto bb1
+  bb5:
+    _0 = 10
+    region_exit r0
+    return
+  bb6:
+    _0 = 20
+    region_exit r0
+    return
+}
+
+fn g (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &E [Arg] e
+  let _2: i32 [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      E#0() -> bb2
+      E#1() -> bb3
+    }
+  bb1:
+    _0 = copy _2
+    region_exit r0
+    return
+  bb2:
+    _0 = 1
+    region_exit r0
+    return
+  bb3:
+    _2 = 2
+    goto bb1
+}
+

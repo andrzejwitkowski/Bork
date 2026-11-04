@@ -54,7 +54,6 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Match { scrutinee, arms } => self.match_expr(e, scrutinee, arms),
             HirExprKind::RefCreate(inner) => self.ref_create(e, inner),
             HirExprKind::PresenceMatch { bindings, some_block, none_block } => self.presence(e, bindings, some_block, none_block.as_ref()),
-            other => Err(BuildError::not_yet(format!("expression {}", kind_name(other)), span)),
         }
     }
 
@@ -65,7 +64,7 @@ impl<'a> FnBuilder<'a> {
     }
 
     fn ident(&mut self, e: &HirExpr, name: &str, use_kind: UseKind) -> Res<Operand> {
-        let local = self.lookup(name).ok_or_else(|| BuildError::not_yet(format!("name `{name}`"), span_of(e)))?;
+        let local = self.lookup(name)?;
         let place = Place::local(local);
         match use_kind {
             UseKind::Local | UseKind::Shared | UseKind::Copy => Ok(Operand::Copy(place)),
@@ -79,7 +78,7 @@ impl<'a> FnBuilder<'a> {
         match op {
             BinOp::And | BinOp::Or => return self.logical(e, matches!(op, BinOp::And), lhs, rhs),
             BinOp::Elvis => return self.elvis(e, lhs, rhs),
-            BinOp::RangeTo => return Err(BuildError::not_yet("a range outside `for`", span)),
+            BinOp::RangeTo => return Err(BuildError::unlowered("a range outside `for`", span)),
             _ => {}
         }
         let special = |t| self.tcx.is_managed_ref(t) || self.tcx.is_text(t) || self.tcx.is_nullable(t);
@@ -197,7 +196,8 @@ impl<'a> FnBuilder<'a> {
             self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(dst)), op, args: ops, arena }, span, Some(e.id));
             return Ok(Operand::Copy(Place::local(dst)));
         }
-        Err(BuildError::not_yet(format!("call of `{name}`"), span))
+        // Not a user function and not a builtin: a call through a value.
+        Err(BuildError::unsupported(Capability::IndirectCall, span))
     }
 
     fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {
@@ -246,25 +246,5 @@ impl<'a> FnBuilder<'a> {
             }
             other => self.stmt_of(other, block.statement_spans.get(prefix.len()).copied().unwrap_or_default()),
         }
-    }
-}
-
-fn kind_name(k: &HirExprKind) -> &'static str {
-    match k {
-        HirExprKind::ArrayLit { .. } => "ArrayLit",
-        HirExprKind::Index { .. } => "Index",
-        HirExprKind::Slice { .. } => "Slice",
-        HirExprKind::VecNew { .. } => "VecNew",
-        HirExprKind::VecOp { .. } => "VecOp",
-        HirExprKind::None => "None",
-        HirExprKind::Some(_) => "Some",
-        HirExprKind::RefCreate(_) => "RefCreate",
-        HirExprKind::ObjectConstruct { .. } => "ObjectConstruct",
-        HirExprKind::EnumConstruct { .. } => "EnumConstruct",
-        HirExprKind::ObjectField { .. } => "ObjectField",
-        HirExprKind::PresenceMatch { .. } => "PresenceMatch",
-        HirExprKind::Match { .. } => "Match",
-        HirExprKind::Field { .. } => "Field",
-        _ => "?",
     }
 }

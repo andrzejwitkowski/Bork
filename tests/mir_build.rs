@@ -52,14 +52,14 @@ fn corpus_builds_and_verifies() {
                 }
                 built += 1;
             }
-            Err(BuildError::NotYet { what, .. }) => pending.entry(what).or_default().push(rel),
+            Err(BuildError::Unlowered { what, .. }) => pending.entry(what).or_default().push(rel),
             Err(BuildError::Unsupported(u)) => unsupported.entry(u.capability.to_string()).or_default().push(rel),
             Err(BuildError::Internal(m)) => failures.push(format!("{rel}: internal: {m}")),
         }
     }
     if std::env::var_os("MIR_VERBOSE").is_some() {
         for (what, files) in &pending {
-            eprintln!("not yet: {what} ({} programs, e.g. {})", files.len(), files[0]);
+            eprintln!("unlowered: {what} ({} programs, e.g. {})", files.len(), files[0]);
         }
         for (cap, files) in &unsupported {
             eprintln!("unsupported `{cap}`: {files:?}");
@@ -67,4 +67,21 @@ fn corpus_builds_and_verifies() {
         eprintln!("built {built}, pending {}", pending.values().map(Vec::len).sum::<usize>());
     }
     assert!(failures.is_empty(), "{} problems:\n{}", failures.len(), failures.join("\n"));
+    assert!(pending.is_empty(), "constructs the builder does not lower: {pending:?}");
+    assert!(built > 250, "corpus too thin: {built} programs built");
+    // Exactly the programs the codegen gate rejects (RFC 0006 3.10), each under its named capability.
+    let expected: BTreeMap<&str, Vec<&str>> = BTreeMap::from([
+        ("closure", vec!["programs/build_fail/methods/trailing_closure.bork", "programs/check/methods/trailing_closure.bork"]),
+        (
+            "move-aggregate",
+            vec![
+                "programs/build_fail/enums/return_move_object.bork",
+                "programs/build_fail/generics/promote_class_object.bork",
+                "programs/build_fail/option/move_nullable_enum.bork",
+            ],
+        ),
+        ("safe-field-enum", vec!["programs/build_fail/option/safe_field_of_enum.bork"]),
+    ]);
+    let actual: BTreeMap<&str, Vec<&str>> = unsupported.iter().map(|(k, v)| (k.as_str(), v.iter().map(String::as_str).collect())).collect();
+    assert_eq!(actual, expected);
 }

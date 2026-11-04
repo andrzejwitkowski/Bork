@@ -4,6 +4,7 @@
 pub mod body;
 pub mod build;
 pub mod capability;
+pub mod emit;
 pub mod layout;
 pub mod print;
 pub mod verify;

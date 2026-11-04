@@ -1,0 +1,597 @@
+== traits/assoc_container.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: IntBox [Temp]
+  let _3: IntBox [Val] b
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Named [Temp]
+  let _6: String [Temp]
+  let _7: String [Temp]
+  let _8: Named [Val] s
+  let _9: &IntBox [Temp]
+  let _10: i32 [Temp]
+  let _11: i32 [Temp]
+  let _12: &Named [Temp]
+  let _13: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "IntBox" } in fresh1
+    _2.0 = 3
+    _3 = copy _2  // label "b": IntBox decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "Named" } in fresh4
+    _6 = "hi"
+    _7 = copy_into _6 in fresh4
+    _5.0 = copy _7
+    _8 = copy _5  // label "s": Named decl
+    _9 = borrow _3
+    _10 = call first<IntBox>(copy _9) +current -> bb1
+  bb1:
+    _11 = add(copy _10, 1)
+    intrinsic PrintlnInt(copy _11)
+    _12 = borrow _8
+    _13 = call first<Named>(copy _12) +current +current -> bb2
+  bb2:
+    intrinsic PrintlnStr(copy _13)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn first<IntBox> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &IntBox [Arg] c
+  let _2: &IntBox [Temp]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Container@0.get(copy _2) +current -> bb1
+  bb1:
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn first<Named> (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Named [Arg] c
+  let _2: &Named [Temp]
+  let _3: String [Temp]
+  let _4: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Container@1.get(copy _2) +current +result_sink -> bb1
+  bb1:
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn Container@0.get (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &IntBox [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+fn Container@1.get (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Named [Arg] this
+  let _2: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = copy_into _1.0 in result_sink
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+== traits/assoc_equality.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: IntBox [Temp]
+  let _3: IntBox [Val] b
+  let _4: &IntBox [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "IntBox" } in fresh1
+    _2.0 = 3
+    _3 = copy _2  // label "b": IntBox decl
+    _4 = borrow _3
+    _5 = call total<IntBox>(copy _4) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _5)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn total<IntBox> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &IntBox [Arg] c
+  let _2: &IntBox [Temp]
+  let _3: i32 [Temp]
+  let _4: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Container@0.get(copy _2) +current -> bb1
+  bb1:
+    _4 = add(copy _3, 5)
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn Container@0.get (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &IntBox [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+== traits/assoc_two_traits.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Foo [Temp]
+  let _3: Foo [Val] f
+  let _4: &Foo [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Foo" } in fresh1
+    _2.0 = 7
+    _3 = copy _2  // label "f": Foo decl
+    _4 = borrow _3
+    _5 = call first<Foo>(copy _4) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _5)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn first<Foo> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Foo [Arg] c
+  let _2: &Foo [Temp]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Container@1.get(copy _2) +current -> bb1
+  bb1:
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn Container@1.get (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Foo [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+== traits/dispatch_bound.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Circle [Temp]
+  let _3: Circle [Val] c
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Square [Temp]
+  let _6: Square [Val] s
+  let _7: &Circle [Temp]
+  let _8: unit [Temp]
+  let _9: &Square [Temp]
+  let _10: unit [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Circle" } in fresh1
+    _2.0 = 1.0
+    _3 = copy _2  // label "c": Circle decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "Square" } in fresh4
+    _5.0 = 2.0
+    _6 = copy _5  // label "s": Square decl
+    _7 = borrow _3
+    _8 = call say<Circle>(copy _7) +current -> bb1
+  bb1:
+    _9 = borrow _6
+    _10 = call say<Square>(copy _9) +current -> bb2
+  bb2:
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn say<Circle> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Circle [Arg] t
+  let _2: &Circle [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Show@0.show(copy _2) +current +current -> bb1
+  bb1:
+    intrinsic PrintlnStr(copy _3)
+    region_exit r0
+    return
+}
+
+fn say<Square> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Square [Arg] t
+  let _2: &Square [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Show@1.show(copy _2) +current +current -> bb1
+  bb1:
+    intrinsic PrintlnStr(copy _3)
+    region_exit r0
+    return
+}
+
+fn Show@0.show (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Circle [Arg] this
+  let _2: String [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = "circle"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn Show@1.show (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Square [Arg] this
+  let _2: String [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = "square"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+== traits/dispatch_enum.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Maybe [Temp]
+  let _2: Maybe [Val] a
+  let _3: Maybe [Temp]
+  let _4: Maybe [Val] b
+  let _5: &Maybe [Temp]
+  let _6: i32 [Temp]
+  let _7: &Maybe [Temp]
+  let _8: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc EnumSlot { enum_name: "Maybe", variant: 0 } in current
+    _1@0.0 = 7
+    _2 = copy _1  // label "a": Maybe decl
+    _3 = alloc EnumSlot { enum_name: "Maybe", variant: 1 } in current
+    _4 = copy _3  // label "b": Maybe decl
+    _5 = borrow _2
+    _6 = call Code@0.code(copy _5) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _6)
+    _7 = borrow _4
+    _8 = call Code@0.code(copy _7) +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _8)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn Code@0.code (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Maybe [Arg] this
+  let _2: i32 [Temp]
+  let _3: i32 [Val] v
+  let _4: i32 [Val] c
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    region_enter r0
+    match _1 {
+      Maybe#0(bind) _3=_1@0.0 -> bb2
+      Maybe#1() -> bb3
+    }
+  bb1:
+    _4 = copy _2  // label "c": i32 decl
+    _0 = copy _4
+    region_exit r0
+    return
+  bb2:
+    _2 = copy _3
+    goto bb1
+  bb3:
+    _2 = 0
+    goto bb1
+}
+
+== traits/dispatch_field_in_impl.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Sq [Temp]
+  let _3: Sq [Val] s
+  let _4: &Sq [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Sq" } in fresh1
+    _2.0 = 5
+    _3 = copy _2  // label "s": Sq decl
+    _4 = borrow _3
+    _5 = call Area@0.area(copy _4) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _5)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn Area@0.area (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Sq [Arg] this
+  let _2: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = mul(copy _1.0, copy _1.0)
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+== traits/dispatch_generic_impl.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Circle [Temp]
+  let _3: Box<Circle> [Temp]
+  let _4: Box<Circle> [Val] a
+  let _5: unit [Hidden(DynamicArena)]
+  let _6: Square [Temp]
+  let _7: Box<Square> [Temp]
+  let _8: Box<Square> [Val] b
+  let _9: &Box<Circle> [Temp]
+  let _10: String [Temp]
+  let _11: &Box<Square> [Temp]
+  let _12: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Circle" } in fresh1
+    _2.0 = 1.0
+    _3 = alloc Object { class: "Box<Circle>" } in fresh1
+    _3.0 = copy _2
+    _4 = copy _3  // label "a": Box<Circle> decl
+    _5 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _5
+    _6 = alloc Object { class: "Square" } in fresh5
+    _6.0 = 2.0
+    _7 = alloc Object { class: "Box<Square>" } in fresh5
+    _7.0 = copy _6
+    _8 = copy _7  // label "b": Box<Square> decl
+    _9 = borrow _4
+    _10 = call Show@2.show<Circle>(copy _9) +current +current -> bb1
+  bb1:
+    intrinsic PrintlnStr(copy _10)
+    _11 = borrow _8
+    _12 = call Show@2.show<Square>(copy _11) +current +current -> bb2
+  bb2:
+    intrinsic PrintlnStr(copy _12)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn Show@2.show<Circle> (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Box<Circle> [Arg] this
+  let _2: &Circle [Temp]
+  let _3: String [Temp]
+  let _4: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1.0
+    _3 = call Show@0.show(copy _2) +current +result_sink -> bb1
+  bb1:
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn Show@2.show<Square> (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Box<Square> [Arg] this
+  let _2: &Square [Temp]
+  let _3: String [Temp]
+  let _4: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1.0
+    _3 = call Show@1.show(copy _2) +current +result_sink -> bb1
+  bb1:
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+fn Show@0.show (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Circle [Arg] this
+  let _2: String [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = "circle"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn Show@1.show (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Square [Arg] this
+  let _2: String [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = "square"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+== traits/dispatch_impl.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Circle [Temp]
+  let _3: Circle [Val] c
+  let _4: &Circle [Temp]
+  let _5: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Circle" } in fresh1
+    _2.0 = 1.0
+    _3 = copy _2  // label "c": Circle decl
+    _4 = borrow _3
+    _5 = call Show@0.show(copy _4) +current +current -> bb1
+  bb1:
+    intrinsic PrintlnStr(copy _5)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn Show@0.show (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Circle [Arg] this
+  let _2: String [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = "circle"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+== traits/dispatch_inherent_shadows.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Circle [Temp]
+  let _3: Circle [Val] c
+  let _4: &Circle [Temp]
+  let _5: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Circle" } in fresh1
+    _2.0 = 1.0
+    _3 = copy _2  // label "c": Circle decl
+    _4 = borrow _3
+    _5 = call Circle.show(copy _4) +current +current -> bb1
+  bb1:
+    intrinsic PrintlnStr(copy _5)
+    _0 = 0
+    region_exit r0
+    return
+}
+
+fn Circle.show (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Circle [Arg] this
+  let _2: String [Temp]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = "inherent"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    region_exit r0
+    return
+}
+

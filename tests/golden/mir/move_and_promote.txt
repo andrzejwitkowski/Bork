@@ -1,0 +1,281 @@
+== move_and_promote/array_string_move_index.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: [String; 2] [Temp]
+  let _2: String [Temp]
+  let _3: String [Temp]
+  let _4: String [Temp]
+  let _5: String [Temp]
+  let _6: [String; 2] [Var] a
+  let _7: String [Var] s
+  let _8: String [Temp]
+  let _9: String [Temp]
+  let _10: i32 [Temp]
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
+  let _13: bool [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Array in current
+    _2 = "a"
+    _3 = copy_into _2 in current
+    _1[0] = copy _3
+    _4 = "b"
+    _5 = copy_into _4 in current
+    _1[1] = copy _5
+    _6 = copy _1  // label "a": [String; 2] decl
+    _7 = "z"  // label "s": String decl
+    _8 = move _7
+    _9 = copy_into _8 in home(_6)
+    _10 = len(_6)
+    _11 = lt(0, copy _10)
+    switch copy _11 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _6[0] = copy _9
+    _12 = len(_6)
+    _13 = lt(0, copy _12)
+    switch copy _13 [ 1 -> bb3, else -> bb4]
+  bb2:
+    abort Bounds
+  bb3:
+    intrinsic PrintlnStr(copy _6[0])
+    region_exit r0
+    return
+  bb4:
+    abort Bounds
+}
+
+== move_and_promote/assign_up_move.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: String [Var] outer
+  let _2: String [Var] inner
+  let _3: String [Temp]
+  let _4: String [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    region_enter r0
+    _1 = "x"  // label "outer": String decl
+    region_enter r1
+    _2 = "inner"  // label "inner": String decl
+    _3 = move _2
+    _4 = copy_into _3 in home(_1)
+    _1 = copy _4
+    region_exit r1
+    intrinsic PrintlnStr(copy _1)
+    region_exit r0
+    return
+}
+
+== move_and_promote/both_branches_return_move.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call run(false) +current -> bb1
+  bb1:
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+fn run (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: bool [Arg] flag
+  let _2: String [Var] s
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 MoveBlock in r1
+  region r3 IfElse in r0
+  region r4 MoveBlock in r3
+  bb0:
+    region_enter r0
+    _2 = "hi"  // label "s": String decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _0 = 1
+    region_exit r0
+    return
+  bb2:
+    _0 = 2
+    region_exit r0
+    return
+  bb3:
+    _0 = 3
+    region_exit r0
+    return
+}
+
+== move_and_promote/concat_outer.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: String [Var] outer
+  let _2: String [Temp]
+  let _3: String [Var] piece
+  let _4: String [Temp]
+  let _5: String [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    region_enter r0
+    _1 = "a"  // label "outer": String decl
+    region_enter r1
+    _2 = intrinsic Concat("b", "c") in home(_1)
+    _3 = copy _2  // label "piece": String decl
+    _4 = move _3
+    _5 = copy_into _4 in home(_1)
+    _1 = copy _5
+    region_exit r1
+    intrinsic PrintlnStr(copy _1)
+    region_exit r0
+    return
+}
+
+== move_and_promote/print_ints.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: String [Var] s
+  let _2: String [Temp]
+  let _3: String [Temp]
+  let _4: String [Val] t
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = "ab"  // label "s": String decl
+    _2 = move _1
+    _3 = copy_into _2 in current
+    _4 = copy _3  // label "t": String decl
+    intrinsic PrintlnStr(copy _4)
+    intrinsic PrintInt(4)
+    intrinsic PrintlnInt(2)
+    region_exit r0
+    return
+}
+
+== move_and_promote/promote_outer.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: String [Var] outer
+  let _2: String [Var] held
+  let _3: String [Temp]
+  let _4: String [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    region_enter r0
+    _1 = "a"  // label "outer": String decl
+    region_enter r1
+    _2 = "bc"  // label "held": String decl
+    _3 = move _2
+    _4 = copy_into _3 in home(_1)
+    _1 = copy _4
+    region_exit r1
+    intrinsic PrintlnStr(copy _1)
+    region_exit r0
+    return
+}
+
+== move_and_promote/regional_move.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: String [Var] s
+  region r0 Block
+  region r1 MoveBlock in r0
+  bb0:
+    region_enter r0
+    _1 = "hi"  // label "s": String decl
+    intrinsic PrintlnStr(copy _1)
+    region_exit r0
+    return
+}
+
+== move_and_promote/string_shared_nested.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: String [Val] s
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    region_enter r0
+    _1 = "x"  // label "s": String decl
+    intrinsic PrintlnStr(copy _1)
+    region_exit r0
+    return
+}
+
+== move_and_promote/then_return_move_not_taken.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call run(false) +current -> bb1
+  bb1:
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+fn run (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: bool [Arg] flag
+  let _2: String [Val] s
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 MoveBlock in r1
+  bb0:
+    region_enter r0
+    _2 = "hi"  // label "s": String decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _0 = 7
+    region_exit r0
+    return
+  bb2:
+    intrinsic PrintlnStr(copy _2)
+    _0 = 1
+    region_exit r0
+    return
+}
+
+== move_and_promote/then_return_move_taken.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = call run(true) +current -> bb1
+  bb1:
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+fn run (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: bool [Arg] flag
+  let _2: String [Val] s
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 MoveBlock in r1
+  bb0:
+    region_enter r0
+    _2 = "hi"  // label "s": String decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _0 = 7
+    region_exit r0
+    return
+  bb2:
+    intrinsic PrintlnStr(copy _2)
+    _0 = 1
+    region_exit r0
+    return
+}
+

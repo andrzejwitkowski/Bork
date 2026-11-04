@@ -37,7 +37,7 @@ impl<'a> FnBuilder<'a> {
                     None => self.expr(value)?,
                     Some(crate::hoist::RESULT_SINK) => self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?,
                     Some(target) => {
-                        let home = self.lookup(target).ok_or_else(|| BuildError::Internal(format!("hoist target `{target}` not in scope")))?;
+                        let home = self.lookup(target)?;
                         self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?
                     }
                 };
@@ -60,7 +60,7 @@ impl<'a> FnBuilder<'a> {
             }
             HirStmt::Assign { target, value } => match target {
                 HirAssignTarget::Name { name } => {
-                    let local = self.lookup(name).ok_or_else(|| BuildError::not_yet(format!("name `{name}`"), span))?;
+                    let local = self.lookup(name)?;
                     let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
                     self.stmt(StmtKind::Assign(Place::local(local), Rvalue::Use(v)), span, Some(value.id));
                     Ok(())
@@ -136,7 +136,7 @@ impl<'a> FnBuilder<'a> {
 
     fn for_loop(&mut self, name: &str, iter: &HirExpr, body: &HirBlock, span: Span) -> Res<()> {
         let HirExprKind::Binary { op: BinOp::RangeTo, lhs, rhs } = &iter.kind else {
-            return Err(BuildError::not_yet("for over something other than a range", span_of(iter)));
+            return Err(BuildError::unlowered("`for` over something other than a range", span_of(iter)));
         };
         let lo = self.expr(lhs)?;
         let hi = self.expr(rhs)?;

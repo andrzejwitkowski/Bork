@@ -260,7 +260,7 @@ impl<'a> FnBuilder<'a> {
         let span = span_of(e);
         let place = self.place_of(inner)?;
         if self.tcx.is_managed_ref(inner.ty) {
-            return Err(BuildError::not_yet("`!!` on a Ref", span));
+            return Err(BuildError::unlowered("`!!` on a `Ref`", span));
         }
         let value = self.temp(e.ty);
         let (some_b, none_b) = (self.new_block(), self.new_block());
