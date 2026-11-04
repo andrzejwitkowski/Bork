@@ -30,6 +30,13 @@ impl fmt::Display for VerifyError {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Event {
+    Read,
+    Consume,
+    Define,
+}
+
 /// Region stack and live `Ref` temporaries at a point of the CFG.
 #[derive(Clone, PartialEq, Eq)]
 struct State {
@@ -213,35 +220,35 @@ impl Verifier<'_> {
         }
     }
 
-    /// `(local, kind)` for uses that matter to the Ref-temporary check; `kind` 0 = use, 1 = consume, 2 = define.
-    fn temp_event(&self, u: Use<'_>) -> Option<(Local, u8)> {
+    /// The uses that matter to the Ref-temporary check.
+    fn temp_event(&self, u: Use<'_>) -> Option<(Local, Event)> {
         let bare_ref = |p: &Place| (p.is_bare() && self.is_ref_temp(p.local)).then_some(p.local);
         match u {
-            Use::Def(p) => bare_ref(p).map(|l| (l, 2)),
-            Use::Consume(p) => bare_ref(p).map(|l| (l, 1)),
-            Use::Read(p) => bare_ref(p).map(|l| (l, 0)),
-            Use::Op(Operand::Move(p)) => bare_ref(p).map(|l| (l, 1)),
-            Use::Op(Operand::Copy(p) | Operand::Reborrow(p)) => bare_ref(p).map(|l| (l, 0)),
+            Use::Def(p) => bare_ref(p).map(|l| (l, Event::Define)),
+            Use::Consume(p) => bare_ref(p).map(|l| (l, Event::Consume)),
+            Use::Read(p) => bare_ref(p).map(|l| (l, Event::Read)),
+            Use::Op(Operand::Move(p)) => bare_ref(p).map(|l| (l, Event::Consume)),
+            Use::Op(Operand::Copy(p) | Operand::Reborrow(p)) => bare_ref(p).map(|l| (l, Event::Read)),
             _ => None,
         }
     }
 
-    fn apply_temps(&mut self, st: &mut State, events: Vec<Option<(Local, u8)>>, b: BlockId, s: Option<usize>) {
+    fn apply_temps(&mut self, st: &mut State, events: Vec<Option<(Local, Event)>>, b: BlockId, s: Option<usize>) {
         // Uses come before the definition within one statement, so reads see the old state.
         for (l, kind) in events.into_iter().flatten() {
             match kind {
-                0 | 1 if !st.live.contains(&l) => {
+                Event::Read | Event::Consume if !st.live.contains(&l) => {
                     self.err(Some(b), s, format!("Ref temporary _{} used while not live (never defined or already consumed)", l.0));
                 }
-                1 => {
+                Event::Consume => {
                     st.live.remove(&l);
                 }
-                2 => {
+                Event::Define => {
                     if !st.live.insert(l) {
                         self.err(Some(b), s, format!("Ref temporary _{} overwritten before being consumed", l.0));
                     }
                 }
-                _ => {}
+                Event::Read => {}
             }
         }
     }

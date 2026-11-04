@@ -450,7 +450,8 @@ impl TermKind {
             TermKind::Match { scrutinee, arms } => {
                 f(Use::Read(scrutinee));
                 for arm in arms {
-                    for (_, place) in &arm.bindings {
+                    for (bound, place) in &arm.bindings {
+                        f(Use::Local(*bound));
                         f(Use::Read(place));
                     }
                 }

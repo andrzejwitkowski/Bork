@@ -181,3 +181,11 @@ fn capability_ids_match_rfc_3_10() {
         ["closure", "match-ref", "pat-presence", "move-aggregate", "field-access", "safe-field-enum", "indirect-call", "unit-elem", "unit-payload-bind"]
     );
 }
+
+#[test]
+fn rejects_match_binding_to_missing_local() {
+    let e = env();
+    let arm = MirArm { pat: MirPat::Wildcard, bindings: vec![(Local(77), p(0))], target: BlockId(0) };
+    let b = body(&e, vec![], TermKind::Match { scrutinee: p(0), arms: vec![arm] });
+    has(&messages(&e, &b), "missing local _77");
+}
