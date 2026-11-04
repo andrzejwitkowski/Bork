@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: układ typów w pamięci dla MIR (#66, M1)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Ile bajtów zajmuje typ w Borku: moduł <code>mir::layout</code></h1>
+<p class="sub">Wyjaśnienie PR #232 (branch <code>feat/66-mir-layout</code>, krok M1 z RFC 0006, część #66): nowy moduł liczący rozmiar i wyrównanie typów po stronie Borka, plus test, który porównuje go z LLVM.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+<details class="skip"><summary>Dla początkujących: czym jest układ typu w pamięci (można pominąć)</summary>
+<p>Każda wartość w skompilowanym programie leży w pamięci i zajmuje określoną liczbę bajtów (<em>rozmiar</em>). Procesor woli, żeby wartość leżała pod adresem podzielnym przez jej <em>wyrównanie</em> (np. 4-bajtowy <code>i32</code> pod adresem podzielnym przez 4). Struktura z kilku pól dostaje więc <em>padding</em>: przerwy, które utrzymują wyrównanie każdego pola. Pole <code>i64</code> po jednym bajcie nie zaczyna się w bajcie 1, tylko w 8.</p>
+<div class="flow">
+  <div class="box"><h4>pole a: u8</h4><code>offset 0</code></div><div class="arrow">→</div>
+  <div class="box"><h4>padding</h4><code>bajty 1..7</code></div><div class="arrow">→</div>
+  <div class="box"><h4>pole b: i64</h4><code>offset 8</code></div><div class="arrow">→</div>
+  <div class="box"><h4>rozmiar</h4><code>16, wyrównanie 8</code></div>
+</div></details>
+
+<h3>Jak jest dziś</h3>
+<p>Kompilator Borka tłumaczy program na LLVM. Rozmiary i offsety nie są nigdzie policzone przez sam Bork: LLVM wylicza je z typów, które <code>codegen/llvm/context.rs</code> składa (<code>basic_type</code>, <code>enum_layout_of</code>), a nagłówek <code>Vec</code> i elementy tablic mają swoje stałe w <code>vec/layout.rs</code> i <code>array/layout.rs</code>. Skutek: wiedza o układzie jest rozrzucona, a dla informacji debugowej bywa zastąpiona stałą <code>8</code>.</p>
+<div class="callout"><b class="t">Dlaczego teraz</b>RFC 0006 wprowadza MIR, czyli pośredni język między monomorficznym HIR a LLVM. Analizy na MIR (alokacje, rejony, escape) potrzebują znać rozmiary bez uruchamiania LLVM. Krok M1 to fundament: jedno źródło prawdy o układzie, zanim powstanie reszta MIR (krok M2).</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+<p>Zasada jest prosta: <strong>odtworzyć dokładnie to, co dziś robi codegen, i udowodnić testem, że wynik jest identyczny</strong>. Nic nie zmienia się w generowanym kodzie. Nowy moduł tylko liczy, a test pilnuje zgodności.</p>
+<h3>Cztery rodzaje wartości</h3>
+<table class="st">
+<tr><th>Typ w Borku</th><th>Co leży w slocie</th><th>Rozmiar / wyrównanie (64-bit)</th></tr>
+<tr><td><code>i32</code>, <code>bool</code>, <code>f64</code>…</td><td>sam skalar</td><td>1, 2, 4 lub 8; <code>bool</code> = 1; <code>unit</code> nie ma wartości</td></tr>
+<tr><td><code>String</code>, tablica</td><td>deskryptor <code>{ptr, len}</code></td><td>16 / 8</td></tr>
+<tr><td>klasa, enum, <code>T?</code></td><td>uchwyt obiektu <code>{arena, obiekt}</code></td><td>16 / 8 (sam obiekt leży w arenie)</td></tr>
+<tr><td><code>Ref&lt;T&gt;</code></td><td><code>{ptr, ptr, u8}</code> z paddingiem</td><td>24 / 8</td></tr>
+<tr><td><code>Vec&lt;T&gt;</code></td><td>wskaźnik do nagłówka w arenie</td><td>8 / 8 (nagłówek <code>{buf, len, cap, arena}</code> ma 32 / 8)</td></tr>
+</table>
+<h3>Przykład z korpusu</h3>
+<p>Dla klasy <code>Rect</code> golden pokazuje <code>size=24 align=8 fields=[0, 16, 20]</code>. Pierwsze pole to uchwyt (16 bajtów), więc kolejne pola zaczynają się od 16 i 20, a całość zaokrągla się w górę do wielokrotności 8.</p>
+<div class="flow">
+  <div class="box"><h4>pole 0</h4><code>uchwyt, offset 0..16</code></div><div class="arrow">→</div>
+  <div class="box"><h4>pole 1</h4><code>4 bajty, offset 16</code></div><div class="arrow">→</div>
+  <div class="box"><h4>pole 2</h4><code>4 bajty, offset 20</code></div><div class="arrow">→</div>
+  <div class="box"><h4>koniec</h4><code>24 (już wielokrotność 8)</code></div>
+</div>
+<h3>Enum: tag plus największy wariant</h3>
+<p>Wariant to struktura <code>{i32 tag, pola…}</code>. Slot enuma ma rozmiar największego wariantu zaokrąglony do największego wyrównania. Nie ma optymalizacji „niche”: <code>Option&lt;i32&gt;</code> ma <code>size=8 align=4</code> (tag + <code>i32</code>), a <code>Option&lt;String&gt;</code> <code>size=24 align=8</code>.</p>
+<div class="callout warn"><b class="t">Pułapka</b><code>T?</code> to zwykły enum <code>Option&lt;T&gt;</code>, więc w slocie jest uchwytem (16 bajtów), a nie wskaźnikiem z wartością zerową. Wyjątkiem jest <code>Ref&lt;T&gt;?</code>, który ma własny pusty uchwyt.</div>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+<h3>1. <code>src/mir/layout.rs</code> (nowy)</h3>
+<p><code>Layouts::new(tcx, hir, DataLayout)</code> zbiera klasy i niegeneryczne enumy po nazwie (po monomorfizacji nazwy są zmanglowane, np. <code>Box&lt;i32&gt;</code>). Trzy główne wejścia:</p>
+<ul>
+<li><code>value(ty)</code>: układ wartości w slocie. Sprawdza typy w tej samej kolejności co <code>Codegen::basic_type</code> (najpierw <code>T?</code>, potem borrow, <code>Ref</code>, <code>String</code>/tablica, <code>Vec</code>, klasa/enum, skalar).</li>
+<li><code>record(name)</code> i <code>enum_(name)</code>: układ ciała klasy lub wariantów; pole typu <code>unit</code> w enumie ma rozmiar 0.</li>
+<li><code>vec_header()</code>, <code>observation()</code>, <code>array_elem()</code>: stałe kształty runtime'u i elementy tablic (tylko prymitywy, <code>String</code>, <code>Ref</code>, jak w codegenie).</li>
+</ul>
+<pre><span class="cm">// układ struktury w stylu C: padding do wyrównania pola, koniec zaokrąglony do wyrównania struktury</span>
+fn aggregate(members) -&gt; Layout {
+    offset = offset.next_multiple_of(field_align);
+    fields.push(offset);
+    offset += size;
+    ...
+    size: offset.next_multiple_of(align)
+}</pre>
+<h3>2. Test zgodności z LLVM (<code>context.rs</code>)</h3>
+<p><code>mir_layout_matches_llvm_over_corpus</code> przechodzi po całym <code>programs/build</code>, buduje <code>Codegen</code> i porównuje rozmiar, wyrównanie i offsety każdego rekordu, każdego wariantu enuma, każdego typu parametru, wyniku i pola oraz <code>RefObservation</code>. Programy, których codegen nie umie ułożyć (brama), są pomijane. Na końcu asercja o minimalnej liczbie sprawdzonych typów chroni przed testem, który niczego nie sprawdza.</p>
+<h3>3. Golden bez LLVM</h3>
+<p><code>tests/mir_layout_golden.rs</code> zapisuje układy do <code>tests/golden/mir_layout.txt</code> (odświeżenie: <code>BORK_BLESS=1</code>). Dzięki temu zwykłe <code>cargo test</code> pilnuje układu także bez LLVM.</p>
+<h3>4. Drobiazgi</h3>
+<ul>
+<li><code>pub mod mir;</code> w <code>src/lib.rs</code> (nie za flagą <code>codegen</code>). Nazwa <code>layout.rs</code> w korzeniu jest zajęta przez pomocnika lexera.</li>
+<li><code>HirProgram</code> dostał <code>Default</code> na potrzeby testu jednostkowego.</li>
+<li><code>AGENTS.md</code>: jak uruchamiać pełny zestaw testów, żeby nie przewrócić maszyny (<code>nice</code>, <code>-j1</code>, <code>--test-threads=1</code>, <code>LD_LIBRARY_PATH</code>).</li>
+</ul>
+<div class="callout warn"><b class="t">Czego test nie obejmuje</b>Nagłówek <code>Vec</code> (32 / 8) nie jest porównany z LLVM, bo <code>vec_header_type</code> jest metodą <code>FnEmitter</code>. <code>array_elem</code> też nie ma osobnego porównania. Codegen jeszcze nie czyta nowego modułu (to krok M5).</div>
+
+<h2 id="quiz">4. Quiz <span id="score" class="tag">Wynik: 0 / 0 (z 5)</span></h2>
+
+<div class="q" data-correct="1"><p>1. Po co ten PR nie zmienia generowanego kodu, a mimo to dodaje cały moduł?</p>
+<button>Bo moduł jest tylko dokumentacją.</button>
+<button>Bo to fundament pod MIR: analizy potrzebują rozmiarów bez LLVM, a test dowodzi, że nowe liczenie zgadza się ze starym.</button>
+<button>Bo LLVM przestanie obliczać układ.</button>
+<button>Bo zastępuje stałą <code>8</code> w całym codegenie.</button>
+<div class="fb">Krok M1 dodaje jedno źródło prawdy i dowód zgodności. Przełączenie codegenu na ten moduł jest planowane dopiero w M5.</div></div>
+
+<div class="q" data-correct="1"><p>2. Klasa ma pola: uchwyt obiektu (16 bajtów), potem dwa pola 4-bajtowe. Jaki jest jej rozmiar i offsety?</p>
+<button>size=24, fields=[0, 4, 8]</button>
+<button>size=24, fields=[0, 16, 20]</button>
+<button>size=20, fields=[0, 16, 20]</button>
+<button>size=16, fields=[0, 8, 12]</button>
+<div class="fb">Pola idą po kolei z paddingiem do swojego wyrównania, a całość zaokrągla się do wyrównania struktury (8), więc 20 staje się 24. To dokładnie wpis <code>Rect</code> z golden.</div></div>
+
+<div class="q" data-correct="1"><p>3. Dlaczego <code>Option&lt;i32&gt;</code> ma rozmiar 8, a nie 4?</p>
+<button>Bo <code>i32</code> w enumie zajmuje 8 bajtów.</button>
+<button>Bo wariant to <code>{i32 tag, i32}</code>, a Bork nie robi optymalizacji „niche”.</button>
+<button>Bo <code>Option</code> zawsze ma 8 bajtów.</button>
+<button>Bo tag ma 8 bajtów.</button>
+<div class="fb">Tag to <code>i32</code>, payload to <code>i32</code>, razem 8 / 4. Wskaźnik zerowy zastępujący tag istnieje tylko dla <code>Ref&lt;T&gt;?</code>.</div></div>
+
+<div class="q" data-correct="1"><p>4. Co w slocie zajmuje wartość typu <code>String</code> i wartość typu <code>Vec&lt;T&gt;</code>?</p>
+<button>Obie po 16 bajtów.</button>
+<button><code>String</code> deskryptor <code>{ptr, len}</code> (16), <code>Vec</code> sam wskaźnik (8) do nagłówka 32-bajtowego w arenie.</button>
+<button>Obie po 8 bajtów.</button>
+<button><code>String</code> 8, <code>Vec</code> 32.</button>
+<div class="fb">Tablice i stringi noszą długość w slocie. <code>Vec</code> trzyma długość i pojemność w nagłówku w arenie, więc w slocie jest tylko wskaźnik.</div></div>
+
+<div class="q" data-correct="1"><p>5. Co chroni test porównujący z LLVM przed byciem pustym (zawsze zielonym)?</p>
+<button>Nic, test zawsze coś porównuje.</button>
+<button>Asercja na końcu, że sprawdzono wystarczająco dużo typów, rekordów i enumów.</button>
+<button>Golden z <code>mir_layout.txt</code>.</button>
+<button>Flaga <code>BORK_BLESS</code>.</button>
+<div class="fb">Test pomija programy, które brama odrzuca albo których nie da się ułożyć. Gdyby pominął wszystko, zielony wynik nic by nie znaczył, więc asercja wymaga minimalnej liczby sprawdzonych elementów.</div></div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
