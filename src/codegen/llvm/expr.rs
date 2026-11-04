@@ -8,8 +8,7 @@ use crate::diag::Diagnostic;
 use crate::ty::TyId;
 use crate::hir::{HirBlock, HirExpr, HirExprKind, Prim, UseKind};
 
-use super::emit_fn::FnEmitter;
-use super::region_emit::IfKind;
+use super::emit_fn::{FnEmitter, IfKind};
 use super::{codegen_error, not_yet_supported};
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
@@ -23,7 +22,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 then_block,
                 else_block,
             } => {
-                self.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(self.cx.unit_ty(), expr.ty))?;
+                self.emit_if(cond, then_block, else_block, IfKind::from_ty(self.cx.unit_ty(), expr.ty))?;
                 Ok(self.walk.trailing.take())
             }
             plan => {
@@ -66,11 +65,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     fn emit_skipped(&mut self, expr: &HirExpr) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         if self.walk_driver_active() {
-            let ptr = self.codegen_driver_ptr();
             let depth = self.walk.eval_stack.len();
-            super::emit_fn::FnEmitter::codegen_driver_mut(ptr)
-                .walk_expr(self, expr)
-                .map_err(super::region_walk_codegen_error)?;
+            self.walk_expr(expr).map_err(super::region_walk_codegen_error)?;
             self.walk.eval_stack.truncate(depth);
             self.walk
                 .trailing

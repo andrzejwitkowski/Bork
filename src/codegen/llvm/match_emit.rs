@@ -17,7 +17,7 @@ use crate::ast::PatLit;
 use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
 use crate::hir::{HirArm, HirExpr, HirPat, HirPatKind};
-use crate::region_walk::{pat_binds_owned_ref, region_enter_forced, ArenaCursor, WalkDriver};
+use crate::region_walk::pat_binds_owned_ref;
 use crate::span::Span;
 use crate::ty::TyId;
 
@@ -25,9 +25,8 @@ use super::emit_fn::FnEmitter;
 use super::{not_yet_supported, region_walk_codegen_error};
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(super) fn emit_match_with_driver<C: ArenaCursor>(
+    pub(super) fn emit_match(
         &mut self,
-        driver: &mut WalkDriver<'_, C>,
         scrutinee: &HirExpr,
         arms: &[HirArm],
         result_ty: TyId,
@@ -43,7 +42,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let result_sink = self.sink_arena();
         let previous = self.alloc_sink;
 
-        driver.walk_expr(self, scrutinee).map_err(region_walk_codegen_error)?;
+        self.walk_expr(scrutinee).map_err(region_walk_codegen_error)?;
         let value = self
             .walk
             .trailing
@@ -62,14 +61,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.position_at_end(arm_bb);
 
             let force = pat_binds_owned_ref(&self.cx.tcx, &arm.pat);
-            region_enter_forced(driver, self, RegionSite::MatchArm, &arm.body, force)
+            self.region_enter_forced(RegionSite::MatchArm, &arm.body, force)
                 .map_err(region_walk_codegen_error)?;
             self.bind_pat(&arm.pat, value)?;
             if self.cx.tcx.owns_result(result_ty) {
                 self.alloc_sink = Some(result_sink);
             }
             let arm_value =
-                self.emit_presence_arm(driver, RegionSite::MatchArm, &arm.body, value_ty, result_ty, result_sink)?;
+                self.emit_presence_arm(RegionSite::MatchArm, &arm.body, value_ty, result_ty, result_sink)?;
             self.alloc_sink = previous;
 
             if !self.cx.current_block_terminated() {
