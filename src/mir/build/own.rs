@@ -326,7 +326,8 @@ impl<'a> FnBuilder<'a> {
         let set = |b: &mut Self, v: bool| b.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(Operand::Const(Const::Bool(v)))), span, Some(e.id));
         let end = self.new_block();
         let (l_some, l_none) = (self.new_block(), self.new_block());
-        let (lx, rx) = (self.temp(self.tcx.prim_id(crate::hir::Prim::Unit)), self.temp(self.tcx.prim_id(crate::hir::Prim::Unit)));
+        // Bound by `Match`; `payload_eq` gives them the payload type once it is known.
+        let (lx, rx) = (self.temp(self.unit), self.temp(self.unit));
         // The `None` literal has no payload: it equals only a `None`.
         let l_is_nullable = self.tcx.is_nullable(lt);
         let r_is_nullable = self.tcx.is_nullable(rt);
@@ -354,8 +355,7 @@ impl<'a> FnBuilder<'a> {
                 self.goto(end, span);
             }
             (true, false) | (false, true) => {
-                let (nullable, nt) = if l_is_nullable { (l, lt) } else { (r, rt) };
-                let _ = nt;
+                let nullable = if l_is_nullable { l } else { r };
                 self.nullable_match(nullable, lx, l_some, l_none, span, e);
                 self.cur = l_some;
                 set(self, false);
