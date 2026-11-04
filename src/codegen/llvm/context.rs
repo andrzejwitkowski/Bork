@@ -605,4 +605,59 @@ mod tests {
             "LLVM Ref handle != runtime RefHandle (size/align, field offsets); update both definitions"
         );
     }
+
+    /// RFC 0006 M1: `mir::layout` must equal LLVM's answer for every stored type in the corpus.
+    #[test]
+    fn mir_layout_matches_llvm_over_corpus() {
+        use crate::mir::layout::{DataLayout, Layouts};
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("programs/build");
+        let mut files = Vec::new();
+        fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).unwrap() {
+                let p = e.unwrap().path();
+                if p.is_dir() { collect(&p, out) } else if p.extension().is_some_and(|x| x == "bork") { out.push(p) }
+            }
+        }
+        collect(&root, &mut files);
+        let context = Context::create();
+        let (mut types, mut records, mut enums) = (0, 0, 0);
+        for file in files {
+            let mut checked = crate::frontend::check(&std::fs::read_to_string(&file).unwrap());
+            if !checked.is_ok() { continue }
+            let (hir, report) = (checked.hir.take().unwrap(), checked.report.take().unwrap());
+            let Ok(mono) = crate::mono::monomorphize(&hir, &mut checked.tcx, &report) else { continue };
+            // Programs codegen cannot lay out (gate rejects) are not part of the comparison.
+            let Ok(cg) = Codegen::new(&context, "layout", &mono.hir.classes, &mono.hir.enums, &checked.tcx, MemoryPlan::default()) else { continue };
+            let ls = Layouts::new(&checked.tcx, &mono.hir, DataLayout::default());
+            let at = |name: &str, what: &str| format!("{}: {what} `{name}`", file.display());
+            let size_align = |t: &inkwell::types::StructType<'_>| (cg.target_data.get_abi_size(t), u64::from(cg.target_data.get_abi_alignment(t)));
+            let obs = ls.observation();
+            assert_eq!((obs.size, obs.align), size_align(&cg.ref_observation_type()), "RefObservation");
+            for class in &mono.hir.classes {
+                let Some(st) = cg.record_type(&class.name) else { continue };
+                let l = ls.record(&class.name).unwrap_or_else(|| panic!("{}", at(&class.name, "no layout for record")));
+                let offsets: Vec<u64> = (0..class.fields.len() as u32).map(|i| cg.target_data.offset_of_element(&st, i).unwrap()).collect();
+                assert_eq!(((l.size, l.align), l.fields.clone()), (size_align(&st), offsets), "{}", at(&class.name, "record"));
+                records += 1;
+            }
+            for e in mono.hir.enums.iter().filter(|e| e.generics.is_empty()) {
+                let (Some(lo), Some(l)) = (cg.enum_layout(&e.name), ls.enum_(&e.name)) else { panic!("{}", at(&e.name, "no layout for enum")) };
+                assert_eq!((l.size, l.align), (lo.size, lo.align), "{}", at(&e.name, "enum"));
+                for (vl, vt) in l.variants.iter().zip(&lo.variants) {
+                    let offsets: Vec<u64> = (0..vt.count_fields()).map(|i| cg.target_data.offset_of_element(vt, i).unwrap()).collect();
+                    assert_eq!(vl.fields, offsets, "{}", at(&e.name, "enum variant offsets"));
+                }
+                enums += 1;
+            }
+            let tys = mono.hir.functions.iter().flat_map(|f| f.params.iter().map(|p| p.ty).chain([f.return_ty]))
+                .chain(mono.hir.classes.iter().flat_map(|c| c.fields.iter().map(|f| f.ty)))
+                .chain(mono.hir.enums.iter().flat_map(|e| e.variants.iter().flat_map(|v| v.fields.iter().map(|f| f.ty))));
+            for ty in tys {
+                let (Some(bt), Some(l)) = (cg.basic_type(ty), ls.value(ty)) else { continue };
+                assert_eq!((l.size, l.align), (cg.target_data.get_abi_size(&bt), u64::from(cg.target_data.get_abi_alignment(&bt))), "{}", at(&checked.tcx.display(ty).to_string(), "type"));
+                types += 1;
+            }
+        }
+        assert!(types > 100 && records > 5 && enums > 3, "corpus too thin: {types} types, {records} records, {enums} enums");
+    }
 }

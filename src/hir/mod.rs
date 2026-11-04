@@ -74,7 +74,7 @@ pub enum UseKind {
     RefMove,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct HirProgram {
     pub classes: Vec<HirClass>,
     pub enums: Vec<HirEnum>,

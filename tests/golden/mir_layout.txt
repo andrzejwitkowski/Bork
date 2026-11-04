@@ -1,0 +1,496 @@
+== programs/build/classes/call_arg.bork
+class Point size=8 align=4 fields=[0, 4]
+== programs/build/classes/mutable_field.bork
+class Point size=8 align=4 fields=[0, 4]
+class Rect size=24 align=8 fields=[0, 16, 20]
+== programs/build/classes/nested_field.bork
+class Outer size=16 align=8 fields=[0]
+class Inner size=4 align=4 fields=[0]
+== programs/build/classes/nullable_field_assign.bork
+class Box size=16 align=8 fields=[0]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/classes/safe_ref_field.bork
+class Point size=8 align=4 fields=[0, 4]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/classes/string_field.bork
+class Label size=16 align=8 fields=[0]
+== programs/build/classes/walkthrough_point.bork
+class Point size=24 align=8 fields=[0, 16, 20]
+== programs/build/conditionals/nullable_assert.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/conditionals/nullable_elvis.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/conditionals/nullable_eq.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/conditionals/nullable_f32.bork
+enum Option<f32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/conditionals/nullable_none.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/conditionals/nullable_safe_length.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/constants/method_and_shadow.bork
+class Counter size=4 align=4 fields=[0]
+== programs/build/enums/expr_eval.bork
+enum Expr size=56 align=8 variants=[[0, 4], [0, 8, 32], [0, 8, 32], [0, 8]]
+== programs/build/enums/float_compare_payload.bork
+enum E size=16 align=8 variants=[[0, 8]]
+== programs/build/enums/generic_and_calls.bork
+enum Maybe<String> size=24 align=8 variants=[[0], [0, 8]]
+enum Maybe<i32> size=8 align=4 variants=[[0], [0, 4]]
+== programs/build/enums/linked_list.bork
+enum List size=32 align=8 variants=[[0], [0, 4, 8]]
+== programs/build/enums/match_generic_loop.bork
+class P size=4 align=4 fields=[0]
+enum Shape size=8 align=4 variants=[[0, 4], [0]]
+enum Wrap size=40 align=8 variants=[[0, 8, 24], [0]]
+enum Maybe<String> size=24 align=8 variants=[[0], [0, 8]]
+enum Maybe<i32> size=8 align=4 variants=[[0], [0, 4]]
+== programs/build/enums/match_ref_counts.bork
+class Node size=4 align=4 fields=[0]
+enum Slot size=40 align=8 variants=[[0], [0, 8, 32]]
+== programs/build/enums/match_shapes.bork
+enum Shape size=24 align=8 variants=[[0, 4], [0, 4, 8], [0, 8], [0]]
+enum Pair size=40 align=8 variants=[[0, 8, 24]]
+== programs/build/enums/ref_payload.bork
+class Node size=4 align=4 fields=[0]
+enum Slot size=40 align=8 variants=[[0], [0, 8, 32]]
+== programs/build/enums/ref_to_enum.bork
+enum Tree size=40 align=8 variants=[[0, 4], [0, 8, 32]]
+== programs/build/enums/return_construct_in_branch.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class W size=16 align=8 fields=[0]
+== programs/build/enums/return_decl_in_branch.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class W size=16 align=8 fields=[0]
+== programs/build/enums/return_enum_in_branch.bork
+class N size=4 align=4 fields=[0]
+enum E size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/enums/return_field_in_branch.bork
+class N size=4 align=4 fields=[0]
+class Box size=16 align=8 fields=[0]
+== programs/build/enums/return_field_of_local.bork
+class N size=4 align=4 fields=[0]
+class Box size=16 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+== programs/build/enums/return_from_for_loop.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/enums/return_from_loop_before.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/enums/return_hoisted_chain.bork
+class A size=4 align=4 fields=[0]
+class B size=16 align=8 fields=[0]
+class C size=16 align=8 fields=[0]
+== programs/build/enums/return_hoisted_object.bork
+class N size=4 align=4 fields=[0]
+class Box size=16 align=8 fields=[0]
+class Mid size=16 align=8 fields=[0]
+class Top size=16 align=8 fields=[0]
+enum E size=24 align=8 variants=[[0, 8]]
+== programs/build/enums/return_hoisted_via_call.bork
+class A size=4 align=4 fields=[0]
+class B size=16 align=8 fields=[0]
+class C size=16 align=8 fields=[0]
+== programs/build/enums/return_in_method.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class F size=4 align=4 fields=[0]
+== programs/build/enums/return_in_when_arm_stores_local.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum K size=4 align=4 variants=[[0], [0]]
+== programs/build/enums/return_method_result_ref.bork
+class N size=4 align=4 fields=[0]
+class Box size=24 align=8 fields=[0]
+class Outer size=24 align=8 fields=[0]
+== programs/build/enums/return_nested_hoisted_object.bork
+class N size=4 align=4 fields=[0]
+class Box size=16 align=8 fields=[0]
+class Holder size=16 align=8 fields=[0]
+== programs/build/enums/return_scalar_field_in_branch.bork
+class L size=4 align=4 fields=[0]
+class Box size=4 align=4 fields=[0]
+== programs/build/enums/return_two_paths.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class W size=16 align=8 fields=[0]
+== programs/build/enums/return_unreturned_local.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class W size=16 align=8 fields=[0]
+== programs/build/enums/return_value_if_local_object.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/enums/return_value_if_stores_local.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/enums/return_via_local.bork
+class P size=4 align=4 fields=[0]
+class A size=48 align=8 fields=[0, 16, 32]
+class Wrap size=16 align=8 fields=[0]
+== programs/build/enums/return_when_arms.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class W size=16 align=8 fields=[0]
+enum K size=4 align=4 variants=[[0], [0]]
+== programs/build/enums/two_ref_variants.bork
+class Node size=4 align=4 fields=[0]
+enum Link size=56 align=8 variants=[[0], [0, 8], [0, 4, 8, 32]]
+== programs/build/enums/unit_payload.bork
+enum Step size=8 align=4 variants=[[0, 4, 4], [0]]
+enum Outcome<unit,String> size=24 align=8 variants=[[0, 4], [0, 8]]
+enum Option<unit> size=4 align=4 variants=[[0, 4], [0]]
+== programs/build/enums/user_option_not_generic.bork
+enum Option size=4 align=4 variants=[[0], [0]]
+== programs/build/enums/user_option_other_shape.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/enums/variants.bork
+enum Shape size=40 align=8 variants=[[0], [0, 4], [0, 8], [0, 4, 8], [0, 8], [0, 4, 8, 16, 24]]
+== programs/build/enums/when_result_inferred.bork
+enum E size=4 align=4 variants=[[0], [0]]
+== programs/build/enums/when_returns_in_every_arm.bork
+enum E size=4 align=4 variants=[[0], [0]]
+enum F size=4 align=4 variants=[[0], [0]]
+== programs/build/generics/borrow_infers_enum_arg.bork
+enum E<i32> size=8 align=4 variants=[[0, 4]]
+== programs/build/generics/glue_no_leak.bork
+class Node size=4 align=4 fields=[0]
+class Holder size=8 align=8 fields=[0]
+class Outer size=40 align=8 fields=[0, 16]
+class Pair<Ref<Node>,Link<i32>> size=40 align=8 fields=[0, 24]
+class Link<i32> size=32 align=8 fields=[0, 8]
+class Pair<Ref<Node>,String> size=40 align=8 fields=[0, 24]
+enum Wrapped size=24 align=8 variants=[[0], [0, 8]]
+== programs/build/generics/identity.bork
+class Point size=8 align=4 fields=[0, 4]
+== programs/build/generics/list_node.bork
+class Node<i32> size=32 align=8 fields=[0, 8]
+== programs/build/generics/pair.bork
+class Pair<i32,bool> size=8 align=4 fields=[0, 4]
+class Pair<i32,String> size=24 align=8 fields=[0, 8]
+== programs/build/generics/ref_cleanup.bork
+class Box<i32> size=4 align=4 fields=[0]
+== programs/build/generics/tree_regions.bork
+class Node<i32> size=16 align=8 fields=[0, 8]
+== programs/build/managed_refs/cache_manager_graph.bork
+class Node size=56 align=8 fields=[0, 4, 8, 32]
+class CacheManager size=48 align=8 fields=[0, 24]
+== programs/build/managed_refs/chained_cache_manager_graph.bork
+class Node size=56 align=8 fields=[0, 4, 8, 32]
+class CacheManager size=48 align=8 fields=[0, 24]
+== programs/build/managed_refs/chained_expired_weak.bork
+class Node size=32 align=8 fields=[0, 8]
+== programs/build/managed_refs/chained_loop_cleanup.bork
+class Node size=40 align=8 fields=[0, 16]
+== programs/build/managed_refs/chained_partial_cleanup.bork
+class Node size=24 align=8 fields=[0]
+class Holder size=24 align=8 fields=[0]
+== programs/build/managed_refs/chained_three_bindings_value.bork
+class Node size=32 align=8 fields=[0, 8]
+== programs/build/managed_refs/count_of_last_reference.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/managed_refs/expired_weak_back_edge.bork
+class Node size=32 align=8 fields=[0, 8]
+== programs/build/managed_refs/presence_int_result.bork
+class Node size=32 align=8 fields=[0, 8]
+== programs/build/managed_refs/program_dynamic_across_blocks.bork
+class Box size=4 align=4 fields=[0]
+== programs/build/managed_refs/return_chain_local_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_enum_payload_obj.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+enum E size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/managed_refs/return_generic_box.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+class Box<RA> size=16 align=8 fields=[0]
+== programs/build/managed_refs/return_ifval_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_loop_before_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_loop_decl_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_nested_loops_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_nested_object_with_ref.bork
+class P size=4 align=4 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+enum E size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/managed_refs/return_object_with_ref_field.bork
+class P size=4 align=4 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Holder size=32 align=8 fields=[0, 8]
+enum E size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/managed_refs/return_ref_from_call.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_scalar_this.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+class Counter size=4 align=4 fields=[0]
+== programs/build/managed_refs/return_this_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+class Holder size=24 align=8 fields=[0]
+== programs/build/managed_refs/return_two_paths_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_vec_of_refs.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/managed_refs/return_when_arms.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+class Outer size=16 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+enum K size=4 align=4 variants=[[0], [0]]
+== programs/build/managed_refs/val_both_return_string_move.bork
+class Node size=40 align=8 fields=[0, 16]
+== programs/build/managed_refs/val_else_move_string.bork
+class Node size=40 align=8 fields=[0, 16]
+== programs/build/managed_refs/val_then_return_move.bork
+class Node size=40 align=8 fields=[0, 16]
+== programs/build/managed_refs/weak_back_edge_usage.bork
+class Node size=56 align=8 fields=[0, 8, 32]
+== programs/build/managed_refs/when_arms_print.bork
+class Node size=40 align=8 fields=[0, 16]
+== programs/build/methods/basic.bork
+class Point size=8 align=4 fields=[0, 4]
+== programs/build/methods/borrowed_receiver.bork
+class Point size=4 align=4 fields=[0]
+== programs/build/methods/explicit_this.bork
+class Point size=4 align=4 fields=[0]
+== programs/build/methods/field_receiver.bork
+class Inner size=4 align=4 fields=[0]
+class Outer size=16 align=8 fields=[0]
+== programs/build/methods/if_val_receiver.bork
+class Node size=32 align=8 fields=[0, 8]
+== programs/build/methods/method_calls_method.bork
+class Point size=8 align=4 fields=[0, 4]
+== programs/build/methods/mutate_field.bork
+class Counter size=4 align=4 fields=[0]
+== programs/build/methods/nested_calls.bork
+class Point size=4 align=4 fields=[0]
+== programs/build/methods/owning_return.bork
+class Point size=24 align=8 fields=[0, 16]
+== programs/build/methods/same_name.bork
+class A size=0 align=1 fields=[]
+class B size=0 align=1 fields=[]
+== programs/build/option/assign_option_from_block.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/assign_option_in_loop.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/assign_option_overwritten.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/equality_cases_still_work.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/option/nested_option_returned.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+enum Option<i32?> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/nullable_moved_into_owner.bork
+class Box size=16 align=8 fields=[0]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/nullable_string_eq.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/nullable_when.bork
+enum Option<i32?> size=24 align=8 variants=[[0, 8], [0]]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/option/option_conversions.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/option/option_result.bork
+enum Result<i32,String> size=24 align=8 variants=[[0, 4], [0, 8]]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/option/prelude_some_none_unshadowed.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/option/return_option_in_field.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class Holder size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_local_by_name.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_none.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_elvis.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_in_branch.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_in_enum_payload.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum E size=24 align=8 variants=[[0, 8], [0]]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_local.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_local_in_branch.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_local_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+enum Option<RA> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_object.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_param.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_two_paths.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_some_with_ref.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class RA size=24 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+enum Option<RA> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/return_option_wrapped_object.bork
+class A size=4 align=4 fields=[0]
+class B size=16 align=8 fields=[0]
+class N size=4 align=4 fields=[0]
+class Box size=16 align=8 fields=[0]
+enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
+enum Option<N> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/user_option_wins.bork
+enum Option size=12 align=4 variants=[[0, 4, 8], [0]]
+== programs/build/option/when_some_first.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/text/equality_effects_once.bork
+class Counter size=4 align=4 fields=[0]
+== programs/build/text/http_token.bork
+class Request size=16 align=8 fields=[0]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/text/utf8_copy_independent.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/text/utf8_empty_is_present.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/text/utf8_invalid_is_none.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/text/utf8_multibyte_range.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/text/utf8_outer_sink_survives.bork
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/traits/assoc_container.bork
+class IntBox size=4 align=4 fields=[0]
+class Named size=16 align=8 fields=[0]
+== programs/build/traits/assoc_equality.bork
+class IntBox size=4 align=4 fields=[0]
+== programs/build/traits/assoc_two_traits.bork
+class Foo size=4 align=4 fields=[0]
+== programs/build/traits/dispatch_bound.bork
+class Circle size=8 align=8 fields=[0]
+class Square size=8 align=8 fields=[0]
+== programs/build/traits/dispatch_enum.bork
+enum Maybe size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/traits/dispatch_field_in_impl.bork
+class Sq size=4 align=4 fields=[0]
+== programs/build/traits/dispatch_generic_impl.bork
+class Circle size=8 align=8 fields=[0]
+class Square size=8 align=8 fields=[0]
+class Box<Square> size=16 align=8 fields=[0]
+class Box<Circle> size=16 align=8 fields=[0]
+== programs/build/traits/dispatch_impl.bork
+class Circle size=8 align=8 fields=[0]
+class Square size=8 align=8 fields=[0]
+== programs/build/traits/dispatch_inherent_shadows.bork
+class Circle size=8 align=8 fields=[0]
+== programs/build/vec/pop_set_clear.bork
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vec/ref_counts_across_arenas.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/ref_nodes.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/ref_promote.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/ref_promote_strong.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/ref_weak_expires.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/return_vec_of_linked_refs.bork
+class A size=4 align=4 fields=[0]
+class B size=24 align=8 fields=[0]
+class Bag size=8 align=8 fields=[0]
+== programs/build/vec/with_capacity.bork
+class Node size=4 align=4 fields=[0]
