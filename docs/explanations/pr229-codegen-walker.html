@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #229 — CodegenWalker, SharedCursor i koniec surowego wskaźnika</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#222;--mut:#666;--acc:#2b5fab;--ok:#1f7a45;--bad:#b3261e;--card:#fff;--line:#ddd8cc;--code:#f3f0e8}
+@media(prefers-color-scheme:dark){:root{--bg:#161719;--fg:#e6e4df;--mut:#9a9890;--acc:#7fb0ff;--ok:#5fcf8c;--bad:#ff8a80;--card:#1f2124;--line:#3a3c40;--code:#25272b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 Georgia,"Times New Roman",serif}
+main{max-width:860px;margin:0 auto;padding:24px 18px 80px}
+h1{font-size:2rem;line-height:1.2;margin:.2em 0}
+h2{font-size:1.6rem;margin:2.2em 0 .4em;border-bottom:2px solid var(--line);padding-bottom:.2em}
+h3{font-size:1.2rem;margin:1.6em 0 .3em}
+p.sub{color:var(--mut);margin-top:0}
+nav.toc{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 20px;margin:20px 0}
+nav.toc ol{margin:6px 0;padding-left:20px}
+a{color:var(--acc)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font:0.88em/1.4 ui-monospace,Menlo,Consolas,monospace}
+pre{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre;font:0.84em/1.5 ui-monospace,Menlo,Consolas,monospace}
+pre code{background:none;padding:0}
+.callout{border-left:5px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;padding:10px 16px;margin:18px 0}
+.callout.warn{border-color:#c77d00}
+.callout.ok{border-color:var(--ok)}
+.callout b.t{display:block;font-family:system-ui,sans-serif;font-size:.8rem;letter-spacing:.05em;text-transform:uppercase;color:var(--mut)}
+details.skip{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 16px;margin:14px 0}
+details.skip summary{cursor:pointer;font-family:system-ui,sans-serif;font-weight:600}
+/* diagrams */
+.fig{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;margin:18px 0;font-family:system-ui,sans-serif;font-size:.9rem}
+.fig .cap{color:var(--mut);margin-top:8px;font-size:.82rem}
+.row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin:6px 0}
+.box{border:2px solid var(--acc);border-radius:8px;padding:8px 12px;background:var(--bg);flex:1 1 140px;min-width:130px}
+.box.red{border-color:var(--bad)}.box.green{border-color:var(--ok)}.box.gray{border-color:var(--mut);border-style:dashed}
+.box h4{margin:0 0 4px;font-size:.92rem}
+.box small{color:var(--mut);display:block}
+.arrow{align-self:center;font-size:1.3rem;color:var(--mut)}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:10px;background:var(--code);border:1px solid var(--line);margin-left:4px}
+.tree{font-family:ui-monospace,Menlo,monospace;font-size:.85rem;line-height:1.7}
+.tree .here{background:#ffe9a8;color:#222;border-radius:3px;padding:0 4px}
+table.t{border-collapse:collapse;width:100%;font-family:system-ui,sans-serif;font-size:.88rem}
+table.t th,table.t td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+table.t th{background:var(--code)}
+.del{color:var(--bad)}.add{color:var(--ok)}
+/* quiz */
+.q{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:18px 0}
+.q p.qt{font-weight:bold;margin-top:0}
+.q button{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;font:inherit;cursor:pointer}
+.q button:hover:not(:disabled){border-color:var(--acc)}
+.q button.right{border-color:var(--ok);background:rgba(31,122,69,.15)}
+.q button.wrong{border-color:var(--bad);background:rgba(179,38,30,.15)}
+.fb{display:none;margin-top:8px;font-size:.95rem}
+#score{font-family:system-ui,sans-serif;font-weight:bold}
+@media(max-width:560px){body{font-size:16px}.arrow{display:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Jedno małe cięcie w kodegenie: skąd się wziął <code>CodegenWalker</code></h1>
+<p class="sub">PR #229 · MIR-M0 (#215) · gałąź <code>refactor/215-codegen-visitor-split</code> · diff: 9 plików, ale sedno mieści się w ok. 150 liniach</p>
+
+<nav class="toc"><b>Spis treści</b>
+<ol>
+<li><a href="#tlo">Tło</a> (od zera, do pominięcia, jeśli znasz temat)</li>
+<li><a href="#problem">Problem: wskaźnik, który udaje referencję</a></li>
+<li><a href="#intuicja">Intuicja: jedna zmiana, dwie role rozdzielone</a></li>
+<li><a href="#kod">Kod: przegląd zmian krok po kroku</a></li>
+<li><a href="#weryfikacja">Skąd wiemy, że nic się nie zepsuło</a></li>
+<li><a href="#quiz">Quiz</a></li>
+</ol></nav>
+
+<p>Ten PR wygląda niewinnie: nic nie dodaje, żadna funkcja języka się nie zmienia, a wygenerowany kod maszynowy jest bajt w bajt taki sam. Trudność w czytaniu bierze się stąd, że zmiana dotyka <em>kto</em> woła <em>kogo</em> w trakcie generowania kodu, a nie tego, <em>co</em> jest generowane. Dlatego zaczniemy od mapy terenu, a dopiero potem pokażemy, co dokładnie przestawiono.</p>
+
+<h2 id="tlo">1. Tło</h2>
+
+<details class="skip" open>
+<summary>Dla początkujących: kompilator, HIR, LLVM i „spacer” po drzewie (kliknij, aby zwinąć)</summary>
+<p><b>Kompilator Bork</b> zamienia program w języku Bork na plik wykonywalny w kilku krokach. Najpierw parser buduje drzewo składni, potem sprawdzanie typów dokłada informacje i powstaje <b>HIR</b> (<i>high-level IR</i>, czyli ujednolicone, otypowane drzewo programu). Na końcu <b>generator kodu</b> (<code>src/codegen/llvm/</code>) tłumaczy HIR na instrukcje <b>LLVM</b>, a LLVM robi z nich kod maszynowy.</p>
+<div class="fig">
+<div class="row">
+<div class="box"><h4>Program Bork</h4><small>tekst</small></div><span class="arrow">→</span>
+<div class="box"><h4>HIR</h4><small>drzewo, typy, monomorfizacja</small></div><span class="arrow">→</span>
+<div class="box green"><h4>codegen</h4><small>ten PR tu zmienia kod</small></div><span class="arrow">→</span>
+<div class="box"><h4>LLVM IR</h4><small>potem kod maszynowy</small></div>
+</div>
+<div class="cap">Uproszczony potok kompilacji. PR dotyczy wyłącznie zielonego pudełka.</div>
+</div>
+<p><b>Wzorzec wizytatora (visitor).</b> Gdy masz drzewo i kilka różnych zadań do wykonania na nim (policz coś, oznacz coś, wygeneruj kod), nie pisze się osobnego spaceru po drzewie dla każdego zadania. Pisze się <i>jeden</i> spacer (<b>walker</b>), który w ciekawych momentach woła „haki” na obiekcie <b>wizytatora</b>: <code>before_expr</code>, <code>after_expr</code>, <code>enter_region</code> i tak dalej. Każde zadanie to inny wizytator, a spacer jest wspólny.</p>
+</details>
+
+<h3>Co jest specyficzne dla Bork: regiony i areny</h3>
+<p>Bork zarządza pamięcią przez <b>areny</b>. Każdy blok, pętla, gałąź <code>if</code> czy ramię <code>when</code> jest <b>regionem</b>, który może otworzyć własną arenę, a przy wyjściu zwolnić wszystko naraz. Analiza semantyczna buduje więc drzewo aren (<code>ArenaNode</code>) dokładnie odpowiadające strukturze regionów w programie.</p>
+<p>Generator kodu musi wiedzieć, w którym momencie spaceru po HIR jest który węzeł drzewa aren. Do tego służy moduł <code>region_walk</code>: idzie po HIR i <b>jednocześnie</b> po drzewie aren „w lockstepie”. Pozycję w drzewie aren trzyma <b>kursor</b> (<code>ArenaCursor</code>): <code>take_child</code> (wchodzę do kolejnego dziecka), <code>descend</code>/<code>ascend</code> (zejdź/wyjdź poziom), <code>assert_children_done</code> (sprawdź, że odwiedziłem wszystkie dzieci).</p>
+
+<div class="fig">
+<div class="row">
+<div class="box">
+<h4>Drzewo HIR (fragment)</h4>
+<div class="tree">fun main<br>└ while (cond)<br>&nbsp;&nbsp;└ if (x &gt; 0)<br>&nbsp;&nbsp;&nbsp;&nbsp;├ then { … }<br>&nbsp;&nbsp;&nbsp;&nbsp;└ else { … }</div>
+</div>
+<span class="arrow">⇄</span>
+<div class="box green">
+<h4>Drzewo aren (<code>ArenaNode</code>)</h4>
+<div class="tree">fn<br>└ WhileLoop<br>&nbsp;&nbsp;├ IfThen<br>&nbsp;&nbsp;└ IfElse</div>
+</div>
+</div>
+<div class="cap">Dwa drzewa o tej samej strukturze regionów. Kursor pilnuje, że spacer po HIR odwiedza je w tej samej kolejności.</div>
+</div>
+
+<h3>Trzy role, które współpracują</h3>
+<table class="t">
+<tr><th>Rola</th><th>Typ</th><th>Co robi</th></tr>
+<tr><td>Spacer</td><td><code>WalkDriver</code> + funkcje <code>walk_expr</code>, <code>walk_block</code>, <code>region_enter/exit</code></td><td>Idzie po HIR, przesuwa kursor, woła haki wizytatora.</td></tr>
+<tr><td>Wizytator</td><td>trait <code>RegionVisitor</code></td><td>Implementacje: planowanie aren, stemplowanie <code>codegen_push</code> i… generator LLVM.</td></tr>
+<tr><td>Emiter</td><td><code>FnEmitter</code></td><td>Trzyma stan generowania jednej funkcji (builder LLVM, zmienne, stos pętli) i wie, jak wyemitować konkretne instrukcje.</td></tr>
+</table>
+
+<h2 id="problem">2. Problem: wskaźnik, który udaje referencję</h2>
+<p>Przed tym PR-em <code>FnEmitter</code> pełnił <b>dwie role naraz</b>: był emiterem <i>i</i> sam implementował <code>RegionVisitor</code>. Pozornie wygodne, ale kryje się w tym pułapka.</p>
+<p>Spacer woła hak wizytatora i przekazuje mu <code>driver: &amp;mut WalkDriver</code>. W środku haka emiter potrzebuje wyemitować wyrażenie, a jego operandy (np. prawa strona <code>&amp;&amp;</code>) trzeba <i>znowu</i> przejść spacerem, czyli wejść ponownie w ten sam spacer. Tyle że rdzeń emitera (<code>emit_int</code>, <code>emit_value</code>, <code>combine_expr</code> i dziesiątki innych) nie dostaje drivera w argumentach. Dlatego stary kod robił tak:</p>
+<div class="fig">
+<div class="row">
+<div class="box"><h4>1. Hak wizytatora</h4><small><code>on_stmt(driver, stmt)</code></small></div><span class="arrow">→</span>
+<div class="box red"><h4>2. <code>pin_walk_driver</code></h4><small>zamienia <code>&amp;mut driver</code> na <code>*mut ()</code> i chowa w <code>FnEmitter.walk.driver</code></small></div><span class="arrow">→</span>
+<div class="box"><h4>3. Głęboko w <code>emit_*</code></h4><small>np. <code>emit_skipped</code></small></div><span class="arrow">→</span>
+<div class="box red"><h4>4. <code>codegen_driver_mut</code></h4><small><code>unsafe</code>: rzutowanie <code>*mut ()</code> z powrotem na <code>&amp;mut WalkDriver</code></small></div>
+</div>
+<div class="cap">Stara droga re-entry. Kompilator nie widzi, że krok 4 to ten sam obiekt co w kroku 1, więc cała poprawność opiera się na zaufaniu.</div>
+</div>
+<div class="callout warn"><b class="t">Dlaczego to boli</b>
+Rzutowanie z <code>*mut ()</code> gubi lifetime i typ. Wystarczy, że ktoś wywoła <code>emit_skipped</code> poza aktywnym spacerem albo zamieni kolejność pinowania, a dostaniemy <i>undefined behavior</i>. Ponadto <code>region_emit.rs</code> (wizytator) i <code>expr.rs</code> (emisja) wołały się nawzajem, co tworzyło cykl modułów. Tego wymagał RFC 0006 (krok M0), bo kolejne kroki budują na tym MIR.</div>
+
+<h2 id="intuicja">3. Intuicja: rozdziel role i wspólną pozycję trzymaj w bezpiecznym uchwycie</h2>
+<p>Pomysł ma dwie części i są niezależne.</p>
+<h3>Część A: wizytator to osobny typ</h3>
+<p>Powstaje cienki typ <code>CodegenWalker(&amp;mut FnEmitter)</code>. To on implementuje <code>RegionVisitor</code>. Dzięki <code>Deref</code>/<code>DerefMut</code> do <code>FnEmitter</code> ciała haków zostały praktycznie bez zmian: <code>self.debug_location(…)</code> nadal działa, bo <code>self</code> „rozpakowuje się” do emitera. <code>FnEmitter</code> przestaje być wizytatorem.</p>
+<h3>Część B: pozycja w drzewie jest współdzielona, więc nie trzeba przekazywać drivera</h3>
+<p>Dlaczego driver w ogóle musiał być pinowany? Bo jedyną rzeczą, której <i>naprawdę</i> potrzebuje, jest <b>pozycja kursora</b>. Sam <code>WalkDriver</code> to tylko referencja do kursora plus <code>&amp;TyCtx</code>. Jeśli kursor da się współdzielić, każdy może zbudować sobie świeży driver na żądanie.</p>
+<p><code>SharedCursor</code> to <code>Rc&lt;RefCell&lt;RegionWalkRef&gt;&gt;</code>: wszystkie klony wskazują na <i>jedną</i> pozycję. Emiter trzyma jeden klon w <code>walk.cursor</code>. Gdy emisja chce wejść w spacer, woła <code>self.walk_expr(expr)</code>, które klonuje uchwyt, buduje lokalny <code>WalkDriver</code> i spaceruje.</p>
+
+<div class="fig">
+<div class="row">
+<div class="box green"><h4>Spacer zewnętrzny</h4><small>zaczął się w <code>emit_function_body</code>, ma klon A</small></div>
+<div class="box green"><h4>Spacer zagnieżdżony</h4><small>zbudowany w <code>with_walk</code>, ma klon B</small></div>
+</div>
+<div class="row"><span class="arrow" style="margin:auto">↓ oba wskazują na ↓</span></div>
+<div class="row">
+<div class="box" style="text-align:center"><h4>jedna pozycja w <code>Rc&lt;RefCell&lt;RegionWalkRef&gt;&gt;</code></h4><small>path = [0, 1] · next_child = 2</small></div>
+</div>
+<div class="cap">Klon A i klon B nie są kopiami pozycji, tylko dwoma uchwytami do tej samej. Ruch w jednym widać w drugim.</div>
+</div>
+
+<h3>Mały przykład z danymi</h3>
+<p>Weźmy fragment <code>while (c) { if (x) { a } else { b } }</code>. Drzewo aren: <code>WhileLoop → [IfThen, IfElse]</code>. Co dzieje się z kursorem:</p>
+<table class="t">
+<tr><th>#</th><th>Wywołanie</th><th>Kto</th><th>Pozycja po</th></tr>
+<tr><td>1</td><td><code>region_enter(While)</code> → <code>take_child</code></td><td>spacer zewn. (klon A)</td><td>w <code>WhileLoop</code>, next_child=0</td></tr>
+<tr><td>2</td><td>emisja <code>if</code> woła <code>emit_region(IfThen)</code> → <code>self.region_enter</code></td><td>zagnieżdżony (klon B)</td><td><span class="add">IfThen zajęty</span>, next_child=1</td></tr>
+<tr><td>3</td><td><code>region_exit(IfThen)</code></td><td>klon B</td><td>wrócono do <code>WhileLoop</code></td></tr>
+<tr><td>4</td><td><code>region_enter(IfElse)</code></td><td>klon B</td><td><span class="add">IfElse zajęty</span>, next_child=2</td></tr>
+<tr><td>5</td><td><code>region_exit(While)</code> → <code>assert_children_done</code></td><td>klon A</td><td>OK: odwiedzono 2 z 2 dzieci</td></tr>
+</table>
+<p>Krok 5 jest kluczowy: klon A „wie”, że klon B odwiedził oba dzieci, bo pozycja jest wspólna. Gdyby każdy klon miał własną kopię, <code>assert_children_done</code> by się wywaliło.</p>
+
+<div class="callout"><b class="t">Dlaczego to bezpieczne, skoro <code>RefCell</code>?</b>
+<code>RefCell</code> sprawdza pożyczki w czasie działania i paniki, gdy dwie żyją naraz. Tu każde <code>borrow()</code> jest krótkie (jedna metoda kursora) i nigdy nie jest trzymane przez wywołanie haka. Referencje zwracane przez <code>parent()</code> i <code>last_child()</code> mają lifetime <code>'a</code> zakorzeniony w <code>roots</code> (tablica <code>ArenaNode</code> jest niezmienna), a nie w guardzie <code>RefCell</code>. To mała, ale istotna sztuczka.</div>
+
+<h3>Wzorzec w pigułce</h3>
+<pre><code>// Stary: ukryty wskaźnik, potem unsafe
+self.pin_walk_driver(driver, |e| e.emit_stmt(stmt));      // zapisz *mut ()
+Self::codegen_driver_mut(self.codegen_driver_ptr())       // unsafe rzutowanie
+    .walk_expr(self, expr)?;
+
+// Nowy: pozycja współdzielona, driver składany na żądanie
+self.walk_expr(expr)?;       // klonuje SharedCursor, buduje WalkDriver, spaceruje</code></pre>
+
+<h2 id="kod">4. Kod: przegląd zmian krok po kroku</h2>
+<p>Kolejność poniżej jest taka, w jakiej najłatwiej to zrozumieć: najpierw fundament (kursor), potem nowy moduł, potem to, co z reszty wypadło.</p>
+
+<h3>Krok 1 · <code>src/region_walk.rs</code> — <code>SharedCursor</code></h3>
+<ul>
+<li><code>SharedCursor&lt;'a&gt;</code> opakowuje <code>RegionWalkRef</code> w <code>Rc&lt;RefCell&lt;…&gt;&gt;</code> i implementuje <code>ArenaCursor</code>, delegując do wewnętrznej wersji. Logika <code>take_child</code> (sprawdzanie etykiet, komunikaty błędów) nie jest duplikowana.</li>
+<li><code>last_child_mut</code> panikuje, tak jak w <code>RegionWalkRef</code>: kursor jest tylko do odczytu.</li>
+<li><code>walk_function_readonly</code> nie tworzy już własnego kursora, tylko przyjmuje ten od wołającego. Dzięki temu emiter i spacer mają ten sam uchwyt.</li>
+<li>Nowy test jednostkowy <code>shared_cursor_clones_advance_one_position</code>: dwa klony, ruch w jednym, obserwacja w drugim.</li>
+</ul>
+
+<h3>Krok 2 · <code>src/codegen/llvm/walk.rs</code> (nowy plik)</h3>
+<pre><code>pub(super) struct CodegenWalker&lt;'w, …&gt;(&amp;'w mut FnEmitter&lt;…&gt;);   // + Deref/DerefMut do FnEmitter
+
+impl RegionVisitor for CodegenWalker { /* haki przeniesione z region_emit.rs */ }
+
+impl FnEmitter {
+    fn with_walk(…)                  // klonuje SharedCursor, składa WalkDriver
+    pub fn walk_expr / walk_block    // re-entry do spaceru
+    pub fn region_enter / region_enter_forced / region_exit
+    fn walk_step(…)                  // Diagnostic → WalkError
+}
+
+pub fn emit_function(…)             // przeniesione z emit_fn.rs
+fn emit_function_body(…)            // tworzy SharedCursor, ustawia go w emiterze, startuje spacer</code></pre>
+<p>Zauważ asymetrię: <code>CodegenWalker</code> zna <code>FnEmitter</code>, ale <b>moduły liściowe</b> (<code>expr</code>, <code>binop</code>, <code>nullable</code>, <code>presence</code>, <code>managed_ref</code>, <code>array/</code>, <code>vec/</code>) nie wspominają ani <code>walk</code>, ani <code>CodegenWalker</code>. Wołają tylko metody <code>self.walk_expr(…)</code>, które akurat są zdefiniowane w <code>walk.rs</code> jako <code>impl FnEmitter</code>. To przerywa cykl.</p>
+
+<h3>Krok 3 · <code>emit_fn.rs</code> — chudnie</h3>
+<ul>
+<li>Znika cała maszyneria wskaźnika: <code>pin_walk_driver</code>, <code>codegen_driver_ptr</code>, <code>codegen_driver_mut</code>, pole <code>driver: Option&lt;*mut ()&gt;</code> i blok <code>unsafe</code>.</li>
+<li><code>CodegenWalkState</code> zamiast wskaźnika trzyma <code>cursor: Option&lt;SharedCursor&gt;</code>. <code>walk_driver_active()</code> to teraz <code>cursor.is_some()</code>.</li>
+<li><code>emit_for</code>/<code>emit_while</code>: znikają cienkie nakładki <code>*_with_driver</code> (które tylko pinowały), zostają same ciała, wołające <code>self.region_enter</code> / <code>self.walk_block</code> / <code>self.region_exit</code>.</li>
+<li><code>IfKind</code> przeniesiony tutaj z <code>region_emit.rs</code>, żeby <code>expr.rs</code> nie importował wizytatora.</li>
+<li>Kilka pól i metod zyskało <code>pub(super)</code> (<code>loop_stack</code>, <code>LoopLabels</code>, <code>build_fallthrough</code>), bo <code>emit_function</code> mieszka teraz w innym module.</li>
+</ul>
+
+<h3>Krok 4 · <code>region_emit.rs</code>, <code>match_emit.rs</code>, <code>expr.rs</code>, <code>mod.rs</code></h3>
+<ul>
+<li><code>region_emit.rs</code>: ~340 linii mniej. Wyleciała implementacja <code>RegionVisitor</code> (do <code>walk.rs</code>). Zostały <code>emit_if</code>, <code>emit_presence</code> i spółka, tylko bez parametrów <code>driver</code> i bez generyka <code>&lt;C: ArenaCursor&gt;</code>.</li>
+<li><code>match_emit.rs</code>: <code>emit_match_with_driver</code> → <code>emit_match</code>, wołania <code>driver.walk_expr(self, …)</code> → <code>self.walk_expr(…)</code>.</li>
+<li><code>expr.rs</code>: import <code>IfKind</code> z <code>emit_fn</code>; <code>emit_skipped</code> używa <code>self.walk_expr</code>.</li>
+<li><code>mod.rs</code>: <code>mod walk;</code> i wywołanie <code>walk::emit_function</code>.</li>
+</ul>
+
+<table class="t">
+<tr><th>Było</th><th>Jest</th></tr>
+<tr><td><code>emit_if_with_driver(driver, …)</code></td><td><code>emit_if(…)</code></td></tr>
+<tr><td><code>emit_match_with_driver&lt;C&gt;(driver, …)</code></td><td><code>emit_match(…)</code></td></tr>
+<tr><td><code>emit_presence_with_driver&lt;C&gt;(driver, …)</code></td><td><code>emit_presence(…)</code></td></tr>
+<tr><td><code>driver.walk_expr(self, e)</code></td><td><code>self.walk_expr(e)</code></td></tr>
+<tr><td><code>region_enter(driver, self, site, b)</code></td><td><code>self.region_enter(site, b)</code></td></tr>
+<tr><td><code>impl RegionVisitor for FnEmitter</code></td><td><code>impl RegionVisitor for CodegenWalker</code></td></tr>
+</table>
+
+<div class="callout warn"><b class="t">Odstępstwo od pierwotnego planu</b>
+Plan zakładał jawne przekazywanie drivera jako parametru wszędzie. Pomiar pokazał, że re-entry sięga prawie każdej funkcji <code>emit_*</code> (w tym <code>combine_expr</code> dla <code>&amp;&amp;</code>, <code>||</code>, <code>?:</code>), czyli 50–80 zmian sygnatur w kodzie, który RFC i tak usuwa w M6 (#67). Wybrano więc <code>SharedCursor</code>, kosztem niewielkiego dodatku w <code>region_walk.rs</code>.</div>
+
+<h3>Czego PR celowo nie rusza</h3>
+<ul>
+<li>Trybu „bez spaceru” w <code>expr.rs</code> (<code>walk_driver_active()</code>): wygląda na martwy, ale decyzję zostawiono na M2.</li>
+<li>Nazwy <code>walk_function_readonly</code>, która teraz trochę myli.</li>
+<li>Jakiejkolwiek logiki emisji: kolejność instrukcji LLVM jest niezmieniona.</li>
+</ul>
+
+<h2 id="weryfikacja">5. Skąd wiemy, że nic się nie zepsuło</h2>
+<p>Przy refaktorze „zachowanie ma być identyczne” najmocniejszym dowodem jest porównanie wyjścia. Przed zmianą zbudowano z <code>HEAD</code> bazowy kompilator i zapisano IR LLVM dla wszystkich 203 programów z <code>programs/build</code> oraz wariantów quicksorta (209 plików), dwa razy: zwykły i z <code>-g</code> (informacje debugowe zależą od kolejności wywołań <code>debug_location</code> w hakach, więc łapią błędy, których zwykły IR nie pokaże). Po zmianie <code>diff -r</code> daje 0 linii w obu trybach. Do tego przechodzą <code>cargo test</code> i <code>cargo test --features codegen</code>.</p>
+<div class="callout"><b class="t">Czego nie sprawdzono</b>
+Testy z <code>codegen</code> szły z podstawką <code>clang → gcc</code> (na maszynie nie ma clanga); <code>clippy</code> i <code>fmt</code> nie były uruchamiane. CI na GitHubie jest zielone.</div>
+
+<h2 id="quiz">6. Quiz</h2>
+<p>Pięć pytań. Kliknij odpowiedź, a dostaniesz informację zwrotną. <span id="score"></span></p>
+
+<div class="q" data-correct="1">
+<p class="qt">1. Dlaczego stary kod potrzebował <code>pin_walk_driver</code>?</p>
+<button>Bo <code>WalkDriver</code> nie da się sklonować i trzeba go trzymać w jednym miejscu</button>
+<button>Bo głęboko w <code>emit_*</code> trzeba było znów wejść w spacer, a te funkcje nie dostawały drivera w argumentach</button>
+<button>Bo LLVM wymaga, aby wskaźnik na kursor był stały podczas całej emisji</button>
+<button>Bo <code>FnEmitter</code> musiał być <code>Send</code></button>
+<div class="fb"></div>
+<script type="application/json" class="fbdata">["Nie o to chodziło: driver to tylko &amp;mut kursora i &amp;TyCtx. Problemem było, że nie dało się go podać funkcjom, które go nie przyjmują.","Dokładnie. Emisja operandu (np. prawej strony &amp;&amp;) musi przejść spacerem po poddrzewie HIR, a rdzeń emitera nie miał jak dostać drivera. Wskaźnik był obejściem.","LLVM nie ma tu nic do rzeczy; to czysto rustowy problem pożyczek.","Wątki nie grają tu roli; kompilacja funkcji jest jednowątkowa."]</script>
+</div>
+
+<div class="q" data-correct="2">
+<p class="qt">2. Co dokładnie jest współdzielone między klonami <code>SharedCursor</code>?</p>
+<button>Cały <code>WalkDriver</code> razem z <code>TyCtx</code></button>
+<button>Drzewo aren (<code>roots</code>), które klony mogą modyfikować</button>
+<button>Pozycja w drzewie aren (ścieżka i licznik <code>next_child</code>); samo drzewo jest tylko do odczytu</button>
+<button>Stos <code>eval_stack</code> z wartościami operandów</button>
+<div class="fb"></div>
+<script type="application/json" class="fbdata">["Driver jest budowany od nowa przy każdym re-entry; współdzielony jest tylko kursor.","Kursor jest readonly: <code>last_child_mut</code> panikuje. Drzewo aren się nie zmienia.","Tak. Dzięki wspólnej pozycji zagnieżdżony spacer przesuwa ten sam kursor co zewnętrzny, więc <code>assert_children_done</code> na końcu regionu widzi wszystkie odwiedzone dzieci.","<code>eval_stack</code> leży w <code>CodegenWalkState</code> emitera, a nie w kursorze."]</script>
+</div>
+
+<div class="q" data-correct="0">
+<p class="qt">3. Dlaczego ciała haków w <code>CodegenWalker</code> prawie się nie zmieniły po przeniesieniu z <code>FnEmitter</code>?</p>
+<button>Bo <code>CodegenWalker</code> implementuje <code>Deref</code>/<code>DerefMut</code> do <code>FnEmitter</code>, więc <code>self.pole</code> i <code>self.metoda()</code> nadal działają</button>
+<button>Bo <code>CodegenWalker</code> jest aliasem typu na <code>FnEmitter</code></button>
+<button>Bo haki zostały skopiowane do obu typów</button>
+<button>Bo makro automatycznie generuje delegację każdej metody</button>
+<div class="fb"></div>
+<script type="application/json" class="fbdata">["Tak. To cienki newtype <code>CodegenWalker(&amp;mut FnEmitter)</code>; auto-deref rozpakowuje go do emitera.","To osobny typ: właśnie o to chodzi, aby <code>FnEmitter</code> przestał być wizytatorem.","Nie ma duplikacji; haki są tylko na <code>CodegenWalker</code>.","Żadnego makra tu nie ma; to zwykły <code>Deref</code>."]</script>
+</div>
+
+<div class="q" data-correct="3">
+<p class="qt">4. Co przerywa cykl zależności <code>walk</code> ↔ <code>expr</code>?</p>
+<button>Przeniesienie <code>expr.rs</code> do osobnego crate'a</button>
+<button>Zamiana wszystkich funkcji na <code>dyn Trait</code></button>
+<button>Usunięcie <code>RegionVisitor</code> z projektu</button>
+<button>Moduły liściowe wołają tylko metody <code>self.walk_expr(…)</code> / <code>region_enter(…)</code> na <code>FnEmitter</code> i nie importują <code>walk</code>; <code>IfKind</code> przeniesiono do <code>emit_fn</code></button>
+<div class="fb"></div>
+<script type="application/json" class="fbdata">["Wszystko zostaje w jednym crate'cie.","Nie użyto dynamicznego dispatchu.","<code>RegionVisitor</code> nadal istnieje i służy też planowaniu aren oraz stemplowaniu.","Zależność idzie w jedną stronę: <code>walk.rs</code> używa emiterów, a emitery tylko wołają metody (zdefiniowane w <code>walk.rs</code>, ale bez importu go po nazwie)."]</script>
+</div>
+
+<div class="q" data-correct="1">
+<p class="qt">5. Co najlepiej przekonuje, że refaktor nie zmienił zachowania kompilatora?</p>
+<button>Sam fakt, że kod się kompiluje</button>
+<button>Identyczny (bajt w bajt) IR LLVM dla całego korpusu, w trybie zwykłym i z <code>-g</code>, plus zielone testy</button>
+<button>Lista przeczytanych plików w code review</button>
+<button>Mniejsza liczba linii kodu</button>
+<div class="fb"></div>
+<script type="application/json" class="fbdata">["Kompilacja mówi tylko o typach; kolejność emisji mogła się zmienić.","Tak. Tryb <code>-g</code> dodatkowo łapie zmiany kolejności wywołań <code>debug_location</code> w hakach.","Przegląd jest cenny, ale nie dowodzi niezmienności wyjścia.","Liczba linii nie ma związku z poprawnością."]</script>
+</div>
+
+<script>
+(function(){
+  var qs=document.querySelectorAll('.q'),done=0,good=0;
+  qs.forEach(function(q){
+    var fb=q.querySelector('.fb'),data=JSON.parse(q.querySelector('.fbdata').textContent),correct=+q.dataset.correct;
+    q.querySelectorAll('button').forEach(function(b,i){
+      b.addEventListener('click',function(){
+        if(q.dataset.answered)return; q.dataset.answered=1; done++;
+        q.querySelectorAll('button').forEach(function(x){x.disabled=true});
+        if(i===correct){b.classList.add('right');good++;fb.innerHTML='<b style="color:var(--ok)">Dobrze.</b> '+data[i];}
+        else{b.classList.add('wrong');q.querySelectorAll('button')[correct].classList.add('right');
+          fb.innerHTML='<b style="color:var(--bad)">Niezupełnie.</b> '+data[i]+'<br><b>Poprawna odpowiedź:</b> '+data[correct];}
+        fb.style.display='block';
+        document.getElementById('score').textContent='Wynik: '+good+' / '+done+' (z '+qs.length+')';
+      });
+    });
+  });
+})();
+</script>
+</main>
+</body>
+</html>
