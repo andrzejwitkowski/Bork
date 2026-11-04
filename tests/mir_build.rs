@@ -85,3 +85,12 @@ fn corpus_builds_and_verifies() {
     let actual: BTreeMap<&str, Vec<&str>> = unsupported.iter().map(|(k, v)| (k.as_str(), v.iter().map(String::as_str).collect())).collect();
     assert_eq!(actual, expected);
 }
+
+/// A call's result sink is the assignment target's arena, not the current one (the codegen
+/// `result_sink ?? sink_arena()` rule); the corpus goldens never exercise it.
+#[test]
+fn call_result_sink_follows_the_assignment_target() {
+    let source = "class P { n: i32 }\nfun id(p: P): P { return p }\nfun main(): i32 {\n    var a = P(1)\n    a = id(P(2))\n    return a.n\n}\n";
+    let text = bork::mir::emit::emit_mir(&check(source)).expect("builds");
+    assert!(text.contains("= call id(") && text.contains("+current +home(_"), "{text}");
+}

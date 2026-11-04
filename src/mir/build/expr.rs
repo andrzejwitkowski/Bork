@@ -90,7 +90,7 @@ impl<'a> FnBuilder<'a> {
         let l = self.expr(lhs)?;
         let r = self.expr(rhs)?;
         if matches!(op, BinOp::Div) && self.tcx.is_integer(e.ty) {
-            // Division by zero aborts; `MIN / -1` is left to the backend (shortcut: M5 lowers it).
+            // shortcut: only division by zero aborts; the signed `MIN / -1` guard is tracked in #237 and must land before #222.
             let zero = self.assign_temp_of(self.bool_ty, Rvalue::Binary(BinOp::Eq, r.clone(), Operand::Const(Const::Int(0))), span);
             let abort = self.new_block();
             let cont = self.new_block();
@@ -152,17 +152,17 @@ impl<'a> FnBuilder<'a> {
         let HirExprKind::Ident { name, .. } = &callee.kind else {
             return Err(BuildError::unsupported(Capability::IndirectCall, span));
         };
-        let mut ops = Vec::with_capacity(args.len());
-        for arg in args {
-            ops.push(self.expr(arg)?);
-        }
+        // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested
+        // temporaries do not land in the destination's arena (`call_gathers_without_sink`).
+        let arg_sink = if builtins::is_print(name) { self.sink.clone() } else { ArenaRef::Current };
+        let ops = self.with_sink(arg_sink, |b| b.exprs(args))?;
         if let Some(abi) = self.abi_of(name) {
             let mut hidden = Vec::new();
             if abi.caller_parent {
                 hidden.push(ArenaRef::Current);
             }
             if abi.result_sink {
-                hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { ArenaRef::Current });
+                hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
             }
             let dest = self.temp(e.ty);
             let target = self.new_block();
