@@ -51,6 +51,11 @@ fn error(message: String, span: Option<Span>) -> Diagnostic {
     Diagnostic { phase: Phase::Type, severity: Severity::Error, message, span, notes: Vec::new() }
 }
 
+/// A note span is printed against the user's file, so a definition from the prelude gets none.
+fn user_span(source: Option<&'static str>, span: Span) -> Option<Span> {
+    source.is_none().then_some(span)
+}
+
 fn mangle(base: &str, tcx: &TyCtx, args: &[TyId]) -> String {
     if args.is_empty() {
         return base.to_string();
@@ -527,11 +532,11 @@ impl<'a> Collector<'a> {
         unnormalized.dedup();
         for message in unnormalized {
             let span = call_span.or(Some(function.name_span));
-            self.diagnostics.push(error(format!("`{}`: {message}", function.name), span).with_note(Some(function.name_span), INSTANTIATED_FROM));
+            self.diagnostics.push(error(format!("`{}`: {message}", function.name), span).with_note(user_span(function.source, function.name_span), INSTANTIATED_FROM));
         }
         for rule in ill_formed {
             let span = call_span.or(Some(function.name_span));
-            self.diagnostics.push(error(format!("`{}`: {rule}", function.name), span).with_note(Some(function.name_span), INSTANTIATED_FROM));
+            self.diagnostics.push(error(format!("`{}`: {rule}", function.name), span).with_note(user_span(function.source, function.name_span), INSTANTIATED_FROM));
         }
     }
 
@@ -643,7 +648,7 @@ impl<'a> Collector<'a> {
             });
             if let Some(rule) = tcx.ill_formed(field_ty) {
                 let message = format!("{what} `{}` of `{}`: {rule}", field.name, tcx.display(ty));
-                self.diagnostics.push(error(message, None).with_note(Some(field.span), "field of a generic type, declared here"));
+                self.diagnostics.push(error(message, None).with_note(user_span(field.source, field.span), "field of a generic type, declared here"));
             }
             class_instances(tcx, field_ty, seen, pending);
             out.push(HirClassField { name: field.name.clone(), ty: field_ty, span: field.span, source: field.source });
