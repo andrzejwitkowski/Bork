@@ -1,0 +1,11 @@
+// diag: returning a reference is not supported
+// at: 5:12
+// A generic function cannot hand a borrow back to its caller (returned borrows: RFC 0005).
+fun pass<T>(x: &T): &T {
+    return x
+}
+
+fun main() {
+    var s = "a"
+    val r = pass(&s)
+}

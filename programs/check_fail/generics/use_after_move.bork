@@ -1,4 +1,5 @@
 // diag: already moved
+// at: 5:18
 fun f<T>(var x: T) {
     val y = move x
     val z = move x

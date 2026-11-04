@@ -1,4 +1,5 @@
 // diag: returning a moved or promoted
+// at: 4:17
 fun id<T>(var x: T): T {
     return move x
 }

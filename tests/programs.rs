@@ -17,6 +17,10 @@ struct Directives {
     exit: Option<i32>,
     stdout: Option<String>,
     diag: Vec<String>,
+    /// `// at: LINE:COL`: an error is reported at exactly this position.
+    at: Vec<String>,
+    /// `// note-at: LINE:COL`: a note is reported at exactly this position.
+    note_at: Vec<String>,
 }
 
 fn programs_root() -> PathBuf {
@@ -53,6 +57,10 @@ fn parse_directives(source: &str) -> Directives {
             d.stdout = Some(s);
         } else if let Some(v) = rest.strip_prefix("diag:") {
             d.diag.push(v.trim().to_string());
+        } else if let Some(v) = rest.strip_prefix("at:") {
+            d.at.push(v.trim().to_string());
+        } else if let Some(v) = rest.strip_prefix("note-at:") {
+            d.note_at.push(v.trim().to_string());
         }
     }
     d
@@ -120,6 +128,19 @@ fn programs_corpus_check_and_check_fail() {
                     assert!(
                         stderr.contains(needle),
                         "{}: stderr missing `{needle}`:\n{stderr}",
+                        path.display()
+                    );
+                }
+                for (position, kind, wanted) in expect
+                    .at
+                    .iter()
+                    .map(|p| (p, "error", ":{}: error"))
+                    .chain(expect.note_at.iter().map(|p| (p, "note", ":{}: note")))
+                {
+                    let needle = wanted.replace("{}", position);
+                    assert!(
+                        stderr.contains(&needle),
+                        "{}: no {kind} at {position} (looked for `{needle}`):\n{stderr}",
                         path.display()
                     );
                 }

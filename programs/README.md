@@ -38,6 +38,8 @@ The same topic names exist under `check/` and `check_fail/` where it makes sense
 // exit: 42
 // stdout: line\n
 // diag: substring expected in stderr (fail suites)
+// at: LINE:COL        an error is reported at exactly this position (check_fail)
+// note-at: LINE:COL   a note is reported at exactly this position (check_fail)
 ```
 
 ## Run
