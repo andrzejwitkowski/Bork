@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: 7\n
+// Regression: a body with an early `return` and another exit path must pop its arena on both; 200000
+// calls used to leak ~4 KB each.
+fun f(a: &rw [i32; 3], n: i32) {
+    if (n > 0) {
+        return
+    }
+    a[0] = 7
+}
+
+fun main(): i32 {
+    var x: [i32; 3] = [1, 2, 3]
+    var i = 0
+    while (i < 200000) {
+        f(&rw x, 0)
+        i = i + 1
+    }
+    val r = x[0..3]
+    println(r[0])
+    return 0
+}

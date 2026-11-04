@@ -53,6 +53,7 @@ fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) 
         severity: Severity::Error,
         message: message.to_owned(),
         span,
+        notes: Vec::new(),
     });
 }
 

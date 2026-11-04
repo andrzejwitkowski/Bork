@@ -1,4 +1,5 @@
 // diag: `f<P>`: `Vec` element must be a Copy type
+// diag: instantiated from this generic definition
 class P {
     n: i32
 }

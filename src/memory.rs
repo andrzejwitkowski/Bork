@@ -155,6 +155,7 @@ impl<'t> Planner<'t> {
                 severity: Severity::Error,
                 message: "record allocation has no source location".into(),
                 span: None,
+                notes: Vec::new(),
             });
             return Origins::default();
         };

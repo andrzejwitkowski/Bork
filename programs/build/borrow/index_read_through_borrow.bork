@@ -1,0 +1,12 @@
+// exit: 0
+// stdout: 5\n
+// Regression: `a[0]` on a `&[i32; 3]` parameter reads the element.
+fun first(a: &[i32; 3]): i32 {
+    return a[0]
+}
+
+fun main(): i32 {
+    var a: [i32; 3] = [5, 6, 7]
+    println(first(&a))
+    return 0
+}

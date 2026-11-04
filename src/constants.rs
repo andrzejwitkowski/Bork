@@ -150,5 +150,6 @@ fn error(message: String, span: Span) -> Diagnostic {
         severity: Severity::Error,
         message,
         span: Some(span),
+        notes: Vec::new(),
     }
 }

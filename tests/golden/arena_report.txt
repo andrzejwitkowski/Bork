@@ -25,11 +25,47 @@ Arenas
 Arenas
 └── fun main
     └── x [Local]
+== programs/build/borrow/alloc_after_early_return.bork
+Arenas
+├── fun build
+│   ├── a [Borrow ← call site]
+│   ├── n [Local]
+│   ├── s [Local]
+│   ├── t [Local]
+│   └── IfThen
+└── fun main
+    ├── a [Local]
+    ├── r [Local]
+    ├── total [Local]
+    ├── rep [Local]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── a [Borrow ← fun main]
+        └── rep [Copy]
 == programs/build/borrow/array_slice.bork
 Arenas
 └── fun main
     ├── a [Local]
     └── b [Local]
+== programs/build/borrow/early_return_arena_no_leak.bork
+Arenas
+├── fun f
+│   ├── a [Borrow ← call site]
+│   ├── n [Local]
+│   └── IfThen
+└── fun main
+    ├── x [Local]
+    ├── i [Local]
+    ├── r [Local]
+    └── WhileLoop
+        ├── x [Borrow ← fun main]
+        └── i [Copy]
+== programs/build/borrow/index_read_through_borrow.bork
+Arenas
+├── fun first
+│   └── a [Borrow ← call site]
+└── fun main
+    └── a [Local]
 == programs/build/borrow/reborrow_in_for.bork
 Arenas
 ├── fun bump
@@ -53,6 +89,38 @@ Arenas
 │       └── buf [Borrow ← fun outer]
 └── fun main
     └── a [Local]
+== programs/build/borrow/reborrow_in_loop.bork
+Arenas
+├── fun inner
+│   └── a [Borrow ← call site]
+├── fun outer
+│   ├── a [Borrow ← call site]
+│   ├── n [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── a [Borrow ← fun outer]
+│       └── i [Copy]
+└── fun main
+    ├── x [Local]
+    └── r [Local]
+== programs/build/borrow/reborrow_in_loop_generic.bork
+Arenas
+├── fun inner
+│   ├── a [Borrow ← call site]
+│   └── tag [Borrow ← call site]
+├── fun outer
+│   ├── a [Borrow ← call site]
+│   ├── tag [Borrow ← call site]
+│   ├── n [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── a [Borrow ← fun outer]
+│       ├── tag [Borrow ← fun outer]
+│       └── i [Copy]
+└── fun main
+    ├── x [Local]
+    ├── name [Local]
+    └── r [Local]
 == programs/build/borrow/reference_in_while.bork
 Arenas
 ├── fun bump
@@ -1025,6 +1093,38 @@ Arenas
     └── Block
         ├── n [Local]
         └── keep [Local]
+== programs/build/generics/tree_regions.bork
+Arenas
+└── fun main
+    ├── code [Local]
+    ├── leaf [Local]
+    ├── leaf_ref [Local]
+    ├── s0 [Local]
+    ├── w0 [Local]
+    ├── parent [Local]
+    ├── held [Local]
+    ├── total [Local]
+    ├── i [Local]
+    ├── IfThen
+    ├── Block
+    │   ├── inner [Local]
+    │   ├── inner_ref [Local]
+    │   ├── is0 [Local]
+    │   ├── iw0 [Local]
+    │   ├── staging [Local]
+    │   ├── staging [Moved ← Block]
+    │   ├── IfThen
+    │   ├── IfThen
+    │   └── IfThen
+    ├── WhileLoop
+    │   ├── item [Local]
+    │   ├── held [Borrow ← fun main]
+    │   ├── i [Copy]
+    │   └── IfValSome
+    │       ├── node [Borrow ← presence guard]
+    │       └── total [Copy]
+    ├── IfThen
+    └── IfThen
 == programs/build/loops/for_nested.bork
 Arenas
 └── fun main
@@ -4308,8 +4408,14 @@ Arenas
 ├── fun f
 │   └── x [Moved ← fun f]
 └── fun main
+== programs/check_fail/generics/ref_field_of_non_class.bork
+Type Error [] field `r` of `Holder<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
+Arenas
+└── fun main
+    ├── h [Local]
+    └── n [Local]
 == programs/check_fail/generics/ref_of_non_class.bork
-Type Error [135..136] `g<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
+Type Error [186..187] `g<i32>`: managed Ref target must be a non-nullable class or enum, got `i32`
 Arenas
 ├── fun g
 │   └── x [Local]
@@ -4355,7 +4461,7 @@ Arenas
 │   └── z [Local]
 └── fun main
 == programs/check_fail/generics/vec_of_class.bork
-Type Error [131..132] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
+Type Error [182..183] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
 Arenas
 ├── fun f
 │   ├── x [Local]

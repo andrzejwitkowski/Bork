@@ -308,6 +308,9 @@ programs/build/generics/list_node.bork: 520..524 Node Dynamic Program
 programs/build/generics/pair.bork: 285..289 Pair Dynamic Program
 programs/build/generics/pair.bork: 312..316 Pair Dynamic Program
 programs/build/generics/ref_cleanup.bork: 352..355 Box Dynamic Program
+programs/build/generics/tree_regions.bork: 691..695 Node Dynamic Program
+programs/build/generics/tree_regions.bork: 951..955 Node Lexical LexicalScope(0)
+programs/build/generics/tree_regions.bork: 1237..1241 Node Dynamic Program
 programs/build/managed_refs/cache_manager_graph.bork: 380..392 CacheManager Dynamic LexicalScope(1)
 programs/build/managed_refs/cache_manager_graph.bork: 424..428 Node Dynamic Program
 programs/build/managed_refs/cache_manager_graph.bork: 468..472 Node Dynamic Program

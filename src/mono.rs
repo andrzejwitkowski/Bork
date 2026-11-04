@@ -25,6 +25,9 @@ const MAX_TYPE_DEPTH: usize = 32;
 /// of depth 32 would print as billions of names.
 const MAX_TYPE_SIZE: usize = 4096;
 
+/// Note text on an instantiation error; its span is the generic function's name.
+const INSTANTIATED_FROM: &str = "instantiated from this generic definition";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instance {
     /// Mangled name, e.g. `id<i32>`; a non-generic function keeps its own name.
@@ -45,7 +48,12 @@ pub struct Mono {
 }
 
 fn error(message: String, span: Option<Span>) -> Diagnostic {
-    Diagnostic { phase: Phase::Type, severity: Severity::Error, message, span }
+    Diagnostic { phase: Phase::Type, severity: Severity::Error, message, span, notes: Vec::new() }
+}
+
+/// A note span is printed against the user's file, so a definition from the prelude gets none.
+fn user_span(source: Option<&'static str>, span: Span) -> Option<Span> {
+    source.is_none().then_some(span)
 }
 
 fn mangle(base: &str, tcx: &TyCtx, args: &[TyId]) -> String {
@@ -406,11 +414,17 @@ pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
     collect_instances(hir, tcx).err().unwrap_or_default()
 }
 
-type Collected<'a> = (Collector<'a>, Vec<HirFunction>, Vec<HirClass>, Vec<HirEnum>);
+/// The region half: runs `bork build`'s escape and memory planning on every instance, so `bork check`
+/// rejects what the build would. `hir` must already carry the hoisting annotations, as `build`'s does.
+pub fn check_instance_regions(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Vec<Diagnostic> {
+    monomorphize(hir, tcx, report).err().unwrap_or_default()
+}
 
 fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collected<'a>, Vec<Diagnostic>> {
     collect_from(hir, tcx, false)
 }
+
+type Collected<'a> = (Collector<'a>, Vec<HirFunction>, Vec<HirClass>, Vec<HirEnum>);
 
 fn collect_from<'a>(hir: &'a HirProgram, tcx: &mut TyCtx, every_function: bool) -> Result<Collected<'a>, Vec<Diagnostic>> {
     let mut collector = Collector::new(hir);
@@ -517,11 +531,12 @@ impl<'a> Collector<'a> {
         }
         unnormalized.dedup();
         for message in unnormalized {
-            self.diagnostics.push(error(format!("`{}`: {message}", function.name), call_span.or(Some(function.name_span))));
+            let span = call_span.or(Some(function.name_span));
+            self.diagnostics.push(error(format!("`{}`: {message}", function.name), span).with_note(user_span(function.source, function.name_span), INSTANTIATED_FROM));
         }
         for rule in ill_formed {
             let span = call_span.or(Some(function.name_span));
-            self.diagnostics.push(error(format!("`{}`: {rule}", function.name), span));
+            self.diagnostics.push(error(format!("`{}`: {rule}", function.name), span).with_note(user_span(function.source, function.name_span), INSTANTIATED_FROM));
         }
     }
 
@@ -633,7 +648,7 @@ impl<'a> Collector<'a> {
             });
             if let Some(rule) = tcx.ill_formed(field_ty) {
                 let message = format!("{what} `{}` of `{}`: {rule}", field.name, tcx.display(ty));
-                self.diagnostics.push(error(message, None));
+                self.diagnostics.push(error(message, None).with_note(user_span(field.source, field.span), "field of a generic type, declared here"));
             }
             class_instances(tcx, field_ty, seen, pending);
             out.push(HirClassField { name: field.name.clone(), ty: field_ty, span: field.span, source: field.source });

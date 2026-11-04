@@ -671,6 +671,7 @@ fn type_error(message: impl Into<String>, span: Option<Span>) -> Diagnostic {
         severity: Severity::Error,
         message: message.into(),
         span,
+        notes: Vec::new(),
     }
 }
 

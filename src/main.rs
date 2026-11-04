@@ -159,19 +159,19 @@ fn read_source(path: &str) -> String {
 }
 
 fn print_diagnostics(path: &str, source: &str, diagnostics: &[Diagnostic]) {
+    let at = |span: Option<bork::span::Span>| match span {
+        Some(span) => {
+            let before = &source[..span.start.min(source.len())];
+            let line = before.matches('\n').count() + 1;
+            let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+            format!("{path}:{line}:{col}")
+        }
+        None => path.to_string(),
+    };
     for diag in diagnostics {
-        match diag.span {
-            Some(span) => {
-                let end = span.start.min(source.len());
-                let before = &source[..end];
-                let line = before.matches('\n').count() + 1;
-                let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
-                eprintln!(
-                    "{path}:{line}:{col}: error: {}: {}",
-                    diag.phase, diag.message
-                );
-            }
-            None => eprintln!("{path}: error: {}: {}", diag.phase, diag.message),
+        eprintln!("{}: error: {}: {}", at(diag.span), diag.phase, diag.message);
+        for note in &diag.notes {
+            eprintln!("{}: note: {}", at(note.span), note.message);
         }
     }
 }

@@ -1,4 +1,5 @@
 // diag: `g<i32>`: managed Ref target must be a non-nullable class
+// diag: instantiated from this generic definition
 fun g<T>(x: T): Ref<T> {
     return None
 }

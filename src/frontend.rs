@@ -95,6 +95,9 @@ pub fn check(source: &str) -> CheckResult {
         for function in &program.functions {
             crate::escape::check_function(function, &tcx, &mut diagnostics);
         }
+        if diagnostics.is_empty() && has_generics(&program) {
+            diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report));
+        }
         if diagnostics.is_empty() {
             let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &tcx, &report);
             diagnostics.append(&mut plan_diagnostics);
@@ -175,6 +178,14 @@ fun main() {
             .iter()
             .any(|d| d.phase == Phase::Ownership));
         assert!(result.hir.is_none());
+    }
+
+    #[test]
+    fn instantiation_error_notes_the_generic_definition() {
+        let result = check("fun g<T>(x: T): Ref<T> {\n    return None\n}\nfun main(): i32 {\n    val r = g(1)\n    return 0\n}\n");
+        let error = result.diagnostics.iter().find(|d| d.message.contains("managed Ref target")).expect("instance error");
+        assert_eq!(error.notes.len(), 1, "{error:?}");
+        assert!(error.notes[0].span.is_some() && error.notes[0].message.contains("generic definition"));
     }
 
     #[test]

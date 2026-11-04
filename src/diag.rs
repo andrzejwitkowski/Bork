@@ -34,6 +34,24 @@ pub struct Diagnostic {
     pub severity: Severity,
     pub message: String,
     pub span: Option<Span>,
+    /// Secondary locations, e.g. the generic definition behind an instantiation error.
+    pub notes: Vec<Note>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Note {
+    pub span: Option<Span>,
+    pub message: String,
+}
+
+impl Diagnostic {
+    pub fn with_note(mut self, span: Option<Span>, message: impl Into<String>) -> Self {
+        self.notes.push(Note {
+            span,
+            message: message.into(),
+        });
+        self
+    }
 }
 
 pub fn from_sema(err: &SemaError) -> Diagnostic {
@@ -42,6 +60,7 @@ pub fn from_sema(err: &SemaError) -> Diagnostic {
         severity: Severity::Error,
         message: err.message.clone(),
         span: err.span,
+        notes: Vec::new(),
     }
 }
 
@@ -84,6 +103,7 @@ pub fn from_parse(source: &str, err: &crate::Error) -> Diagnostic {
         severity: Severity::Error,
         message,
         span: Some(span),
+        notes: Vec::new(),
     }
 }
 

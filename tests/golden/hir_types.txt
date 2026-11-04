@@ -4,13 +4,25 @@ programs/build/basics/nested_i64.bork::main() -> i32
 programs/build/basics/println_string.bork::main() -> unit
 programs/build/basics/return_constant.bork::main() -> i32
 programs/build/basics/unit_main.bork::main() -> unit
+programs/build/borrow/alloc_after_early_return.bork::build(a: &[i32; 8], n: i32) -> i32
+programs/build/borrow/alloc_after_early_return.bork::main() -> i32
 programs/build/borrow/array_slice.bork::main() -> i32
+programs/build/borrow/early_return_arena_no_leak.bork::f(a: &rw [i32; 3], n: i32) -> unit
+programs/build/borrow/early_return_arena_no_leak.bork::main() -> i32
+programs/build/borrow/index_read_through_borrow.bork::first(a: &[i32; 3]) -> i32
+programs/build/borrow/index_read_through_borrow.bork::main() -> i32
 programs/build/borrow/reborrow_in_for.bork::bump(buf: &rw [i32; 2]) -> unit
 programs/build/borrow/reborrow_in_for.bork::outer(buf: &rw [i32; 2]) -> unit
 programs/build/borrow/reborrow_in_for.bork::main() -> i32
 programs/build/borrow/reborrow_in_if.bork::set_head(buf: &rw [i32; 2], v: i32) -> unit
 programs/build/borrow/reborrow_in_if.bork::outer(buf: &rw [i32; 2], flag: bool) -> unit
 programs/build/borrow/reborrow_in_if.bork::main() -> i32
+programs/build/borrow/reborrow_in_loop.bork::inner(a: &rw [i32; 3]) -> unit
+programs/build/borrow/reborrow_in_loop.bork::outer(a: &rw [i32; 3], n: i32) -> unit
+programs/build/borrow/reborrow_in_loop.bork::main() -> i32
+programs/build/borrow/reborrow_in_loop_generic.bork::inner(a: &rw [i32; 3], tag: &T0) -> unit
+programs/build/borrow/reborrow_in_loop_generic.bork::outer(a: &rw [i32; 3], tag: &T0, n: i32) -> unit
+programs/build/borrow/reborrow_in_loop_generic.bork::main() -> i32
 programs/build/borrow/reference_in_while.bork::bump(buf: &rw [i32; 2]) -> unit
 programs/build/borrow/reference_in_while.bork::main() -> i32
 programs/build/borrow/reference_index_read.bork::first(buf: &[i32; 3]) -> i32
@@ -177,6 +189,7 @@ programs/build/generics/pair.bork::main() -> i32
 programs/build/generics/pair.bork::Pair.first(this: &Pair<T0, T1>) -> T0
 programs/build/generics/pair.bork::Pair.with(this: &Pair<T0, T1>, c: T2) -> T2
 programs/build/generics/ref_cleanup.bork::main() -> i32
+programs/build/generics/tree_regions.bork::main() -> i32
 programs/build/loops/for_nested.bork::main() -> i32
 programs/build/loops/for_sum.bork::main() -> i32
 programs/build/loops/while_accumulate.bork::main() -> i32
