@@ -52,12 +52,13 @@ impl<'a> FnBuilder<'a> {
             }
             HirStmt::Assign { target, value } => match target {
                 HirAssignTarget::Name { name } => {
-                    let v = self.expr(value)?;
                     let local = self.lookup(name).ok_or_else(|| BuildError::not_yet(format!("name `{name}`"), span))?;
+                    let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
                     self.stmt(StmtKind::Assign(Place::local(local), Rvalue::Use(v)), span, Some(value.id));
                     Ok(())
                 }
-                _ => Err(BuildError::not_yet("indexed or field assignment", span)),
+                HirAssignTarget::Index { name, index } => self.assign_index(name, index, value, span),
+                HirAssignTarget::Field { .. } => Err(BuildError::not_yet("field assignment", span)),
             },
             HirStmt::Expr(e) => self.expr(e).map(|_| ()),
             HirStmt::While { cond, body } => self.while_loop(cond, body, span),

@@ -26,6 +26,12 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
             HirExprKind::Call { callee, args, has_trailing_closure } => self.call(e, callee, args, *has_trailing_closure),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
+            HirExprKind::Index { receiver, index, .. } => self.index(e, receiver, index),
+            HirExprKind::Slice { receiver, lo, hi } => self.slice(e, receiver, lo, hi),
+            HirExprKind::Field { receiver, name, safe } => self.field(e, receiver, name, *safe),
+            HirExprKind::VecNew { cap, .. } => self.vec_new(e, cap.as_deref()),
+            HirExprKind::VecOp { op, receiver, args } => self.vec_op_expr(e, *op, receiver, args),
+            HirExprKind::ArrayLit { elements } => self.array_lit(e, elements),
             other => Err(BuildError::not_yet(format!("expression {}", kind_name(other)), span)),
         }
     }
@@ -107,6 +113,12 @@ impl<'a> FnBuilder<'a> {
                 let v = self.expr(inner)?;
                 Ok(self.assign_temp(e, Rvalue::Unary(MirUnOp::Not, v)))
             }
+            UnaryOp::Borrow { rw } => {
+                let src = self.place_of(inner)?;
+                let dst = self.temp(e.ty);
+                self.stmt(StmtKind::Borrow { dst: Place::local(dst), src, rw: *rw }, span_of(e), Some(e.id));
+                Ok(Operand::Copy(Place::local(dst)))
+            }
             _ => Err(BuildError::not_yet(format!("unary {op:?}"), span_of(e))),
         }
     }
@@ -150,8 +162,15 @@ impl<'a> FnBuilder<'a> {
                 (false, true) => IntrinsicOp::PrintStr,
                 (true, true) => IntrinsicOp::PrintlnStr,
             };
-            self.stmt(StmtKind::Intrinsic { dst: None, op, args: ops }, span, Some(e.id));
+            self.stmt(StmtKind::Intrinsic { dst: None, op, args: ops, arena: None }, span, Some(e.id));
             return Ok(Operand::Const(Const::Unit));
+        }
+        if builtins::is_string_alloc(name) {
+            let op = if builtins::is_concat(name) { IntrinsicOp::Concat } else { IntrinsicOp::StringFromUtf8 };
+            let dst = self.temp(e.ty);
+            let arena = Some(self.sink.clone());
+            self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(dst)), op, args: ops, arena }, span, Some(e.id));
+            return Ok(Operand::Copy(Place::local(dst)));
         }
         Err(BuildError::not_yet(format!("call of `{name}`"), span))
     }

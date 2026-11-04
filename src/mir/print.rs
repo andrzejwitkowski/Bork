@@ -138,7 +138,10 @@ fn stmt(k: &StmtKind, tcx: &TyCtx) -> String {
         StmtKind::VecOp { dst, op: o, receiver, args } => {
             format!("{}vec_{o:?}({}{})", dst_prefix(dst), op(receiver), args.iter().map(|a| format!(", {}", op(a))).collect::<String>())
         }
-        StmtKind::Intrinsic { dst, op: o, args } => format!("{}intrinsic {o:?}({})", dst_prefix(dst), ops(args)),
+        StmtKind::Intrinsic { dst, op: o, args, arena: a } => {
+            let a = a.as_ref().map(|a| format!(" in {}", arena(a))).unwrap_or_default();
+            format!("{}intrinsic {o:?}({}){a}", dst_prefix(dst), ops(args))
+        }
         StmtKind::StorageLive(l) => format!("storage_live _{}", l.0),
         StmtKind::StorageDead(l) => format!("storage_dead _{}", l.0),
     }

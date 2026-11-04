@@ -6,6 +6,7 @@
 //! never, arms in order).
 
 mod expr;
+mod place;
 mod stmt;
 
 use std::collections::HashMap;
@@ -99,6 +100,8 @@ pub(super) struct FnBuilder<'a> {
     ret: Local,
     pub(super) unit: TyId,
     pub(super) bool_ty: TyId,
+    /// Arena that fresh payloads are allocated in (`alloc_sink` in the LLVM emitter).
+    pub(super) sink: ArenaRef,
 }
 
 impl<'a> FnBuilder<'a> {
@@ -127,6 +130,7 @@ impl<'a> FnBuilder<'a> {
             ret: Local(0),
             unit: tcx.prim_id(Prim::Unit),
             bool_ty: tcx.prim_id(Prim::Bool),
+            sink: ArenaRef::Current,
         }
     }
 
@@ -330,6 +334,13 @@ impl<'a> FnBuilder<'a> {
 
     pub(super) fn pop_scope(&mut self) {
         self.scopes.pop();
+    }
+
+    pub(super) fn with_sink<T>(&mut self, sink: ArenaRef, f: impl FnOnce(&mut Self) -> Res<T>) -> Res<T> {
+        let saved = std::mem::replace(&mut self.sink, sink);
+        let r = f(self);
+        self.sink = saved;
+        r
     }
 
     pub(super) fn abi_of(&self, name: &str) -> Option<CallAbi> {
