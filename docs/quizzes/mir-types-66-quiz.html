@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bork: typy MIR, drukarka i weryfikator (#66, M2a)</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5b6475; --bg:#fbfaf7; --card:#fff; --line:#dcd8cf; --accent:#2f5d9e; --ok:#1f7a4d; --bad:#b3372e; --warn:#fff4d6; --info:#e8f0fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.65 Georgia, "Times New Roman", serif; }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 2em; line-height:1.2; margin: .4em 0 .2em; }
+  h2 { margin-top: 2.2em; padding-top: .6em; border-top: 1px solid var(--line); font-size: 1.5em; }
+  h3 { margin-top: 1.6em; font-size: 1.15em; }
+  .sub { color: var(--muted); font-style: italic; }
+  nav.toc { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 10px 22px; margin: 22px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 20px; }
+  a { color: var(--accent); }
+  code { font: .88em/1.4 ui-monospace, Menlo, Consolas, monospace; background:#efece4; padding: 1px 5px; border-radius: 4px; }
+  pre { background:#1e2330; color:#e9eaf0; padding: 14px 16px; border-radius: 8px; overflow-x:auto; font: 13.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre; }
+  pre .add { color:#8fe0a8; } pre .del { color:#f4a09a; } pre .cm { color:#9aa3b8; }
+  .callout { border-left: 4px solid var(--accent); background: var(--info); padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color:#d9a300; background: var(--warn); }
+  .callout b.t { display:block; font-size:.8em; letter-spacing:.06em; text-transform: uppercase; color: var(--muted); }
+  details.skip { background: var(--card); border:1px solid var(--line); border-radius: 8px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor:pointer; font-weight:bold; }
+  .flow { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin: 18px 0; }
+  .box { flex:1 1 150px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:.9em; }
+  .box h4 { margin:0 0 6px; font-size:.78em; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+  .box code { display:block; background:none; padding:0; margin:2px 0; white-space: pre-wrap; }
+  .arrow { align-self:center; font-size:1.4em; color:var(--muted); }
+  .box.err { border-color: var(--bad); background:#fdf1ef; }
+  .box.good { border-color: var(--ok); background:#eef8f2; }
+  table.st { border-collapse: collapse; width:100%; margin: 14px 0; font-size:.92em; background:var(--card); }
+  table.st th, table.st td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align: top; }
+  table.st th { background:#f1eee6; }
+  table.st td code { white-space: pre-wrap; }
+  .tag { display:inline-block; font:12px ui-monospace,monospace; padding:1px 7px; border-radius: 10px; background:#e5e1d6; }
+  .tag.ok { background:#d8f0e2; color:#145a37; } .tag.bad { background:#f8d9d5; color:#8a2a22; }
+  .q { background:var(--card); border:1px solid var(--line); border-radius:8px; padding: 12px 16px; margin: 18px 0; }
+  .q p { margin: 4px 0 10px; font-weight: bold; }
+  .q button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 12px; border:1px solid var(--line); background:#fff; border-radius:6px; font: inherit; font-size:.92em; cursor:pointer; }
+  .q button:hover { background:#f3f1ea; }
+  .q button.right { background:#d8f0e2; border-color: var(--ok); }
+  .q button.wrong { background:#f8d9d5; border-color: var(--bad); }
+  .q .fb { display:none; margin-top:8px; font-size:.92em; }
+  .q .fb.show { display:block; }
+  #score { font-weight:bold; }
+  @media (max-width: 560px) { body { font-size:16px; } .arrow { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Jak wygląda MIR: typy, drukarka i weryfikator</h1>
+<p class="sub">Wyjaśnienie PR #234 (branch <code>feat/66-mir-types</code>, krok M2a z RFC 0006, część #66): dane MIR, zapis tekstowy, weryfikator v0 i uzgodnienie tabeli operacji z kodem runtime. Nic jeszcze nie buduje MIR z programu.</p>
+
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#tlo">Tło</a></li>
+    <li><a href="#intuicja">Intuicja</a></li>
+    <li><a href="#kod">Kod krok po kroku</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<h2 id="tlo">1. Tło</h2>
+<details class="skip"><summary>Dla początkujących: czym jest MIR i graf przepływu (można pominąć)</summary>
+<p>Kompilator zwykle tłumaczy program przez kilka języków pośrednich. <em>MIR</em> to taki język: prostszy od drzewa składni, bliższy maszynie. Funkcja jest w nim podzielona na <em>bloki</em>. Każdy blok to ciąg prostych instrukcji i jedna instrukcja końcowa (skok, wywołanie, powrót). Połączone skokami bloki tworzą <em>graf przepływu sterowania</em> (CFG). Dzięki temu pętle, <code>break</code> i <code>return</code> są po prostu krawędziami w grafie.</p>
+<div class="flow">
+  <div class="box"><h4>bb0</h4><code>region_enter r0
+x = ...</code></div><div class="arrow">→</div>
+  <div class="box"><h4>bb1 (pętla)</h4><code>region_reset r0</code></div><div class="arrow">→</div>
+  <div class="box"><h4>bb2</h4><code>region_exit r0
+return</code></div>
+</div></details>
+<h3>Stan przed zmianą</h3>
+<p>RFC 0006 przenosi decyzje o własności, regionach i układzie z wielu przejść po HIR oraz z emisji LLVM do jednego MIR. Krok M1 (#232) dał moduł układu typów. Brakowało samego MIR: jego typów, sposobu na obejrzenie go i sprawdzenia, że jest poprawny.</p>
+<div class="callout"><b class="t">Cel M2a</b>Zdefiniować typy MIR, ich zapis tekstowy i weryfikator, oraz uzgodnić listę operacji w RFC z tym, co naprawdę robi runtime. Budowanie MIR z HIR (<code>build.rs</code>) i flaga <code>--emit-mir</code> to osobny PR (M2b).</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+<h3>Operacje, które mówią, w której arenie działają</h3>
+<p>Najważniejsza zmiana względem dzisiejszego kodu: każda operacja, która alokuje, <strong>nazywa arenę wprost</strong> (<code>ArenaRef</code>), zamiast polegać na ukrytym stosie „bieżącej areny” w emiterze. Dzięki temu analizy mogą czytać, gdzie co leży, bez uruchamiania emisji.</p>
+<table class="st">
+<tr><th>Rodzina</th><th>Przykłady</th></tr>
+<tr><td>Obliczenia</td><td><code>Assign(place, Binary / Aggregate / Len / Slice)</code></td></tr>
+<tr><td>Pamięć i areny</td><td><code>Alloc</code>, <code>CopyInto</code>, <code>Promote</code>, <code>ArenaCreateDynamic</code>, <code>RegisterDrop</code></td></tr>
+<tr><td>Referencje <code>Ref</code></td><td><code>Create</code>, <code>Clone</code>, <code>MoveOut</code>, <code>Store</code>, <code>Rehome</code>, <code>Drop</code>, <code>Count</code>, <code>IsNone</code></td></tr>
+<tr><td>Regiony</td><td><code>RegionEnter</code>, <code>RegionExit</code>, <code>RegionReset</code></td></tr>
+<tr><td>Zakończenia bloków</td><td><code>Goto</code>, <code>Switch</code>, <code>Match</code>, <code>Call</code>, <code>Return</code>, <code>Unreachable</code>, <code>Abort</code></td></tr>
+</table>
+<h3>Zaskoczenie z czytania runtime'u: reset areny zwraca nową arenę</h3>
+<p>Funkcja <code>bork_arena_reset</code> niszczy arenę i zwraca <em>nowy</em> token. Gdyby MIR traktował region jako stałą, wyjście z pętli zwalniałoby nieaktualną arenę. Dlatego arena regionu jest w MIR <strong>lokalem</strong> (<code>RegionArena</code>), a <code>RegionReset</code> go przypisuje na krawędzi powrotnej pętli.</p>
+<div class="flow">
+  <div class="box"><h4>wejście</h4><code>region_enter r0</code></div><div class="arrow">→</div>
+  <div class="box"><h4>krawędź powrotna</h4><code>_2 = region_reset r0</code></div><div class="arrow">→</div>
+  <div class="box good"><h4>wyjście</h4><code>region_exit r0 (pop najnowszego _2)</code></div>
+</div>
+<div class="callout warn"><b class="t">Tylko gdy działa</b>Weryfikator na razie sprawdza, że <code>region_reset</code> jest wewnątrz swojego regionu i zapisuje do lokala <code>RegionArena</code>. Pełne sprawdzenie, że żadna ścieżka nie zwalnia nieaktualnego tokenu, wymaga prawdziwych ciał z <code>build.rs</code>.</div>
+<h3>Weryfikator: jedna zgodna historia na każdej ścieżce</h3>
+<p>Weryfikator chodzi po grafie w głąb i do każdego bloku dochodzi z pewnym stanem: stosem otwartych regionów i zbiorem żywych tymczasowych <code>Ref</code>. Jeśli dwie ścieżki dochodzą do jednego bloku z różnym stanem, to błąd. Każdy tymczasowy <code>Ref</code> musi być zdefiniowany i zużyty dokładnie raz (zapisany, przeniesiony, przeniesiony do nowego właściciela albo zwolniony).</p>
+
+<h2 id="kod">3. Kod krok po kroku</h2>
+<h3>1. RFC 0006, sekcja 3.2.2</h3>
+<p>Wynik czytania <code>bork_runtime</code> i hooków debug: dodane <code>RefIsNone</code>, powody <code>Abort</code>, osobne zrzucanie obserwacji (nie jako wariant <code>DropGlue</code>), pola <code>DebugLabel</code> oraz uwaga, że <code>StorageLive/Dead</code> ma skutki w runtime i musi być na każdej krawędzi wyjścia.</p>
+<h3>2. <code>src/mir/body.rs</code></h3>
+<p>Dane: <code>Local</code>, <code>Place</code> z projekcjami, <code>Operand</code> (<code>Copy</code>/<code>Move</code>/<code>Reborrow</code>/<code>Const</code>), <code>ArenaRef</code>, <code>StmtKind</code>, <code>TermKind</code>, <code>MirPat</code>, <code>Body</code>. Metody <code>walk</code> wyliczają, jakie lokale, operandy i areny dana instrukcja dotyka, żeby weryfikator i przyszłe analizy nie powtarzały tej listy.</p>
+<h3>3. <code>capability.rs</code></h3>
+<p>Dziewięć nazw konstrukcji, których MIR jeszcze nie obsługuje (<code>closure</code>, <code>match-ref</code>, <code>pat-presence</code>, <code>move-aggregate</code>, <code>field-access</code>, <code>safe-field-enum</code>, <code>indirect-call</code>, <code>unit-elem</code>, <code>unit-payload-bind</code>). Przyszła brama będzie pytać o nie zamiast trzymać listę odrzuconych kształtów.</p>
+<h3>4. <code>print.rs</code> i <code>verify.rs</code></h3>
+<pre>fn f (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref&lt;i32&gt; [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = ref_create source=current target=root 0
+    ref_drop move _1
+    region_exit r0
+    return
+}</pre>
+<p>Drukarka pomija spany, żeby zmiana w nieistotnym fragmencie źródła nie zmieniała złotych plików. Weryfikator zwraca listę błędów (<code>verify</code>) albo panikuje jako wewnętrzny błąd kompilatora (<code>verify_or_panic</code>).</p>
+<div class="callout warn"><b class="t">Czego jeszcze nie ma</b>Nie sprawdza przepływu inicjalizacji i przeniesień, zawierania się czasu życia areny ani parowania <code>StorageLive</code> i <code>StorageDead</code>. Typy są sprawdzone tylko na ciałach budowanych ręcznie w testach i mogą się zmienić przy <code>build.rs</code>.</div>
+
+<h2 id="quiz">4. Quiz <span id="score" class="tag">Wynik: 0 / 0 (z 5)</span></h2>
+
+<div class="q" data-correct="1"><p>1. Dlaczego każda operacja alokująca w MIR nazywa arenę wprost (<code>ArenaRef</code>)?</p>
+<button>Żeby generowany kod był szybszy.</button>
+<button>Żeby analizy mogły czytać, gdzie co leży, bez ukrytego stosu „bieżącej areny” z emitera.</button>
+<button>Bo LLVM tego wymaga.</button>
+<button>Żeby zmniejszyć liczbę bloków.</button>
+<div class="fb">Dziś wybór areny jest dynamicznym stanem emitera (zapisz i przywróć). W MIR jest jawnym operandem, więc weryfikator i analizy widzą go w danych.</div></div>
+
+<div class="q" data-correct="1"><p>2. Co zmieniło się w modelu <code>RegionReset</code> po przeczytaniu runtime'u?</p>
+<button>Reset nic nie zwraca, więc model się nie zmienił.</button>
+<button><code>bork_arena_reset</code> zwraca nowy token areny, więc arena regionu jest lokalem, który reset przypisuje.</button>
+<button>Reset usuwa region z drzewa regionów.</button>
+<button>Reset działa tylko poza pętlami.</button>
+<div class="fb">Gdyby arena była stałą, wyjście z pętli zwalniałoby nieaktualny token. Dlatego jest lokal <code>RegionArena</code>, a <code>RegionExit</code> zwalnia najnowszą wartość.</div></div>
+
+<div class="q" data-correct="1"><p>3. Weryfikator dochodzi do bloku dwiema ścieżkami: jedna otworzyła region r0, druga nie. Co robi?</p>
+<button>Bierze stan z pierwszej ścieżki.</button>
+<button>Zgłasza błąd, bo ścieżki dochodzą z różnymi otwartymi regionami lub żywymi tymczasowymi <code>Ref</code>.</button>
+<button>Zamyka region automatycznie.</button>
+<button>Pomija blok.</button>
+<div class="fb">Regiony muszą się zagnieżdżać na każdej ścieżce, więc stan przy łączeniu musi być zgodny. To może odrzucić poprawne ciała z <code>build.rs</code>, co sprawdzi dopiero M2b.</div></div>
+
+<div class="q" data-correct="1"><p>4. Co oznacza reguła „tymczasowy <code>Ref</code> zużyty dokładnie raz”?</p>
+<button>Każdy <code>Ref</code> ma dokładnie jedną kopię.</button>
+<button>Tymczasowy <code>Ref</code> musi być zdefiniowany, a potem zapisany, przeniesiony lub zwolniony raz; użycie po zużyciu albo wyciek przy <code>return</code> to błąd.</button>
+<button><code>Ref</code> można zużyć tylko w pętli.</button>
+<button>Licznik silnych referencji nie może przekroczyć jeden.</button>
+<div class="fb">Dzięki temu weryfikator wyłapie podwójne zwolnienie i wyciek referencji, dwa błędy, które dziś pilnują testy runtime.</div></div>
+
+<div class="q" data-correct="1"><p>5. Po co <code>capability.rs</code>, skoro nic jeszcze nie używa tych nazw?</p>
+<button>To martwy kod na zapas.</button>
+<button>To stabilne identyfikatory konstrukcji, których MIR nie obsługuje, żeby późniejsza brama pytała o możliwości zamiast trzymać listę odrzuconych kształtów.</button>
+<button>Zastępują komunikaty błędów typecheckera.</button>
+<button>Służą tylko do testów.</button>
+<div class="fb">RFC 3.8 i 3.10: jedno źródło prawdy o tym, co da się zbudować. Test pilnuje, żeby identyfikatory zgadzały się z tabelą w RFC.</div></div>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.q'), answered = 0, right = 0;
+  qs.forEach(function (q) {
+    var correct = +q.dataset.correct, done = false;
+    q.querySelectorAll('button').forEach(function (b, i) {
+      b.addEventListener('click', function () {
+        if (done) return;
+        done = true; answered++;
+        if (i === correct) { b.classList.add('right'); right++; }
+        else { b.classList.add('wrong'); q.querySelectorAll('button')[correct].classList.add('right'); }
+        q.querySelector('.fb').classList.add('show');
+        document.getElementById('score').textContent = 'Wynik: ' + right + ' / ' + answered + ' (z ' + qs.length + ')';
+      });
+    });
+  });
+})();
+</script>
+
+</div>
+</body>
+</html>
