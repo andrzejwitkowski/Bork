@@ -8,6 +8,7 @@
 mod expr;
 mod own;
 mod place;
+mod refs;
 mod stmt;
 
 use std::collections::HashMap;
@@ -138,15 +139,17 @@ impl<'a> FnBuilder<'a> {
     fn build(mut self) -> Res<Body> {
         let function = self.function;
         self.ret = self.new_local(function.return_ty, LocalKind::Return, None);
-        for (index, param) in function.params.iter().enumerate() {
+        for param in &function.params {
             let local = self.new_local(param.ty, LocalKind::Arg, Some(param.name.clone()));
             self.declare(&param.name, local);
-            let _ = index;
         }
         let span = function.name_span;
         self.regions.push(RegionInfo { parent: None, site: RegionSite::Block });
         self.open.push(Open { id: RegionId(0), pushed: true });
         self.stmt(StmtKind::RegionEnter(RegionId(0)), span, None);
+        for (local, param) in (1u32..).map(Local).zip(&function.params) {
+            self.register_ref_local(local, param.ty, span);
+        }
         let (body, _) = peel_blocks(&function.body);
         self.stmts(body)?;
         if !self.terminated() {
@@ -311,6 +314,10 @@ impl<'a> FnBuilder<'a> {
         for id in ids {
             self.stmt(StmtKind::RegionExit(id), span, None);
         }
+    }
+
+    pub(super) fn innermost_pushed(&self) -> Option<RegionId> {
+        self.open.iter().rev().find(|o| o.pushed).map(|o| o.id)
     }
 
     pub(super) fn open_depth(&self) -> usize {

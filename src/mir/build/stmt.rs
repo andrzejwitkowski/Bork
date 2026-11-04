@@ -20,7 +20,10 @@ impl<'a> FnBuilder<'a> {
         match s {
             HirStmt::Return { value } => {
                 let v = value.as_ref().map(|v| self.expr(v)).transpose()?;
-                if let Some(v) = v.filter(|_| !self.is_unit(self.function.return_ty)) {
+                if let Some(mut v) = v.filter(|_| !self.is_unit(self.function.return_ty)) {
+                    if self.abi.result_sink {
+                        v = self.materialize(v, self.function.return_ty, &ArenaRef::ResultSink, span)?;
+                    }
                     self.stmt(StmtKind::Assign(Place::local(self.ret_local()), Rvalue::Use(v)), span, None);
                 }
                 self.exit_to(0, span);
@@ -30,10 +33,14 @@ impl<'a> FnBuilder<'a> {
             HirStmt::Block(b) => self.region_block(RegionSite::Block, b, span),
             HirStmt::MoveBlock { body, .. } => self.region_block(RegionSite::MoveBlock, body, span),
             HirStmt::VarDecl { kind, name, ty, value, alloc_in_binding } => {
-                if alloc_in_binding.is_some() {
-                    return Err(BuildError::not_yet("hoisted binding", span));
-                }
-                let v = self.expr(value)?;
+                let v = match alloc_in_binding.as_deref() {
+                    None => self.expr(value)?,
+                    Some(crate::hoist::RESULT_SINK) => self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?,
+                    Some(target) => {
+                        let home = self.lookup(target).ok_or_else(|| BuildError::Internal(format!("hoist target `{target}` not in scope")))?;
+                        self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?
+                    }
+                };
                 let local_kind = if matches!(kind, BindingKind::Val) { LocalKind::Val } else { LocalKind::Var };
                 let local = self.new_local(*ty, local_kind, Some(name.clone()));
                 let label = DebugLabel {
@@ -47,6 +54,7 @@ impl<'a> FnBuilder<'a> {
                     index: None,
                 };
                 self.stmt_with(StmtKind::Assign(Place::local(local), Rvalue::Use(v)), span, Some(value.id), Some(label));
+                self.register_ref_local(local, *ty, span);
                 self.declare(name, local);
                 Ok(())
             }
@@ -58,14 +66,39 @@ impl<'a> FnBuilder<'a> {
                     Ok(())
                 }
                 HirAssignTarget::Index { name, index } => self.assign_index(name, index, value, span),
-                HirAssignTarget::Field { .. } => Err(BuildError::not_yet("field assignment", span)),
+                HirAssignTarget::Field { receiver, field_index, .. } => self.assign_field(receiver, *field_index, value, span),
             },
-            HirStmt::Expr(e) => self.expr(e).map(|_| ()),
+            HirStmt::Expr(e) => {
+                // A discarded owned `Ref` is released.
+                if let Operand::Move(p) = self.expr(e)? {
+                    if p.is_bare() && self.tcx.is_managed_ref(e.ty) {
+                        self.stmt(StmtKind::Ref(RefOp::Drop(Operand::Move(p))), span, Some(e.id));
+                    }
+                }
+                Ok(())
+            }
             HirStmt::While { cond, body } => self.while_loop(cond, body, span),
             HirStmt::For { name, iter, body } => self.for_loop(name, iter, body, span),
             HirStmt::Break { span } => self.jump(true, *span),
             HirStmt::Continue { span } => self.jump(false, *span),
         }
+    }
+
+    fn assign_field(&mut self, receiver: &HirExpr, field_index: usize, value: &HirExpr, span: Span) -> Res<()> {
+        let recv = self.expr(receiver)?;
+        let object = self.operand_local(recv, receiver.ty, span);
+        let arena = ArenaRef::ObjectArena(object);
+        let v = self.with_sink(arena.clone(), |b| b.expr(value))?;
+        let class = crate::mono::class_instance_name(self.tcx, receiver.ty)
+            .and_then(|n| self.mono.hir.classes.iter().find(|c| c.name == n))
+            .ok_or_else(|| BuildError::Internal("field assignment on a non-class".into()))?;
+        let ty = class.fields[field_index].ty;
+        let mut slot = Place::local(object);
+        if self.tcx.is_managed_ref(self.tcx.deref_ty(receiver.ty)) {
+            slot.proj.push(Proj::Deref);
+        }
+        slot.proj.push(Proj::Field(field_index as u32));
+        self.store_owned(slot, v, ty, &arena, false, span)
     }
 
     fn ret_local(&self) -> Local {

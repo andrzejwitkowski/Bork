@@ -28,7 +28,7 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn corpus_builds_and_verifies() {
     let mut files = Vec::new();
-    for suite in ["build", "check"] {
+    for suite in ["build", "check", "build_fail"] {
         collect(&root().join("programs").join(suite), &mut files);
     }
     files.sort();

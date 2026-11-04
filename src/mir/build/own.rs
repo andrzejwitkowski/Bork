@@ -158,11 +158,11 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn object_field(&mut self, e: &HirExpr, receiver: &HirExpr, field_index: usize, safe: bool) -> Res<Operand> {
         let span = span_of(e);
         if safe {
-            if self.tcx.is_managed_ref(receiver.ty) {
-                return Err(BuildError::not_yet("`?.` through a Ref", span));
-            }
-            if self.tcx.is_nullable(e.ty) && self.tcx.enum_args(self.tcx.base(e.ty)).is_some() && self.is_enum_ty(self.nullable_payload(e.ty)) {
+            if self.tcx.is_nullable(e.ty) && self.is_enum_ty(self.nullable_payload(e.ty)) {
                 return Err(BuildError::unsupported(Capability::SafeFieldEnum, span));
+            }
+            if self.tcx.is_managed_ref(receiver.ty) {
+                return self.safe_ref_field(e, receiver, field_index);
             }
             return self.safe_navigate(e, receiver, |_, mut base| {
                 base.proj.push(Proj::Field(field_index as u32));
@@ -180,6 +180,41 @@ impl<'a> FnBuilder<'a> {
             return Ok(Operand::Copy(Place::local(dst)));
         }
         Ok(Operand::Copy(place))
+    }
+
+    /// `r?.f` on a `Ref`: `None` when the target is gone, otherwise `Some(f)` read through an observation.
+    fn safe_ref_field(&mut self, e: &HirExpr, receiver: &HirExpr, field_index: usize) -> Res<Operand> {
+        let span = span_of(e);
+        let target = self.tcx.managed_ref_inner(receiver.ty).ok_or_else(|| BuildError::Internal("`?.` Ref without a target".into()))?;
+        let r = self.expr(receiver)?;
+        let obs = self.temp(self.unit);
+        let object = self.new_local(target, LocalKind::Val, None);
+        let absent = self.temp(self.bool_ty);
+        self.stmt(StmtKind::Observe { obs, object, absent, value: super::refs::as_copy(&r) }, span, Some(e.id));
+        self.stmt(StmtKind::Ref(RefOp::Drop(r)), span, Some(e.id));
+        let result = self.temp(e.ty);
+        let (some_b, none_b, end) = (self.new_block(), self.new_block(), self.new_block());
+        self.terminate(TermKind::Switch { value: Operand::Copy(Place::local(absent)), cases: vec![(1, none_b)], otherwise: some_b }, span, Some(e.id));
+        self.cur = some_b;
+        let field_ty = self.nullable_payload(e.ty);
+        let field = Place { local: object, proj: vec![Proj::Deref, Proj::Field(field_index as u32)] };
+        let value = if self.tcx.is_managed_ref(field_ty) {
+            let dst = self.temp(field_ty);
+            self.stmt(StmtKind::Ref(RefOp::Clone { dst: Place::local(dst), src: Operand::Copy(field) }), span, Some(e.id));
+            Operand::Move(Place::local(dst))
+        } else {
+            Operand::Copy(field)
+        };
+        let wrapped = self.make_some(e.ty, value, field_ty, span)?;
+        self.stmt(StmtKind::ObservationRelease(obs), span, Some(e.id));
+        self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(wrapped)), span, Some(e.id));
+        self.goto(end, span);
+        self.cur = none_b;
+        let none = self.make_none(e.ty, span)?;
+        self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(none)), span, Some(e.id));
+        self.goto(end, span);
+        self.cur = end;
+        Ok(Operand::Copy(Place::local(result)))
     }
 
     fn is_enum_ty(&self, ty: TyId) -> bool {
@@ -244,7 +279,7 @@ impl<'a> FnBuilder<'a> {
         if self.tcx.is_managed_ref(lhs.ty) {
             let l = self.expr(lhs)?;
             let is_none = self.temp(self.bool_ty);
-            self.stmt(StmtKind::Ref(RefOp::IsNone { dst: Place::local(is_none), value: l.clone() }), span, Some(e.id));
+            self.stmt(StmtKind::Ref(RefOp::IsNone { dst: Place::local(is_none), value: super::refs::as_copy(&l) }), span, Some(e.id));
             self.terminate(TermKind::Switch { value: Operand::Copy(Place::local(is_none)), cases: vec![(1, none_b)], otherwise: some_b }, span, Some(e.id));
             self.cur = some_b;
             self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(l)), span, Some(e.id));
@@ -372,6 +407,7 @@ impl<'a> FnBuilder<'a> {
             })
             .collect();
         self.terminate(TermKind::Match { scrutinee: place, arms: mir_arms }, span, Some(e.id));
+        let sink = result.map(|r| self.locals[r.0 as usize].ty).filter(|&ty| self.owning(ty)).map(|_| self.outer_sink());
         for (arm, (_, bound, target)) in arms.iter().zip(lowered) {
             self.cur = target;
             let force = pat_binds_owned_ref(self.tcx, &arm.pat);
@@ -379,10 +415,14 @@ impl<'a> FnBuilder<'a> {
             for b in &bound {
                 if self.tcx.is_managed_ref(b.ty) {
                     self.stmt(StmtKind::Ref(RefOp::Clone { dst: Place::local(b.local), src: Operand::Copy(b.place.clone()) }), span, None);
+                    self.register_ref_local(b.local, b.ty, span);
                 }
                 self.declare(&b.name, b.local);
             }
-            self.block_value(peeled, result)?;
+            match &sink {
+                Some(s) => self.with_sink(s.clone(), |b| b.block_value(peeled, result))?,
+                None => self.block_value(peeled, result)?,
+            }
             self.exit_region(span)?;
             self.goto(merge, span);
         }

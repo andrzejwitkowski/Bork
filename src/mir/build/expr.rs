@@ -14,7 +14,18 @@ pub(super) fn span_of(e: &HirExpr) -> Span {
 }
 
 impl<'a> FnBuilder<'a> {
+    /// Evaluates `e`. An owned `Ref` temporary comes back as `Move` so its single consumer is checkable.
     pub(super) fn expr(&mut self, e: &HirExpr) -> Res<Operand> {
+        let op = self.expr_inner(e)?;
+        match op {
+            Operand::Copy(p) if p.is_bare() && self.tcx.is_managed_ref(e.ty) && self.locals[p.local.0 as usize].kind == LocalKind::Temp => {
+                Ok(Operand::Move(p))
+            }
+            other => Ok(other),
+        }
+    }
+
+    fn expr_inner(&mut self, e: &HirExpr) -> Res<Operand> {
         let span = span_of(e);
         match &e.kind {
             HirExprKind::Int { value } => Ok(Operand::Const(Const::Int(*value))),
@@ -41,6 +52,8 @@ impl<'a> FnBuilder<'a> {
                 self.make_some(e.ty, v, inner.ty, span)
             }
             HirExprKind::Match { scrutinee, arms } => self.match_expr(e, scrutinee, arms),
+            HirExprKind::RefCreate(inner) => self.ref_create(e, inner),
+            HirExprKind::PresenceMatch { bindings, some_block, none_block } => self.presence(e, bindings, some_block, none_block.as_ref()),
             other => Err(BuildError::not_yet(format!("expression {}", kind_name(other)), span)),
         }
     }
@@ -57,9 +70,7 @@ impl<'a> FnBuilder<'a> {
         match use_kind {
             UseKind::Local | UseKind::Shared | UseKind::Copy => Ok(Operand::Copy(place)),
             UseKind::Borrow => Ok(Operand::Reborrow(place)),
-            UseKind::Move | UseKind::Promote | UseKind::RefCopy | UseKind::RefMove => {
-                Err(BuildError::not_yet(format!("{use_kind:?} of `{name}`"), span_of(e)))
-            }
+            UseKind::Move | UseKind::Promote | UseKind::RefCopy | UseKind::RefMove => self.ident_moved(e, place, use_kind),
         }
     }
 
@@ -176,6 +187,9 @@ impl<'a> FnBuilder<'a> {
             self.stmt(StmtKind::Intrinsic { dst: None, op, args: ops, arena: None }, span, Some(e.id));
             return Ok(Operand::Const(Const::Unit));
         }
+        if builtins::is_ref_count(name) {
+            return Ok(self.ref_count(e, name == "weakCount", &ops));
+        }
         if builtins::is_string_alloc(name) {
             let op = if builtins::is_concat(name) { IntrinsicOp::Concat } else { IntrinsicOp::StringFromUtf8 };
             let dst = self.temp(e.ty);
@@ -206,8 +220,12 @@ impl<'a> FnBuilder<'a> {
 
     /// One arm of an `if`: a region whose trailing value (if any) goes to `result`.
     fn branch(&mut self, site: RegionSite, block: &HirBlock, result: Option<Local>, merge: BlockId, span: Span) -> Res<()> {
+        let sink = result.map(|r| self.locals[r.0 as usize].ty).filter(|&ty| self.owning(ty)).map(|_| self.outer_sink());
         let (peeled, _, _) = self.enter_region(site, block, false, None, span)?;
-        self.block_value(peeled, result)?;
+        match sink {
+            Some(s) => self.with_sink(s, |b| b.block_value(peeled, result))?,
+            None => self.block_value(peeled, result)?,
+        }
         self.exit_region(span)?;
         self.goto(merge, span);
         Ok(())

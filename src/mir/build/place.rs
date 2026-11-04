@@ -83,7 +83,11 @@ impl<'a> FnBuilder<'a> {
             return Ok(self.vec_op(e, VecOp::Get, recv, vec![idx]));
         }
         let place = self.place_of(e)?;
-        let _ = span;
+        if self.tcx.is_managed_ref(e.ty) {
+            let dst = self.temp(e.ty);
+            self.stmt(StmtKind::Ref(RefOp::Clone { dst: Place::local(dst), src: Operand::Copy(place) }), span, Some(e.id));
+            return Ok(Operand::Copy(Place::local(dst)));
+        }
         Ok(Operand::Copy(place))
     }
 
@@ -119,7 +123,11 @@ impl<'a> FnBuilder<'a> {
         let cap = cap.map(|c| self.expr(c)).transpose()?;
         let dst = self.temp(e.ty);
         let arena = self.sink.clone();
-        self.stmt(StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::Vec { cap }, arena }, span_of(e), Some(e.id));
+        self.stmt(StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::Vec { cap }, arena: arena.clone() }, span_of(e), Some(e.id));
+        // Only a `Vec` of `Ref`s has a release to run when its arena goes.
+        if let Some(elem) = self.tcx.vec_elem(e.ty).filter(|&el| self.tcx.is_managed_ref(el)) {
+            self.stmt(StmtKind::RegisterDrop { arena, place: Place::local(dst), glue: DropGlue::Vec(elem) }, span_of(e), Some(e.id));
+        }
         Ok(Operand::Copy(Place::local(dst)))
     }
 
@@ -174,7 +182,9 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn materialize(&mut self, op: Operand, ty: TyId, arena: &ArenaRef, span: Span) -> Res<Operand> {
         let t = self.tcx;
         if t.is_managed_ref(ty) {
-            return Err(BuildError::not_yet("materialising a Ref", span));
+            let dst = self.temp(ty);
+            self.stmt(StmtKind::Ref(RefOp::Rehome { dst: Place::local(dst), owner: arena.clone(), value: op }), span, None);
+            return Ok(Operand::Move(Place::local(dst)));
         }
         if !(t.is_nullable(ty) || t.is_string(ty) || t.is_array(ty) || t.is_vec(ty)) {
             return Ok(op);
