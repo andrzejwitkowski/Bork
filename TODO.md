@@ -6,7 +6,7 @@ Tracked work after fixed arrays/slices, `while`/`break`/`continue`, logical ops,
 
 > MIR migration (RFC 0006), in implementation order: 1 #215, 2 #220, 3-4 #66, 5 #216, 6 #217, 7 #218, 8 #219, 9 #221, 10 #222, 11 #223, 12 #224, 13 #225, 14 #226, 15 #67, 16 #227.
 
-- [ ] **Codegen visitor split** (MIR step M0, #215; see `docs/rfcs/0006-mir.md`) — extract a dedicated `CodegenRegionVisitor` (or similar) wrapping `FnEmitter` so LLVM emission and `RegionVisitor` hooks are not on the same type; avoid `codegen_walk` ↔ `expr` module cycles.
+- [x] **Codegen visitor split** (MIR step M0, #215) — done: `CodegenWalker` (`src/codegen/llvm/walk.rs`) is the `RegionVisitor`; `FnEmitter` re-enters the walk through a safe `SharedCursor` (no raw-pointer driver); leaf emitter modules never name `walk`.
 - [ ] **Region cursor** _(superseded by MIR, #67)_ — if `arena_cursor_shared!` grows, consider a single cursor type with explicit mut/ref modes instead of macro expansion.
 - [ ] **`RegionEmitter` vs walk** _(superseded by MIR, #67)_ — document (or assert in tests) the contract for loops: one `region_enter`, many `latch` resets in LLVM, one `region_exit`; keep schedule visitor and codegen visitor aligned.
 - [ ] **Array codegen** — `src/codegen/llvm/array/` is split from monolithic `array.rs`; optional further split (emit vs runtime helpers) if files grow.

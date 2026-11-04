@@ -1,6 +1,5 @@
-//! LLVM emission driven by `region_walk` (same visitor as schedule / stamp).
+//! Control-flow emission (`if`, `if val`) that re-enters the region walk; the visitor is in `walk.rs`.
 
-use std::collections::HashMap;
 use std::iter;
 
 use inkwell::basic_block::BasicBlock;
@@ -10,39 +9,14 @@ use inkwell::values::{BasicValue, BasicValueEnum, IntValue, PointerValue, Struct
 use crate::codegen::regions::RegionSite;
 use crate::diag::Diagnostic;
 use crate::ty::TyId;
-use crate::hir::{
-    HirArm, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirFunction, HirStmt,
-};
-use crate::region_walk::{
-    region_enter, region_exit, ArenaCursor, RegionVisitor, WalkDriver, WalkError,
-};
-use crate::sema::ArenaNode;
+use crate::hir::{HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr};
+use crate::region_walk::WalkError;
 
-use super::emit_fn::FnEmitter;
-use super::schedule_error;
+use super::emit_fn::{FnEmitter, IfKind};
 use super::{not_yet_supported, region_walk_codegen_error};
 
-fn map_emit_err(result: Result<(), Diagnostic>) -> Result<(), WalkError> {
-    result.map_err(WalkError::from_diagnostic)
-}
-
-pub(super) enum IfKind {
-    Unit,
-    Value(TyId),
-}
-
-impl IfKind {
-    pub(super) fn from_ty(unit: TyId, ty: TyId) -> IfKind {
-        if ty == unit {
-            IfKind::Unit
-        } else {
-            IfKind::Value(ty)
-        }
-    }
-}
-
 impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
-    fn emit_region_with_driver(
+    fn emit_region(
         &mut self,
         site: RegionSite,
         block: &HirBlock,
@@ -52,19 +26,17 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         if value_ty.is_some_and(|ty| self.cx.tcx.owns_result(ty)) {
             self.alloc_sink = Some(self.sink_arena());
         }
-        let ptr = self.codegen_driver_ptr();
-        let driver = FnEmitter::codegen_driver_mut(ptr);
-        region_enter(driver, self, site, block)?;
+        self.region_enter(site, block)?;
         let (peeled, _) = crate::hir::peel_blocks(block);
         self.walk.trailing = None;
-        driver.walk_block(self, peeled, value_ty)?;
+        self.walk_block(peeled, value_ty)?;
         let value = self.walk.trailing.take();
         self.alloc_sink = previous;
-        region_exit(FnEmitter::codegen_driver_mut(ptr), self, site)?;
+        self.region_exit(site)?;
         Ok(value)
     }
 
-    pub(super) fn emit_if_with_driver(
+    pub(super) fn emit_if(
         &mut self,
         cond: &HirExpr,
         then_block: &HirBlock,
@@ -97,7 +69,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         for (site, block, bb) in branches {
             self.cx.position_at_end(bb);
             let value = self
-                .emit_region_with_driver(site, block, value_ty)
+                .emit_region(site, block, value_ty)
                 .map_err(region_walk_codegen_error)?;
             if self.cx.current_block_terminated() {
                 continue;
@@ -136,16 +108,8 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         Ok(())
     }
 
-    fn walk_step(
+    pub(super) fn emit_presence(
         &mut self,
-        step: impl FnOnce(&mut Self) -> Result<(), Diagnostic>,
-    ) -> Result<(), WalkError> {
-        step(self).map_err(WalkError::from_diagnostic)
-    }
-
-    fn emit_presence_with_driver<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
         bindings: &HirConditionalBindings,
         some_block: &HirBlock,
         none_block: Option<&HirBlock>,
@@ -157,20 +121,19 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let previous = self.alloc_sink;
         // The head source is evaluated in the enclosing arena, as with single-binding syntax.
         let (observation, object, control, is_absent) =
-            self.emit_guard_source(driver, &bindings.head.value)?;
+            self.emit_guard_source(&bindings.head.value)?;
         let mut split = self.open_presence("ref", is_absent, value_ty)?;
         let outer_depth = self.regions.sink_mut().handle_count();
-        region_enter(driver, self, RegionSite::PresenceSome, some_block)
+        self.region_enter(RegionSite::PresenceSome, some_block)
             .map_err(region_walk_codegen_error)?;
         self.bind_observation(&bindings.head, observation, object, control)?;
         // Tail sources are evaluated inside the presence region (as in sema), so their
         // allocations use that region's arena; only the arm's values go to the result sink.
-        self.emit_chained_guards(driver, &bindings.tail, outer_depth, split.absent_target())?;
+        self.emit_chained_guards(&bindings.tail, outer_depth, split.absent_target())?;
         if self.cx.tcx.owns_result(result_ty) {
             self.alloc_sink = Some(result_sink);
         }
         let branch_value = self.emit_presence_arm(
-            driver,
             RegionSite::PresenceSome,
             some_block,
             value_ty,
@@ -180,11 +143,10 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         self.end_present_arm(&mut split, branch_value)?;
         let absent_value = match none_block {
             Some(block) => {
-                region_enter(driver, self, RegionSite::PresenceNone, block)
+                self.region_enter(RegionSite::PresenceNone, block)
                     .map_err(region_walk_codegen_error)?;
                 self.emit_presence_arm(
-                    driver,
-                    RegionSite::PresenceNone,
+                            RegionSite::PresenceNone,
                     block,
                     value_ty,
                     result_ty,
@@ -205,9 +167,8 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
 
     /// Walks the body of one `if val` arm and closes its region. A fall-through value is
     /// materialized into `result_sink` before the region's observations are released.
-    pub(super) fn emit_presence_arm<C: ArenaCursor>(
+    pub(super) fn emit_presence_arm(
         &mut self,
-        driver: &mut WalkDriver<'_, C>,
         site: RegionSite,
         block: &HirBlock,
         value_ty: Option<TyId>,
@@ -216,8 +177,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
     ) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let (body, _) = crate::hir::peel_blocks(block);
         self.walk.trailing = None;
-        driver
-            .walk_block(self, body, value_ty)
+        self.walk_block(body, value_ty)
             .map_err(region_walk_codegen_error)?;
         let mut branch_value = self.walk.trailing.take();
         if !self.cx.current_block_terminated() {
@@ -225,16 +185,15 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
                 branch_value = Some(self.materialize_owned_value(value, result_ty, result_sink)?);
             }
         }
-        region_exit(driver, self, site).map_err(region_walk_codegen_error)?;
+        self.region_exit(site).map_err(region_walk_codegen_error)?;
         Ok(branch_value)
     }
 
     /// Tail sources of an `if val` header. An absent source jumps to a shared cleanup block,
     /// which unwinds arenas opened since the header and then takes the `else` path. Leaves the
     /// insertion point on the all-present path.
-    fn emit_chained_guards<C: ArenaCursor>(
+    fn emit_chained_guards(
         &mut self,
-        driver: &mut WalkDriver<'_, C>,
         tail: &[HirConditionalBinding],
         outer_depth: usize,
         absent: BasicBlock<'ctx>,
@@ -248,7 +207,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
             .append_basic_block(self.llvm_fn, "ref.failure.cleanup");
         for binding in tail {
             let (observation, object, control, is_absent) =
-                self.emit_guard_source(driver, &binding.value)?;
+                self.emit_guard_source(&binding.value)?;
             let next = self.cx.context.append_basic_block(self.llvm_fn, "ref.next");
             self.cx
                 .builder
@@ -265,9 +224,8 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         Ok(())
     }
 
-    fn emit_guard_source<C: ArenaCursor>(
+    fn emit_guard_source(
         &mut self,
-        driver: &mut WalkDriver<'_, C>,
         value: &HirExpr,
     ) -> Result<
         (
@@ -279,9 +237,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         Diagnostic,
     > {
         let stack_depth = self.walk.eval_stack.len();
-        driver
-            .walk_expr(self, value)
-            .map_err(region_walk_codegen_error)?;
+        self.walk_expr(value).map_err(region_walk_codegen_error)?;
         let reference = self
             .walk
             .trailing
@@ -331,259 +287,4 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         )?;
         Ok(())
     }
-}
-
-impl<'s, 'report, 'a, 'ctx> RegionVisitor for FnEmitter<'s, 'report, 'a, 'ctx> {
-    fn before_stmt(
-        &mut self,
-        _stmt: &HirStmt,
-        span: Option<crate::span::Span>,
-    ) -> Result<(), WalkError> {
-        self.statement_span = span;
-        self.debug_location(span);
-        Ok(())
-    }
-
-    fn bind_presence_guard(&mut self, _binding: &HirConditionalBinding) -> Result<(), WalkError> {
-        unreachable!("codegen overrides presence_match and binds guards itself")
-    }
-
-    fn short_circuit_logical_operands(&self) -> bool {
-        true
-    }
-
-    fn begin_function_body(
-        &mut self,
-        _name: &str,
-        root: &ArenaNode,
-        body: &HirBlock,
-    ) -> Result<(), WalkError> {
-        self.walk_step(|emitter| {
-            emitter
-                .regions
-                .open_known(root, body, None)
-                .map_err(schedule_error)?;
-            emitter.check_arena()?;
-            emitter.function_arena = emitter.regions.sink_mut().current();
-            let hidden = super::call_abi::CallAbi::of(emitter.cx, emitter.function).hidden_len();
-            for (index, (param, value)) in emitter
-                .function
-                .params
-                .iter()
-                .zip(emitter.llvm_fn.get_param_iter().skip(hidden))
-                .enumerate()
-            {
-                emitter.declare_local(&param.name, param.ty, value, Some(index as u32 + 1))?;
-            }
-            emitter.debug_location(Some(emitter.function.name_span));
-            Ok(())
-        })
-    }
-
-    fn end_function_body(&mut self) -> Result<(), WalkError> {
-        self.walk_step(|emitter| {
-            emitter.debug_exit_scope()?;
-            emitter.pop_region()
-        })?;
-        self.regions.next_function += 1;
-        Ok(())
-    }
-
-    fn enter_region(
-        &mut self,
-        site: RegionSite,
-        child: &ArenaNode,
-        body: &HirBlock,
-    ) -> Result<(), WalkError> {
-        self.walk_step(|emitter| {
-            emitter.debug_location(body.span);
-            emitter
-                .regions
-                .open_known(child, body, Some(site))
-                .map_err(schedule_error)?;
-            emitter.check_arena()?;
-            emitter.scopes.push(HashMap::new());
-            emitter.debug_enter_scope(None)?;
-            Ok(())
-        })
-    }
-
-    fn loop_latch(&mut self, _site: RegionSite) -> Result<(), WalkError> {
-        Ok(())
-    }
-
-    fn exit_region(&mut self, _site: RegionSite) -> Result<(), WalkError> {
-        self.walk_step(|emitter| emitter.debug_exit_scope())?;
-        self.scopes.pop();
-        if self.cx.current_block_terminated() {
-            self.walk_step(|emitter| emitter.regions.exit_after_return().map_err(schedule_error))?;
-        } else {
-            self.walk_step(|emitter| emitter.pop_region())?;
-        }
-        Ok(())
-    }
-
-    fn skip_closure(&mut self, _child: &ArenaNode) -> Result<(), WalkError> {
-        Ok(())
-    }
-
-    fn before_expr<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        expr: &HirExpr,
-    ) -> Result<(), WalkError> {
-        self.debug_location(expr.span);
-        if matches!(
-            expr.kind,
-            crate::hir::HirExprKind::ObjectConstruct { .. } | crate::hir::HirExprKind::EnumConstruct { .. }
-        ) {
-            self.pin_walk_driver(driver, |emitter| {
-                emitter.walk_step(|e| e.begin_object_construct(expr))
-            })?;
-        }
-        Ok(())
-    }
-
-    fn on_stmt<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        stmt: &HirStmt,
-    ) -> Result<(), WalkError> {
-        let span = match stmt {
-            HirStmt::VarDecl { value, .. }
-            | HirStmt::Assign { value, .. }
-            | HirStmt::Return { value: Some(value) }
-            | HirStmt::Expr(value) => value.span,
-            HirStmt::Break { span } | HirStmt::Continue { span } => Some(*span),
-            _ => None,
-        };
-        self.debug_location(self.statement_span.or(span));
-        self.pin_walk_driver(driver, |emitter| emitter.walk_step(|e| e.emit_stmt(stmt)))
-    }
-
-    fn after_expr<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        expr: &HirExpr,
-    ) -> Result<(), WalkError> {
-        self.debug_location(expr.span);
-        if matches!(
-            expr.kind,
-            crate::hir::HirExprKind::PresenceMatch { .. }
-                | crate::hir::HirExprKind::If { .. }
-                | crate::hir::HirExprKind::Match { .. }
-        ) {
-            return Ok(());
-        }
-        self.pin_walk_driver(driver, |emitter| {
-            emitter.walk_step(|e| {
-                if let Some(value) = e.emit_after_walk(expr)? {
-                    e.walk.eval_stack.push(value);
-                    e.walk.trailing = Some(value);
-                }
-                Ok(())
-            })
-        })
-    }
-
-    fn on_trailing_value<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        expr: &HirExpr,
-        ty: TyId,
-    ) -> Result<(), WalkError> {
-        self.ensure_open_block();
-        driver.walk_expr(self, expr)?;
-        if self.walk.trailing.is_some() {
-            return Ok(());
-        }
-        self.pin_walk_driver(driver, |emitter| {
-            emitter.walk_step(|e| {
-                e.ensure_open_block();
-                e.walk.trailing = Some(e.emit_value(expr, ty)?);
-                Ok(())
-            })
-        })
-    }
-
-    fn for_loop<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        name: &str,
-        iter: &HirExpr,
-        body: &HirBlock,
-    ) -> Result<(), WalkError> {
-        let result = self.emit_for_with_driver(driver, name, iter, body);
-        map_emit_err(result)
-    }
-
-    fn while_loop<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        cond: &HirExpr,
-        body: &HirBlock,
-    ) -> Result<(), WalkError> {
-        let result = self.emit_while_with_driver(driver, cond, body);
-        map_emit_err(result)
-    }
-
-    fn if_expr<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        cond: &HirExpr,
-        then_block: &HirBlock,
-        else_block: Option<&HirBlock>,
-        result_ty: TyId,
-    ) -> Result<(), WalkError> {
-        self.pin_walk_driver(driver, |emitter| {
-            emitter.walk_step(|e| {
-                let depth = e.walk.eval_stack.len();
-                e.emit_if_with_driver(cond, then_block, else_block, IfKind::from_ty(e.cx.unit_ty(), result_ty))?;
-                e.walk.eval_stack.truncate(depth);
-                if let Some(value) = e.walk.trailing {
-                    e.walk.eval_stack.push(value);
-                }
-                Ok(())
-            })
-        })
-    }
-
-    fn match_expr<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        scrutinee: &HirExpr,
-        arms: &[HirArm],
-        result_ty: TyId,
-    ) -> Result<(), WalkError> {
-        map_emit_err(self.emit_match_with_driver(driver, scrutinee, arms, result_ty))
-    }
-
-    // Overrides the canonical sequence: each tail source needs a branch to the cleanup
-    // block before its name is bound, so `bind_presence_guard` is not used here.
-    fn presence_match<C: ArenaCursor>(
-        &mut self,
-        driver: &mut WalkDriver<'_, C>,
-        bindings: &HirConditionalBindings,
-        some_block: &HirBlock,
-        none_block: Option<&HirBlock>,
-        result_ty: TyId,
-    ) -> Result<(), WalkError> {
-        map_emit_err(
-            self.emit_presence_with_driver(driver, bindings, some_block, none_block, result_ty),
-        )
-    }
-}
-
-pub fn emit_function_body<'report, 'a, 'ctx>(
-    emitter: &mut FnEmitter<'_, 'report, 'a, 'ctx>,
-    roots: &[ArenaNode],
-    function: &HirFunction,
-) -> Result<(), Diagnostic> {
-    let root_index = emitter.regions.function_index();
-    if let Err(walk) =
-        crate::region_walk::walk_function_readonly(function, &emitter.cx.tcx, root_index, roots, emitter)
-    {
-        return Err(super::resolve_walk_failure(walk));
-    }
-    Ok(())
 }

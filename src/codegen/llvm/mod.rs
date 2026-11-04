@@ -15,6 +15,7 @@ mod nullable;
 mod presence;
 mod region_emit;
 mod text;
+mod walk;
 mod vec;
 
 use std::path::Path;
@@ -89,7 +90,7 @@ fn emit_module_impl<'ctx>(
         .collect::<Result<Callees, Diagnostic>>()?;
     let mut regions = RegionEmitter::new(report, ArenaCalls::new(&cx));
     for function in &hir.functions {
-        emit_fn::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
+        walk::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
     }
     regions.finish().map_err(schedule_error)?;
     if let Some(debug) = &cx.debug {
