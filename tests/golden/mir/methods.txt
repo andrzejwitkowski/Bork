@@ -1,0 +1,666 @@
+== methods/basic.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Point [Temp]
+  let _3: Point [Val] p
+  let _4: &Point [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Point" } in fresh1
+    _2.0 = 3
+    _2.1 = 4
+    _3 = copy _2  // label "p": Point decl
+    _4 = borrow _3
+    _5 = call Point.sum(copy _4) +current -> bb1
+  bb1:
+    _0 = copy _5
+    region_exit r0
+    return
+}
+
+fn Point.sum (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  let _2: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = add(copy _1.0, copy _1.1)
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+== methods/borrowed_receiver.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Point [Temp]
+  let _3: Point [Val] p
+  let _4: &Point [Temp]
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Point" } in fresh1
+    _2.0 = 5
+    _3 = copy _2  // label "p": Point decl
+    _4 = borrow _3
+    _5 = call read(copy _4) +current -> bb1
+  bb1:
+    _0 = copy _5
+    region_exit r0
+    return
+}
+
+fn read (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] p
+  let _2: &Point [Temp]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Point.get(copy _2) +current -> bb1
+  bb1:
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn Point.get (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+== methods/explicit_this.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Point [Temp]
+  let _3: Point [Val] p
+  let _4: &Point [Temp]
+  let _5: unit [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Point" } in fresh1
+    _2.0 = 1
+    _3 = copy _2  // label "p": Point decl
+    _4 = borrow _3
+    _5 = call Point.set(copy _4, 9) +current -> bb1
+  bb1:
+    _0 = copy _3.0
+    region_exit r0
+    return
+}
+
+fn Point.set (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Point [Arg] this
+  let _2: i32 [Arg] x
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1.0 = copy _2
+    region_exit r0
+    return
+}
+
+== methods/field_receiver.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Inner [Temp]
+  let _3: Outer [Temp]
+  let _4: Outer [Val] o
+  let _5: &Outer [Temp]
+  let _6: i32 [Temp]
+  let _7: &Inner [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  let _10: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Inner" } in fresh1
+    _2.0 = 7
+    _3 = alloc Object { class: "Outer" } in fresh1
+    _3.0 = copy _2
+    _4 = copy _3  // label "o": Outer decl
+    _5 = borrow _4
+    _6 = call Outer.deep(copy _5) +current -> bb1
+  bb1:
+    _7 = borrow _4.0
+    _8 = call Inner.get(copy _7) +current -> bb2
+  bb2:
+    _9 = add(copy _6, copy _8)
+    _10 = sub(copy _9, 7)
+    _0 = copy _10
+    region_exit r0
+    return
+}
+
+fn Outer.deep (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Outer [Arg] this
+  let _2: &Inner [Temp]
+  let _3: i32 [Temp]
+  let _4: &Inner [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1.0
+    _3 = call Inner.get(copy _2) +current -> bb1
+  bb1:
+    _4 = borrow _1.0
+    _5 = call Inner.get(copy _4) +current -> bb2
+  bb2:
+    _6 = add(copy _3, copy _5)
+    _0 = copy _6
+    region_exit r0
+    return
+}
+
+fn Inner.get (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Inner [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+== methods/if_val_receiver.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Node [Temp]
+  let _3: Node [Val] a
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Ref<Node> [Temp]
+  let _6: Node [Temp]
+  let _7: Node [Val] b
+  let _8: &Node [Temp]
+  let _9: i32 [Temp]
+  let _10: &Node [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Node" } in fresh1
+    _2.0 = 1
+    ref_store _2.1 owner=fresh1 none
+    register_drop fresh1 _2.1 RefSlot
+    _3 = copy _2  // label "a": Node decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = ref_create source=fresh4 target=object_arena(_3) copy _3
+    _6 = alloc Object { class: "Node" } in fresh4
+    _6.0 = 3
+    ref_store _6.1 owner=fresh4 move _5
+    register_drop fresh4 _6.1 RefSlot
+    _7 = copy _6  // label "b": Node decl
+    _8 = borrow _7
+    _9 = call Node.next_value(copy _8) +current -> bb1
+  bb1:
+    _10 = borrow _7
+    _11 = call Node.value(copy _10) +current -> bb2
+  bb2:
+    _12 = add(copy _9, copy _11)
+    _0 = copy _12
+    region_exit r0
+    return
+}
+
+fn Node.next_value (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Node [Arg] this
+  let _2: Ref<Node> [Temp]
+  let _3: unit [Temp]
+  let _4: &Node [Val]
+  let _5: bool [Temp]
+  let _6: &Node [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 PresenceSome in r0
+  bb0:
+    region_enter r0
+    _2 = ref_clone copy _1.1
+    (_3, _4, _5) = observe copy _2
+    ref_drop move _2
+    switch copy _5 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = 0
+    region_exit r0
+    return
+  bb2:
+    goto bb1
+  bb3:
+    region_enter r1
+    observation_register current _3
+    _6 = borrow _4
+    _7 = call Node.value(copy _6) +current -> bb4
+  bb4:
+    _0 = copy _7
+    region_exit r1
+    region_exit r0
+    return
+}
+
+fn Node.value (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Node [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+== methods/method_calls_method.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Point [Temp]
+  let _3: Point [Val] p
+  let _4: &Point [Temp]
+  let _5: i32 [Temp]
+  let _6: &Point [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Point" } in fresh1
+    _2.0 = 1
+    _2.1 = 2
+    _3 = copy _2  // label "p": Point decl
+    _4 = borrow _3
+    _5 = call Point.twice(copy _4) +current -> bb1
+  bb1:
+    _6 = borrow _3
+    _7 = call Point.fact(copy _6, 3) +current -> bb2
+  bb2:
+    _8 = add(copy _5, copy _7)
+    _9 = add(copy _8, 18)
+    _0 = copy _9
+    region_exit r0
+    return
+}
+
+fn Point.twice (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  let _2: &Point [Temp]
+  let _3: i32 [Temp]
+  let _4: &Point [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call Point.sum(copy _2) +current -> bb1
+  bb1:
+    _4 = borrow _1
+    _5 = call Point.sum(copy _4) +current -> bb2
+  bb2:
+    _6 = add(copy _3, copy _5)
+    _0 = copy _6
+    region_exit r0
+    return
+}
+
+fn Point.fact (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  let _2: i32 [Arg] k
+  let _3: bool [Temp]
+  let _4: &Point [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    region_enter r0
+    _3 = le(copy _2, 1)
+    switch copy _3 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _0 = 1
+    region_exit r0
+    return
+  bb2:
+    _4 = borrow _1
+    _5 = sub(copy _2, 1)
+    _6 = call Point.fact(copy _4, copy _5) +current -> bb3
+  bb3:
+    _7 = mul(copy _2, copy _6)
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+fn Point.sum (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  let _2: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = add(copy _1.0, copy _1.1)
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+== methods/mutate_field.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Counter [Temp]
+  let _3: Counter [Val] c
+  let _4: &Counter [Temp]
+  let _5: unit [Temp]
+  let _6: &Counter [Temp]
+  let _7: unit [Temp]
+  let _8: &Counter [Temp]
+  let _9: unit [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Counter" } in fresh1
+    _2.0 = 0
+    _3 = copy _2  // label "c": Counter decl
+    _4 = borrow _3
+    _5 = call Counter.bump(copy _4) +current -> bb1
+  bb1:
+    _6 = borrow _3
+    _7 = call Counter.bump(copy _6) +current -> bb2
+  bb2:
+    _8 = borrow _3
+    _9 = call Counter.bump(copy _8) +current -> bb3
+  bb3:
+    _0 = copy _3.0
+    region_exit r0
+    return
+}
+
+fn Counter.bump (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Counter [Arg] this
+  let _2: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = add(copy _1.0, 1)
+    _1.0 = copy _2
+    region_exit r0
+    return
+}
+
+== methods/nested_calls.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Point [Temp]
+  let _3: Point [Val] p
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Point [Temp]
+  let _6: Point [Val] q
+  let _7: &Point [Temp]
+  let _8: &Point [Temp]
+  let _9: i32 [Temp]
+  let _10: i32 [Temp]
+  let _11: &Point [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Point" } in fresh1
+    _2.0 = 3
+    _3 = copy _2  // label "p": Point decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "Point" } in fresh4
+    _5.0 = 4
+    _6 = copy _5  // label "q": Point decl
+    _7 = borrow _3
+    _8 = borrow _6
+    _9 = call Point.get(copy _8) +current -> bb1
+  bb1:
+    _10 = call Point.add(copy _7, copy _9) +current -> bb2
+  bb2:
+    _11 = borrow _3
+    _12 = call Point.get(copy _11) +current -> bb3
+  bb3:
+    _13 = add(copy _10, copy _12)
+    _0 = copy _13
+    region_exit r0
+    return
+}
+
+fn Point.get (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = copy _1.0
+    region_exit r0
+    return
+}
+
+fn Point.add (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Point [Arg] this
+  let _2: i32 [Arg] k
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _3 = add(copy _1.0, copy _2)
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+== methods/owning_return.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Point [Temp]
+  let _3: String [Temp]
+  let _4: String [Temp]
+  let _5: Point [Val] p
+  let _6: &Point [Temp]
+  let _7: String [Temp]
+  let _8: String [Temp]
+  let _9: &Point [Temp]
+  let _10: Point [Temp]
+  let _11: Point [Val] q
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Point" } in fresh1
+    _3 = "hel"
+    _4 = copy_into _3 in fresh1
+    _2.0 = copy _4
+    _2.1 = 3
+    _5 = copy _2  // label "p": Point decl
+    _6 = borrow _5
+    _7 = call Point.label(copy _6) +current +current -> bb1
+  bb1:
+    _8 = intrinsic Concat(copy _7, "lo") in current
+    intrinsic PrintlnStr(copy _8)
+    _9 = borrow _5
+    _10 = call Point.moved(copy _9, 5) +current +current -> bb2
+  bb2:
+    _11 = copy _10  // label "q": Point decl
+    _0 = copy _11.1
+    region_exit r0
+    return
+}
+
+fn Point.label (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Point [Arg] this
+  let _2: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = copy_into _1.0 in result_sink
+    _0 = copy _2
+    region_exit r0
+    return
+}
+
+fn Point.moved (parent=true, sink=true) {
+  let _0: Point [Return]
+  let _1: &Point [Arg] this
+  let _2: i32 [Arg] dx
+  let _3: i32 [Temp]
+  let _4: Point [Temp]
+  let _5: String [Temp]
+  let _6: String [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _3 = add(copy _1.1, copy _2)
+    _4 = alloc Object { class: "Point" } in result_sink
+    _5 = "p"
+    _6 = copy_into _5 in result_sink
+    _4.0 = copy _6
+    _4.1 = copy _3
+    _0 = copy _4
+    region_exit r0
+    return
+}
+
+== methods/same_name.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: A [Temp]
+  let _3: A [Val] a
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: B [Temp]
+  let _6: B [Val] b
+  let _7: &A [Temp]
+  let _8: i32 [Temp]
+  let _9: &B [Temp]
+  let _10: i32 [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "A" } in fresh1
+    _3 = copy _2  // label "a": A decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "B" } in fresh4
+    _6 = copy _5  // label "b": B decl
+    _7 = borrow _3
+    _8 = call A.total(copy _7) +current -> bb1
+  bb1:
+    _9 = borrow _6
+    _10 = call B.size(copy _9) +current -> bb2
+  bb2:
+    _11 = add(copy _8, copy _10)
+    _12 = call size() +current -> bb3
+  bb3:
+    _13 = add(copy _11, copy _12)
+    _0 = copy _13
+    region_exit r0
+    return
+}
+
+fn A.total (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &A [Arg] this
+  let _2: &A [Temp]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = borrow _1
+    _3 = call A.size(copy _2) +current -> bb1
+  bb1:
+    _0 = copy _3
+    region_exit r0
+    return
+}
+
+fn B.size (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &B [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = 1
+    region_exit r0
+    return
+}
+
+fn size (parent=true, sink=false) {
+  let _0: i32 [Return]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = 10
+    region_exit r0
+    return
+}
+
+fn A.size (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &A [Arg] this
+  region r0 Block
+  bb0:
+    region_enter r0
+    _0 = 1
+    region_exit r0
+    return
+}
+

@@ -1,0 +1,21 @@
+class Counter {
+    n: i32
+}
+
+fun bump(c: &rw Counter, by: i32): i32 {
+    c.n = c.n + by
+    return c.n
+}
+
+fun main(): i32 {
+    var c = Counter(0)
+    var total = 0
+    for (i in 0..3) {
+        val label = "step"
+        if (i > 0) {
+            total = total + bump(&rw c, i)
+        }
+    }
+    println(total)
+    return total
+}
