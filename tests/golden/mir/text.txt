@@ -6,23 +6,26 @@ fn main (parent=false, sink=false) {
   let _3: i32 [Temp]
   let _4: bool [Temp]
   let _5: bool [Temp]
-  let _6: i32 [Temp]
+  let _6: bool [Temp]
   let _7: i32 [Temp]
-  let _8: bool [Temp]
+  let _8: i32 [Temp]
   let _9: bool [Temp]
-  let _10: i32 [Temp]
-  let _11: i32 [Temp]
-  let _12: bool [Temp]
+  let _10: bool [Temp]
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
   let _13: i32 [Temp]
-  let _14: &String [Temp]
-  let _15: u8 [Temp]
-  let _16: bool [Temp]
-  let _17: i32 [Temp]
-  let _18: String [Val] nul
+  let _14: bool [Temp]
+  let _15: i32 [Temp]
+  let _16: &String [Temp]
+  let _17: u8 [Temp]
+  let _18: bool [Temp]
   let _19: i32 [Temp]
-  let _20: bool [Temp]
-  let _21: bool [Temp]
-  let _22: i32 [Temp]
+  let _20: String [Val] nul
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: bool [Temp]
+  let _25: i32 [Temp]
   region r0 Block
   region r1 IfThen in r0
   region r2 IfThen in r0
@@ -34,63 +37,72 @@ fn main (parent=false, sink=false) {
     _1 = "ą"  // label "a": String decl
     _2 = 0  // label "n": i32 decl
     _3 = len(_1)
-    _4 = lt(0, copy _3)
-    switch copy _4 [ 1 -> bb1, else -> bb2]
+    _4 = ge(0, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
   bb1:
-    _5 = eq(copy _1[0], 196)
-    switch copy _5 [ 1 -> bb3, else -> bb4]
-  bb2:
     abort Bounds
+  bb2:
+    _5 = lt(0, copy _3)
+    switch copy _5 [ 1 -> bb3, else -> bb1]
   bb3:
-    _6 = add(copy _2, 1)
-    _2 = copy _6
-    goto bb4
+    _6 = eq(copy _1[0], 196)
+    switch copy _6 [ 1 -> bb4, else -> bb5]
   bb4:
-    _7 = len(_1)
-    _8 = lt(1, copy _7)
-    switch copy _8 [ 1 -> bb5, else -> bb6]
+    _7 = add(copy _2, 1)
+    _2 = copy _7
+    goto bb5
   bb5:
-    _9 = eq(copy _1[1], 133)
-    switch copy _9 [ 1 -> bb7, else -> bb8]
+    _8 = len(_1)
+    _9 = ge(1, 0)
+    switch copy _9 [ 1 -> bb7, else -> bb6]
   bb6:
     abort Bounds
   bb7:
-    _10 = add(copy _2, 1)
-    _2 = copy _10
-    goto bb8
+    _10 = lt(1, copy _8)
+    switch copy _10 [ 1 -> bb8, else -> bb6]
   bb8:
-    _11 = len(_1)
-    _12 = eq(copy _11, 2)
-    switch copy _12 [ 1 -> bb9, else -> bb10]
+    _11 = eq(copy _1[1], 133)
+    switch copy _11 [ 1 -> bb9, else -> bb10]
   bb9:
-    _13 = add(copy _2, 1)
-    _2 = copy _13
+    _12 = add(copy _2, 1)
+    _2 = copy _12
     goto bb10
   bb10:
-    _14 = borrow _1
-    _15 = call first(copy _14) +current -> bb11
+    _13 = len(_1)
+    _14 = eq(copy _13, 2)
+    switch copy _14 [ 1 -> bb11, else -> bb12]
   bb11:
-    _16 = eq(copy _15, 196)
-    switch copy _16 [ 1 -> bb12, else -> bb13]
+    _15 = add(copy _2, 1)
+    _2 = copy _15
+    goto bb12
   bb12:
-    _17 = add(copy _2, 1)
-    _2 = copy _17
-    goto bb13
+    _16 = borrow _1
+    _17 = call first(copy _16) +current -> bb13
   bb13:
-    _18 = "a\nb"  // label "nul": String decl
-    _19 = len(_18)
-    _20 = lt(1, copy _19)
-    switch copy _20 [ 1 -> bb14, else -> bb15]
+    _18 = eq(copy _17, 196)
+    switch copy _18 [ 1 -> bb14, else -> bb15]
   bb14:
-    _21 = eq(copy _18[1], 10)
-    switch copy _21 [ 1 -> bb16, else -> bb17]
+    _19 = add(copy _2, 1)
+    _2 = copy _19
+    goto bb15
   bb15:
-    abort Bounds
+    _20 = "a\nb"  // label "nul": String decl
+    _21 = len(_20)
+    _22 = ge(1, 0)
+    switch copy _22 [ 1 -> bb17, else -> bb16]
   bb16:
-    _22 = add(copy _2, 2)
-    _2 = copy _22
-    goto bb17
+    abort Bounds
   bb17:
+    _23 = lt(1, copy _21)
+    switch copy _23 [ 1 -> bb18, else -> bb16]
+  bb18:
+    _24 = eq(copy _20[1], 10)
+    switch copy _24 [ 1 -> bb19, else -> bb20]
+  bb19:
+    _25 = add(copy _2, 2)
+    _2 = copy _25
+    goto bb20
+  bb20:
     _0 = copy _2
     region_exit r0
     return
@@ -101,18 +113,22 @@ fn first (parent=true, sink=false) {
   let _1: &String [Arg] s
   let _2: i32 [Temp]
   let _3: bool [Temp]
+  let _4: bool [Temp]
   region r0 Block
   bb0:
     region_enter r0
     _2 = len(_1)
-    _3 = lt(0, copy _2)
-    switch copy _3 [ 1 -> bb1, else -> bb2]
+    _3 = ge(0, 0)
+    switch copy _3 [ 1 -> bb2, else -> bb1]
   bb1:
+    abort Bounds
+  bb2:
+    _4 = lt(0, copy _2)
+    switch copy _4 [ 1 -> bb3, else -> bb1]
+  bb3:
     _0 = copy _1[0]
     region_exit r0
     return
-  bb2:
-    abort Bounds
 }
 
 == text/content_equality.bork
@@ -353,39 +369,43 @@ fn main (parent=false, sink=false) {
   let _7: String [Val] path
   let _8: i32 [Temp]
   let _9: bool [Temp]
-  let _10: unit [Hidden(DynamicArena)]
-  let _11: Request [Temp]
-  let _12: String [Temp]
+  let _10: bool [Temp]
+  let _11: unit [Hidden(DynamicArena)]
+  let _12: Request [Temp]
   let _13: String [Temp]
-  let _14: Request [Val] req
-  let _15: i32 [Var] score
-  let _16: &Request [Temp]
-  let _17: bool [Temp]
-  let _18: i32 [Temp]
-  let _19: bool [Temp]
-  let _20: i32 [Temp]
-  let _21: String [Temp]
-  let _22: &[u8; 6] [Temp]
-  let _23: String? [Temp]
-  let _24: String [Temp]
-  let _25: String [Val] prefix
-  let _26: bool [Temp]
-  let _27: i32 [Temp]
-  let _28: bool [Temp]
+  let _14: String [Temp]
+  let _15: Request [Val] req
+  let _16: i32 [Var] score
+  let _17: &Request [Temp]
+  let _18: bool [Temp]
+  let _19: i32 [Temp]
+  let _20: bool [Temp]
+  let _21: i32 [Temp]
+  let _22: String [Temp]
+  let _23: &[u8; 6] [Temp]
+  let _24: String? [Temp]
+  let _25: String [Temp]
+  let _26: String [Val] prefix
+  let _27: bool [Temp]
+  let _28: i32 [Temp]
   let _29: bool [Temp]
-  let _30: i32 [Temp]
+  let _30: bool [Temp]
   let _31: bool [Temp]
-  let _32: bool [Temp]
-  let _33: i32 [Temp]
-  let _34: String [Temp]
-  let _35: i32 [Temp]
-  let _36: bool [Temp]
-  let _37: bool [Temp]
+  let _32: i32 [Temp]
+  let _33: bool [Temp]
+  let _34: bool [Temp]
+  let _35: bool [Temp]
+  let _36: i32 [Temp]
+  let _37: String [Temp]
   let _38: i32 [Temp]
-  let _39: &[u8; 6] [Temp]
-  let _40: i32 [Temp]
-  let _41: i32 [Temp]
+  let _39: bool [Temp]
+  let _40: bool [Temp]
+  let _41: bool [Temp]
   let _42: i32 [Temp]
+  let _43: &[u8; 6] [Temp]
+  let _44: i32 [Temp]
+  let _45: i32 [Temp]
+  let _46: i32 [Temp]
   region r0 Block
   region r1 IfThen in r0
   region r2 IfThen in r0
@@ -416,98 +436,110 @@ fn main (parent=false, sink=false) {
   bb3:
     _7 = copy _3  // label "path": String decl
     _8 = len(_2)
-    _9 = lt(0, copy _8)
-    switch copy _9 [ 1 -> bb4, else -> bb5]
+    _9 = ge(0, 0)
+    switch copy _9 [ 1 -> bb5, else -> bb4]
   bb4:
-    _2[0] = 0
-    _10 = arena_create_dynamic parent=root scoped=false
-    register_strong_root current <- _10
-    _11 = alloc Object { class: "Request" } in fresh10
-    _12 = "GET /"
-    _13 = copy_into _12 in fresh10
-    _11.0 = copy _13
-    _14 = copy _11  // label "req": Request decl
-    _15 = 0  // label "score": i32 decl
-    _16 = borrow _14
-    _17 = call Request.method_ok(copy _16) +current -> bb6
-  bb5:
     abort Bounds
+  bb5:
+    _10 = lt(0, copy _8)
+    switch copy _10 [ 1 -> bb6, else -> bb4]
   bb6:
-    switch copy _17 [ 1 -> bb7, else -> bb8]
+    _2[0] = 0
+    _11 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _11
+    _12 = alloc Object { class: "Request" } in fresh11
+    _13 = "GET /"
+    _14 = copy_into _13 in fresh11
+    _12.0 = copy _14
+    _15 = copy _12  // label "req": Request decl
+    _16 = 0  // label "score": i32 decl
+    _17 = borrow _15
+    _18 = call Request.method_ok(copy _17) +current -> bb7
   bb7:
-    _18 = add(copy _15, 1)
-    _15 = copy _18
-    goto bb8
+    switch copy _18 [ 1 -> bb8, else -> bb9]
   bb8:
-    _19 = intrinsic StringEq(copy _7, "GET /")
-    switch copy _19 [ 1 -> bb9, else -> bb10]
+    _19 = add(copy _16, 1)
+    _16 = copy _19
+    goto bb9
   bb9:
-    _20 = add(copy _15, 0)
-    _15 = copy _20
-    goto bb10
+    _20 = intrinsic StringEq(copy _7, "GET /")
+    switch copy _20 [ 1 -> bb10, else -> bb11]
   bb10:
-    _22 = borrow _2
-    _23 = intrinsic StringFromUtf8(copy _22, 0, 4) in current
-    match _23 {
-      Some(bind) _24=_23.some -> bb11
-      None -> bb12
-    }
+    _21 = add(copy _16, 0)
+    _16 = copy _21
+    goto bb11
   bb11:
-    _21 = copy _24
-    goto bb13
+    _23 = borrow _2
+    _24 = intrinsic StringFromUtf8(copy _23, 0, 4) in current
+    match _24 {
+      Some(bind) _25=_24.some -> bb12
+      None -> bb13
+    }
   bb12:
-    _21 = "bad"
-    goto bb13
+    _22 = copy _25
+    goto bb14
   bb13:
-    _25 = copy _21  // label "prefix": String decl
-    _27 = len(_25)
-    _28 = lt(0, copy _27)
-    switch copy _28 [ 1 -> bb14, else -> bb15]
+    _22 = "bad"
+    goto bb14
   bb14:
-    _29 = eq(copy _25[0], 0)
-    switch copy _29 [ 1 -> bb16, else -> bb17]
+    _26 = copy _22  // label "prefix": String decl
+    _28 = len(_26)
+    _29 = ge(0, 0)
+    switch copy _29 [ 1 -> bb16, else -> bb15]
   bb15:
     abort Bounds
   bb16:
-    _30 = len(_25)
-    _31 = lt(1, copy _30)
-    switch copy _31 [ 1 -> bb19, else -> bb20]
+    _30 = lt(0, copy _28)
+    switch copy _30 [ 1 -> bb17, else -> bb15]
   bb17:
-    _26 = false
-    goto bb18
+    _31 = eq(copy _26[0], 0)
+    switch copy _31 [ 1 -> bb18, else -> bb19]
   bb18:
-    switch copy _26 [ 1 -> bb21, else -> bb22]
+    _32 = len(_26)
+    _33 = ge(1, 0)
+    switch copy _33 [ 1 -> bb22, else -> bb21]
   bb19:
-    _32 = eq(copy _25[1], 69)
-    _26 = copy _32
-    goto bb18
+    _27 = false
+    goto bb20
   bb20:
-    abort Bounds
+    switch copy _27 [ 1 -> bb24, else -> bb25]
   bb21:
-    _33 = add(copy _15, 2)
-    _15 = copy _33
-    goto bb22
-  bb22:
-    _34 = "GET /"
-    _35 = len(_34)
-    _36 = lt(0, copy _35)
-    switch copy _36 [ 1 -> bb23, else -> bb24]
-  bb23:
-    _37 = eq(copy _34[0], 71)
-    switch copy _37 [ 1 -> bb25, else -> bb26]
-  bb24:
     abort Bounds
+  bb22:
+    _34 = lt(1, copy _32)
+    switch copy _34 [ 1 -> bb23, else -> bb21]
+  bb23:
+    _35 = eq(copy _26[1], 69)
+    _27 = copy _35
+    goto bb20
+  bb24:
+    _36 = add(copy _16, 2)
+    _16 = copy _36
+    goto bb25
   bb25:
-    _38 = add(copy _15, 2)
-    _15 = copy _38
-    goto bb26
+    _37 = "GET /"
+    _38 = len(_37)
+    _39 = ge(0, 0)
+    switch copy _39 [ 1 -> bb27, else -> bb26]
   bb26:
-    _39 = borrow _2
-    _40 = call prefix_len(copy _39) +current -> bb27
+    abort Bounds
   bb27:
-    _41 = add(copy _15, copy _40)
-    _42 = add(copy _41, 1)
-    _0 = copy _42
+    _40 = lt(0, copy _38)
+    switch copy _40 [ 1 -> bb28, else -> bb26]
+  bb28:
+    _41 = eq(copy _37[0], 71)
+    switch copy _41 [ 1 -> bb29, else -> bb30]
+  bb29:
+    _42 = add(copy _16, 2)
+    _16 = copy _42
+    goto bb30
+  bb30:
+    _43 = borrow _2
+    _44 = call prefix_len(copy _43) +current -> bb31
+  bb31:
+    _45 = add(copy _16, copy _44)
+    _46 = add(copy _45, 1)
+    _0 = copy _46
     region_exit r0
     return
 }
@@ -520,25 +552,29 @@ fn Request.method_ok (parent=true, sink=false) {
   let _4: bool [Temp]
   let _5: bool [Temp]
   let _6: bool [Temp]
+  let _7: bool [Temp]
   region r0 Block
   bb0:
     region_enter r0
     _3 = len(_1.0)
-    _4 = lt(0, copy _3)
-    switch copy _4 [ 1 -> bb1, else -> bb2]
+    _4 = ge(0, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
   bb1:
-    _5 = eq(copy _1.0[0], 71)
-    switch copy _5 [ 1 -> bb3, else -> bb4]
-  bb2:
     abort Bounds
+  bb2:
+    _5 = lt(0, copy _3)
+    switch copy _5 [ 1 -> bb3, else -> bb1]
   bb3:
-    _6 = intrinsic StringEq("GET /", "GET /")
-    _2 = copy _6
-    goto bb5
+    _6 = eq(copy _1.0[0], 71)
+    switch copy _6 [ 1 -> bb4, else -> bb5]
   bb4:
-    _2 = false
-    goto bb5
+    _7 = intrinsic StringEq("GET /", "GET /")
+    _2 = copy _7
+    goto bb6
   bb5:
+    _2 = false
+    goto bb6
+  bb6:
     _0 = copy _2
     region_exit r0
     return
@@ -589,6 +625,7 @@ fn main (parent=false, sink=false) {
   let _8: i32 [Temp]
   let _9: bool [Temp]
   let _10: bool [Temp]
+  let _11: bool [Temp]
   region r0 Block
   region r1 IfThen in r0
   bb0:
@@ -613,19 +650,22 @@ fn main (parent=false, sink=false) {
   bb3:
     _7 = copy _3  // label "method": String decl
     _8 = len(_2)
-    _9 = lt(0, copy _8)
-    switch copy _9 [ 1 -> bb4, else -> bb5]
+    _9 = ge(0, 0)
+    switch copy _9 [ 1 -> bb5, else -> bb4]
   bb4:
-    _2[0] = 80
-    _10 = intrinsic StringEq(copy _7, "GET")
-    switch copy _10 [ 1 -> bb6, else -> bb7]
-  bb5:
     abort Bounds
+  bb5:
+    _10 = lt(0, copy _8)
+    switch copy _10 [ 1 -> bb6, else -> bb4]
   bb6:
+    _2[0] = 80
+    _11 = intrinsic StringEq(copy _7, "GET")
+    switch copy _11 [ 1 -> bb7, else -> bb8]
+  bb7:
     _0 = 3
     region_exit r0
     return
-  bb7:
+  bb8:
     _0 = 0
     region_exit r0
     return

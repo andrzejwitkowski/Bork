@@ -30,7 +30,7 @@ impl<'a> FnBuilder<'a> {
         let span = span_of(e);
         match &e.kind {
             HirExprKind::Ident { name, .. } => {
-                let local = self.lookup(name)?;
+                let local = self.lookup(name, span)?;
                 Ok(Place::local(local))
             }
             HirExprKind::ObjectField { receiver, field_index, safe: false, .. } => {
@@ -57,19 +57,16 @@ impl<'a> FnBuilder<'a> {
         let i32_ty = self.tcx.prim_id(crate::hir::Prim::I32);
         let len = self.temp(i32_ty);
         self.stmt(StmtKind::Assign(Place::local(len), Rvalue::Len(base.clone())), span, Some(e.id));
-        let inb = self.temp(self.bool_ty);
-        // shortcut: one signed `idx < len`; the backend lowers it as the unsigned compare that also rejects negatives.
-        self.stmt(
-            StmtKind::Assign(Place::local(inb), Rvalue::Binary(BinOp::Lt, idx.clone(), Operand::Copy(Place::local(len)))),
-            span,
-            Some(e.id),
-        );
-        let (ok, abort) = (self.new_block(), self.new_block());
-        self.terminate(
-            TermKind::Switch { value: Operand::Copy(Place::local(inb)), cases: vec![(1, ok)], otherwise: abort },
-            span,
-            Some(e.id),
-        );
+        let abort = self.new_block();
+        // Two checks, because MIR comparisons are signed: a negative index is below `len` too.
+        for (op, bound) in [(BinOp::Ge, Operand::Const(Const::Int(0))), (BinOp::Lt, Operand::Copy(Place::local(len)))] {
+            let inb = self.temp(self.bool_ty);
+            self.stmt(StmtKind::Assign(Place::local(inb), Rvalue::Binary(op, idx.clone(), bound)), span, Some(e.id));
+            let ok = self.new_block();
+            self.terminate(TermKind::Switch { value: Operand::Copy(Place::local(inb)), cases: vec![(1, ok)], otherwise: abort }, span, Some(e.id));
+            self.cur = ok;
+        }
+        let ok = self.cur;
         self.cur = abort;
         self.terminate(TermKind::Abort(AbortReason::Bounds), span, Some(e.id));
         self.cur = ok;
@@ -159,7 +156,7 @@ impl<'a> FnBuilder<'a> {
 
     /// Stores into `place[idx]` / `vec[idx]`.
     pub(super) fn assign_index(&mut self, name: &str, index: &HirExpr, value: &HirExpr, span: Span) -> Res<()> {
-        let local = self.lookup(name)?;
+        let local = self.lookup(name, span)?;
         let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
         let idx = self.expr(index)?;
         let ty = self.locals[local.0 as usize].ty;

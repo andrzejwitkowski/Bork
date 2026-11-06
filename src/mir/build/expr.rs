@@ -64,7 +64,7 @@ impl<'a> FnBuilder<'a> {
     }
 
     fn ident(&mut self, e: &HirExpr, name: &str, use_kind: UseKind) -> Res<Operand> {
-        let local = self.lookup(name)?;
+        let local = self.lookup(name, span_of(e))?;
         let place = Place::local(local);
         match use_kind {
             UseKind::Local | UseKind::Shared | UseKind::Copy => Ok(Operand::Copy(place)),

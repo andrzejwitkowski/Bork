@@ -175,10 +175,16 @@ fn paths_overlap(input: &str, output: &std::path::Path) -> bool {
     if std::path::Path::new(input) == output {
         return true;
     }
-    match (fs::canonicalize(input), fs::canonicalize(output)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => false,
+    if matches!((fs::canonicalize(input), fs::canonicalize(output)), (Ok(a), Ok(b)) if a == b) {
+        return true;
     }
+    // A hard link is a different path to the same file; `fs::write` would truncate the source through it.
+    #[cfg(unix)]
+    if let (Ok(a), Ok(b)) = (fs::metadata(input), fs::metadata(output)) {
+        use std::os::unix::fs::MetadataExt;
+        return a.dev() == b.dev() && a.ino() == b.ino();
+    }
+    false
 }
 
 fn read_source(path: &str) -> String {

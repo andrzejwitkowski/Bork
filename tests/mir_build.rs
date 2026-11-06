@@ -92,5 +92,34 @@ fn corpus_builds_and_verifies() {
 fn call_result_sink_follows_the_assignment_target() {
     let source = "class P { n: i32 }\nfun id(p: P): P { return p }\nfun main(): i32 {\n    var a = P(1)\n    a = id(P(2))\n    return a.n\n}\n";
     let text = bork::mir::emit::emit_mir(&check(source)).expect("builds");
-    assert!(text.contains("= call id(") && text.contains("+current +home(_"), "{text}");
+    // Declarations print as `let _N: P [Var] a`.
+    let a = text.lines().find_map(|l| l.trim().strip_prefix("let _")?.split(':').next().filter(|_| l.ends_with(" a"))).expect("local `a`");
+    let call = text.lines().find(|l| l.contains("= call id(")).expect("call");
+    assert!(call.contains(&format!("+current +home(_{a})")), "{text}");
+}
+
+fn emit(source: &str) -> Result<String, Vec<bork::diag::Diagnostic>> {
+    bork::mir::emit::emit_mir(&check(source))
+}
+
+#[test]
+fn reading_a_unit_payload_binding_reports_the_capability() {
+    // Only functions reachable from `main` are monomorphized, so `main` has to call `g`.
+    let source = "enum S { Idle(u: unit, n: i32) }\nfun nothing() { }\nfun g(s: &S) {\n    when s {\n        Idle(u, n) => { val x = u }\n    }\n}\nfun main(): i32 {\n    val s = S.Idle(nothing(), 1)\n    g(&s)\n    return 0\n}\n";
+    // Binding without reading is fine; the read is the gap.
+    let err = emit(source).expect_err("reads a unit binding");
+    assert!(err[0].message.contains("unit-payload-bind"), "{err:?}");
+}
+
+#[test]
+fn a_negative_index_is_rejected_by_the_bounds_guard() {
+    let text = emit("fun main(): i32 {\n    val a = [1, 2, 3]\n    return a[1]\n}\n").expect("builds");
+    assert!(text.contains("ge(") && text.contains("lt("), "bounds guard must test both ends:\n{text}");
+}
+
+#[test]
+fn a_while_after_return_does_not_enter_its_region_on_the_return_path() {
+    let text = emit("fun f(): i32 {\n    return 1\n    var i = 0\n    while (i < 2) {\n        val s = \"x\"\n        i = i + 1\n    }\n    return 2\n}\nfun main(): i32 { return f() }\n").expect("builds and verifies");
+    let first_block: Vec<&str> = text.lines().skip_while(|l| !l.starts_with("fn f")).skip_while(|l| !l.contains("bb0:")).skip(1).take_while(|l| !l.contains("bb1:")).collect();
+    assert!(!first_block.iter().any(|l| l.contains("region_enter r1")), "{first_block:?}");
 }

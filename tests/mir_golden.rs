@@ -49,6 +49,12 @@ fn golden_mir_matches_snapshots() {
     let actual = render();
     if std::env::var_os("BORK_BLESS").is_some() {
         fs::create_dir_all(&dir).unwrap();
+        for entry in fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if !actual.contains_key(path.file_stem().unwrap().to_str().unwrap()) {
+                fs::remove_file(path).unwrap();
+            }
+        }
         for (topic, text) in &actual {
             fs::write(dir.join(format!("{topic}.txt")), text).unwrap();
         }

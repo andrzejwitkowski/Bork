@@ -96,6 +96,8 @@ pub(super) struct FnBuilder<'a> {
     open: Vec<Open>,
     loops: Vec<LoopCtx>,
     scopes: Vec<HashMap<String, Local>>,
+    /// Names bound to a `unit` payload: no local exists, so reading one is the `unit-payload-bind` capability gap.
+    pub(super) unit_binds: std::collections::HashSet<String>,
     cursors: Vec<(&'a ArenaNode, usize)>,
     pub(super) abi: CallAbi,
     ret: Local,
@@ -125,6 +127,7 @@ impl<'a> FnBuilder<'a> {
             open: Vec::new(),
             loops: Vec::new(),
             scopes: vec![HashMap::new()],
+            unit_binds: Default::default(),
             cursors: vec![(root, 0)],
             abi: call_abi(function, tcx),
             ret: Local(0),
@@ -194,12 +197,14 @@ impl<'a> FnBuilder<'a> {
     }
 
     /// A name the HIR uses must be in scope; anything else is a builder bug.
-    pub(super) fn lookup(&self, name: &str) -> Res<Local> {
-        self.scopes
-            .iter()
-            .rev()
-            .find_map(|s| s.get(name).copied())
-            .ok_or_else(|| BuildError::Internal(format!("name `{name}` is not in scope in `{}`", self.function.name)))
+    pub(super) fn lookup(&self, name: &str, span: Span) -> Res<Local> {
+        self.scopes.iter().rev().find_map(|s| s.get(name).copied()).ok_or_else(|| {
+            if self.unit_binds.contains(name) {
+                BuildError::unsupported(Capability::UnitPayloadBind, span)
+            } else {
+                BuildError::Internal(format!("name `{name}` is not in scope in `{}`", self.function.name))
+            }
+        })
     }
 
     pub(super) fn is_unit(&self, ty: TyId) -> bool {
@@ -284,9 +289,8 @@ impl<'a> FnBuilder<'a> {
         self.regions.push(RegionInfo { parent, site });
         let id = RegionId(self.regions.len() as u32 - 1);
         if pushed {
-            let enter = Statement { span, node: None, kind: StmtKind::RegionEnter(id), debug: None };
             match enter_in {
-                Some(b) => self.blocks[b.0 as usize].stmts.push(enter),
+                Some(b) => self.blocks[b.0 as usize].stmts.push(Statement { span, node: None, kind: StmtKind::RegionEnter(id), debug: None }),
                 None => self.stmt(StmtKind::RegionEnter(id), span, None),
             }
         }

@@ -436,7 +436,10 @@ impl<'a> FnBuilder<'a> {
             HirPatKind::Lit(l) => Ok(MirPat::Lit(l.clone())),
             HirPatKind::Bind { name, binding_ty } => {
                 // A bound `unit` payload declares no local (RFC 3.2.1).
-                if *binding_ty != self.unit {
+                // As `bind_pat` does: a payload of `unit` (or a borrow of it) declares no local.
+                if self.tcx.deref_ty(*binding_ty) == self.unit {
+                    self.unit_binds.insert(name.name.clone());
+                } else {
                     let local = self.new_local(*binding_ty, LocalKind::Val, Some(name.name.clone()));
                     bound.push(Bound { name: name.name.clone(), local, place, ty: *binding_ty });
                 }

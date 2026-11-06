@@ -37,7 +37,7 @@ impl<'a> FnBuilder<'a> {
                     None => self.expr(value)?,
                     Some(crate::hoist::RESULT_SINK) => self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?,
                     Some(target) => {
-                        let home = self.lookup(target)?;
+                        let home = self.lookup(target, span)?;
                         self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?
                     }
                 };
@@ -60,7 +60,7 @@ impl<'a> FnBuilder<'a> {
             }
             HirStmt::Assign { target, value } => match target {
                 HirAssignTarget::Name { name } => {
-                    let local = self.lookup(name)?;
+                    let local = self.lookup(name, span)?;
                     let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
                     self.stmt(StmtKind::Assign(Place::local(local), Rvalue::Use(v)), span, Some(value.id));
                     Ok(())
@@ -121,14 +121,15 @@ impl<'a> FnBuilder<'a> {
     }
 
     fn while_loop(&mut self, cond: &HirExpr, body: &HirBlock, span: Span) -> Res<()> {
-        let pre = self.cur;
+        // After a `return`/`break` the loop is dead code: its enter must not join the exit path's block.
+        let pre = (!self.terminated()).then_some(self.cur);
         let header = self.new_block();
         self.goto(header, span);
         self.cur = header;
         // The condition runs inside the loop region at run time, but its own report regions come
         // first in the walk, so the loop region is opened (in `pre`) only once it is lowered.
         let c = self.expr(cond)?;
-        let (peeled, region, pushed) = self.enter_region(RegionSite::While, body, false, Some(pre), span)?;
+        let (peeled, region, pushed) = self.enter_region(RegionSite::While, body, false, pre, span)?;
         let (body_b, latch, exit) = (self.new_block(), self.new_block(), self.new_block());
         self.terminate(TermKind::Switch { value: c, cases: vec![(1, body_b)], otherwise: exit }, span, Some(cond.id));
         self.loop_body(peeled, body_b, latch, exit, header, region, pushed, None, span)
