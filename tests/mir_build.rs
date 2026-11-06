@@ -123,3 +123,14 @@ fn a_while_after_return_does_not_enter_its_region_on_the_return_path() {
     let first_block: Vec<&str> = text.lines().skip_while(|l| !l.starts_with("fn f")).skip_while(|l| !l.contains("bb0:")).skip(1).take_while(|l| !l.contains("bb1:")).collect();
     assert!(!first_block.iter().any(|l| l.contains("region_enter r1")), "{first_block:?}");
 }
+
+/// `docs/mir/example.md` quotes the real `--emit-mir` output; fail when the printer or builder drifts.
+#[test]
+fn the_worked_example_doc_quotes_current_output() {
+    let dir = root().join("docs/mir");
+    let text = emit(&fs::read_to_string(dir.join("example.bork")).unwrap()).expect("example builds");
+    let doc = fs::read_to_string(dir.join("example.md")).unwrap();
+    for body in text.trim().split("\n\n") {
+        assert!(doc.contains(body.trim()), "docs/mir/example.md is stale; update it from:\n{body}");
+    }
+}
