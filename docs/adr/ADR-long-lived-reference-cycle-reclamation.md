@@ -1,18 +1,18 @@
 # ADR: `Hold<T>` dla obiektów i cykli, które mają żyć długo
 
-- Status: propozycja; kodu jeszcze nie ma.
+- Status: propozycja; kodu jeszcze nie ma; backend pamięci Hold pozostaje nierozstrzygnięty.
 - Baza projektu: `origin/main`, commit `46d7386f62dbf6bd38c737ac509f1974a5813b7e`.
 - Decyzja: dodać osobny typ `Hold<T>`. Istniejący `Ref<T>` pozostaje bez zmian.
 
 ## W skrócie
 
 - `Ref<T>` nadal używa obecnych aren i ich reguł strong/weak.
-- `Hold<T>` dostaje własny magazyn węzłów i własne liczniki. `hold_new(...)` tworzy obiekt od razu w tym magazynie. Nie przejmuje obiektu wcześniej utworzonego w zwykłej arenie.
+- `Hold<T>` dostaje własny graf, identyfikatory i kolektor. Sposób przechowywania bajtów pozostaje otwarty: (A) `hold_new` tworzy obiekt w osobnym magazynie Hold; (B) uchwyt przejmuje istniejący obiekt z regionu, a strony z żywymi zakresami trafiają do alokatora zdolnego ponownie używać wolnych dziur. Zakres tego alokatora pozostaje do ustalenia.
 - Uchwyt `Hold` trzymany poza grafem jest rootem. Root utrzymuje wskazany węzeł i wszystko, do czego prowadzą jego pola `Hold`.
 - Pole `Hold` wewnątrz węzła `Hold` jest krawędzią grafu. Pole `Hold` w obiekcie `Ref` jest osobnym rootem.
 - Przy zbieraniu mechanizm przechodzi po grafie `Hold`: zachowuje węzły osiągalne z rootów, a zwalnia resztę, także nieosiągalne cykle.
 - To nie skanuje całej pamięci Borka ani stosu. Jest jednak kolekcją cykli, czyli GC w szerszym sensie.
-- Pomysł zachowania adresu zwykłego obiektu przez odpinanie stron areny został oceniony niżej. Nie wchodzi do pierwszej wersji, bo może przypiąć całe strony wraz z niepowiązanymi danymi.
+- Odpinanie stron nie jest odrzucone z powodu „zmarnowanych 4 KiB”: wolne zakresy strony mogą być ponownie użyte. Otwarta pozostaje decyzja, czy adres starszego obiektu i ponowne użycie dziur uzasadniają dodatkowy ledger alokacji i osobny właściciel stron.
 
 ## Co już robi `Ref<T>`
 
@@ -24,9 +24,14 @@ W pierwszej wersji `Hold<T>` może wskazywać nie-nullowalną klasę, a samo `Ho
 
 ## Gdzie leżą obiekty `Hold`
 
-Każdy `Hold` wskazuje węzeł w osobnym magazynie Hold, poza zwykłymi arenami `Ref`. Węzeł ma stabilny identyfikator, stan życia i dane obiektu. Uchwyt przechowuje identyfikator, a nie adres slotu w Vec.
+Każdy `Hold` wskazuje węzeł o stabilnej tożsamości, stanie życia i danych. Uchwyt nie wskazuje slotu w `Vec`; może wskazywać albo do osobnego magazynu Hold, albo do zakresu przejętego z areny. Graf, rooty i kolektor są takie same w obu wariantach. Żaden wariant nie zmienia ABI ani semantyki `Ref<T>`.
 
-`hold_new(Node(...))` tworzy obiekt od razu w magazynie Hold. Jego adres nie zmienia się do czasu zwolnienia. Nie przejmujemy węzła wcześniej zaalokowanego w zwykłej arenie `Ref`.
+Dwa sposoby umieszczenia danych pozostają otwarte:
+
+- **Osobny magazyn:** `hold_new(Node(...))` tworzy węzeł w magazynie Hold od początku. Adres jest stabilny do zebrania, ale nie zachowuje adresu wcześniejszego obiektu regionowego.
+- **Przejęcie z regionu:** przy końcu regionu uchwyt Hold przejmuje istniejący węzeł pod tym samym adresem. Strony/bloki z żywymi zakresami przechodzą pod nowego właściciela; martwe zakresy w nich wracają do alokatora. Pozostałe strony areny mogą być resetowane i użyte ponownie. Ten wariant wymaga ewidencji wszystkich alokacji i przekazania ich dropów/allocatorów.
+
+W obu wariantach węzeł Hold zachowuje adres do czasu zwolnienia. Nie ustalono jeszcze składni jawnego przejęcia z regionu ani tego, czy wolne zakresy będą dostępne dla wszystkich aren, czy tylko dla alokatora Hold.
 
 Dane węzła mogą zawierać klasy, enumy i kolekcje. Nie mogą zawierać `Ref`, borrowów ani surowych wskaźników, których życia graf Hold nie kontroluje. Kompilator ma sprawdzać to także przez zagnieżdżone pola i typy generyczne.
 
@@ -67,7 +72,7 @@ Aby zwolnić root wcześniej, po dodaniu obsługi `Hold` będzie można wyczyśc
 
 ## Pola klas, listy i mapy
 
-Składnia `Hold`, `hold_new` i `hold_mut` jest propozycją; nie jest jeszcze wykonywalnym kodem. `hold_mut` to nowy guard Hold: przypina węzeł i daje wyłączny widok do zapisu tylko na czas bloku. W obecnym Borku `if val` na `Ref` pozwala zapisać pole klasy (test `src/sema/tests/regional.rs:53–70`); nie zakładamy, że ten wyjątek obejmie nowy widok Hold.
+Składnia `Hold`, `hold_new` i `hold_mut` jest propozycją; nie jest jeszcze wykonywalnym kodem. `hold_mut` to nowy guard Hold: przypina węzeł i daje wyłączny widok do zapisu tylko na czas bloku. W obecnym Borku `if val` na `Ref` pozwala zapisać pole klasy (test `src/sema/tests/regional.rs:53–70`); nie zakładamy, że ten wyjątek obejmie nowy widok Hold. Przykład używa kandydackiego `hold_new`, więc nie rozstrzyga backendu pamięci.
 
 ```bork
 class Node {
@@ -97,7 +102,7 @@ fun main() {
 
 Pole klasy w węźle Hold jest krawędzią. `Vec<Hold<T>>` wewnątrz węzła dodaje jedną krawędź na element. Jeśli Vec leży poza grafem Hold, jej elementy są rootami.
 
-Nagłówek Vec-a Hold musi używać alokatora domeny Hold. Nie może zachować uchwytu do areny regionu, która zostanie zresetowana, bo wtedy późniejszy `push` użyłby martwej areny. Wzrost bufora może zmienić adres bufora, ale nie zmienia krawędzi grafu: graf śledzi identyfikatory węzłów, nie adresy slotów.
+Nagłówek Vec-a należącego do Hold musi używać alokatora, który przeżywa region. W wariancie osobnego magazynu jest to alokator Hold; przy przejęciu trzeba przekazać lub przepiąć token w nagłówku i wszystkie bufory. Wzrost bufora może zmienić jego adres, ale nie może korzystać z martwej areny.
 
 Bork nie ma jeszcze mapy językowej. Poniższy zapis pokazuje planowaną semantykę, nie istniejące API:
 
@@ -176,11 +181,16 @@ Nagłówki Vec i ich bufory wymagają dodatkowej obsługi: trzeba zachować albo
 
 Obecny globalny `ArenaPool` nie ma limitu liczby aren (`arena.rs:402–415`). Limit `MAX_SPARE_PAGES = 8` dotyczy zapasowych stron wewnątrz jednej areny; reset czyści free-listy, zachowuje stronę 0, odkłada do ośmiu dalszych stron i zwalnia nadmiarowe oraz duże bloki (`arena.rs:349–363`). Jeśli przyszła pula będzie ograniczona, metadane areny można zwolnić po przekazaniu żywych stron/bloków i stanu alokatora. Nie wolno zwolnić bajtów wskazywanych przez Hold. „Obiekt wiszący” musi mieć właściciela swojej pamięci.
 
-### Decyzja dla v1
+### Dwie opcje pamięci — decyzja odłożona
 
-Dotychczasowy wybór `hold_new` jest prostszy: obiekt powstaje od razu w osobnym magazynie Hold i ma tam stabilny adres. Nie przejmuje obiektu utworzonego wcześniej w regionie. Po tej korekcie nie uzasadniamy wyboru `hold_new` twierdzeniem, że pozostałe 4 KiB przy każdym Hold są zmarnowane: poprawny odpinacz może odzyskać i ponownie używać wolnych zakresów. Pozostają koszty ewidencji alokacji, dzielenia dropów, przekazania stron i obsługi alokatora po końcu regionu; ich przewaga nad `hold_new` wymaga pomiaru.
+Obie opcje zachowują ten sam typ `Hold`, graf, korzenie i kolektor:
 
-Jeśli wymaganiem jest zachowanie pierwotnego adresu obiektu utworzonego normalnie w regionie, `hold_new` tego wymagania nie spełnia i decyzję v1 trzeba oprzeć na prototypie odpinania, nie na argumencie o „zmarnowanej stronie”. T12 ma przetestować m.in. arenę 10-stronicową z Hold-ami na dwóch stronach, ponowne użycie dziur na tych stronach, reset pozostałych stron, sąsiednie dropy dokładnie raz, Vec/String poza stroną, wzrost Vec po końcu regionu oraz zwolnienie strony po śmierci ostatniego Hold. Pomiar ma rozdzielać żywe bajty, wolne zakresy rzeczywiście użyte, wolne zakresy bez zapotrzebowania, fragmentację i pamięć zaalokowaną.
+- **A. Osobny magazyn przez `hold_new`.** Najprostsza własność: obiekt od razu powstaje w pamięci Hold. Nie zachowuje adresu obiektu, który już powstał w regionie.
+- **B. Przejęcie obiektu z regionu.** Zachowuje adres, odpina tylko strony/bloki z żywymi zakresami, a znane martwe zakresy udostępnia ponownie alokatorowi. Pozostałe strony areny resetuje się. Wymaga pełnej ewidencji alokacji, rozdzielenia dropów i przekazania właściciela/allocator tokenów.
+
+Codex i Claude potwierdzili po ponownej ocenie, że wolne zakresy na przypiętej stronie mogą być ponownie użyte; sama liczba przypiętych stron nie jest miarą zmarnowanej pamięci. Ich wstępna preferencja A wynika z mniejszego zakresu zmian i braku pomiarów, nie z dowodu, że B zużyje więcej pamięci. B ma dodatkowy koszt ewidencji i poprawnego przekazania pamięci, ale może oszczędzić alokacje oraz spełnia wymaganie zachowania starego adresu.
+
+Nie wybieramy tu jeszcze backendu. Trzeba porównać oba przy tych samych regułach cache i zapotrzebowaniu, w tym przypadek 10-stronicowej areny z Hold-ami na dwóch stronach. Jeśli zachowanie adresu wcześniej utworzonego obiektu jest wymaganiem, A nie spełnia wymagania i wybór musi paść na B po zaliczeniu testów bezpieczeństwa. Jeśli nie jest wymaganiem, wynik pamięci i koszt implementacji mogą rozstrzygnąć między A i B.
 
 ## Skutki i ryzyka
 
