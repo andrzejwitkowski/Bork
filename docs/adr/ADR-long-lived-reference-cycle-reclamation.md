@@ -22,7 +22,7 @@
 
 W pierwszej wersji `Hold<T>` może wskazywać nie-nullowalną klasę, a samo `Hold<T>` może być puste (`None`). Nie jest to `Option<Hold<T>>`. Każdy niepusty uchwyt jest strong. Nie ma `WeakHold<T>`.
 
-## 2. Gdzie leżą obiekty `Hold`
+## Gdzie leżą obiekty `Hold`
 
 Każdy `Hold` wskazuje węzeł w osobnym magazynie Hold, poza zwykłymi arenami `Ref`. Węzeł ma stabilny identyfikator, stan życia i dane obiektu. Uchwyt przechowuje identyfikator, a nie adres slotu w Vec.
 
@@ -59,18 +59,15 @@ arena Ref B: pole Hold ──root───────────────�
 
 Każdy slot `Hold` ma własny root. Jeśli arena A zginie, jej drop usuwa tylko root do H1. H2 nadal żyje przez B; H1 może zostać zwolniony, jeśli nikt inny do niego nie prowadzi. Gdy znikną oba rooty, następne zbieranie może zwolnić cały nieosiągalny fragment grafu.
 
-Hold nie utrzymuje aren `Ref` przy życiu. Działa to w drugą stronę: żywy obiekt w arenie `Ref` może utrzymywać graf Hold przez pole `Hold`. Jeśli wiele takich obiektów żyje w różnych arenach, każdy z nich jest rootem. Dopóki którykolwiek root istnieje, collector musi zachować węzły osiągalne z niego. To może wyglądać jak wyciek, ale jest żywą ścieżką, a nie martwym cyklem. Aby zwolnić root wcześniej, wyczyść pole po bezpiecznej obserwacji Ref, np. `if val owner = owner_ref { owner.graph = None }`, albo usuń uchwyt z Vec/mapy. Bork nie robi tego przy ostatnim użyciu zmiennej.
+Hold nie utrzymuje aren `Ref` przy życiu. Działa to w drugą stronę: dopóki obiekt `Ref`-właściciel żyje, jego pole `Hold` jest rootem i trzyma osiągalny graf. Wiele pól w różnych arenach daje wiele niezależnych rootów. Usunięcie jednego zwalnia tylko to, co nie jest potrzebne pozostałym. To może wyglądać jak wyciek, ale obiekt jest nadal osiągalny.
 
-Warto rozróżnić dwie rzeczy w modelu Borka:
+Żeby zwolnić root wcześniej, wyczyść pole po bezpiecznej obserwacji `Ref` (np. `if val owner = owner_ref { owner.graph = None }`) albo usuń element z Vec/mapy. Bork ma test przypisania do pola klasy przez presence guard (`src/sema/tests/regional.rs:53–70`); test T6 ma pokryć pole `Hold`. Bork nie czyści pól przy ostatnim użyciu zmiennej.
 
-- Parent link dynamicznej areny do `DomainRoot` jest weak metadata; sam nie utrzymuje payloadu dziecka.
-- Każda dynamiczna arena ma też ukryty strong root. Compiler rejestruje jego drop w `root_owner` (`src/codegen/llvm/managed_ref.rs:100–139`, `crates/bork_runtime/src/arena.rs:731–734`). Jeśli owner jest leksykalny, root znika przy jego cleanupie. Jeśli ownerem jest niezwalniany `DomainRoot`, ten strong root może utrzymać arenę i jej pola Hold do zamknięcia procesu.
-
-Zatem: Hold nie przypina areny Ref, ale pole Hold wewnątrz długo żyjącej areny Ref może długo utrzymywać graf Hold. To ograniczenie trzeba pokazać użytkownikowi w dokumentacji, a test T6 ma pokryć oba przypadki.
+`dynamic Program` pozwala obiektowi przeżyć wyjście z bloku, ale nie oznacza automatycznie, że jest wieczny. Każda dynamic arena ma ukryty strong root; compiler rejestruje jego drop w `root_owner` (`src/codegen/llvm/managed_ref.rs:100–139`, `crates/bork_runtime/src/arena.rs:731–734`). Jeśli `root_owner` jest leksykalny, root znika przy cleanupie. Jeśli jest niezwalnianym `DomainRoot`, root może trwać do shutdown. Parent link do `DomainRoot` sam jest weak metadata i nie utrzymuje payloadu dziecka.
 
 ## Pola klas, listy i mapy
 
-Składnia poniżej jest propozycją. Nie jest jeszcze wykonywalnym programem.
+Składnia `Hold`, `hold_new` i `hold_mut` jest propozycją; nie jest jeszcze wykonywalnym kodem. `hold_mut` to nowy guard Hold: przypina węzeł i daje wyłączny widok do zapisu tylko na czas bloku. W obecnym Borku `if val` na `Ref` pozwala zapisać pole klasy (test `src/sema/tests/regional.rs:53–70`); nie zakładamy, że ten wyjątek obejmie nowy widok Hold.
 
 ```bork
 class Node {
@@ -83,11 +80,11 @@ fun make_cycle() {
     val a: Hold<Node> = hold_new(Node(1, None, Vec<Hold<Node>>()))
     val b: Hold<Node> = hold_new(Node(2, None, Vec<Hold<Node>>()))
 
-    if val an = a {
+    hold_mut(a) { an ->
         an.next = b
         an.children.push(b)
     }
-    if val bn = b {
+    hold_mut(b) { bn ->
         bn.next = a
     }
 } // cleanup regionu zwalnia lokalne rooty a i b
