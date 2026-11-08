@@ -1,76 +1,76 @@
-# ADR: `Hold<T>` — długotrwałe silne referencje i odzyskiwanie cykli
+# ADR: `Hold<T>` dla obiektów i cykli, które mają żyć długo
 
-- **Status:** Proposed; projekt, niezaimplementowany.
-- **Baza:** `origin/main` `46d7386f62dbf6bd38c737ac509f1974a5813b7e`.
-- **Zakres:** nowy typ referencji i jego graf runtime; bez zmian zachowania istniejącego `Ref<T>`.
+- Status: propozycja; kodu jeszcze nie ma.
+- Baza projektu: `origin/main`, commit `46d7386f62dbf6bd38c737ac509f1974a5813b7e`.
+- Decyzja: dodać osobny typ `Hold<T>`. Istniejący `Ref<T>` pozostaje bez zmian.
 
-## 1. Kontekst i decyzja
+## W skrócie
 
-Bork ma już `Ref<T>`. Jego runtime klasyfikuje uchwyty jako `Arena`, `Borrow`, `Strong` lub `Weak` według relacji aren. Strong back-edges są automatycznie słabe, więc cykle strong między różnymi arenami nie powstają. To świadomy kontrakt, nie wykazany wyciek.
+- `Ref<T>` nadal używa obecnych aren i ich reguł strong/weak.
+- `Hold<T>` dostaje własny magazyn węzłów i własne liczniki. `hold_new(...)` tworzy obiekt od razu w tym magazynie. Nie przejmuje obiektu wcześniej utworzonego w zwykłej arenie.
+- Uchwyt `Hold` trzymany poza grafem jest rootem. Root utrzymuje wskazany węzeł i wszystko, do czego prowadzą jego pola `Hold`.
+- Pole `Hold` wewnątrz węzła `Hold` jest krawędzią grafu. Pole `Hold` w obiekcie `Ref` jest osobnym rootem.
+- Przy zbieraniu mechanizm przechodzi po grafie `Hold`: zachowuje węzły osiągalne z rootów, a zwalnia resztę, także nieosiągalne cykle.
+- To nie skanuje całej pamięci Borka ani stosu. Jest jednak kolekcją cykli, czyli GC w szerszym sensie.
+- Pomysł zachowania adresu zwykłego obiektu przez odpinanie stron areny został oceniony niżej. Nie wchodzi do pierwszej wersji, bo może przypiąć całe strony wraz z niepowiązanymi danymi.
 
-Celem jest dodać opcjonalny typ do długotrwałych, dowolnie skierowanych relacji strong, w tym cykli, które mają być odzyskiwane, gdy staną się nieosiągalne. Wprowadzamy osobny typ `Hold<T>` oraz odrębny graf runtime. To nie jest alias, podtyp ani nowy `RefKind`.
+## Co już robi `Ref<T>`
 
-Twarda granica:
+`Ref<T>` jest powiązany z arenami. Mechanizm wykonawczy wybiera `Strong` albo `Weak` według wieku aren. Krawędź wsteczna jest słaba, więc silne cykle między różnymi arenami nie powstają. To obecna zasada języka, nie wykazany wyciek `Ref`.
 
-- `Ref<T>` zachowuje semantykę, layout `RefHandle`, ABI, klasyfikator, weak back-edges, piny i dropy.
-- Operacje `Hold` mają własne typy/ABI/runtime; nie są kierowane do `bork_ref_*`.
-- Nie ma niejawnej konwersji ani aliasu `Ref<T> ↔ Hold<T>`.
+`Hold<T>` jest nowym typem, a nie nowym wariantem `RefKind`. Nie zmieniamy layoutu ani ABI `RefHandle`, klasyfikatora, pinów, back-edges ani dropów `Ref`. Nie ma konwersji aliasującej `Ref<T>` ↔ `Hold<T>`.
 
-`Hold<T>` zaczyna się od jawnej alokacji nowego obiektu w osobnej domenie. Nie owija istniejącego obiektu `Ref`; przeniesienie danych między domenami wymaga jawnej materializacji kopii.
+W pierwszej wersji `Hold<T>` może wskazywać nie-nullowalną klasę, a samo `Hold<T>` może być puste (`None`). Nie jest to `Option<Hold<T>>`. Każdy niepusty uchwyt jest strong. Nie ma `WeakHold<T>`.
 
-## 2. Typ, węzły i payload
+## 2. Gdzie leżą obiekty `Hold`
 
-V1 obsługuje `Hold<T>` dla nie-nullowalnych klas. Sam typ `Hold<T>` jest nullable i ma pustą wartość `None` — nie jest to `Option<Hold<T>>`. Każdy niepusty uchwyt jest silny. Publicznego `WeakHold<T>` w v1 nie ma.
+Każdy `Hold` wskazuje węzeł w osobnym magazynie Hold, poza zwykłymi arenami `Ref`. Węzeł ma stabilny identyfikator, stan życia i dane obiektu. Uchwyt przechowuje identyfikator, a nie adres slotu w Vec.
 
-Każdy węzeł grafu ma stabilny identyfikator/generację, stan życia, `root_count`, krawędzie do innych węzłów `Hold` oraz własny payload. Graf i jego liczniki są oddzielone od `ArenaControl`, `RefHandle` i arenowej klasyfikacji. Węzeł może wewnętrznie używać istniejącego niskopoziomowego alokatora, ale nie dzieli z `Ref<T>` kontrolki ani reguł życia.
+`hold_new(Node(...))` tworzy obiekt od razu w magazynie Hold. Jego adres nie zmienia się do czasu zwolnienia. Nie przejmujemy węzła wcześniej zaalokowanego w zwykłej arenie `Ref`.
 
-Payload v1 może zawierać owned dane, klasy, enumy i kontenery. Tranzytywnie zabronione są:
+Dane węzła mogą zawierać klasy, enumy i kolekcje. Nie mogą zawierać `Ref`, borrowów ani surowych wskaźników, których życia graf Hold nie kontroluje. Kompilator ma sprawdzać to także przez zagnieżdżone pola i typy generyczne.
 
-- `Ref<U>` oraz zewnętrzne borrowy (`&T`, `&rw T`);
-- ukryte owning captures, surowe wskaźniki zachowywane poza operacją i nieopisane zasoby natywne;
-- finalizery użytkownika lub inne destruktory mogące uruchomić kod Borka, obserwować/wskrzeszać inne węzły.
+## Korzenie, krawędzie i czas życia
 
-Typecheck ma egzekwować ograniczenia przez pola, enum payloads, kontenery i instancje generyczne. To nowa reguła dla `Hold`, nie zmiana dozwolonych pól `Ref`.
-
-## 3. Korzenie, krawędzie i okres życia
-
-Niezmiennik grafu:
+„Root” to uchwyt, który znajduje się poza danymi węzłów Hold. Rootami są m.in. uchwyty w lokalach, parametrach, wynikach funkcji, zwykłych kolekcjach i polach obiektów zarządzanych przez `Ref`. Krawędź to uchwyt `Hold` zapisany wewnątrz danych innego węzła Hold.
 
 ```text
-root_count(v)     = liczba aktywnych uchwytów spoza payloadów Hold
-incoming_count(v) = liczba aktywnych krawędzi Hold wskazujących na v
+root_count(v)     = liczba aktywnych uchwytów spoza grafu Hold
+incoming_count(v) = liczba krawędzi Hold wskazujących na v
 strong_count(v)   = root_count(v) + incoming_count(v)
-outgoing(v)       = uchwyty Hold zapisane w payloadzie v
 ```
 
-Każda kopia, mutacja i cleanup aktualizuje te wartości dokładnie raz. Rooty nie są wyliczane przez skanowanie stosu; kodgen/cleanup utrzymuje je jawnie.
+Uchwyt w lokalu żyje do cleanupu regionu, o ile program nie wyczyści lub nie nadpisze go wcześniej. Bork nie usuwa uchwytów na podstawie ostatniego użycia zmiennej. Węzeł może przeżyć region, w którym go utworzono, jeśli trzyma go root lub ścieżka krawędzi od roota. Gdy zostaje tylko zamknięty cykl bez rootów, cykl czeka na najbliższe zbieranie.
 
-| Miejsce przechowywania `Hold<T>` | Rola w grafie | Kiedy lease znika |
+| Gdzie zapisano `Hold<T>` | Co oznacza | Co zwalnia uchwyt |
 |---|---|---|
-| lokal, parametr, temporary lub wynik funkcji | root | przy jawnej wymianie/przeniesieniu albo cleanupie regionu; Bork nie zakłada NLL/ostatniego użycia |
-| pole w payloadzie węzła Hold | silna krawędź z tego węzła do celu | przy nadpisaniu/usunięciu pola lub cleanupie właściciela |
-| element `Vec<Hold<T>>` / mapy będącej częścią payloadu Hold | silna krawędź z właściciela kolekcji | przy `push`/`insert`, zastąpieniu, `remove`, `clear` lub cleanupie |
-| element zewnętrznego `Vec`/mapy albo pole zwykłego obiektu, w tym zarządzanego przez `Ref` | root | przy usunięciu elementu/pola albo cleanupie obiektu/regionu |
-| aktywna obserwacja/guard | tymczasowy root-pin | na końcu guarda |
-| FFI | poza v1; ewentualne przyszłe API musi wystawiać retain/release jako jawny root | według osobnego kontraktu FFI |
+| lokal, parametr, wynik lub temporary | root | `None`, nadpisanie, `move` albo cleanup regionu |
+| pole w danych węzła Hold | krawędź do innego węzła | nadpisanie pola albo cleanup właściciela |
+| element `Vec<Hold<T>>` w węźle Hold | krawędź | `set`, `pop`, `clear` lub cleanup; `push` dodaje krawędź |
+| element zewnętrznego Vec/mapy lub pole obiektu `Ref` | root | usunięcie/nadpisanie pola albo cleanup właściciela; `push`/`insert` dodaje root |
+| aktywna obserwacja | tymczasowy root-pin | wyjście z guarda |
 
-Obiekt może przeżyć region, w którym powstał, jeśli istnieje root albo ścieżka krawędzi strong z roota. Jeżeli po cleanupie regionu zostaje wyłącznie cykl wewnętrznych krawędzi, cykl jest nieosiągalny i kwalifikuje się do odzyskania przy następnym safe poincie kolektora. Acykliczne węzły z zerowym root i zerowymi krawędziami przychodzącymi można zwolnić natychmiast przez RC.
-
-### Interakcja z `Ref<T>`
-
-Dozwolony jest jeden kierunek retencji:
+### Wiele rootów z różnych aren `Ref`
 
 ```text
-storage zarządzany przez Ref ── Hold jako root ──► graf Hold
+arena Ref A: pole Hold ──root──► H1 ──edge──► H2
+arena Ref B: pole Hold ──root────────────────► H2
 ```
 
-Pole `Hold<T>` w obiekcie istniejącego systemu `Ref` jest zewnętrznym rootem. Nowe drop glue zwalnia go przez `hold_release`; nie zmienia to layoutu, klasyfikacji ani ABI `Ref`. Implementacja musi wykonać release tego pola podczas cleanupu payloadu, przed przejściem zewnętrznej areny do `Dead` i zwrotem payloadu do puli.
+Każdy slot `Hold` ma własny root. Jeśli arena A zginie, jej drop usuwa tylko root do H1. H2 nadal żyje przez B; H1 może zostać zwolniony, jeśli nikt inny do niego nie prowadzi. Gdy znikną oba rooty, następne zbieranie może zwolnić cały nieosiągalny fragment grafu.
 
-W drugą stronę, payload Hold nie może zawierać `Ref` ani borrowów. Nie istnieje aliasujący most między grafami. Dzięki temu nie powstają cykle, które przechodzą przez dwa niezależne systemy pamięci. Jawne kopiowanie owned danych może utworzyć niezależny obiekt w drugiej domenie.
+Hold nie utrzymuje aren `Ref` przy życiu. Działa to w drugą stronę: żywy obiekt w arenie `Ref` może utrzymywać graf Hold przez pole `Hold`. Jeśli wiele takich obiektów żyje w różnych arenach, każdy z nich jest rootem. Dopóki którykolwiek root istnieje, collector musi zachować węzły osiągalne z niego. To może wyglądać jak wyciek, ale jest żywą ścieżką, a nie martwym cyklem. Aby zwolnić root wcześniej, wyczyść pole po bezpiecznej obserwacji Ref, np. `if val owner = owner_ref { owner.graph = None }`, albo usuń uchwyt z Vec/mapy. Bork nie robi tego przy ostatnim użyciu zmiennej.
 
-## 4. Pola klas, listy i mapy
+Warto rozróżnić dwie rzeczy w modelu Borka:
 
-Przykład pól i listy. Składnia `Hold`, `hold_new` i guarda dla nowego typu jest propozycją; nie jest jeszcze wykonywalnym kodem:
+- Parent link dynamicznej areny do `DomainRoot` jest weak metadata; sam nie utrzymuje payloadu dziecka.
+- Każda dynamiczna arena ma też ukryty strong root. Compiler rejestruje jego drop w `root_owner` (`src/codegen/llvm/managed_ref.rs:100–139`, `crates/bork_runtime/src/arena.rs:731–734`). Jeśli owner jest leksykalny, root znika przy jego cleanupie. Jeśli ownerem jest niezwalniany `DomainRoot`, ten strong root może utrzymać arenę i jej pola Hold do zamknięcia procesu.
+
+Zatem: Hold nie przypina areny Ref, ale pole Hold wewnątrz długo żyjącej areny Ref może długo utrzymywać graf Hold. To ograniczenie trzeba pokazać użytkownikowi w dokumentacji, a test T6 ma pokryć oba przypadki.
+
+## Pola klas, listy i mapy
+
+Składnia poniżej jest propozycją. Nie jest jeszcze wykonywalnym programem.
 
 ```bork
 class Node {
@@ -84,44 +84,44 @@ fun make_cycle() {
     val b: Hold<Node> = hold_new(Node(2, None, Vec<Hold<Node>>()))
 
     if val an = a {
-        an.next = b              // krawędź a -> b
-        an.children.push(b)      // druga, niezależna krawędź a -> b
+        an.next = b
+        an.children.push(b)
     }
     if val bn = b {
-        bn.next = a              // cykl b -> a
+        bn.next = a
     }
-} // a i b przestają być rootami przy cleanupie regionu
+} // cleanup regionu zwalnia lokalne rooty a i b
 
 fun main() {
     make_cycle()
-    hold_collect()               // przykład jawnego safe pointu
+    hold_collect()
 }
 ```
 
-`Hold` w polu klasy/enumu jest rootem, jeżeli właściciel leży poza grafem Hold; jest krawędzią, jeżeli właściciel należy do payloadu Hold. Store musi utworzyć/retainować nowy lease przed zwolnieniem starego. Klonowanie uchwytu zwiększa właściwy root/edge count; `move` przenosi lease.
+Pole klasy w węźle Hold jest krawędzią. `Vec<Hold<T>>` wewnątrz węzła dodaje jedną krawędź na element. Jeśli Vec leży poza grafem Hold, jej elementy są rootami.
 
-`Vec<Hold<T>>` jest obsługiwanym przykładem kontenera: każda pozycja jest osobnym lease’em. Reallokacja bufora nie zmienia krawędzi, ponieważ graf przechowuje stabilne identyfikatory węzłów, nie adresy slotów. Operacje push/replace/remove/clear aktualizują graf atomowo z perspektywy safe pointu.
+Nagłówek Vec-a Hold musi używać alokatora domeny Hold. Nie może zachować uchwytu do areny regionu, która zostanie zresetowana, bo wtedy późniejszy `push` użyłby martwej areny. Wzrost bufora może zmienić adres bufora, ale nie zmienia krawędzi grafu: graf śledzi identyfikatory węzłów, nie adresy slotów.
 
-W repozytorium z `origin/main` nie ma jeszcze mapy językowej. Jej przyszły kontrakt jest jednak określony przez tę decyzję; poniższa składnia jest wyłącznie ilustracyjna:
+Bork nie ma jeszcze mapy językowej. Poniższy zapis pokazuje planowaną semantykę, nie istniejące API:
 
 ```bork
 class Directory {
     by_id: Map<i32, Hold<Node>>
 }
 
-// Jeśli Directory leży w grafie Hold, wartości mapy są krawędziami.
-// Jeśli mapa leży poza grafem, każda wartość Hold jest rootem.
+// Mapa w węźle Hold: jej wartości są krawędziami.
+// Mapa poza grafem Hold: jej wartości są rootami.
 directory.by_id.insert(42, node)
 directory.by_id.remove(42)
 ```
 
-W v1 klucze `Map` nie są typu `Hold`. Wartość `Hold` jest śledzona przy insert, replace, remove i clear; rehash/relokacja nie zmienia tożsamości krawędzi. Implementacja mapy i jej API są osobnym zadaniem językowym, nie istniejącą funkcją Borka.
+W pierwszej wersji `Hold` nie może być kluczem mapy. `insert` dodaje root/krawędź, a replace/remove/clear zwalniają zastąpioną wartość. Rehash nie może zmienić tożsamości krawędzi. `Map` wymaga osobnego zadania językowego.
 
-## 5. Wykrywanie i zwalnianie cykli
+## Jak zbieramy nieosiągalne cykle
 
-V1 wybiera pełne znakowanie od jawnych rootów wyłącznie w domenie Hold. To prostsze do sprawdzenia niż trial deletion. Trial deletion może zostać zaproponowany później po pomiarach, ale musi zachować mark-collector jako oracle testowy/debugowy.
+W pierwszej wersji używamy znakowania od wszystkich rootów. Zbieramy tylko osobny graf Hold; nie skanujemy stosu, aren Ref ani dowolnych bajtów procesu. Trial deletion można rozważyć później po pomiarach.
 
-W safe poincie, gdy nie ma mutacji, callbacków ani aktywnych niechronionych widoków:
+W punkcie, w którym żadna operacja nie modyfikuje grafu:
 
 ```text
 marked = {}
@@ -131,18 +131,15 @@ while queue niepusta:
     v = queue.pop()
     jeśli v nie jest marked:
         marked.add(v)
-        queue.extend(wszystkie Hold krawędzie z v)
+        queue.extend(krawędzie Hold wychodzące z v)
 
 garbage = wszystkie żywe węzły Hold - marked
-
 ustaw wszystkie węzły garbage jako Destroying
 odłącz krawędzie garbage dokładnie raz
-zwolnij owned payloady i storage garbage
+zwolnij dane i pamięć garbage
 ```
 
-Cały zbiór `garbage` przechodzi do `Destroying` przed odłączaniem krawędzi. W v1 cleanup nie wywołuje kodu użytkownika i nie pozwala na resurrection. Usuwanie krawędzi z garbage do oznakowanego węzła zwalnia tę krawędź, ale nie narusza jego osiągalności.
-
-Przykład grafu:
+Przykład:
 
 ```text
 A -> B -> C
@@ -150,44 +147,28 @@ A -> B -> C
      |____|
 ```
 
-- Root `A` istnieje: znakowanie przechodzi `A, B, C`; nic nie jest zwalniane.
-- Root `A` znika i nie ma innych rootów: żaden węzeł nie jest oznaczony; zwalniane są `A`, cykl `B ↔ C` i wszystkie ich owned payloady.
-- Zamiast tego istnieje niezależny root `C`: `B` i `C` zostają oznaczone przez `C -> B -> C`; `A` jest nieoznaczone i może zostać zwolnione.
+- Root A istnieje: A, B i C są osiągalne; nic nie zwalniamy.
+- Root A znika i nie ma innych rootów: A, cykl B↔C i jego ogon są nieosiągalne; zwalniamy całą grupę.
+- Jeśli istnieje niezależny root C: B i C zostają, a A można zwolnić.
 
-Samo wykrycie SCC nie wystarcza: trzeba zwolnić także nieosiągalne ogony wychodzące z cyklu. Markowanie od rootów rozstrzyga oba przypadki.
+Samo wyszukanie cyklu nie wystarcza, bo trzeba też zwolnić nieosiągalne obiekty prowadzące do niego. Znakowanie od rootów obejmuje cykle i ogony.
 
-### Czy to jest garbage collection?
+Collector nie uruchamia się podczas mutacji ani dropu Ref. Cała grupa najpierw przechodzi do Destroying, a dopiero potem traci krawędzie. W v1 drop nie uruchamia kodu użytkownika, nie ma resurrection, wątków ani uchwytów FFI.
 
-Tak, w szerokim sensie: automatyczne odzyskiwanie nieosiągalnych cykli jest kolekcją. To nie jest tracing GC całej Borka: nie skanuje stosu, aren `Ref` ani arbitralnych bajtów procesu; przegląda wyłącznie jawny graf `Hold`. Nie można obiecywać „braku GC” dla programu, który używa `Hold`.
+To jest GC w szerokim sensie: automatyczne odzyskiwanie nieosiągalnych cykli. Nie jest to GC całego Borka. Dotyczy tylko `Hold`, bez skanowania stosu i aren Ref.
 
-## 6. Safe points i bezpieczeństwo
+## Pomysł odpinania stron areny
 
-- W v1 runtime domeny Hold jest jednowątkowy. Mutacja grafu i kolekcja nie przeplatają się; kolejka zbierania jest obsługiwana po zakończeniu pełnych wyrażeń/cleanupów regionu lub przez jawne `hold_collect()`.
-- `Hold<T>` nie jest `Send`/`Sync`. FFI nie przechowuje surowych wskaźników ani uchwytów Hold w v1.
-- Dostęp do payloadu jest ograniczony guardem z osobnym pinem. Widok nie może opuścić guarda, zostać przechowany w zwykłym `Ref`, przekazany do zwykłej metody ani użyty jako zwykłe `&T`.
-- Nieznany destructor, opaque native resource albo ukryty owning capture jest odrzucany w payloadzie v1.
-- Uchwyty do węzła w stanie `Destroying` nie mogą być obserwowane, kopiowane ani zapisywane do nowych slotów; taki dostęp kończy się błędem runtime w debug i jest niedopuszczalny w kodzie zweryfikowanym.
-- Jeżeli ewidencja rootów/krawędzi jest niekompletna, typ lub operacja jest odrzucana, a nie zbierana konserwatywnie w ciszy.
-- Spadek niecyklicznego węzła do zera może być obsłużony natychmiast; cykle czekają do safe pointu. Pauza markowania jest proporcjonalna do żywego/osiągalnego grafu i może objąć cały graf Hold.
+Pomysł użytkownika: utworzyć obiekt normalnie w regionie, a przy końcu regionu zostawić go pod tym samym adresem i przenieść stronę pamięci do magazynu długowiecznych obiektów.
 
-## 7. Alternatywy i konsekwencje
+Da się zachować adres, ale nie da się bezpiecznie zresetować strony, na której nadal leży żywy obiekt. W Borku strona ma 4 KiB. Jeśli na niej leży jeden obiekt Hold, cała strona pozostaje zajęta; mogą na niej zostać też bajty innych obiektów. Przy wielu małych obiektach w różnych arenach może to przypiąć jedną lub więcej stron z każdej areny. To jest rzeczywista retencja pamięci. Zwykłe obiekty na przypiętej stronie nadal trzeba logicznie zniszczyć i wykonać ich dropy dokładnie raz, ale ich bajtów nie można oddać do ponownego użycia.
 
-| Alternatywa | Rozstrzygnięcie |
-|---|---|
-| Zmiana istniejącego `Ref<T>` / `RefKind` | Odrzucona: narusza wymaganie użytkownika i obecny kontrakt. |
-| Samo RC | Odrzucone: nie odzyskuje nieosiągalnych cykli strong. |
-| Trial deletion produkcyjnie w v1 | Odłożone: optymalizacja dopiero po pomiarach; pełny mark pozostaje oracle. |
-| Pełny GC całej pamięci Borka | Odrzucony: nie jest potrzebny dla nowej domeny i wymagałby skanowania/stosowych map. |
-| Dwukierunkowe `Ref` ↔ `Hold` | Odrzucone w v1: tworzyłoby cykle między niezależnymi rejestrami. |
-| `Map<K, Hold<T>>` | Semantyka krawędzi opisana; sama mapa nie istnieje jeszcze na bazowym `main`. |
+Obecny allocator ma strony `Box<Page>` po 4 KiB; reset strony oddaje ją do puli albo zwalnia. DropEntry zna adres i DropFn, nie mapę wszystkich obiektów ani ich danych. `Vec`/`String` mogą mieć bufory na innych stronach, a nagłówek Vec zachowuje uchwyt do areny używany przy wzroście. Odpinanie wymagałoby śledzić wszystkie te alokacje, przenieść ich właściciela, odpalić dropy innych obiektów dokładnie raz i nie użyć strony ponownie, gdy choć jeden obiekt w niej żyje.
 
-Konsekwencje: zmiany w parserze/typeck, własności, plannerze, glue/cleanup, aktywnym LLVM backendzie, runtime oraz debug narzędziu. Wartość `Ref<T>` i jego testy zostają niezmienione. Jest to nowy system i wymaga osobnych testów bezpieczeństwa; samo dodanie nowego uchwytu nie jest małą zmianą runtime.
+W pierwszej wersji wybieramy `hold_new`: obiekt trafia od początku do osobnego storage Hold i zachowuje tam stabilny adres. Nie zachowujemy adresu obiektu, który wcześniej był zwykłą alokacją regionu. Odpinanie stron zostaje alternatywą do prototypu; trzeba zmierzyć liczbę przypiętych bajtów, dane sąsiadów i koszt przenoszenia własności Vec/String.
 
-## 8. Ryzyka i niewiadome
+## Skutki i ryzyka
 
-1. Brak choć jednego root albo krawędzi może spowodować użycie po zwolnieniu; pełny mark nie naprawi błędnej ewidencji.
-2. Ograniczenia payloadu/guardów mogą być kosztowne i wymagają przejrzystych diagnostyk.
-3. Pełny mark może powodować długie pauzy; trial deletion rozważyć wyłącznie po benchmarkach i z oracle.
-4. Kontenery zagnieżdżone, generyki, mapy i active enum variants muszą zgadzać się z visitorami.
-5. Kolejność cleanupu, FFI i zamknięcie domeny wymagają precyzyjnej specyfikacji w implementacyjnym RFC.
-6. Nowa funkcja jest formą GC w szerokim sensie; należy odpowiednio opisać gwarancje języka.
+`Hold` wymaga zmian w parserze, typechecku, regułach własności, kodgenie, drop glue, runtime i debuggerze. To osobny system, a nie mała zmiana obecnego `Ref`.
+
+Największe ryzyko to pominięty root lub krawędź: wtedy collector może zwolnić żywy obiekt. Markowanie przechodzi cały graf Hold, więc pauza rośnie z jego rozmiarem. Ustalenie maksymalnego bezpiecznego rozmiaru grafu wymaga pomiarów.
