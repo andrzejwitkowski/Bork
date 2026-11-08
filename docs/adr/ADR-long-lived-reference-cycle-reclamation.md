@@ -154,15 +154,31 @@ Collector nie uruchamia się podczas mutacji ani dropu Ref. Cała grupa najpierw
 
 To jest GC w szerokim sensie: automatyczne odzyskiwanie nieosiągalnych cykli. Nie jest to GC całego Borka. Dotyczy tylko `Hold`, bez skanowania stosu i aren Ref.
 
-## Pomysł odpinania stron areny
+## Odpinanie regionu z zachowaniem adresu
 
-Pomysł użytkownika: utworzyć obiekt normalnie w regionie, a przy końcu regionu zostawić go pod tym samym adresem i przenieść stronę pamięci do magazynu długowiecznych obiektów.
+To jest wykonalny wariant nowego `Hold<T>`: uchwyt Hold może wskazywać obiekt utworzony wcześniej w regionie; nie musi być `Ref` ani zmieniać istniejącego `Ref<T>`. Żeby adres się nie zmienił, pamięć zawierająca obiekt musi pozostać zaalokowana. Można przenieść własność `Box<Page>` do rejestru Hold bez przesuwania jego bajtów. Nie można jednak oddać tej strony do ponownego użycia ani zwolnić jej, póki żyje choć jeden obiekt pod tym adresem.
 
-Da się zachować adres, ale nie da się bezpiecznie zresetować strony, na której nadal leży żywy obiekt. W Borku strona ma 4 KiB. Jeśli na niej leży jeden obiekt Hold, cała strona pozostaje zajęta; mogą na niej zostać też bajty innych obiektów. Przy wielu małych obiektach w różnych arenach może to przypiąć jedną lub więcej stron z każdej areny. To jest rzeczywista retencja pamięci. Zwykłe obiekty na przypiętej stronie nadal trzeba logicznie zniszczyć i wykonać ich dropy dokładnie raz, ale ich bajtów nie można oddać do ponownego użycia.
+Najprostszy wariant „zatrutej areny” zatrzymuje całą arenę do zniknięcia ostatniego Hold. To bezpieczne, ale zatrzymuje też wszystkie jej strony, duże bloki i metadane. Precyzyjniejszy wariant odpina tylko strony i bloki, w których znajdują się żywe obiekty, a metadane areny zwalnia osobno. On nadal musi zachować pamięć sąsiadów na przypiętej stronie oraz przenieść alokator i obowiązki sprzątania.
 
-Obecny allocator ma strony `Box<Page>` po 4 KiB; reset strony oddaje ją do puli albo zwalnia. DropEntry zna adres i DropFn, nie mapę wszystkich obiektów ani ich danych. `Vec`/`String` mogą mieć bufory na innych stronach, a nagłówek Vec zachowuje uchwyt do areny używany przy wzroście. Odpinanie wymagałoby śledzić wszystkie te alokacje, przenieść ich właściciela, odpalić dropy innych obiektów dokładnie raz i nie użyć strony ponownie, gdy choć jeden obiekt w niej żyje.
+### Przykłady kosztu przy rzadkich obiektach Hold
 
-W pierwszej wersji wybieramy `hold_new`: obiekt trafia od początku do osobnego storage Hold i zachowuje tam stabilny adres. Nie zachowujemy adresu obiektu, który wcześniej był zwykłą alokacją regionu. Odpinanie stron zostaje alternatywą do prototypu; trzeba zmierzyć liczbę przypiętych bajtów, dane sąsiadów i koszt przenoszenia własności Vec/String.
+1. **Dwa obiekty na wspólnej stronie.** A (32 B) ma przetrwać, B (32 B) nie. Strona ma 4 KiB danych. Zachowanie adresu A przypina całą stronę — 128 razy więcej bajtów niż sam A — choć drop B musi wykonać się dokładnie raz. Bajty B zostają fizycznie na stronie, ale nie mogą być ponownie użyte. `hold_new` też potrzebuje pamięci dla A; różnica polega na tym, że A może trafić do strony wspólnego magazynu Hold, a strona regionu z B może wrócić do puli.
+
+2. **Mały obiekt z wielu krótkich regionów.** Jeśli z 10 000 różnych stron zostaje po jednym obiekcie 32 B, odpinanie zatrzymuje co najmniej 39,06 MiB danych stron dla 0,305 MiB żywych obiektów (128×, bez metadanych i buforów). Wspólny magazyn Hold może upakować takie obiekty razem, więc nie musi przypinać strony źródłowej z każdej areny. To porównanie opisuje rzadkie przeżycie; gdy większość obiektów na danej stronie ma przetrwać, odpinanie może wypaść korzystniej i trzeba to zmierzyć.
+
+3. **Obiekt z `Vec<String>`.** Strona węzła nie musi zawierać nagłówka Vec, jego bufora ani bajtów String. Zachowanie adresu węzła wymaga zachowania całego wciąż posiadanego grafu pamięci. Nagłówek Vec przechowuje token areny używany przy wzroście; po końcu regionu trzeba przekierować go do alokatora Hold. Późniejszy wzrost może przesunąć bufor Vec, choć sam węzeł Hold pozostanie pod starym adresem. Przy `hold_new` węzeł, nagłówek i bufory od początku należą do magazynu Hold.
+
+### Co trzeba przenieść i czego nie wolno zwolnić
+
+`DropEntry` zawiera adres i funkcję dropu, nie granice wszystkich alokacji ani informację, który obiekt jest ich właścicielem (`crates/bork_runtime/src/arena.rs:96–99`). Przy końcu regionu trzeba odróżnić dropy zwykłych obiektów od odroczonych dropów Hold i wykonać każdy dokładnie raz. Trzeba też śledzić strony z obiektami, duże bloki z ich `Layout` oraz posiadane bufory Vec/String. Duże alokacje powyżej 2048 B są osobnymi blokami zaokrąglanymi do wielokrotności 4 KiB (`arena.rs:251–263`); można je odpinać osobno, ale nadal trzeba przekazać ich właściciela i późniejsze dropy.
+
+Obecny globalny `ArenaPool` nie ma limitu liczby aren (`arena.rs:402–415`). Limit `MAX_SPARE_PAGES = 8` dotyczy zapasowych stron wewnątrz pojedynczej areny; reset zwalnia nadmiarowe strony i duże bloki (`arena.rs:349–363`). Jeśli przyszła, ograniczona pula będzie pełna, można odrzucić tylko pamięć bez żywych obiektów. Metadane `Arena` można zwolnić dopiero po przekazaniu żywych stron, bloków, stanu alokatora i obowiązków dropu pod innego właściciela. „Obiekt wiszący” nie może oznaczać zwolnionych bajtów: pamięć wskazywana przez Hold nadal musi być zaalokowana, aż Hold ją zbierze.
+
+### Decyzja dla v1
+
+W v1 wybieramy `hold_new`: obiekt powstaje od razu w osobnym magazynie Hold, niezależnym od aren Ref. Nie robimy adopcji już utworzonego obiektu z zachowaniem adresu. Powodem nie jest zależność adresu od `Ref` — nowy Hold może przechowywać adres sam — lecz koszt przypinania stron źródłowych przy rzadkim przeżyciu oraz złożoność przenoszenia pamięci, alokatora i dropów.
+
+Odpinanie pozostaje możliwym eksperymentem, jeśli wymaganie zachowania pierwotnego adresu okaże się ważne. T12 ma porównać je z `hold_new` przy różnym odsetku przeżywających obiektów, zmierzyć przypięte bajty (także sąsiadów i bufory), koszt nowych stron po odpięciu oraz poprawność dropów i wzrostu Vec. Nie włączać wariantu bez jawnego limitu retencji i testów przejęcia/zwolnienia pamięci.
 
 ## Skutki i ryzyka
 
