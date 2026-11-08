@@ -61,7 +61,7 @@ Każdy slot `Hold` ma własny root. Jeśli arena A zginie, jej drop usuwa tylko 
 
 Hold nie utrzymuje aren `Ref` przy życiu. Działa to w drugą stronę: dopóki obiekt `Ref`-właściciel żyje, jego pole `Hold` jest rootem i trzyma osiągalny graf. Wiele pól w różnych arenach daje wiele niezależnych rootów. Usunięcie jednego zwalnia tylko to, co nie jest potrzebne pozostałym. To może wyglądać jak wyciek, ale obiekt jest nadal osiągalny.
 
-Żeby zwolnić root wcześniej, wyczyść pole po bezpiecznej obserwacji `Ref` (np. `if val owner = owner_ref { owner.graph = None }`) albo usuń element z Vec/mapy. Bork ma test przypisania do pola klasy przez presence guard (`src/sema/tests/regional.rs:53–70`); test T6 ma pokryć pole `Hold`. Bork nie czyści pól przy ostatnim użyciu zmiennej.
+Aby zwolnić root wcześniej, po dodaniu obsługi `Hold` będzie można wyczyścić pole (np. `if val owner = owner_ref { owner.graph = None }`) albo usunąć element z Vec/mapy. Main dopuszcza przypisanie do pola klasy przez presence guard dla `Ref` (`src/sema/tests/regional.rs:53–70`); zadanie T6 musi potwierdzić i przetestować ten sam store dla pola `Hold`. Bork nie czyści uchwytów przy ostatnim użyciu zmiennej.
 
 `dynamic Program` pozwala obiektowi przeżyć wyjście z bloku, ale nie oznacza automatycznie, że jest wieczny. Każda dynamic arena ma ukryty strong root; compiler rejestruje jego drop w `root_owner` (`src/codegen/llvm/managed_ref.rs:100–139`, `crates/bork_runtime/src/arena.rs:731–734`). Jeśli `root_owner` jest leksykalny, root znika przy cleanupie. Jeśli jest niezwalnianym `DomainRoot`, root może trwać do shutdown. Parent link do `DomainRoot` sam jest weak metadata i nie utrzymuje payloadu dziecka.
 
