@@ -1,26 +1,16 @@
-# Implementation tasks — Hold<T> cycle reclamation (Codex proposal)
+# Plan implementacji `Hold<T>`
 
-- [ ] **Zabezpieczyć kontrakt `Ref`.** Cel: zachować istniejące zachowanie. Akceptacja: niezmienione layout i ABI `RefHandle`, klasyfikacja, weak back-edges, piny i dropy; istniejące testy runtime oraz `programs/build/managed_refs/` zachowują oczekiwania.
+Każde zadanie jest zależne od zaakceptowania architektury w ADR. Nie zmieniać istniejącej semantyki `Ref<T>`.
 
-- [ ] **Dodać osobny typ i konstrukcję.** Cel: obsłużyć `Hold<T>`, `None`, `hold_new`, kopiowanie i przenoszenie. Akceptacja: frontend, drukowanie typów, odwiedzanie typów, monomorfizacja i diagnostyka rozpoznają nowy typ; żadna operacja nie trafia omyłkowo do glue `Ref`.
-
-- [ ] **Wymusić bezpieczny payload.** Cel: sprawdzać ograniczenia tranzytywnie. Akceptacja: odrzucane są zagnieżdżone `Ref`, borrowy, ukryte owning captures i niedopuszczalne zasoby, również przez enumy, kontenery i instancje generyczne.
-
-- [ ] **Zaimplementować widok grafowy.** Cel: zapewnić dostęp bez eksportowania zwykłego `&T`. Akceptacja: pin przeżywa nadpisanie źródła; widok nie może uciec, trafić do zwykłej metody ani FFI; projekcje kontenerów nie przechowują adresów przez relokację.
-
-- [ ] **Dodać niezależny runtime.** Cel: zapewnić identyfikatory, storage, liczniki korzeni i krawędzi oraz stany życia `Hold`. Akceptacja: rejestr nie utrzymuje obiektów jako korzeń; stare identyfikatory, obce domeny i obce wątki są odrzucane przed dostępem do payloadu.
-
-- [ ] **Pokryć wszystkie mutacje i granice własności.** Cel: utrzymać zgodność payloadu z grafem. Akceptacja: konstrukcje, nadpisania, self-assignment, zmiany wariantu, operacje `Vec`, tablice i materializacje zachowują liczność lease’ów; relokacja bufora nie zmienia krawędzi. Zewnętrzne agregaty zawierające `Hold` mają kompletny cleanup korzeni.
-
-- [ ] **Dodać odzyskiwanie i bezpieczne punkty.** Cel: wdrożyć kolejkę RC oraz znakowanie od korzeni. Akceptacja: odzyskiwane są self-cycle, cykle wielowęzłowe i ich ogony; osiągalne cykle pozostają żywe; zbieranie nie zachodzi podczas mutacji, FFI ani dropu `Ref`; grupowy cleanup zwalnia każdą krawędź i alokację raz.
-
-- [ ] **Zintegrować aktywny backend i MIR.** Cel: nadać `Hold` osobny layout, operacje i harmonogram cleanupów. Akceptacja: działają programy przez obecny backend LLVM; MIR, printer, verifier i opis RFC 0006 uwzględniają ten sam kontrakt. Obsługa wyłącznie w MIR nie spełnia kryterium.
-
-- [ ] **Zamknąć kontrakt FFI.** Cel: udostępnić tokeny z jawnym retain/release i zbieraniem w stanie spoczynku. Akceptacja: zatrzymany token chroni cykl, release umożliwia odzyskanie, callback blokuje przebieg, a domena nie jest zamykana z pozostawionymi uchwytami hosta.
-
-- [ ] **Dodać obserwowalność i dokumentację.** Cel: umożliwić sprawdzenie osobnego grafu. Akceptacja: narzędzia pokazują korzenie, piny, krawędzie z licznością i stany `Hold`, zachowując odczyt obecnego debug ABI aren; dokumentacja opisuje ograniczenia v1 i nazywa kolektor GC.
-
-- [ ] **Zweryfikować poprawność i koszt.** Cel: sprawdzić bezpieczeństwo oraz praktyczną cenę decyzji. Akceptacja: testy obejmują temporaries, argumenty i wyniki, wiele korzeni, duplikaty krawędzi, construction roots, piny, nested payloady, relokacje i cleanup regionów; pomiary raportują pamięć małych węzłów i pauzy dla dużych grafów. Testy codegen są uruchamiane wąsko i według `AGENTS.md`: `-j1`, jeden wątek testów, właściwe `LD_LIBRARY_PATH`, tło i log.
-
-Pominięto implementację, uruchamianie testów i pomiary; plików nie zmieniono.
-Główne ryzyko: niekompletna ewidencja korzeni lub mutacji może zwolnić żywy obiekt; pauzy pozostają nieograniczone.
+- [ ] **T0 — Kontrakt i gramatyka.** Dodać `Hold<T>`, `None`, jawne `hold_new` i guard; v1 tylko dla klas. Akceptacja: testy parsera/typeck dla konstrukcji/typów/`None`; żadna ścieżka nie interpretuje Hold jako Ref.
+- [ ] **T1 — Analiza payloadu.** Egzekwować tranzytywne zakazy `Ref`, borrowów, raw owning pointers i finalizerów w Hold payloads. Akceptacja: negatywne testy dla pól, enumów, Vec, generics; diagnostyki wskazują źródło zakazu.
+- [ ] **T2 — Lifetime i cleanup roots.** Dodać semantykę handle-copy/move/drop, root count dla lokali, parametrów, wyników, temporaries i zewnętrznych kontenerów. Akceptacja: cleanup regionu zwalnia roots dokładnie raz; returned Hold przenosi root do caller; nadpisanie wykonuje retain-before-release.
+- [ ] **T3 — Odrębny runtime.** Dodać HoldHandle, stabilne node IDs/generations, root counts, krawędzie Hold i stany Alive/Destroying/Dead oraz osobne ABI `bork_hold_*`. Akceptacja: testy create/clone/move/drop; brak zmian w `RefHandle`, `RefKind`, `classify_internal` i `bork_ref_*`.
+- [ ] **T4 — Pola klas, enumy i listy.** Wygenerować glue dla Hold fields i `Vec<Hold<T>>`; krawędzie są identyfikowane po node IDs, nie adresach slotów. Akceptacja: insert/replace/remove/clear, self-assignment, wariant enumu, Vec reallocation nie robią wycieku/double-free.
+- [ ] **T5 — Mapy.** Po dodaniu językowej Map<K,V> obsłużyć `Map<K, Hold<T>>` jako zestaw roots albo edges zależnie od właściciela mapy; klucze Hold zabronione w v1. Akceptacja: insert/replace/remove/clear/rehash aktualizują dokładne lease’y; testy mapy zewnętrznej i mapy w Hold payload.
+- [ ] **T6 — Interakcja z Ref.** Dopuścić `Hold<T>` jako pole w Ref-managed class jako zewnętrzny root; zabronić `Ref`/borrowów w Hold payload. Drop glue Ref-owned field woła wyłącznie `hold_release`, bez zmian w Ref ABI/klasyfikatorze. Akceptacja: test, w którym Ref owner utrzymuje Hold graph i jego drop pozwala zebrać graf.
+- [ ] **T7 — Guard i widoki.** Dodać Hold-specific guard/pin i ograniczony widok grafowy; nie eksportować zwykłego `&T`. Akceptacja: nadpisanie źródłowego handle podczas guarda nie zwalnia payloadu; widok nie ucieka przez return, pole, closure ani FFI.
+- [ ] **T8 — Mark/sweep w osobnym grafie.** Na safe point markować od roots przez wszystkie Hold edges, oznaczyć unmarked nodes jako Destroying grupowo, odłączyć edges raz i zwolnić payload. Akceptacja: cykl osiągalny zachowany; nieosiągalny self-cycle, cykl wielowęzłowy i ogony freed; osobny root ocala właściwy podgraf; brak double-drop/resurrection; próba zapisania/obserwacji uchwytu Destroying jest odrzucona.
+- [ ] **T9 — Safe points i FFI policy.** Kolektować wyłącznie poza mutacją/callback/dropem Ref; v1 odrzuca cross-thread i FFI-handle export. Akceptacja: testy safe-point, próba obcego wątku/FFI odrzucana; domena nie zamyka się z aktywnymi roots.
+- [ ] **T10 — Debugger i testy.** Dodać widok Hold nodes/roots/edges do bork-debug i testy end-to-end. Akceptacja: raport pokazuje korzeń, wewnętrzną krawędź, nieosiągalny cykl i freed nodes; testy Ref pozostają niezmienione.
+- [ ] **T11 — Pomiary i dokumentacja.** Zmierzyć pamięć na mały węzeł, koszt aktualizacji krawędzi i pauzy markowania; ustalić oraz udokumentować maksymalny zalecany rozmiar grafu dla synchronicznego `hold_collect()`. Akceptacja: raport liczb, znany graf testowy i limit/zalecenie wynikające z pomiarów; trial deletion pozostaje poza v1, dopóki pomiary nie uzasadnią osobnego projektu.
