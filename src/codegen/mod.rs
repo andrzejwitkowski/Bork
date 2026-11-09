@@ -64,6 +64,18 @@ pub fn build_with_options(
         return Err(BuildError::Diagnostics(gate_diagnostics));
     }
 
+    // M3 shadow mode (#216): MIR must agree with the old plan and region schedule.
+    if std::env::var_os("BORK_MIR_SHADOW").is_some() {
+        match crate::mir::build::build_program(&mono, &tcx) {
+            Ok(bodies) => {
+                if let Err(e) = crate::mir::shadow::compare_all(&mono, &tcx, &bodies) {
+                    panic!("BORK_MIR_SHADOW mismatch: {e}");
+                }
+            }
+            Err(e) => eprintln!("BORK_MIR_SHADOW: MIR not built, nothing compared: {e:?}"),
+        }
+    }
+
     let context = Context::create();
     let module = if options.debug {
         let source = source.ok_or_else(|| {

@@ -48,7 +48,7 @@ fn body(e: &Env, stmts: Vec<StmtKind>, t: TermKind) -> Body {
             local(e.unit, LocalKind::Hidden(HiddenKind::RegionArena)),
         ],
         blocks: vec![Block { stmts: stmts.into_iter().map(stmt).collect(), term: term(t) }],
-        regions: vec![RegionInfo { parent: None, site: RegionSite::Block }],
+        regions: vec![RegionInfo { parent: None, site: RegionSite::Block, arena: 0 }],
         abi: CallAbi::default(),
         ret: Local(0),
     }
