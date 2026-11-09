@@ -281,6 +281,8 @@ pub struct Block {
 pub struct RegionInfo {
     pub parent: Option<RegionId>,
     pub site: RegionSite,
+    /// `ArenaNode::id` of the report region this one was built from (M3 shadow comparison).
+    pub arena: usize,
 }
 
 /// Hidden parameters the function takes (`call_abi.rs` today).

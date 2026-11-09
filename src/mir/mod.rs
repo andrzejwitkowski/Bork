@@ -7,6 +7,7 @@ pub mod capability;
 pub mod emit;
 pub mod layout;
 pub mod print;
+pub mod shadow;
 pub mod verify;
 
 pub use body::*;

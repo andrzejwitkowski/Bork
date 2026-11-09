@@ -145,7 +145,7 @@ impl<'a> FnBuilder<'a> {
             self.declare(&param.name, local);
         }
         let span = function.name_span;
-        self.regions.push(RegionInfo { parent: None, site: RegionSite::Block });
+        self.regions.push(RegionInfo { parent: None, site: RegionSite::Block, arena: self.cursors[0].0.id });
         self.open.push(Open { id: RegionId(0), pushed: true });
         self.stmt(StmtKind::RegionEnter(RegionId(0)), span, None);
         for (local, param) in (1u32..).map(Local).zip(&function.params) {
@@ -286,7 +286,7 @@ impl<'a> FnBuilder<'a> {
         }
         let pushed = child.codegen_push || force;
         let parent = self.open.last().map(|o| o.id);
-        self.regions.push(RegionInfo { parent, site });
+        self.regions.push(RegionInfo { parent, site, arena: child.id });
         let id = RegionId(self.regions.len() as u32 - 1);
         if pushed {
             match enter_in {
