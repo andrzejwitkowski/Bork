@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MIR shadow mode (#216, M3)</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#222;--mut:#666;--acc:#2b5fd9;--ok:#1f8a4c;--bad:#c0392b;--card:#fff;--line:#ddd8cc}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 Georgia,serif}
+main{max-width:780px;margin:0 auto;padding:24px 18px 80px}
+h1{font-size:2em;line-height:1.2}h2{margin-top:2.4em;border-bottom:2px solid var(--line);padding-bottom:.2em}h3{margin-top:1.8em}
+nav{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 18px}nav ol{margin:.3em 0;padding-left:1.2em}
+a{color:var(--acc)}code{background:#eee9dc;padding:1px 5px;border-radius:3px;font-size:.88em}
+pre{background:#1e2230;color:#e8e8e8;padding:14px;border-radius:8px;overflow-x:auto;font-size:.82em;line-height:1.5;white-space:pre}
+.callout{border-left:5px solid var(--acc);background:#eef2fc;padding:10px 16px;border-radius:0 8px 8px 0;margin:1.2em 0}
+.callout.warn{border-color:#d68910;background:#fdf3e1}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1.2em 0}
+.box{background:var(--card);border:2px solid var(--line);border-radius:8px;padding:8px 12px;font:14px/1.4 system-ui,sans-serif;text-align:center}
+.box.new{border-color:var(--acc);background:#eef2fc}.box.old{border-color:#999}.arrow{font-size:1.4em;color:var(--mut)}
+table{border-collapse:collapse;width:100%;font:14px system-ui,sans-serif;margin:1em 0}td,th{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}th{background:#efeadc}
+.tag{display:inline-block;font:12px system-ui;padding:1px 8px;border-radius:10px;color:#fff}.tag.ind{background:var(--ok)}.tag.rt{background:#d68910}
+.q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:1.4em 0}
+.q button{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font:15px/1.4 system-ui,sans-serif;cursor:pointer}
+.q button:hover{background:#f3f0e6}.q button.right{background:#e3f4ea;border-color:var(--ok)}.q button.wrong{background:#fbe7e4;border-color:var(--bad)}
+.fb{font:14px/1.5 system-ui,sans-serif;margin-top:8px;display:none}
+@media(max-width:600px){body{font-size:16px}}
+</style></head><body><main>
+<h1>MIR shadow mode: checking the new IR against the old passes</h1>
+<p><em>RFC 0006, step 5 (M3), issue #216, PR #241.</em> A walkthrough with a five-question quiz at the end.</p>
+<nav><strong>Contents</strong><ol>
+<li><a href="#bg">Background</a></li><li><a href="#intuition">Intuition</a></li><li><a href="#code">The code</a></li><li><a href="#limits">What the check does not prove</a></li><li><a href="#quiz">Quiz</a></li></ol></nav>
+
+<h2 id="bg">1. Background</h2>
+<details><summary>For beginners: what is a compiler pass, and why replace one?</summary>
+<p>A compiler turns source text into a program through a chain of representations. Between them run <em>passes</em>: small analyses that each decide one thing, such as “may this value outlive its scope?”. Bork keeps its memory in <em>arenas</em>: regions of memory freed all at once when a scope ends. Several passes decide which arena a value goes into and when arenas are pushed, reset and popped.</p>
+<p>Today those decisions are spread over several walkers over the high-level tree (HIR). Each re-implements parts of the same rules. RFC 0006 proposes a mid-level IR, <strong>MIR</strong>: a flat control-flow graph where every allocation names its arena and every region entry and exit is an explicit statement. The rules would then be written once.</p></details>
+<h3>The migration, in one picture</h3>
+<p>The RFC moves one pass at a time and keeps the old code until the new code is proven equal. M3 is the proof step.</p>
+<div class="flow"><div class="box old">M2 (#66)<br>MIR builds and verifies</div><span class="arrow">→</span><div class="box new"><strong>M3 (#216)</strong><br>MIR ≡ old passes on the corpus</div><span class="arrow">→</span><div class="box old">M4 #217–#219<br>old passes deleted</div><span class="arrow">→</span><div class="box old">M5–M6<br>LLVM from MIR</div></div>
+<p>The three old decisions M3 must reproduce:</p>
+<table><tr><th>Decision</th><th>Old home</th></tr>
+<tr><td>Which allocations get a dynamic arena, and how long it lives</td><td><code>memory.rs</code> → <code>MemoryPlan</code></td></tr>
+<tr><td>Which regions really push an arena</td><td><code>region_walk</code> → <code>ArenaNode.codegen_push</code></td></tr>
+<tr><td>The order of push / reset / pop events</td><td><code>codegen/regions.rs</code> → <code>schedule()</code></td></tr></table>
+
+<h2 id="intuition">2. Intuition</h2>
+<p>Imagine moving house with a list of where every box goes. Before throwing away the old list, you make the movers produce a second list from what they actually did, and compare the two. Any disagreement is a bug in the new process, found while the old list still exists. That is shadow mode: the new path runs next to the old one and changes nothing.</p>
+<h3>A toy example</h3>
+<pre>fun make(): A {
+    val a = A(P(3))      // object with a nested payload
+    return a
+}</pre>
+<div class="flow">
+<div class="box old">Old: <code>memory::plan</code><br>A → Dynamic, Program</div>
+<div class="box new">MIR: <code>ArenaCreateDynamic</code> for node A,<br><code>Alloc</code> A in <code>Fresh(..)</code><br>→ Dynamic, Program</div>
+<span class="arrow">⇒</span><div class="box">equal ✔</div></div>
+<div class="callout"><strong>Key detail.</strong> The payload <code>P(3)</code> is also allocated <em>inside</em> that fresh arena, but it did not create it. My first version called it Dynamic too, and the test caught it on <code>return_value_if_local_object.bork</code>. An allocation is dynamic only if <em>its own node</em> created the arena.</div>
+<h3>Events as a sorted multiset</h3>
+<p>For one function, <code>schedule()</code> yields e.g. <code>Push 0, Push 3, Reset 3, Pop 3, Pop 0</code>. From MIR we collect one Push and one Pop for every <code>RegionEnter</code>, and one Reset per <code>RegionReset</code>, each tagged with the region's report id. Both sides are sorted and compared, so only <em>which</em> events happen is checked, not their interleaving.</p>
+
+<h2 id="code">3. The code</h2>
+<h3>a) <code>RegionInfo.arena</code></h3>
+<p>MIR regions only had their own numbering. Each now remembers the <code>ArenaNode::id</code> of the report region it came from (<code>src/mir/body.rs</code>, set in <code>src/mir/build/mod.rs</code>). This is the join key between the two worlds, and #218 will need it. It is not printed, so MIR goldens are unchanged.</p>
+<h3>b) <code>src/mir/shadow.rs</code> (new)</h3>
+<table><tr><th>Function</th><th>Does</th></tr>
+<tr><td><code>derive_plan</code></td><td>class and “program-lived” flag per object or enum allocation</td></tr>
+<tr><td><code>derive_events</code></td><td>sorted push/reset/pop events of one body</td></tr>
+<tr><td><code>compare</code></td><td>plan and <code>codegen_push</code> flags vs MIR, both directions; checks body count equals root count. No LLVM needed</td></tr>
+<tr><td><code>compare_all</code></td><td><code>compare</code> plus per-function events vs <code>schedule()</code> (needs <code>codegen</code> feature)</td></tr></table>
+<h3>c) The switch: <code>BORK_MIR_SHADOW</code></h3>
+<pre>BORK_MIR_SHADOW=1 bork build prog.bork</pre>
+<p>Runs <code>compare_all</code> after the gate in <code>codegen/mod.rs</code>. A mismatch panics with the function, the arena id and expected versus derived. If MIR cannot be built it says so on stderr instead of passing silently.</p>
+<h3>d) Tests</h3>
+<ul><li><code>tests/mir_schedule.rs</code>: full per-function comparison over <code>programs/{build,check}</code> (was: counts over <code>build</code>).</li>
+<li><code>tests/mir_shadow.rs</code> (no LLVM): plan and flags over the corpus; every frozen line of <code>tests/golden/memory_plan.txt</code> for <code>programs/build</code> reappears in the MIR-derived plan; and the set of skipped programs is pinned to exactly <code>check/methods/trailing_closure.bork</code>.</li></ul>
+
+<h2 id="limits">4. What the check does not prove</h2>
+<p>Be careful about what “equal” means here:</p>
+<table><tr><th>Check</th><th>Strength</th></tr>
+<tr><td>Plan vs MIR</td><td><span class="tag rt">round trip</span> the builder reads <code>memory_plan</code> to choose arenas, so this confirms faithful lowering</td></tr>
+<tr><td>Push flags vs MIR</td><td><span class="tag rt">round trip</span> the builder reads <code>codegen_push</code></td></tr>
+<tr><td>Events vs <code>schedule()</code></td><td><span class="tag ind">independent</span> <code>schedule()</code> walks the HIR on its own</td></tr></table>
+<div class="callout warn"><strong>Known gaps.</strong> Pops are synthesized one per entered region, so exit placement on early <code>return</code>/<code>break</code> is unchecked (needs path analysis, #217/#218). The golden check ignores the class name (mono renames <code>Option</code> to <code>Option&lt;i32&gt;</code>) and the number in <code>LexicalScope(n)</code>, and covers <code>programs/build</code> only because mono keeps just code reachable from <code>main</code>.</div>
+
+<h2 id="quiz">5. Quiz</h2>
+<div id="quiz"></div>
+<script>
+const Q=[
+["Why is the plan-versus-MIR comparison not an independent analysis?",["MIR is built before the plan exists","The MIR builder reads memory_plan to choose each allocation's arena","Plans are only computed for generic code","The golden file is generated from MIR"],1,"The builder calls memory_plan.allocation_at to pick Lexical or Dynamic arenas, so the check confirms the lowering. Independence arrives with #218."],
+["Which comparison does give independent evidence?",["Push flags vs codegen_push","Plan vs memory_plan.txt","Per-function events vs codegen::schedule()","Body count vs root count"],2,"schedule() walks the HIR with its own visitor, so agreement with the events derived from MIR is real evidence."],
+["The first derive_plan called a nested payload Dynamic. What was the fix?",["Skip nested allocations","Dynamic only if the allocation's own node created the arena via ArenaCreateDynamic","Treat every Fresh arena as Lexical","Compare only top-level classes"],1,"A payload merely lives in an arena that its parent created; only the creating node is Dynamic in the plan."],
+["Why is the golden comparison limited to programs/build?",["check samples are too slow","Mono keeps only code reachable from main, and check samples usually have none","The golden file has no check entries","LLVM is needed for check samples"],1,"The golden was written from the plan before mono, so allocations in unreachable functions never appear in MIR."],
+["What does pinning the skipped-program set to one file protect against?",["A slow test run","Programs silently dropping out of the comparison as MIR support regresses","Duplicate golden lines","Changes to the RFC table"],1,"The 'more than 250 compared' guard would still pass if a few programs vanished; the exact set cannot change unnoticed."]];
+const root=document.getElementById('quiz');
+Q.forEach(([q,opts,ans,why],i)=>{const d=document.createElement('div');d.className='q';
+d.innerHTML=`<strong>${i+1}. ${q}</strong>`;const fb=document.createElement('div');fb.className='fb';
+opts.forEach((o,j)=>{const b=document.createElement('button');b.textContent=o;b.onclick=()=>{
+d.querySelectorAll('button').forEach(x=>x.classList.remove('right','wrong'));
+b.classList.add(j===ans?'right':'wrong');fb.style.display='block';
+fb.textContent=(j===ans?'Correct. ':'Not quite. ')+why;};d.appendChild(b);});
+d.appendChild(fb);root.appendChild(d);});
+</script>
+</main></body></html>
