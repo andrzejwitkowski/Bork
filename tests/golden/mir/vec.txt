@@ -1,0 +1,1702 @@
+== vec/grow_past_page.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<i32> [Temp]
+  let _2: Vec<i32> [Var] v
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: &Vec<i32> [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Var] total
+  let _8: i32 [Var] j
+  let _9: &Vec<i32> [Temp]
+  let _10: i32 [Temp]
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 While in r0
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    _2 = copy _1  // label "v": Vec<i32> decl
+    _3 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _4 = lt(copy _3, 5000)
+    switch copy _4 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _5 = borrow _2
+    vec_Push(copy _5, 1)
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb3
+  bb3:
+    goto bb1
+  bb4:
+    _7 = 0  // label "total": i32 decl
+    _8 = 0  // label "j": i32 decl
+    goto bb5
+  bb5:
+    _9 = borrow _2
+    _10 = vec_Len(copy _9)
+    _11 = lt(copy _8, copy _10)
+    switch copy _11 [ 1 -> bb6, else -> bb8]
+  bb6:
+    _12 = vec_Get(copy _2, copy _8)
+    _13 = add(copy _7, copy _12)
+    _7 = copy _13
+    _14 = add(copy _8, 1)
+    _8 = copy _14
+    goto bb7
+  bb7:
+    goto bb5
+  bb8:
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+== vec/move_to_outer.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<i32> [Temp]
+  let _2: Vec<i32> [Var] outer
+  let _3: Vec<i32> [Temp]
+  let _4: Vec<i32> [Var] inner
+  let _5: &Vec<i32> [Temp]
+  let _6: &Vec<i32> [Temp]
+  let _7: &Vec<i32> [Temp]
+  let _8: &Vec<i32> [Temp]
+  let _9: &Vec<i32> [Temp]
+  let _10: Vec<i32> [Temp]
+  let _11: Vec<i32> [Temp]
+  let _12: i32 [Var] total
+  let _13: i32 [Var] j
+  let _14: &Vec<i32> [Temp]
+  let _15: i32 [Temp]
+  let _16: bool [Temp]
+  let _17: &Vec<i32> [Temp]
+  let _18: i32 [Temp]
+  let _19: i32 [Temp]
+  let _20: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 While in r0
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    _2 = copy _1  // label "outer": Vec<i32> decl
+    region_enter r1
+    _3 = alloc Vec { cap: None } in current
+    _4 = copy _3  // label "inner": Vec<i32> decl
+    _5 = borrow _4
+    vec_Push(copy _5, 1)
+    _6 = borrow _4
+    vec_Push(copy _6, 2)
+    _7 = borrow _4
+    vec_Push(copy _7, 3)
+    _8 = borrow _4
+    vec_Push(copy _8, 4)
+    _9 = borrow _4
+    vec_Push(copy _9, 5)
+    _10 = move _4
+    _11 = copy_into _10 in home(_2)
+    _2 = copy _11
+    region_exit r1
+    _12 = 0  // label "total": i32 decl
+    _13 = 0  // label "j": i32 decl
+    goto bb1
+  bb1:
+    _14 = borrow _2
+    _15 = vec_Len(copy _14)
+    _16 = lt(copy _13, copy _15)
+    switch copy _16 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _17 = borrow _2
+    _18 = vec_Get(copy _17, copy _13)
+    _19 = add(copy _12, copy _18)
+    _12 = copy _19
+    _20 = add(copy _13, 1)
+    _13 = copy _20
+    goto bb3
+  bb3:
+    goto bb1
+  bb4:
+    _0 = copy _12
+    region_exit r0
+    return
+}
+
+== vec/negative_capacity_aborts.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Temp]
+  let _2: i32 [Val] n
+  let _3: Vec<i32> [Temp]
+  let _4: Vec<i32> [Val] v
+  let _5: &Vec<i32> [Temp]
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = sub(0, 5)
+    _2 = copy _1  // label "n": i32 decl
+    _3 = alloc Vec { cap: Some(Copy(Place { local: Local(2), proj: [] })) } in current
+    _4 = copy _3  // label "v": Vec<i32> decl
+    _5 = borrow _4
+    _6 = vec_Len(copy _5)
+    _0 = copy _6
+    region_exit r0
+    return
+}
+
+== vec/pop_set_clear.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<i32> [Temp]
+  let _2: Vec<i32> [Var] v
+  let _3: &Vec<i32> [Temp]
+  let _4: &Vec<i32> [Temp]
+  let _5: &Vec<i32> [Temp]
+  let _6: &Vec<i32> [Temp]
+  let _7: i32 [Var] out
+  let _8: i32 [Temp]
+  let _9: &Vec<i32> [Temp]
+  let _10: i32? [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Val] last
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  let _17: i32 [Temp]
+  let _18: i32 [Temp]
+  let _19: &Vec<i32> [Temp]
+  let _20: i32 [Temp]
+  let _21: &Vec<i32> [Temp]
+  let _22: i32? [Temp]
+  let _23: i32 [Temp]
+  let _24: i32 [Val] none
+  let _25: &Vec<i32> [Temp]
+  let _26: i32 [Temp]
+  let _27: i32 [Temp]
+  let _28: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    _2 = copy _1  // label "v": Vec<i32> decl
+    _3 = borrow _2
+    vec_Push(copy _3, 1)
+    _4 = borrow _2
+    vec_Push(copy _4, 2)
+    _5 = borrow _2
+    vec_Push(copy _5, 3)
+    vec_Set(reborrow _2, 0, 10)
+    _6 = borrow _2
+    vec_Set(copy _6, 1, 20)
+    _7 = 0  // label "out": i32 decl
+    _9 = borrow _2
+    _10 = vec_Pop(copy _9)
+    match _10 {
+      Some(bind) _11=_10.some -> bb1
+      None -> bb2
+    }
+  bb1:
+    _8 = copy _11
+    goto bb3
+  bb2:
+    _8 = 0
+    goto bb3
+  bb3:
+    _12 = copy _8  // label "last": i32 decl
+    _13 = add(copy _7, copy _12)
+    _14 = vec_Get(copy _2, 1)
+    _15 = add(copy _13, copy _14)
+    _16 = vec_Get(copy _2, 0)
+    _17 = add(copy _15, copy _16)
+    _18 = sub(copy _17, 6)
+    _7 = copy _18
+    _19 = borrow _2
+    vec_Clear(copy _19)
+    _21 = borrow _2
+    _22 = vec_Pop(copy _21)
+    match _22 {
+      Some(bind) _23=_22.some -> bb4
+      None -> bb5
+    }
+  bb4:
+    _20 = copy _23
+    goto bb6
+  bb5:
+    _20 = 4
+    goto bb6
+  bb6:
+    _24 = copy _20  // label "none": i32 decl
+    _25 = borrow _2
+    _26 = vec_Len(copy _25)
+    _27 = add(copy _7, copy _26)
+    _28 = add(copy _27, copy _24)
+    _0 = copy _28
+    region_exit r0
+    return
+}
+
+== vec/push_grow_sum.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<i32> [Temp]
+  let _2: Vec<i32> [Var] v
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: &Vec<i32> [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Var] total
+  let _8: i32 [Var] j
+  let _9: &Vec<i32> [Temp]
+  let _10: i32 [Temp]
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 While in r0
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    _2 = copy _1  // label "v": Vec<i32> decl
+    _3 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _4 = lt(copy _3, 10)
+    switch copy _4 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _5 = borrow _2
+    vec_Push(copy _5, copy _3)
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb3
+  bb3:
+    goto bb1
+  bb4:
+    _7 = 0  // label "total": i32 decl
+    _8 = 0  // label "j": i32 decl
+    goto bb5
+  bb5:
+    _9 = borrow _2
+    _10 = vec_Len(copy _9)
+    _11 = lt(copy _8, copy _10)
+    switch copy _11 [ 1 -> bb6, else -> bb8]
+  bb6:
+    _12 = vec_Get(copy _2, copy _8)
+    _13 = add(copy _7, copy _12)
+    _7 = copy _13
+    _14 = add(copy _8, 1)
+    _8 = copy _14
+    goto bb7
+  bb7:
+    goto bb5
+  bb8:
+    _0 = copy _7
+    region_exit r0
+    return
+}
+
+== vec/ref_counts_across_arenas.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DynamicArena)]
+  let _2: Node [Temp]
+  let _3: Node [Val] n
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] r
+  let _6: Ref<Node> [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Val] s0
+  let _9: Ref<Node> [Temp]
+  let _10: i32 [Temp]
+  let _11: i32 [Val] w0
+  let _12: i32 [Var] code
+  let _13: Vec<Ref<Node>> [Temp]
+  let _14: Vec<Ref<Node>> [Var] older
+  let _15: i32 [Var] i
+  let _16: bool [Temp]
+  let _17: &Vec<Ref<Node>> [Temp]
+  let _18: Ref<Node> [Temp]
+  let _19: i32 [Temp]
+  let _20: Ref<Node> [Temp]
+  let _21: i32 [Temp]
+  let _22: i32 [Temp]
+  let _23: bool [Temp]
+  let _24: Ref<Node> [Temp]
+  let _25: i32 [Temp]
+  let _26: bool [Temp]
+  let _27: Vec<Ref<Node>> [Temp]
+  let _28: Vec<Ref<Node>> [Var] newer
+  let _29: i32 [Var] j
+  let _30: bool [Temp]
+  let _31: &Vec<Ref<Node>> [Temp]
+  let _32: Ref<Node> [Temp]
+  let _33: i32 [Temp]
+  let _34: Ref<Node> [Temp]
+  let _35: i32 [Temp]
+  let _36: i32 [Temp]
+  let _37: bool [Temp]
+  let _38: Ref<Node> [Temp]
+  let _39: i32 [Temp]
+  let _40: i32 [Temp]
+  let _41: bool [Temp]
+  let _42: &Vec<Ref<Node>> [Temp]
+  let _43: Ref<Node> [Temp]
+  let _44: i32 [Temp]
+  let _45: bool [Temp]
+  let _46: Vec<Ref<Node>> [Temp]
+  let _47: Vec<Ref<Node>> [Temp]
+  let _48: Ref<Node> [Temp]
+  let _49: i32 [Temp]
+  let _50: i32 [Temp]
+  let _51: bool [Temp]
+  let _52: Ref<Node> [Temp]
+  let _53: i32 [Temp]
+  let _54: i32 [Temp]
+  let _55: bool [Temp]
+  let _56: Ref<Node> [Temp]
+  let _57: i32 [Temp]
+  let _58: i32 [Temp]
+  let _59: bool [Temp]
+  let _60: Ref<Node> [Temp]
+  let _61: i32 [Temp]
+  let _62: bool [Temp]
+  let _63: &Vec<Ref<Node>> [Temp]
+  let _64: Ref<Node> [Temp]
+  let _65: i32 [Temp]
+  let _66: bool [Temp]
+  let _67: Ref<Node> [Temp]
+  let _68: i32 [Temp]
+  let _69: bool [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 IfThen in r0
+  region r3 IfThen in r0
+  region r4 Block in r0
+  region r5 While in r4
+  region r6 IfThen in r4
+  region r7 IfThen in r4
+  region r8 IfThen in r4
+  region r9 IfThen in r4
+  region r10 IfThen in r4
+  region r11 IfThen in r0
+  region r12 IfThen in r0
+  region r13 IfThen in r0
+  region r14 IfThen in r0
+  bb0:
+    region_enter r0
+    _1 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _1
+    _2 = alloc Object { class: "Node" } in fresh1
+    _2.0 = 1
+    _3 = copy _2  // label "n": Node decl
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = ref_clone copy _5
+    _7 = ref_count move _6
+    _8 = copy _7  // label "s0": i32 decl
+    _9 = ref_clone copy _5
+    _10 = ref_count_weak move _9
+    _11 = copy _10  // label "w0": i32 decl
+    _12 = 0  // label "code": i32 decl
+    _13 = alloc Vec { cap: None } in current
+    register_drop current _13 Vec(TyId(16))
+    _14 = copy _13  // label "older": Vec<Ref<Node>> decl
+    _15 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _16 = lt(copy _15, 10)
+    switch copy _16 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _17 = borrow _14
+    _18 = ref_clone copy _5
+    vec_Push(copy _17, move _18)
+    _19 = add(copy _15, 1)
+    _15 = copy _19
+    goto bb3
+  bb3:
+    goto bb1
+  bb4:
+    _20 = ref_clone copy _5
+    _21 = ref_count move _20
+    _22 = add(copy _8, 10)
+    _23 = ne(copy _21, copy _22)
+    switch copy _23 [ 1 -> bb5, else -> bb6]
+  bb5:
+    _12 = 1
+    goto bb6
+  bb6:
+    _24 = ref_clone copy _5
+    _25 = ref_count_weak move _24
+    _26 = ne(copy _25, copy _11)
+    switch copy _26 [ 1 -> bb7, else -> bb8]
+  bb7:
+    _12 = 2
+    goto bb8
+  bb8:
+    region_enter r4
+    _27 = alloc Vec { cap: None } in current
+    register_drop current _27 Vec(TyId(16))
+    _28 = copy _27  // label "newer": Vec<Ref<Node>> decl
+    _29 = 0  // label "j": i32 decl
+    goto bb9
+  bb9:
+    _30 = lt(copy _29, 10)
+    switch copy _30 [ 1 -> bb10, else -> bb12]
+  bb10:
+    _31 = borrow _28
+    _32 = ref_clone copy _5
+    vec_Push(copy _31, move _32)
+    _33 = add(copy _29, 1)
+    _29 = copy _33
+    goto bb11
+  bb11:
+    goto bb9
+  bb12:
+    _34 = ref_clone copy _5
+    _35 = ref_count move _34
+    _36 = add(copy _8, 10)
+    _37 = ne(copy _35, copy _36)
+    switch copy _37 [ 1 -> bb13, else -> bb14]
+  bb13:
+    _12 = 3
+    goto bb14
+  bb14:
+    _38 = ref_clone copy _5
+    _39 = ref_count_weak move _38
+    _40 = add(copy _11, 10)
+    _41 = ne(copy _39, copy _40)
+    switch copy _41 [ 1 -> bb15, else -> bb16]
+  bb15:
+    _12 = 4
+    goto bb16
+  bb16:
+    _42 = borrow _14
+    vec_Clear(copy _42)
+    _43 = ref_clone copy _5
+    _44 = ref_count move _43
+    _45 = ne(copy _44, copy _8)
+    switch copy _45 [ 1 -> bb17, else -> bb18]
+  bb17:
+    _12 = 5
+    goto bb18
+  bb18:
+    _46 = move _28
+    _47 = copy_into _46 in home(_14)
+    _14 = copy _47
+    _48 = ref_clone copy _5
+    _49 = ref_count move _48
+    _50 = add(copy _8, 10)
+    _51 = ne(copy _49, copy _50)
+    switch copy _51 [ 1 -> bb19, else -> bb20]
+  bb19:
+    _12 = 6
+    goto bb20
+  bb20:
+    _52 = ref_clone copy _5
+    _53 = ref_count_weak move _52
+    _54 = add(copy _11, 10)
+    _55 = ne(copy _53, copy _54)
+    switch copy _55 [ 1 -> bb21, else -> bb22]
+  bb21:
+    _12 = 7
+    goto bb22
+  bb22:
+    region_exit r4
+    _56 = ref_clone copy _5
+    _57 = ref_count move _56
+    _58 = add(copy _8, 10)
+    _59 = ne(copy _57, copy _58)
+    switch copy _59 [ 1 -> bb23, else -> bb24]
+  bb23:
+    _12 = 8
+    goto bb24
+  bb24:
+    _60 = ref_clone copy _5
+    _61 = ref_count_weak move _60
+    _62 = ne(copy _61, copy _11)
+    switch copy _62 [ 1 -> bb25, else -> bb26]
+  bb25:
+    _12 = 9
+    goto bb26
+  bb26:
+    _63 = borrow _14
+    vec_Clear(copy _63)
+    _64 = ref_clone copy _5
+    _65 = ref_count move _64
+    _66 = ne(copy _65, copy _8)
+    switch copy _66 [ 1 -> bb27, else -> bb28]
+  bb27:
+    _12 = 10
+    goto bb28
+  bb28:
+    _67 = ref_clone copy _5
+    _68 = ref_count_weak move _67
+    _69 = ne(copy _68, copy _11)
+    switch copy _69 [ 1 -> bb29, else -> bb30]
+  bb29:
+    _12 = 11
+    goto bb30
+  bb30:
+    _0 = copy _12
+    region_exit r0
+    return
+}
+
+== vec/ref_nodes.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<Ref<Node>> [Temp]
+  let _2: Vec<Ref<Node>> [Var] v
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: unit [Hidden(RegionArena)]
+  let _6: &Vec<Ref<Node>> [Temp]
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: i32 [Temp]
+  let _9: Node [Temp]
+  let _10: Ref<Node> [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Var] out
+  let _13: &Vec<Ref<Node>> [Temp]
+  let _14: Ref<Node> [Temp]
+  let _15: Ref<Node> [Val] last
+  let _16: &Vec<Ref<Node>> [Temp]
+  let _17: Ref<Node> [Temp]
+  let _18: Ref<Node> [Val] first
+  let _19: Ref<Node> [Temp]
+  let _20: unit [Temp]
+  let _21: &Node [Val]
+  let _22: bool [Temp]
+  let _23: Ref<Node> [Temp]
+  let _24: unit [Temp]
+  let _25: &Node [Val]
+  let _26: bool [Temp]
+  let _27: i32 [Temp]
+  let _28: &Vec<Ref<Node>> [Temp]
+  let _29: i32 [Temp]
+  let _30: i32 [Temp]
+  let _31: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 PresenceSome in r0
+  region r3 PresenceSome in r0
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    register_drop current _1 Vec(TyId(16))
+    _2 = copy _1  // label "v": Vec<Ref<Node>> decl
+    _3 = 0  // label "i": i32 decl
+    region_enter r1
+    goto bb1
+  bb1:
+    _4 = lt(copy _3, 6)
+    switch copy _4 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _6 = borrow _2
+    _7 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _7
+    _8 = add(copy _3, 1)
+    _9 = alloc Object { class: "Node" } in fresh7
+    _9.0 = copy _8
+    _10 = ref_create source=current target=object_arena(_9) copy _9
+    vec_Push(copy _6, move _10)
+    _11 = add(copy _3, 1)
+    _3 = copy _11
+    goto bb3
+  bb3:
+    _5 = region_reset r1
+    goto bb1
+  bb4:
+    region_exit r1
+    _12 = 0  // label "out": i32 decl
+    _13 = borrow _2
+    _14 = vec_Get(copy _13, 5)
+    _15 = move _14  // label "last": Ref<Node> decl
+    register_drop current _15 RefSlot
+    _16 = borrow _2
+    _17 = vec_Get(copy _16, 0)
+    _18 = move _17  // label "first": Ref<Node> decl
+    register_drop current _18 RefSlot
+    _19 = ref_clone copy _15
+    (_20, _21, _22) = observe copy _19
+    ref_drop move _19
+    switch copy _22 [ 1 -> bb6, else -> bb7]
+  bb5:
+    _23 = ref_clone copy _18
+    (_24, _25, _26) = observe copy _23
+    ref_drop move _23
+    switch copy _26 [ 1 -> bb9, else -> bb10]
+  bb6:
+    goto bb5
+  bb7:
+    region_enter r2
+    observation_register current _20
+    _12 = copy _21.0
+    region_exit r2
+    goto bb5
+  bb8:
+    _28 = borrow _2
+    _29 = vec_Len(copy _28)
+    _30 = add(copy _12, copy _29)
+    _31 = sub(copy _30, 1)
+    _0 = copy _31
+    region_exit r0
+    return
+  bb9:
+    goto bb8
+  bb10:
+    region_enter r3
+    observation_register current _24
+    _27 = add(copy _12, copy _25.0)
+    _12 = copy _27
+    region_exit r3
+    goto bb8
+}
+
+== vec/ref_promote.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<Ref<Node>> [Temp]
+  let _2: Vec<Ref<Node>> [Var] outer
+  let _3: Vec<Ref<Node>> [Temp]
+  let _4: Vec<Ref<Node>> [Var] inner
+  let _5: i32 [Var] i
+  let _6: bool [Temp]
+  let _7: unit [Hidden(RegionArena)]
+  let _8: &Vec<Ref<Node>> [Temp]
+  let _9: unit [Hidden(DynamicArena)]
+  let _10: i32 [Temp]
+  let _11: Node [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: i32 [Temp]
+  let _14: Vec<Ref<Node>> [Temp]
+  let _15: Vec<Ref<Node>> [Temp]
+  let _16: i32 [Var] total
+  let _17: i32 [Var] j
+  let _18: &Vec<Ref<Node>> [Temp]
+  let _19: i32 [Temp]
+  let _20: bool [Temp]
+  let _21: unit [Hidden(RegionArena)]
+  let _22: &Vec<Ref<Node>> [Temp]
+  let _23: Ref<Node> [Temp]
+  let _24: Ref<Node> [Val] item
+  let _25: Ref<Node> [Temp]
+  let _26: unit [Temp]
+  let _27: &Node [Val]
+  let _28: bool [Temp]
+  let _29: i32 [Temp]
+  let _30: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 While in r1
+  region r3 While in r0
+  region r4 PresenceSome in r3
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    register_drop current _1 Vec(TyId(16))
+    _2 = copy _1  // label "outer": Vec<Ref<Node>> decl
+    region_enter r1
+    _3 = alloc Vec { cap: None } in current
+    register_drop current _3 Vec(TyId(16))
+    _4 = copy _3  // label "inner": Vec<Ref<Node>> decl
+    _5 = 0  // label "i": i32 decl
+    region_enter r2
+    goto bb1
+  bb1:
+    _6 = lt(copy _5, 6)
+    switch copy _6 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _8 = borrow _4
+    _9 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _9
+    _10 = add(copy _5, 1)
+    _11 = alloc Object { class: "Node" } in fresh9
+    _11.0 = copy _10
+    _12 = ref_create source=current target=object_arena(_11) copy _11
+    vec_Push(copy _8, move _12)
+    _13 = add(copy _5, 1)
+    _5 = copy _13
+    goto bb3
+  bb3:
+    _7 = region_reset r2
+    goto bb1
+  bb4:
+    region_exit r2
+    _14 = move _4
+    _15 = copy_into _14 in home(_2)
+    _2 = copy _15
+    region_exit r1
+    _16 = 0  // label "total": i32 decl
+    _17 = 0  // label "j": i32 decl
+    region_enter r3
+    goto bb5
+  bb5:
+    _18 = borrow _2
+    _19 = vec_Len(copy _18)
+    _20 = lt(copy _17, copy _19)
+    switch copy _20 [ 1 -> bb6, else -> bb8]
+  bb6:
+    _22 = borrow _2
+    _23 = vec_Get(copy _22, copy _17)
+    _24 = move _23  // label "item": Ref<Node> decl
+    register_drop current _24 RefSlot
+    _25 = ref_clone copy _24
+    (_26, _27, _28) = observe copy _25
+    ref_drop move _25
+    switch copy _28 [ 1 -> bb10, else -> bb11]
+  bb7:
+    _21 = region_reset r3
+    goto bb5
+  bb8:
+    region_exit r3
+    _0 = copy _16
+    region_exit r0
+    return
+  bb9:
+    _30 = add(copy _17, 1)
+    _17 = copy _30
+    goto bb7
+  bb10:
+    goto bb9
+  bb11:
+    region_enter r4
+    observation_register current _26
+    _29 = add(copy _16, copy _27.0)
+    _16 = copy _29
+    region_exit r4
+    goto bb9
+}
+
+== vec/ref_promote_strong.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<Ref<Node>> [Temp]
+  let _2: Vec<Ref<Node>> [Var] saved
+  let _3: unit [Hidden(DynamicArena)]
+  let _4: Node [Temp]
+  let _5: Node [Val] n1
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: Node [Temp]
+  let _8: Node [Val] n2
+  let _9: unit [Hidden(DynamicArena)]
+  let _10: Node [Temp]
+  let _11: Node [Val] n3
+  let _12: unit [Hidden(DynamicArena)]
+  let _13: Node [Temp]
+  let _14: Node [Val] n4
+  let _15: unit [Hidden(DynamicArena)]
+  let _16: Node [Temp]
+  let _17: Node [Val] n5
+  let _18: unit [Hidden(DynamicArena)]
+  let _19: Node [Temp]
+  let _20: Node [Val] n6
+  let _21: Vec<Ref<Node>> [Temp]
+  let _22: Vec<Ref<Node>> [Var] tmp
+  let _23: &Vec<Ref<Node>> [Temp]
+  let _24: Ref<Node> [Temp]
+  let _25: &Vec<Ref<Node>> [Temp]
+  let _26: Ref<Node> [Temp]
+  let _27: &Vec<Ref<Node>> [Temp]
+  let _28: Ref<Node> [Temp]
+  let _29: &Vec<Ref<Node>> [Temp]
+  let _30: Ref<Node> [Temp]
+  let _31: &Vec<Ref<Node>> [Temp]
+  let _32: Ref<Node> [Temp]
+  let _33: &Vec<Ref<Node>> [Temp]
+  let _34: Ref<Node> [Temp]
+  let _35: Vec<Ref<Node>> [Temp]
+  let _36: Vec<Ref<Node>> [Temp]
+  let _37: i32 [Var] total
+  let _38: i32 [Var] i
+  let _39: &Vec<Ref<Node>> [Temp]
+  let _40: i32 [Temp]
+  let _41: bool [Temp]
+  let _42: unit [Hidden(RegionArena)]
+  let _43: &Vec<Ref<Node>> [Temp]
+  let _44: Ref<Node> [Temp]
+  let _45: Ref<Node> [Val] item
+  let _46: Ref<Node> [Temp]
+  let _47: unit [Temp]
+  let _48: &Node [Val]
+  let _49: bool [Temp]
+  let _50: i32 [Temp]
+  let _51: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 Block in r1
+  region r3 While in r0
+  region r4 PresenceSome in r3
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    register_drop current _1 Vec(TyId(16))
+    _2 = copy _1  // label "saved": Vec<Ref<Node>> decl
+    region_enter r1
+    _3 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _3
+    _4 = alloc Object { class: "Node" } in fresh3
+    _4.0 = 1
+    _5 = copy _4  // label "n1": Node decl
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _6
+    _7 = alloc Object { class: "Node" } in fresh6
+    _7.0 = 2
+    _8 = copy _7  // label "n2": Node decl
+    _9 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _9
+    _10 = alloc Object { class: "Node" } in fresh9
+    _10.0 = 3
+    _11 = copy _10  // label "n3": Node decl
+    _12 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _12
+    _13 = alloc Object { class: "Node" } in fresh12
+    _13.0 = 4
+    _14 = copy _13  // label "n4": Node decl
+    _15 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _15
+    _16 = alloc Object { class: "Node" } in fresh15
+    _16.0 = 5
+    _17 = copy _16  // label "n5": Node decl
+    _18 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _18
+    _19 = alloc Object { class: "Node" } in fresh18
+    _19.0 = 6
+    _20 = copy _19  // label "n6": Node decl
+    region_enter r2
+    _21 = alloc Vec { cap: None } in current
+    register_drop current _21 Vec(TyId(16))
+    _22 = copy _21  // label "tmp": Vec<Ref<Node>> decl
+    _23 = borrow _22
+    _24 = ref_create source=current target=object_arena(_5) copy _5
+    vec_Push(copy _23, move _24)
+    _25 = borrow _22
+    _26 = ref_create source=current target=object_arena(_8) copy _8
+    vec_Push(copy _25, move _26)
+    _27 = borrow _22
+    _28 = ref_create source=current target=object_arena(_11) copy _11
+    vec_Push(copy _27, move _28)
+    _29 = borrow _22
+    _30 = ref_create source=current target=object_arena(_14) copy _14
+    vec_Push(copy _29, move _30)
+    _31 = borrow _22
+    _32 = ref_create source=current target=object_arena(_17) copy _17
+    vec_Push(copy _31, move _32)
+    _33 = borrow _22
+    _34 = ref_create source=current target=object_arena(_20) copy _20
+    vec_Push(copy _33, move _34)
+    _35 = move _22
+    _36 = copy_into _35 in home(_2)
+    _2 = copy _36
+    region_exit r2
+    region_exit r1
+    _37 = 0  // label "total": i32 decl
+    _38 = 0  // label "i": i32 decl
+    region_enter r3
+    goto bb1
+  bb1:
+    _39 = borrow _2
+    _40 = vec_Len(copy _39)
+    _41 = lt(copy _38, copy _40)
+    switch copy _41 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _43 = borrow _2
+    _44 = vec_Get(copy _43, copy _38)
+    _45 = move _44  // label "item": Ref<Node> decl
+    register_drop current _45 RefSlot
+    _46 = ref_clone copy _45
+    (_47, _48, _49) = observe copy _46
+    ref_drop move _46
+    switch copy _49 [ 1 -> bb6, else -> bb7]
+  bb3:
+    _42 = region_reset r3
+    goto bb1
+  bb4:
+    region_exit r3
+    _0 = copy _37
+    region_exit r0
+    return
+  bb5:
+    _51 = add(copy _38, 1)
+    _38 = copy _51
+    goto bb3
+  bb6:
+    goto bb5
+  bb7:
+    region_enter r4
+    observation_register current _47
+    _50 = add(copy _37, copy _48.0)
+    _37 = copy _50
+    region_exit r4
+    goto bb5
+}
+
+== vec/ref_weak_expires.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<Ref<Node>> [Temp]
+  let _2: Vec<Ref<Node>> [Var] holder
+  let _3: unit [Hidden(DynamicArena)]
+  let _4: Node [Temp]
+  let _5: Node [Val] n1
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: Node [Temp]
+  let _8: Node [Val] n2
+  let _9: unit [Hidden(DynamicArena)]
+  let _10: Node [Temp]
+  let _11: Node [Val] n3
+  let _12: unit [Hidden(DynamicArena)]
+  let _13: Node [Temp]
+  let _14: Node [Val] n4
+  let _15: unit [Hidden(DynamicArena)]
+  let _16: Node [Temp]
+  let _17: Node [Val] n5
+  let _18: unit [Hidden(DynamicArena)]
+  let _19: Node [Temp]
+  let _20: Node [Val] n6
+  let _21: &Vec<Ref<Node>> [Temp]
+  let _22: Ref<Node> [Temp]
+  let _23: &Vec<Ref<Node>> [Temp]
+  let _24: Ref<Node> [Temp]
+  let _25: &Vec<Ref<Node>> [Temp]
+  let _26: Ref<Node> [Temp]
+  let _27: &Vec<Ref<Node>> [Temp]
+  let _28: Ref<Node> [Temp]
+  let _29: &Vec<Ref<Node>> [Temp]
+  let _30: Ref<Node> [Temp]
+  let _31: &Vec<Ref<Node>> [Temp]
+  let _32: Ref<Node> [Temp]
+  let _33: i32 [Var] alive
+  let _34: Vec<Ref<Node>> [Temp]
+  let _35: Vec<Ref<Node>> [Var] late
+  let _36: i32 [Var] i
+  let _37: &Vec<Ref<Node>> [Temp]
+  let _38: i32 [Temp]
+  let _39: bool [Temp]
+  let _40: &Vec<Ref<Node>> [Temp]
+  let _41: &Vec<Ref<Node>> [Temp]
+  let _42: Ref<Node> [Temp]
+  let _43: i32 [Temp]
+  let _44: &Vec<Ref<Node>> [Temp]
+  let _45: i32 [Temp]
+  let _46: bool [Temp]
+  let _47: unit [Hidden(RegionArena)]
+  let _48: &Vec<Ref<Node>> [Temp]
+  let _49: Ref<Node> [Temp]
+  let _50: Ref<Node> [Val] item
+  let _51: Ref<Node> [Temp]
+  let _52: unit [Temp]
+  let _53: &Node [Val]
+  let _54: bool [Temp]
+  let _55: i32 [Temp]
+  let _56: i32 [Temp]
+  let _57: &Vec<Ref<Node>> [Temp]
+  let _58: &Vec<Ref<Node>> [Temp]
+  let _59: i32 [Temp]
+  let _60: bool [Temp]
+  let _61: unit [Hidden(RegionArena)]
+  let _62: &Vec<Ref<Node>> [Temp]
+  let _63: Ref<Node> [Temp]
+  let _64: Ref<Node> [Val] item
+  let _65: Ref<Node> [Temp]
+  let _66: unit [Temp]
+  let _67: &Node [Val]
+  let _68: bool [Temp]
+  let _69: i32 [Temp]
+  let _70: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 Block in r0
+  region r3 While in r2
+  region r4 While in r2
+  region r5 PresenceSome in r4
+  region r6 While in r2
+  region r7 PresenceSome in r6
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    register_drop current _1 Vec(TyId(16))
+    _2 = copy _1  // label "holder": Vec<Ref<Node>> decl
+    region_enter r1
+    _3 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _3
+    _4 = alloc Object { class: "Node" } in fresh3
+    _4.0 = 1
+    _5 = copy _4  // label "n1": Node decl
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _6
+    _7 = alloc Object { class: "Node" } in fresh6
+    _7.0 = 2
+    _8 = copy _7  // label "n2": Node decl
+    _9 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _9
+    _10 = alloc Object { class: "Node" } in fresh9
+    _10.0 = 3
+    _11 = copy _10  // label "n3": Node decl
+    _12 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _12
+    _13 = alloc Object { class: "Node" } in fresh12
+    _13.0 = 4
+    _14 = copy _13  // label "n4": Node decl
+    _15 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _15
+    _16 = alloc Object { class: "Node" } in fresh15
+    _16.0 = 5
+    _17 = copy _16  // label "n5": Node decl
+    _18 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _18
+    _19 = alloc Object { class: "Node" } in fresh18
+    _19.0 = 6
+    _20 = copy _19  // label "n6": Node decl
+    _21 = borrow _2
+    _22 = ref_create source=current target=object_arena(_5) copy _5
+    vec_Push(copy _21, move _22)
+    _23 = borrow _2
+    _24 = ref_create source=current target=object_arena(_8) copy _8
+    vec_Push(copy _23, move _24)
+    _25 = borrow _2
+    _26 = ref_create source=current target=object_arena(_11) copy _11
+    vec_Push(copy _25, move _26)
+    _27 = borrow _2
+    _28 = ref_create source=current target=object_arena(_14) copy _14
+    vec_Push(copy _27, move _28)
+    _29 = borrow _2
+    _30 = ref_create source=current target=object_arena(_17) copy _17
+    vec_Push(copy _29, move _30)
+    _31 = borrow _2
+    _32 = ref_create source=current target=object_arena(_20) copy _20
+    vec_Push(copy _31, move _32)
+    region_exit r1
+    _33 = 0  // label "alive": i32 decl
+    region_enter r2
+    _34 = alloc Vec { cap: None } in current
+    register_drop current _34 Vec(TyId(16))
+    _35 = copy _34  // label "late": Vec<Ref<Node>> decl
+    _36 = 0  // label "i": i32 decl
+    goto bb1
+  bb1:
+    _37 = borrow _2
+    _38 = vec_Len(copy _37)
+    _39 = lt(copy _36, copy _38)
+    switch copy _39 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _40 = borrow _35
+    _41 = borrow _2
+    _42 = vec_Get(copy _41, copy _36)
+    vec_Push(copy _40, move _42)
+    _43 = add(copy _36, 1)
+    _36 = copy _43
+    goto bb3
+  bb3:
+    goto bb1
+  bb4:
+    _36 = 0
+    region_enter r4
+    goto bb5
+  bb5:
+    _44 = borrow _35
+    _45 = vec_Len(copy _44)
+    _46 = lt(copy _36, copy _45)
+    switch copy _46 [ 1 -> bb6, else -> bb8]
+  bb6:
+    _48 = borrow _35
+    _49 = vec_Get(copy _48, copy _36)
+    _50 = move _49  // label "item": Ref<Node> decl
+    register_drop current _50 RefSlot
+    _51 = ref_clone copy _50
+    (_52, _53, _54) = observe copy _51
+    ref_drop move _51
+    switch copy _54 [ 1 -> bb10, else -> bb11]
+  bb7:
+    _47 = region_reset r4
+    goto bb5
+  bb8:
+    region_exit r4
+    _57 = borrow _2
+    vec_Clear(copy _57)
+    _36 = 0
+    region_enter r6
+    goto bb12
+  bb9:
+    _56 = add(copy _36, 1)
+    _36 = copy _56
+    goto bb7
+  bb10:
+    goto bb9
+  bb11:
+    region_enter r5
+    observation_register current _52
+    _55 = add(copy _33, copy _53.0)
+    _33 = copy _55
+    region_exit r5
+    goto bb9
+  bb12:
+    _58 = borrow _35
+    _59 = vec_Len(copy _58)
+    _60 = lt(copy _36, copy _59)
+    switch copy _60 [ 1 -> bb13, else -> bb15]
+  bb13:
+    _62 = borrow _35
+    _63 = vec_Get(copy _62, copy _36)
+    _64 = move _63  // label "item": Ref<Node> decl
+    register_drop current _64 RefSlot
+    _65 = ref_clone copy _64
+    (_66, _67, _68) = observe copy _65
+    ref_drop move _65
+    switch copy _68 [ 1 -> bb17, else -> bb18]
+  bb14:
+    _61 = region_reset r6
+    goto bb12
+  bb15:
+    region_exit r6
+    region_exit r2
+    _0 = copy _33
+    region_exit r0
+    return
+  bb16:
+    _70 = add(copy _36, 1)
+    _36 = copy _70
+    goto bb14
+  bb17:
+    goto bb16
+  bb18:
+    region_enter r7
+    observation_register current _66
+    _69 = add(copy _33, 100)
+    _33 = copy _69
+    region_exit r7
+    goto bb16
+}
+
+== vec/return_vec_of_linked_refs.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Bag [Temp]
+  let _2: Bag [Val] r
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Var] total
+  let _8: i32 [Var] j
+  let _9: bool [Temp]
+  let _10: unit [Hidden(RegionArena)]
+  let _11: &Vec<Ref<B>> [Temp]
+  let _12: Ref<B> [Temp]
+  let _13: Ref<B> [Val] got
+  let _14: Ref<B> [Temp]
+  let _15: unit [Temp]
+  let _16: &B [Val]
+  let _17: bool [Temp]
+  let _18: Ref<A> [Temp]
+  let _19: unit [Temp]
+  let _20: &A [Val]
+  let _21: bool [Temp]
+  let _22: i32 [Temp]
+  let _23: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 While in r0
+  region r3 PresenceSome in r2
+  region r4 PresenceSome in r3
+  bb0:
+    region_enter r0
+    _1 = call make() +current +current -> bb1
+  bb1:
+    _2 = copy _1  // label "r": Bag decl
+    _3 = 0  // label "i": i32 decl
+    goto bb2
+  bb2:
+    _4 = lt(copy _3, 50)
+    switch copy _4 [ 1 -> bb3, else -> bb5]
+  bb3:
+    _5 = call churn(copy _3) +current -> bb6
+  bb4:
+    goto bb2
+  bb5:
+    _7 = 0  // label "total": i32 decl
+    _8 = 0  // label "j": i32 decl
+    region_enter r2
+    goto bb7
+  bb6:
+    _6 = add(copy _3, 1)
+    _3 = copy _6
+    goto bb4
+  bb7:
+    _9 = lt(copy _8, 5)
+    switch copy _9 [ 1 -> bb8, else -> bb10]
+  bb8:
+    _11 = borrow _2.0
+    _12 = vec_Get(copy _11, copy _8)
+    _13 = move _12  // label "got": Ref<B> decl
+    register_drop current _13 RefSlot
+    _14 = ref_clone copy _13
+    (_15, _16, _17) = observe copy _14
+    ref_drop move _14
+    switch copy _17 [ 1 -> bb12, else -> bb13]
+  bb9:
+    _10 = region_reset r2
+    goto bb7
+  bb10:
+    region_exit r2
+    intrinsic PrintlnInt(copy _7)
+    _0 = 0
+    region_exit r0
+    return
+  bb11:
+    _23 = add(copy _8, 1)
+    _8 = copy _23
+    goto bb9
+  bb12:
+    goto bb11
+  bb13:
+    region_enter r3
+    observation_register current _15
+    _18 = ref_clone copy _16.0
+    (_19, _20, _21) = observe copy _18
+    ref_drop move _18
+    switch copy _21 [ 1 -> bb15, else -> bb16]
+  bb14:
+    region_exit r3
+    goto bb11
+  bb15:
+    goto bb14
+  bb16:
+    region_enter r4
+    observation_register current _19
+    _22 = add(copy _7, copy _20.0)
+    _7 = copy _22
+    region_exit r4
+    goto bb14
+}
+
+fn make (parent=true, sink=true) {
+  let _0: Bag [Return]
+  let _1: Vec<Ref<B>> [Temp]
+  let _2: Vec<Ref<B>> [Var] v
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: unit [Hidden(RegionArena)]
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: i32 [Temp]
+  let _8: A [Temp]
+  let _9: Ref<A> [Temp]
+  let _10: Ref<A> [Val] a
+  let _11: unit [Hidden(DynamicArena)]
+  let _12: Ref<A> [Temp]
+  let _13: B [Temp]
+  let _14: Ref<B> [Temp]
+  let _15: Ref<B> [Val] b
+  let _16: &Vec<Ref<B>> [Temp]
+  let _17: Ref<B> [Temp]
+  let _18: i32 [Temp]
+  let _19: Bag [Temp]
+  let _20: Vec<Ref<B>> [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    register_drop current _1 Vec(TyId(15))
+    _2 = copy _1  // label "v": Vec<Ref<B>> decl
+    _3 = 0  // label "i": i32 decl
+    region_enter r1
+    goto bb1
+  bb1:
+    _4 = lt(copy _3, 5)
+    switch copy _4 [ 1 -> bb2, else -> bb4]
+  bb2:
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _6
+    _7 = add(copy _3, 10)
+    _8 = alloc Object { class: "A" } in fresh6
+    _8.0 = copy _7
+    _9 = ref_create source=current target=object_arena(_8) copy _8
+    _10 = move _9  // label "a": Ref<A> decl
+    register_drop current _10 RefSlot
+    _11 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _11
+    _12 = ref_clone copy _10
+    _13 = alloc Object { class: "B" } in fresh11
+    ref_store _13.0 owner=fresh11 move _12
+    register_drop fresh11 _13.0 RefSlot
+    _14 = ref_create source=current target=object_arena(_13) copy _13
+    _15 = move _14  // label "b": Ref<B> decl
+    register_drop current _15 RefSlot
+    _16 = borrow _2
+    _17 = ref_clone copy _15
+    vec_Push(copy _16, move _17)
+    _18 = add(copy _3, 1)
+    _3 = copy _18
+    goto bb3
+  bb3:
+    _5 = region_reset r1
+    goto bb1
+  bb4:
+    region_exit r1
+    _19 = alloc Object { class: "Bag" } in result_sink
+    _20 = copy_into _2 in result_sink
+    _19.0 = copy _20
+    _0 = copy _19
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: A [Temp]
+  let _4: Ref<A> [Temp]
+  let _5: B [Temp]
+  let _6: B [Val] x
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: i32 [Temp]
+  let _9: A [Temp]
+  let _10: Ref<A> [Temp]
+  let _11: B [Temp]
+  let _12: B [Val] y
+  region r0 Block
+  bb0:
+    region_enter r0
+    _2 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "A" } in fresh2
+    _3.0 = copy _1
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = alloc Object { class: "B" } in current
+    ref_store _5.0 owner=current move _4
+    register_drop current _5.0 RefSlot
+    _6 = copy _5  // label "x": B decl
+    _7 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _7
+    _8 = add(copy _1, 1)
+    _9 = alloc Object { class: "A" } in fresh7
+    _9.0 = copy _8
+    _10 = ref_create source=current target=object_arena(_9) copy _9
+    _11 = alloc Object { class: "B" } in current
+    ref_store _11.0 owner=current move _10
+    register_drop current _11.0 RefSlot
+    _12 = copy _11  // label "y": B decl
+    _0 = copy _1
+    region_exit r0
+    return
+}
+
+== vec/strings.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<String> [Temp]
+  let _2: Vec<String> [Var] v
+  let _3: &Vec<String> [Temp]
+  let _4: &Vec<String> [Temp]
+  let _5: &Vec<String> [Temp]
+  let _6: &Vec<String> [Temp]
+  let _7: &Vec<String> [Temp]
+  let _8: &Vec<String> [Temp]
+  let _9: String [Temp]
+  let _10: String [Val] s
+  let _11: i32 [Temp]
+  region r0 Block
+  bb0:
+    region_enter r0
+    _1 = alloc Vec { cap: None } in current
+    _2 = copy _1  // label "v": Vec<String> decl
+    _3 = borrow _2
+    vec_Push(copy _3, "a")
+    _4 = borrow _2
+    vec_Push(copy _4, "hello")
+    _5 = borrow _2
+    vec_Push(copy _5, "xyz")
+    _6 = borrow _2
+    vec_Push(copy _6, "q")
+    _7 = borrow _2
+    vec_Push(copy _7, "zz")
+    _8 = borrow _2
+    _9 = vec_Get(copy _8, 1)
+    _10 = copy _9  // label "s": String decl
+    _11 = len(_10)
+    _0 = copy _11
+    region_exit r0
+    return
+}
+
+== vec/with_capacity.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Var] code
+  let _2: Vec<i32> [Temp]
+  let _3: Vec<i32> [Var] plain
+  let _4: &Vec<i32> [Temp]
+  let _5: i32 [Temp]
+  let _6: bool [Temp]
+  let _7: &Vec<i32> [Temp]
+  let _8: &Vec<i32> [Temp]
+  let _9: i32 [Temp]
+  let _10: bool [Temp]
+  let _11: i32 [Var] i
+  let _12: bool [Temp]
+  let _13: &Vec<i32> [Temp]
+  let _14: i32 [Temp]
+  let _15: &Vec<i32> [Temp]
+  let _16: i32 [Temp]
+  let _17: bool [Temp]
+  let _18: Vec<i32> [Temp]
+  let _19: Vec<i32> [Var] big
+  let _20: &Vec<i32> [Temp]
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: &Vec<i32> [Temp]
+  let _25: i32 [Temp]
+  let _26: &Vec<i32> [Temp]
+  let _27: i32 [Temp]
+  let _28: bool [Temp]
+  let _29: &Vec<i32> [Temp]
+  let _30: &Vec<i32> [Temp]
+  let _31: i32 [Temp]
+  let _32: bool [Temp]
+  let _33: &Vec<i32> [Temp]
+  let _34: i32 [Temp]
+  let _35: bool [Temp]
+  let _36: Vec<i32> [Temp]
+  let _37: Vec<i32> [Var] odd
+  let _38: &Vec<i32> [Temp]
+  let _39: &Vec<i32> [Temp]
+  let _40: &Vec<i32> [Temp]
+  let _41: &Vec<i32> [Temp]
+  let _42: &Vec<i32> [Temp]
+  let _43: i32 [Temp]
+  let _44: bool [Temp]
+  let _45: Vec<i32> [Temp]
+  let _46: Vec<i32> [Var] zero
+  let _47: &Vec<i32> [Temp]
+  let _48: &Vec<i32> [Temp]
+  let _49: i32 [Temp]
+  let _50: bool [Temp]
+  let _51: Vec<String> [Temp]
+  let _52: Vec<String> [Var] words
+  let _53: &Vec<String> [Temp]
+  let _54: &Vec<String> [Temp]
+  let _55: &Vec<String> [Temp]
+  let _56: i32 [Temp]
+  let _57: bool [Temp]
+  let _58: Vec<Ref<Node>> [Temp]
+  let _59: Vec<Ref<Node>> [Var] nodes
+  let _60: &Vec<Ref<Node>> [Temp]
+  let _61: unit [Hidden(DynamicArena)]
+  let _62: Node [Temp]
+  let _63: Ref<Node> [Temp]
+  let _64: &Vec<Ref<Node>> [Temp]
+  let _65: unit [Hidden(DynamicArena)]
+  let _66: Node [Temp]
+  let _67: Ref<Node> [Temp]
+  let _68: &Vec<Ref<Node>> [Temp]
+  let _69: unit [Hidden(DynamicArena)]
+  let _70: Node [Temp]
+  let _71: Ref<Node> [Temp]
+  let _72: &Vec<Ref<Node>> [Temp]
+  let _73: i32 [Temp]
+  let _74: bool [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  region r2 IfThen in r0
+  region r3 While in r0
+  region r4 IfThen in r0
+  region r5 IfThen in r0
+  region r6 While in r0
+  region r7 IfThen in r0
+  region r8 IfThen in r0
+  region r9 IfThen in r0
+  region r10 IfThen in r0
+  region r11 IfThen in r0
+  region r12 IfThen in r0
+  region r13 IfThen in r0
+  bb0:
+    region_enter r0
+    _1 = 0  // label "code": i32 decl
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "plain": Vec<i32> decl
+    _4 = borrow _3
+    _5 = vec_Capacity(copy _4)
+    _6 = ne(copy _5, 0)
+    switch copy _6 [ 1 -> bb1, else -> bb2]
+  bb1:
+    _1 = 1
+    goto bb2
+  bb2:
+    _7 = borrow _3
+    vec_Push(copy _7, 1)
+    _8 = borrow _3
+    _9 = vec_Capacity(copy _8)
+    _10 = ne(copy _9, 4)
+    switch copy _10 [ 1 -> bb3, else -> bb4]
+  bb3:
+    _1 = 2
+    goto bb4
+  bb4:
+    _11 = 0  // label "i": i32 decl
+    goto bb5
+  bb5:
+    _12 = lt(copy _11, 4)
+    switch copy _12 [ 1 -> bb6, else -> bb8]
+  bb6:
+    _13 = borrow _3
+    vec_Push(copy _13, copy _11)
+    _14 = add(copy _11, 1)
+    _11 = copy _14
+    goto bb7
+  bb7:
+    goto bb5
+  bb8:
+    _15 = borrow _3
+    _16 = vec_Capacity(copy _15)
+    _17 = ne(copy _16, 8)
+    switch copy _17 [ 1 -> bb9, else -> bb10]
+  bb9:
+    _1 = 3
+    goto bb10
+  bb10:
+    _18 = alloc Vec { cap: Some(Const(Int(100))) } in current
+    _19 = copy _18  // label "big": Vec<i32> decl
+    _20 = borrow _19
+    _21 = vec_Capacity(copy _20)
+    _22 = ne(copy _21, 100)
+    switch copy _22 [ 1 -> bb11, else -> bb12]
+  bb11:
+    _1 = 4
+    goto bb12
+  bb12:
+    _11 = 0
+    goto bb13
+  bb13:
+    _23 = lt(copy _11, 100)
+    switch copy _23 [ 1 -> bb14, else -> bb16]
+  bb14:
+    _24 = borrow _19
+    vec_Push(copy _24, copy _11)
+    _25 = add(copy _11, 1)
+    _11 = copy _25
+    goto bb15
+  bb15:
+    goto bb13
+  bb16:
+    _26 = borrow _19
+    _27 = vec_Capacity(copy _26)
+    _28 = ne(copy _27, 100)
+    switch copy _28 [ 1 -> bb17, else -> bb18]
+  bb17:
+    _1 = 5
+    goto bb18
+  bb18:
+    _29 = borrow _19
+    vec_Push(copy _29, 100)
+    _30 = borrow _19
+    _31 = vec_Capacity(copy _30)
+    _32 = ne(copy _31, 200)
+    switch copy _32 [ 1 -> bb19, else -> bb20]
+  bb19:
+    _1 = 6
+    goto bb20
+  bb20:
+    _33 = borrow _19
+    _34 = vec_Len(copy _33)
+    _35 = ne(copy _34, 101)
+    switch copy _35 [ 1 -> bb21, else -> bb22]
+  bb21:
+    _1 = 7
+    goto bb22
+  bb22:
+    _36 = alloc Vec { cap: Some(Const(Int(3))) } in current
+    _37 = copy _36  // label "odd": Vec<i32> decl
+    _38 = borrow _37
+    vec_Push(copy _38, 1)
+    _39 = borrow _37
+    vec_Push(copy _39, 2)
+    _40 = borrow _37
+    vec_Push(copy _40, 3)
+    _41 = borrow _37
+    vec_Push(copy _41, 4)
+    _42 = borrow _37
+    _43 = vec_Capacity(copy _42)
+    _44 = ne(copy _43, 6)
+    switch copy _44 [ 1 -> bb23, else -> bb24]
+  bb23:
+    _1 = 8
+    goto bb24
+  bb24:
+    _45 = alloc Vec { cap: Some(Const(Int(0))) } in current
+    _46 = copy _45  // label "zero": Vec<i32> decl
+    _47 = borrow _46
+    vec_Push(copy _47, 1)
+    _48 = borrow _46
+    _49 = vec_Capacity(copy _48)
+    _50 = ne(copy _49, 4)
+    switch copy _50 [ 1 -> bb25, else -> bb26]
+  bb25:
+    _1 = 9
+    goto bb26
+  bb26:
+    _51 = alloc Vec { cap: Some(Const(Int(2))) } in current
+    _52 = copy _51  // label "words": Vec<String> decl
+    _53 = borrow _52
+    vec_Push(copy _53, "a")
+    _54 = borrow _52
+    vec_Push(copy _54, "b")
+    _55 = borrow _52
+    _56 = vec_Capacity(copy _55)
+    _57 = ne(copy _56, 2)
+    switch copy _57 [ 1 -> bb27, else -> bb28]
+  bb27:
+    _1 = 10
+    goto bb28
+  bb28:
+    _58 = alloc Vec { cap: Some(Const(Int(2))) } in current
+    register_drop current _58 Vec(TyId(22))
+    _59 = copy _58  // label "nodes": Vec<Ref<Node>> decl
+    _60 = borrow _59
+    _61 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _61
+    _62 = alloc Object { class: "Node" } in fresh61
+    _62.0 = 1
+    _63 = ref_create source=current target=object_arena(_62) copy _62
+    vec_Push(copy _60, move _63)
+    _64 = borrow _59
+    _65 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _65
+    _66 = alloc Object { class: "Node" } in fresh65
+    _66.0 = 2
+    _67 = ref_create source=current target=object_arena(_66) copy _66
+    vec_Push(copy _64, move _67)
+    _68 = borrow _59
+    _69 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _69
+    _70 = alloc Object { class: "Node" } in fresh69
+    _70.0 = 3
+    _71 = ref_create source=current target=object_arena(_70) copy _70
+    vec_Push(copy _68, move _71)
+    _72 = borrow _59
+    _73 = vec_Capacity(copy _72)
+    _74 = ne(copy _73, 4)
+    switch copy _74 [ 1 -> bb29, else -> bb30]
+  bb29:
+    _1 = 11
+    goto bb30
+  bb30:
+    _0 = copy _1
+    region_exit r0
+    return
+}
+

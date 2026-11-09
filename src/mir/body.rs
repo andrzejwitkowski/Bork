@@ -19,6 +19,8 @@ pub enum HiddenKind {
     ResultSink,
     /// Holds the arena token of one region; `RegionReset` reassigns it (3.2.2 item 4).
     RegionArena,
+    /// The arena made by `ArenaCreateDynamic`.
+    DynamicArena,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,8 +117,8 @@ pub enum AllocKind {
     EnumSlot { enum_name: String, variant: u32 },
     String,
     Array,
-    VecHeader,
-    VecBuffer,
+    /// A `Vec` header (and, with `cap`, its first buffer) owned by the arena.
+    Vec { cap: Option<Operand> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -157,6 +159,8 @@ pub enum IntrinsicOp {
     PrintlnStr,
     StringEq,
     Utf8Valid,
+    /// `stringFromUtf8(bytes, start, count)`: a `String?` allocated in `arena`.
+    StringFromUtf8,
     Concat,
     StrongCount,
     WeakCount,
@@ -195,7 +199,8 @@ pub enum StmtKind {
     RegionExit(RegionId),
     RegionReset { region: RegionId, dst: Local },
     VecOp { dst: Option<Place>, op: VecOp, receiver: Operand, args: Vec<Operand> },
-    Intrinsic { dst: Option<Place>, op: IntrinsicOp, args: Vec<Operand> },
+    /// `arena` is the allocation arena of ops that return fresh bytes (`concat`, `stringFromUtf8`).
+    Intrinsic { dst: Option<Place>, op: IntrinsicOp, args: Vec<Operand>, arena: Option<ArenaRef> },
     StorageLive(Local),
     StorageDead(Local),
 }
@@ -343,7 +348,10 @@ impl StmtKind {
                 rvalue_uses(r, f);
                 f(Use::Def(dst));
             }
-            StmtKind::Alloc { dst, arena, .. } => {
+            StmtKind::Alloc { dst, arena, kind } => {
+                if let AllocKind::Vec { cap: Some(cap) } = kind {
+                    f(Use::Op(cap));
+                }
                 f(Use::Arena(arena));
                 f(Use::Def(dst));
             }
@@ -433,8 +441,11 @@ impl StmtKind {
                     f(Use::Def(d));
                 }
             }
-            StmtKind::Intrinsic { dst, args, .. } => {
+            StmtKind::Intrinsic { dst, args, arena, .. } => {
                 args.iter().for_each(|a| f(Use::Op(a)));
+                if let Some(a) = arena {
+                    f(Use::Arena(a));
+                }
                 if let Some(d) = dst {
                     f(Use::Def(d));
                 }

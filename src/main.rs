@@ -7,7 +7,7 @@ use std::process;
 
 fn usage(status: i32) -> ! {
     let msg =
-        "Usage: bork [--dump-arenas] <file.bork>\n       bork build [-g] [-o <path>] <file.bork>";
+        "Usage: bork [--dump-arenas] <file.bork>\n       bork build [-g] [-o <path>] <file.bork>\n       bork build --emit-mir [-o <path>] <file.bork>";
     if status == 0 {
         println!("{msg}");
     } else {
@@ -65,6 +65,7 @@ fn main() {
 
 fn build_command(args: Vec<String>) -> ! {
     let mut debug = false;
+    let mut emit_mir = false;
     let mut output: Option<PathBuf> = None;
     let mut file: Option<String> = None;
 
@@ -72,6 +73,7 @@ fn build_command(args: Vec<String>) -> ! {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "-g" => debug = true,
+            "--emit-mir" => emit_mir = true,
             "-o" => match args.next() {
                 Some(path) => output = Some(PathBuf::from(path)),
                 None => {
@@ -97,12 +99,43 @@ fn build_command(args: Vec<String>) -> ! {
     let Some(path) = file else {
         usage(2);
     };
+    if emit_mir {
+        run_emit_mir(&path, output.as_deref())
+    }
     let output = output.unwrap_or_else(|| PathBuf::from(&path).with_extension(""));
     if paths_overlap(&path, &output) {
         eprintln!("error: output path would overwrite input file");
         process::exit(2);
     }
     run_build(&path, &output, debug)
+}
+
+/// Prints the MIR of `path` to stdout, or to `output` when given. Needs no LLVM.
+fn run_emit_mir(path: &str, output: Option<&std::path::Path>) -> ! {
+    let source = read_source(path);
+    let result = frontend::check(&source);
+    match bork::mir::emit::emit_mir(&result) {
+        Ok(text) => {
+            match output {
+                Some(file) => {
+                    if paths_overlap(path, file) {
+                        eprintln!("error: output path would overwrite input file");
+                        process::exit(2);
+                    }
+                    if let Err(e) = fs::write(file, text) {
+                        eprintln!("error: {}: {e}", file.display());
+                        process::exit(2);
+                    }
+                }
+                None => print!("{text}"),
+            }
+            process::exit(0);
+        }
+        Err(diagnostics) => {
+            print_diagnostics(path, &source, &diagnostics);
+            process::exit(1);
+        }
+    }
 }
 
 #[cfg(feature = "codegen")]
@@ -142,10 +175,16 @@ fn paths_overlap(input: &str, output: &std::path::Path) -> bool {
     if std::path::Path::new(input) == output {
         return true;
     }
-    match (fs::canonicalize(input), fs::canonicalize(output)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => false,
+    if matches!((fs::canonicalize(input), fs::canonicalize(output)), (Ok(a), Ok(b)) if a == b) {
+        return true;
     }
+    // A hard link is a different path to the same file; `fs::write` would truncate the source through it.
+    #[cfg(unix)]
+    if let (Ok(a), Ok(b)) = (fs::metadata(input), fs::metadata(output)) {
+        use std::os::unix::fs::MetadataExt;
+        return a.dev() == b.dev() && a.ino() == b.ino();
+    }
+    false
 }
 
 fn read_source(path: &str) -> String {
