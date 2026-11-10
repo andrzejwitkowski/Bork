@@ -9,8 +9,8 @@ use std::process::Command;
 use bork::codegen::{emit_ir, BuildOptions};
 use bork::frontend::check;
 
-/// The M5a scope covers few programs entirely; this keeps an empty backend from passing.
-const MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS: usize = 40;
+/// Keeps a regressed MIR backend (one that lowers almost nothing) from passing.
+const MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS: usize = 75;
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     let mut entries: Vec<_> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();

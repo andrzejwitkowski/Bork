@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: 3\n20\n7\n
+// Scalar payloads in several variants: the second and third arm must match by tag, not fall into the first.
+enum Shape { Dot, Sq(side: i32), Rect(w: i32, h: i32) }
+
+fun area(s: &Shape): i32 {
+    return when s {
+        Dot => { 3 }
+        Sq(side) => { side * side }
+        Rect(w, h) => { w + h }
+    }
+}
+
+fun main(): i32 {
+    val d = Shape.Dot
+    val q = Shape.Sq(4)
+    val r = Shape.Rect(3, 4)
+    println(area(&d))
+    println(area(&q) + 4)
+    println(area(&r))
+    return 0
+}
