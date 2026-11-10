@@ -91,9 +91,16 @@ fn emit_checked<'ctx>(
             source.path,
         )
     } else if options.mir_backend {
-        // A function MIR cannot build keeps the HIR emitter; an internal builder error is a compiler bug.
         let bodies = crate::mir::build::build_function_results(&mono, &tcx).map_err(|e| BuildError::Toolchain(format!("MIR: {e:?}")))?;
-        let bodies: Vec<_> = bodies.into_iter().map(Result::ok).collect();
+        // `Unsupported`/`Unlowered` fall back to the HIR emitter; `Internal` is a compiler bug and must surface.
+        let bodies = bodies
+            .into_iter()
+            .map(|r| match r {
+                Ok(body) => Ok(Some(body)),
+                Err(crate::mir::build::BuildError::Internal(msg)) => Err(BuildError::Toolchain(format!("MIR: {msg}"))),
+                Err(_) => Ok(None),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         llvm::emit_module_mir(context, hir, &tcx, report, memory_plan.clone(), &bodies)
     } else {
         llvm::emit_module(context, hir, &tcx, report, memory_plan.clone())

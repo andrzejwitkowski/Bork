@@ -61,12 +61,11 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
     let (mut lowered, mut compared) = (0, 0);
     for file in files {
         let result = check(&fs::read_to_string(&file).unwrap());
-        let (Ok(hir), Ok(mir)) = (
-            emit_ir(&result, BuildOptions::default()),
-            emit_ir(&result, BuildOptions { debug: false, mir_backend: true }),
-        ) else {
-            continue; // not buildable (gate) on either backend; `tests/programs.rs` owns that
+        let Ok(hir) = emit_ir(&result, BuildOptions::default()) else {
+            continue; // not buildable (gate); `tests/programs.rs` owns that
         };
+        let mir = emit_ir(&result, BuildOptions { debug: false, mir_backend: true })
+            .unwrap_or_else(|e| panic!("MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
         compared += 1;
         assert_eq!(region_calls(&hir), region_calls(&mir), "push/push_child/pop/reset counts differ for {}", file.display());
         if hir == mir {
