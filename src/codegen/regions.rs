@@ -117,6 +117,11 @@ impl<'report, S: RegionSink> RegionEmitter<'report, S> {
         }
     }
 
+    /// A function emitted without walking its regions (the MIR backend): only the function counter moves.
+    pub fn skip_function(&mut self) {
+        self.next_function += 1;
+    }
+
     pub fn sink_mut(&mut self) -> &mut S {
         &mut self.sink
     }

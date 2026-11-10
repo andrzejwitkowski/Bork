@@ -7,7 +7,7 @@ use std::process;
 
 fn usage(status: i32) -> ! {
     let msg =
-        "Usage: bork [--dump-arenas] <file.bork>\n       bork build [-g] [-o <path>] <file.bork>\n       bork build --emit-mir [-o <path>] <file.bork>";
+        "Usage: bork [--dump-arenas] <file.bork>\n       bork build [-g] [--mir-backend] [-o <path>] <file.bork>\n       bork build --emit-mir [-o <path>] <file.bork>";
     if status == 0 {
         println!("{msg}");
     } else {
@@ -66,6 +66,7 @@ fn main() {
 fn build_command(args: Vec<String>) -> ! {
     let mut debug = false;
     let mut emit_mir = false;
+    let mut mir_backend = false;
     let mut output: Option<PathBuf> = None;
     let mut file: Option<String> = None;
 
@@ -74,6 +75,7 @@ fn build_command(args: Vec<String>) -> ! {
         match arg.as_str() {
             "-g" => debug = true,
             "--emit-mir" => emit_mir = true,
+            "--mir-backend" => mir_backend = true,
             "-o" => match args.next() {
                 Some(path) => output = Some(PathBuf::from(path)),
                 None => {
@@ -107,7 +109,7 @@ fn build_command(args: Vec<String>) -> ! {
         eprintln!("error: output path would overwrite input file");
         process::exit(2);
     }
-    run_build(&path, &output, debug)
+    run_build(&path, &output, debug, mir_backend)
 }
 
 /// Prints the MIR of `path` to stdout, or to `output` when given. Needs no LLVM.
@@ -139,7 +141,7 @@ fn run_emit_mir(path: &str, output: Option<&std::path::Path>) -> ! {
 }
 
 #[cfg(feature = "codegen")]
-fn run_build(path: &str, output: &std::path::Path, debug: bool) -> ! {
+fn run_build(path: &str, output: &std::path::Path, debug: bool, mir_backend: bool) -> ! {
     use bork::codegen::{build_with_options, BuildError, BuildOptions, SourceContext};
 
     let source = read_source(path);
@@ -147,7 +149,7 @@ fn run_build(path: &str, output: &std::path::Path, debug: bool) -> ! {
     match build_with_options(
         &result,
         output,
-        BuildOptions { debug },
+        BuildOptions { debug, mir_backend },
         Some(SourceContext {
             path: std::path::Path::new(path),
             text: &source,
@@ -166,7 +168,7 @@ fn run_build(path: &str, output: &std::path::Path, debug: bool) -> ! {
 }
 
 #[cfg(not(feature = "codegen"))]
-fn run_build(_path: &str, _output: &std::path::Path, _debug: bool) -> ! {
+fn run_build(_path: &str, _output: &std::path::Path, _debug: bool, _mir_backend: bool) -> ! {
     eprintln!("error: `bork build` requires bork to be compiled with the `codegen` feature");
     process::exit(2);
 }

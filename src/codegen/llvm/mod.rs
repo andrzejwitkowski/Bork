@@ -9,6 +9,7 @@ mod debug;
 mod emit_fn;
 mod expr;
 mod glue;
+mod lower;
 mod managed_ref;
 mod match_emit;
 mod nullable;
@@ -36,6 +37,7 @@ use crate::span::Span;
 
 use arena::ArenaCalls;
 use context::Codegen;
+pub use context::native_target_machine;
 use emit_fn::Callees;
 
 pub fn emit_module<'ctx>(
@@ -45,7 +47,20 @@ pub fn emit_module<'ctx>(
     report: &ArenaReport,
     memory_plan: MemoryPlan,
 ) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, tcx, report, memory_plan, None)
+    emit_module_impl(context, hir, tcx, report, memory_plan, None, None)
+}
+
+/// `bodies` is one MIR body per function of `hir`; functions with `None` or an op the MIR backend
+/// does not lower yet stay on the HIR emitter.
+pub fn emit_module_mir<'ctx>(
+    context: &'ctx Context,
+    hir: &HirProgram,
+    tcx: &TyCtx,
+    report: &ArenaReport,
+    memory_plan: MemoryPlan,
+    bodies: &[Option<crate::mir::Body>],
+) -> Result<Module<'ctx>, Diagnostic> {
+    emit_module_impl(context, hir, tcx, report, memory_plan, None, Some(bodies))
 }
 
 pub fn emit_module_with_debug<'ctx>(
@@ -57,7 +72,7 @@ pub fn emit_module_with_debug<'ctx>(
     source: &str,
     path: &Path,
 ) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)))
+    emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)), None)
 }
 
 fn emit_module_impl<'ctx>(
@@ -67,6 +82,7 @@ fn emit_module_impl<'ctx>(
     report: &ArenaReport,
     memory_plan: MemoryPlan,
     source: Option<(&str, &Path)>,
+    mir: Option<&[Option<crate::mir::Body>]>,
 ) -> Result<Module<'ctx>, Diagnostic> {
     if !hir.functions.iter().any(|function| function.name == "main") {
         return Err(codegen_error(
@@ -89,8 +105,24 @@ fn emit_module_impl<'ctx>(
         })
         .collect::<Result<Callees, Diagnostic>>()?;
     let mut regions = RegionEmitter::new(report, ArenaCalls::new(&cx));
-    for function in &hir.functions {
-        walk::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
+    let trace = std::env::var_os("BORK_MIR_BACKEND_TRACE").is_some();
+    for (i, function) in hir.functions.iter().enumerate() {
+        let body = mir.and_then(|b| b.get(i)).and_then(Option::as_ref);
+        match body.filter(|b| lower::supported(&cx, &callees, function, b)) {
+            Some(body) => {
+                if trace {
+                    eprintln!("mir-backend: lowered `{}`", function.name);
+                }
+                lower::lower_function(&cx, &callees, function, body)?;
+                regions.skip_function();
+            }
+            None => {
+                if trace && mir.is_some() {
+                    eprintln!("mir-backend: fallback `{}`", function.name);
+                }
+                walk::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
+            }
+        }
     }
     regions.finish().map_err(schedule_error)?;
     if let Some(debug) = &cx.debug {

@@ -29,6 +29,8 @@ pub fn build(checked: &CheckResult, output: &Path) -> Result<(), BuildError> {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BuildOptions {
     pub debug: bool,
+    /// Lower the functions MIR covers (RFC 0006 M5a); the rest stays on the HIR emitter. Ignored with `debug`.
+    pub mir_backend: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -37,13 +39,12 @@ pub struct SourceContext<'a> {
     pub text: &'a str,
 }
 
-/// Builds with source-level debugging when requested. Debug builds require source context.
-pub fn build_with_options(
+fn emit_checked<'ctx>(
+    context: &'ctx Context,
     checked: &CheckResult,
-    output: &Path,
     options: BuildOptions,
     source: Option<SourceContext<'_>>,
-) -> Result<(), BuildError> {
+) -> Result<inkwell::module::Module<'ctx>, BuildError> {
     if !checked.is_ok() {
         return Err(BuildError::Diagnostics(checked.diagnostics.clone()));
     }
@@ -76,13 +77,12 @@ pub fn build_with_options(
         }
     }
 
-    let context = Context::create();
-    let module = if options.debug {
+    if options.debug {
         let source = source.ok_or_else(|| {
             BuildError::Toolchain("debug builds require source path and text".into())
         })?;
         llvm::emit_module_with_debug(
-            &context,
+            context,
             hir,
             &tcx,
             report,
@@ -90,11 +90,38 @@ pub fn build_with_options(
             source.text,
             source.path,
         )
+    } else if options.mir_backend {
+        // A function MIR cannot build keeps the HIR emitter; an internal builder error is a compiler bug.
+        let bodies = crate::mir::build::build_function_results(&mono, &tcx).map_err(|e| BuildError::Toolchain(format!("MIR: {e:?}")))?;
+        let bodies: Vec<_> = bodies.into_iter().map(Result::ok).collect();
+        llvm::emit_module_mir(context, hir, &tcx, report, memory_plan.clone(), &bodies)
     } else {
-        llvm::emit_module(&context, hir, &tcx, report, memory_plan.clone())
+        llvm::emit_module(context, hir, &tcx, report, memory_plan.clone())
     }
-    .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))?;
+    .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))
+}
 
+/// LLVM IR text of the checked program, for tests that compare backends.
+pub fn emit_ir(checked: &CheckResult, options: BuildOptions) -> Result<String, BuildError> {
+    let context = Context::create();
+    let module = emit_checked(&context, checked, options, None)?;
+    // The HIR emitter leaves pops in dead blocks; only the reachable calls are comparable.
+    let machine = llvm::native_target_machine().map_err(BuildError::Toolchain)?;
+    module
+        .run_passes("unreachableblockelim", &machine, inkwell::passes::PassBuilderOptions::create())
+        .map_err(|e| BuildError::Toolchain(e.to_string()))?;
+    Ok(module.print_to_string().to_string())
+}
+
+/// Builds with source-level debugging when requested. Debug builds require source context.
+pub fn build_with_options(
+    checked: &CheckResult,
+    output: &Path,
+    options: BuildOptions,
+    source: Option<SourceContext<'_>>,
+) -> Result<(), BuildError> {
+    let context = Context::create();
+    let module = emit_checked(&context, checked, options, source)?;
     let object = Builder::new()
         .prefix("bork-")
         .suffix(".o")
