@@ -9,7 +9,7 @@ use super::body::*;
 use crate::hir::{NodeId, VecOp};
 use crate::memory::{ArenaClass, ArenaPlan, LifetimeDomain, MemoryPlan};
 use crate::sema::ArenaNode;
-use crate::ty::TyCtx;
+use crate::ty::{TyCtx, TyId};
 
 type Origins = HashSet<NodeId>;
 
@@ -70,176 +70,232 @@ fn encloses(body: &Body, ancestor: RegionId, region: RegionId) -> bool {
 }
 
 /// Accumulates the origins and lifetime facts of one body into `st` (`id` keeps bodies' locals apart).
+struct Pass<'a> {
+    body: &'a Body,
+    id: usize,
+    tcx: &'a TyCtx,
+    st: &'a mut State,
+    sites: &'a mut HashMap<NodeId, ArenaPlan>,
+}
+
 fn analyse(body: &Body, id: usize, tcx: &TyCtx, st: &mut State, sites: &mut HashMap<NodeId, ArenaPlan>) {
-    let ty_of = |l: Local| body.locals[l.0 as usize].ty;
-    let o = |st: &State, op: &Operand| -> Origins {
-        op.place().and_then(|p| st.org.get(&(id, p.local)).cloned()).unwrap_or_default()
-    };
-    let add = |st: &mut State, l: Local, more: &Origins| {
-        if !more.is_empty() {
-            st.org.entry((id, l)).or_default().extend(more.iter().copied());
-        }
-    };
+    let mut pass = Pass { body, id, tcx, st, sites };
     for block in &body.blocks {
         for s in &block.stmts {
-            match &s.kind {
-                StmtKind::Alloc { dst, kind: AllocKind::Object { class: name } | AllocKind::EnumSlot { enum_name: name, .. }, .. } => {
-                    if let (Some(node), true) = (s.node, dst.is_bare()) {
-                        sites.entry(node).or_insert_with(|| ArenaPlan {
-                            node,
-                            allocation_site: s.span,
-                            class_name: name.clone(),
-                            class: ArenaClass::Lexical,
-                            lifetime_domain: LifetimeDomain::LexicalScope(body.regions[s.region.0 as usize].arena),
-                        });
-                        add(st, dst.local, &Origins::from([node]));
-                    }
-                }
-                StmtKind::Assign(dst, rv) => {
-                    let value = match rv {
-                        Rvalue::Use(op) => o(st, op),
-                        Rvalue::Binary(_, a, b) => {
-                            let mut v = o(st, a);
-                            v.extend(o(st, b));
-                            v
-                        }
-                        Rvalue::Unary(_, a) | Rvalue::Cast(a, _) | Rvalue::Slice { base: a, .. } => o(st, a),
-                        Rvalue::Aggregate(_, ops) => ops.iter().flat_map(|op| o(st, op)).collect(),
-                        _ => Origins::new(),
-                    };
-                    let src_ty = match rv {
-                        Rvalue::Use(op) => op.place().map(|p| ty_of(p.local)),
-                        _ => None,
-                    };
-                    let decl = &body.locals[dst.local.0 as usize];
-                    match dst.proj.last() {
-                        None => {
-                            add(st, dst.local, &value);
-                            let outer = encloses(body, decl.region, s.region);
-                            if dst.local == body.ret {
-                                if tcx.is_managed_ref(decl.ty) {
-                                    st.mark_program(&value);
-                                } else {
-                                    st.returned.extend(value.iter().copied());
-                                }
-                            } else if outer && (decl.kind == LocalKind::Var || (decl.kind == LocalKind::Temp && tcx.owns_result(decl.ty))) {
-                                let all = st.org.get(&(id, dst.local)).cloned().unwrap_or_default();
-                                st.mark_program(&all);
-                            }
-                        }
-                        Some(Proj::Field(_)) => {
-                            // nested object stored in an object, or a Ref array stored in a field.
-                            if src_ty.is_some_and(|t| tcx.array_elem(t).is_some_and(|e| tcx.is_managed_ref(e))) {
-                                st.mark_program(&value);
-                            } else if src_ty.is_some_and(|t| crate::hoist::holds_object(tcx, t)) {
-                                let owners = st.org.get(&(id, dst.local)).cloned().unwrap_or_default();
-                                // A node-less slot is the `Some(..)` wrapper: it passes the payload's origins on.
-                                if owners.is_empty() {
-                                    add(st, dst.local, &value);
-                                }
-                                for owner in owners {
-                                    for inner in &value {
-                                        st.nested.insert((owner, *inner));
-                                    }
-                                }
-                            }
-                        }
-                        Some(Proj::Index(_)) => {
-                            // An array literal carries the origins of its elements; a `Ref` element makes them program-lived.
-                            add(st, dst.local, &value);
-                            if src_ty.is_some_and(|t| tcx.is_managed_ref(t)) {
-                                let all = st.org.get(&(id, dst.local)).cloned().unwrap_or_default();
-                                st.mark_program(&all);
-                            }
-                        }
-                        Some(Proj::Some) => add(st, dst.local, &value),
-                        _ => {}
-                    }
-                }
-                StmtKind::Ref(RefOp::Create { dst, object, .. }) => {
-                    let v = o(st, object);
-                    st.mark_dynamic(&v);
-                    add(st, dst.local, &v);
-                }
-                StmtKind::Ref(RefOp::Clone { dst, src }) => {
-                    let mut v = o(st, src);
-                    if let Some(p) = src.place() {
-                        if let Some(Proj::Field(i)) = p.proj.last() {
-                            let mut f = Origins::new();
-                            for source in st.org.get(&(id, p.local)).cloned().unwrap_or_default() {
-                                if let Some(x) = st.field.get(&(source, *i)) {
-                                    f.extend(x.iter().copied());
-                                }
-                            }
-                            v = f;
-                        }
-                    }
-                    add(st, dst.local, &v);
-                }
-                StmtKind::Ref(RefOp::MoveOut { dst, src }) => {
-                    let v = st.org.get(&(id, src.local)).cloned().unwrap_or_default();
-                    add(st, dst.local, &v);
-                }
-                StmtKind::Ref(RefOp::Rehome { dst, value, .. }) => {
-                    let v = o(st, value);
-                    add(st, dst.local, &v);
-                }
-                StmtKind::Ref(RefOp::Store { slot, value, .. }) => {
-                    let targets = o(st, value);
-                    let sources = st.org.get(&(id, slot.local)).cloned().unwrap_or_default();
-                    if let Some(Proj::Index(_)) = slot.proj.last() {
-                        add(st, slot.local, &targets);
-                        let all = st.org.get(&(id, slot.local)).cloned().unwrap_or_default();
-                        st.mark_program(&all);
-                    } else {
-                        st.add_ref_edges(&sources, &targets);
-                        let idx = slot.proj.iter().rev().find_map(|p| if let Proj::Field(i) = p { Some(*i) } else { None });
-                        if let Some(i) = idx {
-                            for source in sources {
-                                st.field.entry((source, i)).or_default().extend(targets.iter().copied());
-                            }
-                        }
-                    }
-                }
-                // Builtins that are calls in HIR (`strongCount`, `weakCount`, intrinsics): arguments become program-lived.
-                StmtKind::Ref(RefOp::Count { value, .. }) => {
-                    let v = o(st, value);
-                    st.mark_program(&v);
-                }
-                StmtKind::Intrinsic { args, .. } => {
-                    for a in args {
-                        if a.place().is_some_and(|p| p.is_bare() && tcx.owns_result(ty_of(p.local))) {
-                            let v = o(st, a);
-                            st.mark_program(&v);
-                        }
-                    }
-                }
-                StmtKind::Observe { object, value, .. } => {
-                    let v = o(st, value);
-                    add(st, *object, &v);
-                }
-                StmtKind::VecOp { op: VecOp::Push | VecOp::Set, args, .. } => {
-                    if args.last().and_then(Operand::place).is_some_and(|p| tcx.is_managed_ref(ty_of(p.local))) {
-                        let mut all = Origins::new();
-                        for a in args {
-                            all.extend(o(st, a));
-                        }
-                        st.mark_program(&all);
-                    }
-                }
-                StmtKind::Promote { dst, src, .. } | StmtKind::Move { dst, src } | StmtKind::Borrow { dst, src, .. } | StmtKind::CopyInto { dst, src, .. } => {
-                    let v = st.org.get(&(id, src.local)).cloned().unwrap_or_default();
-                    add(st, dst.local, &v);
-                }
-                _ => {}
-            }
+            pass.stmt(s);
         }
         if let Some(Terminator { kind: TermKind::Call { args, .. }, .. }) = &block.term {
-            for a in args {
-                if a.place().is_some_and(|p| p.is_bare() && tcx.owns_result(ty_of(p.local))) {
-                    let v = o(st, a);
-                    st.mark_program(&v);
+            pass.escape_args(args);
+        }
+    }
+}
+
+impl Pass<'_> {
+    fn local_origins(&self, l: Local) -> Origins {
+        self.st.org.get(&(self.id, l)).cloned().unwrap_or_default()
+    }
+
+    fn origins(&self, op: &Operand) -> Origins {
+        op.place().map(|p| self.local_origins(p.local)).unwrap_or_default()
+    }
+
+    fn add(&mut self, l: Local, more: &Origins) {
+        if !more.is_empty() {
+            self.st.org.entry((self.id, l)).or_default().extend(more.iter().copied());
+        }
+    }
+
+    /// Everything `l` may hold lives for the whole program.
+    fn mark_local_program(&mut self, l: Local) {
+        let all = self.local_origins(l);
+        self.st.mark_program(&all);
+    }
+
+    fn ty_of(&self, l: Local) -> TyId {
+        self.body.locals[l.0 as usize].ty
+    }
+
+    /// The type of a bare local operand, if it is one.
+    fn operand_ty(&self, op: &Operand) -> Option<TyId> {
+        op.place().map(|p| self.ty_of(p.local))
+    }
+
+    /// Calls have no escape summaries: a record passed to one becomes program-lived.
+    fn escape_args(&mut self, args: &[Operand]) {
+        for a in args {
+            if a.place().is_some_and(|p| p.is_bare() && self.tcx.owns_result(self.ty_of(p.local))) {
+                let v = self.origins(a);
+                self.st.mark_program(&v);
+            }
+        }
+    }
+
+    fn stmt(&mut self, s: &Statement) {
+        match &s.kind {
+            StmtKind::Alloc { dst, kind: AllocKind::Object { class: name } | AllocKind::EnumSlot { enum_name: name, .. }, .. } => {
+                self.alloc(s, dst, name)
+            }
+            StmtKind::Assign(dst, rv) => self.assign(s, dst, rv),
+            StmtKind::Ref(op) => self.ref_op(op),
+            // Builtins that are calls in HIR (`strongCount`, `weakCount`, intrinsics): arguments become program-lived.
+            StmtKind::Intrinsic { args, .. } => self.escape_args(args),
+            StmtKind::Observe { object, value, .. } => {
+                let v = self.origins(value);
+                self.add(*object, &v);
+            }
+            StmtKind::VecOp { op: VecOp::Push | VecOp::Set, args, .. } => self.vec_store(args),
+            StmtKind::Promote { dst, src, .. } | StmtKind::Move { dst, src } | StmtKind::Borrow { dst, src, .. } | StmtKind::CopyInto { dst, src, .. } => {
+                let v = self.local_origins(src.local);
+                self.add(dst.local, &v);
+            }
+            _ => {}
+        }
+    }
+
+    fn alloc(&mut self, s: &Statement, dst: &Place, name: &str) {
+        let (Some(node), true) = (s.node, dst.is_bare()) else { return };
+        let scope = self.body.regions[s.region.0 as usize].arena;
+        self.sites.entry(node).or_insert_with(|| ArenaPlan {
+            node,
+            allocation_site: s.span,
+            class_name: name.to_owned(),
+            class: ArenaClass::Lexical,
+            lifetime_domain: LifetimeDomain::LexicalScope(scope),
+        });
+        self.add(dst.local, &Origins::from([node]));
+    }
+
+    fn assign(&mut self, s: &Statement, dst: &Place, rv: &Rvalue) {
+        let value = match rv {
+            Rvalue::Use(op) => self.origins(op),
+            Rvalue::Binary(_, a, b) => {
+                let mut v = self.origins(a);
+                v.extend(self.origins(b));
+                v
+            }
+            Rvalue::Unary(_, a) | Rvalue::Cast(a, _) | Rvalue::Slice { base: a, .. } => self.origins(a),
+            Rvalue::Aggregate(_, ops) => ops.iter().flat_map(|op| self.origins(op)).collect(),
+            _ => Origins::new(),
+        };
+        let src_ty = match rv {
+            Rvalue::Use(op) => self.operand_ty(op),
+            _ => None,
+        };
+        match dst.proj.last() {
+            None => self.assign_local(s, dst.local, &value),
+            Some(Proj::Field(_)) => self.assign_field(dst.local, &value, src_ty),
+            Some(Proj::Index(_)) => self.assign_index(dst.local, &value, src_ty),
+            Some(Proj::Some) => self.add(dst.local, &value),
+            _ => {}
+        }
+    }
+
+    /// `x = value` on a whole local: the return slot, or a variable / result temp assigned from an inner region.
+    fn assign_local(&mut self, s: &Statement, local: Local, value: &Origins) {
+        let decl = &self.body.locals[local.0 as usize];
+        self.add(local, value);
+        if local == self.body.ret {
+            if self.tcx.is_managed_ref(decl.ty) {
+                self.st.mark_program(value);
+            } else {
+                self.st.returned.extend(value.iter().copied());
+            }
+        } else if encloses(self.body, decl.region, s.region)
+            && (decl.kind == LocalKind::Var || (decl.kind == LocalKind::Temp && self.tcx.owns_result(decl.ty)))
+        {
+            self.mark_local_program(local);
+        }
+    }
+
+    /// A nested object stored in an object, or a `Ref` array stored in a field.
+    fn assign_field(&mut self, local: Local, value: &Origins, src_ty: Option<TyId>) {
+        let tcx = self.tcx;
+        if src_ty.is_some_and(|t| tcx.array_elem(t).is_some_and(|e| tcx.is_managed_ref(e))) {
+            self.st.mark_program(value);
+        } else if src_ty.is_some_and(|t| crate::hoist::holds_object(tcx, t)) {
+            let owners = self.local_origins(local);
+            // A node-less slot is the `Some(..)` wrapper: it passes the payload's origins on.
+            if owners.is_empty() {
+                self.add(local, value);
+            }
+            for owner in owners {
+                for inner in value {
+                    self.st.nested.insert((owner, *inner));
                 }
+            }
+        }
+    }
+
+    /// An array literal carries the origins of its elements; a `Ref` element makes them program-lived.
+    fn assign_index(&mut self, local: Local, value: &Origins, src_ty: Option<TyId>) {
+        self.add(local, value);
+        if src_ty.is_some_and(|t| self.tcx.is_managed_ref(t)) {
+            self.mark_local_program(local);
+        }
+    }
+
+    fn vec_store(&mut self, args: &[Operand]) {
+        let pushes_ref = args.last().and_then(|a| self.operand_ty(a)).is_some_and(|t| self.tcx.is_managed_ref(t));
+        if pushes_ref {
+            let all = args.iter().flat_map(|a| self.origins(a)).collect();
+            self.st.mark_program(&all);
+        }
+    }
+
+    fn ref_op(&mut self, op: &RefOp) {
+        match op {
+            RefOp::Create { dst, object, .. } => {
+                let v = self.origins(object);
+                self.st.mark_dynamic(&v);
+                self.add(dst.local, &v);
+            }
+            RefOp::Clone { dst, src } => {
+                let v = self.clone_origins(src);
+                self.add(dst.local, &v);
+            }
+            RefOp::MoveOut { dst, src } => {
+                let v = self.local_origins(src.local);
+                self.add(dst.local, &v);
+            }
+            RefOp::Rehome { dst, value, .. } => {
+                let v = self.origins(value);
+                self.add(dst.local, &v);
+            }
+            RefOp::Store { slot, value, .. } => self.ref_store(slot, value),
+            RefOp::Count { value, .. } => {
+                let v = self.origins(value);
+                self.st.mark_program(&v);
+            }
+            _ => {}
+        }
+    }
+
+    /// A `Ref` read out of a field holds what was stored into that field; any other copy keeps its source's origins.
+    fn clone_origins(&self, src: &Operand) -> Origins {
+        let Some(p) = src.place() else { return Origins::new() };
+        let Some(Proj::Field(i)) = p.proj.last() else { return self.local_origins(p.local) };
+        let mut out = Origins::new();
+        for source in self.local_origins(p.local) {
+            if let Some(stored) = self.st.field.get(&(source, *i)) {
+                out.extend(stored.iter().copied());
+            }
+        }
+        out
+    }
+
+    fn ref_store(&mut self, slot: &Place, value: &Operand) {
+        let targets = self.origins(value);
+        if let Some(Proj::Index(_)) = slot.proj.last() {
+            self.add(slot.local, &targets);
+            self.mark_local_program(slot.local);
+            return;
+        }
+        let sources = self.local_origins(slot.local);
+        self.st.add_ref_edges(&sources, &targets);
+        let field = slot.proj.iter().rev().find_map(|p| if let Proj::Field(i) = p { Some(*i) } else { None });
+        if let Some(i) = field {
+            for source in sources {
+                self.st.field.entry((source, i)).or_default().extend(targets.iter().copied());
             }
         }
     }
