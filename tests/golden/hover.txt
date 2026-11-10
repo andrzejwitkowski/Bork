@@ -67,6 +67,7 @@ programs/build/enums/return_value_if_local_object.bork: hits=31 hash=3e2e683992c
 programs/build/enums/return_value_if_stores_local.bork: hits=31 hash=f2b57f5eb05efe72
 programs/build/enums/return_via_local.bork: hits=74 hash=639e8c6f32b70152
 programs/build/enums/return_when_arms.bork: hits=47 hash=3dc5fced46281552
+programs/build/enums/scalar_payload_arms.bork: hits=48 hash=6c7fd31e2f56c008
 programs/build/enums/two_ref_variants.bork: hits=164 hash=ee324bfd09e51a8c
 programs/build/enums/unit_payload.bork: hits=110 hash=809165b17ece9bf2
 programs/build/enums/user_option_not_generic.bork: hits=2 hash=2b139c274fabd61e

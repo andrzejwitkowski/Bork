@@ -913,6 +913,20 @@ Arenas
     ├── i [Local]
     └── WhileLoop
         └── i [Copy]
+== programs/build/enums/scalar_payload_arms.bork
+Arenas
+├── fun area
+│   ├── s [Borrow ← call site]
+│   ├── MatchArm
+│   ├── MatchArm
+│   │   └── side [Local]
+│   └── MatchArm
+│       ├── w [Local]
+│       └── h [Local]
+└── fun main
+    ├── d [Local]
+    ├── q [Local]
+    └── r [Local]
 == programs/build/enums/two_ref_variants.bork
 Arenas
 ├── fun one
