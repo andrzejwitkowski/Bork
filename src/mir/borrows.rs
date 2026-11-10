@@ -193,7 +193,7 @@ fn shown(root: &str, rw: bool) -> String {
 fn general_message(body: &Body, holder: Local, old: &Loan, new: &Loan, names: &HashMap<Local, String>) -> String {
     let root = name(body, new.root.local, names);
     format!(
-        "{} borrows `{root}` while {} (held by `{}`) is still in use; `&rw` needs it to itself",
+        "{} borrows `{root}` while {} (held by `{}`) is still in use; an `&rw` borrow must be exclusive",
         shown(&root, new.rw),
         shown(&root, old.rw),
         name(body, holder, names),
@@ -207,7 +207,7 @@ fn call_message(body: &Body, block: &Block, old_holder: Local, new_holder: Local
     let (a, b) = (pos(old_holder)?, pos(new_holder)?);
     let root = name(body, new.root.local, names);
     Some(format!(
-        "argument {} ({}) and argument {} ({}) of `{callee}` borrow `{root}`; `&rw` needs it to itself",
+        "argument {} ({}) and argument {} ({}) of `{callee}` borrow `{root}`; an `&rw` borrow must be exclusive",
         a + 1, shown(&root, old.rw), b + 1, shown(&root, new.rw),
     ))
 }
