@@ -2,6 +2,7 @@
 //! Nothing consumes MIR yet.
 
 pub mod body;
+pub mod borrows;
 pub mod build;
 pub mod capability;
 pub mod emit;
