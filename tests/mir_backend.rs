@@ -28,7 +28,6 @@ fn count(ir: &str, needle: &str) -> usize {
     ir.matches(needle).count()
 }
 
-/// Calls of the arena runtime that region lowering emits.
 fn region_calls(ir: &str) -> [usize; 4] {
     [
         count(ir, "call ptr @bork_arena_push()"),

@@ -47,7 +47,6 @@ fn pushed_regions(body: &Body) -> HashSet<RegionId> {
     set
 }
 
-/// Whether [`lower_function`] handles every op of `body`.
 pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> bool {
     check(cx, callees, function, body).is_some()
 }
