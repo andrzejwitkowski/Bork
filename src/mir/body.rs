@@ -38,6 +38,8 @@ pub struct LocalDecl {
     pub ty: TyId,
     pub kind: LocalKind,
     pub name: Option<String>,
+    /// Innermost report region open where the local was declared (allocation planning, M4b).
+    pub region: RegionId,
 }
 
 /// What the runtime registry needs to name an allocation, copy or slot (3.2.2 item 7).
@@ -68,6 +70,15 @@ pub enum Proj {
 pub struct Place {
     pub local: Local,
     pub proj: Vec<Proj>,
+}
+
+impl Operand {
+    pub fn place(&self) -> Option<&Place> {
+        match self {
+            Operand::Copy(p) | Operand::Move(p) | Operand::Reborrow(p) => Some(p),
+            Operand::Const(_) => None,
+        }
+    }
 }
 
 impl Place {
@@ -211,6 +222,8 @@ pub struct Statement {
     pub node: Option<NodeId>,
     pub kind: StmtKind,
     pub debug: Option<DebugLabel>,
+    /// Innermost report region open at this statement, pushed or not (allocation planning, M4b).
+    pub region: RegionId,
 }
 
 /// `MirPat` mirrors `HirPatKind` (3.2.1).
@@ -268,6 +281,8 @@ pub struct Terminator {
     pub span: Span,
     pub node: Option<NodeId>,
     pub kind: TermKind,
+    /// Innermost report region open at the terminator (allocation planning, M4b).
+    pub region: RegionId,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

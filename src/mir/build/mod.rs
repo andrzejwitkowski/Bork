@@ -54,6 +54,16 @@ pub fn call_abi(function: &HirFunction, tcx: &TyCtx) -> CallAbi {
 }
 
 pub fn build_program(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Body>> {
+    build_program_with(mono, tcx, false)
+}
+
+/// MIR that ignores `mono.memory_plan` and the `codegen_push` flags: every allocation goes to the sink and every
+/// region is entered. Input of the allocation analyses in `plan` (M4b), which derive both from it.
+pub fn build_program_neutral(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Body>> {
+    build_program_with(mono, tcx, true)
+}
+
+fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>> {
     let functions = &mono.hir.functions;
     let roots = &mono.report.roots;
     if functions.len() != roots.len() {
@@ -67,7 +77,7 @@ pub fn build_program(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Body>> {
             if root.label != format!("fun {}", function.name) {
                 return Err(BuildError::Internal(format!("report root `{}` for function `{}`", root.label, function.name)));
             }
-            FnBuilder::new(mono, tcx, &abis, function, root).build()
+            FnBuilder::new(mono, tcx, &abis, function, root, neutral).build()
         })
         .collect()
 }
@@ -105,6 +115,8 @@ pub(super) struct FnBuilder<'a> {
     pub(super) bool_ty: TyId,
     /// Arena that fresh payloads are allocated in (`alloc_sink` in the LLVM emitter).
     pub(super) sink: ArenaRef,
+    /// See [`build_program_neutral`].
+    pub(super) neutral: bool,
 }
 
 impl<'a> FnBuilder<'a> {
@@ -114,6 +126,7 @@ impl<'a> FnBuilder<'a> {
         abis: &'a HashMap<&'a str, CallAbi>,
         function: &'a HirFunction,
         root: &'a ArenaNode,
+        neutral: bool,
     ) -> Self {
         FnBuilder {
             mono,
@@ -134,6 +147,7 @@ impl<'a> FnBuilder<'a> {
             unit: tcx.prim_id(Prim::Unit),
             bool_ty: tcx.prim_id(Prim::Bool),
             sink: ArenaRef::Current,
+            neutral,
         }
     }
 
@@ -168,7 +182,7 @@ impl<'a> FnBuilder<'a> {
         let mut blocks = self.blocks;
         for block in &mut blocks {
             if block.term.is_none() {
-                block.term = Some(Terminator { span, node: None, kind: TermKind::Unreachable });
+                block.term = Some(Terminator { span, node: None, kind: TermKind::Unreachable, region: RegionId(0) });
             }
         }
         Ok(Body {
@@ -184,7 +198,8 @@ impl<'a> FnBuilder<'a> {
     // --- locals, scopes ---
 
     pub(super) fn new_local(&mut self, ty: TyId, kind: LocalKind, name: Option<String>) -> Local {
-        self.locals.push(LocalDecl { ty, kind, name });
+        let region = self.cur_region();
+        self.locals.push(LocalDecl { ty, kind, name, region });
         Local(self.locals.len() as u32 - 1)
     }
 
@@ -230,18 +245,24 @@ impl<'a> FnBuilder<'a> {
         }
     }
 
+    fn cur_region(&self) -> RegionId {
+        self.open.last().map_or(RegionId(0), |o| o.id)
+    }
+
     pub(super) fn stmt(&mut self, kind: StmtKind, span: Span, node: Option<NodeId>) {
         self.stmt_with(kind, span, node, None);
     }
 
     pub(super) fn stmt_with(&mut self, kind: StmtKind, span: Span, node: Option<NodeId>, debug: Option<DebugLabel>) {
         self.ensure_open();
-        self.blocks[self.cur.0 as usize].stmts.push(Statement { span, node, kind, debug });
+        let region = self.cur_region();
+        self.blocks[self.cur.0 as usize].stmts.push(Statement { span, node, kind, debug, region });
     }
 
     pub(super) fn terminate(&mut self, kind: TermKind, span: Span, node: Option<NodeId>) {
         self.ensure_open();
-        self.blocks[self.cur.0 as usize].term = Some(Terminator { span, node, kind });
+        let region = self.cur_region();
+        self.blocks[self.cur.0 as usize].term = Some(Terminator { span, node, kind, region });
     }
 
     pub(super) fn goto(&mut self, target: BlockId, span: Span) {
@@ -284,13 +305,13 @@ impl<'a> FnBuilder<'a> {
                 child.label, child.compacted_braces
             )));
         }
-        let pushed = child.codegen_push || force;
+        let pushed = self.neutral || child.codegen_push || force;
         let parent = self.open.last().map(|o| o.id);
         self.regions.push(RegionInfo { parent, site, arena: child.id });
         let id = RegionId(self.regions.len() as u32 - 1);
         if pushed {
             match enter_in {
-                Some(b) => self.blocks[b.0 as usize].stmts.push(Statement { span, node: None, kind: StmtKind::RegionEnter(id), debug: None }),
+                Some(b) => self.blocks[b.0 as usize].stmts.push(Statement { span, node: None, kind: StmtKind::RegionEnter(id), debug: None, region: id }),
                 None => self.stmt(StmtKind::RegionEnter(id), span, None),
             }
         }

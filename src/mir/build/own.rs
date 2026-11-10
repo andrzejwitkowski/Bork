@@ -65,6 +65,9 @@ impl<'a> FnBuilder<'a> {
     /// The arena a `Class(..)` / `Enum.V(..)` slot goes into, creating a dynamic one first when the plan says so.
     fn construct_arena(&mut self, e: &HirExpr) -> ArenaRef {
         let span = span_of(e);
+        if self.neutral {
+            return self.sink.clone();
+        }
         let Some(plan) = self.mono.memory_plan.allocation_at(e.id) else { return self.sink.clone() };
         let sink_or_result = if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() };
         match plan.class {
