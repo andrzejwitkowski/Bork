@@ -118,6 +118,15 @@ fn a_negative_index_is_rejected_by_the_bounds_guard() {
 }
 
 #[test]
+fn signed_division_guards_min_over_minus_one_unsigned_does_not() {
+    let div = |ty: &str| emit(&format!("fun f(a: {ty}, b: {ty}): {ty} {{\n    return a / b\n}}\nfun main(): i32 {{ val x: {ty} = f(1, 1)\n    return 0 }}\n")).expect("builds");
+    let signed = div("i32");
+    assert!(signed.contains("eq(copy _2, -1)") && signed.contains("-2147483648"), "signed division needs the MIN / -1 guard:\n{signed}");
+    let unsigned = div("u32");
+    assert!(!unsigned.contains("-1)"), "unsigned division only guards zero:\n{unsigned}");
+}
+
+#[test]
 fn a_while_after_return_does_not_enter_its_region_on_the_return_path() {
     let text = emit("fun f(): i32 {\n    return 1\n    var i = 0\n    while (i < 2) {\n        val s = \"x\"\n        i = i + 1\n    }\n    return 2\n}\nfun main(): i32 { return f() }\n").expect("builds and verifies");
     let first_block: Vec<&str> = text.lines().skip_while(|l| !l.starts_with("fn f")).skip_while(|l| !l.contains("bb0:")).skip(1).take_while(|l| !l.contains("bb1:")).collect();
