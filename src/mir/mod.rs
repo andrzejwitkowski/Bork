@@ -5,6 +5,7 @@ pub mod body;
 pub mod build;
 pub mod capability;
 pub mod emit;
+pub mod escape;
 pub mod layout;
 pub mod print;
 pub mod shadow;

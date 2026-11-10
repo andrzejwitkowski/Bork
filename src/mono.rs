@@ -384,17 +384,24 @@ pub(crate) fn enum_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
 /// Specialises the program reachable from `main`. `report` is the sema output for `hir`
 /// (one root per function, same order), and planning diagnostics come back as errors.
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
-    monomorphize_from(hir, tcx, report, false)
+    monomorphize_from(hir, tcx, report, false, true)
 }
 
 /// [`monomorphize`] with every non-generic function as a root, not only `main`: codegen unit tests
 /// emit helpers that `main` never calls.
 #[cfg(test)]
 pub(crate) fn monomorphize_every_function(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
-    monomorphize_from(hir, tcx, report, true)
+    monomorphize_from(hir, tcx, report, true, true)
 }
 
-fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool) -> Result<Mono, Vec<Diagnostic>> {
+/// Every non-generic function as a root and no HIR escape check: the MIR escape shadow (#217) needs the
+/// concrete program even when the HIR check rejects it.
+#[doc(hidden)]
+pub fn monomorphize_unchecked(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
+    monomorphize_from(hir, tcx, report, true, false)
+}
+
+fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool, escape: bool) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
     let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
@@ -402,7 +409,7 @@ fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, ev
     let mut program = HirProgram { classes, enums, functions, traits: Vec::new(), impls: Vec::new() };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter or projection survived monomorphization");
     hir::number_nodes(&mut program);
-    let memory_plan = plan_instances(&program, tcx, &mut report)?;
+    let memory_plan = plan_instances(&program, tcx, &mut report, escape)?;
     Ok(Mono { hir: program, report, memory_plan, instances: collector.instances })
 }
 
@@ -416,8 +423,8 @@ pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
 
 /// The region half: runs `bork build`'s escape and memory planning on every instance, so `bork check`
 /// rejects what the build would. `hir` must already carry the hoisting annotations, as `build`'s does.
-pub fn check_instance_regions(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Vec<Diagnostic> {
-    monomorphize(hir, tcx, report).err().unwrap_or_default()
+pub fn check_instance_regions(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, escape: bool) -> Vec<Diagnostic> {
+    monomorphize_from(hir, tcx, report, false, escape).err().unwrap_or_default()
 }
 
 fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collected<'a>, Vec<Diagnostic>> {
@@ -669,10 +676,12 @@ impl<'a> Collector<'a> {
 
 /// Ownership and memory planning, now on concrete types: escape, the memory plan and the codegen
 /// push stamps. A failure here is not a user error (the generic body was already accepted).
-fn plan_instances(program: &HirProgram, tcx: &TyCtx, report: &mut ArenaReport) -> Result<MemoryPlan, Vec<Diagnostic>> {
+fn plan_instances(program: &HirProgram, tcx: &TyCtx, report: &mut ArenaReport, escape: bool) -> Result<MemoryPlan, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    for function in &program.functions {
-        crate::escape::check_function(function, tcx, &mut diagnostics);
+    if escape {
+        for function in &program.functions {
+            crate::escape::check_function(function, tcx, &mut diagnostics);
+        }
     }
     let (memory_plan, mut plan_diagnostics) = crate::memory::plan(program, tcx, report);
     diagnostics.append(&mut plan_diagnostics);
