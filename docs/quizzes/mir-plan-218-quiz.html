@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Planning arenas from MIR (#218, M4b part 1)</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#222;--mut:#666;--acc:#2b5fd9;--ok:#1f8a4c;--bad:#c0392b;--card:#fff;--line:#ddd8cc}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 Georgia,serif}
+main{max-width:780px;margin:0 auto;padding:24px 18px 80px}
+h1{font-size:2em;line-height:1.2}h2{margin-top:2.4em;border-bottom:2px solid var(--line);padding-bottom:.2em}h3{margin-top:1.8em}
+nav{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 18px}nav ol{margin:.3em 0;padding-left:1.2em}
+a{color:var(--acc)}code{background:#eee9dc;padding:1px 5px;border-radius:3px;font-size:.88em}
+pre{background:#1e2230;color:#e8e8e8;padding:14px;border-radius:8px;overflow-x:auto;font-size:.82em;line-height:1.5;white-space:pre}
+pre code{background:none;padding:0;color:inherit}
+.callout{border-left:5px solid var(--acc);background:#eef2fc;padding:10px 16px;border-radius:0 8px 8px 0;margin:1.2em 0}
+.callout.warn{border-color:#d68910;background:#fdf3e1}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1.2em 0}
+.box{background:var(--card);border:2px solid var(--line);border-radius:8px;padding:8px 12px;font:14px/1.4 system-ui,sans-serif;text-align:center}
+.box.new{border-color:var(--acc);background:#eef2fc}.box.old{border-color:#999}.box.dyn{border-color:#d68910;background:#fdf3e1}.box.prog{border-color:var(--bad);background:#fbe7e4}.box.lex{border-color:var(--ok);background:#e3f4ea}
+.arrow{font-size:1.4em;color:var(--mut)}
+table{border-collapse:collapse;width:100%;font:14px system-ui,sans-serif;margin:1em 0}td,th{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}th{background:#efeadc}
+.q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:1.4em 0}
+.q button{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;font:15px/1.4 system-ui,sans-serif;cursor:pointer}
+.q button:hover{background:#f3f0e6}.q button.right{background:#e3f4ea;border-color:var(--ok)}.q button.wrong{background:#fbe7e4;border-color:var(--bad)}
+.fb{font:14px/1.5 system-ui,sans-serif;margin-top:8px;display:none}
+@media(max-width:600px){body{font-size:16px}}
+</style></head><body><main>
+<h1>Planning arenas from MIR: the old passes get a replacement</h1>
+<p><em>RFC 0006, step M4b (part 1), issue #218, PR #246.</em> A walkthrough with a five-question quiz at the end.</p>
+<nav><strong>Contents</strong><ol>
+<li><a href="#bg">Background</a></li><li><a href="#intuition">Intuition</a></li><li><a href="#code">The code</a></li><li><a href="#limits">What is not done yet</a></li><li><a href="#quiz">Quiz</a></li></ol></nav>
+
+<h2 id="bg">1. Background</h2>
+<details><summary>For beginners: what is an arena, and why plan one?</summary>
+<p>Bork does not free objects one by one. Objects live in <em>arenas</em>: regions of memory that are released all at once when a scope ends. That makes allocation cheap, but it raises a question for every object the program creates: <em>which arena should it go into, and how long must that arena live?</em></p>
+<p>Most objects die with the block that made them, so the block's own arena is fine. But an object that is returned, stored in something longer-lived, or handed to a function we cannot see into may outlive its block. That object needs an arena of its own, and that arena must not be torn down with the block. Getting this decision right is what keeps references from dangling.</p></details>
+
+<h3>The two decisions</h3>
+<p>For every object or enum allocation the compiler decides two things, and records them in a <code>MemoryPlan</code>:</p>
+<table><tr><th>Decision</th><th>Values</th></tr>
+<tr><td>Class</td><td><code>Lexical</code> (goes into the enclosing region's arena) or <code>Dynamic</code> (gets an arena of its own)</td></tr>
+<tr><td>Lifetime domain</td><td><code>LexicalScope(n)</code> (dies with region <em>n</em>) or <code>Program</code> (lives to the end of the program)</td></tr></table>
+<p>A third decision is separate: which regions actually emit an <code>arena_push</code> at run time. That is the <code>codegen_push</code> flag on each region in the report. A region that allocates nothing into its own arena does not need to push one.</p>
+
+<h3>Where the decisions came from, and where they should come from</h3>
+<p>Both decisions were made by walkers over the high-level tree (HIR): <code>memory.rs</code> for the plan, <code>region_walk</code> for the flags. RFC 0006 introduces a flat mid-level IR, <strong>MIR</strong>, where every allocation is an explicit <code>Alloc</code> statement and every reference store an explicit <code>RefOp::Store</code>. The RFC wants the planning to be a dataflow analysis over those statements, so that the old walkers can eventually go away.</p>
+<div class="flow"><div class="box old">M3 (#216)<br>MIR <em>copies</em> the old plan, checks it equals itself</div><span class="arrow">→</span><div class="box new"><strong>M4b (#218)</strong><br>MIR <em>computes</em> the plan</div><span class="arrow">→</span><div class="box old">later (#245)<br>delete <code>memory.rs</code> etc.</div></div>
+
+<div class="callout warn"><strong>The problem this PR starts with.</strong> The M3 shadow check was circular. The MIR builder, when it saw an object construction, <em>asked the old plan</em> whether to create a dynamic arena, and asked the old flags which regions to enter. So "MIR agrees with the old passes" really meant "MIR repeated what it was told". Nothing independent had been proved.</div>
+
+<h2 id="intuition">2. Intuition</h2>
+<h3>Step 1: build MIR that knows nothing</h3>
+<p>The PR adds <code>build_program_neutral</code>. It builds MIR while ignoring the old plan and the old flags: every allocation goes into the current sink arena, and every region is entered. This MIR is deliberately naive. It is the raw material for the analysis.</p>
+<h3>Step 2: follow the objects</h3>
+<p>Take this program (it is <code>programs/build/classes/walkthrough_point.bork</code>):</p>
+<pre><code>class Point { name: String; x: i32; y: i32 }
+fun sum(p: &amp;Point): i32 { return p.x + p.y }
+fun main(): i32 {
+    val p = Point("a", 3, 4)
+    return sum(&amp;p) + p.name.length
+}</code></pre>
+<p>In neutral MIR the analysis sees three facts, each a line of toy data:</p>
+<div class="flow">
+<div class="box">_2 = alloc Point<br>origin of <code>_2</code> = {n1}</div><span class="arrow">→</span>
+<div class="box">_5 = copy _2<br>origin of <code>_5</code> = {n1}</div><span class="arrow">→</span>
+<div class="box">_6 = borrow _5<br>origin of <code>_6</code> = {n1}</div><span class="arrow">→</span>
+<div class="box prog">call sum(copy _6)<br>argument holds n1 ⇒ n1 is <strong>Program</strong></div></div>
+<p>Each allocation is a numbered <em>origin</em>. Copies, moves and borrows carry origins from one local to the next. The old pass could not see into a callee, so it assumed any record passed to a call may be kept forever. The new analysis keeps that same conservatism: n1 reaches a call, so n1 becomes <code>Program</code>, and therefore <code>Dynamic</code> (a program-lived object cannot sit in a block's arena).</p>
+
+<h3>Step 3: the rules that move lifetimes</h3>
+<div class="flow">
+<div class="box lex"><strong>Lexical, LexicalScope(n)</strong><br>the default: dies with its region</div><span class="arrow">→ a handle is made</span>
+<div class="box dyn"><strong>Dynamic</strong><br><code>RefCreate</code> or a <code>Ref</code> stored in a field</div><span class="arrow">→ it escapes</span>
+<div class="box prog"><strong>Dynamic + Program</strong><br>returned, passed to a call, pushed into a <code>Vec</code>, assigned to an outer <code>var</code></div></div>
+<p>There is also propagation. If object A holds a <code>Ref</code> to B (an <em>edge</em> A→B) and A is program-lived or returned, then B must be program-lived too. The analysis repeats until nothing changes: a fixpoint.</p>
+
+<h3>Step 4: the push flags</h3>
+<p>A region pushes an arena when something inside it lands in that arena: an <code>Alloc</code> or <code>RegisterDrop</code> aimed at the current region, a dynamic arena made there, a string literal, or a presence guard. The flag also marks every enclosing region, because a child's arena sits on top of its parent's. Anything aimed at the result sink, the root, or the caller's arena does not count.</p>
+
+<div class="callout"><strong>The proof.</strong> A new test compares the MIR-derived plan and flags with the <em>old passes run again</em> on all 255 lowerable programs of the corpus, in both directions and on every field: source span, class name, class, domain and the exact region number inside <code>LexicalScope(n)</code>. They are equal. For the first time the equality is not circular.</div>
+
+<h2 id="code">3. The code</h2>
+<table><tr><th>File</th><th>What changed</th></tr>
+<tr><td><code>src/mir/plan.rs</code> (new)</td><td><code>derive_memory_plan(bodies, tcx)</code>: the dataflow. A <code>Pass</code> walks one body with one method per statement kind (<code>alloc</code>, <code>assign</code>, <code>ref_op</code>, <code>ref_store</code>, <code>vec_store</code>, <code>escape_args</code>), and an outer loop repeats until the facts stop growing. <code>derive_push</code> and <code>stamp_push</code> produce the flags.</td></tr>
+<tr><td><code>src/mir/body.rs</code></td><td><code>Statement</code>, <code>Terminator</code> and <code>LocalDecl</code> record the innermost region they were created in. The analysis needs it for <code>LexicalScope(n)</code> and to tell a variable assigned from an inner region.</td></tr>
+<tr><td><code>src/mir/build/*</code></td><td><code>build_program_neutral</code>: a <code>neutral</code> flag that skips the plan lookup in <code>construct_arena</code> and forces every region to be entered.</td></tr>
+<tr><td><code>src/mono.rs</code></td><td><code>plan_instances</code> now builds neutral MIR and takes the plan and flags from it. If MIR cannot be built (closures, <code>move</code> of a class object) it falls back to <code>memory::plan</code> and <code>stamp_codegen_push</code>. <code>check_instance_regions</code> skips MIR, since it only wants diagnostics.</td></tr>
+<tr><td><code>src/lib.rs</code></td><td>A <code>#[doc(hidden)]</code> re-export of the old stamper, so the test can use it as the reference.</td></tr>
+<tr><td><code>tests/mir_plan.rs</code> (new)</td><td>Three tests: plan equals old plan, flags equal old flags, and MIR covers the frozen <code>memory_plan.txt</code> except four named programs.</td></tr></table>
+
+<h3>A review-driven detail</h3>
+<p>The comparison test caught two missing rules while the analysis was written: arguments of <code>strongCount</code>/<code>weakCount</code> and intrinsics must count as call arguments, and a borrow or copy must carry origins. A later code review found that slices, casts and aggregates also dropped provenance. The corpus does not exercise those last cases, which is a reminder that the test is only as strong as the corpus.</p>
+
+<h2 id="limits">4. What is not done yet</h2>
+<p>This is part 1 of #218. The goal was to delete <code>memory.rs</code>, <code>codegen/regions.rs</code> and the label-matching in <code>region_walk</code>. None of that is deleted, and the Definition of Done of #218 is not met. Follow-up issue <strong>#245</strong> tracks the rest.</p>
+<ul>
+<li><strong>Four programs do not lower to MIR</strong>: three use <code>move</code> of a class object, one uses a closure. MIR sees 837 of the 841 allocations in <code>memory_plan.txt</code>; the other four are pinned in a test.</li>
+<li><strong><code>check()</code> and the LSP still use the old plan</strong> on the pre-monomorphization HIR. The golden file keeps pre-mono class names such as <code>Pair</code> and region numbers; MIR exists only for concrete instances.</li>
+<li><strong>The HIR emitter still drives push/pop</strong> through <code>RegionEmitter</code>, so <code>codegen/regions.rs</code> cannot go before the HIR emitter does (#67).</li>
+<li>The suite that links executables needs <code>clang</code>; on the author's machine 60 such tests could not run, so they did not exercise this change.</li>
+</ul>
+<div class="callout warn"><strong>Known limit.</strong> The analysis is flow-insensitive and deliberately conservative, like the pass it ports. A "better" analysis would change the golden files, which is the thing this milestone must not do.</div>
+
+<h2 id="quiz">5. Quiz</h2>
+<div id="quiz"></div>
+<script>
+const Q=[
+{q:"Why was the M3 shadow comparison not real evidence that MIR could plan allocations?",o:["It only ran on a handful of programs","The MIR builder read the old plan and flags while building, so it compared a copy with its source","It compared only class names","It ran only in release builds"],a:1,f:"The builder asked memory_plan and codegen_push what to emit, so agreement was guaranteed. build_program_neutral removes that dependency."},
+{q:"In walkthrough_point, why does the Point allocation end up Dynamic and Program?",o:["Because it has a String field","Because it is borrowed and the borrow is passed to a call, and calls have no escape summaries","Because main returns an i32","Because it is declared with val"],a:1,f:"Origins flow through copy and borrow into the call argument. The conservative call rule marks any record-typed argument program-lived, and a program-lived object needs its own arena."},
+{q:"A region contains only an Alloc whose arena is ResultSink. Does that region need to push an arena?",o:["Yes, every Alloc needs a push","No, the allocation lands in the caller's sink arena, not in this region's own","Yes, but only if it is a loop","Only if the allocation has a node id"],a:1,f:"lands_here counts Current, Region, Fresh and Home. A result-sink, root or caller arena is somebody else's, so it does not force a push here."},
+{q:"Object A holds a Ref to object B, and A is returned from its function. What does the analysis conclude about B?",o:["Nothing, B is a separate object","B becomes program-lived through the A→B edge","B becomes Lexical","The program is rejected"],a:1,f:"Returned or program-lived sources promote their targets along edges, repeated to a fixpoint. B must outlive A's function, so it cannot sit in a block arena."},
+{q:"Why is #218 still open although the PR derives everything from MIR?",o:["The tests fail","Four corpus programs do not lower to MIR, check() still uses the old plan, and the old files cannot be deleted yet","The goldens had to be re-blessed","The RFC forbids deleting passes"],a:1,f:"Part 1 makes MIR the source of truth where it can be built and keeps a fallback. Deleting memory.rs and regions.rs depends on closing those gaps and on the HIR emitter going away; that is #245."}
+];
+const root=document.getElementById('quiz');
+Q.forEach((x,i)=>{const d=document.createElement('div');d.className='q';
+d.innerHTML='<strong>'+(i+1)+'. '+x.q+'</strong>';
+const fb=document.createElement('div');fb.className='fb';
+x.o.forEach((t,j)=>{const b=document.createElement('button');b.textContent=t;
+b.onclick=()=>{if(d.dataset.done)return;d.dataset.done=1;
+[...d.querySelectorAll('button')].forEach((bb,k)=>{if(k===x.a)bb.classList.add('right')});
+if(j!==x.a)b.classList.add('wrong');
+fb.style.display='block';fb.textContent=(j===x.a?'Correct. ':'Not quite. ')+x.f;};
+d.appendChild(b)});d.appendChild(fb);root.appendChild(d)});
+</script>
+</main></body></html>
