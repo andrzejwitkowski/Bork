@@ -7,6 +7,7 @@ pub mod capability;
 pub mod emit;
 pub mod escape;
 pub mod layout;
+pub mod plan;
 pub mod print;
 pub mod shadow;
 pub mod verify;

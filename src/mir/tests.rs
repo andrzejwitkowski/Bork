@@ -23,15 +23,15 @@ fn env() -> Env {
 }
 
 fn stmt(kind: StmtKind) -> Statement {
-    Statement { span: Span::default(), node: None, kind, debug: None }
+    Statement { span: Span::default(), node: None, kind, debug: None, region: RegionId(0) }
 }
 
 fn term(kind: TermKind) -> Option<Terminator> {
-    Some(Terminator { span: Span::default(), node: None, kind })
+    Some(Terminator { span: Span::default(), node: None, kind, region: RegionId(0) })
 }
 
 fn local(ty: TyId, kind: LocalKind) -> LocalDecl {
-    LocalDecl { ty, kind, name: None }
+    LocalDecl { ty, kind, name: None, region: RegionId(0) }
 }
 
 fn p(n: u32) -> Place {

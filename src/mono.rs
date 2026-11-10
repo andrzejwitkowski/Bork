@@ -384,33 +384,35 @@ pub(crate) fn enum_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
 /// Specialises the program reachable from `main`. `report` is the sema output for `hir`
 /// (one root per function, same order), and planning diagnostics come back as errors.
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
-    monomorphize_from(hir, tcx, report, false, true)
+    monomorphize_from(hir, tcx, report, false, true, true)
 }
 
 /// [`monomorphize`] with every non-generic function as a root, not only `main`: codegen unit tests
 /// emit helpers that `main` never calls.
 #[cfg(test)]
 pub(crate) fn monomorphize_every_function(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
-    monomorphize_from(hir, tcx, report, true, true)
+    monomorphize_from(hir, tcx, report, true, true, true)
 }
 
 /// Every non-generic function as a root and no HIR escape check: the MIR escape shadow (#217) needs the
 /// concrete program even when the HIR check rejects it.
 #[doc(hidden)]
 pub fn monomorphize_unchecked(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
-    monomorphize_from(hir, tcx, report, true, false)
+    monomorphize_from(hir, tcx, report, true, false, true)
 }
 
-fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool, escape: bool) -> Result<Mono, Vec<Diagnostic>> {
+/// `mir` is false when only the diagnostics are wanted (`check_instance_regions`): the plan is then not derived from MIR.
+fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool, escape: bool, mir: bool) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
     let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
-    let mut report = collector.report_per_instance(report);
+    let report = collector.report_per_instance(report);
     let mut program = HirProgram { classes, enums, functions, traits: Vec::new(), impls: Vec::new() };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter or projection survived monomorphization");
     hir::number_nodes(&mut program);
-    let memory_plan = plan_instances(&program, tcx, &mut report, escape)?;
-    Ok(Mono { hir: program, report, memory_plan, instances: collector.instances })
+    let mut mono = Mono { hir: program, report, memory_plan: MemoryPlan::default(), instances: collector.instances };
+    plan_instances(&mut mono, tcx, escape, mir)?;
+    Ok(mono)
 }
 
 /// The user-facing half of monomorphization: collects every instance reachable from `main` and the
@@ -424,7 +426,7 @@ pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
 /// The region half: runs `bork build`'s escape and memory planning on every instance, so `bork check`
 /// rejects what the build would. `hir` must already carry the hoisting annotations, as `build`'s does.
 pub fn check_instance_regions(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, escape: bool) -> Vec<Diagnostic> {
-    monomorphize_from(hir, tcx, report, false, escape).err().unwrap_or_default()
+    monomorphize_from(hir, tcx, report, false, escape, false).err().unwrap_or_default()
 }
 
 fn collect_instances<'a>(hir: &'a HirProgram, tcx: &mut TyCtx) -> Result<Collected<'a>, Vec<Diagnostic>> {
@@ -674,23 +676,39 @@ impl<'a> Collector<'a> {
     }
 }
 
-/// Ownership and memory planning, now on concrete types: escape, the memory plan and the codegen
-/// push stamps. A failure here is not a user error (the generic body was already accepted).
-fn plan_instances(program: &HirProgram, tcx: &TyCtx, report: &mut ArenaReport, escape: bool) -> Result<MemoryPlan, Vec<Diagnostic>> {
+/// Ownership and memory planning, now on concrete types: escape, the memory plan and the codegen push
+/// stamps. A failure here is not a user error (the generic body was already accepted).
+///
+/// The plan and the push flags are derived from MIR (RFC 0006 M4b, `mir::plan`). A program MIR cannot lower
+/// (a gate gap such as a closure) keeps the old `memory.rs` / `region_walk` path until those gaps close.
+fn plan_instances(mono: &mut Mono, tcx: &TyCtx, escape: bool, mir: bool) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     if escape {
-        for function in &program.functions {
+        for function in &mono.hir.functions {
             crate::escape::check_function(function, tcx, &mut diagnostics);
         }
     }
-    let (memory_plan, mut plan_diagnostics) = crate::memory::plan(program, tcx, report);
-    diagnostics.append(&mut plan_diagnostics);
-    if diagnostics.is_empty() {
-        if let Err(ice) = crate::region_walk::stamp_codegen_push(program, tcx, report) {
-            diagnostics.push(ice);
+    let bodies = if mir {
+        crate::mir::build::build_program_neutral(mono, tcx).ok()
+    } else {
+        None
+    };
+    if let Some(bodies) = bodies {
+        mono.memory_plan = crate::mir::plan::derive_memory_plan(&bodies, tcx);
+        for (root, body) in mono.report.roots.iter_mut().zip(&bodies) {
+            crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
+        }
+    } else {
+        let (memory_plan, mut plan_diagnostics) = crate::memory::plan(&mono.hir, tcx, &mono.report);
+        diagnostics.append(&mut plan_diagnostics);
+        mono.memory_plan = memory_plan;
+        if diagnostics.is_empty() {
+            if let Err(ice) = crate::region_walk::stamp_codegen_push(&mono.hir, tcx, &mut mono.report) {
+                diagnostics.push(ice);
+            }
         }
     }
-    if diagnostics.is_empty() { Ok(memory_plan) } else { Err(diagnostics) }
+    if diagnostics.is_empty() { Ok(()) } else { Err(diagnostics) }
 }
 
 /// Whether no type of `program` mentions a type parameter.
