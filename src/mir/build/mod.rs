@@ -63,14 +63,23 @@ pub fn build_program_neutral(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Body>> {
     build_program_with(mono, tcx, true)
 }
 
+/// One result per function, in `mono.hir.functions` order, so the MIR backend can fall back per function.
+pub fn build_function_results(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Res<Body>>> {
+    build_each(mono, tcx, false)
+}
+
 fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>> {
+    build_each(mono, tcx, neutral)?.into_iter().collect()
+}
+
+fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
     let functions = &mono.hir.functions;
     let roots = &mono.report.roots;
     if functions.len() != roots.len() {
         return Err(BuildError::Internal(format!("{} functions but {} report roots", functions.len(), roots.len())));
     }
     let abis: HashMap<&str, CallAbi> = functions.iter().map(|f| (f.name.as_str(), call_abi(f, tcx))).collect();
-    functions
+    Ok(functions
         .iter()
         .zip(roots)
         .map(|(function, root)| {
@@ -79,7 +88,7 @@ fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>>
             }
             FnBuilder::new(mono, tcx, &abis, function, root, neutral).build()
         })
-        .collect()
+        .collect())
 }
 
 struct Open {

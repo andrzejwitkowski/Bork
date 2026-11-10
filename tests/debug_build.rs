@@ -44,7 +44,7 @@ fn debug_api_requires_source_context() {
     let result = build_with_options(
         &checked,
         &dir.path().join("main"),
-        BuildOptions { debug: true },
+        BuildOptions { debug: true, mir_backend: false },
         None,
     );
     assert!(result.is_err());

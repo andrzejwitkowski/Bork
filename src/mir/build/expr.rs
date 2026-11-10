@@ -90,14 +90,28 @@ impl<'a> FnBuilder<'a> {
         let l = self.expr(lhs)?;
         let r = self.expr(rhs)?;
         if matches!(op, BinOp::Div) && self.tcx.is_integer(e.ty) {
-            // shortcut: only division by zero aborts; the signed `MIN / -1` guard is tracked in #237 and must land before #222.
-            let zero = self.assign_temp_of(self.bool_ty, Rvalue::Binary(BinOp::Eq, r.clone(), Operand::Const(Const::Int(0))), span);
+            // Same guards as `guard_int_div` in the LLVM emitter: `/ 0`, and for signed types `MIN / -1`.
             let abort = self.new_block();
+            let eq = |b: &mut Self, v: &Operand, c: i64| {
+                b.assign_temp_of(b.bool_ty, Rvalue::Binary(BinOp::Eq, v.clone(), Operand::Const(Const::Int(c))), span)
+            };
+            let zero = eq(self, &r, 0);
             let cont = self.new_block();
             self.terminate(TermKind::Switch { value: zero, cases: vec![(1, abort)], otherwise: cont }, span, Some(e.id));
+            self.cur = cont;
+            if let Some(min) = signed_min(self.tcx.data(e.ty)) {
+                let (neg1_bb, cont) = (self.new_block(), self.new_block());
+                let neg1 = eq(self, &r, -1);
+                self.terminate(TermKind::Switch { value: neg1, cases: vec![(1, neg1_bb)], otherwise: cont }, span, Some(e.id));
+                self.cur = neg1_bb;
+                let is_min = eq(self, &l, min);
+                self.terminate(TermKind::Switch { value: is_min, cases: vec![(1, abort)], otherwise: cont }, span, Some(e.id));
+                self.cur = cont;
+            }
+            let after = self.cur;
             self.cur = abort;
             self.terminate(TermKind::Abort(AbortReason::Binop), span, Some(e.id));
-            self.cur = cont;
+            self.cur = after;
         }
         Ok(self.assign_temp(e, Rvalue::Binary(op.clone(), l, r)))
     }
@@ -247,4 +261,17 @@ impl<'a> FnBuilder<'a> {
             other => self.stmt_of(other, block.statement_spans.get(prefix.len()).copied().unwrap_or_default()),
         }
     }
+}
+
+/// Smallest value of a signed integer type, the dividend that overflows on `/ -1`.
+fn signed_min(data: &crate::ty::TyData) -> Option<i64> {
+    use crate::hir::Prim;
+    let bits = match data {
+        crate::ty::TyData::Prim(Prim::I8) => 8,
+        crate::ty::TyData::Prim(Prim::I16) => 16,
+        crate::ty::TyData::Prim(Prim::I32) => 32,
+        crate::ty::TyData::Prim(Prim::I64) => 64,
+        _ => return None,
+    };
+    Some(i64::MIN >> (64 - bits))
 }
