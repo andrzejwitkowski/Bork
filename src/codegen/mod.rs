@@ -102,6 +102,7 @@ fn emit_checked<'ctx>(
 }
 
 /// LLVM IR text of the checked program, for tests that compare backends.
+#[doc(hidden)]
 pub fn emit_ir(checked: &CheckResult, options: BuildOptions) -> Result<String, BuildError> {
     let context = Context::create();
     let module = emit_checked(&context, checked, options, None)?;

@@ -228,16 +228,22 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(())
     }
 
-    /// The arena allocations and calls in `region` see: the nearest enclosing pushed region.
-    fn arena_of(&self, region: RegionId) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let mut at = Some(region);
+    /// The arena of the nearest pushed region at or above `start`, if any.
+    fn arena_from(&self, start: Option<RegionId>) -> Result<Option<PointerValue<'ctx>>, Diagnostic> {
+        let mut at = start;
         while let Some(r) = at {
             if let Some(slot) = self.region_slots.get(&r) {
-                return self.load_ptr(*slot);
+                return self.load_ptr(*slot).map(Some);
             }
             at = self.body.regions[r.0 as usize].parent;
         }
-        self.caller_parent.ok_or_else(|| not_yet_supported("call outside any open arena", None))
+        Ok(None)
+    }
+
+    /// The arena allocations and calls in `region` see: the nearest enclosing pushed region.
+    fn arena_of(&self, region: RegionId) -> Result<PointerValue<'ctx>, Diagnostic> {
+        let found = self.arena_from(Some(region))?;
+        found.or(self.caller_parent).ok_or_else(|| not_yet_supported("call outside any open arena", None))
     }
 
     fn load_ptr(&self, slot: PointerValue<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
@@ -306,18 +312,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 self.store(dst, value)?;
             }
             StmtKind::RegionEnter(r) => {
-                let parent = {
-                    let mut at = self.body.regions[r.0 as usize].parent;
-                    let mut found = None;
-                    while let Some(p) = at {
-                        if let Some(slot) = self.region_slots.get(&p) {
-                            found = Some(self.load_ptr(*slot)?);
-                            break;
-                        }
-                        at = self.body.regions[p.0 as usize].parent;
-                    }
-                    found.or(self.caller_parent)
-                };
+                let parent = self.arena_from(self.body.regions[r.0 as usize].parent)?.or(self.caller_parent);
                 let call = match parent {
                     Some(parent) => cx.builder.build_call(cx.arena_push_child_fn(), &[parent.into()], "arena")?,
                     None => cx.builder.build_call(cx.arena_push_fn(), &[], "arena")?,
@@ -441,19 +436,14 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 };
             }
             TermKind::Return => {
-                let unit = is_unit(cx, self.function.return_ty);
+                let ret = match is_unit(cx, self.function.return_ty) {
+                    true => None,
+                    false => Some(self.operand(&Operand::Copy(Place::local(self.body.ret)), self.function.return_ty)?),
+                };
                 if self.function.name == "main" {
-                    let code = if unit {
-                        cx.context.i32_type().const_zero().into()
-                    } else {
-                        self.operand(&Operand::Copy(Place::local(self.body.ret)), self.function.return_ty)?
-                    };
-                    builder.build_return(Some(&code))?;
-                } else if unit {
-                    builder.build_return(None)?;
+                    builder.build_return(Some(&ret.unwrap_or_else(|| cx.context.i32_type().const_zero().into())))?;
                 } else {
-                    let value = self.operand(&Operand::Copy(Place::local(self.body.ret)), self.function.return_ty)?;
-                    builder.build_return(Some(&value))?;
+                    builder.build_return(ret.as_ref().map(|v| v as &dyn inkwell::values::BasicValue))?;
                 }
             }
             TermKind::Abort(_) => {

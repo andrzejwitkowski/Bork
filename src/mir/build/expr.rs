@@ -100,14 +100,12 @@ impl<'a> FnBuilder<'a> {
             self.terminate(TermKind::Switch { value: zero, cases: vec![(1, abort)], otherwise: cont }, span, Some(e.id));
             self.cur = cont;
             if let Some(min) = signed_min(self.tcx.data(e.ty)) {
-                let (neg1_bb, min_bb, cont) = (self.new_block(), self.new_block(), self.new_block());
+                let (neg1_bb, cont) = (self.new_block(), self.new_block());
                 let neg1 = eq(self, &r, -1);
                 self.terminate(TermKind::Switch { value: neg1, cases: vec![(1, neg1_bb)], otherwise: cont }, span, Some(e.id));
                 self.cur = neg1_bb;
                 let is_min = eq(self, &l, min);
-                self.terminate(TermKind::Switch { value: is_min, cases: vec![(1, min_bb)], otherwise: cont }, span, Some(e.id));
-                self.cur = min_bb;
-                self.goto(abort, span);
+                self.terminate(TermKind::Switch { value: is_min, cases: vec![(1, abort)], otherwise: cont }, span, Some(e.id));
                 self.cur = cont;
             }
             let after = self.cur;
@@ -268,11 +266,12 @@ impl<'a> FnBuilder<'a> {
 /// Smallest value of a signed integer type, the dividend that overflows on `/ -1`.
 fn signed_min(data: &crate::ty::TyData) -> Option<i64> {
     use crate::hir::Prim;
-    match data {
-        crate::ty::TyData::Prim(Prim::I8) => Some(i8::MIN as i64),
-        crate::ty::TyData::Prim(Prim::I16) => Some(i16::MIN as i64),
-        crate::ty::TyData::Prim(Prim::I32) => Some(i32::MIN as i64),
-        crate::ty::TyData::Prim(Prim::I64) => Some(i64::MIN),
-        _ => None,
-    }
+    let bits = match data {
+        crate::ty::TyData::Prim(Prim::I8) => 8,
+        crate::ty::TyData::Prim(Prim::I16) => 16,
+        crate::ty::TyData::Prim(Prim::I32) => 32,
+        crate::ty::TyData::Prim(Prim::I64) => 64,
+        _ => return None,
+    };
+    Some(i64::MIN >> (64 - bits))
 }
