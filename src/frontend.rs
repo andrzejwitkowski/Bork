@@ -48,6 +48,12 @@ fn label_prelude_functions(hir: &mut HirProgram, functions: &[crate::ast::Functi
 
 /// Parse, analyze ownership, and lower program to typed HIR.
 pub fn check(source: &str) -> CheckResult {
+    check_with(source, true)
+}
+
+/// [`check`], optionally without the HIR escape pass (the MIR escape shadow, #217, runs on programs it rejects).
+#[doc(hidden)]
+pub fn check_with(source: &str, escape: bool) -> CheckResult {
     let (mut program, node_index) = match crate::parse_indexed(source) {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -92,11 +98,13 @@ pub fn check(source: &str) -> CheckResult {
     if let Some(mut program) = hir {
         crate::hoist::annotate(&mut program, &tcx);
         crate::hir::number_nodes(&mut program);
-        for function in &program.functions {
-            crate::escape::check_function(function, &tcx, &mut diagnostics);
+        if escape {
+            for function in &program.functions {
+                crate::escape::check_function(function, &tcx, &mut diagnostics);
+            }
         }
         if diagnostics.is_empty() && has_generics(&program) {
-            diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report));
+            diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report, escape));
         }
         if diagnostics.is_empty() {
             let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &tcx, &report);
