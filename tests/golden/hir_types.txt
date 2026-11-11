@@ -163,6 +163,8 @@ programs/build/enums/return_via_local.bork::main() -> i32
 programs/build/enums/return_when_arms.bork::churn(k: i32) -> i32
 programs/build/enums/return_when_arms.bork::make(flag: bool) -> A
 programs/build/enums/return_when_arms.bork::main() -> i32
+programs/build/enums/scalar_payload_arms.bork::area(s: &Shape) -> i32
+programs/build/enums/scalar_payload_arms.bork::main() -> i32
 programs/build/enums/two_ref_variants.bork::one(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::two(n: Ref<Node>) -> unit
 programs/build/enums/two_ref_variants.bork::nothing(n: Ref<Node>) -> unit

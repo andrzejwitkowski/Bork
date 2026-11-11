@@ -264,6 +264,9 @@ programs/build/enums/return_when_arms.bork: 337..338 A Lexical LexicalScope(1)
 programs/build/enums/return_when_arms.bork: 339..340 P Lexical LexicalScope(1)
 programs/build/enums/return_when_arms.bork: 369..372 K Dynamic Program
 programs/build/enums/return_when_arms.bork: 382..385 K Dynamic Program
+programs/build/enums/scalar_payload_arms.bork: 374..383 Shape Lexical LexicalScope(4)
+programs/build/enums/scalar_payload_arms.bork: 396..404 Shape Lexical LexicalScope(4)
+programs/build/enums/scalar_payload_arms.bork: 420..430 Shape Lexical LexicalScope(4)
 programs/build/enums/two_ref_variants.bork: 645..653 Link Lexical LexicalScope(0)
 programs/build/enums/two_ref_variants.bork: 699..707 Link Lexical LexicalScope(1)
 programs/build/enums/two_ref_variants.bork: 763..775 Link Lexical LexicalScope(2)

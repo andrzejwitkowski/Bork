@@ -35,6 +35,8 @@ pub struct Codegen<'ctx> {
     pub(super) debug: Option<super::debug::DebugInfo<'ctx>>,
     pub(super) classes: Vec<HirClass>,
     pub(super) enums: Vec<HirEnum>,
+    /// `lower::plain_class` results per type; the check walks the same types repeatedly.
+    pub(super) plain_classes: std::cell::RefCell<HashMap<TyId, Option<String>>>,
     pub(super) enum_layouts: HashMap<String, EnumLayout<'ctx>>,
     /// `void drop(ptr slot)` per enum with a `Ref` payload, registered once per constructed value.
     pub(super) enum_drops: HashMap<String, FunctionValue<'ctx>>,
@@ -91,6 +93,7 @@ impl<'ctx> Codegen<'ctx> {
             debug: None,
             classes: classes.to_vec(),
             enums: enums.to_vec(),
+            plain_classes: Default::default(),
             enum_layouts: HashMap::new(),
             enum_drops: HashMap::new(),
             tcx: tcx.clone(),

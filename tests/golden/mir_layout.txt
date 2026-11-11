@@ -137,6 +137,8 @@ class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class W size=16 align=8 fields=[0]
 enum K size=4 align=4 variants=[[0], [0]]
+== programs/build/enums/scalar_payload_arms.bork
+enum Shape size=12 align=4 variants=[[0], [0, 4], [0, 4, 8]]
 == programs/build/enums/two_ref_variants.bork
 class Node size=4 align=4 fields=[0]
 enum Link size=56 align=8 variants=[[0], [0, 8], [0, 4, 8, 32]]
