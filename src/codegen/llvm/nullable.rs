@@ -15,14 +15,8 @@ use super::emit_fn::FnEmitter;
 use super::not_yet_supported;
 
 impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
-    /// The instance name of the `Option` that `ty` is, and its payload type.
     fn option_parts(&self, ty: TyId) -> Result<(String, TyId), Diagnostic> {
-        let name = crate::mono::enum_instance_name(&self.cx.tcx, ty)
-            .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.cx.tcx.display(ty)), None))?;
-        let payload = self.cx.tcx.enum_args(ty).and_then(|(_, args)| args.first().copied());
-        payload
-            .map(|payload| (name, payload))
-            .ok_or_else(|| not_yet_supported(&format!("nullable type `{}`", self.cx.tcx.display(ty)), None))
+        self.cx.option_parts(ty)
     }
 
     pub(super) fn emit_nullable_is_null(

@@ -17,32 +17,12 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         right: BasicValueEnum<'ctx>,
         negate: bool,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let cx = self.cx;
-        let builder = &cx.builder;
-        let size = cx.size_type();
-        let mut args = Vec::new();
-        for desc in [left, right] {
-            let desc = desc.into_struct_value();
-            args.push(builder.build_extract_value(desc, 0, "text.ptr")?.into());
-            let len = builder
-                .build_extract_value(desc, 1, "text.len")?
-                .into_int_value();
-            args.push(builder.build_int_cast(len, size, "text.len.usize")?.into());
-        }
-        let call = builder
-            .build_call(cx.string_equal_fn(), &args, "text.eq")?
-            .try_as_basic_value()
-            .unwrap_basic()
-            .into_int_value();
-        let wanted = if negate {
-            IntPredicate::EQ
+        let equal = self.cx.string_equal(left.into_struct_value(), right.into_struct_value())?;
+        if negate {
+            Ok(self.cx.builder.build_not(equal, "text.ne")?.into())
         } else {
-            IntPredicate::NE
-        };
-        let zero = call.get_type().const_zero();
-        Ok(builder
-            .build_int_compare(wanted, call, zero, "text.cmp")?
-            .into())
+            Ok(equal.into())
+        }
     }
 
     /// `stringFromUtf8(&bytes, start, count)`. A bad range aborts; invalid UTF-8 yields `None`
@@ -82,7 +62,7 @@ impl<'s, 'report, 'a, 'ctx> FnEmitter<'s, 'report, 'a, 'ctx> {
         let bad_start = builder.build_or(neg_start, start_oob, "utf8.bad.start")?;
         let bad_count = builder.build_or(neg_count, count_oob, "utf8.bad.count")?;
         let bad = builder.build_or(bad_start, bad_count, "utf8.bad")?;
-        self.branch_abort_if(bad, expr.span)?;
+        self.cx.branch_abort_if(self.llvm_fn, bad)?;
 
         let src = unsafe { builder.build_gep(i8_ty, base, &[start], "utf8.src")? };
         let count_usize = builder.build_int_cast(count, cx.size_type(), "utf8.count.usize")?;

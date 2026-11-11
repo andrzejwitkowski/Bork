@@ -1,6 +1,7 @@
-//! LLVM from MIR (RFC 0006 M5a, #222). Covers scalar locals, arithmetic and comparisons, calls with
-//! the hidden arena argument, `Switch`/`Goto` control flow and region enter/exit/reset. [`supported`]
-//! decides per function; anything else stays on the HIR emitter, so a function is never half lowered.
+//! LLVM from MIR (RFC 0006 M5a-c, #222-#224). Covers scalars, plain classes and enums, scalar `Vec`s,
+//! arrays and slices, text, nullables, calls with the hidden arena arguments, control flow and
+//! regions. [`supported`] decides per function; anything else stays on the HIR emitter, so a
+//! function is never half lowered.
 
 use std::collections::{HashMap, HashSet};
 
@@ -11,14 +12,19 @@ use inkwell::{FloatPredicate, IntPredicate};
 
 use crate::ast::BinOp;
 use crate::diag::Diagnostic;
-use crate::hir::{HirFunction, Prim};
+use crate::hir::{HirFunction, Prim, VecOp};
 use crate::mir::*;
 use crate::ty::{TyData, TyId};
 
 use super::call_abi::CallAbi;
 use super::context::{is_unsigned, Codegen};
 use super::emit_fn::Callees;
+use super::vec;
 use super::not_yet_supported;
+
+fn trace() -> bool {
+    std::env::var_os("BORK_MIR_BACKEND_TRACE").is_some()
+}
 
 fn prim(cx: &Codegen<'_>, ty: TyId) -> Option<Prim> {
     match cx.tcx.data(ty) {
@@ -35,46 +41,101 @@ fn is_float(cx: &Codegen<'_>, ty: TyId) -> bool {
     matches!(prim(cx, ty), Some(Prim::F32 | Prim::F64))
 }
 
-/// A class whose fields are all scalars or such classes: no `Ref`, `Vec`, text or nullable
-/// fields, so it needs no drop registration (those stay on the HIR emitter until #224/#225).
-fn plain_class(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
-    if let Some(hit) = cx.plain_classes.borrow().get(&ty) {
+/// Element type of a `Vec` (or `&Vec`) of non-unit scalars: no `Ref`/text elements, so no drop glue.
+fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
+    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
+    let elem = cx.tcx.vec_elem(ty)?;
+    (prim(cx, elem).is_some() && !is_unit(cx, elem)).then_some(elem)
+}
+
+/// Element type of an array (or `&array`) of non-unit scalars.
+fn plain_array(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
+    let elem = cx.tcx.array_elem(ty)?;
+    (prim(cx, elem).is_some() && !is_unit(cx, elem)).then_some(elem)
+}
+
+/// Element type of an indexable buffer: a plain array, or `u8` for text.
+fn buffer_elem(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
+    plain_array(cx, ty).or_else(|| cx.tcx.is_text(ty).then(|| cx.tcx.prim_id(Prim::U8)))
+}
+
+/// A value that needs no drop registration: scalars, text, plain arrays and `Vec`s, and classes,
+/// enums and nullables built only from those.
+fn plain_value(cx: &Codegen<'_>, ty: TyId) -> bool {
+    prim(cx, ty).is_some()
+        || cx.tcx.is_text(ty)
+        || plain_array(cx, ty).is_some()
+        || plain_vec(cx, ty).is_some()
+        || plain_class(cx, ty).is_some()
+        || plain_enum(cx, ty).is_some()
+}
+
+/// Answers depend only on the type, so they are memoised on `cx` (keyed with the reference
+/// stripped). The entry is seeded with `None` while it is computed, so a recursive type is not plain.
+fn memo_plain(
+    cx: &Codegen<'_>,
+    cache: &std::cell::RefCell<std::collections::HashMap<TyId, Option<String>>>,
+    ty: TyId,
+    compute: impl FnOnce(TyId) -> Option<String>,
+) -> Option<String> {
+    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
+    if let Some(hit) = cache.borrow().get(&ty) {
         return hit.clone();
     }
-    let found = plain_class_at(cx, ty, 0);
-    cx.plain_classes.borrow_mut().insert(ty, found.clone());
+    cache.borrow_mut().insert(ty, None);
+    let found = compute(ty);
+    cache.borrow_mut().insert(ty, found.clone());
     found
 }
 
-fn plain_class_at(cx: &Codegen<'_>, ty: TyId, depth: u32) -> Option<String> {
-    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
-    let name = crate::mono::class_instance_name(&cx.tcx, ty).filter(|_| depth < 8)?;
-    cx.record_type(&name)?;
-    let class = cx.class_by_name(&name)?;
-    for i in 0..class.fields.len() {
-        let f = cx.record_field_type(&name, i)?;
-        prim(cx, f).map(|_| ()).or_else(|| plain_class_at(cx, f, depth + 1).map(|_| ()))?;
-    }
-    Some(name)
-}
-
-/// An enum whose variants carry only non-unit scalar payloads: no drop glue, no nested slots.
-fn plain_enum(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
-    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
-    let name = crate::mono::enum_instance_name(&cx.tcx, ty)?;
-    cx.enum_layout(&name)?;
-    let e = cx.enums.iter().find(|e| e.name == name)?;
-    for v in &e.variants {
-        for f in &v.fields {
-            if f.ty == cx.unit_ty() || prim(cx, f.ty).is_none() {
-                return None;
-            }
+/// A class whose fields are all plain values: no `Ref` fields, so it needs no drop registration.
+fn plain_class(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
+    memo_plain(cx, &cx.plain_classes, ty, |ty| {
+        let name = crate::mono::class_instance_name(&cx.tcx, ty)?;
+        cx.record_type(&name)?;
+        let class = cx.class_by_name(&name)?;
+        for i in 0..class.fields.len() {
+            plain_value(cx, cx.record_field_type(&name, i)?).then_some(())?;
         }
-    }
-    Some(name)
+        Some(name)
+    })
 }
 
-/// Type of `place` when it is a bare local or a chain of fields over plain classes.
+/// An enum (or `T?`) whose variants carry only non-unit plain payloads and have no drop glue.
+fn plain_enum(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
+    memo_plain(cx, &cx.plain_enums, ty, |ty| {
+        let name = crate::mono::enum_instance_name(&cx.tcx, ty)?;
+        cx.enum_layout(&name)?;
+        if cx.enum_drops.contains_key(&name) {
+            return None;
+        }
+        let e = cx.enums.iter().find(|e| e.name == name)?;
+        let plain = e.variants.iter().flat_map(|v| &v.fields).all(|f| f.ty != cx.unit_ty() && plain_value(cx, f.ty));
+        plain.then_some(name)
+    })
+}
+
+/// `Some` payload type of nullable `ty`, when it is a plain `Option`.
+fn nullable_payload(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
+    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
+    if !cx.tcx.is_nullable(ty) {
+        return None;
+    }
+    plain_enum(cx, ty)?;
+    cx.option_parts(ty).ok().map(|(_, payload)| payload)
+}
+
+/// Integer operand that can index a buffer: an `Int` constant or a bare integer local.
+fn index_operand(cx: &Codegen<'_>, body: &Body, op: &Operand) -> Option<()> {
+    match op {
+        Operand::Const(Const::Int(_)) => Some(()),
+        Operand::Copy(p) | Operand::Move(p) if p.is_bare() => cx.int_type(body.local(p.local)?.ty).map(|_| ()),
+        _ => None,
+    }
+}
+
+/// Type of `place`: a local, then fields over plain classes, enum payloads, `Some` payloads and
+/// buffer elements.
 fn place_ty(cx: &Codegen<'_>, body: &Body, p: &Place) -> Option<TyId> {
     let mut ty = body.local(p.local)?.ty;
     let mut variant = None;
@@ -93,6 +154,11 @@ fn place_ty(cx: &Codegen<'_>, body: &Body, p: &Place) -> Option<TyId> {
                 let name = plain_class(cx, ty)?;
                 ty = cx.record_field_type(&name, *i as usize)?;
             }
+            (Proj::Index(idx), None) => {
+                index_operand(cx, body, idx)?;
+                ty = buffer_elem(cx, ty)?;
+            }
+            (Proj::Some, None) => ty = nullable_payload(cx, ty)?,
             _ => return None,
         }
     }
@@ -121,7 +187,7 @@ pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &
 
 fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> Option<()> {
     let scalar = |ty: TyId| prim(cx, ty).map(|_| ());
-    let value = |ty: TyId| scalar(ty).or_else(|| plain_class(cx, ty).or_else(|| plain_enum(cx, ty)).map(|_| ()));
+    let value = |ty: TyId| plain_value(cx, ty).then_some(());
     for l in &body.locals {
         match l.kind {
             LocalKind::Hidden(HiddenKind::RegionArena | HiddenKind::DynamicArena) => {}
@@ -145,29 +211,42 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
     let general = |op: &Operand| -> Option<()> {
         match op {
             Operand::Copy(p) | Operand::Move(p) | Operand::Reborrow(p) => value(place_ty(cx, body, p)?),
-            Operand::Const(Const::Int(_) | Const::Float(_) | Const::Bool(_) | Const::Unit) => Some(()),
+            Operand::Const(Const::Int(_) | Const::Float(_) | Const::Bool(_) | Const::Unit | Const::Str(_)) => Some(()),
             _ => None,
         }
     };
-    // Arithmetic, casts and printing read the local's own type, so they need bare scalars.
+    // Arithmetic, casts and printing need scalars (`Const::Str` is not one).
     let operand = |op: &Operand| -> Option<()> {
-        if op.place().is_some_and(|p| !p.is_bare()) {
-            return None;
-        }
         general(op)?;
         match op.place() {
-            Some(p) => scalar(body.local(p.local)?.ty),
-            None => Some(()),
+            Some(p) => scalar(place_ty(cx, body, p)?),
+            None => (!matches!(op, Operand::Const(Const::Str(_)))).then_some(()),
         }
     };
+    // Text: a string constant or a place of text type.
+    let text = |op: &Operand| -> Option<()> {
+        match op {
+            Operand::Const(Const::Str(_)) => Some(()),
+            _ => op.place().filter(|p| place_ty(cx, body, p).is_some_and(|t| cx.tcx.is_text(t))).map(|_| ()),
+        }
+    };
+    let own_abi = CallAbi::of(cx, function);
     // Arenas lowering can name: the enclosing pushed region, the root, or a dynamic arena local.
     let arena_ok = |a: &ArenaRef| match a {
         ArenaRef::Current | ArenaRef::Root => true,
         ArenaRef::Fresh(n) => body.local(Local(*n)).is_some_and(|l| l.kind == LocalKind::Hidden(HiddenKind::DynamicArena)),
-        _ => false,
+        ArenaRef::Region(r) => pushed.contains(r),
+        ArenaRef::ResultSink => own_abi.has_result_sink(),
+        ArenaRef::CallerParent => own_abi.hidden_len() > 0,
+        // The arena a binding lives in is readable from its handle (objects, enums, `Vec` headers);
+        // text and arrays carry no arena, so they stay on the HIR emitter.
+        ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => body.local(*l).is_some_and(|d| {
+            cx.tcx.ref_inner(d.ty).is_none() && (plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some() || plain_vec(cx, d.ty).is_some())
+        }),
     };
     for block in &body.blocks {
         for s in &block.stmts {
+            let verdict = (|| -> Option<()> {
             match &s.kind {
                 StmtKind::Assign(dst, rv) => {
                     let dty = place_ty(cx, body, dst)?;
@@ -194,8 +273,22 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             operand(a)?;
                             cx.int_type(*to)?;
                             if let Some(p) = a.place() {
-                                cx.int_type(body.local(p.local)?.ty)?;
+                                cx.int_type(place_ty(cx, body, p)?)?;
                             }
+                        }
+                        Rvalue::Len(p) => {
+                            let t = place_ty(cx, body, p)?;
+                            if !(cx.tcx.is_text(t) || plain_array(cx, t).is_some()) || cx.int_type(dty).is_none() {
+                                return None;
+                            }
+                        }
+                        Rvalue::Slice { base, lo, hi } => {
+                            let t = place_ty(cx, body, base.place()?)?;
+                            if plain_array(cx, t).is_none() || plain_array(cx, dty).is_none() || cx.tcx.array_len(dty).is_none() {
+                                return None;
+                            }
+                            index_operand(cx, body, lo)?;
+                            index_operand(cx, body, hi)?;
                         }
                         _ => return None,
                     }
@@ -207,8 +300,11 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 StmtKind::ArenaCreateDynamic { parent, .. } if cx.debug.is_none() && arena_ok(parent) => {}
                 StmtKind::RegisterStrongRoot { owner, .. } if cx.debug.is_none() && arena_ok(owner) => {}
                 StmtKind::Borrow { dst, src, .. } | StmtKind::Move { dst, src } if dst.is_bare() && src.is_bare() => {
-                    plain_class(cx, body.local(src.local)?.ty)?;
-                    plain_class(cx, body.local(dst.local)?.ty)?;
+                    // Handles and descriptors copy bit for bit; `Ref` state needs #225, so only plain values.
+                    let (st, dt) = (body.local(src.local)?.ty, body.local(dst.local)?.ty);
+                    if !plain_value(cx, st) || !plain_value(cx, dt) || is_unit(cx, st) || is_unit(cx, dt) {
+                        return None;
+                    }
                 }
                 StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } if dst.is_bare() && cx.debug.is_none() && arena_ok(arena) => {
                     let ty = body.local(dst.local)?.ty;
@@ -222,23 +318,88 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         return None;
                     }
                 }
+                StmtKind::Alloc { dst, kind: AllocKind::Vec { cap }, arena } if dst.is_bare() && cx.debug.is_none() && arena_ok(arena) => {
+                    plain_vec(cx, body.local(dst.local)?.ty)?;
+                    if let Some(c) = cap {
+                        operand(c)?;
+                    }
+                }
+                StmtKind::VecOp { dst, op, receiver, args } => {
+                    plain_vec(cx, body.local(receiver.place().filter(|p| p.is_bare())?.local)?.ty)?;
+                    if dst.as_ref().is_some_and(|d| !d.is_bare()) {
+                        return None;
+                    }
+                    let index = |op: &Operand| index_operand(cx, body, op);
+                    match (op, args.as_slice()) {
+                        (VecOp::Len | VecOp::Capacity | VecOp::Clear, []) => {}
+                        (VecOp::Get, [i]) => index(i)?,
+                        (VecOp::Push, [v]) => operand(v)?,
+                        (VecOp::Set, [i, v]) => {
+                            index(i)?;
+                            operand(v)?;
+                        }
+                        _ => return None,
+                    }
+                }
+                StmtKind::Alloc { dst, kind: AllocKind::Array, arena } if dst.is_bare() && cx.debug.is_none() && arena_ok(arena) => {
+                    let t = body.local(dst.local)?.ty;
+                    plain_array(cx, t)?;
+                    cx.tcx.array_len(t)?;
+                }
+                StmtKind::CopyInto { dst, src, arena } if dst.is_bare() && cx.debug.is_none() && arena_ok(arena) => {
+                    let t = body.local(dst.local)?.ty;
+                    if place_ty(cx, body, src)? != t {
+                        return None;
+                    }
+                    let copyable = cx.tcx.is_text(t)
+                        || plain_array(cx, t).is_some()
+                        || plain_vec(cx, t).is_some()
+                        // The payload moves with the slot; handles pass through like `materialize_owned_value`.
+                        || nullable_payload(cx, t).is_some();
+                    copyable.then_some(())?;
+                }
+                StmtKind::Intrinsic { dst: None, op: IntrinsicOp::PrintStr | IntrinsicOp::PrintlnStr, args, arena: None } if args.len() == 1 => text(&args[0])?,
+                StmtKind::Intrinsic { dst: Some(d), op: IntrinsicOp::StringEq, args, arena: None } if d.is_bare() && args.len() == 2 => {
+                    text(&args[0])?;
+                    text(&args[1])?;
+                }
+                StmtKind::Intrinsic { dst: Some(d), op: IntrinsicOp::Concat, args, arena: Some(arena) } if d.is_bare() && args.len() == 2 && cx.debug.is_none() && arena_ok(arena) => {
+                    text(&args[0])?;
+                    text(&args[1])?;
+                }
+                StmtKind::Intrinsic { dst: Some(d), op: IntrinsicOp::StringFromUtf8, args, arena: Some(arena) } if d.is_bare() && args.len() == 3 && cx.debug.is_none() && arena_ok(arena) => {
+                    nullable_payload(cx, body.local(d.local)?.ty).filter(|p| cx.tcx.is_text(*p))?;
+                    plain_array(cx, place_ty(cx, body, args[0].place()?)?)?;
+                    operand(&args[1])?;
+                    operand(&args[2])?;
+                }
                 StmtKind::Intrinsic { dst: None, op: IntrinsicOp::PrintInt | IntrinsicOp::PrintlnInt, args, arena: None } if args.len() == 1 => {
                     operand(&args[0])?;
-                    let ty = args[0].place().and_then(|p| body.local(p.local)).map(|l| l.ty);
+                    let ty = args[0].place().and_then(|p| place_ty(cx, body, p));
                     if ty.is_some_and(|t| cx.int_type(t).is_none()) {
                         return None;
                     }
                 }
                 _ => return None,
             }
+            Some(())
+            })();
+            if verdict.is_none() {
+                if trace() {
+                    eprintln!("mir-backend: unsupported statement {:?}", s.kind);
+                }
+                return None;
+            }
         }
-        match &block.term.as_ref()?.kind {
+        let term = block.term.as_ref()?;
+        let verdict = (|| -> Option<()> {
+        match &term.kind {
             TermKind::Goto(_) | TermKind::Unreachable | TermKind::Abort(_) | TermKind::Return => {}
             TermKind::Switch { value, .. } => operand(value)?,
             TermKind::Call { callee, args, hidden, dest, .. } => {
                 let (_, target) = callees.get(callee.as_str())?;
                 let abi = CallAbi::of(cx, target);
-                if abi.has_result_sink() || hidden.len() != abi.hidden_len() || hidden.iter().any(|h| *h != ArenaRef::Current) {
+                if hidden.len() != abi.hidden_len() || !hidden.iter().all(&arena_ok) {
                     return None;
                 }
                 value(target.return_ty)?;
@@ -251,26 +412,35 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 }
             }
             TermKind::Match { scrutinee, arms } => {
-                if !scrutinee.is_bare() {
-                    return None;
-                }
-                let name = plain_enum(cx, body.local(scrutinee.local)?.ty)?;
+                let sty = place_ty(cx, body, scrutinee)?;
+                let name = plain_enum(cx, sty)?;
+                let nullable = cx.tcx.is_nullable(sty);
                 for arm in arms {
                     match &arm.pat {
                         MirPat::Wildcard | MirPat::Bind => {}
-                        MirPat::Variant { enum_name, index, fields } if *enum_name == name && fields.iter().all(|f| matches!(f, MirPat::Wildcard | MirPat::Bind)) => {
+                        MirPat::Variant { index, fields, .. } if fields.iter().all(|f| matches!(f, MirPat::Wildcard | MirPat::Bind)) => {
                             cx.enum_layout(&name)?.variants.get(*index as usize)?;
                         }
+                        MirPat::Some(inner) if nullable && matches!(**inner, MirPat::Wildcard | MirPat::Bind) => {}
+                        MirPat::None if nullable => {}
                         _ => return None,
                     }
                     for (l, src) in &arm.bindings {
                         let lt = body.local(*l)?.ty;
-                        if src.local != scrutinee.local || scalar(lt).is_none() || place_ty(cx, body, src)? != lt {
+                        if src.local != scrutinee.local || !plain_value(cx, lt) || is_unit(cx, lt) || place_ty(cx, body, src)? != cx.tcx.ref_inner(lt).unwrap_or(lt) {
                             return None;
                         }
                     }
                 }
             }
+        }
+            Some(())
+        })();
+        if verdict.is_none() {
+            if trace() {
+                eprintln!("mir-backend: unsupported terminator {:?}", term.kind);
+            }
+            return None;
         }
     }
     Some(())
@@ -286,6 +456,7 @@ struct Lower<'a, 'ctx> {
     region_slots: HashMap<RegionId, PointerValue<'ctx>>,
     blocks: Vec<BasicBlock<'ctx>>,
     caller_parent: Option<PointerValue<'ctx>>,
+    result_sink: Option<PointerValue<'ctx>>,
 }
 
 pub(super) fn lower_function<'ctx>(
@@ -309,6 +480,7 @@ pub(super) fn lower_function<'ctx>(
         region_slots: HashMap::new(),
         blocks: Vec::new(),
         caller_parent: (abi.hidden_len() > 0).then(|| llvm_fn.get_nth_param(0).expect("callee has a parent arena parameter").into_pointer_value()),
+        result_sink: abi.has_result_sink().then(|| llvm_fn.get_nth_param(1).expect("callee has a result sink parameter").into_pointer_value()),
     };
     lower.prologue(abi.hidden_len())?;
     for i in 0..body.blocks.len() {
@@ -379,7 +551,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
     }
 
     fn op_ty(&self, op: &Operand) -> Option<TyId> {
-        op.place().and_then(|p| self.body.local(p.local)).map(|l| l.ty)
+        op.place().and_then(|p| place_ty(self.cx, self.body, p))
     }
 
     fn operand(&self, op: &Operand, expect: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
@@ -394,6 +566,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 None => cx.basic_type(expect).expect("float constant type").into_float_type().const_float(*v as f64).into(),
             },
             Operand::Const(Const::Float(v)) => cx.basic_type(expect).expect("float type").into_float_type().const_float(*v).into(),
+            Operand::Const(Const::Str(text)) => cx.str_literal(text).into(),
             Operand::Const(Const::Bool(b)) => cx.context.bool_type().const_int(*b as u64, false).into(),
             _ => return Err(not_yet_supported("operand", None)),
         })
@@ -413,6 +586,20 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         let cx = self.cx;
         match a {
             ArenaRef::Current => self.arena_of(region),
+            ArenaRef::Region(r) => self.arena_of(*r),
+            ArenaRef::ResultSink => Ok(self.result_sink.expect("checked result sink")),
+            ArenaRef::CallerParent => Ok(self.caller_parent.expect("checked caller parent")),
+            // The arena inside the handle (`{arena, object}`) or the `Vec` header the binding holds.
+            ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => {
+                let ty = self.body.local(*l).expect("checked local").ty;
+                if plain_vec(cx, ty).is_some() {
+                    let header = cx.builder.build_load(cx.context.ptr_type(inkwell::AddressSpace::default()), self.slots[l], "vec")?.into_pointer_value();
+                    cx.vec_load_ptr(header, vec::ARENA)
+                } else {
+                    let handle = cx.builder.build_load(cx.object_handle_type(), self.slots[l], "home")?.into_struct_value();
+                    Ok(cx.builder.build_extract_value(handle, 0, "home.arena")?.into_pointer_value())
+                }
+            }
             ArenaRef::Fresh(n) => self.load_ptr(self.slots[&Local(*n)]),
             ArenaRef::Root => Ok(cx
                 .builder
@@ -421,7 +608,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 .basic()
                 .expect("bork_arena_root returns a pointer")
                 .into_pointer_value()),
-            _ => unreachable!("filtered by supported"),
         }
     }
 
@@ -449,10 +635,37 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                         ty = cx.record_field_type(&name, *i as usize).expect("checked field");
                     }
                 }
+                Proj::Some => {
+                    let object = self.object_ptr(ptr)?;
+                    let name = plain_enum(cx, ty).expect("checked nullable");
+                    let (_, tag) = cx.enum_variant(&name, "Some").expect("prelude Some");
+                    let record = cx.enum_layout(&name).expect("checked layout").variants[tag as usize];
+                    ptr = cx.builder.build_struct_gep(record, object, 1, "some.payload")?;
+                    ty = nullable_payload(cx, ty).expect("checked nullable");
+                }
+                Proj::Index(idx) => {
+                    let elem = buffer_elem(cx, ty).expect("checked buffer");
+                    let (_, stride, _) = cx.elem_storage(elem)?;
+                    let desc = cx.builder.build_load(cx.buffer_descriptor_type(), ptr, "buf")?.into_struct_value();
+                    let base = cx.builder.build_extract_value(desc, 0, "buf.base")?.into_pointer_value();
+                    let i = self.index_i64(idx)?;
+                    let offset = cx.builder.build_int_mul(i, cx.word(stride as u64), "elem.off")?;
+                    // SAFETY: MIR guards every index with a `Len` comparison and `Abort(Bounds)`.
+                    ptr = unsafe { cx.builder.build_gep(cx.context.i8_type(), base, &[offset], "elem")? };
+                    ty = elem;
+                }
                 _ => unreachable!("filtered by supported"),
             }
         }
         Ok((ptr, ty))
+    }
+
+    /// An index operand as the `i32` HIR indexes with, sign-extended to `i64`.
+    fn index_i64(&self, op: &Operand) -> Result<inkwell::values::IntValue<'ctx>, Diagnostic> {
+        let cx = self.cx;
+        let i32_ty = cx.i32_ty();
+        let idx = self.int_as(self.operand(op, i32_ty)?, i32_ty)?;
+        Ok(cx.builder.build_int_s_extend(idx, cx.context.i64_type(), "idx")?)
     }
 
     /// The object pointer inside the `{arena, object}` handle stored at `slot`.
@@ -521,6 +734,25 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let (size, align) = (i64.const_int(layout.size, false), i64.const_int(layout.align, false));
                 self.alloc_handle(dst, arena, size, align, Some((layout.variants[*variant as usize], *variant)))?;
             }
+            StmtKind::Alloc { dst, kind: AllocKind::Vec { cap }, arena } => {
+                let arena = self.arena_ref(arena, stmt.region)?;
+                let elem = plain_vec(cx, self.body.local(dst.local).expect("checked").ty).expect("checked vec");
+                let cap = match cap {
+                    Some(c) => Some(self.int_as(self.operand(c, cx.i32_ty())?, cx.i32_ty())?.into()),
+                    None => None,
+                };
+                let header = cx.vec_new(self.llvm_fn, arena, elem, cap)?;
+                self.store(dst, header.into())?;
+            }
+            StmtKind::VecOp { dst, op, receiver, args } => {
+                let rty = self.op_ty(receiver).expect("checked");
+                let elem = plain_vec(cx, rty).expect("checked vec");
+                let header = self.operand(receiver, rty)?.into_pointer_value();
+                let result = self.vec_op(*op, header, elem, args)?;
+                if let (Some(d), Some(v)) = (dst, result) {
+                    self.store(d, v)?;
+                }
+            }
             StmtKind::Alloc { dst, kind: AllocKind::Object { class }, arena } => {
                 let arena = self.arena_ref(arena, stmt.region)?;
                 let record = cx.record_type(class).expect("checked record");
@@ -542,6 +774,23 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                         let int = self.int_as(v, from)?;
                         let target = cx.int_type(*to).expect("checked integer cast");
                         cx.builder.build_int_cast_sign_flag(int, target, !is_unsigned(&cx.tcx, from), "cast")?.into()
+                    }
+                    Rvalue::Len(p) => {
+                        let (ptr, _) = self.place_ptr(p)?;
+                        let desc = cx.builder.build_load(cx.buffer_descriptor_type(), ptr, "buf")?.into_struct_value();
+                        let len = cx.builder.build_extract_value(desc, 1, "buf.len")?.into_int_value();
+                        cx.builder.build_int_cast_sign_flag(len, cx.int_type(dty).expect("checked length type"), true, "len")?.into()
+                    }
+                    Rvalue::Slice { base, lo, .. } => {
+                        // As `emit_slice_values`: no runtime check of `lo`/`hi`; the length is part of the type.
+                        let bty = self.op_ty(base).expect("checked slice base");
+                        let desc = self.operand(base, bty)?.into_struct_value();
+                        let ptr = cx.builder.build_extract_value(desc, 0, "slice.src")?.into_pointer_value();
+                        let (_, stride, _) = cx.elem_storage(plain_array(cx, dty).expect("checked slice type"))?;
+                        let offset = cx.builder.build_int_mul(self.index_i64(lo)?, cx.word(stride as u64), "off")?;
+                        let new_base = unsafe { cx.builder.build_gep(cx.context.i8_type(), ptr, &[offset], "slice.base")? };
+                        let new_len = cx.tcx.array_len(dty).expect("checked slice length");
+                        cx.descriptor(new_base, cx.word(u64::from(new_len))).into()
                     }
                     _ => unreachable!("filtered by supported"),
                 };
@@ -567,6 +816,49 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 cx.builder.build_store(self.region_slots[region], next)?;
             }
             StmtKind::StorageLive(_) | StmtKind::StorageDead(_) => {}
+            StmtKind::Alloc { dst, kind: AllocKind::Array, arena } => {
+                let arena = self.arena_ref(arena, stmt.region)?;
+                let ty = self.body.local(dst.local).expect("checked").ty;
+                let elem = plain_array(cx, ty).expect("checked array");
+                let (_, stride, align) = cx.elem_storage(elem)?;
+                let len = u64::from(cx.tcx.array_len(ty).expect("checked array length"));
+                let base = cx.arena_alloc(arena, cx.word(len * stride as u64), align)?;
+                self.store(dst, cx.descriptor(base, cx.word(len)).into())?;
+            }
+            StmtKind::CopyInto { dst, src, arena } => {
+                let arena = self.arena_ref(arena, stmt.region)?;
+                let (ptr, ty) = self.place_ptr(src)?;
+                let value = cx.builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "copy.src")?;
+                let copied = cx.copy_value_into(self.llvm_fn, arena, ty, value)?;
+                self.store(dst, copied)?;
+            }
+            StmtKind::Intrinsic { op: op @ (IntrinsicOp::PrintStr | IntrinsicOp::PrintlnStr), args, .. } => {
+                let desc = self.operand(&args[0], cx.i32_ty())?.into_struct_value();
+                let bytes = cx.builder.build_extract_value(desc, 0, "print.ptr")?;
+                let len = cx.builder.build_extract_value(desc, 1, "print.len")?;
+                cx.builder.build_call(cx.print_str_fn(*op == IntrinsicOp::PrintlnStr), &[bytes.into(), len.into()], "")?;
+            }
+            StmtKind::Intrinsic { dst: Some(d), op: IntrinsicOp::StringEq, args, .. } => {
+                let (l, r) = (self.operand(&args[0], cx.i32_ty())?.into_struct_value(), self.operand(&args[1], cx.i32_ty())?.into_struct_value());
+                let equal = cx.string_equal(l, r)?;
+                self.store(d, equal.into())?;
+            }
+            StmtKind::Intrinsic { dst: Some(d), op: IntrinsicOp::Concat, args, arena: Some(arena) } => {
+                let arena = self.arena_ref(arena, stmt.region)?;
+                let (l, r) = (self.operand(&args[0], cx.i32_ty())?.into_struct_value(), self.operand(&args[1], cx.i32_ty())?.into_struct_value());
+                let out = cx.concat_into(arena, l, r)?;
+                self.store(d, out.into())?;
+            }
+            StmtKind::Intrinsic { dst: Some(d), op: IntrinsicOp::StringFromUtf8, args, arena: Some(arena) } => {
+                let arena = self.arena_ref(arena, stmt.region)?;
+                let bty = self.op_ty(&args[0]).expect("checked buffer");
+                let buffer = self.operand(&args[0], bty)?.into_struct_value();
+                let i32_ty = cx.i32_ty();
+                let (start, count) = (self.int_as(self.operand(&args[1], i32_ty)?, i32_ty)?, self.int_as(self.operand(&args[2], i32_ty)?, i32_ty)?);
+                let dty = self.body.local(d.local).expect("checked").ty;
+                let out = cx.string_from_utf8(self.llvm_fn, arena, buffer, start, count, dty)?;
+                self.store(d, out.into())?;
+            }
             StmtKind::Intrinsic { op, args, .. } => {
                 let ty = self.op_ty(&args[0]).unwrap_or_else(|| cx.i32_ty());
                 let int = self.operand(&args[0], ty)?.into_int_value();
@@ -582,6 +874,45 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             _ => unreachable!("filtered by supported"),
         }
         Ok(())
+    }
+
+    /// Built-in `Vec` method on a scalar-element vector; mirrors `FnEmitter::emit_vec_op`.
+    fn vec_op(&self, op: VecOp, header: PointerValue<'ctx>, elem: TyId, args: &[Operand]) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
+        let cx = self.cx;
+        let i32_ty = cx.i32_ty();
+        let (llvm_elem, stride, _) = cx.elem_storage(elem)?;
+        // Bounds-checked address of element `args[0]`.
+        let slot = || -> Result<PointerValue<'ctx>, Diagnostic> {
+            let idx = self.int_as(self.operand(&args[0], i32_ty)?, i32_ty)?;
+            let idx = cx.builder.build_int_s_extend(idx, cx.context.i64_type(), "vec.idx")?;
+            cx.guard_index(self.llvm_fn, idx, cx.vec_load_word(header, vec::LEN)?)?;
+            cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, idx, stride)
+        };
+        Ok(match op {
+            VecOp::Len | VecOp::Capacity => {
+                let count = cx.vec_load_word(header, if op == VecOp::Len { vec::LEN } else { vec::CAP })?;
+                Some(cx.builder.build_int_truncate(count, cx.context.i32_type(), "vec.count")?.into())
+            }
+            VecOp::Get => Some(cx.builder.build_load(llvm_elem, slot()?, "vec.get")?),
+            VecOp::Set => {
+                let slot = slot()?;
+                cx.builder.build_store(slot, self.operand(&args[1], elem)?)?;
+                None
+            }
+            VecOp::Push => {
+                cx.vec_reserve_one(self.llvm_fn, header, elem)?;
+                let len = cx.vec_load_word(header, vec::LEN)?;
+                let slot = cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, len, stride)?;
+                cx.builder.build_store(slot, self.operand(&args[0], elem)?)?;
+                cx.vec_store(header, vec::LEN, cx.builder.build_int_add(len, cx.word(1), "vec.len.new")?)?;
+                None
+            }
+            VecOp::Clear => {
+                cx.vec_store(header, vec::LEN, cx.word(0))?;
+                None
+            }
+            VecOp::Pop => unreachable!("filtered by supported"),
+        })
     }
 
     fn binary(&self, op: &BinOp, a: &Operand, b: &Operand, dty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
@@ -651,12 +982,11 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let arms: Vec<_> = cases.iter().map(|(c, b)| (v.get_type().const_int(*c as u64, true), self.blocks[b.0 as usize])).collect();
                 builder.build_switch(v, self.blocks[otherwise.0 as usize], &arms)?;
             }
-            TermKind::Call { callee, args, dest, target, .. } => {
+            TermKind::Call { callee, args, dest, target, hidden, .. } => {
                 let (callee_fn, function) = self.callees[callee.as_str()];
-                let abi = CallAbi::of(cx, function);
                 let mut call_args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
-                if abi.hidden_len() > 0 {
-                    call_args.push(self.arena_of(term.region)?.into());
+                for h in hidden {
+                    call_args.push(self.arena_ref(h, term.region)?.into());
                 }
                 for (a, p) in args.iter().zip(&function.params) {
                     let v = self.operand(a, p.ty)?;
@@ -690,8 +1020,9 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 builder.build_unreachable()?;
             }
             TermKind::Match { scrutinee, arms } => {
-                let name = plain_enum(cx, self.body.locals[scrutinee.local.0 as usize].ty).expect("checked plain enum");
-                let object = self.object_ptr(self.slots[&scrutinee.local])?;
+                let (slot, sty) = self.place_ptr(scrutinee)?;
+                let name = plain_enum(cx, sty).expect("checked plain enum");
+                let object = self.object_ptr(slot)?;
                 let first = cx.enum_layout(&name).expect("checked layout").variants[0];
                 let tag_ptr = builder.build_struct_gep(first, object, 0, "enum.tag")?;
                 let tag = builder.build_load(cx.context.i32_type(), tag_ptr, "tag")?.into_int_value();
@@ -699,8 +1030,13 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     let bind = cx.context.append_basic_block(self.llvm_fn, "arm");
                     let next = cx.context.append_basic_block(self.llvm_fn, "arm.next");
                     match &arm.pat {
-                        MirPat::Variant { index, .. } => {
-                            let hit = builder.build_int_compare(IntPredicate::EQ, tag, cx.context.i32_type().const_int(u64::from(*index), false), "arm.hit")?;
+                        MirPat::Variant { .. } | MirPat::Some(_) | MirPat::None => {
+                            let index = match &arm.pat {
+                                MirPat::Variant { index, .. } => *index,
+                                MirPat::Some(_) => cx.enum_variant(&name, "Some").expect("prelude Some").1,
+                                _ => cx.enum_variant(&name, "None").expect("prelude None").1,
+                            };
+                            let hit = builder.build_int_compare(IntPredicate::EQ, tag, cx.context.i32_type().const_int(u64::from(index), false), "arm.hit")?;
                             builder.build_conditional_branch(hit, bind, next)?;
                         }
                         _ => {
@@ -710,7 +1046,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     cx.position_at_end(bind);
                     for (l, src) in &arm.bindings {
                         let (ptr, ty) = self.place_ptr(src)?;
-                        let v = builder.build_load(cx.basic_type(ty).expect("checked scalar"), ptr, "bound")?;
+                        let v = builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "bound")?;
                         self.store(&Place::local(*l), v)?;
                     }
                     builder.build_unconditional_branch(self.blocks[arm.target.0 as usize])?;

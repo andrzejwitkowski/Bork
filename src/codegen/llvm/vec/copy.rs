@@ -21,15 +21,15 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let elem_ty = self.cx.tcx.vec_elem(vec_ty)
             .ok_or_else(|| not_yet_supported("vector copy type", None))?;
         let arena = self.sink_arena();
-        let len = self.vec_load_word(source, LEN)?;
-        let header = self.vec_alloc(arena, elem_ty, Some(len))?;
+        let len = self.cx.vec_load_word(source, LEN)?;
+        let header = self.cx.vec_alloc(self.llvm_fn, arena, elem_ty, Some(len))?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let from = self.vec_load_ptr(source, BUF)?;
-        let to = self.vec_load_ptr(header, BUF)?;
+        let from = self.cx.vec_load_ptr(source, BUF)?;
+        let to = self.cx.vec_load_ptr(header, BUF)?;
         // `vec_alloc` left `to` null for an empty source; the loop below never runs then.
         self.vec_counted_loop(len, |this, i| {
-            let src_slot = this.vec_slot(from, i, stride)?;
-            let dst_slot = this.vec_slot(to, i, stride)?;
+            let src_slot = this.cx.vec_slot(from, i, stride)?;
+            let dst_slot = this.cx.vec_slot(to, i, stride)?;
             let loaded = this.cx.builder.build_load(llvm_elem, src_slot, "vec.copy")?;
             let value = if self.cx.tcx.is_handle_clone(elem_ty) {
                 this.clone_ref(loaded)?
@@ -38,7 +38,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             };
             this.vec_store_elem(dst_slot, arena, elem_ty, value, true)
         })?;
-        self.vec_store(header, LEN, len)?;
+        self.cx.vec_store(header, LEN, len)?;
         self.cx.debug_copy_origin(source, header)?;
         self.cx.debug_copy_origin(from, to)?;
         Ok(header)

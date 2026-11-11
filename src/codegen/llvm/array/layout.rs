@@ -5,20 +5,13 @@ use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
 use crate::diag::Diagnostic;
 use crate::ty::TyId;
 
+use super::super::context::Codegen;
 use super::super::emit_fn::FnEmitter;
 use super::super::not_yet_supported;
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub(super) fn descriptor(&self, ptr: PointerValue<'ctx>, len: IntValue<'ctx>) -> StructValue<'ctx> {
-        let builder = &self.cx.builder;
-        let empty = self.cx.buffer_descriptor_type().const_named_struct(&[]);
-        let value = builder
-            .build_insert_value(empty, ptr, 0, "desc.ptr")
-            .expect("descriptor ptr");
-        builder
-            .build_insert_value(value, len, 1, "desc.len")
-            .expect("descriptor len")
-            .into_struct_value()
+        self.cx.descriptor(ptr, len)
     }
 
     pub(super) fn descriptor_parts(
@@ -39,12 +32,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &self,
         elem_ty: TyId,
     ) -> Result<(inkwell::types::BasicTypeEnum<'ctx>, usize, usize), Diagnostic> {
-        let llvm = self
-            .cx
-            .basic_type(elem_ty)
-            .ok_or_else(|| not_yet_supported(&format!("array element `{}`", self.cx.tcx.display(elem_ty)), None))?;
-        let (size, align) = array_elem_layout(self.cx, elem_ty)?;
-        Ok((llvm, size, align))
+        self.cx.elem_storage(elem_ty)
     }
 
     pub(super) fn elem_ptr(
@@ -123,4 +111,17 @@ pub(super) fn builder_load<'ctx>(
     ptr: PointerValue<'ctx>,
 ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
     Ok(emitter.cx.builder.build_load(ty, ptr, "load")?)
+}
+
+impl<'ctx> Codegen<'ctx> {
+    pub(in crate::codegen::llvm) fn elem_storage(
+        &self,
+        elem_ty: TyId,
+    ) -> Result<(inkwell::types::BasicTypeEnum<'ctx>, usize, usize), Diagnostic> {
+        let llvm = self
+            .basic_type(elem_ty)
+            .ok_or_else(|| not_yet_supported(&format!("array element `{}`", self.tcx.display(elem_ty)), None))?;
+        let (size, align) = array_elem_layout(self, elem_ty)?;
+        Ok((llvm, size, align))
+    }
 }

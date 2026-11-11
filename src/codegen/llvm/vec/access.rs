@@ -45,7 +45,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             self.cx.context.i64_type(),
             "vec.idx",
         )?;
-        let len = self.vec_load_word(header, LEN)?;
+        let len = self.cx.vec_load_word(header, LEN)?;
         self.guard_index(idx, len, span)?;
         Ok(idx)
     }
@@ -61,8 +61,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let header = receiver.into_pointer_value();
         let idx = self.vec_check_index(header, index, span)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let buf = self.vec_load_ptr(header, BUF)?;
-        let slot = self.vec_slot(buf, idx, stride)?;
+        let buf = self.cx.vec_load_ptr(header, BUF)?;
+        let slot = self.cx.vec_slot(buf, idx, stride)?;
         let loaded = self.cx.builder.build_load(llvm_elem, slot, "vec.get")?;
         if self.cx.tcx.is_handle_clone(elem_ty) {
             self.clone_ref(loaded)
@@ -105,9 +105,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     ) -> Result<(), Diagnostic> {
         let idx = self.vec_check_index(header, index, span)?;
         let (_, stride, _) = self.elem_storage(elem_ty)?;
-        let buf = self.vec_load_ptr(header, BUF)?;
-        let slot = self.vec_slot(buf, idx, stride)?;
-        let arena = self.vec_load_ptr(header, ARENA)?;
+        let buf = self.cx.vec_load_ptr(header, BUF)?;
+        let slot = self.cx.vec_slot(buf, idx, stride)?;
+        let arena = self.cx.vec_load_ptr(header, ARENA)?;
         self.vec_store_elem(slot, arena, elem_ty, value, false)
     }
 }
