@@ -1,32 +1,35 @@
 == constants/method_and_shadow.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
-  let _1: unit [Hidden(DynamicArena)]
-  let _2: Counter [Temp]
-  let _3: Counter [Val] c
-  let _4: &Counter [Temp]
-  let _5: i32 [Temp]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Counter [Temp]
+  let _4: Counter [Val] c
+  let _5: &Counter [Temp]
   let _6: i32 [Temp]
   let _7: i32 [Temp]
   let _8: i32 [Temp]
   let _9: i32 [Temp]
+  let _10: i32 [Temp]
   region r0 Block
   bb0:
+    storage_live _1
     region_enter r0
-    _1 = arena_create_dynamic parent=root scoped=false
-    register_strong_root current <- _1
-    _2 = alloc Object { class: "Counter" } in fresh1
-    _2.0 = 2
-    _3 = copy _2  // label "c": Counter decl
-    _4 = borrow _3
-    _5 = call Counter.bump(copy _4) +current -> bb1
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Counter" } in fresh2  // label "Counter": Counter
+    _3.0 = 2  // label "Counter.n": i32 decl owner=fresh2
+    _4 = copy _3  // label "c": Counter decl
+    _5 = borrow _4
+    _6 = call Counter.bump(copy _5) +current -> bb1
   bb1:
-    _6 = call shadow(0) +current -> bb2
+    _7 = call shadow(0) +current -> bb2
   bb2:
-    _7 = add(copy _5, copy _6)
-    _8 = add(copy _7, 5)
-    _9 = sub(copy _8, 0)
-    _0 = copy _9
+    _8 = add(copy _6, copy _7)
+    _9 = add(copy _8, 5)
+    _10 = sub(copy _9, 0)
+    _0 = copy _10
+    storage_dead _1
     region_exit r0
     return
 }
@@ -34,12 +37,15 @@ fn main (parent=false, sink=false) {
 fn Counter.bump (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: &Counter [Arg] this
-  let _2: i32 [Temp]
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
   region r0 Block
   bb0:
+    storage_live _2
     region_enter r0
-    _2 = add(copy _1.0, 5)
-    _0 = copy _2
+    _3 = add(copy _1.0, 5)
+    _0 = copy _3
+    storage_dead _2
     region_exit r0
     return
 }
@@ -47,10 +53,13 @@ fn Counter.bump (parent=true, sink=false) {
 fn shadow (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: i32 [Arg] STEP
+  let _2: unit [Hidden(DebugScope)]
   region r0 Block
   bb0:
+    storage_live _2
     region_enter r0
     _0 = copy _1
+    storage_dead _2
     region_exit r0
     return
 }
@@ -58,45 +67,52 @@ fn shadow (parent=true, sink=false) {
 == constants/string_and_scalars.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
-  let _1: String [Temp]
-  let _2: String [Val] a
-  let _3: String [Val] b
-  let _4: bool [Temp]
-  let _5: i32 [Temp]
-  let _6: i32 [Temp]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: String [Temp]
+  let _3: String [Val] a
+  let _4: String [Val] b
+  let _5: bool [Temp]
+  let _6: unit [Hidden(DebugScope)]
   let _7: i32 [Temp]
-  let _8: String [Temp]
-  let _9: &String [Temp]
-  let _10: i32 [Temp]
-  let _11: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Temp]
+  let _10: String [Temp]
+  let _11: &String [Temp]
   let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
   region r0 Block
   region r1 IfThen in r0
   bb0:
+    storage_live _1
     region_enter r0
-    _1 = call status() +current +current -> bb1
+    _2 = call status() +current +current -> bb1
   bb1:
-    _2 = copy _1  // label "a": String decl
-    _3 = "HTTP OK"  // label "b": String decl
+    _3 = copy _2  // label "a": String decl
+    _4 = "HTTP OK"  // label "b": String decl
     intrinsic PrintlnStr("HTTP OK")
-    _4 = gt(8080, 8000)
-    switch copy _4 [ 1 -> bb2, else -> bb3]
+    _5 = gt(8080, 8000)
+    switch copy _5 [ 1 -> bb2, else -> bb3]
   bb2:
     region_enter r1
-    _5 = len(_2)
-    _6 = len(_3)
-    _7 = add(copy _5, copy _6)
-    _8 = "HTTP OK"
-    _9 = borrow _8
-    _10 = call len(copy _9) +current -> bb4
+    storage_live _6
+    _7 = len(_3)
+    _8 = len(_4)
+    _9 = add(copy _7, copy _8)
+    _10 = "HTTP OK"
+    _11 = borrow _10
+    _12 = call len(copy _11) +current -> bb4
   bb3:
     _0 = 0
+    storage_dead _1
     region_exit r0
     return
   bb4:
-    _11 = add(copy _7, copy _10)
-    _12 = sub(copy _11, 7)
-    _0 = copy _12
+    _13 = add(copy _9, copy _12)
+    _14 = sub(copy _13, 7)
+    _0 = copy _14
+    storage_dead _6
+    storage_dead _1
     region_exit r1
     region_exit r0
     return
@@ -104,14 +120,17 @@ fn main (parent=false, sink=false) {
 
 fn status (parent=true, sink=true) {
   let _0: String [Return]
-  let _1: String [Temp]
+  let _1: unit [Hidden(DebugScope)]
   let _2: String [Temp]
+  let _3: String [Temp]
   region r0 Block
   bb0:
+    storage_live _1
     region_enter r0
-    _1 = "HTTP OK"
-    _2 = copy_into _1 in result_sink
-    _0 = copy _2
+    _2 = "HTTP OK"
+    _3 = copy_into _2 in result_sink
+    _0 = copy _3
+    storage_dead _1
     region_exit r0
     return
 }
@@ -119,12 +138,15 @@ fn status (parent=true, sink=true) {
 fn len (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: &String [Arg] s
-  let _2: i32 [Temp]
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
   region r0 Block
   bb0:
+    storage_live _2
     region_enter r0
-    _2 = len(_1)
-    _0 = copy _2
+    _3 = len(_1)
+    _0 = copy _3
+    storage_dead _2
     region_exit r0
     return
 }

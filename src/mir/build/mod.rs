@@ -114,6 +114,8 @@ pub(super) struct FnBuilder<'a> {
     regions: Vec<RegionInfo>,
     open: Vec<Open>,
     loops: Vec<LoopCtx>,
+    /// Open debug scopes (`open.len()` before the region they belong to was pushed, scope local), outermost first.
+    dscopes: Vec<(usize, Local)>,
     scopes: Vec<HashMap<String, Local>>,
     /// Names bound to a `unit` payload: no local exists, so reading one is the `unit-payload-bind` capability gap.
     pub(super) unit_binds: std::collections::HashSet<String>,
@@ -148,6 +150,7 @@ impl<'a> FnBuilder<'a> {
             regions: Vec::new(),
             open: Vec::new(),
             loops: Vec::new(),
+            dscopes: Vec::new(),
             scopes: vec![HashMap::new()],
             unit_binds: Default::default(),
             cursors: vec![(root, 0)],
@@ -169,6 +172,7 @@ impl<'a> FnBuilder<'a> {
         }
         let span = function.name_span;
         self.regions.push(RegionInfo { parent: None, site: RegionSite::Block, arena: self.cursors[0].0.id });
+        self.scope_enter(0, span, None);
         self.open.push(Open { id: RegionId(0), pushed: true });
         self.stmt(StmtKind::RegionEnter(RegionId(0)), span, None);
         for (local, param) in (1u32..).map(Local).zip(&function.params) {
@@ -324,7 +328,10 @@ impl<'a> FnBuilder<'a> {
                 None => self.stmt(StmtKind::RegionEnter(id), span, None),
             }
         }
+        let depth = self.open.len();
         self.open.push(Open { id, pushed });
+        // HIR emitter order: the region is pushed, then its debug scope is entered.
+        self.scope_enter(depth, span, enter_in);
         self.cursors.push((child, 0));
         self.scopes.push(HashMap::new());
         Ok((peeled, id, pushed))
@@ -337,6 +344,7 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::Internal(format!("region `{}` left {} children unconsumed", node.label, node.children.len() - next)));
         }
         self.scopes.pop();
+        self.scope_exit(span);
         let open = self.open.pop().expect("open region");
         if open.pushed && !self.terminated() {
             self.stmt(StmtKind::RegionExit(open.id), span, None);
@@ -347,9 +355,40 @@ impl<'a> FnBuilder<'a> {
     /// `RegionExit` for every pushed region above `depth`, innermost first, without closing them:
     /// `return`, `break` and `continue` leave regions on the way out only.
     pub(super) fn exit_to(&mut self, depth: usize, span: Span) {
+        // Debug scopes are left before any region, innermost first (as the HIR emitter's unwind does).
+        let dead: Vec<Local> = self.dscopes.iter().rev().take_while(|(d, _)| *d >= depth).map(|(_, l)| *l).collect();
+        for l in dead {
+            self.stmt(StmtKind::StorageDead(l), span, None);
+        }
         let ids: Vec<RegionId> = self.open[depth..].iter().rev().filter(|o| o.pushed).map(|o| o.id).collect();
         for id in ids {
             self.stmt(StmtKind::RegionExit(id), span, None);
+        }
+    }
+
+    fn new_scope_local(&mut self, depth: usize) -> Local {
+        let l = self.new_local(self.unit, LocalKind::Hidden(HiddenKind::DebugScope), None);
+        self.dscopes.push((depth, l));
+        l
+    }
+
+    /// Opens a debug scope; `in_block` is where a `while` enters its region (not the current block).
+    pub(super) fn scope_enter(&mut self, depth: usize, span: Span, in_block: Option<BlockId>) {
+        let l = self.new_scope_local(depth);
+        match in_block {
+            Some(b) => {
+                let region = self.cur_region();
+                self.blocks[b.0 as usize].stmts.push(Statement { span, node: None, kind: StmtKind::StorageLive(l), debug: None, region });
+            }
+            None => self.stmt(StmtKind::StorageLive(l), span, None),
+        }
+    }
+
+    /// Leaves the innermost debug scope; nothing is emitted when the block already ended.
+    pub(super) fn scope_exit(&mut self, span: Span) {
+        let (_, l) = self.dscopes.pop().expect("open debug scope");
+        if !self.terminated() {
+            self.stmt(StmtKind::StorageDead(l), span, None);
         }
     }
 

@@ -103,7 +103,9 @@ impl<'a> FnBuilder<'a> {
             slot.proj.push(Proj::Deref);
         }
         slot.proj.push(Proj::Field(field_index as u32));
-        self.store_owned(slot, v, ty, &arena, false, span)
+        // The HIR emitter labels a plain field it overwrites, not a `Ref` slot.
+        let named = (!self.tcx.is_managed_ref(ty)).then(|| (format!("{}.{}", class.name, class.fields[field_index].name), &class.fields[field_index]));
+        self.store_owned(slot, v, ty, &arena, false, span, named)
     }
 
     fn ret_local(&self) -> Local {
@@ -150,7 +152,9 @@ impl<'a> FnBuilder<'a> {
         let hi_tmp = self.temp(rhs.ty);
         self.stmt(StmtKind::Assign(Place::local(hi_tmp), Rvalue::Use(hi)), span, None);
         let var = self.new_local(lhs.ty, LocalKind::Var, Some(name.to_string()));
-        self.stmt(StmtKind::Assign(Place::local(var), Rvalue::Use(lo)), span, None);
+        // The HIR emitter declares the counter like any other local.
+        let label = DebugLabel { name: name.to_string(), ty: lhs.ty, span, source: self.function.source, declaration: true, argument: None, owner: None, index: None };
+        self.stmt_with(StmtKind::Assign(Place::local(var), Rvalue::Use(lo)), span, None, Some(label));
         self.declare(name, var);
         let (peeled, region, pushed) = self.enter_region(RegionSite::For, body, false, None, span)?;
         let header = self.new_block();
@@ -185,7 +189,10 @@ impl<'a> FnBuilder<'a> {
         let arena = pushed.then(|| self.new_local(self.unit, LocalKind::Hidden(HiddenKind::RegionArena), None));
         self.push_loop(exit, latch);
         self.cur = body_b;
+        // The per-iteration scope of the HIR emitter's `for`/`while` body (emit_fn.rs).
+        self.scope_enter(self.open_depth(), span, None);
         self.stmts(body)?;
+        self.scope_exit(span);
         self.goto(latch, span);
         self.pop_loop();
         self.cur = latch;

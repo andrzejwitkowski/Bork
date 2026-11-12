@@ -29,8 +29,9 @@ pub fn build(checked: &CheckResult, output: &Path) -> Result<(), BuildError> {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BuildOptions {
     pub debug: bool,
-    /// Lower the functions MIR covers (RFC 0006 M5a); the rest stays on the HIR emitter. Ignored with `debug`.
-    pub mir_backend: bool,
+    /// Use the HIR emitter for everything. By default MIR lowers the functions it covers (RFC 0006 M5e)
+    /// and the rest stays on the HIR emitter; this fallback goes away with M6 (#67).
+    pub hir_backend: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,31 +78,32 @@ fn emit_checked<'ctx>(
         }
     }
 
+    let bodies = if !options.hir_backend {
+        let bodies = crate::mir::build::build_function_results(&mono, &tcx).map_err(|e| BuildError::Toolchain(format!("MIR: {e:?}")))?;
+        // `Unsupported`/`Unlowered` fall back to the HIR emitter; `Internal` is a compiler bug and must surface.
+        Some(
+            bodies
+                .into_iter()
+                .map(|r| match r {
+                    Ok(body) => Ok(Some(body)),
+                    Err(crate::mir::build::BuildError::Internal(msg)) => Err(BuildError::Toolchain(format!("MIR: {msg}"))),
+                    Err(_) => Ok(None),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    } else {
+        None
+    };
     if options.debug {
         let source = source.ok_or_else(|| {
             BuildError::Toolchain("debug builds require source path and text".into())
         })?;
-        llvm::emit_module_with_debug(
-            context,
-            hir,
-            &tcx,
-            report,
-            memory_plan.clone(),
-            source.text,
-            source.path,
-        )
-    } else if options.mir_backend {
-        let bodies = crate::mir::build::build_function_results(&mono, &tcx).map_err(|e| BuildError::Toolchain(format!("MIR: {e:?}")))?;
-        // `Unsupported`/`Unlowered` fall back to the HIR emitter; `Internal` is a compiler bug and must surface.
-        let bodies = bodies
-            .into_iter()
-            .map(|r| match r {
-                Ok(body) => Ok(Some(body)),
-                Err(crate::mir::build::BuildError::Internal(msg)) => Err(BuildError::Toolchain(format!("MIR: {msg}"))),
-                Err(_) => Ok(None),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        llvm::emit_module_mir(context, hir, &tcx, report, memory_plan.clone(), &bodies)
+        match &bodies {
+            Some(bodies) => llvm::emit_module_with_debug_mir(context, hir, &tcx, report, memory_plan.clone(), source.text, source.path, bodies),
+            None => llvm::emit_module_with_debug(context, hir, &tcx, report, memory_plan.clone(), source.text, source.path),
+        }
+    } else if let Some(bodies) = &bodies {
+        llvm::emit_module_mir(context, hir, &tcx, report, memory_plan.clone(), bodies)
     } else {
         llvm::emit_module(context, hir, &tcx, report, memory_plan.clone())
     }
@@ -111,8 +113,14 @@ fn emit_checked<'ctx>(
 /// LLVM IR text of the checked program, for tests that compare backends.
 #[doc(hidden)]
 pub fn emit_ir(checked: &CheckResult, options: BuildOptions) -> Result<String, BuildError> {
+    emit_ir_with_source(checked, options, None)
+}
+
+/// As [`emit_ir`], with the source context `-g` builds require.
+#[doc(hidden)]
+pub fn emit_ir_with_source(checked: &CheckResult, options: BuildOptions, source: Option<SourceContext<'_>>) -> Result<String, BuildError> {
     let context = Context::create();
-    let module = emit_checked(&context, checked, options, None)?;
+    let module = emit_checked(&context, checked, options, source)?;
     // The HIR emitter leaves pops in dead blocks; only the reachable calls are comparable.
     let machine = llvm::native_target_machine().map_err(BuildError::Toolchain)?;
     module

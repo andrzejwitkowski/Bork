@@ -1,4 +1,4 @@
-//! `--mir-backend` against the HIR emitter on `programs/build` (RFC 0006 M5a, #222): the same region
+//! The default MIR backend against `--hir-backend` on `programs/build` (RFC 0006 M5a, #222): the same region
 //! runtime calls and the same program behaviour wherever MIR lowers a function.
 #![cfg(feature = "codegen")]
 
@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use bork::codegen::{emit_ir, BuildOptions};
+use bork::codegen::{emit_ir, emit_ir_with_source, BuildOptions, SourceContext};
 use bork::frontend::check;
 
 /// Keeps a regressed MIR backend (one that lowers almost nothing) from passing.
@@ -47,10 +47,17 @@ fn protocol_calls(ir: &str) -> Vec<usize> {
 }
 
 fn run(source: &Path, out: &Path, mir: bool) -> (i32, String) {
+    run_with(source, out, mir, false)
+}
+
+fn run_with(source: &Path, out: &Path, mir: bool, debug: bool) -> (i32, String) {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_bork"));
     cmd.arg("build");
-    if mir {
-        cmd.arg("--mir-backend");
+    if debug {
+        cmd.arg("-g");
+    }
+    if !mir {
+        cmd.arg("--hir-backend");
     }
     let build = cmd.arg("-o").arg(out).arg(source).output().expect("spawn bork build");
     assert!(build.status.success(), "{} failed to build (mir={mir}):\n{}", source.display(), String::from_utf8_lossy(&build.stderr));
@@ -70,10 +77,10 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
     let (mut lowered, mut compared) = (0, 0);
     for file in files {
         let result = check(&fs::read_to_string(&file).unwrap());
-        let Ok(hir) = emit_ir(&result, BuildOptions::default()) else {
+        let Ok(hir) = emit_ir(&result, BuildOptions { debug: false, hir_backend: true }) else {
             continue; // not buildable (gate); `tests/programs.rs` owns that
         };
-        let mir = emit_ir(&result, BuildOptions { debug: false, mir_backend: true })
+        let mir = emit_ir(&result, BuildOptions { debug: false, hir_backend: false })
             .unwrap_or_else(|e| panic!("MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
         compared += 1;
         assert_eq!(region_calls(&hir), region_calls(&mir), "push/push_child/pop/reset counts differ for {}", file.display());
@@ -88,4 +95,79 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
     }
     eprintln!("mir-backend: {lowered} of {compared} programs have lowered functions");
     assert!(lowered >= MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS, "only {lowered} programs use the MIR backend");
+}
+
+/// `bork_debug_*` runtime calls per function, sorted: the two backends create basic blocks in a
+/// different order, so only the multiset of calls in each function is comparable (M5e, #226 oracle).
+fn debug_calls(ir: &str) -> Vec<Vec<String>> {
+    ir.split("\ndefine ")
+        .skip(1)
+        .map(|function| {
+            let mut calls: Vec<String> = function
+                .lines()
+                .take_while(|l| *l != "}")
+                .filter(|l| l.contains("call ") && l.contains("@bork_debug_"))
+                .map(|l| l.split('@').nth(1).unwrap_or("").split('(').next().unwrap_or("").to_string())
+                // Assertions, not registry contents: HIR re-checks the handle once per `when` arm, MIR reads the tag once.
+                // `bork_debug_site` is stamped before every runtime call, and HIR makes calls MIR skips.
+                .filter(|c| !matches!(c.as_str(), "bork_debug_check" | "bork_debug_check_handle" | "bork_debug_site"))
+                .collect();
+            calls.sort();
+            calls
+        })
+        .collect()
+}
+
+/// Calls whose count must match. The rest (allocation labels, copy origins, scope exits) are only checked as
+/// a subset: MIR elides string copies and duplicate cleanup paths the HIR emitter keeps.
+fn exact(call: &str) -> bool {
+    matches!(call, "bork_debug_label_arena" | "bork_debug_register_slot" | "bork_debug_label_slot" | "bork_debug_frame_enter" | "bork_debug_frame_exit" | "bork_debug_scope_enter")
+}
+
+/// `-g` on MIR must produce the registry-defining runtime calls `-g` on HIR does (see [`exact`]) and the same
+/// program behaviour; `lowered` counts programs where MIR emitted at least one function.
+#[test]
+fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("programs/build");
+    let mut files = Vec::new();
+    collect(&root, &mut files);
+    let (mut compared, mut lowered) = (0, 0);
+    for file in files {
+        let text = fs::read_to_string(&file).unwrap();
+        let result = check(&text);
+        let source = || Some(SourceContext { path: &file, text: &text });
+        let Ok(hir) = emit_ir_with_source(&result, BuildOptions { debug: true, hir_backend: true }, source()) else {
+            continue;
+        };
+        let mir = emit_ir_with_source(&result, BuildOptions { debug: true, hir_backend: false }, source())
+            .unwrap_or_else(|e| panic!("-g MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
+        compared += 1;
+        if hir != mir {
+            lowered += 1;
+            let bin = std::env::temp_dir().join(format!("bork-mir-g-{}", std::process::id()));
+            let expected = run_with(&file, &bin, false, true);
+            assert_eq!(run_with(&file, &bin, true, true), expected, "-g output differs for {}", file.display());
+            let _ = fs::remove_file(&bin);
+        }
+        let (h, m) = (debug_calls(&hir), debug_calls(&mir));
+        assert_eq!(h.len(), m.len(), "function count differs for {}", file.display());
+        for (i, (h, m)) in h.iter().zip(&m).enumerate() {
+            let strip = |v: &Vec<String>| -> (Vec<String>, std::collections::BTreeSet<String>) {
+                (v.iter().filter(|c| exact(c)).cloned().collect(), v.iter().filter(|c| !exact(c)).cloned().collect())
+            };
+            // MIR may elide copies (and so their labels) but never invent a kind of registry event.
+            let (sh, sm) = (strip(h), strip(m));
+            // A scope that is entered must still be left, so `scope_exit` is present in both or in neither.
+            let exits = |s: &std::collections::BTreeSet<String>| s.contains("bork_debug_scope_exit");
+            if sh.0 != sm.0 || !sm.1.is_subset(&sh.1) || exits(&sh.1) != exits(&sm.1) {
+                let only = |a: &Vec<String>, b: &Vec<String>| {
+                    let mut rest = b.clone();
+                    a.iter().filter(|c| rest.iter().position(|r| r == *c).map(|i| rest.remove(i)).is_none()).cloned().collect::<Vec<_>>()
+                };
+                panic!("bork_debug_* calls differ in function #{i} of {}: only HIR {:?}, only MIR {:?}", file.display(), only(h, m), only(m, h));
+            }
+        }
+    }
+    eprintln!("-g mir-backend: {lowered} of {compared} programs have lowered functions");
+    assert!(lowered >= MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS, "only {lowered} programs use the MIR backend under -g");
 }
