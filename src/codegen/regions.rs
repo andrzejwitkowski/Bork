@@ -421,7 +421,9 @@ mod tests {
     fn schedule_of(source: &str) -> (Vec<RegionEvent>, ArenaReport) {
         let result = check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let report = result.report.unwrap();
+        let mut report = result.report.unwrap();
+        // `check` no longer stamps the push flags (#245); the HIR schedule under test still reads them.
+        crate::region_walk::stamp_codegen_push(result.hir.as_ref().unwrap(), &result.tcx, &mut report).unwrap();
         let events = schedule(result.hir.as_ref().unwrap(), &result.tcx, &report).expect("schedule");
         (events, report)
     }

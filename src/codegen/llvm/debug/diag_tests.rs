@@ -44,7 +44,7 @@ fn instrumented_ir<'ctx>(context: &'ctx inkwell::context::Context, ir: &[u8]) ->
         &[],
         &[],
         &checked.tcx,
-        checked.memory_plan.unwrap(),
+        Default::default(),
     )
     .unwrap();
     cx.module = context

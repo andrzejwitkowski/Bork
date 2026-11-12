@@ -588,7 +588,6 @@ fn chained_presence_has_one_success_region_and_all_borrows() {
         .iter()
         .all(|b| matches!(b.ownership, Ownership::Borrow { .. })));
     assert!(some.children.is_empty());
-    assert!(some.codegen_push);
 }
 
 #[test]

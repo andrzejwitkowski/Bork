@@ -110,46 +110,21 @@ fn mir_push_flags_equal_codegen_push() {
     assert!(diffs.is_empty(), "{} functions differ:\n{}", diffs.len(), diffs.join("\n"));
 }
 
-/// What would block deleting `memory.rs`: allocations of the frozen `memory_plan.txt` that MIR cannot see because
-/// its program does not lower (`move` of a class object, closures: RFC 0006 3.10). Everything MIR does see agrees.
+/// #245: every `programs/build` sample lowers in MIR, so `plan_instances` never needs the old `memory.rs` path
+/// for a program that can be built (`move-aggregate` and closures only occur in `programs/check`, gate-rejected).
 #[test]
-fn mir_covers_the_check_golden_except_unlowerable_programs() {
-    let files = corpus();
-    let (mut total, mut uncovered, mut wrong) = (0, Vec::new(), Vec::new());
-    for file in files {
+fn every_build_program_lowers_in_mir() {
+    let (mut files, mut failures) = (Vec::new(), Vec::new());
+    collect(&root().join("programs").join("build"), &mut files);
+    files.sort();
+    for file in &files {
         let rel = file.strip_prefix(root()).unwrap().to_string_lossy().to_string();
-        let mut result = check(&fs::read_to_string(&file).unwrap());
-        let old = result.memory_plan.take().unwrap();
+        let mut result = check(&fs::read_to_string(file).unwrap());
         let (hir, report) = (result.hir.take().unwrap(), result.report.take().unwrap());
-        let mut tcx = result.tcx.clone();
-        let derived = match bork::mono::monomorphize_unchecked(&hir, &mut tcx, &report) {
-            Ok(mono) => match build_program(&mono, &tcx) {
-                Ok(b) => Some(derive_memory_plan(&b, &tcx)),
-                Err(_) => None,
-            },
-            Err(_) => None,
-        };
-        for a in &old.allocations {
-            total += 1;
-            let hit: Vec<_> = derived.iter().flat_map(|d| d.allocations.iter()).filter(|d| d.allocation_site == a.allocation_site).collect();
-            if hit.is_empty() {
-                uncovered.push(format!("{rel} {:?} {} {:?} {:?}", a.allocation_site, a.class_name, a.class, a.lifetime_domain));
-            } else if !hit.iter().any(|d| d.class == a.class && d.lifetime_domain == a.lifetime_domain) {
-                wrong.push(format!("{rel} {:?} {} old {:?} {:?} new {:?}", a.allocation_site, a.class_name, a.class, a.lifetime_domain, hit.iter().map(|d| (d.class, d.lifetime_domain)).collect::<Vec<_>>()));
-            }
+        let mono = monomorphize(&hir, &mut result.tcx, &report).unwrap_or_else(|_| panic!("{rel}: mono failed"));
+        if let Err(e) = bork::mir::build::build_program_neutral(&mono, &result.tcx) {
+            failures.push(format!("{rel}: {e:?}"));
         }
     }
-    assert!(total > 800, "only {total} allocations");
-    assert!(wrong.is_empty(), "class or domain differs:\n{}", wrong.join("\n"));
-    let files: Vec<_> = uncovered.iter().map(|u| u.split(' ').next().unwrap()).collect();
-    assert_eq!(
-        files,
-        [
-            "programs/check/conditionals/if_return_move_then_use.bork",
-            "programs/check/managed_refs/chained_val_both_return_move.bork",
-            "programs/check/managed_refs/chained_val_else_moves_owner.bork",
-            "programs/check/methods/trailing_closure.bork",
-        ],
-        "{uncovered:?}"
-    );
+    assert!(failures.is_empty(), "{} build programs do not lower:\n{}", failures.len(), failures.join("\n"));
 }

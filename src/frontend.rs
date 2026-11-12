@@ -2,7 +2,6 @@
 
 use crate::diag::{self, Diagnostic};
 use crate::hir::HirProgram;
-use crate::memory::MemoryPlan;
 use crate::sema::ArenaReport;
 use crate::ty::TyCtx;
 use crate::typeck;
@@ -14,8 +13,6 @@ pub struct CheckResult {
     pub report: Option<ArenaReport>,
     /// Typed HIR, present exactly when `diagnostics` is empty.
     pub hir: Option<HirProgram>,
-    /// Allocation/lifetime decisions for addressable record objects.
-    pub memory_plan: Option<MemoryPlan>,
     pub diagnostics: Vec<Diagnostic>,
     /// Member names resolved by typeck (bare fields, method calls, method declarations).
     pub members: crate::typeck::MemberResolutions,
@@ -60,7 +57,6 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
             return CheckResult {
                 report: None,
                 hir: None,
-                memory_plan: None,
                 diagnostics: vec![diag::from_parse(source, &err)],
                 members: Default::default(),
                 tcx: TyCtx::new(&Default::default()),
@@ -94,7 +90,6 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
         diagnostics.extend(crate::mono::check_instances(&hir, &mut tcx.clone()));
     }
     let mut hir = diagnostics.is_empty().then_some(hir);
-    let mut memory_plan = None;
     if let Some(mut program) = hir {
         crate::hoist::annotate(&mut program, &tcx);
         crate::hir::number_nodes(&mut program);
@@ -106,23 +101,12 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
         if diagnostics.is_empty() && has_generics(&program) {
             diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report, escape));
         }
-        if diagnostics.is_empty() {
-            let (plan, mut plan_diagnostics) = crate::memory::plan(&program, &tcx, &report);
-            diagnostics.append(&mut plan_diagnostics);
-            if diagnostics.is_empty() {
-                match crate::region_walk::stamp_codegen_push(&program, &tcx, &mut report) {
-                    Ok(()) => memory_plan = Some(plan),
-                    Err(ice) => diagnostics.push(ice),
-                }
-            }
-        }
         hir = diagnostics.is_empty().then_some(program);
     }
 
     CheckResult {
         report: Some(report),
         hir,
-        memory_plan,
         diagnostics,
         members,
         tcx,
