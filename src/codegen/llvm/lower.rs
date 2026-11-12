@@ -681,8 +681,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(())
     }
 
-    /// The `declare_local` tail of the HIR emitter for a labelled plain assignment: DILocalVariable,
-    /// then the runtime allocation label of the stored value.
     fn declare_label(&mut self, stmt: &Statement, label: &DebugLabel) -> Result<(), Diagnostic> {
         let cx = self.cx;
         match &stmt.kind {
@@ -971,7 +969,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             }
             StmtKind::Ref(op) => {
                 self.ref_op(op, stmt.region)?;
-                // A `Ref` bound by a `when` arm is cloned straight into its named local.
                 if let (true, RefOp::Clone { dst, .. }) = (cx.debug.is_some(), op) {
                     if dst.is_bare() {
                         self.declare_binding(dst.local, stmt.span)?;

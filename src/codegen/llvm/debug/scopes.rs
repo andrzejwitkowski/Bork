@@ -80,9 +80,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         function: Option<DIScope<'ctx>>,
     ) -> Result<(), Diagnostic> {
-        let Some(debug) = &self.cx.debug else {
+        if self.cx.debug.is_none() {
             return Ok(());
-        };
+        }
         let is_function = function.is_some();
         let scope = function.or_else(|| self.cx.debug_lexical_block(self.debug_scopes.last().unwrap().0)).expect("debug is on");
         let f = self.cx.runtime_fn("bork_debug_scope_enter", || {

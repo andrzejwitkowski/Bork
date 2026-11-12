@@ -118,15 +118,14 @@ fn debug_calls(ir: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// Calls whose count is part of the registry contents. Allocation labels, copy origins and scope exits
-/// are only checked as a subset (MIR must not add a kind of event): HIR copies strings the MIR backend proves unnecessary and duplicates
-/// cleanup paths, which is not a registry difference.
+/// Calls whose count must match. The rest (allocation labels, copy origins, scope exits) are only checked as
+/// a subset: MIR elides string copies and duplicate cleanup paths the HIR emitter keeps.
 fn exact(call: &str) -> bool {
     matches!(call, "bork_debug_label_arena" | "bork_debug_register_slot" | "bork_debug_label_slot" | "bork_debug_frame_enter" | "bork_debug_frame_exit" | "bork_debug_scope_enter")
 }
 
-/// `-g` on MIR must register exactly what `-g` on HIR registers (RFC 0006 section 1.2: registry contents
-/// stay identical), and `lowered` counts programs where MIR emitted at least one function.
+/// `-g` on MIR must produce the registry-defining runtime calls `-g` on HIR does (see [`exact`]) and the same
+/// program behaviour; `lowered` counts programs where MIR emitted at least one function.
 #[test]
 fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("programs/build");
@@ -145,7 +144,6 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
         compared += 1;
         if hir != mir {
             lowered += 1;
-            // The registry checks run at run time under `-g`: both backends must behave the same.
             let bin = std::env::temp_dir().join(format!("bork-mir-g-{}", std::process::id()));
             let expected = run_with(&file, &bin, false, true);
             assert_eq!(run_with(&file, &bin, true, true), expected, "-g output differs for {}", file.display());
