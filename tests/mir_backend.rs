@@ -1,4 +1,4 @@
-//! `--mir-backend` against the HIR emitter on `programs/build` (RFC 0006 M5a, #222): the same region
+//! The default MIR backend against `--hir-backend` on `programs/build` (RFC 0006 M5a, #222): the same region
 //! runtime calls and the same program behaviour wherever MIR lowers a function.
 #![cfg(feature = "codegen")]
 
@@ -56,8 +56,8 @@ fn run_with(source: &Path, out: &Path, mir: bool, debug: bool) -> (i32, String) 
     if debug {
         cmd.arg("-g");
     }
-    if mir {
-        cmd.arg("--mir-backend");
+    if !mir {
+        cmd.arg("--hir-backend");
     }
     let build = cmd.arg("-o").arg(out).arg(source).output().expect("spawn bork build");
     assert!(build.status.success(), "{} failed to build (mir={mir}):\n{}", source.display(), String::from_utf8_lossy(&build.stderr));
@@ -77,10 +77,10 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
     let (mut lowered, mut compared) = (0, 0);
     for file in files {
         let result = check(&fs::read_to_string(&file).unwrap());
-        let Ok(hir) = emit_ir(&result, BuildOptions::default()) else {
+        let Ok(hir) = emit_ir(&result, BuildOptions { debug: false, hir_backend: true }) else {
             continue; // not buildable (gate); `tests/programs.rs` owns that
         };
-        let mir = emit_ir(&result, BuildOptions { debug: false, mir_backend: true })
+        let mir = emit_ir(&result, BuildOptions { debug: false, hir_backend: false })
             .unwrap_or_else(|e| panic!("MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
         compared += 1;
         assert_eq!(region_calls(&hir), region_calls(&mir), "push/push_child/pop/reset counts differ for {}", file.display());
@@ -137,10 +137,10 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
         let text = fs::read_to_string(&file).unwrap();
         let result = check(&text);
         let source = || Some(SourceContext { path: &file, text: &text });
-        let Ok(hir) = emit_ir_with_source(&result, BuildOptions { debug: true, mir_backend: false }, source()) else {
+        let Ok(hir) = emit_ir_with_source(&result, BuildOptions { debug: true, hir_backend: true }, source()) else {
             continue;
         };
-        let mir = emit_ir_with_source(&result, BuildOptions { debug: true, mir_backend: true }, source())
+        let mir = emit_ir_with_source(&result, BuildOptions { debug: true, hir_backend: false }, source())
             .unwrap_or_else(|e| panic!("-g MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
         compared += 1;
         if hir != mir {

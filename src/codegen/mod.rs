@@ -29,8 +29,9 @@ pub fn build(checked: &CheckResult, output: &Path) -> Result<(), BuildError> {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BuildOptions {
     pub debug: bool,
-    /// Lower the functions MIR covers (RFC 0006 M5a); the rest stays on the HIR emitter.
-    pub mir_backend: bool,
+    /// Use the HIR emitter for everything. By default MIR lowers the functions it covers (RFC 0006 M5e)
+    /// and the rest stays on the HIR emitter; this fallback goes away with M6 (#67).
+    pub hir_backend: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,7 +78,7 @@ fn emit_checked<'ctx>(
         }
     }
 
-    let bodies = if options.mir_backend {
+    let bodies = if !options.hir_backend {
         let bodies = crate::mir::build::build_function_results(&mono, &tcx).map_err(|e| BuildError::Toolchain(format!("MIR: {e:?}")))?;
         // `Unsupported`/`Unlowered` fall back to the HIR emitter; `Internal` is a compiler bug and must surface.
         Some(
