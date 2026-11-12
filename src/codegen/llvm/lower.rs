@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 
 use inkwell::basic_block::BasicBlock;
-use inkwell::types::BasicType;
+use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{FloatPredicate, IntPredicate};
 
@@ -41,11 +41,16 @@ fn is_float(cx: &Codegen<'_>, ty: TyId) -> bool {
     matches!(prim(cx, ty), Some(Prim::F32 | Prim::F64))
 }
 
-/// Element type of a `Vec` (or `&Vec`) of non-unit scalars: no `Ref`/text elements, so no drop glue.
+/// Element type of a `Vec` (or `&Vec`) of non-unit scalars, text or `Ref`s.
 fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
     let elem = cx.tcx.vec_elem(ty)?;
-    (prim(cx, elem).is_some() && !is_unit(cx, elem)).then_some(elem)
+    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
+}
+
+/// A `Vec` of non-unit scalars only: what `copy_plain_vec_into` can copy (no per-element ownership).
+fn scalar_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
+    plain_vec(cx, ty).filter(|&e| prim(cx, e).is_some())
 }
 
 /// Element type of an array (or `&array`) of non-unit scalars.
@@ -205,17 +210,36 @@ pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &
 fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> Option<()> {
     let scalar = |ty: TyId| prim(cx, ty).map(|_| ());
     let value = |ty: TyId| plain_value(cx, ty).then_some(());
+    let why = |what: &str, ty: TyId| {
+        if trace() {
+            eprintln!("mir-backend: unsupported {what} type `{}`", cx.tcx.display(ty));
+        }
+    };
     for l in &body.locals {
         match l.kind {
             LocalKind::Hidden(HiddenKind::RegionArena | HiddenKind::DynamicArena | HiddenKind::DebugScope) => {}
-            LocalKind::Hidden(_) => return None,
-            _ => value(l.ty)?,
+            LocalKind::Hidden(k) => {
+                if trace() {
+                    eprintln!("mir-backend: unsupported hidden local {k:?}");
+                }
+                return None;
+            }
+            _ => value(l.ty).or_else(|| {
+                why("local", l.ty);
+                None
+            })?,
         }
     }
     for p in &function.params {
-        value(p.ty)?;
+        value(p.ty).or_else(|| {
+            why("param", p.ty);
+            None
+        })?;
     }
-    value(function.return_ty)?;
+    value(function.return_ty).or_else(|| {
+        why("return", function.return_ty);
+        None
+    })?;
     if body.locals.iter().filter(|l| l.kind == LocalKind::Arg).count() != function.params.len() {
         return None;
     }
@@ -420,13 +444,27 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         return None;
                     }
                     let index = |op: &Operand| index_operand(cx, body, op);
+                    // An element to store: a scalar, text, or a `Ref` (or `None`) for a `Vec` of `Ref`s.
+                    let elem = plain_vec(cx, body.local(receiver.place()?.local)?.ty)?;
+                    let element = |op: &Operand| -> Option<()> {
+                        if cx.tcx.is_managed_ref(elem) {
+                            match op {
+                                Operand::Const(Const::None) => Some(()),
+                                _ => general(op).and(place_ty(cx, body, op.place()?).filter(|t| cx.tcx.is_managed_ref(*t)).map(|_| ())),
+                            }
+                        } else if cx.tcx.is_text(elem) {
+                            text(op)
+                        } else {
+                            operand(op)
+                        }
+                    };
                     match (op, args.as_slice()) {
                         (VecOp::Len | VecOp::Capacity | VecOp::Clear, []) => {}
                         (VecOp::Get, [i]) => index(i)?,
-                        (VecOp::Push, [v]) => operand(v)?,
+                        (VecOp::Push, [v]) => element(v)?,
                         (VecOp::Set, [i, v]) => {
                             index(i)?;
-                            operand(v)?;
+                            element(v)?;
                         }
                         _ => return None,
                     }
@@ -443,9 +481,9 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     }
                     let copyable = cx.tcx.is_text(t)
                         || plain_array(cx, t).is_some()
-                        || plain_vec(cx, t).is_some()
+                        || scalar_vec(cx, t).is_some()
                         // The payload moves with the slot; handles pass through like `materialize_owned_value`.
-                        || nullable_payload(cx, t).is_some();
+                        || nullable_payload(cx, t).is_some_and(|p| cx.tcx.vec_elem(p).is_none() || scalar_vec(cx, p).is_some());
                     copyable.then_some(())?;
                 }
                 StmtKind::Intrinsic { dst: None, op: IntrinsicOp::PrintStr | IntrinsicOp::PrintlnStr, args, arena: None } if args.len() == 1 => text(&args[0])?,
@@ -1012,12 +1050,8 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                             cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), object.into(), f.as_global_value().as_pointer_value().into()], "")?;
                         }
                     }
-                    DropGlue::Vec(elem) => {
-                        if let Some(f) = cx.vec_drop_glue(*elem) {
-                            let header = self.load_ptr(ptr)?;
-                            cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), header.into(), f.as_global_value().as_pointer_value().into()], "")?;
-                        }
-                    }
+                    // `vec_alloc` registers the glue with the header it allocates; the op only carries it for the plan.
+                    DropGlue::Vec(_) => {}
                 }
             }
             StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } => {
@@ -1259,11 +1293,13 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(())
     }
 
-    /// Built-in `Vec` method on a scalar-element vector; mirrors `FnEmitter::emit_vec_op`.
+    /// Built-in `Vec` method; mirrors `FnEmitter::emit_vec_op`. `Ref` elements are cloned out and stored with
+    /// ownership, text is copied into the vector's arena.
     fn vec_op(&self, op: VecOp, header: PointerValue<'ctx>, elem: TyId, args: &[Operand]) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let cx = self.cx;
         let i32_ty = cx.i32_ty();
         let (llvm_elem, stride, _) = cx.elem_storage(elem)?;
+        let is_ref = cx.tcx.is_managed_ref(elem);
         // Bounds-checked address of element `args[0]`.
         let slot = || -> Result<PointerValue<'ctx>, Diagnostic> {
             let idx = self.int_as(self.operand(&args[0], i32_ty)?, i32_ty)?;
@@ -1271,31 +1307,76 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             cx.guard_index(self.llvm_fn, idx, cx.vec_load_word(header, vec::LEN)?)?;
             cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, idx, stride)
         };
+        // `value` into `slot`; a fresh slot (push) has no previous handle to release.
+        let store = |slot: PointerValue<'ctx>, value: &Operand, fresh: bool| -> Result<(), Diagnostic> {
+            let arena = cx.vec_load_ptr(header, vec::ARENA)?;
+            if is_ref {
+                if fresh {
+                    cx.builder.build_store(slot, cx.ref_handle_type().const_zero())?;
+                }
+                return cx.ref_store(self.llvm_fn, slot, arena, self.ref_operand(value)?);
+            }
+            let value = self.operand(value, elem)?;
+            let value = if cx.tcx.is_text(elem) { cx.copy_string_into(arena, value.into_struct_value())?.into() } else { value };
+            cx.builder.build_store(slot, value)?;
+            Ok(())
+        };
         Ok(match op {
             VecOp::Len | VecOp::Capacity => {
                 let count = cx.vec_load_word(header, if op == VecOp::Len { vec::LEN } else { vec::CAP })?;
                 Some(cx.builder.build_int_truncate(count, cx.context.i32_type(), "vec.count")?.into())
             }
-            VecOp::Get => Some(cx.builder.build_load(llvm_elem, slot()?, "vec.get")?),
+            VecOp::Get => {
+                let loaded = cx.builder.build_load(llvm_elem, slot()?, "vec.get")?;
+                Some(if is_ref { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
+            }
             VecOp::Set => {
-                let slot = slot()?;
-                cx.builder.build_store(slot, self.operand(&args[1], elem)?)?;
+                store(slot()?, &args[1], false)?;
                 None
             }
             VecOp::Push => {
                 cx.vec_reserve_one(self.llvm_fn, header, elem)?;
                 let len = cx.vec_load_word(header, vec::LEN)?;
                 let slot = cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, len, stride)?;
-                cx.builder.build_store(slot, self.operand(&args[0], elem)?)?;
+                store(slot, &args[0], true)?;
                 cx.vec_store(header, vec::LEN, cx.builder.build_int_add(len, cx.word(1), "vec.len.new")?)?;
                 None
             }
             VecOp::Clear => {
+                if is_ref {
+                    self.release_elements(header, llvm_elem, stride)?;
+                }
                 cx.vec_store(header, vec::LEN, cx.word(0))?;
                 None
             }
             VecOp::Pop => unreachable!("filtered by supported"),
         })
+    }
+
+    /// Drops every `Ref` element of the vector (`clear`).
+    fn release_elements(&self, header: PointerValue<'ctx>, llvm_elem: BasicTypeEnum<'ctx>, stride: usize) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let ctx = cx.context;
+        let len = cx.vec_load_word(header, vec::LEN)?;
+        let buf = cx.vec_load_ptr(header, vec::BUF)?;
+        let entry = cx.builder.get_insert_block().expect("positioned");
+        let (head, body, done) = (ctx.append_basic_block(self.llvm_fn, "vec.rel.hdr"), ctx.append_basic_block(self.llvm_fn, "vec.rel.body"), ctx.append_basic_block(self.llvm_fn, "vec.rel.done"));
+        cx.builder.build_unconditional_branch(head)?;
+        cx.position_at_end(head);
+        let index = cx.builder.build_phi(ctx.i64_type(), "vec.i")?;
+        index.add_incoming(&[(&cx.word(0), entry)]);
+        let i = index.as_basic_value().into_int_value();
+        let more = cx.builder.build_int_compare(inkwell::IntPredicate::ULT, i, len, "vec.more")?;
+        cx.builder.build_conditional_branch(more, body, done)?;
+        cx.position_at_end(body);
+        let handle = cx.builder.build_load(llvm_elem, cx.vec_slot(buf, i, stride)?, "vec.drop")?;
+        cx.ref_drop(self.llvm_fn, handle)?;
+        let next = cx.builder.build_int_add(i, cx.word(1), "vec.next")?;
+        let tail = cx.builder.get_insert_block().expect("positioned");
+        cx.builder.build_unconditional_branch(head)?;
+        index.add_incoming(&[(&next, tail)]);
+        cx.position_at_end(done);
+        Ok(())
     }
 
     fn binary(&self, op: &BinOp, a: &Operand, b: &Operand, dty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
