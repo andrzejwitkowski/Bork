@@ -84,18 +84,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             return Ok(());
         };
         let is_function = function.is_some();
-        let scope = function.unwrap_or_else(|| {
-            let (line, col) = debug.line_column(debug.position.get());
-            debug
-                .builder
-                .create_lexical_block(
-                    self.debug_scopes.last().unwrap().0,
-                    debug.source_file(),
-                    line,
-                    col,
-                )
-                .as_debug_info_scope()
-        });
+        let scope = function.or_else(|| self.cx.debug_lexical_block(self.debug_scopes.last().unwrap().0)).expect("debug is on");
         let f = self.cx.runtime_fn("bork_debug_scope_enter", || {
             self.cx.context.i64_type().fn_type(&[], false)
         });

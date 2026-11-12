@@ -552,6 +552,8 @@ struct Lower<'a, 'ctx> {
     subprogram: Option<inkwell::debug_info::DIScope<'ctx>>,
     di_scopes: HashMap<RegionId, inkwell::debug_info::DIScope<'ctx>>,
     scope_slots: HashMap<Local, PointerValue<'ctx>>,
+    /// The most recently entered `DebugScope` local per region: a loop body's own scope follows the region's.
+    region_scope: HashMap<RegionId, Local>,
 }
 
 pub(super) fn lower_function<'ctx>(
@@ -579,6 +581,7 @@ pub(super) fn lower_function<'ctx>(
         subprogram: cx.debug.as_ref().map(|d| d.function(cx, function, llvm_fn)),
         di_scopes: HashMap::new(),
         scope_slots: HashMap::new(),
+        region_scope: HashMap::new(),
         result_sink: abi.has_result_sink().then(|| llvm_fn.get_nth_param(1).expect("callee has a result sink parameter").into_pointer_value()),
     };
     lower.prologue(abi.hidden_len())?;
@@ -634,10 +637,8 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         if self.cx.debug.is_none() || !self.cx.tcx.is_managed_ref(ty) {
             return Ok((None, None));
         }
-        // The last scope declared in `region` is the innermost one (a loop body's own scope follows the region's).
-        let scope = self.body.locals.iter().enumerate().rev().find(|(i, d)| d.kind == LocalKind::Hidden(HiddenKind::DebugScope) && d.region == region && self.scope_slots.contains_key(&Local(*i as u32)));
-        let token = match scope {
-            Some((i, _)) => Some(self.cx.builder.build_load(self.cx.context.i64_type(), self.scope_slots[&Local(i as u32)], "")?.into_int_value()),
+        let token = match self.region_scope.get(&region) {
+            Some(l) => Some(self.cx.builder.build_load(self.cx.context.i64_type(), self.scope_slots[l], "")?.into_int_value()),
             None => None,
         };
         Ok((token, Some(self.arena_ref(&ArenaRef::Current, region)?)))
@@ -1116,18 +1117,22 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 cx.builder.build_store(self.region_slots[region], next)?;
                 cx.debug_label_arena(next.into_pointer_value())?;
             }
-            StmtKind::StorageLive(l) | StmtKind::StorageDead(l) => {
+            StmtKind::StorageLive(l) => {
                 if let Some(slot) = self.scope_slots.get(l).copied() {
-                    if matches!(stmt.kind, StmtKind::StorageLive(_)) {
-                        self.di_scope(self.body.local(*l).expect("checked").region);
-                        let f = cx.runtime_fn("bork_debug_scope_enter", || cx.context.i64_type().fn_type(&[], false));
-                        let token = cx.builder.build_call(f, &[], "debug.scope")?.try_as_basic_value().basic().expect("scope token");
-                        cx.builder.build_store(slot, token)?;
-                    } else {
-                        let f = cx.runtime_fn("bork_debug_scope_exit", || cx.context.void_type().fn_type(&[cx.context.i64_type().into()], false));
-                        let token = cx.builder.build_load(cx.context.i64_type(), slot, "")?;
-                        cx.builder.build_call(f, &[token.into()], "")?;
-                    }
+                    // Creates the region's lexical block here, at the scope's own position.
+                    let region = self.body.local(*l).expect("checked").region;
+                    self.di_scope(region);
+                    self.region_scope.insert(region, *l);
+                    let f = cx.runtime_fn("bork_debug_scope_enter", || cx.context.i64_type().fn_type(&[], false));
+                    let token = cx.builder.build_call(f, &[], "debug.scope")?.try_as_basic_value().basic().expect("scope token");
+                    cx.builder.build_store(slot, token)?;
+                }
+            }
+            StmtKind::StorageDead(l) => {
+                if let Some(slot) = self.scope_slots.get(l).copied() {
+                    let f = cx.runtime_fn("bork_debug_scope_exit", || cx.context.void_type().fn_type(&[cx.context.i64_type().into()], false));
+                    let token = cx.builder.build_load(cx.context.i64_type(), slot, "")?;
+                    cx.builder.build_call(f, &[token.into()], "")?;
                 }
             }
             StmtKind::Alloc { dst, kind: AllocKind::Array, arena } => {

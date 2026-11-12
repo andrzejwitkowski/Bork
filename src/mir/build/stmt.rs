@@ -188,7 +188,7 @@ impl<'a> FnBuilder<'a> {
         self.push_loop(exit, latch);
         self.cur = body_b;
         // The per-iteration scope of the HIR emitter's `for`/`while` body (emit_fn.rs).
-        self.scope_enter(self.open_depth(), span);
+        self.scope_enter(self.open_depth(), span, None);
         self.stmts(body)?;
         self.scope_exit(span);
         self.goto(latch, span);

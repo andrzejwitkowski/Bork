@@ -121,8 +121,8 @@ fn debug_calls(ir: &str) -> Vec<Vec<String>> {
 /// Calls whose count is part of the registry contents. Allocation labels, copy origins and scope exits
 /// are only checked as a subset (MIR must not add a kind of event): HIR copies strings the MIR backend proves unnecessary and duplicates
 /// cleanup paths, which is not a registry difference.
-fn exact(call: &String) -> bool {
-    matches!(call.as_str(), "bork_debug_label_arena" | "bork_debug_register_slot" | "bork_debug_label_slot" | "bork_debug_frame_enter" | "bork_debug_frame_exit" | "bork_debug_scope_enter")
+fn exact(call: &str) -> bool {
+    matches!(call, "bork_debug_label_arena" | "bork_debug_register_slot" | "bork_debug_label_slot" | "bork_debug_frame_enter" | "bork_debug_frame_exit" | "bork_debug_scope_enter")
 }
 
 /// `-g` on MIR must register exactly what `-g` on HIR registers (RFC 0006 section 1.2: registry contents
@@ -152,12 +152,14 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
             let _ = fs::remove_file(&bin);
         }
         let (h, m) = (debug_calls(&hir), debug_calls(&mir));
+        assert_eq!(h.len(), m.len(), "function count differs for {}", file.display());
         for (i, (h, m)) in h.iter().zip(&m).enumerate() {
             let strip = |v: &Vec<String>| -> (Vec<String>, std::collections::BTreeSet<String>) {
                 (v.iter().filter(|c| exact(c)).cloned().collect(), v.iter().filter(|c| !exact(c)).cloned().collect())
             };
             // MIR may elide copies (and so their labels) but never invent a kind of registry event.
-            if strip(h).0 != strip(m).0 || !strip(m).1.is_subset(&strip(h).1) {
+            let (sh, sm) = (strip(h), strip(m));
+            if sh.0 != sm.0 || !sm.1.is_subset(&sh.1) {
                 let only = |a: &Vec<String>, b: &Vec<String>| {
                     let mut rest = b.clone();
                     a.iter().filter(|c| rest.iter().position(|r| r == *c).map(|i| rest.remove(i)).is_none()).cloned().collect::<Vec<_>>()
@@ -165,7 +167,6 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
                 panic!("bork_debug_* calls differ in function #{i} of {}: only HIR {:?}, only MIR {:?}", file.display(), only(h, m), only(m, h));
             }
         }
-        assert_eq!(h.len(), m.len());
     }
     eprintln!("-g mir-backend: {lowered} of {compared} programs have lowered functions");
     assert!(compared > 0);

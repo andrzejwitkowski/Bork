@@ -172,7 +172,7 @@ impl<'a> FnBuilder<'a> {
         }
         let span = function.name_span;
         self.regions.push(RegionInfo { parent: None, site: RegionSite::Block, arena: self.cursors[0].0.id });
-        self.scope_enter(0, span);
+        self.scope_enter(0, span, None);
         self.open.push(Open { id: RegionId(0), pushed: true });
         self.stmt(StmtKind::RegionEnter(RegionId(0)), span, None);
         for (local, param) in (1u32..).map(Local).zip(&function.params) {
@@ -331,10 +331,7 @@ impl<'a> FnBuilder<'a> {
         let depth = self.open.len();
         self.open.push(Open { id, pushed });
         // HIR emitter order: the region is pushed, then its debug scope is entered.
-        match enter_in {
-            Some(b) => self.scope_enter_in(b, depth, span),
-            None => self.scope_enter(depth, span),
-        }
+        self.scope_enter(depth, span, enter_in);
         self.cursors.push((child, 0));
         self.scopes.push(HashMap::new());
         Ok((peeled, id, pushed))
@@ -375,16 +372,16 @@ impl<'a> FnBuilder<'a> {
         l
     }
 
-    pub(super) fn scope_enter(&mut self, depth: usize, span: Span) {
+    /// Opens a debug scope; `in_block` is where a `while` enters its region (not the current block).
+    pub(super) fn scope_enter(&mut self, depth: usize, span: Span, in_block: Option<BlockId>) {
         let l = self.new_scope_local(depth);
-        self.stmt(StmtKind::StorageLive(l), span, None);
-    }
-
-    /// Like [`Self::scope_enter`] for a `while` whose region is entered in `block`, not the current one.
-    fn scope_enter_in(&mut self, block: BlockId, depth: usize, span: Span) {
-        let l = self.new_scope_local(depth);
-        let region = self.cur_region();
-        self.blocks[block.0 as usize].stmts.push(Statement { span, node: None, kind: StmtKind::StorageLive(l), debug: None, region });
+        match in_block {
+            Some(b) => {
+                let region = self.cur_region();
+                self.blocks[b.0 as usize].stmts.push(Statement { span, node: None, kind: StmtKind::StorageLive(l), debug: None, region });
+            }
+            None => self.stmt(StmtKind::StorageLive(l), span, None),
+        }
     }
 
     /// Leaves the innermost debug scope; nothing is emitted when the block already ended.
