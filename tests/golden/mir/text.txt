@@ -285,8 +285,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Counter" } in fresh2
-    _3.0 = 0
+    _3 = alloc Object { class: "Counter" } in fresh2  // label "Counter": Counter
+    _3.0 = 0  // label "Counter.calls": i32 decl owner=fresh2
     _4 = copy _3  // label "counter": Counter decl
     _6 = borrow _4
     _7 = call Counter.next(copy _6) +current +current -> bb1
@@ -327,7 +327,7 @@ fn Counter.next (parent=true, sink=true) {
     storage_live _2
     region_enter r0
     _3 = add(copy _1.0, 1)
-    _1.0 = copy _3
+    _1.0 = copy _3  // label "Counter.calls": i32 decl owner=object_arena(_1)
     _4 = eq(copy _1.0, 1)
     switch copy _4 [ 1 -> bb1, else -> bb2]
   bb1:
@@ -521,10 +521,10 @@ fn main (parent=false, sink=false) {
     _3[0] = 0
     _12 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _12
-    _13 = alloc Object { class: "Request" } in fresh12
+    _13 = alloc Object { class: "Request" } in fresh12  // label "Request": Request
     _14 = "GET /"
     _15 = copy_into _14 in fresh12
-    _13.0 = copy _15
+    _13.0 = copy _15  // label "Request.head": String decl owner=fresh12
     _16 = copy _13  // label "req": Request decl
     _17 = 0  // label "score": i32 decl
     _18 = borrow _16
@@ -799,7 +799,7 @@ fn main (parent=false, sink=false) {
     _4 = borrow _3
     _5 = intrinsic StringFromUtf8(copy _4, 3, 0) in current
     _6 = copy _5  // label "empty": String? decl
-    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     match _6 {
       Some(bind) _9=_6.some -> bb2
       None -> bb3
@@ -882,7 +882,7 @@ fn main (parent=false, sink=false) {
     _4 = borrow _3
     _5 = intrinsic StringFromUtf8(copy _4, 0, 2) in current
     _6 = copy _5  // label "s": String? decl
-    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     match _6 {
       Some(bind) _9=_6.some -> bb2
       None -> bb3
@@ -1012,7 +1012,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in fresh2
+    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in fresh2  // label "Option<String>": String?
     _4 = copy _3  // label "out": String? decl
     switch true [ 1 -> bb1, else -> bb2]
   bb1:
@@ -1029,7 +1029,7 @@ fn main (parent=false, sink=false) {
     region_exit r1
     goto bb2
   bb2:
-    _11 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _11 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     match _4 {
       Some(bind) _12=_4.some -> bb4
       None -> bb5

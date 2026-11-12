@@ -463,8 +463,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
-    _3.0 = 1
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 1  // label "Node.id": i32 decl owner=fresh2
     _4 = copy _3  // label "n": Node decl
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "r": Ref<Node> decl
@@ -715,8 +715,8 @@ fn main (parent=false, sink=false) {
     _10 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _10
     _11 = add(copy _4, 1)
-    _12 = alloc Object { class: "Node" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "Node" } in fresh10  // label "Node": Node
+    _12.0 = copy _11  // label "Node.id": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     vec_Push(copy _9, move _13)
     _14 = add(copy _4, 1)
@@ -848,8 +848,8 @@ fn main (parent=false, sink=false) {
     _13 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _13
     _14 = add(copy _7, 1)
-    _15 = alloc Object { class: "Node" } in fresh13
-    _15.0 = copy _14
+    _15 = alloc Object { class: "Node" } in fresh13  // label "Node": Node
+    _15.0 = copy _14  // label "Node.id": i32 decl owner=fresh13
     _16 = ref_create source=current target=object_arena(_15) copy _15
     vec_Push(copy _12, move _16)
     _17 = add(copy _7, 1)
@@ -990,33 +990,33 @@ fn main (parent=false, sink=false) {
     storage_live _4
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
-    _6 = alloc Object { class: "Node" } in fresh5
-    _6.0 = 1
+    _6 = alloc Object { class: "Node" } in fresh5  // label "Node": Node
+    _6.0 = 1  // label "Node.id": i32 decl owner=fresh5
     _7 = copy _6  // label "n1": Node decl
     _8 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _8
-    _9 = alloc Object { class: "Node" } in fresh8
-    _9.0 = 2
+    _9 = alloc Object { class: "Node" } in fresh8  // label "Node": Node
+    _9.0 = 2  // label "Node.id": i32 decl owner=fresh8
     _10 = copy _9  // label "n2": Node decl
     _11 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _11
-    _12 = alloc Object { class: "Node" } in fresh11
-    _12.0 = 3
+    _12 = alloc Object { class: "Node" } in fresh11  // label "Node": Node
+    _12.0 = 3  // label "Node.id": i32 decl owner=fresh11
     _13 = copy _12  // label "n3": Node decl
     _14 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _14
-    _15 = alloc Object { class: "Node" } in fresh14
-    _15.0 = 4
+    _15 = alloc Object { class: "Node" } in fresh14  // label "Node": Node
+    _15.0 = 4  // label "Node.id": i32 decl owner=fresh14
     _16 = copy _15  // label "n4": Node decl
     _17 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _17
-    _18 = alloc Object { class: "Node" } in fresh17
-    _18.0 = 5
+    _18 = alloc Object { class: "Node" } in fresh17  // label "Node": Node
+    _18.0 = 5  // label "Node.id": i32 decl owner=fresh17
     _19 = copy _18  // label "n5": Node decl
     _20 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _20
-    _21 = alloc Object { class: "Node" } in fresh20
-    _21.0 = 6
+    _21 = alloc Object { class: "Node" } in fresh20  // label "Node": Node
+    _21.0 = 6  // label "Node.id": i32 decl owner=fresh20
     _22 = copy _21  // label "n6": Node decl
     region_enter r2
     storage_live _23
@@ -1198,33 +1198,33 @@ fn main (parent=false, sink=false) {
     storage_live _4
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
-    _6 = alloc Object { class: "Node" } in fresh5
-    _6.0 = 1
+    _6 = alloc Object { class: "Node" } in fresh5  // label "Node": Node
+    _6.0 = 1  // label "Node.id": i32 decl owner=fresh5
     _7 = copy _6  // label "n1": Node decl
     _8 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _8
-    _9 = alloc Object { class: "Node" } in fresh8
-    _9.0 = 2
+    _9 = alloc Object { class: "Node" } in fresh8  // label "Node": Node
+    _9.0 = 2  // label "Node.id": i32 decl owner=fresh8
     _10 = copy _9  // label "n2": Node decl
     _11 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _11
-    _12 = alloc Object { class: "Node" } in fresh11
-    _12.0 = 3
+    _12 = alloc Object { class: "Node" } in fresh11  // label "Node": Node
+    _12.0 = 3  // label "Node.id": i32 decl owner=fresh11
     _13 = copy _12  // label "n3": Node decl
     _14 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _14
-    _15 = alloc Object { class: "Node" } in fresh14
-    _15.0 = 4
+    _15 = alloc Object { class: "Node" } in fresh14  // label "Node": Node
+    _15.0 = 4  // label "Node.id": i32 decl owner=fresh14
     _16 = copy _15  // label "n4": Node decl
     _17 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _17
-    _18 = alloc Object { class: "Node" } in fresh17
-    _18.0 = 5
+    _18 = alloc Object { class: "Node" } in fresh17  // label "Node": Node
+    _18.0 = 5  // label "Node.id": i32 decl owner=fresh17
     _19 = copy _18  // label "n5": Node decl
     _20 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _20
-    _21 = alloc Object { class: "Node" } in fresh20
-    _21.0 = 6
+    _21 = alloc Object { class: "Node" } in fresh20  // label "Node": Node
+    _21.0 = 6  // label "Node.id": i32 decl owner=fresh20
     _22 = copy _21  // label "n6": Node decl
     _23 = borrow _3
     _24 = ref_create source=current target=object_arena(_7) copy _7
@@ -1534,16 +1534,16 @@ fn make (parent=true, sink=true) {
     _9 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _9
     _10 = add(copy _4, 10)
-    _11 = alloc Object { class: "A" } in fresh9
-    _11.0 = copy _10
+    _11 = alloc Object { class: "A" } in fresh9  // label "A": A
+    _11.0 = copy _10  // label "A.n": i32 decl owner=fresh9
     _12 = ref_create source=current target=object_arena(_11) copy _11
     _13 = move _12  // label "a": Ref<A> decl
     register_drop current _13 RefSlot
     _14 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _14
     _15 = ref_clone copy _13
-    _16 = alloc Object { class: "B" } in fresh14
-    ref_store_fresh _16.0 owner=fresh14 move _15
+    _16 = alloc Object { class: "B" } in fresh14  // label "B": B
+    ref_store_fresh _16.0 owner=fresh14 move _15  // label "B.a": Ref<A> decl owner=fresh14
     register_drop fresh14 _16.0 RefSlot
     _17 = ref_create source=current target=object_arena(_16) copy _16
     _18 = move _17  // label "b": Ref<B> decl
@@ -1561,9 +1561,9 @@ fn make (parent=true, sink=true) {
   bb4:
     storage_dead _6
     region_exit r1
-    _22 = alloc Object { class: "Bag" } in result_sink
+    _22 = alloc Object { class: "Bag" } in result_sink  // label "Bag": Bag
     _23 = copy_into _3 in result_sink
-    _22.0 = copy _23
+    _22.0 = copy _23  // label "Bag.items": Vec<Ref<B>> decl owner=result_sink
     _0 = copy _22
     storage_dead _1
     region_exit r0
@@ -1591,21 +1591,21 @@ fn churn (parent=true, sink=false) {
     region_enter r0
     _3 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _3
-    _4 = alloc Object { class: "A" } in fresh3
-    _4.0 = copy _1
+    _4 = alloc Object { class: "A" } in fresh3  // label "A": A
+    _4.0 = copy _1  // label "A.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
-    _6 = alloc Object { class: "B" } in current
-    ref_store_fresh _6.0 owner=current move _5
+    _6 = alloc Object { class: "B" } in current  // label "B": B
+    ref_store_fresh _6.0 owner=current move _5  // label "B.a": Ref<A> decl owner=current
     register_drop current _6.0 RefSlot
     _7 = copy _6  // label "x": B decl
     _8 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _8
     _9 = add(copy _1, 1)
-    _10 = alloc Object { class: "A" } in fresh8
-    _10.0 = copy _9
+    _10 = alloc Object { class: "A" } in fresh8  // label "A": A
+    _10.0 = copy _9  // label "A.n": i32 decl owner=fresh8
     _11 = ref_create source=current target=object_arena(_10) copy _10
-    _12 = alloc Object { class: "B" } in current
-    ref_store_fresh _12.0 owner=current move _11
+    _12 = alloc Object { class: "B" } in current  // label "B": B
+    ref_store_fresh _12.0 owner=current move _11  // label "B.a": Ref<A> decl owner=current
     register_drop current _12.0 RefSlot
     _13 = copy _12  // label "y": B decl
     _0 = copy _1
@@ -1936,22 +1936,22 @@ fn main (parent=false, sink=false) {
     _75 = borrow _74
     _76 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _76
-    _77 = alloc Object { class: "Node" } in fresh76
-    _77.0 = 1
+    _77 = alloc Object { class: "Node" } in fresh76  // label "Node": Node
+    _77.0 = 1  // label "Node.id": i32 decl owner=fresh76
     _78 = ref_create source=current target=object_arena(_77) copy _77
     vec_Push(copy _75, move _78)
     _79 = borrow _74
     _80 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _80
-    _81 = alloc Object { class: "Node" } in fresh80
-    _81.0 = 2
+    _81 = alloc Object { class: "Node" } in fresh80  // label "Node": Node
+    _81.0 = 2  // label "Node.id": i32 decl owner=fresh80
     _82 = ref_create source=current target=object_arena(_81) copy _81
     vec_Push(copy _79, move _82)
     _83 = borrow _74
     _84 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _84
-    _85 = alloc Object { class: "Node" } in fresh84
-    _85.0 = 3
+    _85 = alloc Object { class: "Node" } in fresh84  // label "Node": Node
+    _85.0 = 3  // label "Node.id": i32 decl owner=fresh84
     _86 = ref_create source=current target=object_arena(_85) copy _85
     vec_Push(copy _83, move _86)
     _87 = borrow _74

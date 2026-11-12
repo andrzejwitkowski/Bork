@@ -11,9 +11,9 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Point" } in fresh2
-    _3.0 = 1
-    _3.1 = 2
+    _3 = alloc Object { class: "Point" } in fresh2  // label "Point": Point
+    _3.0 = 1  // label "Point.x": i32 decl owner=fresh2
+    _3.1 = 2  // label "Point.y": i32 decl owner=fresh2
     _4 = call take(copy _3) +current -> bb1
   bb1:
     _0 = copy _4
@@ -50,16 +50,16 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "Point" } in current
-    _2.0 = 1
-    _2.1 = 2
+    _2 = alloc Object { class: "Point" } in current  // label "Point": Point
+    _2.0 = 1  // label "Point.x": i32 decl owner=current
+    _2.1 = 2  // label "Point.y": i32 decl owner=current
     _3 = copy _2  // label "p": Point decl
-    _4 = alloc Object { class: "Rect" } in current
-    _4.0 = copy _3
-    _4.1 = 10
-    _4.2 = 20
+    _4 = alloc Object { class: "Rect" } in current  // label "Rect": Rect
+    _4.0 = copy _3  // label "Rect.origin": Point decl owner=current
+    _4.1 = 10  // label "Rect.w": i32 decl owner=current
+    _4.2 = 20  // label "Rect.h": i32 decl owner=current
     _5 = copy _4  // label "r": Rect decl
-    _5.1 = 11
+    _5.1 = 11  // label "Rect.w": i32 decl owner=object_arena(_5)
     _0 = copy _5.1
     storage_dead _1
     region_exit r0
@@ -77,10 +77,10 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "Inner" } in current
-    _2.0 = 7
-    _3 = alloc Object { class: "Outer" } in current
-    _3.0 = copy _2
+    _2 = alloc Object { class: "Inner" } in current  // label "Inner": Inner
+    _2.0 = 7  // label "Inner.n": i32 decl owner=current
+    _3 = alloc Object { class: "Outer" } in current  // label "Outer": Outer
+    _3.0 = copy _2  // label "Outer.inner": Inner decl owner=current
     _4 = copy _3  // label "o": Outer decl
     _0 = copy _4.0.0
     storage_dead _1
@@ -104,15 +104,15 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
-    _3 = alloc Object { class: "Box" } in current
+    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
+    _3 = alloc Object { class: "Box" } in current  // label "Box": Box
     _4 = copy_into _2 in current
-    _3.0 = copy _4
+    _3.0 = copy _4  // label "Box.n": i32? decl owner=current
     _5 = copy _3  // label "b": Box decl
-    _6 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in object_arena(_5)
-    _6@0.0 = 9
+    _6 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in object_arena(_5)  // label "Option<i32>": i32?
+    _6@0.0 = 9  // label "Option<i32>.Some.value": i32 decl owner=object_arena(_5)
     _7 = copy_into _6 in object_arena(_5)
-    _5.0 = copy _7
+    _5.0 = copy _7  // label "Box.n": i32? decl owner=object_arena(_5)
     match _5.0 {
       Some(bind) _9=_5.0.some -> bb1
       None -> bb2
@@ -166,9 +166,9 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Point" } in fresh2
-    _3.0 = 7
-    _3.1 = 1
+    _3 = alloc Object { class: "Point" } in fresh2  // label "Point": Point
+    _3.0 = 7  // label "Point.x": i32 decl owner=fresh2
+    _3.1 = 1  // label "Point.y": i32 decl owner=fresh2
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "p": Ref<Point> decl
     register_drop current _5 RefSlot
@@ -247,10 +247,10 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "Label" } in current
+    _2 = alloc Object { class: "Label" } in current  // label "Label": Label
     _3 = "hello"
     _4 = copy_into _3 in current
-    _2.0 = copy _4
+    _2.0 = copy _4  // label "Label.text": String decl owner=current
     _5 = len(_2.0)
     _0 = copy _5
     storage_dead _1
@@ -277,12 +277,12 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Point" } in fresh2
+    _3 = alloc Object { class: "Point" } in fresh2  // label "Point": Point
     _4 = "a"
     _5 = copy_into _4 in fresh2
-    _3.0 = copy _5
-    _3.1 = 3
-    _3.2 = 4
+    _3.0 = copy _5  // label "Point.name": String decl owner=fresh2
+    _3.1 = 3  // label "Point.x": i32 decl owner=fresh2
+    _3.2 = 4  // label "Point.y": i32 decl owner=fresh2
     _6 = copy _3  // label "p": Point decl
     _7 = borrow _6
     _8 = call sum(copy _7) +current -> bb1

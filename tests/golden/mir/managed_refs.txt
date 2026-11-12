@@ -62,31 +62,31 @@ fn main (parent=false, sink=false) {
     storage_live _3
     _4 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _4
-    _5 = alloc Object { class: "CacheManager" } in fresh4
-    ref_store_fresh _5.0 owner=fresh4 none
+    _5 = alloc Object { class: "CacheManager" } in fresh4  // label "CacheManager": CacheManager
+    ref_store_fresh _5.0 owner=fresh4 none  // label "CacheManager.root": Ref<Node> decl owner=fresh4
     register_drop fresh4 _5.0 RefSlot
-    ref_store_fresh _5.1 owner=fresh4 none
+    ref_store_fresh _5.1 owner=fresh4 none  // label "CacheManager.hot": Ref<Node> decl owner=fresh4
     register_drop fresh4 _5.1 RefSlot
     _6 = copy _5  // label "cache": CacheManager decl
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
-    _8 = alloc Object { class: "Node" } in fresh7
-    _8.0 = 1
-    _8.1 = 10
-    ref_store_fresh _8.2 owner=fresh7 none
+    _8 = alloc Object { class: "Node" } in fresh7  // label "Node": Node
+    _8.0 = 1  // label "Node.id": i32 decl owner=fresh7
+    _8.1 = 10  // label "Node.value": i32 decl owner=fresh7
+    ref_store_fresh _8.2 owner=fresh7 none  // label "Node.parent": Ref<Node> decl owner=fresh7
     register_drop fresh7 _8.2 RefSlot
-    ref_store_fresh _8.3 owner=fresh7 none
+    ref_store_fresh _8.3 owner=fresh7 none  // label "Node.child": Ref<Node> decl owner=fresh7
     register_drop fresh7 _8.3 RefSlot
     _9 = copy _8  // label "root": Node decl
     _10 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _10
     _11 = ref_create source=fresh10 target=object_arena(_9) copy _9
-    _12 = alloc Object { class: "Node" } in fresh10
-    _12.0 = 2
-    _12.1 = 20
-    ref_store_fresh _12.2 owner=fresh10 move _11
+    _12 = alloc Object { class: "Node" } in fresh10  // label "Node": Node
+    _12.0 = 2  // label "Node.id": i32 decl owner=fresh10
+    _12.1 = 20  // label "Node.value": i32 decl owner=fresh10
+    ref_store_fresh _12.2 owner=fresh10 move _11  // label "Node.parent": Ref<Node> decl owner=fresh10
     register_drop fresh10 _12.2 RefSlot
-    ref_store_fresh _12.3 owner=fresh10 none
+    ref_store_fresh _12.3 owner=fresh10 none  // label "Node.child": Ref<Node> decl owner=fresh10
     register_drop fresh10 _12.3 RefSlot
     _13 = copy _12  // label "child": Node decl
     _14 = ref_create source=object_arena(_9) target=object_arena(_13) copy _13
@@ -236,31 +236,31 @@ fn main (parent=false, sink=false) {
     storage_live _3
     _4 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _4
-    _5 = alloc Object { class: "CacheManager" } in fresh4
-    ref_store_fresh _5.0 owner=fresh4 none
+    _5 = alloc Object { class: "CacheManager" } in fresh4  // label "CacheManager": CacheManager
+    ref_store_fresh _5.0 owner=fresh4 none  // label "CacheManager.root": Ref<Node> decl owner=fresh4
     register_drop fresh4 _5.0 RefSlot
-    ref_store_fresh _5.1 owner=fresh4 none
+    ref_store_fresh _5.1 owner=fresh4 none  // label "CacheManager.hot": Ref<Node> decl owner=fresh4
     register_drop fresh4 _5.1 RefSlot
     _6 = copy _5  // label "cache": CacheManager decl
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
-    _8 = alloc Object { class: "Node" } in fresh7
-    _8.0 = 1
-    _8.1 = 10
-    ref_store_fresh _8.2 owner=fresh7 none
+    _8 = alloc Object { class: "Node" } in fresh7  // label "Node": Node
+    _8.0 = 1  // label "Node.id": i32 decl owner=fresh7
+    _8.1 = 10  // label "Node.value": i32 decl owner=fresh7
+    ref_store_fresh _8.2 owner=fresh7 none  // label "Node.parent": Ref<Node> decl owner=fresh7
     register_drop fresh7 _8.2 RefSlot
-    ref_store_fresh _8.3 owner=fresh7 none
+    ref_store_fresh _8.3 owner=fresh7 none  // label "Node.child": Ref<Node> decl owner=fresh7
     register_drop fresh7 _8.3 RefSlot
     _9 = copy _8  // label "root": Node decl
     _10 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _10
     _11 = ref_create source=fresh10 target=object_arena(_9) copy _9
-    _12 = alloc Object { class: "Node" } in fresh10
-    _12.0 = 2
-    _12.1 = 20
-    ref_store_fresh _12.2 owner=fresh10 move _11
+    _12 = alloc Object { class: "Node" } in fresh10  // label "Node": Node
+    _12.0 = 2  // label "Node.id": i32 decl owner=fresh10
+    _12.1 = 20  // label "Node.value": i32 decl owner=fresh10
+    ref_store_fresh _12.2 owner=fresh10 move _11  // label "Node.parent": Ref<Node> decl owner=fresh10
     register_drop fresh10 _12.2 RefSlot
-    ref_store_fresh _12.3 owner=fresh10 none
+    ref_store_fresh _12.3 owner=fresh10 none  // label "Node.child": Ref<Node> decl owner=fresh10
     register_drop fresh10 _12.3 RefSlot
     _13 = copy _12  // label "child": Node decl
     _14 = ref_create source=object_arena(_9) target=object_arena(_13) copy _13
@@ -361,17 +361,17 @@ fn main (parent=false, sink=false) {
     storage_live _3
     _4 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _4
-    _5 = alloc Object { class: "Node" } in fresh4
-    _5.0 = 1
-    ref_store_fresh _5.1 owner=fresh4 none
+    _5 = alloc Object { class: "Node" } in fresh4  // label "Node": Node
+    _5.0 = 1  // label "Node.id": i32 decl owner=fresh4
+    ref_store_fresh _5.1 owner=fresh4 none  // label "Node.parent": Ref<Node> decl owner=fresh4
     register_drop fresh4 _5.1 RefSlot
     _6 = copy _5  // label "parent": Node decl
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
     _8 = ref_create source=fresh7 target=object_arena(_6) copy _6
-    _9 = alloc Object { class: "Node" } in fresh7
-    _9.0 = 2
-    ref_store_fresh _9.1 owner=fresh7 move _8
+    _9 = alloc Object { class: "Node" } in fresh7  // label "Node": Node
+    _9.0 = 2  // label "Node.id": i32 decl owner=fresh7
+    ref_store_fresh _9.1 owner=fresh7 move _8  // label "Node.parent": Ref<Node> decl owner=fresh7
     register_drop fresh7 _9.1 RefSlot
     _10 = copy _9  // label "child": Node decl
     _11 = ref_create source=home(_2) target=object_arena(_10) copy _10
@@ -497,11 +497,11 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
     _4 = "live"
     _5 = copy_into _4 in fresh2
-    _3.0 = copy _5
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3.0 = copy _5  // label "Node.name": String decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node.next": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
     _6 = ref_create source=current target=object_arena(_3) copy _3
     _7 = move _6  // label "r": Ref<Node> decl
@@ -723,8 +723,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Holder" } in fresh2
-    ref_store_fresh _3.0 owner=fresh2 none
+    _3 = alloc Object { class: "Holder" } in fresh2  // label "Holder": Holder
+    ref_store_fresh _3.0 owner=fresh2 none  // label "Holder.saved": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.0 RefSlot
     _4 = copy _3  // label "holder": Holder decl
     _5 = none  // label "child_ref": Ref<Node> decl
@@ -733,8 +733,8 @@ fn main (parent=false, sink=false) {
     storage_live _6
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
-    _8 = alloc Object { class: "Node" } in fresh7
-    ref_store_fresh _8.0 owner=fresh7 none
+    _8 = alloc Object { class: "Node" } in fresh7  // label "Node": Node
+    ref_store_fresh _8.0 owner=fresh7 none  // label "Node.parent": Ref<Node> decl owner=fresh7
     register_drop fresh7 _8.0 RefSlot
     _9 = copy _8  // label "target": Node decl
     _10 = ref_create source=object_arena(_4) target=object_arena(_9) copy _9
@@ -742,8 +742,8 @@ fn main (parent=false, sink=false) {
     _11 = arena_create_dynamic parent=root scoped=false
     register_strong_root home(_5) <- _11
     _12 = ref_create source=fresh11 target=object_arena(_9) copy _9
-    _13 = alloc Object { class: "Node" } in fresh11
-    ref_store_fresh _13.0 owner=fresh11 move _12
+    _13 = alloc Object { class: "Node" } in fresh11  // label "Node": Node
+    ref_store_fresh _13.0 owner=fresh11 move _12  // label "Node.parent": Ref<Node> decl owner=fresh11
     register_drop fresh11 _13.0 RefSlot
     _14 = ref_create source=home(_5) target=object_arena(_13) copy _13
     ref_store _5 owner=home(_5) move _14
@@ -875,9 +875,9 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
-    _3.0 = 3
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 3  // label "Node.id": i32 decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node.next": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "c": Ref<Node> decl
@@ -885,9 +885,9 @@ fn main (parent=false, sink=false) {
     _6 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _6
     _7 = ref_clone copy _5
-    _8 = alloc Object { class: "Node" } in fresh6
-    _8.0 = 2
-    ref_store_fresh _8.1 owner=fresh6 move _7
+    _8 = alloc Object { class: "Node" } in fresh6  // label "Node": Node
+    _8.0 = 2  // label "Node.id": i32 decl owner=fresh6
+    ref_store_fresh _8.1 owner=fresh6 move _7  // label "Node.next": Ref<Node> decl owner=fresh6
     register_drop fresh6 _8.1 RefSlot
     _9 = ref_create source=current target=object_arena(_8) copy _8
     _10 = move _9  // label "b": Ref<Node> decl
@@ -895,9 +895,9 @@ fn main (parent=false, sink=false) {
     _11 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _11
     _12 = ref_clone copy _10
-    _13 = alloc Object { class: "Node" } in fresh11
-    _13.0 = 1
-    ref_store_fresh _13.1 owner=fresh11 move _12
+    _13 = alloc Object { class: "Node" } in fresh11  // label "Node": Node
+    _13.0 = 1  // label "Node.id": i32 decl owner=fresh11
+    ref_store_fresh _13.1 owner=fresh11 move _12  // label "Node.next": Ref<Node> decl owner=fresh11
     register_drop fresh11 _13.1 RefSlot
     _14 = ref_create source=current target=object_arena(_13) copy _13
     _15 = move _14  // label "a": Ref<Node> decl
@@ -965,8 +965,8 @@ fn main (parent=false, sink=false) {
     storage_live _3
     _4 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _4
-    _5 = alloc Object { class: "Node" } in fresh4
-    _5.0 = 1
+    _5 = alloc Object { class: "Node" } in fresh4  // label "Node": Node
+    _5.0 = 1  // label "Node.id": i32 decl owner=fresh4
     _6 = copy _5  // label "n": Node decl
     _7 = ref_create source=current target=object_arena(_6) copy _6
     _8 = move _7  // label "keep": Ref<Node> decl
@@ -1020,17 +1020,17 @@ fn main (parent=false, sink=false) {
     storage_live _3
     _4 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _4
-    _5 = alloc Object { class: "Node" } in fresh4
-    _5.0 = 1
-    ref_store_fresh _5.1 owner=fresh4 none
+    _5 = alloc Object { class: "Node" } in fresh4  // label "Node": Node
+    _5.0 = 1  // label "Node.id": i32 decl owner=fresh4
+    ref_store_fresh _5.1 owner=fresh4 none  // label "Node.parent": Ref<Node> decl owner=fresh4
     register_drop fresh4 _5.1 RefSlot
     _6 = copy _5  // label "parent": Node decl
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
     _8 = ref_create source=fresh7 target=object_arena(_6) copy _6
-    _9 = alloc Object { class: "Node" } in fresh7
-    _9.0 = 2
-    ref_store_fresh _9.1 owner=fresh7 move _8
+    _9 = alloc Object { class: "Node" } in fresh7  // label "Node": Node
+    _9.0 = 2  // label "Node.id": i32 decl owner=fresh7
+    ref_store_fresh _9.1 owner=fresh7 move _8  // label "Node.parent": Ref<Node> decl owner=fresh7
     register_drop fresh7 _9.1 RefSlot
     _10 = copy _9  // label "child": Node decl
     _11 = ref_create source=home(_2) target=object_arena(_10) copy _10
@@ -1105,9 +1105,9 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
-    _3.0 = 2
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 2  // label "Node.id": i32 decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node.next": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "tail": Ref<Node> decl
@@ -1115,18 +1115,18 @@ fn main (parent=false, sink=false) {
     _6 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _6
     _7 = ref_clone copy _5
-    _8 = alloc Object { class: "Node" } in fresh6
-    _8.0 = 1
-    ref_store_fresh _8.1 owner=fresh6 move _7
+    _8 = alloc Object { class: "Node" } in fresh6  // label "Node": Node
+    _8.0 = 1  // label "Node.id": i32 decl owner=fresh6
+    ref_store_fresh _8.1 owner=fresh6 move _7  // label "Node.next": Ref<Node> decl owner=fresh6
     register_drop fresh6 _8.1 RefSlot
     _9 = ref_create source=current target=object_arena(_8) copy _8
     _10 = move _9  // label "head": Ref<Node> decl
     register_drop current _10 RefSlot
     _11 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _11
-    _12 = alloc Object { class: "Node" } in fresh11
-    _12.0 = 7
-    ref_store_fresh _12.1 owner=fresh11 none
+    _12 = alloc Object { class: "Node" } in fresh11  // label "Node": Node
+    _12.0 = 7  // label "Node.id": i32 decl owner=fresh11
+    ref_store_fresh _12.1 owner=fresh11 none  // label "Node.next": Ref<Node> decl owner=fresh11
     register_drop fresh11 _12.1 RefSlot
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "alone": Ref<Node> decl
@@ -1258,8 +1258,8 @@ fn main (parent=false, sink=false) {
     storage_live _5
     _6 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _6
-    _7 = alloc Object { class: "Box" } in fresh6
-    _7.0 = 1
+    _7 = alloc Object { class: "Box" } in fresh6  // label "Box": Box
+    _7.0 = 1  // label "Box.value": i32 decl owner=fresh6
     _8 = copy _7  // label "local": Box decl
     _9 = ref_clone copy _3
     (_10, _11, _12) = observe copy _9
@@ -1272,8 +1272,8 @@ fn main (parent=false, sink=false) {
     storage_live _16
     _17 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _17
-    _18 = alloc Object { class: "Box" } in fresh17
-    _18.0 = 1
+    _18 = alloc Object { class: "Box" } in fresh17  // label "Box": Box
+    _18.0 = 1  // label "Box.value": i32 decl owner=fresh17
     _19 = copy _18  // label "local": Box decl
     _20 = ref_clone copy _3
     (_21, _22, _23) = observe copy _20
@@ -1345,8 +1345,8 @@ fn make_shared (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "Box" } in fresh2
-    _3.0 = 40
+    _3 = alloc Object { class: "Box" } in fresh2  // label "Box": Box
+    _3.0 = 40  // label "Box.value": i32 decl owner=fresh2
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = ref_rehome owner=result_sink move _4
     _0 = move _5
@@ -1402,18 +1402,18 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 84
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 84  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "p": Ref<P> decl
     register_drop current _5 RefSlot
     _6 = ref_clone copy _5
-    _7 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _7.0 owner=result_sink move _6
+    _7 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _7.0 owner=result_sink move _6  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _7.0 RefSlot
     _8 = copy _7  // label "r": RA decl
-    _9 = alloc Object { class: "Outer" } in result_sink
-    _9.0 = copy _8
+    _9 = alloc Object { class: "Outer" } in result_sink  // label "Outer": Outer
+    _9.0 = copy _8  // label "Outer.r": RA decl owner=result_sink
     _10 = copy _9  // label "o": Outer decl
     _0 = copy _10
     storage_dead _1
@@ -1520,33 +1520,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -1615,14 +1615,14 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 82
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 82  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _5.0 owner=result_sink move _4
+    _5 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _5.0 owner=result_sink move _4  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _5.0 RefSlot
-    _6 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink
-    _6@0.0 = copy _5
+    _6 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink  // label "E": E
+    _6@0.0 = copy _5  // label "E.Has.r": RA decl owner=result_sink
     _0 = copy _6
     storage_dead _1
     region_exit r0
@@ -1728,33 +1728,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -1806,14 +1806,14 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 81
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 81  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _5.0 owner=result_sink move _4
+    _5 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _5.0 owner=result_sink move _4  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _5.0 RefSlot
-    _6 = alloc Object { class: "Box<RA>" } in result_sink
-    _6.0 = copy _5
+    _6 = alloc Object { class: "Box<RA>" } in result_sink  // label "Box<RA>": Box<RA>
+    _6.0 = copy _5  // label "Box<RA>.v": RA decl owner=result_sink
     _0 = copy _6
     storage_dead _1
     region_exit r0
@@ -1919,33 +1919,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -1974,8 +1974,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 1
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 1  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "src": Ref<P> decl
     register_drop current _5 RefSlot
@@ -2021,8 +2021,8 @@ fn make (parent=true, sink=true) {
     register_drop current _1 RefSlot
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 33
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 33  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "extra": Ref<P> decl
     register_drop current _6 RefSlot
@@ -2033,11 +2033,11 @@ fn make (parent=true, sink=true) {
   bb1:
     _14 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _14
-    _15 = alloc Object { class: "P" } in fresh14
-    _15.0 = 0
+    _15 = alloc Object { class: "P" } in fresh14  // label "P": P
+    _15.0 = 0  // label "P.n": i32 decl owner=fresh14
     _16 = ref_create source=result_sink target=object_arena(_15) copy _15
-    _17 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _17.0 owner=result_sink move _16
+    _17 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _17.0 owner=result_sink move _16  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _17.0 RefSlot
     _0 = copy _17
     storage_dead _2
@@ -2050,8 +2050,8 @@ fn make (parent=true, sink=true) {
     storage_live _11
     observation_register current _8
     _12 = ref_clone copy _6
-    _13 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _13.0 owner=result_sink move _12
+    _13 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _13.0 owner=result_sink move _12  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _13.0 RefSlot
     _0 = copy _13
     storage_dead _11
@@ -2160,33 +2160,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -2252,8 +2252,8 @@ fn find (parent=true, sink=true) {
     region_enter r0
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 9
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 9  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "keep": Ref<P> decl
     register_drop current _6 RefSlot
@@ -2276,11 +2276,11 @@ fn find (parent=true, sink=true) {
     region_exit r1
     _17 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _17
-    _18 = alloc Object { class: "P" } in fresh17
-    _18.0 = 0
+    _18 = alloc Object { class: "P" } in fresh17  // label "P": P
+    _18.0 = 0  // label "P.n": i32 decl owner=fresh17
     _19 = ref_create source=result_sink target=object_arena(_18) copy _18
-    _20 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _20.0 owner=result_sink move _19
+    _20 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _20.0 owner=result_sink move _19  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _20.0 RefSlot
     _0 = copy _20
     storage_dead _2
@@ -2290,8 +2290,8 @@ fn find (parent=true, sink=true) {
     region_enter r2
     storage_live _13
     _14 = ref_clone copy _6
-    _15 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _15.0 owner=result_sink move _14
+    _15 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _15.0 owner=result_sink move _14  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _15.0 RefSlot
     _0 = copy _15
     storage_dead _13
@@ -2408,33 +2408,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -2511,8 +2511,8 @@ fn find (parent=true, sink=true) {
     _8 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _8
     _9 = add(copy _3, 20)
-    _10 = alloc Object { class: "P" } in fresh8
-    _10.0 = copy _9
+    _10 = alloc Object { class: "P" } in fresh8  // label "P": P
+    _10.0 = copy _9  // label "P.n": i32 decl owner=fresh8
     _11 = ref_create source=current target=object_arena(_10) copy _10
     _12 = move _11  // label "p": Ref<P> decl
     register_drop current _12 RefSlot
@@ -2526,11 +2526,11 @@ fn find (parent=true, sink=true) {
     region_exit r1
     _18 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _18
-    _19 = alloc Object { class: "P" } in fresh18
-    _19.0 = 0
+    _19 = alloc Object { class: "P" } in fresh18  // label "P": P
+    _19.0 = 0  // label "P.n": i32 decl owner=fresh18
     _20 = ref_create source=result_sink target=object_arena(_19) copy _19
-    _21 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _21.0 owner=result_sink move _20
+    _21 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _21.0 owner=result_sink move _20  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _21.0 RefSlot
     _0 = copy _21
     storage_dead _2
@@ -2540,8 +2540,8 @@ fn find (parent=true, sink=true) {
     region_enter r2
     storage_live _14
     _15 = ref_clone copy _12
-    _16 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _16.0 owner=result_sink move _15
+    _16 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _16.0 owner=result_sink move _15  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _16.0 RefSlot
     _0 = copy _16
     storage_dead _14
@@ -2658,33 +2658,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -2759,8 +2759,8 @@ fn find (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 15
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 15  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "keep": Ref<P> decl
     register_drop current _5 RefSlot
@@ -2788,11 +2788,11 @@ fn find (parent=true, sink=true) {
     region_exit r1
     _24 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _24
-    _25 = alloc Object { class: "P" } in fresh24
-    _25.0 = 0
+    _25 = alloc Object { class: "P" } in fresh24  // label "P": P
+    _25.0 = 0  // label "P.n": i32 decl owner=fresh24
     _26 = ref_create source=result_sink target=object_arena(_25) copy _25
-    _27 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _27.0 owner=result_sink move _26
+    _27 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _27.0 owner=result_sink move _26  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _27.0 RefSlot
     _0 = copy _27
     storage_dead _1
@@ -2826,8 +2826,8 @@ fn find (parent=true, sink=true) {
     region_enter r4
     storage_live _21
     _22 = ref_clone copy _5
-    _23 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _23.0 owner=result_sink move _22
+    _23 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _23.0 owner=result_sink move _22  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _23.0 RefSlot
     _0 = copy _23
     storage_dead _21
@@ -2948,33 +2948,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -3040,15 +3040,15 @@ fn mkO (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 2  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _5.0 owner=result_sink move _4
+    _5 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _5.0 owner=result_sink move _4  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _5.0 RefSlot
     _6 = copy _5  // label "r": RA decl
-    _7 = alloc Object { class: "Outer" } in result_sink
-    _7.0 = copy _6
+    _7 = alloc Object { class: "Outer" } in result_sink  // label "Outer": Outer
+    _7.0 = copy _6  // label "Outer.r": RA decl owner=result_sink
     _0 = copy _7
     storage_dead _1
     region_exit r0
@@ -3122,12 +3122,12 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _2
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root fresh2 <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 11
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 11  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=fresh2 target=object_arena(_4) copy _4
-    _6 = alloc Object { class: "Holder" } in fresh2
-    _6.0 = 7
-    ref_store_fresh _6.1 owner=fresh2 move _5
+    _6 = alloc Object { class: "Holder" } in fresh2  // label "Holder": Holder
+    _6.0 = 7  // label "Holder.base": i32 decl owner=fresh2
+    ref_store_fresh _6.1 owner=fresh2 move _5  // label "Holder.keep": Ref<P> decl owner=fresh2
     register_drop fresh2 _6.1 RefSlot
     _7 = copy _6  // label "h": Holder decl
     _8 = call mk() +current +current -> bb1
@@ -3262,11 +3262,11 @@ fn mk (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 1
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 1  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _5.0 owner=result_sink move _4
+    _5 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _5.0 owner=result_sink move _4  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _5.0 RefSlot
     _0 = copy _5
     storage_dead _1
@@ -3288,14 +3288,14 @@ fn mkOuter (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 2  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _5.0 owner=result_sink move _4
+    _5 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _5.0 owner=result_sink move _4  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _5.0 RefSlot
-    _6 = alloc Object { class: "Outer" } in result_sink
-    _6.0 = copy _5
+    _6 = alloc Object { class: "Outer" } in result_sink  // label "Outer": Outer
+    _6.0 = copy _5  // label "Outer.r": RA decl owner=result_sink
     _0 = copy _6
     storage_dead _1
     region_exit r0
@@ -3315,11 +3315,11 @@ fn mkEnum (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 3
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 3  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink
-    ref_store_fresh _5@0.0 owner=result_sink move _4
+    _5 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink  // label "E": E
+    ref_store_fresh _5@0.0 owner=result_sink move _4  // label "E.Has.p": Ref<P> decl owner=result_sink
     register_drop result_sink _5 Enum("E")
     _0 = copy _5
     storage_dead _1
@@ -3350,8 +3350,8 @@ fn Holder.mixed (parent=true, sink=true) {
     _4 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _4
     _5 = add(copy _1.0, 100)
-    _6 = alloc Object { class: "P" } in fresh4
-    _6.0 = copy _5
+    _6 = alloc Object { class: "P" } in fresh4  // label "P": P
+    _6.0 = copy _5  // label "P.n": i32 decl owner=fresh4
     _7 = ref_create source=current target=object_arena(_6) copy _6
     _8 = move _7  // label "local": Ref<P> decl
     register_drop current _8 RefSlot
@@ -3360,8 +3360,8 @@ fn Holder.mixed (parent=true, sink=true) {
     region_enter r1
     storage_live _9
     _10 = ref_clone copy _8
-    _11 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _11.0 owner=result_sink move _10
+    _11 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _11.0 owner=result_sink move _10  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _11.0 RefSlot
     _0 = copy _11
     storage_dead _9
@@ -3371,8 +3371,8 @@ fn Holder.mixed (parent=true, sink=true) {
     return
   bb2:
     _12 = ref_clone copy _1.1
-    _13 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _13.0 owner=result_sink move _12
+    _13 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _13.0 owner=result_sink move _12  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _13.0 RefSlot
     _0 = copy _13
     storage_dead _3
@@ -3444,27 +3444,27 @@ fn churn (parent=true, sink=false) {
     region_enter r0
     _3 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = copy _1
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = copy _1  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "a": Ref<P> decl
     register_drop current _6 RefSlot
     _7 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _7
     _8 = add(copy _1, 1)
-    _9 = alloc Object { class: "P" } in fresh7
-    _9.0 = copy _8
+    _9 = alloc Object { class: "P" } in fresh7  // label "P": P
+    _9.0 = copy _8  // label "P.n": i32 decl owner=fresh7
     _10 = ref_create source=current target=object_arena(_9) copy _9
     _11 = move _10  // label "b": Ref<P> decl
     register_drop current _11 RefSlot
     _12 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _12
     _13 = add(copy _1, 2)
-    _14 = alloc Object { class: "P" } in fresh12
-    _14.0 = copy _13
+    _14 = alloc Object { class: "P" } in fresh12  // label "P": P
+    _14.0 = copy _13  // label "P.n": i32 decl owner=fresh12
     _15 = ref_create source=current target=object_arena(_14) copy _14
-    _16 = alloc Object { class: "RA" } in current
-    ref_store_fresh _16.0 owner=current move _15
+    _16 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _16.0 owner=current move _15  // label "RA.x": Ref<P> decl owner=current
     register_drop current _16.0 RefSlot
     _17 = copy _16  // label "c": RA decl
     _0 = copy _1
@@ -3512,8 +3512,8 @@ fn wrap (parent=true, sink=true) {
     region_enter r0
     _3 = call mkRef(copy _1) +current +result_sink -> bb1
   bb1:
-    _4 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _4.0 owner=result_sink move _3
+    _4 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _4.0 owner=result_sink move _3  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _4.0 RefSlot
     _0 = copy _4
     storage_dead _2
@@ -3608,8 +3608,8 @@ fn mkRef (parent=true, sink=true) {
     region_enter r0
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = copy _1
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = copy _1  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = ref_rehome owner=result_sink move _5
     _0 = move _6
@@ -3644,33 +3644,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -3704,8 +3704,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Counter" } in fresh2
-    _3.0 = 7
+    _3 = alloc Object { class: "Counter" } in fresh2  // label "Counter": Counter
+    _3.0 = 7  // label "Counter.base": i32 decl owner=fresh2
     _4 = copy _3  // label "c": Counter decl
     _5 = borrow _4
     _6 = call Counter.pick(copy _5, true) +current +current -> bb1
@@ -3750,15 +3750,15 @@ fn Counter.pick (parent=true, sink=true) {
     storage_live _3
     region_enter r0
     _4 = add(copy _1.0, 1)
-    _5 = alloc Object { class: "P" } in result_sink
-    _5.0 = copy _4
+    _5 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _5.0 = copy _4  // label "P.n": i32 decl owner=result_sink
     _6 = copy _5  // label "p": P decl
     switch copy _2 [ 1 -> bb1, else -> bb2]
   bb1:
     region_enter r1
     storage_live _7
-    _8 = alloc Object { class: "A" } in result_sink
-    _8.0 = copy _6
+    _8 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _8.0 = copy _6  // label "A.x": P decl owner=result_sink
     _0 = copy _8
     storage_dead _7
     storage_dead _3
@@ -3766,10 +3766,10 @@ fn Counter.pick (parent=true, sink=true) {
     region_exit r0
     return
   bb2:
-    _9 = alloc Object { class: "P" } in result_sink
-    _9.0 = copy _1.0
-    _10 = alloc Object { class: "A" } in result_sink
-    _10.0 = copy _9
+    _9 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _9.0 = copy _1.0  // label "P.n": i32 decl owner=result_sink
+    _10 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _10.0 = copy _9  // label "A.x": P decl owner=result_sink
     _0 = copy _10
     storage_dead _3
     region_exit r0
@@ -3792,11 +3792,11 @@ fn Counter.mkRef (parent=true, sink=true) {
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
     _4 = mul(copy _1.0, 2)
-    _5 = alloc Object { class: "P" } in fresh3
-    _5.0 = copy _4
+    _5 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _5.0 = copy _4  // label "P.n": i32 decl owner=fresh3
     _6 = ref_create source=result_sink target=object_arena(_5) copy _5
-    _7 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _7.0 owner=result_sink move _6
+    _7 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _7.0 owner=result_sink move _6  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _7.0 RefSlot
     _0 = copy _7
     storage_dead _2
@@ -3903,33 +3903,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -3967,11 +3967,11 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _2
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root fresh2 <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 11
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 11  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=fresh2 target=object_arena(_4) copy _4
-    _6 = alloc Object { class: "Holder" } in fresh2
-    ref_store_fresh _6.0 owner=fresh2 move _5
+    _6 = alloc Object { class: "Holder" } in fresh2  // label "Holder": Holder
+    ref_store_fresh _6.0 owner=fresh2 move _5  // label "Holder.keep": Ref<P> decl owner=fresh2
     register_drop fresh2 _6.0 RefSlot
     _7 = copy _6  // label "h": Holder decl
     _8 = borrow _7
@@ -4007,8 +4007,8 @@ fn Holder.get (parent=true, sink=true) {
     storage_live _2
     region_enter r0
     _3 = ref_clone copy _1.0
-    _4 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _4.0 owner=result_sink move _3
+    _4 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _4.0 owner=result_sink move _3  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _4.0 RefSlot
     _0 = copy _4
     storage_dead _2
@@ -4030,11 +4030,11 @@ fn Holder.fresh (parent=true, sink=true) {
     region_enter r0
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 40
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 40  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=result_sink target=object_arena(_4) copy _4
-    _6 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _6.0 owner=result_sink move _5
+    _6 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _6.0 owner=result_sink move _5  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _6.0 RefSlot
     _0 = copy _6
     storage_dead _2
@@ -4141,33 +4141,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -4237,15 +4237,15 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 61
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 61  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "a": Ref<P> decl
     register_drop current _6 RefSlot
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _7
-    _8 = alloc Object { class: "P" } in fresh7
-    _8.0 = 62
+    _8 = alloc Object { class: "P" } in fresh7  // label "P": P
+    _8.0 = 62  // label "P.n": i32 decl owner=fresh7
     _9 = ref_create source=current target=object_arena(_8) copy _8
     _10 = move _9  // label "b": Ref<P> decl
     register_drop current _10 RefSlot
@@ -4254,8 +4254,8 @@ fn make (parent=true, sink=true) {
     region_enter r1
     storage_live _11
     _12 = ref_clone copy _6
-    _13 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _13.0 owner=result_sink move _12
+    _13 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _13.0 owner=result_sink move _12  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _13.0 RefSlot
     _0 = copy _13
     storage_dead _11
@@ -4265,8 +4265,8 @@ fn make (parent=true, sink=true) {
     return
   bb2:
     _14 = ref_clone copy _10
-    _15 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _15.0 owner=result_sink move _14
+    _15 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _15.0 owner=result_sink move _14  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _15.0 RefSlot
     _0 = copy _15
     storage_dead _2
@@ -4373,33 +4373,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -4528,8 +4528,8 @@ fn make (parent=true, sink=true) {
     _10 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _10
     _11 = add(copy _4, 50)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     vec_Push(copy _9, move _13)
     _14 = add(copy _4, 1)
@@ -4542,9 +4542,9 @@ fn make (parent=true, sink=true) {
   bb4:
     storage_dead _6
     region_exit r1
-    _15 = alloc Object { class: "Bag" } in result_sink
+    _15 = alloc Object { class: "Bag" } in result_sink  // label "Bag": Bag
     _16 = copy_into _3 in result_sink
-    _15.0 = copy _16
+    _15.0 = copy _16  // label "Bag.items": Vec<Ref<P>> decl owner=result_sink
     _0 = copy _15
     storage_dead _1
     region_exit r0
@@ -4616,33 +4616,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -4674,13 +4674,13 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "K", variant: 0 } in fresh2
+    _3 = alloc EnumSlot { enum_name: "K", variant: 0 } in fresh2  // label "K": K
     _4 = call make(copy _3) +current +current -> bb1
   bb1:
     _5 = copy _4  // label "x": RA decl
     _6 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _6
-    _7 = alloc EnumSlot { enum_name: "K", variant: 1 } in fresh6
+    _7 = alloc EnumSlot { enum_name: "K", variant: 1 } in fresh6  // label "K": K
     _8 = call make(copy _7) +current +current -> bb2
   bb2:
     _9 = copy _8  // label "y": RA decl
@@ -4724,15 +4724,15 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _3
-    _4 = alloc Object { class: "P" } in fresh3
-    _4.0 = 71
+    _4 = alloc Object { class: "P" } in fresh3  // label "P": P
+    _4.0 = 71  // label "P.n": i32 decl owner=fresh3
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "a": Ref<P> decl
     register_drop current _6 RefSlot
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _7
-    _8 = alloc Object { class: "P" } in fresh7
-    _8.0 = 72
+    _8 = alloc Object { class: "P" } in fresh7  // label "P": P
+    _8.0 = 72  // label "P.n": i32 decl owner=fresh7
     _9 = ref_create source=current target=object_arena(_8) copy _8
     _10 = move _9  // label "b": Ref<P> decl
     register_drop current _10 RefSlot
@@ -4746,8 +4746,8 @@ fn make (parent=true, sink=true) {
     region_enter r1
     storage_live _11
     _12 = ref_clone copy _6
-    _13 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _13.0 owner=result_sink move _12
+    _13 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _13.0 owner=result_sink move _12  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _13.0 RefSlot
     _0 = copy _13
     storage_dead _11
@@ -4759,8 +4759,8 @@ fn make (parent=true, sink=true) {
     region_enter r2
     storage_live _14
     _15 = ref_clone copy _10
-    _16 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _16.0 owner=result_sink move _15
+    _16 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _16.0 owner=result_sink move _15  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _16.0 RefSlot
     _0 = copy _16
     storage_dead _14
@@ -4869,33 +4869,33 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
     _9 = copy _8  // label "b": A decl
     _10 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _10
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
     _13 = ref_create source=current target=object_arena(_12) copy _12
     _14 = move _13  // label "r": Ref<P> decl
     register_drop current _14 RefSlot
     _15 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _15
     _16 = add(copy _1, 3)
-    _17 = alloc Object { class: "P" } in fresh15
-    _17.0 = copy _16
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    _17.0 = copy _16  // label "P.n": i32 decl owner=fresh15
     _18 = ref_create source=current target=object_arena(_17) copy _17
-    _19 = alloc Object { class: "RA" } in current
-    ref_store_fresh _19.0 owner=current move _18
+    _19 = alloc Object { class: "RA" } in current  // label "RA": RA
+    ref_store_fresh _19.0 owner=current move _18  // label "RA.x": Ref<P> decl owner=current
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
@@ -4922,11 +4922,11 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
     _4 = "live"
     _5 = copy_into _4 in fresh2
-    _3.0 = copy _5
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3.0 = copy _5  // label "Node.name": String decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node.next": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
     _6 = ref_create source=current target=object_arena(_3) copy _3
     _7 = move _6  // label "r": Ref<Node> decl
@@ -5154,21 +5154,21 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
-    _3.0 = 1
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 1  // label "Node.id": i32 decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node.parent": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
-    ref_store_fresh _3.2 owner=fresh2 none
+    ref_store_fresh _3.2 owner=fresh2 none  // label "Node.child": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.2 RefSlot
     _4 = copy _3  // label "parent": Node decl
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
     _6 = ref_create source=fresh5 target=object_arena(_4) copy _4
-    _7 = alloc Object { class: "Node" } in fresh5
-    _7.0 = 2
-    ref_store_fresh _7.1 owner=fresh5 move _6
+    _7 = alloc Object { class: "Node" } in fresh5  // label "Node": Node
+    _7.0 = 2  // label "Node.id": i32 decl owner=fresh5
+    ref_store_fresh _7.1 owner=fresh5 move _6  // label "Node.parent": Ref<Node> decl owner=fresh5
     register_drop fresh5 _7.1 RefSlot
-    ref_store_fresh _7.2 owner=fresh5 none
+    ref_store_fresh _7.2 owner=fresh5 none  // label "Node.child": Ref<Node> decl owner=fresh5
     register_drop fresh5 _7.2 RefSlot
     _8 = copy _7  // label "child": Node decl
     _9 = ref_create source=object_arena(_4) target=object_arena(_8) copy _8
@@ -5266,11 +5266,11 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
     _4 = "live"
     _5 = copy_into _4 in fresh2
-    _3.0 = copy _5
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3.0 = copy _5  // label "Node.name": String decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node.next": Ref<Node> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
     _6 = ref_create source=current target=object_arena(_3) copy _3
     _7 = move _6  // label "live": Ref<Node> decl

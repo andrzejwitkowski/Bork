@@ -24,18 +24,18 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in fresh2
+    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in fresh2  // label "Option<A>": A?
     _4 = copy _3  // label "o": A? decl
     region_enter r1
     storage_live _5
     _6 = arena_create_dynamic parent=root scoped=false
     register_strong_root home(_4) <- _6
-    _7 = alloc Object { class: "P" } in fresh6
-    _7.0 = 31
-    _8 = alloc Object { class: "A" } in fresh6
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh6
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in fresh6  // label "P": P
+    _7.0 = 31  // label "P.n": i32 decl owner=fresh6
+    _8 = alloc Object { class: "A" } in fresh6  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=fresh6
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh6  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=fresh6
     _4 = copy _9
     storage_dead _5
     region_exit r1
@@ -122,24 +122,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -179,7 +179,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in fresh2
+    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in fresh2  // label "Option<A>": A?
     _4 = copy _3  // label "o": A? decl
     _5 = 0  // label "i": i32 decl
     region_enter r1
@@ -193,12 +193,12 @@ fn main (parent=false, sink=false) {
     _10 = arena_create_dynamic parent=root scoped=false
     register_strong_root home(_4) <- _10
     _11 = add(copy _5, 40)
-    _12 = alloc Object { class: "P" } in fresh10
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in fresh10
-    _13.0 = copy _12
-    _14 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh10
-    _14@0.0 = copy _13
+    _12 = alloc Object { class: "P" } in fresh10  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=fresh10
+    _13 = alloc Object { class: "A" } in fresh10  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=fresh10
+    _14 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh10  // label "Option<A>": A?
+    _14@0.0 = copy _13  // label "Option<A>.Some.value": A decl owner=fresh10
     _4 = copy _14
     _15 = add(copy _5, 1)
     _5 = copy _15
@@ -293,24 +293,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -353,23 +353,23 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 1
-    _4 = alloc Object { class: "A" } in fresh2
-    _4.0 = copy _3
-    _5 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh2
-    _5@0.0 = copy _4
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 1  // label "P.n": i32 decl owner=fresh2
+    _4 = alloc Object { class: "A" } in fresh2  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=fresh2
+    _5 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh2  // label "Option<A>": A?
+    _5@0.0 = copy _4  // label "Option<A>.Some.value": A decl owner=fresh2
     _6 = copy _5  // label "o": A? decl
     region_enter r1
     storage_live _7
     _8 = arena_create_dynamic parent=root scoped=false
     register_strong_root home(_6) <- _8
-    _9 = alloc Object { class: "P" } in fresh8
-    _9.0 = 33
-    _10 = alloc Object { class: "A" } in fresh8
-    _10.0 = copy _9
-    _11 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh8
-    _11@0.0 = copy _10
+    _9 = alloc Object { class: "P" } in fresh8  // label "P": P
+    _9.0 = 33  // label "P.n": i32 decl owner=fresh8
+    _10 = alloc Object { class: "A" } in fresh8  // label "A": A
+    _10.0 = copy _9  // label "A.x": P decl owner=fresh8
+    _11 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh8  // label "Option<A>": A?
+    _11@0.0 = copy _10  // label "Option<A>.Some.value": A decl owner=fresh8
     _6 = copy _11
     storage_dead _7
     region_exit r1
@@ -379,12 +379,12 @@ fn main (parent=false, sink=false) {
   bb1:
     _14 = arena_create_dynamic parent=root scoped=false
     register_strong_root home(_6) <- _14
-    _15 = alloc Object { class: "P" } in fresh14
-    _15.0 = 34
-    _16 = alloc Object { class: "A" } in fresh14
-    _16.0 = copy _15
-    _17 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh14
-    _17@0.0 = copy _16
+    _15 = alloc Object { class: "P" } in fresh14  // label "P": P
+    _15.0 = 34  // label "P.n": i32 decl owner=fresh14
+    _16 = alloc Object { class: "A" } in fresh14  // label "A": A
+    _16.0 = copy _15  // label "A.x": P decl owner=fresh14
+    _17 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in fresh14  // label "Option<A>": A?
+    _17@0.0 = copy _16  // label "Option<A>.Some.value": A decl owner=fresh14
     _6 = copy _17
     storage_dead _12
     region_exit r2
@@ -471,24 +471,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -525,13 +525,13 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
-    _2@0.0 = 1
+    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current  // label "Option<i32>": i32?
+    _2@0.0 = 1  // label "Option<i32>.Some.value": i32 decl owner=current
     _3 = copy _2  // label "a": i32? decl
-    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
     _5 = copy _4  // label "b": i32? decl
     _6 = "x"  // label "s": String decl
-    _8 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _8 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
     match _5 {
       Some(bind) _9=_5.some -> bb2
       None -> bb3
@@ -566,7 +566,7 @@ fn main (parent=false, sink=false) {
     storage_dead _11
     goto bb9
   bb9:
-    _13 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _13 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
     match _3 {
       Some(bind) _14=_3.some -> bb11
       None -> bb12
@@ -689,12 +689,12 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink
-    _2@0.0 = 7
+    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
+    _2@0.0 = 7  // label "Option<i32>.Some.value": i32 decl owner=result_sink
     _3 = copy _2  // label "i": i32? decl
-    _4 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 0 } in result_sink
+    _4 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 0 } in result_sink  // label "Option<i32?>": Option<i32?>
     _5 = copy_into _3 in result_sink
-    _4@0.0 = copy _5
+    _4@0.0 = copy _5  // label "Option<i32?>.Some.value": i32? decl owner=result_sink
     _6 = copy_into _4 in result_sink
     _0 = copy _6
     storage_dead _1
@@ -713,11 +713,11 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
-    _2@0.0 = 1234567
-    _3 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 0 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current  // label "Option<i32>": i32?
+    _2@0.0 = 1234567  // label "Option<i32>.Some.value": i32 decl owner=current
+    _3 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 0 } in current  // label "Option<i32?>": Option<i32?>
     _4 = copy_into _2 in current
-    _3@0.0 = copy _4
+    _3@0.0 = copy _4  // label "Option<i32?>.Some.value": i32? decl owner=current
     _5 = copy _3  // label "a": Option<i32?> decl
     storage_dead _1
     region_exit r0
@@ -829,13 +829,13 @@ fn make (parent=true, sink=true) {
     storage_live _1
     region_enter r0
     _2 = intrinsic Concat("ab", "cd") in result_sink
-    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in result_sink
+    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in result_sink  // label "Option<String>": String?
     _4 = copy_into _2 in result_sink
-    _3@0.0 = copy _4
+    _3@0.0 = copy _4  // label "Option<String>.Some.value": String decl owner=result_sink
     _5 = copy _3  // label "x": String? decl
-    _6 = alloc Object { class: "Box" } in result_sink
+    _6 = alloc Object { class: "Box" } in result_sink  // label "Box": Box
     _7 = copy_into _5 in result_sink
-    _6.0 = copy _7
+    _6.0 = copy _7  // label "Box.x": String? decl owner=result_sink
     _0 = copy _6
     storage_dead _1
     region_exit r0
@@ -860,18 +860,18 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _4 = "01234567890123456789"
     _5 = copy_into _4 in current
-    _3@0.0 = copy _5
+    _3@0.0 = copy _5  // label "Option<String>.Some.value": String decl owner=current
     _6 = copy _3  // label "a": String? decl
     _7 = intrinsic Concat("zz", "yyyyyy") in current
-    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _9 = copy_into _7 in current
-    _8@0.0 = copy _9
-    _10 = alloc Object { class: "Box" } in current
+    _8@0.0 = copy _9  // label "Option<String>.Some.value": String decl owner=current
+    _10 = alloc Object { class: "Box" } in current  // label "Box": Box
     _11 = copy_into _8 in current
-    _10.0 = copy _11
+    _10.0 = copy _11  // label "Box.x": String? decl owner=current
     _12 = copy _10  // label "b": Box decl
     _0 = copy _1
     storage_dead _2
@@ -921,20 +921,20 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _3 = "same"
     _4 = copy_into _3 in current
-    _2@0.0 = copy _4
+    _2@0.0 = copy _4  // label "Option<String>.Some.value": String decl owner=current
     _5 = copy _2  // label "a": String? decl
-    _6 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _6 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _7 = "same"
     _8 = copy_into _7 in current
-    _6@0.0 = copy _8
+    _6@0.0 = copy _8  // label "Option<String>.Some.value": String decl owner=current
     _9 = copy _6  // label "b": String? decl
-    _10 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _10 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _11 = "other"
     _12 = copy_into _11 in current
-    _10@0.0 = copy _12
+    _10@0.0 = copy _12  // label "Option<String>.Some.value": String decl owner=current
     _13 = copy _10  // label "c": String? decl
     match _5 {
       Some(bind) _15=_5.some -> bb2
@@ -1113,12 +1113,12 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in fresh2
-    _3@0.0 = 7
+    _3 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in fresh2  // label "Option<i32>": i32?
+    _3@0.0 = 7  // label "Option<i32>.Some.value": i32 decl owner=fresh2
     _4 = copy _3  // label "a": i32? decl
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
-    _6 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in fresh5
+    _6 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in fresh5  // label "Option<i32>": i32?
     _7 = copy _6  // label "b": i32? decl
     _8 = call show(copy _4) +current -> bb1
   bb1:
@@ -1128,16 +1128,16 @@ fn main (parent=false, sink=false) {
     intrinsic PrintlnInt(copy _9)
     _10 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _10
-    _11 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in fresh10
-    _11@0.0 = 5
+    _11 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in fresh10  // label "Option<i32>": i32?
+    _11@0.0 = 5  // label "Option<i32>.Some.value": i32 decl owner=fresh10
     _12 = copy _11  // label "o": i32? decl
     _13 = call show(copy _12) +current -> bb3
   bb3:
     intrinsic PrintlnInt(copy _13)
-    _14 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _14 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _15 = "hi"
     _16 = copy_into _15 in current
-    _14@0.0 = copy _16
+    _14@0.0 = copy _16  // label "Option<String>.Some.value": String decl owner=current
     _17 = copy _14  // label "s": String? decl
     match _17 {
       Option#1() -> bb5
@@ -1147,12 +1147,12 @@ fn main (parent=false, sink=false) {
     _23 = copy _18  // label "len": i32 decl
     _24 = sub(copy _23, 2)
     intrinsic PrintlnInt(copy _24)
-    _25 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
-    _26 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 0 } in current
+    _25 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
+    _26 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 0 } in current  // label "Option<i32?>": Option<i32?>
     _27 = copy_into _25 in current
-    _26@0.0 = copy _27
+    _26@0.0 = copy _27  // label "Option<i32?>.Some.value": i32? decl owner=current
     _28 = copy _26  // label "nested": Option<i32?> decl
-    _29 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 1 } in current
+    _29 = alloc EnumSlot { enum_name: "Option<i32?>", variant: 1 } in current  // label "Option<i32?>": Option<i32?>
     _30 = copy _29  // label "gone": Option<i32?> decl
     match _28 {
       Option#1() -> bb8
@@ -1285,10 +1285,10 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
-    _2@0.0 = 7
+    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current  // label "Option<i32>": i32?
+    _2@0.0 = 7  // label "Option<i32>.Some.value": i32 decl owner=current
     _3 = copy _2  // label "x": i32? decl
-    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
     _5 = copy _4  // label "y": i32? decl
     _6 = copy _3  // label "a": i32? decl
     _7 = copy _5  // label "b": i32? decl
@@ -1314,8 +1314,8 @@ fn main (parent=false, sink=false) {
   bb4:
     _14 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _14
-    _15 = alloc Object { class: "Node" } in fresh14
-    _15.0 = 5
+    _15 = alloc Object { class: "Node" } in fresh14  // label "Node": Node
+    _15.0 = 5  // label "Node.value": i32 decl owner=fresh14
     _16 = copy _15  // label "node": Node decl
     _17 = ref_create source=current target=object_arena(_16) copy _16
     _18 = move _17  // label "r": Ref<Node> decl
@@ -1390,7 +1390,7 @@ fn optionFromRef<Node> (parent=true, sink=true) {
   bb1:
     region_enter r1
     storage_live _5
-    _6 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink
+    _6 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
     register_drop result_sink _6 Enum("Option<Ref<Node>>")
     _0 = copy _6
     storage_dead _5
@@ -1400,8 +1400,8 @@ fn optionFromRef<Node> (parent=true, sink=true) {
     return
   bb2:
     _7 = ref_clone copy _1
-    _8 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink
-    ref_store_fresh _8@0.0 owner=result_sink move _7
+    _8 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    ref_store_fresh _8@0.0 owner=result_sink move _7  // label "Option<Ref<Node>>.Some.value": Ref<Node> decl owner=result_sink
     register_drop result_sink _8 Enum("Option<Ref<Node>>")
     _0 = copy _8
     storage_dead _2
@@ -1512,10 +1512,10 @@ fn main (parent=false, sink=false) {
     _9 = call show(copy _8) +current -> bb4
   bb4:
     intrinsic PrintlnInt(copy _9)
-    _10 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _10 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _11 = "hi"
     _12 = copy_into _11 in current
-    _10@0.0 = copy _12
+    _10@0.0 = copy _12  // label "Option<String>.Some.value": String decl owner=current
     _13 = copy _10  // label "text": String? decl
     match _13 {
       Option#1() -> bb6
@@ -1604,7 +1604,7 @@ fn half (parent=true, sink=true) {
     _5 = eq(2, 0)
     switch copy _5 [ 1 -> bb3, else -> bb4]
   bb2:
-    _11 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in result_sink
+    _11 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in result_sink  // label "Option<i32>": i32?
     _12 = copy_into _11 in result_sink
     _0 = copy _12
     storage_dead _2
@@ -1620,8 +1620,8 @@ fn half (parent=true, sink=true) {
     switch copy _7 [ 1 -> bb3, else -> bb6]
   bb6:
     _8 = div(copy _1, 2)
-    _9 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink
-    _9@0.0 = copy _8
+    _9 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
+    _9@0.0 = copy _8  // label "Option<i32>.Some.value": i32 decl owner=result_sink
     _10 = copy_into _9 in result_sink
     _0 = copy _10
     storage_dead _4
@@ -1686,8 +1686,8 @@ fn parse (parent=true, sink=true) {
   bb1:
     region_enter r1
     storage_live _4
-    _5 = alloc EnumSlot { enum_name: "Result<i32,String>", variant: 0 } in result_sink
-    _5@0.0 = copy _1
+    _5 = alloc EnumSlot { enum_name: "Result<i32,String>", variant: 0 } in result_sink  // label "Result<i32,String>": Result<i32, String>
+    _5@0.0 = copy _1  // label "Result<i32,String>.Ok.value": i32 decl owner=result_sink
     _0 = copy _5
     storage_dead _4
     storage_dead _2
@@ -1695,10 +1695,10 @@ fn parse (parent=true, sink=true) {
     region_exit r0
     return
   bb2:
-    _6 = alloc EnumSlot { enum_name: "Result<i32,String>", variant: 1 } in result_sink
+    _6 = alloc EnumSlot { enum_name: "Result<i32,String>", variant: 1 } in result_sink  // label "Result<i32,String>": Result<i32, String>
     _7 = "negative"
     _8 = copy_into _7 in result_sink
-    _6@1.0 = copy _8
+    _6@1.0 = copy _8  // label "Result<i32,String>.Err.error": String decl owner=result_sink
     _0 = copy _6
     storage_dead _2
     region_exit r0
@@ -1727,10 +1727,10 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
-    _2@0.0 = 3
+    _2 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current  // label "Option<i32>": i32?
+    _2@0.0 = 3  // label "Option<i32>.Some.value": i32 decl owner=current
     _3 = copy _2  // label "x": i32? decl
-    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _4 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
     _5 = copy _4  // label "y": i32? decl
     match _3 {
       Option#0(bind) _6=_3@0.0 -> bb2
@@ -1804,15 +1804,15 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "P" } in result_sink
-    _2.0 = 5
-    _3 = alloc Object { class: "A" } in result_sink
-    _3.0 = copy _2
-    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _4@0.0 = copy _3
-    _5 = alloc Object { class: "Holder" } in result_sink
+    _2 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _2.0 = 5  // label "P.n": i32 decl owner=result_sink
+    _3 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _3.0 = copy _2  // label "A.x": P decl owner=result_sink
+    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _4@0.0 = copy _3  // label "Option<A>.Some.value": A decl owner=result_sink
+    _5 = alloc Object { class: "Holder" } in result_sink  // label "Holder": Holder
     _6 = copy_into _4 in result_sink
-    _5.0 = copy _6
+    _5.0 = copy _6  // label "Holder.a": A? decl owner=result_sink
     _0 = copy _5
     storage_dead _1
     region_exit r0
@@ -1913,24 +1913,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -1975,12 +1975,12 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "P" } in result_sink
-    _2.0 = 3
-    _3 = alloc Object { class: "A" } in result_sink
-    _3.0 = copy _2
-    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _4@0.0 = copy _3
+    _2 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _2.0 = 3  // label "P.n": i32 decl owner=result_sink
+    _3 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _3.0 = copy _2  // label "A.x": P decl owner=result_sink
+    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _4@0.0 = copy _3  // label "Option<A>.Some.value": A decl owner=result_sink
     _5 = copy _4  // label "o": A? decl
     _6 = copy_into _5 in result_sink
     _0 = copy _6
@@ -2083,24 +2083,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -2142,7 +2142,7 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in result_sink
+    _2 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in result_sink  // label "Option<A>": A?
     _3 = copy_into _2 in result_sink
     _0 = copy _3
     storage_dead _1
@@ -2244,24 +2244,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -2286,7 +2286,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in fresh2
+    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in fresh2  // label "Option<A>": A?
     _4 = copy _3  // label "none": A? decl
     _5 = call make(copy _4) +current +current -> bb1
   bb1:
@@ -2323,15 +2323,15 @@ fn make (parent=true, sink=true) {
     _3 = copy _4
     goto bb3
   bb2:
-    _5 = alloc Object { class: "P" } in result_sink
-    _5.0 = 17
-    _6 = alloc Object { class: "A" } in result_sink
-    _6.0 = copy _5
+    _5 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _5.0 = 17  // label "P.n": i32 decl owner=result_sink
+    _6 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _6.0 = copy _5  // label "A.x": P decl owner=result_sink
     _3 = copy _6
     goto bb3
   bb3:
-    _7 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _7@0.0 = copy _3
+    _7 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _7@0.0 = copy _3  // label "Option<A>.Some.value": A decl owner=result_sink
     _8 = copy_into _7 in result_sink
     _0 = copy _8
     storage_dead _2
@@ -2433,24 +2433,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -2503,12 +2503,12 @@ fn make (parent=true, sink=true) {
   bb1:
     region_enter r1
     storage_live _3
-    _4 = alloc Object { class: "P" } in result_sink
-    _4.0 = 7
-    _5 = alloc Object { class: "A" } in result_sink
-    _5.0 = copy _4
-    _6 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _6@0.0 = copy _5
+    _4 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _4.0 = 7  // label "P.n": i32 decl owner=result_sink
+    _5 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _5.0 = copy _4  // label "A.x": P decl owner=result_sink
+    _6 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _6@0.0 = copy _5  // label "Option<A>.Some.value": A decl owner=result_sink
     _7 = copy_into _6 in result_sink
     _0 = copy _7
     storage_dead _3
@@ -2517,7 +2517,7 @@ fn make (parent=true, sink=true) {
     region_exit r0
     return
   bb2:
-    _8 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in result_sink
+    _8 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in result_sink  // label "Option<A>": A?
     _9 = copy_into _8 in result_sink
     _0 = copy _9
     storage_dead _2
@@ -2619,24 +2619,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -2717,15 +2717,15 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "P" } in result_sink
-    _2.0 = 20
-    _3 = alloc Object { class: "A" } in result_sink
-    _3.0 = copy _2
-    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _4@0.0 = copy _3
-    _5 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink
+    _2 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _2.0 = 20  // label "P.n": i32 decl owner=result_sink
+    _3 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _3.0 = copy _2  // label "A.x": P decl owner=result_sink
+    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _4@0.0 = copy _3  // label "Option<A>.Some.value": A decl owner=result_sink
+    _5 = alloc EnumSlot { enum_name: "E", variant: 0 } in result_sink  // label "E": E
     _6 = copy_into _4 in result_sink
-    _5@0.0 = copy _6
+    _5@0.0 = copy _6  // label "E.Has.a": A? decl owner=result_sink
     _0 = copy _5
     storage_dead _1
     region_exit r0
@@ -2791,24 +2791,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -2853,13 +2853,13 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "P" } in result_sink
-    _2.0 = 11
-    _3 = alloc Object { class: "A" } in result_sink
-    _3.0 = copy _2
+    _2 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _2.0 = 11  // label "P.n": i32 decl owner=result_sink
+    _3 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _3.0 = copy _2  // label "A.x": P decl owner=result_sink
     _4 = copy _3  // label "n": A decl
-    _5 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _5@0.0 = copy _4
+    _5 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _5@0.0 = copy _4  // label "Option<A>.Some.value": A decl owner=result_sink
     _6 = copy_into _5 in result_sink
     _0 = copy _6
     storage_dead _1
@@ -2961,24 +2961,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -3032,13 +3032,13 @@ fn make (parent=true, sink=true) {
   bb1:
     region_enter r1
     storage_live _3
-    _4 = alloc Object { class: "P" } in result_sink
-    _4.0 = 12
-    _5 = alloc Object { class: "A" } in result_sink
-    _5.0 = copy _4
+    _4 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _4.0 = 12  // label "P.n": i32 decl owner=result_sink
+    _5 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _5.0 = copy _4  // label "A.x": P decl owner=result_sink
     _6 = copy _5  // label "n": A decl
-    _7 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _7@0.0 = copy _6
+    _7 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _7@0.0 = copy _6  // label "Option<A>.Some.value": A decl owner=result_sink
     _8 = copy_into _7 in result_sink
     _0 = copy _8
     storage_dead _3
@@ -3047,7 +3047,7 @@ fn make (parent=true, sink=true) {
     region_exit r0
     return
   bb2:
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in result_sink
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 1 } in result_sink  // label "Option<A>": A?
     _10 = copy_into _9 in result_sink
     _0 = copy _10
     storage_dead _2
@@ -3149,24 +3149,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -3217,18 +3217,18 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 15
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 15  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = move _4  // label "p": Ref<P> decl
     register_drop current _5 RefSlot
     _6 = ref_clone copy _5
-    _7 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _7.0 owner=result_sink move _6
+    _7 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _7.0 owner=result_sink move _6  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _7.0 RefSlot
     _8 = copy _7  // label "r": RA decl
-    _9 = alloc EnumSlot { enum_name: "Option<RA>", variant: 0 } in result_sink
-    _9@0.0 = copy _8
+    _9 = alloc EnumSlot { enum_name: "Option<RA>", variant: 0 } in result_sink  // label "Option<RA>": RA?
+    _9@0.0 = copy _8  // label "Option<RA>.Some.value": RA decl owner=result_sink
     _10 = copy_into _9 in result_sink
     _0 = copy _10
     storage_dead _1
@@ -3350,24 +3350,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -3411,12 +3411,12 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "P" } in result_sink
-    _2.0 = 2
-    _3 = alloc Object { class: "A" } in result_sink
-    _3.0 = copy _2
-    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _4@0.0 = copy _3
+    _2 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _2.0 = 2  // label "P.n": i32 decl owner=result_sink
+    _3 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _3.0 = copy _2  // label "A.x": P decl owner=result_sink
+    _4 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _4@0.0 = copy _3  // label "Option<A>.Some.value": A decl owner=result_sink
     _5 = copy_into _4 in result_sink
     _0 = copy _5
     storage_dead _1
@@ -3518,24 +3518,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -3560,10 +3560,10 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 16
-    _4 = alloc Object { class: "A" } in fresh2
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 16  // label "P.n": i32 decl owner=fresh2
+    _4 = alloc Object { class: "A" } in fresh2  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=fresh2
     _5 = call wrap(copy _4) +current +current -> bb1
   bb1:
     _6 = copy _5  // label "o": A? decl
@@ -3587,8 +3587,8 @@ fn wrap (parent=true, sink=true) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _3@0.0 = copy _1
+    _3 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _3@0.0 = copy _1  // label "Option<A>.Some.value": A decl owner=result_sink
     _4 = copy_into _3 in result_sink
     _0 = copy _4
     storage_dead _2
@@ -3690,24 +3690,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -3767,17 +3767,17 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in result_sink
-    _3.0 = 18
-    _4 = alloc Object { class: "A" } in result_sink
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _3.0 = 18  // label "P.n": i32 decl owner=result_sink
+    _4 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=result_sink
     _5 = copy _4  // label "keep": A decl
     switch copy _1 [ 1 -> bb1, else -> bb2]
   bb1:
     region_enter r1
     storage_live _6
-    _7 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _7@0.0 = copy _5
+    _7 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _7@0.0 = copy _5  // label "Option<A>.Some.value": A decl owner=result_sink
     _8 = copy_into _7 in result_sink
     _0 = copy _8
     storage_dead _6
@@ -3786,12 +3786,12 @@ fn make (parent=true, sink=true) {
     region_exit r0
     return
   bb2:
-    _9 = alloc Object { class: "P" } in result_sink
-    _9.0 = 19
-    _10 = alloc Object { class: "A" } in result_sink
-    _10.0 = copy _9
-    _11 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink
-    _11@0.0 = copy _10
+    _9 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _9.0 = 19  // label "P.n": i32 decl owner=result_sink
+    _10 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _10.0 = copy _9  // label "A.x": P decl owner=result_sink
+    _11 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in result_sink  // label "Option<A>": A?
+    _11@0.0 = copy _10  // label "Option<A>.Some.value": A decl owner=result_sink
     _12 = copy_into _11 in result_sink
     _0 = copy _12
     storage_dead _2
@@ -3893,24 +3893,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -3958,14 +3958,14 @@ fn make (parent=true, sink=true) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "P" } in fresh2
-    _3.0 = 14
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 14  // label "P.n": i32 decl owner=fresh2
     _4 = ref_create source=result_sink target=object_arena(_3) copy _3
-    _5 = alloc Object { class: "RA" } in result_sink
-    ref_store_fresh _5.0 owner=result_sink move _4
+    _5 = alloc Object { class: "RA" } in result_sink  // label "RA": RA
+    ref_store_fresh _5.0 owner=result_sink move _4  // label "RA.x": Ref<P> decl owner=result_sink
     register_drop result_sink _5.0 RefSlot
-    _6 = alloc EnumSlot { enum_name: "Option<RA>", variant: 0 } in result_sink
-    _6@0.0 = copy _5
+    _6 = alloc EnumSlot { enum_name: "Option<RA>", variant: 0 } in result_sink  // label "Option<RA>": RA?
+    _6@0.0 = copy _5  // label "Option<RA>.Some.value": RA decl owner=result_sink
     _7 = copy_into _6 in result_sink
     _0 = copy _7
     storage_dead _1
@@ -4087,24 +4087,24 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "P" } in current
-    _3.0 = copy _1
-    _4 = alloc Object { class: "A" } in current
-    _4.0 = copy _3
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = alloc Object { class: "A" } in current  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=current
     _5 = copy _4  // label "a": A decl
     _6 = add(copy _1, 1)
-    _7 = alloc Object { class: "P" } in current
-    _7.0 = copy _6
-    _8 = alloc Object { class: "A" } in current
-    _8.0 = copy _7
-    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current
-    _9@0.0 = copy _8
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _6  // label "P.n": i32 decl owner=current
+    _8 = alloc Object { class: "A" } in current  // label "A": A
+    _8.0 = copy _7  // label "A.x": P decl owner=current
+    _9 = alloc EnumSlot { enum_name: "Option<A>", variant: 0 } in current  // label "Option<A>": A?
+    _9@0.0 = copy _8  // label "Option<A>.Some.value": A decl owner=current
     _10 = copy _9  // label "b": A? decl
     _11 = add(copy _1, 2)
-    _12 = alloc Object { class: "P" } in current
-    _12.0 = copy _11
-    _13 = alloc Object { class: "A" } in current
-    _13.0 = copy _12
+    _12 = alloc Object { class: "P" } in current  // label "P": P
+    _12.0 = copy _11  // label "P.n": i32 decl owner=current
+    _13 = alloc Object { class: "A" } in current  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=current
     _14 = copy _13  // label "c": A decl
     _0 = copy _1
     storage_dead _2
@@ -4188,14 +4188,14 @@ fn make (parent=true, sink=true) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Object { class: "N" } in result_sink
-    _2.0 = 42
+    _2 = alloc Object { class: "N" } in result_sink  // label "N": N
+    _2.0 = 42  // label "N.n": i32 decl owner=result_sink
     _3 = copy _2  // label "n": N decl
-    _4 = alloc EnumSlot { enum_name: "Option<N>", variant: 0 } in result_sink
-    _4@0.0 = copy _3
-    _5 = alloc Object { class: "Box" } in result_sink
+    _4 = alloc EnumSlot { enum_name: "Option<N>", variant: 0 } in result_sink  // label "Option<N>": N?
+    _4@0.0 = copy _3  // label "Option<N>.Some.value": N decl owner=result_sink
+    _5 = alloc Object { class: "Box" } in result_sink  // label "Box": Box
     _6 = copy_into _4 in result_sink
-    _5.0 = copy _6
+    _5.0 = copy _6  // label "Box.n": N? decl owner=result_sink
     _0 = copy _5
     storage_dead _1
     region_exit r0
@@ -4221,22 +4221,22 @@ fn churn (parent=true, sink=false) {
   bb0:
     storage_live _2
     region_enter r0
-    _3 = alloc Object { class: "N" } in current
-    _3.0 = copy _1
-    _4 = alloc EnumSlot { enum_name: "Option<N>", variant: 0 } in current
-    _4@0.0 = copy _3
-    _5 = alloc Object { class: "Box" } in current
+    _3 = alloc Object { class: "N" } in current  // label "N": N
+    _3.0 = copy _1  // label "N.n": i32 decl owner=current
+    _4 = alloc EnumSlot { enum_name: "Option<N>", variant: 0 } in current  // label "Option<N>": N?
+    _4@0.0 = copy _3  // label "Option<N>.Some.value": N decl owner=current
+    _5 = alloc Object { class: "Box" } in current  // label "Box": Box
     _6 = copy_into _4 in current
-    _5.0 = copy _6
+    _5.0 = copy _6  // label "Box.n": N? decl owner=current
     _7 = copy _5  // label "x": Box decl
     _8 = add(copy _1, 1)
-    _9 = alloc Object { class: "N" } in current
-    _9.0 = copy _8
-    _10 = alloc EnumSlot { enum_name: "Option<N>", variant: 0 } in current
-    _10@0.0 = copy _9
-    _11 = alloc Object { class: "Box" } in current
+    _9 = alloc Object { class: "N" } in current  // label "N": N
+    _9.0 = copy _8  // label "N.n": i32 decl owner=current
+    _10 = alloc EnumSlot { enum_name: "Option<N>", variant: 0 } in current  // label "Option<N>": N?
+    _10@0.0 = copy _9  // label "Option<N>.Some.value": N decl owner=current
+    _11 = alloc Object { class: "Box" } in current  // label "Box": Box
     _12 = copy_into _10 in current
-    _11.0 = copy _12
+    _11.0 = copy _12  // label "Box.n": N? decl owner=current
     _13 = copy _11  // label "y": Box decl
     _0 = copy _1
     storage_dead _2
@@ -4336,9 +4336,9 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option", variant: 0 } in current
-    _2@0.0 = 1
-    _2@0.1 = 2
+    _2 = alloc EnumSlot { enum_name: "Option", variant: 0 } in current  // label "Option": Option
+    _2@0.0 = 1  // label "Option.Pair.a": i32 decl owner=current
+    _2@0.1 = 2  // label "Option.Pair.b": i32 decl owner=current
     _3 = copy _2  // label "o": Option decl
     match _3 {
       Option#0(bind, bind) _5=_3@0.0 _6=_3@0.1 -> bb2
@@ -4402,14 +4402,14 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in fresh2
+    _3 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in fresh2  // label "Option<String>": String?
     _4 = "hi"
     _5 = copy_into _4 in fresh2
-    _3@0.0 = copy _5
+    _3@0.0 = copy _5  // label "Option<String>.Some.value": String decl owner=fresh2
     _6 = copy _3  // label "a": String? decl
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
-    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in fresh7
+    _8 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in fresh7  // label "Option<String>": String?
     _9 = copy _8  // label "b": String? decl
     _10 = call len(copy _6) +current -> bb1
   bb1:
@@ -4419,34 +4419,34 @@ fn main (parent=false, sink=false) {
     intrinsic PrintlnInt(copy _11)
     _12 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _12
-    _13 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in fresh12
+    _13 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in fresh12  // label "Option<String>": String?
     _14 = "hi"
     _15 = copy_into _14 in fresh12
-    _13@0.0 = copy _15
+    _13@0.0 = copy _15  // label "Option<String>.Some.value": String decl owner=fresh12
     _16 = call size(copy _13) +current -> bb3
   bb3:
     intrinsic PrintlnInt(copy _16)
     _17 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _17
-    _18 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in fresh17
+    _18 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in fresh17  // label "Option<String>": String?
     _19 = call size(copy _18) +current -> bb4
   bb4:
     intrinsic PrintlnInt(copy _19)
     _20 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _20
-    _21 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in fresh20
-    _21@0.0 = 3
+    _21 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in fresh20  // label "Option<i32>": i32?
+    _21@0.0 = 3  // label "Option<i32>.Some.value": i32 decl owner=fresh20
     _22 = call pick(copy _21) +current -> bb5
   bb5:
     intrinsic PrintlnInt(copy _22)
     _23 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _23
-    _24 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in fresh23
+    _24 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in fresh23  // label "Option<i32>": i32?
     _25 = call pick(copy _24) +current -> bb6
   bb6:
     intrinsic PrintlnInt(copy _25)
-    _26 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
-    _26@0.0 = 4
+    _26 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current  // label "Option<i32>": i32?
+    _26@0.0 = 4  // label "Option<i32>.Some.value": i32 decl owner=current
     _27 = copy _26  // label "c": i32? decl
     _28 = borrow _27
     _29 = call borrowed(copy _28) +current -> bb7

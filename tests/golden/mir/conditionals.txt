@@ -254,10 +254,10 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in current  // label "Option<String>": String?
     _3 = "x"
     _4 = copy_into _3 in current
-    _2@0.0 = copy _4
+    _2@0.0 = copy _4  // label "Option<String>.Some.value": String decl owner=current
     _5 = copy _2  // label "s": String? decl
     match _5 {
       Some(bind) _6=_5.some -> bb1
@@ -284,7 +284,7 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     _3 = copy _2  // label "s": String? decl
     match _3 {
       Some(bind) _5=_3.some -> bb1
@@ -321,9 +321,9 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     _3 = copy _2  // label "name": String? decl
-    _5 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _5 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     match _3 {
       Some(bind) _6=_3.some -> bb2
       None -> bb3
@@ -380,7 +380,7 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<f32>", variant: 1 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<f32>", variant: 1 } in current  // label "Option<f32>": f32?
     _3 = copy _2  // label "n": f32? decl
     _0 = 0
     storage_dead _1
@@ -398,7 +398,7 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     _3 = copy _2  // label "s": String? decl
     storage_dead _1
     region_exit r0
@@ -426,7 +426,7 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current
+    _2 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in current  // label "Option<String>": String?
     _3 = copy _2  // label "name": String? decl
     match _3 {
       Some(bind) _5=_3.some -> bb4

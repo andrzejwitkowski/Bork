@@ -17,8 +17,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Counter" } in fresh2
-    _3.0 = 2
+    _3 = alloc Object { class: "Counter" } in fresh2  // label "Counter": Counter
+    _3.0 = 2  // label "Counter.n": i32 decl owner=fresh2
     _4 = copy _3  // label "c": Counter decl
     _5 = borrow _4
     _6 = call Counter.bump(copy _5) +current -> bb1

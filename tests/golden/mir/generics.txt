@@ -10,8 +10,8 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "E<i32>", variant: 0 } in current
-    _2@0.0 = 5
+    _2 = alloc EnumSlot { enum_name: "E<i32>", variant: 0 } in current  // label "E<i32>": E<i32>
+    _2@0.0 = 5  // label "E<i32>.A.v": i32 decl owner=current
     _3 = copy _2  // label "e": E<i32> decl
     _4 = borrow _3
     _5 = call f<i32>(copy _4) +current -> bb1
@@ -149,8 +149,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node" } in fresh2
-    _3.0 = 1
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 1  // label "Node.id": i32 decl owner=fresh2
     _4 = copy _3  // label "n": Node decl
     _5 = ref_create source=current target=object_arena(_4) copy _4
     _6 = move _5  // label "r": Ref<Node> decl
@@ -165,12 +165,12 @@ fn main (parent=false, sink=false) {
     region_enter r1
     storage_live _14
     _15 = ref_clone copy _6
-    _16 = alloc Object { class: "Pair<Ref<Node>,String>" } in current
-    ref_store_fresh _16.0 owner=current move _15
+    _16 = alloc Object { class: "Pair<Ref<Node>,String>" } in current  // label "Pair<Ref<Node>,String>": Pair<Ref<Node>, String>
+    ref_store_fresh _16.0 owner=current move _15  // label "Pair<Ref<Node>,String>.a": Ref<Node> decl owner=current
     register_drop current _16.0 RefSlot
     _17 = "x"
     _18 = copy_into _17 in current
-    _16.1 = copy _18
+    _16.1 = copy _18  // label "Pair<Ref<Node>,String>.b": String decl owner=current
     _19 = copy _16  // label "pair": Pair<Ref<Node>, String> decl
     _20 = ref_clone copy _6
     _21 = ref_count_weak move _20
@@ -205,13 +205,13 @@ fn main (parent=false, sink=false) {
     vec_Push(copy _32, move _33)
     _34 = move _31
     _35 = copy_into _34 in current
-    _36 = alloc Object { class: "Holder" } in current
+    _36 = alloc Object { class: "Holder" } in current  // label "Holder": Holder
     _37 = copy_into _35 in current
-    _36.0 = copy _37
+    _36.0 = copy _37  // label "Holder.items": Vec<Ref<Node>> decl owner=current
     _38 = ref_clone copy _6
-    _39 = alloc Object { class: "Outer" } in current
-    _39.0 = copy _36
-    ref_store_fresh _39.1 owner=current move _38
+    _39 = alloc Object { class: "Outer" } in current  // label "Outer": Outer
+    _39.0 = copy _36  // label "Outer.holder": Holder decl owner=current
+    ref_store_fresh _39.1 owner=current move _38  // label "Outer.node": Ref<Node> decl owner=current
     register_drop current _39.1 RefSlot
     _40 = copy _39  // label "outer": Outer decl
     _41 = ref_clone copy _6
@@ -246,13 +246,13 @@ fn main (parent=false, sink=false) {
     vec_Push(copy _52, move _53)
     _54 = move _51
     _55 = copy_into _54 in current
-    _56 = alloc Object { class: "Holder" } in current
+    _56 = alloc Object { class: "Holder" } in current  // label "Holder": Holder
     _57 = copy_into _55 in current
-    _56.0 = copy _57
-    _58 = alloc EnumSlot { enum_name: "Wrapped", variant: 1 } in current
-    _58@1.0 = copy _56
+    _56.0 = copy _57  // label "Holder.items": Vec<Ref<Node>> decl owner=current
+    _58 = alloc EnumSlot { enum_name: "Wrapped", variant: 1 } in current  // label "Wrapped": Wrapped
+    _58@1.0 = copy _56  // label "Wrapped.Full.holder": Holder decl owner=current
     _59 = copy _58  // label "w": Wrapped decl
-    _60 = alloc EnumSlot { enum_name: "Wrapped", variant: 0 } in current
+    _60 = alloc EnumSlot { enum_name: "Wrapped", variant: 0 } in current  // label "Wrapped": Wrapped
     _61 = copy _60  // label "e": Wrapped decl
     storage_dead _49
     region_exit r7
@@ -270,22 +270,22 @@ fn main (parent=false, sink=false) {
     storage_live _66
     _67 = arena_create_dynamic parent=current scoped=true
     register_strong_root current <- _67
-    _68 = alloc Object { class: "Link<i32>" } in fresh67
-    _68.0 = 2
-    ref_store_fresh _68.1 owner=fresh67 none
+    _68 = alloc Object { class: "Link<i32>" } in fresh67  // label "Link<i32>": Link<i32>
+    _68.0 = 2  // label "Link<i32>.value": i32 decl owner=fresh67
+    ref_store_fresh _68.1 owner=fresh67 none  // label "Link<i32>.next": Ref<Link<i32>> decl owner=fresh67
     register_drop fresh67 _68.1 RefSlot
     _69 = copy _68  // label "tail": Link<i32> decl
     _70 = ref_create source=current target=object_arena(_69) copy _69
-    _71 = alloc Object { class: "Link<i32>" } in current
-    _71.0 = 1
-    ref_store_fresh _71.1 owner=current move _70
+    _71 = alloc Object { class: "Link<i32>" } in current  // label "Link<i32>": Link<i32>
+    _71.0 = 1  // label "Link<i32>.value": i32 decl owner=current
+    ref_store_fresh _71.1 owner=current move _70  // label "Link<i32>.next": Ref<Link<i32>> decl owner=current
     register_drop current _71.1 RefSlot
     _72 = copy _71  // label "head": Link<i32> decl
     _73 = ref_clone copy _6
-    _74 = alloc Object { class: "Pair<Ref<Node>,Link<i32>>" } in current
-    ref_store_fresh _74.0 owner=current move _73
+    _74 = alloc Object { class: "Pair<Ref<Node>,Link<i32>>" } in current  // label "Pair<Ref<Node>,Link<i32>>": Pair<Ref<Node>, Link<i32>>
+    ref_store_fresh _74.0 owner=current move _73  // label "Pair<Ref<Node>,Link<i32>>.a": Ref<Node> decl owner=current
     register_drop current _74.0 RefSlot
-    _74.1 = copy _72
+    _74.1 = copy _72  // label "Pair<Ref<Node>,Link<i32>>.b": Link<i32> decl owner=current
     _75 = copy _74  // label "p": Pair<Ref<Node>, Link<i32>> decl
     storage_dead _66
     region_exit r9
@@ -341,9 +341,9 @@ fn main (parent=false, sink=false) {
     _5 = copy _4  // label "s": String decl
     _6 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _6
-    _7 = alloc Object { class: "Point" } in fresh6
-    _7.0 = 1
-    _7.1 = 2
+    _7 = alloc Object { class: "Point" } in fresh6  // label "Point": Point
+    _7.0 = 1  // label "Point.x": i32 decl owner=fresh6
+    _7.1 = 2  // label "Point.y": i32 decl owner=fresh6
     _8 = copy _7  // label "p": Point decl
     _9 = call id<Point>(copy _8) +current +current -> bb3
   bb3:
@@ -451,32 +451,32 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Node<i32>" } in fresh2
-    _3.0 = 30
-    ref_store_fresh _3.1 owner=fresh2 none
+    _3 = alloc Object { class: "Node<i32>" } in fresh2  // label "Node<i32>": Node<i32>
+    _3.0 = 30  // label "Node<i32>.value": i32 decl owner=fresh2
+    ref_store_fresh _3.1 owner=fresh2 none  // label "Node<i32>.next": Ref<Node<i32>> decl owner=fresh2
     register_drop fresh2 _3.1 RefSlot
     _4 = copy _3  // label "tail": Node<i32> decl
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
     _6 = ref_create source=fresh5 target=object_arena(_4) copy _4
-    _7 = alloc Object { class: "Node<i32>" } in fresh5
-    _7.0 = 20
-    ref_store_fresh _7.1 owner=fresh5 move _6
+    _7 = alloc Object { class: "Node<i32>" } in fresh5  // label "Node<i32>": Node<i32>
+    _7.0 = 20  // label "Node<i32>.value": i32 decl owner=fresh5
+    ref_store_fresh _7.1 owner=fresh5 move _6  // label "Node<i32>.next": Ref<Node<i32>> decl owner=fresh5
     register_drop fresh5 _7.1 RefSlot
     _8 = copy _7  // label "mid": Node<i32> decl
     _9 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _9
     _10 = ref_create source=fresh9 target=object_arena(_8) copy _8
-    _11 = alloc Object { class: "Node<i32>" } in fresh9
-    _11.0 = 10
-    ref_store_fresh _11.1 owner=fresh9 move _10
+    _11 = alloc Object { class: "Node<i32>" } in fresh9  // label "Node<i32>": Node<i32>
+    _11.0 = 10  // label "Node<i32>.value": i32 decl owner=fresh9
+    ref_store_fresh _11.1 owner=fresh9 move _10  // label "Node<i32>.next": Ref<Node<i32>> decl owner=fresh9
     register_drop fresh9 _11.1 RefSlot
     _12 = copy _11  // label "head": Node<i32> decl
     _13 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _13
-    _14 = alloc Object { class: "Node<i32>" } in fresh13
-    _14.0 = 40
-    ref_store_fresh _14.1 owner=fresh13 none
+    _14 = alloc Object { class: "Node<i32>" } in fresh13  // label "Node<i32>": Node<i32>
+    _14.0 = 40  // label "Node<i32>.value": i32 decl owner=fresh13
+    ref_store_fresh _14.1 owner=fresh13 none  // label "Node<i32>.next": Ref<Node<i32>> decl owner=fresh13
     register_drop fresh13 _14.1 RefSlot
     _15 = copy _14  // label "extra": Node<i32> decl
     _16 = ref_create source=object_arena(_4) target=object_arena(_15) copy _15
@@ -566,17 +566,17 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Pair<i32,String>" } in fresh2
-    _3.0 = 1
+    _3 = alloc Object { class: "Pair<i32,String>" } in fresh2  // label "Pair<i32,String>": Pair<i32, String>
+    _3.0 = 1  // label "Pair<i32,String>.a": i32 decl owner=fresh2
     _4 = "abc"
     _5 = copy_into _4 in fresh2
-    _3.1 = copy _5
+    _3.1 = copy _5  // label "Pair<i32,String>.b": String decl owner=fresh2
     _6 = copy _3  // label "p": Pair<i32, String> decl
     _7 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _7
-    _8 = alloc Object { class: "Pair<i32,bool>" } in fresh7
-    _8.0 = 2
-    _8.1 = true
+    _8 = alloc Object { class: "Pair<i32,bool>" } in fresh7  // label "Pair<i32,bool>": Pair<i32, bool>
+    _8.0 = 2  // label "Pair<i32,bool>.a": i32 decl owner=fresh7
+    _8.1 = true  // label "Pair<i32,bool>.b": bool decl owner=fresh7
     _9 = copy _8  // label "q": Pair<i32, bool> decl
     intrinsic PrintlnInt(copy _6.0)
     intrinsic PrintlnStr(copy _6.1)
@@ -666,8 +666,8 @@ fn main (parent=false, sink=false) {
     storage_live _3
     _4 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _4
-    _5 = alloc Object { class: "Box<i32>" } in fresh4
-    _5.0 = 1
+    _5 = alloc Object { class: "Box<i32>" } in fresh4  // label "Box<i32>": Box<i32>
+    _5.0 = 1  // label "Box<i32>.value": i32 decl owner=fresh4
     _6 = copy _5  // label "n": Box<i32> decl
     _7 = ref_create source=current target=object_arena(_6) copy _6
     _8 = move _7  // label "keep": Ref<Box<i32>> decl
@@ -804,10 +804,10 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _3
     _4 = alloc Vec { cap: None } in fresh3
     register_drop fresh3 _4 Vec(TyId(24))
-    _5 = alloc Object { class: "Node<i32>" } in fresh3
-    _5.0 = 2
+    _5 = alloc Object { class: "Node<i32>" } in fresh3  // label "Node<i32>": Node<i32>
+    _5.0 = 2  // label "Node<i32>.value": i32 decl owner=fresh3
     _6 = copy_into _4 in fresh3
-    _5.1 = copy _6
+    _5.1 = copy _6  // label "Node<i32>.kids": Vec<Ref<Node<i32>>> decl owner=fresh3
     _7 = copy _5  // label "leaf": Node<i32> decl
     _8 = ref_create source=current target=object_arena(_7) copy _7
     _9 = move _8  // label "leaf_ref": Ref<Node<i32>> decl
@@ -820,10 +820,10 @@ fn main (parent=false, sink=false) {
     _15 = copy _14  // label "w0": i32 decl
     _16 = alloc Vec { cap: None } in current
     register_drop current _16 Vec(TyId(24))
-    _17 = alloc Object { class: "Node<i32>" } in current
-    _17.0 = 1
+    _17 = alloc Object { class: "Node<i32>" } in current  // label "Node<i32>": Node<i32>
+    _17.0 = 1  // label "Node<i32>.value": i32 decl owner=current
     _18 = copy_into _16 in current
-    _17.1 = copy _18
+    _17.1 = copy _18  // label "Node<i32>.kids": Vec<Ref<Node<i32>>> decl owner=current
     _19 = copy _17  // label "parent": Node<i32> decl
     _20 = borrow _19.1
     _21 = ref_clone copy _9
@@ -852,10 +852,10 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _34
     _35 = alloc Vec { cap: None } in fresh34
     register_drop fresh34 _35 Vec(TyId(24))
-    _36 = alloc Object { class: "Node<i32>" } in fresh34
-    _36.0 = 3
+    _36 = alloc Object { class: "Node<i32>" } in fresh34  // label "Node<i32>": Node<i32>
+    _36.0 = 3  // label "Node<i32>.value": i32 decl owner=fresh34
     _37 = copy_into _35 in fresh34
-    _36.1 = copy _37
+    _36.1 = copy _37  // label "Node<i32>.kids": Vec<Ref<Node<i32>>> decl owner=fresh34
     _38 = copy _36  // label "inner": Node<i32> decl
     _39 = ref_create source=current target=object_arena(_38) copy _38
     _40 = move _39  // label "inner_ref": Ref<Node<i32>> decl

@@ -3,7 +3,7 @@
 use super::expr::span_of;
 use super::{BuildError, FnBuilder, Res};
 use crate::ast::BinOp;
-use crate::hir::{HirArm, HirExpr, HirExprKind, HirPat, HirPatKind};
+use crate::hir::{HirArm, HirClassField, HirExpr, HirExprKind, HirPat, HirPatKind};
 use crate::memory::{ArenaClass, LifetimeDomain};
 use crate::mir::body::*;
 use crate::mir::capability::Capability;
@@ -97,10 +97,11 @@ impl<'a> FnBuilder<'a> {
         let ops = self.with_sink(arena.clone(), |b| b.exprs(fields))?;
         let class = self.mono.hir.classes.iter().find(|c| c.name == class_name).ok_or_else(|| BuildError::Internal(format!("no class `{class_name}`")))?;
         let dst = self.temp(e.ty);
-        self.stmt(StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::Object { class: class_name.to_string() }, arena: arena.clone() }, span, Some(e.id));
+        let construct = DebugLabel { name: class_name.to_string(), ty: e.ty, span, source: self.function.source, declaration: false, argument: None, owner: None, index: None };
+        self.stmt_with(StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::Object { class: class_name.to_string() }, arena: arena.clone() }, span, Some(e.id), Some(construct));
         for (i, (op, field)) in ops.into_iter().zip(&class.fields).enumerate() {
             let slot = Place { local: dst, proj: vec![Proj::Field(i as u32)] };
-            self.store_owned(slot, op, field.ty, &arena, true, span)?;
+            self.store_owned(slot, op, field.ty, &arena, true, span, Some((format!("{class_name}.{}", field.name), field)))?;
         }
         Ok(Operand::Copy(Place::local(dst)))
     }
@@ -112,17 +113,20 @@ impl<'a> FnBuilder<'a> {
         let index = self.variant_index(enum_name, variant)?;
         let decl = self.mono.hir.enums.iter().find(|x| x.name == enum_name).expect("variant_index found it");
         let dst = self.temp(e.ty);
-        self.stmt(
+        // The label marks a source-level construct: the HIR emitter names its arena for the debug registry.
+        let construct = DebugLabel { name: enum_name.to_string(), ty: e.ty, span, source: self.function.source, declaration: false, argument: None, owner: None, index: None };
+        self.stmt_with(
             StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::EnumSlot { enum_name: enum_name.to_string(), variant: index }, arena: arena.clone() },
             span,
             Some(e.id),
+            Some(construct),
         );
         for (i, (op, field)) in ops.into_iter().zip(&decl.variants[index as usize].fields).enumerate() {
             if field.ty == self.unit {
                 continue;
             }
             let slot = Place { local: dst, proj: vec![Proj::Variant(index), Proj::Field(i as u32)] };
-            self.store_owned(slot, op, field.ty, &arena, false, span)?;
+            self.store_owned(slot, op, field.ty, &arena, false, span, Some((format!("{enum_name}.{variant}.{}", field.name), field)))?;
         }
         if self.enum_has_ref(enum_name) {
             self.stmt(StmtKind::RegisterDrop { arena, place: Place::local(dst), glue: DropGlue::Enum(enum_name.to_string()) }, span, Some(e.id));
@@ -145,18 +149,20 @@ impl<'a> FnBuilder<'a> {
 
     /// Stores `op` into a field slot of `arena`: `Ref`s are stored through the runtime protocol (and, for
     /// object fields, registered for release), other owned values are copied in.
-    pub(super) fn store_owned(&mut self, slot: Place, op: Operand, ty: TyId, arena: &ArenaRef, register: bool, span: Span) -> Res<()> {
+    /// `field` names the slot for the debug registry (`Class.field`, `Enum.Variant.field`) and its declaration site.
+    pub(super) fn store_owned(&mut self, slot: Place, op: Operand, ty: TyId, arena: &ArenaRef, register: bool, span: Span, field: Option<(String, &HirClassField)>) -> Res<()> {
+        let label = field.map(|(name, f)| DebugLabel { name, ty, span: f.span, source: f.source, declaration: true, argument: None, owner: Some(arena.clone()), index: None });
         if self.tcx.is_managed_ref(ty) {
             // Object fields (registered) and enum payloads are fresh memory; assignments overwrite a live handle.
             let fresh = register || slot.proj.iter().any(|p| matches!(p, Proj::Variant(_)));
-            self.stmt(StmtKind::Ref(RefOp::Store { slot: slot.clone(), owner: arena.clone(), value: op, fresh }), span, None);
+            self.stmt_with(StmtKind::Ref(RefOp::Store { slot: slot.clone(), owner: arena.clone(), value: op, fresh }), span, None, label);
             if register {
                 self.stmt(StmtKind::RegisterDrop { arena: arena.clone(), place: slot, glue: DropGlue::RefSlot }, span, None);
             }
             return Ok(());
         }
         let v = self.materialize(op, ty, arena, span)?;
-        self.stmt(StmtKind::Assign(slot, Rvalue::Use(v)), span, None);
+        self.stmt_with(StmtKind::Assign(slot, Rvalue::Use(v)), span, None, label);
         Ok(())
     }
 

@@ -103,7 +103,9 @@ impl<'a> FnBuilder<'a> {
             slot.proj.push(Proj::Deref);
         }
         slot.proj.push(Proj::Field(field_index as u32));
-        self.store_owned(slot, v, ty, &arena, false, span)
+        // The HIR emitter labels a plain field it overwrites, not a `Ref` slot.
+        let named = (!self.tcx.is_managed_ref(ty)).then(|| (format!("{}.{}", class.name, class.fields[field_index].name), &class.fields[field_index]));
+        self.store_owned(slot, v, ty, &arena, false, span, named)
     }
 
     fn ret_local(&self) -> Local {

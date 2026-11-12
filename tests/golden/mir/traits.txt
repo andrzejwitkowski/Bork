@@ -21,15 +21,15 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "IntBox" } in fresh2
-    _3.0 = 3
+    _3 = alloc Object { class: "IntBox" } in fresh2  // label "IntBox": IntBox
+    _3.0 = 3  // label "IntBox.v": i32 decl owner=fresh2
     _4 = copy _3  // label "b": IntBox decl
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
-    _6 = alloc Object { class: "Named" } in fresh5
+    _6 = alloc Object { class: "Named" } in fresh5  // label "Named": Named
     _7 = "hi"
     _8 = copy_into _7 in fresh5
-    _6.0 = copy _8
+    _6.0 = copy _8  // label "Named.n": String decl owner=fresh5
     _9 = copy _6  // label "s": Named decl
     _10 = borrow _4
     _11 = call first<IntBox>(copy _10) +current -> bb1
@@ -131,8 +131,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "IntBox" } in fresh2
-    _3.0 = 3
+    _3 = alloc Object { class: "IntBox" } in fresh2  // label "IntBox": IntBox
+    _3.0 = 3  // label "IntBox.v": i32 decl owner=fresh2
     _4 = copy _3  // label "b": IntBox decl
     _5 = borrow _4
     _6 = call total<IntBox>(copy _5) +current -> bb1
@@ -194,8 +194,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Foo" } in fresh2
-    _3.0 = 7
+    _3 = alloc Object { class: "Foo" } in fresh2  // label "Foo": Foo
+    _3.0 = 7  // label "Foo.v": i32 decl owner=fresh2
     _4 = copy _3  // label "f": Foo decl
     _5 = borrow _4
     _6 = call first<Foo>(copy _5) +current -> bb1
@@ -260,13 +260,13 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Circle" } in fresh2
-    _3.0 = 1.0
+    _3 = alloc Object { class: "Circle" } in fresh2  // label "Circle": Circle
+    _3.0 = 1.0  // label "Circle.r": f64 decl owner=fresh2
     _4 = copy _3  // label "c": Circle decl
     _5 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _5
-    _6 = alloc Object { class: "Square" } in fresh5
-    _6.0 = 2.0
+    _6 = alloc Object { class: "Square" } in fresh5  // label "Square": Square
+    _6.0 = 2.0  // label "Square.s": f64 decl owner=fresh5
     _7 = copy _6  // label "s": Square decl
     _8 = borrow _4
     _9 = call say<Circle>(copy _8) +current -> bb1
@@ -370,10 +370,10 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc EnumSlot { enum_name: "Maybe", variant: 0 } in current
-    _2@0.0 = 7
+    _2 = alloc EnumSlot { enum_name: "Maybe", variant: 0 } in current  // label "Maybe": Maybe
+    _2@0.0 = 7  // label "Maybe.Some.v": i32 decl owner=current
     _3 = copy _2  // label "a": Maybe decl
-    _4 = alloc EnumSlot { enum_name: "Maybe", variant: 1 } in current
+    _4 = alloc EnumSlot { enum_name: "Maybe", variant: 1 } in current  // label "Maybe": Maybe
     _5 = copy _4  // label "b": Maybe decl
     _6 = borrow _3
     _7 = call Code@0.code(copy _6) +current -> bb1
@@ -441,8 +441,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Sq" } in fresh2
-    _3.0 = 5
+    _3 = alloc Object { class: "Sq" } in fresh2  // label "Sq": Sq
+    _3.0 = 5  // label "Sq.side": i32 decl owner=fresh2
     _4 = copy _3  // label "s": Sq decl
     _5 = borrow _4
     _6 = call Area@0.area(copy _5) +current -> bb1
@@ -492,17 +492,17 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Circle" } in fresh2
-    _3.0 = 1.0
-    _4 = alloc Object { class: "Box<Circle>" } in fresh2
-    _4.0 = copy _3
+    _3 = alloc Object { class: "Circle" } in fresh2  // label "Circle": Circle
+    _3.0 = 1.0  // label "Circle.r": f64 decl owner=fresh2
+    _4 = alloc Object { class: "Box<Circle>" } in fresh2  // label "Box<Circle>": Box<Circle>
+    _4.0 = copy _3  // label "Box<Circle>.v": Circle decl owner=fresh2
     _5 = copy _4  // label "a": Box<Circle> decl
     _6 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _6
-    _7 = alloc Object { class: "Square" } in fresh6
-    _7.0 = 2.0
-    _8 = alloc Object { class: "Box<Square>" } in fresh6
-    _8.0 = copy _7
+    _7 = alloc Object { class: "Square" } in fresh6  // label "Square": Square
+    _7.0 = 2.0  // label "Square.s": f64 decl owner=fresh6
+    _8 = alloc Object { class: "Box<Square>" } in fresh6  // label "Box<Square>": Box<Square>
+    _8.0 = copy _7  // label "Box<Square>.v": Square decl owner=fresh6
     _9 = copy _8  // label "b": Box<Square> decl
     _10 = borrow _5
     _11 = call Show@2.show<Circle>(copy _10) +current +current -> bb1
@@ -611,8 +611,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Circle" } in fresh2
-    _3.0 = 1.0
+    _3 = alloc Object { class: "Circle" } in fresh2  // label "Circle": Circle
+    _3.0 = 1.0  // label "Circle.r": f64 decl owner=fresh2
     _4 = copy _3  // label "c": Circle decl
     _5 = borrow _4
     _6 = call Show@0.show(copy _5) +current +current -> bb1
@@ -657,8 +657,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Circle" } in fresh2
-    _3.0 = 1.0
+    _3 = alloc Object { class: "Circle" } in fresh2  // label "Circle": Circle
+    _3.0 = 1.0  // label "Circle.r": f64 decl owner=fresh2
     _4 = copy _3  // label "c": Circle decl
     _5 = borrow _4
     _6 = call Circle.show(copy _5) +current +current -> bb1

@@ -93,8 +93,8 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _2
-    _3 = alloc Object { class: "Counter" } in fresh2
-    _3.0 = 0
+    _3 = alloc Object { class: "Counter" } in fresh2  // label "Counter": Counter
+    _3.0 = 0  // label "Counter.n": i32 decl owner=fresh2
     _4 = copy _3  // label "c": Counter decl
     _5 = 0  // label "total": i32 decl
     _6 = 3
@@ -296,7 +296,7 @@ fn bump (parent=true, sink=false) {
     storage_live _3
     region_enter r0
     _4 = add(copy _1.0, copy _2)
-    _1.0 = copy _4
+    _1.0 = copy _4  // label "Counter.n": i32 decl owner=object_arena(_1)
     _0 = copy _1.0
     storage_dead _3
     region_exit r0
