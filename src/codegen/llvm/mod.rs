@@ -4,7 +4,7 @@ mod array;
 mod call_abi;
 mod context;
 mod debug;
-mod emit_fn;
+mod declare;
 mod glue;
 mod lower;
 mod ref_ops;
@@ -26,7 +26,7 @@ use crate::span::Span;
 
 use context::Codegen;
 pub use context::native_target_machine;
-use emit_fn::Callees;
+use declare::Callees;
 
 /// Lowers every function of `mono` from MIR. A construct MIR cannot lower is the gate's to reject, so reaching
 /// one here is reported as an internal error naming the function.
@@ -69,7 +69,7 @@ pub fn emit_module_from<'ctx>(
         .functions
         .iter()
         .map(|function| {
-            let value = emit_fn::declare_function(&cx, function)?;
+            let value = declare::declare_function(&cx, function)?;
             Ok((function.name.as_str(), (value, function)))
         })
         .collect::<Result<Callees, Diagnostic>>()?;

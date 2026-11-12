@@ -1,0 +1,42 @@
+// Minimal recursive quicksort: re-borrow `&a` and recursive calls live inside `if`.
+fun partition(a: &rw [i32; 8], lo: i32, hi: i32): i32 {
+    val pivot = a[hi]
+    var i = lo
+    var j = lo
+    while (j < hi) {
+        if (a[j] <= pivot) {
+            val t = a[i]
+            a[i] = a[j]
+            a[j] = t
+            i = i + 1
+        }
+        j = j + 1
+    }
+    val t2 = a[i]
+    a[i] = a[hi]
+    a[hi] = t2
+    return i
+}
+
+fun qsort(a: &rw [i32; 8], lo: i32, hi: i32) {
+    if (lo < hi) {
+        val p = partition(&rw a, lo, hi)
+        qsort(&rw a, lo, p - 1)
+        qsort(&rw a, p + 1, hi)
+    }
+}
+
+fun main(): i32 {
+    var a: [i32; 8] = [5, 3, 8, 1, 2, 7, 4, 6]
+    qsort(&rw a, 0, 7)
+    val r = a[0..8]
+    println(r[0])
+    println(r[1])
+    println(r[2])
+    println(r[3])
+    println(r[4])
+    println(r[5])
+    println(r[6])
+    println(r[7])
+    return 0
+}

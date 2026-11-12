@@ -19,7 +19,7 @@ use crate::ty::{TyData, TyId};
 
 use super::call_abi::CallAbi;
 use super::context::{is_unsigned, Codegen};
-use super::emit_fn::Callees;
+use super::declare::Callees;
 use super::vec;
 use super::not_yet_supported;
 
@@ -439,13 +439,12 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     }
                 }
                 StmtKind::VecOp { dst, op, receiver, args, arena } => {
-                    plain_vec(cx, body.local(receiver.place().filter(|p| p.is_bare())?.local)?.ty)?;
                     if dst.as_ref().is_some_and(|d| !d.is_bare()) {
                         return None;
                     }
                     let index = |op: &Operand| index_operand(cx, body, op);
                     // An element to store: a scalar, text, or a `Ref` (or `None`) for a `Vec` of `Ref`s.
-                    let elem = plain_vec(cx, body.local(receiver.place()?.local)?.ty)?;
+                    let elem = plain_vec(cx, body.local(receiver.place().filter(|p| p.is_bare())?.local)?.ty)?;
                     let element = |op: &Operand| -> Option<()> {
                         if cx.tcx.is_managed_ref(elem) {
                             match op {
@@ -1537,14 +1536,13 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let (ptr, ty) = self.place_ptr(place)?;
                 let value = cx.builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "lit.value")?;
                 let hit = match lit {
-                    PatLit::Int(_) | PatLit::Bool(_) => {
-                        let (wanted, signed) = match lit {
-                            PatLit::Int(n) => (*n as u64, true),
-                            PatLit::Bool(b) => (u64::from(*b), false),
-                            PatLit::Str(_) => unreachable!(),
-                        };
+                    PatLit::Int(n) => {
                         let int = value.into_int_value();
-                        cx.builder.build_int_compare(IntPredicate::EQ, int, int.get_type().const_int(wanted, signed), "lit.eq")?
+                        cx.builder.build_int_compare(IntPredicate::EQ, int, int.get_type().const_int(*n as u64, true), "lit.eq")?
+                    }
+                    PatLit::Bool(b) => {
+                        let flag = value.into_int_value();
+                        cx.builder.build_int_compare(IntPredicate::EQ, flag, flag.get_type().const_int(u64::from(*b), false), "lit.eq")?
                     }
                     PatLit::Str(text) => cx.string_equal(value.into_struct_value(), cx.str_literal(text))?,
                 };

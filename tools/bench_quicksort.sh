@@ -28,8 +28,7 @@ median() {
 }
 
 printf '%-26s %10s %10s %7s   %10s %10s %7s  %s\n' program base_build head_build ratio base_run head_run ratio output
-for src in "$root"/tools/bench/sort_loop.bork "$root"/quicksort_simple.bork "$root"/quicksort.bork "$root"/quicksort_ref.bork "$root"/quicksort_rec.bork; do
-    [ -f "$src" ] || continue
+for src in "$root"/tools/bench/*.bork; do
     name=$(basename "$src" .bork)
     "$base" build -o "$work/$name.base" "$src" 2>/dev/null || { echo "$name: baseline does not build"; continue; }
     "$head" build -o "$work/$name.head" "$src" 2>/dev/null || { echo "$name: head does not build"; continue; }

@@ -45,7 +45,6 @@ impl MemoryPlan {
     }
 }
 
-
 type Origins = HashSet<NodeId>;
 
 #[derive(Default)]

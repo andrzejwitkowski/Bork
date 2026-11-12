@@ -12,10 +12,10 @@ Pre-MIR baseline against the current compiler, `tools/bench_quicksort.sh BASE_BO
 | program | build base (s) | build head (s) | ratio | run base (s) | run head (s) | ratio |
 |---|---|---|---|---|---|---|
 | `tools/bench/sort_loop.bork` | 0.117 | 0.111 | 0.95 | 0.0571 | 0.0652 | 1.14 (noise, below) |
-| `quicksort_simple.bork` | 0.113 | 0.110 | 0.97 | 0.0039 | 0.0039 | 1.00 |
-| `quicksort.bork` | 0.131 | 0.116 | 0.89 | 0.0040 | 0.0040 | 0.99 |
-| `quicksort_ref.bork` | 0.117 | 0.115 | 0.98 | 0.0039 | 0.0040 | 1.01 |
-| `quicksort_rec.bork` | 0.133 | 0.125 | 0.94 | 0.0039 | 0.0039 | 1.01 |
+| `tools/bench/quicksort_simple.bork` | 0.113 | 0.110 | 0.97 | 0.0039 | 0.0039 | 1.00 |
+| `tools/bench/quicksort.bork` | 0.131 | 0.116 | 0.89 | 0.0040 | 0.0040 | 0.99 |
+| `tools/bench/quicksort_ref.bork` | 0.117 | 0.115 | 0.98 | 0.0039 | 0.0040 | 1.01 |
+| `tools/bench/quicksort_rec.bork` | 0.133 | 0.125 | 0.94 | 0.0039 | 0.0039 | 1.01 |
 
 Reading it:
 

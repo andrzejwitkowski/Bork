@@ -1,6 +1,6 @@
 //! Arena-parameterised value helpers used by the MIR lowering (`lower.rs`):
-//! text, buffer descriptors, copies into another arena and `T?` slots. None of them needs a
-//! a function emitter; ops that branch take the `llvm_fn` to add blocks to.
+//! text, buffer descriptors, copies into another arena and `T?` slots. Ops that branch take the `llvm_fn`
+//! to add blocks to.
 
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue, StructValue};
 use inkwell::IntPredicate;
@@ -89,6 +89,20 @@ impl<'ctx> Codegen<'ctx> {
         Ok(self.descriptor(dst, len))
     }
 
+    /// One element of a copied buffer of text or `Ref`s: a `Ref` is cloned and stored into `dst` with ownership in
+    /// `arena`, text bytes are copied into `arena`.
+    fn copy_owned_element(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, elem_ty: TyId, llvm_elem: inkwell::types::BasicTypeEnum<'ctx>, src: PointerValue<'ctx>, dst: PointerValue<'ctx>) -> Result<(), Diagnostic> {
+        let loaded = self.builder.build_load(llvm_elem, src, "elem.copy")?;
+        if self.tcx.is_managed_ref(elem_ty) {
+            let cloned = self.ref_clone(llvm_fn, loaded)?;
+            self.builder.build_store(dst, self.ref_handle_type().const_zero())?;
+            return self.ref_store(llvm_fn, dst, arena, cloned);
+        }
+        let copied = self.copy_string_into(arena, loaded.into_struct_value())?;
+        self.builder.build_store(dst, copied)?;
+        Ok(())
+    }
+
     /// A copy of an array of text or `Ref`s in `arena`: text bytes are copied, `Ref`s cloned and stored with ownership.
     pub(super) fn copy_owning_array_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: StructValue<'ctx>, array_ty: TyId) -> Result<StructValue<'ctx>, Diagnostic> {
         let elem_ty = self.tcx.array_elem(array_ty).ok_or_else(|| not_yet_supported("array copy type", None))?;
@@ -102,16 +116,7 @@ impl<'ctx> Codegen<'ctx> {
             self.debug_copy_origin(base, dst)?;
         }
         self.counted_loop(llvm_fn, len, |i| {
-            let text = self.builder.build_load(llvm_elem, self.vec_slot(base, i, stride)?, "arr.text")?;
-            let slot = self.vec_slot(dst, i, stride)?;
-            if self.tcx.is_managed_ref(elem_ty) {
-                let cloned = self.ref_clone(llvm_fn, text)?;
-                self.builder.build_store(slot, self.ref_handle_type().const_zero())?;
-                return self.ref_store(llvm_fn, slot, arena, cloned);
-            }
-            let copied = self.copy_string_into(arena, text.into_struct_value())?;
-            self.builder.build_store(slot, copied)?;
-            Ok(())
+            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(base, i, stride)?, self.vec_slot(dst, i, stride)?)
         })?;
         Ok(self.descriptor(dst, len))
     }
@@ -163,17 +168,7 @@ impl<'ctx> Codegen<'ctx> {
         let to = self.vec_load_ptr(header, super::vec::BUF)?;
         // `vec_alloc` leaves `to` null for an empty source; the loop never runs then.
         self.counted_loop(llvm_fn, len, |i| {
-            let loaded = self.builder.build_load(llvm_elem, self.vec_slot(from, i, stride)?, "vec.copy")?;
-            let dst = self.vec_slot(to, i, stride)?;
-            if self.tcx.is_managed_ref(elem_ty) {
-                let cloned = self.ref_clone(llvm_fn, loaded)?;
-                self.builder.build_store(dst, self.ref_handle_type().const_zero())?;
-                self.ref_store(llvm_fn, dst, arena, cloned)
-            } else {
-                let copied = self.copy_string_into(arena, loaded.into_struct_value())?;
-                self.builder.build_store(dst, copied)?;
-                Ok(())
-            }
+            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(from, i, stride)?, self.vec_slot(to, i, stride)?)
         })?;
         self.vec_store(header, super::vec::LEN, len)?;
         self.debug_copy_origin(source, header)?;
