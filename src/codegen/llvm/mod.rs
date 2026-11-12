@@ -17,6 +17,7 @@ mod presence;
 mod region_emit;
 mod text;
 mod walk;
+mod value_ops;
 mod vec;
 
 use std::path::Path;

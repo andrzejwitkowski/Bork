@@ -6,18 +6,19 @@ use inkwell::IntPredicate;
 use crate::diag::Diagnostic;
 use crate::ty::TyId;
 
+use super::super::context::Codegen;
 use super::super::emit_fn::FnEmitter;
 use super::super::codegen_error;
 use super::layout::builder_load;
 
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
+impl<'ctx> Codegen<'ctx> {
     pub(in crate::codegen::llvm) fn arena_alloc(
         &self,
         arena: PointerValue<'ctx>,
         size: IntValue<'ctx>,
         align: usize,
     ) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let cx = self.cx;
+        let cx = self;
         Ok(cx
             .builder
             .build_call(
@@ -33,6 +34,17 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .basic()
             .expect("bork_arena_alloc returns a pointer")
             .into_pointer_value())
+    }
+}
+
+impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
+    pub(in crate::codegen::llvm) fn arena_alloc(
+        &self,
+        arena: PointerValue<'ctx>,
+        size: IntValue<'ctx>,
+        align: usize,
+    ) -> Result<PointerValue<'ctx>, Diagnostic> {
+        self.cx.arena_alloc(arena, size, align)
     }
 
     pub(in crate::codegen::llvm) fn emit_array_lit_values(

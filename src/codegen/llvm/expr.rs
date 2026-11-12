@@ -1,4 +1,3 @@
-use inkwell::module::Linkage;
 use inkwell::values::{BasicValueEnum, IntValue, StructValue};
 use inkwell::IntPredicate;
 
@@ -9,7 +8,7 @@ use crate::ty::TyId;
 use crate::hir::{HirBlock, HirExpr, HirExprKind, Prim, UseKind};
 
 use super::emit_fn::{FnEmitter, IfKind};
-use super::{codegen_error, not_yet_supported};
+use super::not_yet_supported;
 
 impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
     pub fn emit_expr(
@@ -111,18 +110,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
 
     /// Literal bytes live in a private constant; the descriptor borrows them.
     pub(super) fn emit_str_literal(&self, value: &str) -> Result<StructValue<'ctx>, Diagnostic> {
-        let context = self.cx.context;
-        let bytes = context.const_string(value.as_bytes(), false);
-        let global = self.cx.module.add_global(bytes.get_type(), None, "str");
-        global.set_initializer(&bytes);
-        global.set_constant(true);
-        global.set_linkage(Linkage::Private);
-        global.set_unnamed_addr(true);
-        let len = context.i64_type().const_int(value.len() as u64, false);
-        Ok(self
-            .cx
-            .string_type()
-            .const_named_struct(&[global.as_pointer_value().into(), len.into()]))
+        Ok(self.cx.str_literal(value))
     }
 
     fn emit_plan(&mut self, plan: ChildPlan<'_>) -> Result<Vec<BasicValueEnum<'ctx>>, Diagnostic> {
@@ -356,34 +344,8 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         source: StructValue<'ctx>,
     ) -> Result<StructValue<'ctx>, Diagnostic> {
         let arena = self.sink_arena();
-        let cx = self.cx;
-        let builder = &cx.builder;
-        let src = builder
-            .build_extract_value(source, 0, "move.src")?
-            .into_pointer_value();
-        let len = builder
-            .build_extract_value(source, 1, "move.len")?
-            .into_int_value();
-        let one = cx.context.i64_type().const_int(1, false);
-        let dst = builder
-            .build_call(
-                cx.arena_alloc_fn(),
-                &[arena.into(), len.into(), one.into()],
-                "move.dst",
-            )?
-            .try_as_basic_value()
-            .basic()
-            .expect("bork_arena_alloc returns a pointer")
-            .into_pointer_value();
-        builder
-            .build_memcpy(dst, 1, src, 1, len)
-            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
-        let moved = builder.build_insert_value(source, dst, 0, "moved")?;
-        cx.debug_copy_origin(src, dst)?;
-        cx.debug_allocation(dst, "", "String", false)?;
-        Ok(moved.into_struct_value())
+        self.cx.copy_string_into(arena, source)
     }
-
 
     pub(in crate::codegen::llvm) fn emit_call_with_values(
         &mut self,
@@ -404,7 +366,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                     return self.emit_print_value(*arg, true).map(|()| None);
                 }
                 (Some(builtins::Builtin::Concat), [left, right]) => {
-                    return self.emit_concat_values(*left, *right, expr).map(Some);
+                    return self.emit_concat_values(*left, *right).map(Some);
                 }
                 (Some(kind @ (builtins::Builtin::StrongCount | builtins::Builtin::WeakCount)), [reference]) => {
                     return self
@@ -471,50 +433,9 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         left: BasicValueEnum<'ctx>,
         right: BasicValueEnum<'ctx>,
-        _expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let left_val = left.into_struct_value();
-        let right_val = right.into_struct_value();
-        let cx = self.cx;
-        let builder = &cx.builder;
-        let left_ptr = builder
-            .build_extract_value(left_val, 0, "concat.l.ptr")?
-            .into_pointer_value();
-        let left_len = builder
-            .build_extract_value(left_val, 1, "concat.l.len")?
-            .into_int_value();
-        let right_ptr = builder
-            .build_extract_value(right_val, 0, "concat.r.ptr")?
-            .into_pointer_value();
-        let right_len = builder
-            .build_extract_value(right_val, 1, "concat.r.len")?
-            .into_int_value();
-        let total = builder.build_int_add(left_len, right_len, "concat.len")?;
         let arena = self.sink_arena();
-        let one = cx.context.i64_type().const_int(1, false);
-        let dst = builder
-            .build_call(
-                cx.arena_alloc_fn(),
-                &[arena.into(), total.into(), one.into()],
-                "concat.dst",
-            )?
-            .try_as_basic_value()
-            .basic()
-            .expect("bork_arena_alloc returns a pointer")
-            .into_pointer_value();
-        cx.debug_allocation(dst, "", "String", false)?;
-        builder
-            .build_memcpy(dst, 1, left_ptr, 1, left_len)
-            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
-        let offset =
-            unsafe { builder.build_gep(cx.context.i8_type(), dst, &[left_len], "concat.r.off")? };
-        builder
-            .build_memcpy(offset, 1, right_ptr, 1, right_len)
-            .map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
-        let out = cx.string_type().const_named_struct(&[]);
-        let out = builder.build_insert_value(out, dst, 0, "concat.out")?;
-        let out = builder.build_insert_value(out, total, 1, "concat.out")?;
-        Ok(out.into_struct_value().into())
+        Ok(self.cx.concat_into(arena, left.into_struct_value(), right.into_struct_value())?.into())
     }
 
     fn emit_print_value(

@@ -24,7 +24,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         match op {
             VecOp::Len | VecOp::Capacity => {
                 let field = if op == VecOp::Len { LEN } else { CAP };
-                let count = self.vec_load_word(header, field)?;
+                let count = self.cx.vec_load_word(header, field)?;
                 Ok(Some(
                     self.cx
                         .builder
@@ -40,27 +40,27 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             VecOp::Push => {
                 self.vec_reserve_one(header, elem_ty)?;
                 let (_, stride, _) = self.elem_storage(elem_ty)?;
-                let len = self.vec_load_word(header, LEN)?;
-                let buf = self.vec_load_ptr(header, BUF)?;
-                let slot = self.vec_slot(buf, len, stride)?;
-                let arena = self.vec_load_ptr(header, ARENA)?;
+                let len = self.cx.vec_load_word(header, LEN)?;
+                let buf = self.cx.vec_load_ptr(header, BUF)?;
+                let slot = self.cx.vec_slot(buf, len, stride)?;
+                let arena = self.cx.vec_load_ptr(header, ARENA)?;
                 self.vec_store_elem(slot, arena, elem_ty, ops[1], true)?;
-                let next = self.cx.builder.build_int_add(len, self.word(1), "vec.len.new")?;
-                self.vec_store(header, LEN, next)?;
+                let next = self.cx.builder.build_int_add(len, self.cx.word(1), "vec.len.new")?;
+                self.cx.vec_store(header, LEN, next)?;
                 Ok(None)
             }
             VecOp::Clear => {
                 if self.cx.tcx.is_handle_clone(elem_ty) {
-                    let len = self.vec_load_word(header, LEN)?;
-                    let buf = self.vec_load_ptr(header, BUF)?;
+                    let len = self.cx.vec_load_word(header, LEN)?;
+                    let buf = self.cx.vec_load_ptr(header, BUF)?;
                     let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
                     self.vec_counted_loop(len, |this, i| {
-                        let slot = this.vec_slot(buf, i, stride)?;
+                        let slot = this.cx.vec_slot(buf, i, stride)?;
                         let handle = this.cx.builder.build_load(llvm_elem, slot, "vec.drop")?;
                         this.drop_ref_value(handle)
                     })?;
                 }
-                self.vec_store(header, LEN, self.word(0))?;
+                self.cx.vec_store(header, LEN, self.cx.word(0))?;
                 Ok(None)
             }
             VecOp::Pop => self.emit_vec_pop(header, elem_ty, result_ty).map(Some),
@@ -74,11 +74,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         result_ty: TyId,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         let context = self.cx.context;
-        let len = self.vec_load_word(header, LEN)?;
+        let len = self.cx.vec_load_word(header, LEN)?;
         let empty = self
             .cx
             .builder
-            .build_int_compare(IntPredicate::EQ, len, self.word(0), "vec.pop.empty")?;
+            .build_int_compare(IntPredicate::EQ, len, self.cx.word(0), "vec.pop.empty")?;
         let present = context.append_basic_block(self.llvm_fn, "vec.pop.some");
         let absent = context.append_basic_block(self.llvm_fn, "vec.pop.none");
         let merge = context.append_basic_block(self.llvm_fn, "vec.pop.done");
@@ -87,11 +87,11 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
             .build_conditional_branch(empty, absent, present)?;
 
         self.cx.position_at_end(present);
-        let last = self.cx.builder.build_int_sub(len, self.word(1), "vec.last")?;
-        self.vec_store(header, LEN, last)?;
+        let last = self.cx.builder.build_int_sub(len, self.cx.word(1), "vec.last")?;
+        self.cx.vec_store(header, LEN, last)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let buf = self.vec_load_ptr(header, BUF)?;
-        let slot = self.vec_slot(buf, last, stride)?;
+        let buf = self.cx.vec_load_ptr(header, BUF)?;
+        let slot = self.cx.vec_slot(buf, last, stride)?;
         let popped = if self.cx.tcx.is_managed_ref(elem_ty) {
             // The slot is past `len` now, so the handle moves out and the slot becomes `None`.
             self.move_ref(slot)?
