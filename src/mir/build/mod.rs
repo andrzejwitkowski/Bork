@@ -35,7 +35,10 @@ pub type Res<T> = Result<T, BuildError>;
 
 impl BuildError {
     pub(super) fn unsupported(capability: Capability, span: Span) -> BuildError {
-        BuildError::Unsupported(Unsupported { capability, span })
+        BuildError::Unsupported(Unsupported { capability, span, message: None })
+    }
+    pub(super) fn unsupported_with(capability: Capability, span: Span, message: &'static str) -> BuildError {
+        BuildError::Unsupported(Unsupported { capability, span, message: Some(message) })
     }
     pub(super) fn unlowered(what: impl Into<String>, span: Span) -> BuildError {
         BuildError::Unlowered { what: what.into(), span }

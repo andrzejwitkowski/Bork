@@ -13,6 +13,7 @@ pub mod print;
 pub mod verify;
 
 pub use body::*;
+pub use capability::Capability;
 
 #[cfg(test)]
 mod tests;

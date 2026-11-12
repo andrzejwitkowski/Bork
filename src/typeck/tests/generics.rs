@@ -180,7 +180,7 @@ fn the_codegen_gate_accepts_a_program_once_it_is_monomorphized() {
     assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
     let (hir, report) = (checked.hir.take().unwrap(), checked.report.take().unwrap());
     let mono = crate::mono::monomorphize(&hir, &mut checked.tcx, &report).unwrap();
-    let gate = crate::codegen_gate::gate(&mono.hir, &checked.tcx);
+    let gate = crate::codegen_gate::gate_mono(&mono, &checked.tcx);
     assert!(gate.is_empty(), "{gate:?}");
 }
 

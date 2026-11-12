@@ -54,7 +54,7 @@ fn emit_checked<'ctx>(
     // report and memory plan must come from the same `Mono` as the HIR (node ids are renumbered).
     let mut tcx = checked.tcx.clone();
     let mono = crate::mono::monomorphize(hir, &mut tcx, report).map_err(BuildError::Diagnostics)?;
-    let gate_diagnostics = gate(&mono.hir, &tcx);
+    let gate_diagnostics = crate::codegen_gate::gate_mono(&mono, &tcx);
     if !gate_diagnostics.is_empty() {
         return Err(BuildError::Diagnostics(gate_diagnostics));
     }

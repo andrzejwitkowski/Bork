@@ -43,6 +43,21 @@ impl Capability {
             Capability::UnitPayloadBind => "unit-payload-bind",
         }
     }
+
+    /// The user-facing diagnostic (what `bork check` and `bork build` report for the construct).
+    pub fn message(self) -> &'static str {
+        match self {
+            Capability::Closure => "trailing closures are not supported by codegen",
+            Capability::MatchRef => "`when` over a `Ref` is not supported by codegen yet; use `if val`",
+            Capability::PatPresence => "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`",
+            Capability::MoveAggregate => "moving values of this type is not supported by codegen yet",
+            Capability::FieldAccess => "field access is not supported by codegen",
+            Capability::SafeFieldEnum => "`?.` of an enum field is not supported by codegen yet",
+            Capability::IndirectCall => "calls through a function value are not supported by codegen yet",
+            Capability::UnitElem => "a `unit` element is not supported by codegen yet",
+            Capability::UnitPayloadBind => "reading a bound `unit` payload is not supported by codegen yet",
+        }
+    }
 }
 
 impl fmt::Display for Capability {
@@ -56,4 +71,12 @@ impl fmt::Display for Capability {
 pub struct Unsupported {
     pub capability: Capability,
     pub span: Span,
+    /// Overrides [`Capability::message`] when one capability covers several diagnostics.
+    pub message: Option<&'static str>,
+}
+
+impl Unsupported {
+    pub fn message(&self) -> &'static str {
+        self.message.unwrap_or_else(|| self.capability.message())
+    }
 }
