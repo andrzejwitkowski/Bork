@@ -12,6 +12,7 @@ use inkwell::{FloatPredicate, IntPredicate};
 
 use crate::ast::BinOp;
 use crate::diag::Diagnostic;
+use crate::ast::PatLit;
 use crate::hir::{HirFunction, Prim, VecOp};
 use crate::mir::*;
 use crate::ty::{TyData, TyId};
@@ -49,10 +50,10 @@ fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
 }
 
-/// Element type of an array (or `&array`) of non-unit scalars.
+/// Element type of an array (or `&array`) of non-unit scalars or text.
 fn plain_array(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     let elem = cx.tcx.array_elem(ty)?;
-    (prim(cx, elem).is_some() && !is_unit(cx, elem)).then_some(elem)
+    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem)).then_some(elem)
 }
 
 /// Element type of an indexable buffer: a plain array, or `u8` for text.
@@ -103,13 +104,14 @@ fn plain_class(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     })
 }
 
-/// An enum (or `T?`) whose variants carry only non-unit plain payloads.
+/// An enum (or `T?`) whose variants carry only plain payloads.
 fn plain_enum(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     memo_plain(cx, &cx.plain_enums, ty, |ty| {
         let name = crate::mono::enum_instance_name(&cx.tcx, ty)?;
         cx.enum_layout(&name)?;
         let e = cx.enums.iter().find(|e| e.name == name)?;
-        let plain = e.variants.iter().flat_map(|v| &v.fields).all(|f| f.ty != cx.unit_ty() && plain_value(cx, f.ty));
+        // A `unit` payload takes no storage but keeps its field index (`enum_layout_of`).
+        let plain = e.variants.iter().flat_map(|v| &v.fields).all(|f| plain_value(cx, f.ty));
         plain.then_some(name)
     })
 }
@@ -492,7 +494,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         || plain_array(cx, t).is_some()
                         || plain_vec(cx, t).is_some()
                         // The payload moves with the slot; handles pass through like `materialize_owned_value`.
-                        || nullable_payload(cx, t).is_some();
+                        || nullable_payload(cx, t).is_some_and(|p| !is_unit(cx, p));
                     if !copyable && trace() {
                         eprintln!("mir-backend: unsupported CopyInto of `{}`", cx.tcx.display(t));
                     }
@@ -553,18 +555,9 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
             }
             TermKind::Match { scrutinee, arms } => {
                 let sty = place_ty(cx, body, scrutinee)?;
-                let name = plain_enum(cx, sty)?;
-                let nullable = cx.tcx.is_nullable(sty);
+                plain_value(cx, sty).then_some(())?;
                 for arm in arms {
-                    match &arm.pat {
-                        MirPat::Wildcard | MirPat::Bind => {}
-                        MirPat::Variant { index, fields, .. } if fields.iter().all(|f| matches!(f, MirPat::Wildcard | MirPat::Bind)) => {
-                            cx.enum_layout(&name)?.variants.get(*index as usize)?;
-                        }
-                        MirPat::Some(inner) if nullable && matches!(**inner, MirPat::Wildcard | MirPat::Bind) => {}
-                        MirPat::None if nullable => {}
-                        _ => return None,
-                    }
+                    pat_ok(cx, body, &arm.pat, scrutinee)?;
                     for (l, src) in &arm.bindings {
                         let lt = body.local(*l)?.ty;
                         if src.local != scrutinee.local || !plain_value(cx, lt) || is_unit(cx, lt) || place_ty(cx, body, src)? != cx.tcx.ref_inner(lt).unwrap_or(lt) {
@@ -584,6 +577,39 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         }
     }
     Some(())
+}
+
+/// `pat` can be tested against the value at `place`: literals of scalar, bool or text type, enum variants and
+/// `Some`/`None` of a nullable, nested to any depth.
+fn pat_ok(cx: &Codegen<'_>, body: &Body, pat: &MirPat, place: &Place) -> Option<()> {
+    let ty = place_ty(cx, body, place)?;
+    let nested = |index: u32, field: usize| {
+        let mut p = place.clone();
+        p.proj.push(Proj::Variant(index));
+        p.proj.push(Proj::Field(field as u32));
+        p
+    };
+    match pat {
+        MirPat::Wildcard | MirPat::Bind => Some(()),
+        MirPat::Lit(PatLit::Int(_)) => cx.int_type(ty).map(|_| ()),
+        MirPat::Lit(PatLit::Bool(_)) => (prim(cx, ty) == Some(Prim::Bool)).then_some(()),
+        MirPat::Lit(PatLit::Str(_)) => cx.tcx.is_text(ty).then_some(()),
+        MirPat::Variant { index, fields, .. } => {
+            let name = plain_enum(cx, ty)?;
+            cx.enum_layout(&name)?.variants.get(*index as usize)?;
+            fields.iter().enumerate().try_for_each(|(i, f)| match f {
+                MirPat::Wildcard | MirPat::Bind => Some(()),
+                _ => pat_ok(cx, body, f, &nested(*index, i)),
+            })
+        }
+        MirPat::Some(inner) => {
+            cx.tcx.is_nullable(ty).then_some(())?;
+            let mut p = place.clone();
+            p.proj.push(Proj::Some);
+            pat_ok(cx, body, inner, &p)
+        }
+        MirPat::None => cx.tcx.is_nullable(ty).then_some(()),
+    }
 }
 
 struct Lower<'a, 'ctx> {
@@ -1482,6 +1508,73 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         })
     }
 
+    /// Branches to `fail` unless the value at `place` matches `pat`; continues in a fresh block when it does.
+    fn pat_test(&self, pat: &MirPat, place: &Place, fail: BasicBlock<'ctx>) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let unless = |hit: inkwell::values::IntValue<'ctx>| -> Result<(), Diagnostic> {
+            let ok = cx.context.append_basic_block(self.llvm_fn, "match.ok");
+            cx.builder.build_conditional_branch(hit, ok, fail)?;
+            cx.position_at_end(ok);
+            Ok(())
+        };
+        let field_place = |index: u32, field: usize| {
+            let mut p = place.clone();
+            p.proj.push(Proj::Variant(index));
+            p.proj.push(Proj::Field(field as u32));
+            p
+        };
+        // The variant tag of the enum at `place` equals `index`.
+        let tag_is = |index: u32| -> Result<inkwell::values::IntValue<'ctx>, Diagnostic> {
+            let (slot, ty) = self.place_ptr(place)?;
+            let name = plain_enum(cx, ty).expect("checked plain enum");
+            let object = self.object_ptr(slot)?;
+            let first = cx.enum_layout(&name).expect("checked layout").variants[0];
+            let tag_ptr = cx.builder.build_struct_gep(first, object, 0, "enum.tag")?;
+            let tag = cx.builder.build_load(cx.context.i32_type(), tag_ptr, "tag")?.into_int_value();
+            Ok(cx.builder.build_int_compare(IntPredicate::EQ, tag, cx.context.i32_type().const_int(u64::from(index), false), "arm.hit")?)
+        };
+        let variant_of = |name: &str| cx.enum_variant(&self.enum_name_at(place), name).expect("prelude Option").1;
+        match pat {
+            MirPat::Wildcard | MirPat::Bind => {}
+            MirPat::Lit(lit) => {
+                let (ptr, ty) = self.place_ptr(place)?;
+                let value = cx.builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "lit.value")?;
+                let hit = match lit {
+                    PatLit::Int(n) => {
+                        let int = value.into_int_value();
+                        cx.builder.build_int_compare(IntPredicate::EQ, int, int.get_type().const_int(*n as u64, true), "lit.eq")?
+                    }
+                    PatLit::Bool(b) => {
+                        let flag = value.into_int_value();
+                        cx.builder.build_int_compare(IntPredicate::EQ, flag, flag.get_type().const_int(u64::from(*b), false), "lit.eq")?
+                    }
+                    PatLit::Str(text) => cx.string_equal(value.into_struct_value(), cx.str_literal(text))?,
+                };
+                unless(hit)?;
+            }
+            MirPat::Variant { index, fields, .. } => {
+                unless(tag_is(*index)?)?;
+                for (i, f) in fields.iter().enumerate() {
+                    self.pat_test(f, &field_place(*index, i), fail)?;
+                }
+            }
+            MirPat::Some(inner) => {
+                unless(tag_is(variant_of("Some"))?)?;
+                let mut p = place.clone();
+                p.proj.push(Proj::Some);
+                self.pat_test(inner, &p, fail)?;
+            }
+            MirPat::None => unless(tag_is(variant_of("None"))?)?,
+        }
+        Ok(())
+    }
+
+    /// Instance name of the enum (or nullable) stored at `place`.
+    fn enum_name_at(&self, place: &Place) -> String {
+        let (_, ty) = self.place_ptr(place).expect("checked place");
+        plain_enum(self.cx, ty).expect("checked plain enum")
+    }
+
     fn term(&mut self, term: &Terminator) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let builder = &cx.builder;
@@ -1533,29 +1626,11 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 builder.build_unreachable()?;
             }
             TermKind::Match { scrutinee, arms } => {
-                let (slot, sty) = self.place_ptr(scrutinee)?;
-                let name = plain_enum(cx, sty).expect("checked plain enum");
-                let object = self.object_ptr(slot)?;
-                let first = cx.enum_layout(&name).expect("checked layout").variants[0];
-                let tag_ptr = builder.build_struct_gep(first, object, 0, "enum.tag")?;
-                let tag = builder.build_load(cx.context.i32_type(), tag_ptr, "tag")?.into_int_value();
                 for arm in arms {
                     let bind = cx.context.append_basic_block(self.llvm_fn, "arm");
                     let next = cx.context.append_basic_block(self.llvm_fn, "arm.next");
-                    match &arm.pat {
-                        MirPat::Variant { .. } | MirPat::Some(_) | MirPat::None => {
-                            let index = match &arm.pat {
-                                MirPat::Variant { index, .. } => *index,
-                                MirPat::Some(_) => cx.enum_variant(&name, "Some").expect("prelude Some").1,
-                                _ => cx.enum_variant(&name, "None").expect("prelude None").1,
-                            };
-                            let hit = builder.build_int_compare(IntPredicate::EQ, tag, cx.context.i32_type().const_int(u64::from(index), false), "arm.hit")?;
-                            builder.build_conditional_branch(hit, bind, next)?;
-                        }
-                        _ => {
-                            builder.build_unconditional_branch(bind)?;
-                        }
-                    }
+                    self.pat_test(&arm.pat, scrutinee, next)?;
+                    builder.build_unconditional_branch(bind)?;
                     cx.position_at_end(bind);
                     for (l, src) in &arm.bindings {
                         let (ptr, ty) = self.place_ptr(src)?;

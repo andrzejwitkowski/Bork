@@ -89,6 +89,27 @@ impl<'ctx> Codegen<'ctx> {
         Ok(self.descriptor(dst, len))
     }
 
+    /// A copy of an array of text in `arena`: the descriptors and the bytes they point to both move.
+    pub(super) fn copy_text_array_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: StructValue<'ctx>, array_ty: TyId) -> Result<StructValue<'ctx>, Diagnostic> {
+        let elem_ty = self.tcx.array_elem(array_ty).ok_or_else(|| not_yet_supported("array copy type", None))?;
+        let base = self.builder.build_extract_value(source, 0, "arr.base")?.into_pointer_value();
+        let len = self.builder.build_extract_value(source, 1, "arr.len")?.into_int_value();
+        let (llvm_elem, stride, align) = self.elem_storage(elem_ty)?;
+        let bytes = self.builder.build_int_mul(len, self.word(stride as u64), "copy.bytes")?;
+        let dst = self.arena_alloc(arena, bytes, align)?;
+        if self.debug.is_some() {
+            self.debug_allocation(dst, "", &self.tcx.display(array_ty).to_string(), false)?;
+            self.debug_copy_origin(base, dst)?;
+        }
+        self.counted_loop(llvm_fn, len, |i| {
+            let text = self.builder.build_load(llvm_elem, self.vec_slot(base, i, stride)?, "arr.text")?;
+            let copied = self.copy_string_into(arena, text.into_struct_value())?;
+            self.builder.build_store(self.vec_slot(dst, i, stride)?, copied)?;
+            Ok(())
+        })?;
+        Ok(self.descriptor(dst, len))
+    }
+
     /// A copy of a `Vec` of plain elements in `arena`: a new header whose buffer holds `len` elements.
     pub(super) fn copy_plain_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
         let len = self.vec_load_word(source, super::vec::LEN)?;
@@ -300,6 +321,9 @@ impl<'ctx> Codegen<'ctx> {
             return Ok(self.copy_string_into(arena, value.into_struct_value())?.into());
         }
         if self.tcx.is_array(ty) {
+            if self.tcx.array_elem(ty).is_some_and(|e| self.tcx.is_text(e)) {
+                return Ok(self.copy_text_array_into(llvm_fn, arena, value.into_struct_value(), ty)?.into());
+            }
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }
         if let Some(elem) = self.tcx.vec_elem(ty) {
