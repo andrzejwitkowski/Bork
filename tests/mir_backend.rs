@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use bork::codegen::{emit_ir, BuildOptions};
+use bork::codegen::{emit_ir, emit_ir_with_source, BuildOptions, SourceContext};
 use bork::frontend::check;
 
 /// Keeps a regressed MIR backend (one that lowers almost nothing) from passing.
@@ -88,4 +88,35 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
     }
     eprintln!("mir-backend: {lowered} of {compared} programs have lowered functions");
     assert!(lowered >= MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS, "only {lowered} programs use the MIR backend");
+}
+
+/// Ordered `bork_debug_*` runtime calls with the callee name, one entry per call (M5e, #226 oracle).
+fn debug_calls(ir: &str) -> Vec<String> {
+    ir.lines()
+        .filter(|l| l.contains("call ") && l.contains("@bork_debug_"))
+        .map(|l| l.split('@').nth(1).unwrap_or("").split('(').next().unwrap_or("").to_string())
+        .collect()
+}
+
+/// `-g` on MIR must register exactly what `-g` on HIR registers (RFC 0006 section 1.2: registry contents
+/// stay identical), and `lowered` counts programs where MIR emitted at least one function.
+#[test]
+fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("programs/build");
+    let mut files = Vec::new();
+    collect(&root, &mut files);
+    let mut compared = 0;
+    for file in files {
+        let text = fs::read_to_string(&file).unwrap();
+        let result = check(&text);
+        let source = || Some(SourceContext { path: &file, text: &text });
+        let Ok(hir) = emit_ir_with_source(&result, BuildOptions { debug: true, mir_backend: false }, source()) else {
+            continue;
+        };
+        let mir = emit_ir_with_source(&result, BuildOptions { debug: true, mir_backend: true }, source())
+            .unwrap_or_else(|e| panic!("-g MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
+        compared += 1;
+        assert_eq!(debug_calls(&hir), debug_calls(&mir), "bork_debug_* calls differ for {}", file.display());
+    }
+    assert!(compared > 0);
 }

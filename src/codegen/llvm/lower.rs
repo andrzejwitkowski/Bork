@@ -199,7 +199,9 @@ fn pushed_regions(body: &Body) -> HashSet<RegionId> {
 }
 
 pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> bool {
-    check(cx, callees, function, body).is_some()
+    // shortcut: with `-g` every function stays on the HIR emitter until DISubprogram, per-statement
+    // locations and the DebugLabel hooks are lowered (#226); a half-debug function would lose DWARF.
+    cx.debug.is_none() && check(cx, callees, function, body).is_some()
 }
 
 fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> Option<()> {

@@ -77,6 +77,20 @@ pub fn emit_module_with_debug<'ctx>(
     emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)), None)
 }
 
+/// `-g` build with MIR bodies; functions the MIR lowerer cannot yet give debug info stay on HIR.
+pub fn emit_module_with_debug_mir<'ctx>(
+    context: &'ctx Context,
+    hir: &HirProgram,
+    tcx: &TyCtx,
+    report: &ArenaReport,
+    memory_plan: MemoryPlan,
+    source: &str,
+    path: &Path,
+    bodies: &[Option<crate::mir::Body>],
+) -> Result<Module<'ctx>, Diagnostic> {
+    emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)), Some(bodies))
+}
+
 fn emit_module_impl<'ctx>(
     context: &'ctx Context,
     hir: &HirProgram,
