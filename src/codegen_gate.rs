@@ -6,6 +6,7 @@
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::HirProgram;
 use crate::mir::build::{build_function_results, BuildError};
+use crate::mir::Body;
 use crate::mono::Mono;
 use crate::sema::ArenaReport;
 use crate::ty::TyCtx;
@@ -20,18 +21,22 @@ pub fn gate(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> Vec<Diagnost
     }
 }
 
-/// [`gate`] over a program that is already monomorphized (the build path).
+/// [`gate`] over a program that is already monomorphized.
 pub fn gate_mono(mono: &Mono, tcx: &TyCtx) -> Vec<Diagnostic> {
-    let results = match build_function_results(mono, tcx) {
-        Ok(results) => results,
-        Err(_) => return Vec::new(),
-    };
+    match build_function_results(mono, tcx) {
+        Ok(results) => gate_results(&results),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// The diagnostics of the functions in `results` that MIR could not build (the build path reuses the same
+/// results for emission, so MIR is built once).
+pub fn gate_results(results: &[Result<Body, BuildError>]) -> Vec<Diagnostic> {
     results
-        .into_iter()
-        .filter_map(Result::err)
-        .filter_map(|error| match error {
+        .iter()
+        .filter_map(|result| match result.as_ref().err()? {
             BuildError::Unsupported(u) => Some((u.message().to_owned(), Some(u.span))),
-            BuildError::Unlowered { what, span } => Some((format!("{what} is not supported by codegen yet"), Some(span))),
+            BuildError::Unlowered { what, span } => Some((format!("{what} is not supported by codegen yet"), Some(*span))),
             // A compiler bug, not a user error: the build reports it with its own message.
             BuildError::Internal(_) => None,
         })

@@ -1,5 +1,5 @@
-//! The `Ref` runtime protocol, shared by the HIR emitter (`FnEmitter`) and the MIR lowering (`Lower`),
-//! so both emit the same runtime call sequences. `f` is the function being emitted (entry-block allocas).
+//! The `Ref` runtime protocol, used by the MIR lowering (`Lower`),
+//! `f` is the function being emitted (entry-block allocas).
 
 use inkwell::types::BasicType;
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, StructValue};

@@ -300,7 +300,7 @@ pub struct Block {
 pub struct RegionInfo {
     pub parent: Option<RegionId>,
     pub site: RegionSite,
-    /// `ArenaNode::id` of the report region this one was built from (M3 shadow comparison).
+    /// `ArenaNode::id` of the report region this one was built from.
     pub arena: usize,
 }
 

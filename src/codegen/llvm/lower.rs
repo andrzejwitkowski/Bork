@@ -1,6 +1,6 @@
 //! LLVM from MIR (RFC 0006 M5a-d, #222-#225). Covers scalars, classes and enums (with `Ref` fields), the
 //! `Ref` protocol, presence observations, scalar `Vec`s, arrays and slices, text, nullables, calls with
-//! the hidden arena arguments, control flow and regions. [`supported`] decides per function; anything else stays on the HIR emitter, so a
+//! the hidden arena arguments, control flow and regions. [`supported`] checks a function before it is lowered, so a
 //! function is never half lowered.
 
 use std::collections::{HashMap, HashSet};
@@ -281,7 +281,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         ArenaRef::ResultSink => own_abi.has_result_sink(),
         ArenaRef::CallerParent => own_abi.hidden_len() > 0,
         // The arena a binding lives in is readable from its handle (objects, enums, `Vec` headers);
-        // text and arrays carry no arena, so they stay on the HIR emitter.
+        // text and arrays carry no arena of their own.
         ArenaRef::Home(l) if homes.contains_key(l) => true,
         ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => body.local(*l).is_some_and(|d| {
             // A view of a class or enum (`&T`, observed `Ref`) is still the `{arena, object}` handle.
@@ -579,16 +579,18 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
     Some(())
 }
 
+/// `place` projected to field `field` of variant `index`.
+fn variant_field(place: &Place, index: u32, field: usize) -> Place {
+    let mut p = place.clone();
+    p.proj.push(Proj::Variant(index));
+    p.proj.push(Proj::Field(field as u32));
+    p
+}
+
 /// `pat` can be tested against the value at `place`: literals of scalar, bool or text type, enum variants and
 /// `Some`/`None` of a nullable, nested to any depth.
 fn pat_ok(cx: &Codegen<'_>, body: &Body, pat: &MirPat, place: &Place) -> Option<()> {
     let ty = place_ty(cx, body, place)?;
-    let nested = |index: u32, field: usize| {
-        let mut p = place.clone();
-        p.proj.push(Proj::Variant(index));
-        p.proj.push(Proj::Field(field as u32));
-        p
-    };
     match pat {
         MirPat::Wildcard | MirPat::Bind => Some(()),
         MirPat::Lit(PatLit::Int(_)) => cx.int_type(ty).map(|_| ()),
@@ -599,7 +601,7 @@ fn pat_ok(cx: &Codegen<'_>, body: &Body, pat: &MirPat, place: &Place) -> Option<
             cx.enum_layout(&name)?.variants.get(*index as usize)?;
             fields.iter().enumerate().try_for_each(|(i, f)| match f {
                 MirPat::Wildcard | MirPat::Bind => Some(()),
-                _ => pat_ok(cx, body, f, &nested(*index, i)),
+                _ => pat_ok(cx, body, f, &variant_field(place, *index, i)),
             })
         }
         MirPat::Some(inner) => {
@@ -1287,7 +1289,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         }
     }
 
-    /// The `Ref` protocol (RFC 0006 3.2); every op is the shared runtime call sequence of the HIR emitter.
+    /// The `Ref` protocol (RFC 0006 3.2); every op is one runtime call sequence.
     fn ref_op(&self, op: &RefOp, region: RegionId) -> Result<(), Diagnostic> {
         let (cx, f) = (self.cx, self.llvm_fn);
         match op {
@@ -1342,7 +1344,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(())
     }
 
-    /// Built-in `Vec` method; mirrors `FnEmitter::emit_vec_op`. `Ref` elements are cloned out and stored with
+    /// Built-in `Vec` method; `Ref` elements are cloned out and stored with
     /// ownership, text is copied into the vector's arena.
     fn vec_op(&self, op: VecOp, header: PointerValue<'ctx>, elem: TyId, args: &[Operand]) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let cx = self.cx;
@@ -1356,7 +1358,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             cx.guard_index(self.llvm_fn, idx, cx.vec_load_word(header, vec::LEN)?)?;
             cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, idx, stride)
         };
-        // `value` into `slot`; a fresh slot (push) has no previous handle to release.
         let store = |slot: PointerValue<'ctx>, value: &Operand, fresh: bool| -> Result<(), Diagnostic> {
             let arena = cx.vec_load_ptr(header, vec::ARENA)?;
             if is_ref {
@@ -1449,7 +1450,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(phi.as_basic_value())
     }
 
-    /// Drops every `Ref` element of the vector (`clear`).
     fn release_elements(&self, header: PointerValue<'ctx>, llvm_elem: BasicTypeEnum<'ctx>, stride: usize) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let (len, buf) = (cx.vec_load_word(header, vec::LEN)?, cx.vec_load_ptr(header, vec::BUF)?);
@@ -1513,7 +1513,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         })
     }
 
-    /// Branches to `fail` unless the value at `place` matches `pat`; continues in a fresh block when it does.
     fn pat_test(&self, pat: &MirPat, place: &Place, fail: BasicBlock<'ctx>) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let unless = |hit: inkwell::values::IntValue<'ctx>| -> Result<(), Diagnostic> {
@@ -1522,13 +1521,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             cx.position_at_end(ok);
             Ok(())
         };
-        let field_place = |index: u32, field: usize| {
-            let mut p = place.clone();
-            p.proj.push(Proj::Variant(index));
-            p.proj.push(Proj::Field(field as u32));
-            p
-        };
-        // The variant tag of the enum at `place` equals `index`.
         let tag_is = |index: u32| -> Result<inkwell::values::IntValue<'ctx>, Diagnostic> {
             let (slot, ty) = self.place_ptr(place)?;
             let name = plain_enum(cx, ty).expect("checked plain enum");
@@ -1545,13 +1537,14 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let (ptr, ty) = self.place_ptr(place)?;
                 let value = cx.builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "lit.value")?;
                 let hit = match lit {
-                    PatLit::Int(n) => {
+                    PatLit::Int(_) | PatLit::Bool(_) => {
+                        let (wanted, signed) = match lit {
+                            PatLit::Int(n) => (*n as u64, true),
+                            PatLit::Bool(b) => (u64::from(*b), false),
+                            PatLit::Str(_) => unreachable!(),
+                        };
                         let int = value.into_int_value();
-                        cx.builder.build_int_compare(IntPredicate::EQ, int, int.get_type().const_int(*n as u64, true), "lit.eq")?
-                    }
-                    PatLit::Bool(b) => {
-                        let flag = value.into_int_value();
-                        cx.builder.build_int_compare(IntPredicate::EQ, flag, flag.get_type().const_int(u64::from(*b), false), "lit.eq")?
+                        cx.builder.build_int_compare(IntPredicate::EQ, int, int.get_type().const_int(wanted, signed), "lit.eq")?
                     }
                     PatLit::Str(text) => cx.string_equal(value.into_struct_value(), cx.str_literal(text))?,
                 };
@@ -1560,7 +1553,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             MirPat::Variant { index, fields, .. } => {
                 unless(tag_is(*index)?)?;
                 for (i, f) in fields.iter().enumerate() {
-                    self.pat_test(f, &field_place(*index, i), fail)?;
+                    self.pat_test(f, &variant_field(place, *index, i), fail)?;
                 }
             }
             MirPat::Some(inner) => {
@@ -1574,7 +1567,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(())
     }
 
-    /// Instance name of the enum (or nullable) stored at `place`.
     fn enum_name_at(&self, place: &Place) -> String {
         let (_, ty) = self.place_ptr(place).expect("checked place");
         plain_enum(self.cx, ty).expect("checked plain enum")

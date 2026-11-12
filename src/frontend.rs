@@ -48,7 +48,7 @@ pub fn check(source: &str) -> CheckResult {
     check_with(source, true)
 }
 
-/// [`check`], optionally without the HIR escape pass (the MIR escape shadow, #217, runs on programs it rejects).
+/// [`check`], optionally without the HIR escape pass (the MIR escape analysis, #217, runs on programs it rejects).
 #[doc(hidden)]
 pub fn check_with(source: &str, escape: bool) -> CheckResult {
     let (mut program, node_index) = match crate::parse_indexed(source) {

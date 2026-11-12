@@ -31,18 +31,27 @@ use emit_fn::Callees;
 /// Lowers every function of `mono` from MIR. A construct MIR cannot lower is the gate's to reject, so reaching
 /// one here is reported as an internal error naming the function.
 pub fn emit_module<'ctx>(context: &'ctx Context, mono: &Mono, tcx: &TyCtx) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, mono, tcx, None)
+    emit_module_from(context, mono, tcx, None, build_bodies(mono, tcx)?)
 }
 
 pub fn emit_module_with_debug<'ctx>(context: &'ctx Context, mono: &Mono, tcx: &TyCtx, source: &str, path: &Path) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, mono, tcx, Some((source, path)))
+    emit_module_from(context, mono, tcx, Some((source, path)), build_bodies(mono, tcx)?)
 }
 
-fn emit_module_impl<'ctx>(
+/// One MIR body (or its build error) per function of `mono`.
+pub type Bodies = Vec<Result<crate::mir::Body, crate::mir::build::BuildError>>;
+
+pub fn build_bodies(mono: &Mono, tcx: &TyCtx) -> Result<Bodies, Diagnostic> {
+    crate::mir::build::build_function_results(mono, tcx).map_err(mir_error)
+}
+
+/// Emits `mono` from MIR `bodies` already built by [`build_bodies`], so the gate and the emission share one build.
+pub fn emit_module_from<'ctx>(
     context: &'ctx Context,
     mono: &Mono,
     tcx: &TyCtx,
     source: Option<(&str, &Path)>,
+    bodies: Bodies,
 ) -> Result<Module<'ctx>, Diagnostic> {
     let hir = &mono.hir;
     if !hir.functions.iter().any(|function| function.name == "main") {
@@ -51,8 +60,6 @@ fn emit_module_impl<'ctx>(
             None,
         ));
     }
-    let bodies = crate::mir::build::build_function_results(mono, tcx).map_err(mir_error)?;
-
     let mut cx = Codegen::new(context, "bork", &hir.classes, &hir.enums, tcx)
         .map_err(|message| codegen_error(message, None))?;
     if let Some((source, path)) = source {
@@ -152,7 +159,7 @@ pub(super) fn not_yet_supported(what: &str, span: Option<Span>) -> Diagnostic {
 fn mir_error(error: crate::mir::build::BuildError) -> Diagnostic {
     use crate::mir::build::BuildError;
     match error {
-        BuildError::Unsupported(u) => not_yet_supported(&format!("{}", u.capability), Some(u.span)),
+        BuildError::Unsupported(u) => codegen_error(u.message().to_owned(), Some(u.span)),
         BuildError::Unlowered { what, span } => not_yet_supported(&what, Some(span)),
         BuildError::Internal(message) => codegen_error(format!("internal error: MIR: {message}"), None),
     }

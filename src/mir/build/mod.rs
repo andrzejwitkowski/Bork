@@ -86,7 +86,7 @@ fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
         .iter()
         .zip(roots)
         .map(|(function, root)| {
-            if root.label != format!("fun {}", function.name) {
+            if root.label.strip_prefix("fun ") != Some(function.name.as_str()) {
                 return Err(BuildError::Internal(format!("report root `{}` for function `{}`", root.label, function.name)));
             }
             FnBuilder::new(mono, tcx, &abis, function, root, neutral).build()

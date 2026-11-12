@@ -394,7 +394,7 @@ pub(crate) fn monomorphize_every_function(hir: &HirProgram, tcx: &mut TyCtx, rep
     monomorphize_from(hir, tcx, report, true, true, true)
 }
 
-/// Every non-generic function as a root and no HIR escape check: the MIR escape shadow (#217) needs the
+/// Every non-generic function as a root and no HIR escape check: the MIR escape analysis (#217) needs the
 /// concrete program even when the HIR check rejects it.
 #[doc(hidden)]
 pub fn monomorphize_unchecked(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {

@@ -54,19 +54,19 @@ fn emit_checked<'ctx>(
     // report and memory plan must come from the same `Mono` as the HIR (node ids are renumbered).
     let mut tcx = checked.tcx.clone();
     let mono = crate::mono::monomorphize(hir, &mut tcx, report).map_err(BuildError::Diagnostics)?;
-    let gate_diagnostics = crate::codegen_gate::gate_mono(&mono, &tcx);
+    let bodies = llvm::build_bodies(&mono, &tcx).map_err(|d| BuildError::Diagnostics(vec![d]))?;
+    let gate_diagnostics = crate::codegen_gate::gate_results(&bodies);
     if !gate_diagnostics.is_empty() {
         return Err(BuildError::Diagnostics(gate_diagnostics));
     }
-
-    if options.debug {
-        let source = source.ok_or_else(|| {
-            BuildError::Toolchain("debug builds require source path and text".into())
-        })?;
-        llvm::emit_module_with_debug(context, &mono, &tcx, source.text, source.path)
-    } else {
-        llvm::emit_module(context, &mono, &tcx)
-    }
+    let debug = match options.debug {
+        true => {
+            let source = source.ok_or_else(|| BuildError::Toolchain("debug builds require source path and text".into()))?;
+            Some((source.text, source.path))
+        }
+        false => None,
+    };
+    llvm::emit_module_from(context, &mono, &tcx, debug, bodies)
     .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))
 }
 

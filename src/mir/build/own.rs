@@ -234,7 +234,6 @@ impl<'a> FnBuilder<'a> {
         self.tcx.enum_args(ty).is_some()
     }
 
-    /// Type of field `index` of the class `ty` names.
     fn class_field_ty(&self, ty: TyId, index: usize) -> Option<TyId> {
         let name = crate::mono::class_instance_name(self.tcx, ty)?;
         self.mono.hir.classes.iter().find(|c| c.name == name)?.fields.get(index).map(|f| f.ty)

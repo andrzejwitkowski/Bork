@@ -1,6 +1,6 @@
-//! Arena-parameterised value helpers shared by the HIR emitter and the MIR lowering (`lower.rs`):
+//! Arena-parameterised value helpers used by the MIR lowering (`lower.rs`):
 //! text, buffer descriptors, copies into another arena and `T?` slots. None of them needs a
-//! `FnEmitter`; ops that branch take the `llvm_fn` to add blocks to.
+//! a function emitter; ops that branch take the `llvm_fn` to add blocks to.
 
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue, StructValue};
 use inkwell::IntPredicate;
@@ -132,7 +132,6 @@ impl<'ctx> Codegen<'ctx> {
         Ok(header)
     }
 
-    /// Runs `body(i)` for `i` in `0..count` (`count` is an `i64`), leaving the builder after the loop.
     pub(super) fn counted_loop(&self, llvm_fn: FunctionValue<'ctx>, count: IntValue<'ctx>, mut body: impl FnMut(IntValue<'ctx>) -> Result<(), Diagnostic>) -> Result<(), Diagnostic> {
         let ctx = self.context;
         let entry = self.builder.get_insert_block().expect("positioned");
@@ -155,7 +154,7 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     /// A copy of a `Vec` of `Ref`s or text in `arena`: `Ref` elements are cloned and stored with ownership,
-    /// text is copied, as `FnEmitter::copy_vec_into_arena`.
+    /// text is copied.
     pub(super) fn copy_owning_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
         let len = self.vec_load_word(source, super::vec::LEN)?;
         let header = self.vec_alloc(llvm_fn, arena, elem_ty, Some(len))?;
