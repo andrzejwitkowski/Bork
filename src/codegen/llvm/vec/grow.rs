@@ -7,7 +7,6 @@ use crate::diag::Diagnostic;
 use crate::ty::TyId;
 
 use super::super::context::Codegen;
-use super::super::emit_fn::FnEmitter;
 use super::{ARENA, BUF, CAP, FIRST_CAPACITY, LEN};
 
 impl<'ctx> Codegen<'ctx> {
@@ -89,11 +88,5 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.build_unconditional_branch(done)?;
         self.position_at_end(done);
         Ok(())
-    }
-}
-
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(super) fn vec_reserve_one(&mut self, header: PointerValue<'ctx>, elem_ty: TyId) -> Result<(), Diagnostic> {
-        self.cx.vec_reserve_one(self.llvm_fn, header, elem_ty)
     }
 }

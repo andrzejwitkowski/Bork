@@ -50,10 +50,10 @@ fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
 }
 
-/// Element type of an array (or `&array`) of non-unit scalars or text.
+/// Element type of an array (or `&array`) of non-unit scalars, text or `Ref`s.
 fn plain_array(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     let elem = cx.tcx.array_elem(ty)?;
-    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem)).then_some(elem)
+    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
 }
 
 /// Element type of an indexable buffer: a plain array, or `u8` for text.
@@ -782,7 +782,12 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let (ptr, _) = self.place_ptr(slot)?;
                 let owner = self.arena_ref(owner, stmt.region)?;
                 let word = cx.context.i64_type();
-                cx.debug_label_slot(owner, ptr, &label.name, label.ty, word.const_zero(), word.const_all_ones())
+                // Array elements carry their runtime index; fields and locals use the all-ones "no index".
+                let index = match &label.index {
+                    Some(i) => self.index_i64(i)?,
+                    None => word.const_all_ones(),
+                };
+                cx.debug_label_slot(owner, ptr, &label.name, label.ty, word.const_zero(), index)
             }
             _ => Ok(()),
         }

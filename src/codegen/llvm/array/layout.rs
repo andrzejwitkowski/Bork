@@ -1,82 +1,11 @@
 //! Array value layout: the `{ ptr, len }` descriptor, element size/stride and slot addressing.
 
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
 
 use crate::diag::Diagnostic;
 use crate::ty::TyId;
 
 use super::super::context::Codegen;
-use super::super::emit_fn::FnEmitter;
 use super::super::not_yet_supported;
-
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(super) fn descriptor(&self, ptr: PointerValue<'ctx>, len: IntValue<'ctx>) -> StructValue<'ctx> {
-        self.cx.descriptor(ptr, len)
-    }
-
-    pub(super) fn descriptor_parts(
-        &self,
-        desc: StructValue<'ctx>,
-    ) -> Result<(PointerValue<'ctx>, IntValue<'ctx>), Diagnostic> {
-        let builder = &self.cx.builder;
-        let base = builder
-            .build_extract_value(desc, 0, "arr.base")?
-            .into_pointer_value();
-        let len = builder
-            .build_extract_value(desc, 1, "arr.len")?
-            .into_int_value();
-        Ok((base, len))
-    }
-
-    pub(in crate::codegen::llvm) fn elem_storage(
-        &self,
-        elem_ty: TyId,
-    ) -> Result<(inkwell::types::BasicTypeEnum<'ctx>, usize, usize), Diagnostic> {
-        self.cx.elem_storage(elem_ty)
-    }
-
-    pub(super) fn elem_ptr(
-        &self,
-        base: PointerValue<'ctx>,
-        index: usize,
-        stride: usize,
-    ) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let idx = self.cx.context.i32_type().const_int(index as u64, false);
-        self.elem_ptr_at(base, idx, stride)
-    }
-
-    pub(super) fn elem_ptr_at(
-        &self,
-        base: PointerValue<'ctx>,
-        index: IntValue<'ctx>,
-        stride: usize,
-    ) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let offset = self.cx.builder.build_int_mul(
-            self.cx
-                .builder
-                .build_int_s_extend(index, self.cx.context.i64_type(), "idx")?,
-            self.cx.context.i64_type().const_int(stride as u64, false),
-            "slot.off",
-        )?;
-        let bytes = unsafe {
-            self.cx
-                .builder
-                .build_gep(self.cx.context.i8_type(), base, &[offset], "slot.bytes")?
-        };
-        Ok(bytes)
-    }
-
-    pub(in crate::codegen::llvm) fn truncate_i32(&self, value: IntValue<'ctx>) -> IntValue<'ctx> {
-        if value.get_type().get_bit_width() == 32 {
-            value
-        } else {
-            self.cx
-                .builder
-                .build_int_truncate(value, self.cx.context.i32_type(), "i32")
-                .expect("truncate in loop")
-        }
-    }
-}
 
 fn array_elem_layout(
     cx: &super::super::context::Codegen<'_>,
@@ -103,14 +32,6 @@ fn array_elem_layout(
             None,
         )),
     }
-}
-
-pub(super) fn builder_load<'ctx>(
-    emitter: &FnEmitter<'_, '_, '_, 'ctx>,
-    ty: inkwell::types::BasicTypeEnum<'ctx>,
-    ptr: PointerValue<'ctx>,
-) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-    Ok(emitter.cx.builder.build_load(ty, ptr, "load")?)
 }
 
 impl<'ctx> Codegen<'ctx> {

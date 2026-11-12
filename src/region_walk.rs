@@ -160,13 +160,6 @@ impl WalkError {
         }
     }
 
-    pub fn from_diagnostic(diag: crate::diag::Diagnostic) -> Self {
-        Self {
-            message: diag.message.clone(),
-            diagnostic: Some(diag),
-        }
-    }
-
     pub fn as_str(&self) -> &str {
         &self.message
     }
@@ -187,10 +180,6 @@ impl WalkError {
             span: None,
             notes: Vec::new(),
         })
-    }
-
-    pub fn into_diagnostic(self) -> Option<crate::diag::Diagnostic> {
-        self.diagnostic
     }
 }
 
@@ -300,71 +289,6 @@ impl<'a> ArenaCursor for RegionWalkRef<'a> {
 
     fn last_child_mut(&mut self) -> &mut ArenaNode {
         panic!("readonly arena walk cannot mutate report nodes");
-    }
-}
-
-impl<'a> RegionWalkRef<'a> {
-    /// Like `ArenaCursor::parent`, but borrowed from `roots` rather than from the cursor.
-    fn parent_node(&self) -> &'a ArenaNode {
-        let mut node = &self.roots[self.root_index];
-        for &index in &self.path {
-            node = &node.children[index];
-        }
-        node
-    }
-}
-
-/// Readonly cursor whose position is shared by all clones, so codegen can start a nested
-/// walk from inside emission (every clone advances the same position) without pinning the
-/// outer driver behind a raw pointer. Borrows of the position never outlive one cursor call.
-#[derive(Clone)]
-pub(crate) struct SharedCursor<'a>(std::rc::Rc<std::cell::RefCell<RegionWalkRef<'a>>>);
-
-impl<'a> SharedCursor<'a> {
-    pub(crate) fn new(roots: &'a [ArenaNode], root_index: usize) -> Self {
-        Self(std::rc::Rc::new(std::cell::RefCell::new(RegionWalkRef {
-            roots,
-            root_index,
-            path: Vec::new(),
-            next_child: 0,
-        })))
-    }
-
-    fn root(&self) -> &'a ArenaNode {
-        let inner = self.0.borrow();
-        &inner.roots[inner.root_index]
-    }
-}
-
-impl<'a> ArenaCursor for SharedCursor<'a> {
-    fn parent(&self) -> &ArenaNode {
-        self.0.borrow().parent_node()
-    }
-
-    fn take_child(&mut self, site: RegionSite) -> Result<(), WalkError> {
-        self.0.borrow_mut().take_child(site)
-    }
-
-    fn last_child(&self) -> &ArenaNode {
-        let inner = self.0.borrow();
-        let parent: &'a ArenaNode = inner.parent_node();
-        &parent.children[inner.next_child - 1]
-    }
-
-    fn last_child_mut(&mut self) -> &mut ArenaNode {
-        panic!("readonly arena walk cannot mutate report nodes");
-    }
-
-    fn descend(&mut self) {
-        self.0.borrow_mut().descend();
-    }
-
-    fn ascend(&mut self) {
-        self.0.borrow_mut().ascend();
-    }
-
-    fn assert_children_done(&self) -> Result<(), WalkError> {
-        self.0.borrow().assert_children_done()
     }
 }
 
@@ -969,19 +893,6 @@ pub fn walk_program_readonly<V: RegionVisitor>(
     Ok(())
 }
 
-/// Walk a single function's body in lockstep with the arena tree behind `cursor`.
-pub(crate) fn walk_function_readonly<V: RegionVisitor>(
-    function: &HirFunction,
-    tcx: &TyCtx,
-    cursor: &mut SharedCursor<'_>,
-    visitor: &mut V,
-) -> Result<(), WalkError> {
-    visitor
-        .on_function_root(cursor.root())
-        .map_err(|_| WalkError::message("visitor rejected function root"))?;
-    walk_one_function(function, tcx, cursor, visitor)
-}
-
 pub use stamp::stamp_codegen_push;
 
 #[cfg(test)]
@@ -996,31 +907,6 @@ mod tests {
         let mut report = result.report.unwrap();
         let mut visitor = StampVisitor;
         walk_program(result.hir.as_ref().unwrap(), &result.tcx, &mut report.roots, &mut visitor).unwrap();
-    }
-
-    #[test]
-    fn shared_cursor_clones_advance_one_position() {
-        let node = |label: &str, children| ArenaNode {
-            id: 0,
-            label: label.into(),
-            compacted_braces: 0,
-            codegen_push: false,
-            bindings: Vec::new(),
-            observations: Vec::new(),
-            children,
-        };
-        let roots = [node("fn", vec![node("Block", vec![node("WhileLoop", vec![])])])];
-        let mut outer = SharedCursor::new(&roots, 0);
-        let mut inner = outer.clone();
-        outer.take_child(RegionSite::Block).unwrap();
-        outer.descend();
-        // The clone sees the descent made through the other handle.
-        assert_eq!(inner.parent().label, "Block");
-        inner.take_child(RegionSite::While).unwrap();
-        assert_eq!(outer.last_child().label, "WhileLoop");
-        inner.ascend();
-        outer.assert_children_done().unwrap();
-        assert!(outer.take_child(RegionSite::Block).is_err());
     }
 
     #[test]

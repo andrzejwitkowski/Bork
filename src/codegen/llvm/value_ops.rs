@@ -89,8 +89,8 @@ impl<'ctx> Codegen<'ctx> {
         Ok(self.descriptor(dst, len))
     }
 
-    /// A copy of an array of text in `arena`: the descriptors and the bytes they point to both move.
-    pub(super) fn copy_text_array_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: StructValue<'ctx>, array_ty: TyId) -> Result<StructValue<'ctx>, Diagnostic> {
+    /// A copy of an array of text or `Ref`s in `arena`: text bytes are copied, `Ref`s cloned and stored with ownership.
+    pub(super) fn copy_owning_array_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: StructValue<'ctx>, array_ty: TyId) -> Result<StructValue<'ctx>, Diagnostic> {
         let elem_ty = self.tcx.array_elem(array_ty).ok_or_else(|| not_yet_supported("array copy type", None))?;
         let base = self.builder.build_extract_value(source, 0, "arr.base")?.into_pointer_value();
         let len = self.builder.build_extract_value(source, 1, "arr.len")?.into_int_value();
@@ -103,8 +103,14 @@ impl<'ctx> Codegen<'ctx> {
         }
         self.counted_loop(llvm_fn, len, |i| {
             let text = self.builder.build_load(llvm_elem, self.vec_slot(base, i, stride)?, "arr.text")?;
+            let slot = self.vec_slot(dst, i, stride)?;
+            if self.tcx.is_managed_ref(elem_ty) {
+                let cloned = self.ref_clone(llvm_fn, text)?;
+                self.builder.build_store(slot, self.ref_handle_type().const_zero())?;
+                return self.ref_store(llvm_fn, slot, arena, cloned);
+            }
             let copied = self.copy_string_into(arena, text.into_struct_value())?;
-            self.builder.build_store(self.vec_slot(dst, i, stride)?, copied)?;
+            self.builder.build_store(slot, copied)?;
             Ok(())
         })?;
         Ok(self.descriptor(dst, len))
@@ -321,8 +327,8 @@ impl<'ctx> Codegen<'ctx> {
             return Ok(self.copy_string_into(arena, value.into_struct_value())?.into());
         }
         if self.tcx.is_array(ty) {
-            if self.tcx.array_elem(ty).is_some_and(|e| self.tcx.is_text(e)) {
-                return Ok(self.copy_text_array_into(llvm_fn, arena, value.into_struct_value(), ty)?.into());
+            if self.tcx.array_elem(ty).is_some_and(|e| self.tcx.is_text(e) || self.tcx.is_managed_ref(e)) {
+                return Ok(self.copy_owning_array_into(llvm_fn, arena, value.into_struct_value(), ty)?.into());
             }
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }

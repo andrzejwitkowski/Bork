@@ -1,5 +1,4 @@
 use inkwell::types::BasicMetadataTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, PointerValue};
 use inkwell::AddressSpace;
 
 use crate::ty::TyId;
@@ -45,14 +44,6 @@ impl CallAbi {
     ) -> Vec<BasicMetadataTypeEnum<'ctx>> {
         let ptr = cx.context.ptr_type(AddressSpace::default());
         self.hidden(ptr.into(), ptr.into())
-    }
-
-    pub(super) fn hidden_values<'ctx>(
-        self,
-        parent: PointerValue<'ctx>,
-        sink: PointerValue<'ctx>,
-    ) -> Vec<BasicMetadataValueEnum<'ctx>> {
-        self.hidden(parent.into(), sink.into())
     }
 
     fn hidden<T>(self, parent: T, sink: T) -> Vec<T> {

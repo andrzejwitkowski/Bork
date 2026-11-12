@@ -248,44 +248,6 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
-    pub(in crate::codegen::llvm) fn debug_relabel_slot(
-        &self,
-        slot: PointerValue<'ctx>,
-        label: &str,
-        ty: TyId,
-        index: IntValue<'ctx>,
-    ) -> Result<(), Diagnostic> {
-        if self.debug.is_none() {
-            return Ok(());
-        }
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let function = self.runtime_fn("bork_debug_label_slot", || {
-            self.context.void_type().fn_type(
-                &[
-                    ptr.into(),
-                    ptr.into(),
-                    ptr.into(),
-                    self.context.i64_type().into(),
-                ],
-                false,
-            )
-        });
-        let label = self
-            .builder
-            .build_global_string_ptr(label, "debug.label")?
-            .as_pointer_value();
-        let ty = self
-            .builder
-            .build_global_string_ptr(&self.tcx.display(ty).to_string(), "debug.type")?
-            .as_pointer_value();
-        self.builder.build_call(
-            function,
-            &[slot.into(), label.into(), ty.into(), index.into()],
-            "",
-        )?;
-        Ok(())
-    }
-
     pub(in crate::codegen::llvm) fn debug_label_arena(
         &self,
         arena: PointerValue<'ctx>,

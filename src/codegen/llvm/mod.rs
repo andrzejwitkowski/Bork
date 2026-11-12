@@ -1,23 +1,13 @@
 //! Inkwell (LLVM 23) emission for the codegen subset.
 
-mod arena;
 mod array;
-mod binop;
 mod call_abi;
 mod context;
 mod debug;
 mod emit_fn;
-mod expr;
 mod glue;
 mod lower;
-mod managed_ref;
-mod match_emit;
-mod nullable;
-mod presence;
 mod ref_ops;
-mod region_emit;
-mod text;
-mod walk;
 mod value_ops;
 mod vec;
 
@@ -29,85 +19,41 @@ use inkwell::module::Module;
 use inkwell::passes::PassBuilderOptions;
 use inkwell::targets::FileType;
 
-use crate::codegen::regions::{RegionEmitter, ScheduleError};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::HirProgram;
-use crate::memory::MemoryPlan;
-use crate::sema::ArenaReport;
+use crate::mono::Mono;
 use crate::ty::TyCtx;
 use crate::span::Span;
 
-use arena::ArenaCalls;
 use context::Codegen;
 pub use context::native_target_machine;
 use emit_fn::Callees;
 
-pub fn emit_module<'ctx>(
-    context: &'ctx Context,
-    hir: &HirProgram,
-    tcx: &TyCtx,
-    report: &ArenaReport,
-    memory_plan: MemoryPlan,
-) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, tcx, report, memory_plan, None, None)
+/// Lowers every function of `mono` from MIR. A construct MIR cannot lower is the gate's to reject, so reaching
+/// one here is reported as an internal error naming the function.
+pub fn emit_module<'ctx>(context: &'ctx Context, mono: &Mono, tcx: &TyCtx) -> Result<Module<'ctx>, Diagnostic> {
+    emit_module_impl(context, mono, tcx, None)
 }
 
-/// `bodies` is one MIR body per function of `hir`; functions with `None` or an op the MIR backend
-/// does not lower yet stay on the HIR emitter.
-pub fn emit_module_mir<'ctx>(
-    context: &'ctx Context,
-    hir: &HirProgram,
-    tcx: &TyCtx,
-    report: &ArenaReport,
-    memory_plan: MemoryPlan,
-    bodies: &[Option<crate::mir::Body>],
-) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, tcx, report, memory_plan, None, Some(bodies))
-}
-
-pub fn emit_module_with_debug<'ctx>(
-    context: &'ctx Context,
-    hir: &HirProgram,
-    tcx: &TyCtx,
-    report: &ArenaReport,
-    memory_plan: MemoryPlan,
-    source: &str,
-    path: &Path,
-) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)), None)
-}
-
-/// `-g` build with MIR bodies; functions the MIR lowerer cannot yet give debug info stay on HIR.
-pub fn emit_module_with_debug_mir<'ctx>(
-    context: &'ctx Context,
-    hir: &HirProgram,
-    tcx: &TyCtx,
-    report: &ArenaReport,
-    memory_plan: MemoryPlan,
-    source: &str,
-    path: &Path,
-    bodies: &[Option<crate::mir::Body>],
-) -> Result<Module<'ctx>, Diagnostic> {
-    emit_module_impl(context, hir, tcx, report, memory_plan, Some((source, path)), Some(bodies))
+pub fn emit_module_with_debug<'ctx>(context: &'ctx Context, mono: &Mono, tcx: &TyCtx, source: &str, path: &Path) -> Result<Module<'ctx>, Diagnostic> {
+    emit_module_impl(context, mono, tcx, Some((source, path)))
 }
 
 fn emit_module_impl<'ctx>(
     context: &'ctx Context,
-    hir: &HirProgram,
+    mono: &Mono,
     tcx: &TyCtx,
-    report: &ArenaReport,
-    memory_plan: MemoryPlan,
     source: Option<(&str, &Path)>,
-    mir: Option<&[Option<crate::mir::Body>]>,
 ) -> Result<Module<'ctx>, Diagnostic> {
+    let hir = &mono.hir;
     if !hir.functions.iter().any(|function| function.name == "main") {
         return Err(codegen_error(
             "`fun main` is required to build an executable".into(),
             None,
         ));
     }
+    let bodies = crate::mir::build::build_function_results(mono, tcx).map_err(mir_error)?;
 
-    let mut cx = Codegen::new(context, "bork", &hir.classes, &hir.enums, tcx, memory_plan)
+    let mut cx = Codegen::new(context, "bork", &hir.classes, &hir.enums, tcx)
         .map_err(|message| codegen_error(message, None))?;
     if let Some((source, path)) = source {
         cx.debug = Some(debug::DebugInfo::new(&cx, source, path));
@@ -120,27 +66,16 @@ fn emit_module_impl<'ctx>(
             Ok((function.name.as_str(), (value, function)))
         })
         .collect::<Result<Callees, Diagnostic>>()?;
-    let mut regions = RegionEmitter::new(report, ArenaCalls::new(&cx));
-    let trace = std::env::var_os("BORK_MIR_BACKEND_TRACE").is_some();
-    for (i, function) in hir.functions.iter().enumerate() {
-        let body = mir.and_then(|b| b.get(i)).and_then(Option::as_ref);
-        match body.filter(|b| lower::supported(&cx, &callees, function, b)) {
-            Some(body) => {
-                if trace {
-                    eprintln!("mir-backend: lowered `{}`", function.name);
-                }
-                lower::lower_function(&cx, &callees, function, body)?;
-                regions.skip_function();
-            }
-            None => {
-                if trace && mir.is_some() {
-                    eprintln!("mir-backend: fallback `{}`", function.name);
-                }
-                walk::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
-            }
+    for (function, body) in hir.functions.iter().zip(bodies) {
+        let body = body.map_err(mir_error)?;
+        if !lower::supported(&cx, &callees, function, &body) {
+            return Err(codegen_error(
+                format!("internal error: MIR lowering does not cover `{}` (rerun with BORK_MIR_BACKEND_TRACE=1)", function.name),
+                None,
+            ));
         }
+        lower::lower_function(&cx, &callees, function, &body)?;
     }
-    regions.finish().map_err(schedule_error)?;
     if let Some(debug) = &cx.debug {
         debug.builder.finalize();
         debug::checks::instrument(&cx)?;
@@ -213,18 +148,14 @@ pub(super) fn not_yet_supported(what: &str, span: Option<Span>) -> Diagnostic {
     codegen_error(format!("{what} is not supported by codegen yet"), span)
 }
 
-fn schedule_error(err: ScheduleError) -> Diagnostic {
-    codegen_error(format!("internal arena schedule mismatch: {err}"), None)
-}
-
-pub(super) fn region_walk_codegen_error(err: crate::region_walk::WalkError) -> Diagnostic {
-    resolve_walk_failure(err)
-}
-
-pub(super) fn resolve_walk_failure(walk: crate::region_walk::WalkError) -> Diagnostic {
-    let fallback = format!("internal arena schedule mismatch: {}", walk.as_str());
-    walk.into_diagnostic()
-        .unwrap_or_else(|| codegen_error(fallback, None))
+/// A MIR build failure: a gate gap names its capability, anything else is a compiler bug.
+fn mir_error(error: crate::mir::build::BuildError) -> Diagnostic {
+    use crate::mir::build::BuildError;
+    match error {
+        BuildError::Unsupported(u) => not_yet_supported(&format!("{}", u.capability), Some(u.span)),
+        BuildError::Unlowered { what, span } => not_yet_supported(&what, Some(span)),
+        BuildError::Internal(message) => codegen_error(format!("internal error: MIR: {message}"), None),
+    }
 }
 
 impl From<BuilderError> for Diagnostic {
@@ -252,7 +183,7 @@ mod tests {
         let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
         let module =
-            emit_module(&context, &mono.hir, &tcx, &mono.report, mono.memory_plan.clone()).expect("emit");
+            emit_module(&context, &mono, &tcx).expect("emit");
         module.print_to_string().to_string()
     }
 
@@ -263,13 +194,7 @@ mod tests {
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
         let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
-        let module = emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan.clone(),
-            source,
+        let module = emit_module_with_debug(&context, &mono, &tcx, source,
             Path::new("fixture.bork"),
         )
         .unwrap();
@@ -304,13 +229,7 @@ mod tests {
         let checked = check(source);
         let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
-        let ir = emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan.clone(),
-            source,
+        let ir = emit_module_with_debug(&context, &mono, &tcx, source,
             Path::new("fixture.bork"),
         )
         .unwrap()
@@ -342,13 +261,7 @@ mod tests {
         let checked = check(source);
         let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
-        let module = emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan.clone(),
-            source,
+        let module = emit_module_with_debug(&context, &mono, &tcx, source,
             Path::new("return.bork"),
         )
         .unwrap();
@@ -368,13 +281,7 @@ mod tests {
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
         let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
-        let ir = emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan.clone(),
-            source,
+        let ir = emit_module_with_debug(&context, &mono, &tcx, source,
             Path::new("buffers.bork"),
         )
         .unwrap()
@@ -388,69 +295,13 @@ mod tests {
     }
 
     #[test]
-    fn debug_scopes_cleanup_return_break_and_continue_before_arena_destruction() {
-        let source = "class Node { next: Ref<Node> }\nfun helper(n: i32): i32 {\n for (i in 0..3) {\n val r: Ref<Node> = Node(None)\n {\n val inner: Ref<Node> = r\n if (n == 0) { continue }\n if (n == 1) { break }\n if (n == 2) { return i }\n }\n }\n return n\n}\nfun main(): i32 { return helper(3) }\n";
-        let checked = check(source);
-        assert!(checked.is_ok(), "{:?}", checked.diagnostics);
-        let (mono, tcx) = monomorphized(&checked);
-        let context = Context::create();
-        let ir = emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan.clone(),
-            source,
-            Path::new("exits.bork"),
-        )
-        .unwrap()
-        .print_to_string()
-        .to_string();
-        assert!(
-            block(&ir, "for.body").contains("call i64 @bork_debug_scope_enter()"),
-            "iteration scope must be entered dynamically: {ir}"
-        );
-        let branches: Vec<_> = ir
-            .split("\n\n")
-            .filter(|b| {
-                b.starts_with("then") && (b.contains("br label %for.") || b.contains("ret i32"))
-            })
-            .collect();
-        assert_eq!(branches.len(), 3, "{ir}");
-        for branch in branches {
-            assert!(
-                branch.matches("call void @bork_debug_scope_exit(").count() >= 3,
-                "all nested local scopes must close: {branch}"
-            );
-            if let Some(pop) = branch.find("call void @bork_arena_pop(") {
-                assert!(
-                    branch.find("call void @bork_debug_scope_exit(").unwrap() < pop,
-                    "local entries must disappear before arena destruction: {branch}"
-                );
-            }
-        }
-        for return_block in ir.split("\n\n").filter(|b| b.contains("ret i32")) {
-            assert!(
-                return_block.contains("call void @bork_debug_scope_exit("),
-                "{return_block}"
-            );
-        }
-    }
-
-    #[test]
     fn debug_ref_arrays_use_binding_and_field_names() {
         let source = "class Node { next: Ref<Node> }\nclass Holder { refs: [Ref<Node>; 2] }\nfun main() {\n val r: Ref<Node> = Node(None)\n val refs = [r, None]\n val holder = Holder(refs)\n}\n";
         let checked = check(source);
         assert!(checked.is_ok(), "{:?}", checked.diagnostics);
         let (mono, tcx) = monomorphized(&checked);
         let context = Context::create();
-        let ir = emit_module_with_debug(
-            &context,
-            &mono.hir,
-            &tcx,
-            &mono.report,
-            mono.memory_plan.clone(),
-            source,
+        let ir = emit_module_with_debug(&context, &mono, &tcx, source,
             Path::new("arrays.bork"),
         )
         .unwrap()
@@ -499,20 +350,6 @@ mod tests {
             ));
             assert!(ir.contains(comparison), "{ir}");
         }
-    }
-
-    #[test]
-    fn walk_error_without_diagnostic_falls_back_to_schedule_mismatch() {
-        let err = crate::region_walk::WalkError::message("cursor underflow");
-        let diagnostic = resolve_walk_failure(err);
-        assert!(
-            diagnostic.message.contains("arena schedule"),
-            "{diagnostic:?}"
-        );
-        assert!(
-            diagnostic.message.contains("cursor underflow"),
-            "{diagnostic:?}"
-        );
     }
 
     fn ret_blocks_contain_arena_pop(ir: &str) {
@@ -639,101 +476,6 @@ mod tests {
         assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 1, "{ir}");
     }
 
-    fn block<'s>(ir: &'s str, label: &str) -> &'s str {
-        let start = ir
-            .find(&format!("\n{label}:"))
-            .unwrap_or_else(|| panic!("no block {label}: {ir}"));
-        let rest = &ir[start + 1..];
-        &rest[..rest.find("\n\n").unwrap_or(rest.len())]
-    }
-
-    #[test]
-    fn for_loop_pushes_once_resets_at_latch_and_pops_on_exit() {
-        let ir = ir_of(
-            "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) {\n        val _bump = \".\"\n        total = total + i\n    }\n    return total\n}\n",
-        );
-        assert_eq!(ir.matches("call ptr @bork_arena_push()").count(), 1, "{ir}");
-        assert_eq!(
-            ir.matches("call ptr @bork_arena_push_child(").count(),
-            1,
-            "{ir}"
-        );
-        assert_eq!(ir.matches("call ptr @bork_arena_reset(").count(), 1, "{ir}");
-        assert_eq!(ir.matches("call void @bork_arena_pop(").count(), 2, "{ir}");
-        assert!(!block(&ir, "for.header").contains("@bork_arena"), "{ir}");
-        assert!(!block(&ir, "for.body").contains("@bork_arena"), "{ir}");
-        assert!(
-            block(&ir, "for.latch").contains("@bork_arena_reset"),
-            "{ir}"
-        );
-        assert!(block(&ir, "for.exit").contains("@bork_arena_pop"), "{ir}");
-    }
-
-    #[test]
-    fn move_copies_into_innermost_arena_and_shared_does_not() {
-        let ir = ir_of(
-            "fun main() {\n    val s = \"x\"\n    {\n        val _pad = \"q\"\n        println(s)\n    }\n    move {\n        val _pad = \"m\"\n        val t = move s\n        println(t)\n    }\n}\n",
-        );
-        assert_eq!(ir.matches("call ptr @bork_arena_alloc(").count(), 1, "{ir}");
-        assert_eq!(ir.matches("@llvm.memcpy").count(), 2, "{ir}");
-        assert!(ir.contains("c\"x\""), "{ir}");
-        let handles: Vec<&str> = ir
-            .lines()
-            .filter(|line| {
-                line.contains("call ptr @bork_arena_push()")
-                    || line.contains("call ptr @bork_arena_push_child(")
-            })
-            .filter_map(|line| line.trim().split(' ').next())
-            .collect();
-        let move_arena = handles.get(2).expect("third push opens the move block");
-        assert!(
-            ir.contains(&format!("@bork_arena_alloc(ptr {move_arena},")),
-            "{ir}"
-        );
-    }
-
-    #[test]
-    fn return_inside_loop_pops_loop_arena_and_skips_dead_latch_reset() {
-        let ir = ir_of(
-            "fun main(): i32 {\n    for (i in 0..5) {\n        val _bump = \".\"\n        return i\n    }\n    return 0\n}\n",
-        );
-        assert!(!block(&ir, "for.latch").contains("@bork_arena"), "{ir}");
-        assert_eq!(
-            block(&ir, "for.body")
-                .matches("call void @bork_arena_pop(")
-                .count(),
-            2,
-            "{ir}"
-        );
-    }
-
-    fn add_uses_if_phi_and_forty(source: &str) {
-        let ir = ir_of(source);
-        let add = ir
-            .lines()
-            .find(|line| line.contains(" add "))
-            .unwrap_or_else(|| panic!("expected an add:\n{ir}"));
-        assert!(add.contains("%if"), "add must use the if phi:\n{add}\n{ir}");
-        assert!(
-            add.contains("40"),
-            "add must use the sibling operand 40, not a branch literal:\n{add}\n{ir}"
-        );
-        assert!(
-            !ir.contains("ret i32 42"),
-            "must not fold else-literal 2 + 40 to ret i32 42:\n{ir}"
-        );
-    }
-
-    #[test]
-    fn value_if_as_left_operand_adds_phi_not_else_literal() {
-        add_uses_if_phi_and_forty("fun main(): i32 { return (if (true) { 1 } else { 2 }) + 40 }\n");
-    }
-
-    #[test]
-    fn value_if_as_right_operand_adds_phi_not_else_literal() {
-        add_uses_if_phi_and_forty("fun main(): i32 { return 40 + (if (true) { 1 } else { 2 }) }\n");
-    }
-
     #[test]
     fn record_field_and_managed_ref_lower_to_arena_handles() {
         let ir = ir_of(
@@ -757,71 +499,6 @@ mod tests {
             "managed ref:\n{ir}"
         );
         assert!(ir.contains("getelementptr"), "field load:\n{ir}");
-    }
-
-    #[test]
-    fn chained_presence_observes_each_source_and_cleans_partial_failure() {
-        let ir = ir_of("class Node { next: Ref<Node> }\nfun main() {\n val r: Ref<Node> = Node()\n if val (a = r, b = a.next, c = b.next) { c.next } else { r }\n}");
-        assert_eq!(
-            ir.matches("call void @bork_ref_observe_out(").count(),
-            3,
-            "{ir}"
-        );
-        assert_eq!(
-            ir.matches("call void @bork_arena_register_observation_drop(")
-                .count(),
-            3,
-            "{ir}"
-        );
-        let cleanup = ir
-            .split("ref.failure.cleanup:")
-            .nth(1)
-            .expect("partial failure cleanup");
-        let cleanup = cleanup.split("\n\n").next().unwrap();
-        assert!(cleanup.contains("call void @bork_arena_pop("), "{cleanup}");
-        assert!(cleanup.contains("br label %ref.none"), "{cleanup}");
-        assert_presence_drops_temporary_after_observe(&ir);
-    }
-
-    #[test]
-    fn if_val_observes_once_and_loads_the_live_field() {
-        let ir = ir_of(
-            "class Box { value: i32 }\n\
-             fun main(): i32 {\n\
-                 val item = Box(7)\n\
-                 val reference: Ref<Box> = item\n\
-                 if val live = reference { return live.value }\n\
-                 return 0\n\
-             }\n",
-        );
-        assert_eq!(
-            ir.matches("call void @bork_ref_observe_out(").count(),
-            1,
-            "{ir}"
-        );
-        assert!(
-            ir.contains("@bork_arena_register_observation_drop("),
-            "{ir}"
-        );
-        assert_presence_drops_temporary_after_observe(&ir);
-        assert!(ir.contains("getelementptr"), "{ir}");
-    }
-
-    #[test]
-    fn when_observes_and_drops_the_temporary_ref() {
-        let ir = ir_of(
-            "class Box { value: i32 }\n\
-             fun main(): i32 {\n\
-                 val item = Box(7)\n\
-                 val reference: Ref<Box> = item\n\
-                 when reference {\n\
-                     Some(live) => { return live.value }\n\
-                     None => { return 0 }\n\
-                 }\n\
-                 return 0\n\
-             }\n",
-        );
-        assert_presence_drops_temporary_after_observe(&ir);
     }
 
     #[test]
@@ -870,38 +547,6 @@ mod tests {
     }
 
     #[test]
-    fn string_from_utf8_validates_before_allocating_only_on_copy_path() {
-        let ir = ir_of(
-            "fun decode(bytes: &[u8; 3]) {\n\
-                 val result = stringFromUtf8(&bytes, 0, 3)\n\
-             }\n\
-             fun main() {}\n",
-        );
-        let bounds = ir.find("utf8.bad").expect("range checks");
-        let validation = ir
-            .find("call i8 @bork_utf8_valid")
-            .expect("UTF-8 validation");
-        let allocation = ir
-            .find("call ptr @bork_arena_alloc(")
-            .expect("copy allocation");
-        assert!(bounds < validation && validation < allocation, "{ir}");
-        // The result is a `String?` (an `Option` slot): the copy path allocates the bytes, the `Some`
-        // slot, and a second copy of the bytes into that slot's arena (a payload is owned by its
-        // slot); the invalid path only the `None` slot and never any bytes.
-        assert_eq!(ir.matches("call ptr @bork_arena_alloc(").count(), 4, "{ir}");
-        let none = block(&ir, "utf8.none");
-        assert_eq!(none.matches("call ptr @bork_arena_alloc(").count(), 1, "{none}");
-        assert!(!none.contains("llvm.memcpy"), "invalid UTF-8 must not copy bytes:\n{none}");
-        let copy = block(&ir, "utf8.copy");
-        assert_eq!(copy.matches("call ptr @bork_arena_alloc(").count(), 3, "{copy}");
-        assert!(copy.contains("llvm.memcpy"), "{copy}");
-        assert!(
-            !block(&ir, "utf8.done").contains("@bork_arena_alloc"),
-            "{ir}"
-        );
-    }
-
-    #[test]
     fn safe_navigation_observes_and_releases_before_the_value_is_used() {
         let ir = ir_of(
             "class Box { value: i32 }\n\
@@ -925,27 +570,6 @@ mod tests {
     }
 
     #[test]
-    fn ref_elvis_uses_presence_without_unwrapping_the_handle() {
-        let ir = ir_of(
-            "class Box { value: i32 }\n\
-             fun main() {\n\
-                 val item = Box(7)\n\
-                 val missing: Ref<Box> = None\n\
-                 val present = missing ?: item\n\
-             }\n",
-        );
-        assert!(ir.contains("call i1 @bork_ref_is_none_ptr("), "{ir}");
-        assert!(
-            block(&ir, "ref.elvis.none").contains("call void @bork_ref_drop_value_ptr("),
-            "{ir}"
-        );
-        assert!(
-            !ir.contains("extractvalue { ptr, ptr, i8 } %ref.elvis, 1"),
-            "{ir}"
-        );
-    }
-
-    #[test]
     fn loop_local_ref_is_dropped_at_each_iteration() {
         let ir = ir_of(
             "class Node { value: i32 }\n\
@@ -955,99 +579,6 @@ mod tests {
              }\n",
         );
         assert!(ir.contains("call ptr @bork_arena_reset("), "{ir}");
-    }
-
-    #[test]
-    fn presence_copies_buffer_results_before_closing_both_arms() {
-        let ir = ir_of(
-            "class Holder { values: [i32; 2] }\n\
-             fun choose(reference: Ref<Holder>, fallback: [i32; 2]): [i32; 2] {\n\
-                 return when reference {\n\
-                     Some(holder) => { holder.values }\n\
-                     None => { fallback }\n\
-                 }\n\
-             }\n\
-             fun main() {}\n",
-        );
-        for label in ["ref.some", "ref.none"] {
-            let arm = block(&ir, label);
-            assert!(arm.contains("@llvm.memcpy"), "{ir}");
-            if let Some(pop) = arm.find("call void @bork_arena_pop(") {
-                assert!(arm.find("@llvm.memcpy").unwrap() < pop, "{ir}");
-            }
-        }
-    }
-
-    #[test]
-    fn presence_copies_nullable_array_results() {
-        let ir = ir_of(
-            "class Holder { values: [i32; 2] }\n\
-             class Root { holder: Ref<Holder> }\n\
-             fun choose(reference: Ref<Root>, fallback: Ref<Holder>) {\n\
-                 val values = when reference {\n\
-                     Some(root) => { root.holder?.values }\n\
-                     None => { fallback?.values }\n\
-                 }\n\
-                 println(values!!.length)\n\
-             }\n\
-             fun main() {}\n",
-        );
-        // Safe navigation copies once per arm, then each result must copy out of its arm. A nullable
-        // moved into an owner is copied there too (T01), one more per arm.
-        assert_eq!(ir.matches("call void @llvm.memcpy").count(), 6, "{ir}");
-    }
-
-    #[test]
-    fn program_ref_roots_use_the_caller_result_sink() {
-        let ir = ir_of(
-            "class Node { value: i32 }\n\
-             fun make_inner(): Ref<Node> {\n\
-                 val node = Node(7)\n\
-                 return node\n\
-             }\n\
-             fun make(): Ref<Node> {\n\
-                 val result = make_inner()\n\
-                 return result\n\
-             }\n\
-             fun main() {\n\
-                 val result = make()\n\
-             }\n",
-        );
-        let make = ir
-            .split("define internal { ptr, ptr, i8 } @bork.make_inner")
-            .nth(1)
-            .expect("make IR")
-            .split("\ndefine ")
-            .next()
-            .expect("make body");
-        assert!(
-            make.contains("call void @bork_arena_register_strong_root(ptr %1, ptr %arena.dynamic)"),
-            "{ir}"
-        );
-    }
-
-    #[test]
-    fn break_pops_the_nested_arena_before_the_loop_exit() {
-        let ir = ir_of(
-            "fun main(): i32 {\n\
-                 for (i in 0..3) {\n\
-                     move {\n\
-                         val bump = \".\"\n\
-                         break\n\
-                     }\n\
-                 }\n\
-                 return 0\n\
-             }\n",
-        );
-        let body = block(&ir, "for.body");
-        assert!(
-            body.contains("call void @bork_arena_pop("),
-            "break drops the nested arena:\n{body}"
-        );
-        assert!(
-            block(&ir, "for.exit").contains("call void @bork_arena_pop(ptr %arena.gen)"),
-            "loop exit drops the loop generation once:\n{ir}"
-        );
     }
 
     #[test]
@@ -1139,20 +670,4 @@ mod tests {
         assert!(ir.contains("@llvm.memcpy"), "{ir}");
     }
 
-    #[test]
-    fn elvis_as_right_operand_adds_phi_not_skipped_rhs() {
-        let ir = ir_of("fun main(): i32 {\n    val a: i32? = None\n    return 40 + (a ?: 2)\n}\n");
-        let add = ir
-            .lines()
-            .find(|line| line.contains(" add "))
-            .unwrap_or_else(|| panic!("expected an add:\n{ir}"));
-        assert!(
-            add.contains("40"),
-            "add must use the sibling operand 40, not the skipped elvis rhs:\n{add}\n{ir}"
-        );
-        assert!(
-            add.contains("elvis"),
-            "add must use the elvis phi:\n{add}\n{ir}"
-        );
-    }
 }

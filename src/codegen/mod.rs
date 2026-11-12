@@ -29,9 +29,6 @@ pub fn build(checked: &CheckResult, output: &Path) -> Result<(), BuildError> {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BuildOptions {
     pub debug: bool,
-    /// Use the HIR emitter for everything. By default MIR lowers the functions it covers (RFC 0006 M5e)
-    /// and the rest stays on the HIR emitter; this fallback goes away with M6 (#67).
-    pub hir_backend: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,53 +56,18 @@ fn emit_checked<'ctx>(
     // report and memory plan must come from the same `Mono` as the HIR (node ids are renumbered).
     let mut tcx = checked.tcx.clone();
     let mono = crate::mono::monomorphize(hir, &mut tcx, report).map_err(BuildError::Diagnostics)?;
-    let (hir, report, memory_plan) = (&mono.hir, &mono.report, &mono.memory_plan);
-
-    let gate_diagnostics = gate(hir, &tcx);
+    let gate_diagnostics = gate(&mono.hir, &tcx);
     if !gate_diagnostics.is_empty() {
         return Err(BuildError::Diagnostics(gate_diagnostics));
     }
 
-    // M3 shadow mode (#216): MIR must agree with the old plan and region schedule.
-    if std::env::var_os("BORK_MIR_SHADOW").is_some() {
-        match crate::mir::build::build_program(&mono, &tcx) {
-            Ok(bodies) => {
-                if let Err(e) = crate::mir::shadow::compare_all(&mono, &tcx, &bodies) {
-                    panic!("BORK_MIR_SHADOW mismatch: {e}");
-                }
-            }
-            Err(e) => eprintln!("BORK_MIR_SHADOW: MIR not built, nothing compared: {e:?}"),
-        }
-    }
-
-    let bodies = if !options.hir_backend {
-        let bodies = crate::mir::build::build_function_results(&mono, &tcx).map_err(|e| BuildError::Toolchain(format!("MIR: {e:?}")))?;
-        // `Unsupported`/`Unlowered` fall back to the HIR emitter; `Internal` is a compiler bug and must surface.
-        Some(
-            bodies
-                .into_iter()
-                .map(|r| match r {
-                    Ok(body) => Ok(Some(body)),
-                    Err(crate::mir::build::BuildError::Internal(msg)) => Err(BuildError::Toolchain(format!("MIR: {msg}"))),
-                    Err(_) => Ok(None),
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        )
-    } else {
-        None
-    };
     if options.debug {
         let source = source.ok_or_else(|| {
             BuildError::Toolchain("debug builds require source path and text".into())
         })?;
-        match &bodies {
-            Some(bodies) => llvm::emit_module_with_debug_mir(context, hir, &tcx, report, memory_plan.clone(), source.text, source.path, bodies),
-            None => llvm::emit_module_with_debug(context, hir, &tcx, report, memory_plan.clone(), source.text, source.path),
-        }
-    } else if let Some(bodies) = &bodies {
-        llvm::emit_module_mir(context, hir, &tcx, report, memory_plan.clone(), bodies)
+        llvm::emit_module_with_debug(context, &mono, &tcx, source.text, source.path)
     } else {
-        llvm::emit_module(context, hir, &tcx, report, memory_plan.clone())
+        llvm::emit_module(context, &mono, &tcx)
     }
     .map_err(|diagnostic| BuildError::Diagnostics(vec![diagnostic]))
 }
@@ -121,7 +83,6 @@ pub fn emit_ir(checked: &CheckResult, options: BuildOptions) -> Result<String, B
 pub fn emit_ir_with_source(checked: &CheckResult, options: BuildOptions, source: Option<SourceContext<'_>>) -> Result<String, BuildError> {
     let context = Context::create();
     let module = emit_checked(&context, checked, options, source)?;
-    // The HIR emitter leaves pops in dead blocks; only the reachable calls are comparable.
     let machine = llvm::native_target_machine().map_err(BuildError::Toolchain)?;
     module
         .run_passes("unreachableblockelim", &machine, inkwell::passes::PassBuilderOptions::create())

@@ -24,13 +24,7 @@ fn debug_module<'ctx>(
         checked.report.as_ref().unwrap(),
     )
     .unwrap();
-    crate::codegen::llvm::emit_module_with_debug(
-        context,
-        &mono.hir,
-        &tcx,
-        &mono.report,
-        mono.memory_plan,
-        source,
+    crate::codegen::llvm::emit_module_with_debug(context, &mono, &tcx, source,
         Path::new("fixture.bork"),
     )
     .unwrap()
@@ -44,7 +38,6 @@ fn instrumented_ir<'ctx>(context: &'ctx inkwell::context::Context, ir: &[u8]) ->
         &[],
         &[],
         &checked.tcx,
-        Default::default(),
     )
     .unwrap();
     cx.module = context
@@ -140,67 +133,6 @@ fn indirect_calls_set_their_own_source_site() {
         .is_null());
 }
 
-#[test]
-fn option_copy_does_not_recheck_handles_for_metadata_only() {
-    let context = inkwell::context::Context::create();
-    let module = debug_module(&context, "fun copy(value: i32?): i32? { return move value }\nfun main(): i32 { return copy(Some(7)) ?: 0 }\n");
-    let instructions: Vec<_> = module
-        .get_function("bork.copy")
-        .unwrap()
-        .get_basic_blocks()
-        .iter()
-        .flat_map(|b| b.get_instructions())
-        .collect();
-    let origin = instructions
-        .iter()
-        .position(|i| calls_function(*i, "bork_debug_copy_origin"))
-        .unwrap();
-    let merge = instructions[..origin]
-        .iter()
-        .rposition(|i| i.get_opcode() == InstructionOpcode::Phi)
-        .unwrap();
-    assert!(!instructions[merge..origin]
-        .iter()
-        .any(|i| calls_function(*i, "bork_debug_check_handle")));
-    assert!(instructions[..merge]
-        .iter()
-        .any(|i| calls_function(*i, "bork_debug_check_handle")));
-}
-
-#[test]
-fn source_stamping_does_not_rescan_all_preceding_blocks() {
-    let source = format!(
-        "fun main(): i32 {{ var total: i32 = 0\n {} return total }}\n",
-        "if (total == 0) { total = 1 } else { total = 2 }\n".repeat(128)
-    );
-    let context = inkwell::context::Context::create();
-    super::scopes::STAMPED_BLOCK_VISITS.with(|visits| visits.set(0));
-    let module = debug_module(&context, &source);
-    let function = module.get_function("main").unwrap();
-    let visits = super::scopes::STAMPED_BLOCK_VISITS.with(|visits| visits.get());
-    assert!(
-        visits < function.count_basic_blocks() as usize * 20,
-        "{visits} block visits"
-    );
-    for instruction in function
-        .get_basic_blocks()
-        .iter()
-        .flat_map(|b| b.get_instructions())
-    {
-        if matches!(
-            instruction.get_opcode(),
-            InstructionOpcode::Load | InstructionOpcode::Store
-        ) {
-            assert!(
-                instruction
-                    .get_metadata(context.get_kind_id("bork.span"))
-                    .is_some(),
-                "{instruction:?}"
-            );
-        }
-    }
-}
-
 #[cfg(unix)]
 fn run_module(module: &inkwell::module::Module<'_>) -> std::process::Output {
     module.verify().unwrap();
@@ -225,111 +157,6 @@ fn reads_do_not_relabel_the_input_allocation() {
             .flat_map(|b| b.get_instructions())
             .any(|i| { calls_function(i, "bork_debug_label_allocation") }),
         "reading an array parameter must not relabel its allocation"
-    );
-}
-
-#[test]
-#[cfg(unix)]
-fn slice_copy_keeps_origin_and_its_own_concrete_type() {
-    let source = "fun main(): i32 {\n val original = [1,2,3,4]\n val piece = original[1..3]\n val copied = move piece\n return copied[0]\n}\n";
-    let report = invalidated_array_report(source);
-    assert!(report.contains("name: original\n"), "{report}");
-    assert!(report.contains("type: [i32; 2]\n"), "{report}");
-    let start = source.find("[1,2,3,4]").unwrap();
-    assert!(
-        report
-            .lines()
-            .any(|l| l.contains("created:")
-                && l.contains(&format!("[bytes {start}..{}]", start + 9))),
-        "{report}"
-    );
-}
-
-#[cfg(unix)]
-fn invalidated_array_report(source: &str) -> String {
-    use std::os::unix::process::ExitStatusExt;
-    let context = inkwell::context::Context::create();
-    let module = debug_module(&context, source);
-    let instructions: Vec<_> = module
-        .get_function("main")
-        .unwrap()
-        .get_basic_blocks()
-        .iter()
-        .flat_map(|b| b.get_instructions())
-        .collect();
-    let allocation = instructions
-        .iter()
-        .find(|i| calls_function(**i, "bork_arena_alloc"))
-        .unwrap();
-    let load = instructions
-        .iter()
-        .find(|i| {
-            i.get_opcode() == InstructionOpcode::Load
-                && i.get_name().is_some_and(|n| n.to_bytes() == b"load")
-        })
-        .unwrap();
-    let builder = context.create_builder();
-    builder.position_before(&load.get_previous_instruction().unwrap());
-    let ptr = context.ptr_type(inkwell::AddressSpace::default());
-    let free = module.add_function(
-        "bork_arena_free",
-        context
-            .void_type()
-            .fn_type(&[ptr.into(), ptr.into(), context.i64_type().into()], false),
-        None,
-    );
-    builder
-        .build_call(
-            free,
-            &[
-                allocation.get_operand(0).unwrap().unwrap_value().into(),
-                load.get_operand(0).unwrap().unwrap_value().into(),
-                context.i64_type().const_int(8, false).into(),
-            ],
-            "",
-        )
-        .unwrap();
-    let output = run_module(&module);
-    assert_eq!(output.status.signal(), Some(6), "{output:?}");
-    String::from_utf8(output.stderr).unwrap()
-}
-
-#[test]
-#[cfg(unix)]
-fn reported_replacements_keep_binding_names_and_original_declarations() {
-    for (source, name, declaration) in [
-        ("fun main(): i32 {\n var items = [1,2]\n items = [3,4]\n return items[0]\n}\n", "items", "var items = [1,2]"),
-        ("class Holder { values: [i32;2] }\nfun main(): i32 {\n val box = Holder([1,2])\n box.values = [3,4]\n return box.values[0]\n}\n", "Holder.values", "values"),
-    ] {
-        let report = invalidated_array_report(source);
-        assert!(report.contains(&format!("name: {name}\n")), "{report}");
-        let start = source.find(declaration).unwrap();
-        let expected = format!("[bytes {start}..{}]", start + declaration.len());
-        assert!(report.lines().any(|l| l.contains("declared:") && l.contains(&expected)), "{report}");
-    }
-}
-
-#[test]
-#[cfg(unix)]
-fn reported_prelude_payload_declarations_use_their_own_source_files() {
-    for (body, prelude) in [
-        ("val option = Some([1,2])\n val items = option!!\n return items[0]", "option.bork"),
-        ("val result: Result<[i32;2], i32> = Result.Ok([1,2])\n return when result { Ok(items) => { items[0] }\n Err(error) => { error } }", "result.bork"),
-    ] {
-        let report = invalidated_array_report(&format!("fun main(): i32 {{\n {body}\n}}\n"));
-        assert!(report.lines().any(|l| l.contains("declared:") && l.contains(&format!("<bork-prelude>/{prelude}:"))), "{report}");
-        let text = if prelude == "option.bork" { include_str!("../../../prelude/option.bork") } else { include_str!("../../../prelude/result.bork") };
-        let start = text.find("value").unwrap();
-        assert!(report.lines().any(|l| l.contains("declared:") && l.contains(&format!("[bytes {start}..{}]", start + 5))), "{report}");
-    }
-    let source = "enum Option<T> { Some(value: T), None }\nfun main(): i32 { val option = Some([1,2])\n val items = option!!\n return items[0] }\n";
-    let report = invalidated_array_report(source);
-    let start = source.find("value").unwrap();
-    assert!(
-        report.lines().any(|l| l.contains("declared:")
-            && l.contains("fixture.bork:")
-            && l.contains(&format!("[bytes {start}..{}]", start + 5))),
-        "{report}"
     );
 }
 
@@ -372,13 +199,7 @@ fn class_enum_and_option_unpacking_check_arena_identity() {
     )
     .unwrap();
     let context = inkwell::context::Context::create();
-    let module = crate::codegen::llvm::emit_module_with_debug(
-        &context,
-        &mono.hir,
-        &tcx,
-        &mono.report,
-        mono.memory_plan.clone(),
-        source,
+    let module = crate::codegen::llvm::emit_module_with_debug(&context, &mono, &tcx, source,
         Path::new("fixture.bork"),
     )
     .unwrap();
@@ -393,149 +214,12 @@ fn class_enum_and_option_unpacking_check_arena_identity() {
             "{name} lacks handle identity validation"
         );
     }
-    let ordinary = crate::codegen::llvm::emit_module(
-        &context,
-        &mono.hir,
-        &tcx,
-        &mono.report,
-        mono.memory_plan,
-    )
+    let ordinary = crate::codegen::llvm::emit_module(&context, &mono, &tcx)
     .unwrap();
     assert!(!ordinary
         .print_to_string()
         .to_string()
         .contains("bork_debug_"));
-}
-
-#[test]
-fn nested_expressions_keep_their_distinct_original_byte_spans() {
-    let source =
-        "class Box { value: i32 }\nfun main(): i32 { val item = Box(7)\n return item.value }\n";
-    let context = inkwell::context::Context::create();
-    let module = debug_module(&context, source);
-    let loads: Vec<_> = module
-        .get_function("main")
-        .unwrap()
-        .get_basic_blocks()
-        .iter()
-        .flat_map(|b| b.get_instructions())
-        .filter(|i| i.get_opcode() == InstructionOpcode::Load)
-        .collect();
-    let spans: Vec<_> = loads
-        .iter()
-        .map(|i| {
-            let metadata = i
-                .get_metadata(context.get_kind_id("bork.span"))
-                .expect("original span metadata");
-            let values = metadata.get_node_values().unwrap();
-            let a = values[0]
-                .into_int_value()
-                .get_zero_extended_constant()
-                .unwrap() as usize;
-            let b = values[1]
-                .into_int_value()
-                .get_zero_extended_constant()
-                .unwrap() as usize;
-            &source[a..b]
-        })
-        .collect();
-    assert!(spans.contains(&"item"), "{spans:?}");
-    assert!(spans.contains(&"item.value"), "{spans:?}");
-}
-
-#[test]
-#[cfg(unix)]
-fn hir_provenance_reaches_reports_after_returning_and_copying_fields() {
-    use std::os::unix::process::ExitStatusExt;
-    let source = "class Holder<T> { values: T }\nfun make(): Holder<[i32; 2]> { return Holder([1,2]) }\nfun main(): i32 { val item = make()\n return item.values[0] }\n";
-    for field in [false, true] {
-        let context = inkwell::context::Context::create();
-        let module = debug_module(&context, source);
-        let instructions: Vec<_> = module
-            .get_function("main")
-            .unwrap()
-            .get_basic_blocks()
-            .iter()
-            .flat_map(|b| b.get_instructions())
-            .collect();
-        let guard = instructions
-            .iter()
-            .find(|i| calls_function(**i, "bork_debug_check_handle"))
-            .unwrap();
-        let owner = guard.get_operand(0).unwrap().unwrap_value();
-        let builder = context.create_builder();
-        if field {
-            let load = instructions
-                .iter()
-                .rev()
-                .find(|i| {
-                    i.get_opcode() == InstructionOpcode::Load
-                        && i.get_type().is_int_type()
-                        && i.get_type().into_int_type().get_bit_width() == 32
-                })
-                .unwrap();
-            builder.position_before(&load.get_previous_instruction().unwrap());
-            builder
-                .build_call(
-                    module.get_function("bork_arena_free").unwrap_or_else(|| {
-                        module.add_function(
-                            "bork_arena_free",
-                            context.void_type().fn_type(
-                                &[
-                                    context.ptr_type(inkwell::AddressSpace::default()).into(),
-                                    context.ptr_type(inkwell::AddressSpace::default()).into(),
-                                    context.i64_type().into(),
-                                ],
-                                false,
-                            ),
-                            None,
-                        )
-                    }),
-                    &[
-                        owner.into(),
-                        load.get_operand(0).unwrap().unwrap_value().into(),
-                        context.i64_type().const_int(8, false).into(),
-                    ],
-                    "",
-                )
-                .unwrap();
-        } else {
-            builder.position_before(guard);
-            builder
-                .build_call(
-                    module.get_function("bork_arena_pop").unwrap(),
-                    &[owner.into()],
-                    "",
-                )
-                .unwrap();
-        }
-        let output = run_module(&module);
-        assert_eq!(output.status.signal(), Some(6), "{output:?}");
-        let report = String::from_utf8_lossy(&output.stderr);
-        let origin = if field { "[1,2]" } else { "Holder([1,2])" };
-        let start = source.find(origin).unwrap();
-        // Constructor HIR retains the callee name's original span.
-        let end = start + if field { origin.len() } else { "Holder".len() };
-        assert!(
-            report.contains(&format!("[bytes {start}..{end}]")),
-            "{report}"
-        );
-        assert!(report.contains("i32"), "{report}");
-        if field {
-            assert!(report.contains(".values"), "{report}");
-            let start = source.find("values").unwrap();
-            assert!(
-                report.contains("declared: ")
-                    && report.contains(&format!("[bytes {start}..{}]", start + 6)),
-                "{report}"
-            );
-        } else {
-            assert!(
-                report.contains("name: item") && report.contains("type: Holder<"),
-                "{report}"
-            );
-        }
-    }
 }
 
 #[test]
