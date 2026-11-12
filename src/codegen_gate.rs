@@ -25,6 +25,7 @@ pub fn gate(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> Vec<Diagnost
 pub fn gate_mono(mono: &Mono, tcx: &TyCtx) -> Vec<Diagnostic> {
     match build_function_results(mono, tcx) {
         Ok(results) => gate_results(&results),
+        Err(BuildError::Internal(message)) => gate_results(&[Err(BuildError::Internal(message))]),
         Err(_) => Vec::new(),
     }
 }
@@ -32,16 +33,19 @@ pub fn gate_mono(mono: &Mono, tcx: &TyCtx) -> Vec<Diagnostic> {
 /// The diagnostics of the functions in `results` that MIR could not build (the build path reuses the same
 /// results for emission, so MIR is built once).
 pub fn gate_results(results: &[Result<Body, BuildError>]) -> Vec<Diagnostic> {
-    results
-        .iter()
-        .filter_map(|result| match result.as_ref().err()? {
-            BuildError::Unsupported(u) => Some((u.message().to_owned(), Some(u.span))),
-            BuildError::Unlowered { what, span } => Some((format!("{what} is not supported by codegen yet"), Some(*span))),
-            // A compiler bug, not a user error: the build reports it with its own message.
-            BuildError::Internal(_) => None,
-        })
-        .map(|(message, span)| Diagnostic { phase: Phase::Codegen, severity: Severity::Error, message, span, notes: Vec::new() })
-        .collect()
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
+    for error in results.iter().filter_map(|result| result.as_ref().err()) {
+        let (message, span) = match error {
+            BuildError::Unsupported(u) => (u.message().to_owned(), Some(u.span)),
+            BuildError::Unlowered { what, span } => (format!("{what} is not supported by codegen yet"), Some(*span)),
+            BuildError::Internal(message) => (format!("internal error: MIR: {message}"), None),
+        };
+        // A generic body is built once per instance: report its mistake once.
+        if !diagnostics.iter().any(|d| d.message == message && d.span == span) {
+            diagnostics.push(Diagnostic { phase: Phase::Codegen, severity: Severity::Error, message, span, notes: Vec::new() });
+        }
+    }
+    diagnostics
 }
 
 #[cfg(test)]
@@ -178,5 +182,14 @@ fun main(): i32 {
             diagnostics.is_empty(),
             "Ref<Point> `?.x` must pass codegen gate: {diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn a_mistake_in_a_generic_body_is_reported_once_per_site() {
+        let source = "class P { x: i32 }\nfun id<T>(v: T, k: i32): i32 {\n    val p = P(k)\n    val q = move p\n    return q.x\n}\nfun main(): i32 {\n    return id(1, 2) + id(\"s\", 3)\n}\n";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     }
 }

@@ -687,14 +687,18 @@ fn plan_instances(mono: &mut Mono, tcx: &TyCtx, escape: bool, mir: bool) -> Resu
             crate::escape::check_function(function, tcx, &mut diagnostics);
         }
     }
-    // A program MIR cannot lower (closure, `move` of a class object) keeps the empty plan: the codegen gate
-    // rejects it before anything reads the plan (every `programs/build` sample lowers, tests/mir_plan.rs).
     if mir {
-        if let Ok(bodies) = crate::mir::build::build_program_neutral(mono, tcx) {
-            mono.memory_plan = crate::mir::plan::derive_memory_plan(&bodies, tcx);
-            for (root, body) in mono.report.roots.iter_mut().zip(&bodies) {
-                crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
+        match crate::mir::build::build_program_neutral(mono, tcx) {
+            Ok(bodies) => {
+                mono.memory_plan = crate::mir::plan::derive_memory_plan(&bodies, tcx);
+                for (root, body) in mono.report.roots.iter_mut().zip(&bodies) {
+                    crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
+                }
             }
+            // A program MIR cannot lower (closure, `move` of a class object) keeps the empty plan: the codegen gate
+            // rejects it before anything reads the plan (every `programs/build` sample lowers, tests/mir_plan.rs).
+            Err(crate::mir::build::BuildError::Unsupported(_) | crate::mir::build::BuildError::Unlowered { .. }) => {}
+            Err(crate::mir::build::BuildError::Internal(message)) => diagnostics.push(error(format!("internal error: MIR: {message}"), None)),
         }
     }
     if diagnostics.is_empty() { Ok(()) } else { Err(diagnostics) }
