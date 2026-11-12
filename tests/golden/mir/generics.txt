@@ -143,7 +143,7 @@ fn main (parent=false, sink=false) {
     region_enter r1
     _13 = ref_clone copy _5
     _14 = alloc Object { class: "Pair<Ref<Node>,String>" } in current
-    ref_store _14.0 owner=current move _13
+    ref_store_fresh _14.0 owner=current move _13
     register_drop current _14.0 RefSlot
     _15 = "x"
     _16 = copy_into _15 in current
@@ -182,7 +182,7 @@ fn main (parent=false, sink=false) {
     _33 = ref_clone copy _5
     _34 = alloc Object { class: "Outer" } in current
     _34.0 = copy _31
-    ref_store _34.1 owner=current move _33
+    ref_store_fresh _34.1 owner=current move _33
     register_drop current _34.1 RefSlot
     _35 = copy _34  // label "outer": Outer decl
     _36 = ref_clone copy _5
@@ -233,18 +233,18 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _57
     _58 = alloc Object { class: "Link<i32>" } in fresh57
     _58.0 = 2
-    ref_store _58.1 owner=fresh57 none
+    ref_store_fresh _58.1 owner=fresh57 none
     register_drop fresh57 _58.1 RefSlot
     _59 = copy _58  // label "tail": Link<i32> decl
     _60 = ref_create source=current target=object_arena(_59) copy _59
     _61 = alloc Object { class: "Link<i32>" } in current
     _61.0 = 1
-    ref_store _61.1 owner=current move _60
+    ref_store_fresh _61.1 owner=current move _60
     register_drop current _61.1 RefSlot
     _62 = copy _61  // label "head": Link<i32> decl
     _63 = ref_clone copy _5
     _64 = alloc Object { class: "Pair<Ref<Node>,Link<i32>>" } in current
-    ref_store _64.0 owner=current move _63
+    ref_store_fresh _64.0 owner=current move _63
     register_drop current _64.0 RefSlot
     _64.1 = copy _62
     _65 = copy _64  // label "p": Pair<Ref<Node>, Link<i32>> decl
@@ -391,7 +391,7 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _1
     _2 = alloc Object { class: "Node<i32>" } in fresh1
     _2.0 = 30
-    ref_store _2.1 owner=fresh1 none
+    ref_store_fresh _2.1 owner=fresh1 none
     register_drop fresh1 _2.1 RefSlot
     _3 = copy _2  // label "tail": Node<i32> decl
     _4 = arena_create_dynamic parent=root scoped=false
@@ -399,7 +399,7 @@ fn main (parent=false, sink=false) {
     _5 = ref_create source=fresh4 target=object_arena(_3) copy _3
     _6 = alloc Object { class: "Node<i32>" } in fresh4
     _6.0 = 20
-    ref_store _6.1 owner=fresh4 move _5
+    ref_store_fresh _6.1 owner=fresh4 move _5
     register_drop fresh4 _6.1 RefSlot
     _7 = copy _6  // label "mid": Node<i32> decl
     _8 = arena_create_dynamic parent=root scoped=false
@@ -407,14 +407,14 @@ fn main (parent=false, sink=false) {
     _9 = ref_create source=fresh8 target=object_arena(_7) copy _7
     _10 = alloc Object { class: "Node<i32>" } in fresh8
     _10.0 = 10
-    ref_store _10.1 owner=fresh8 move _9
+    ref_store_fresh _10.1 owner=fresh8 move _9
     register_drop fresh8 _10.1 RefSlot
     _11 = copy _10  // label "head": Node<i32> decl
     _12 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _12
     _13 = alloc Object { class: "Node<i32>" } in fresh12
     _13.0 = 40
-    ref_store _13.1 owner=fresh12 none
+    ref_store_fresh _13.1 owner=fresh12 none
     register_drop fresh12 _13.1 RefSlot
     _14 = copy _13  // label "extra": Node<i32> decl
     _15 = ref_create source=object_arena(_3) target=object_arena(_14) copy _14
@@ -588,7 +588,7 @@ fn main (parent=false, sink=false) {
     _6 = move _5  // label "keep": Ref<Box<i32>> decl
     register_drop current _6 RefSlot
     _7 = ref_clone copy _6
-    _1 = move _7
+    ref_store _1 owner=home(_1) move _7
     region_exit r1
     _8 = ref_move_out _1
     _9 = ref_count_weak move _8

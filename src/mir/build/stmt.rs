@@ -62,6 +62,11 @@ impl<'a> FnBuilder<'a> {
                 HirAssignTarget::Name { name } => {
                     let local = self.lookup(name, span)?;
                     let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
+                    if self.tcx.is_managed_ref(self.locals[local.0 as usize].ty) {
+                        let store = RefOp::Store { slot: Place::local(local), owner: ArenaRef::Home(local), value: v, fresh: false };
+                        self.stmt(StmtKind::Ref(store), span, Some(value.id));
+                        return Ok(());
+                    }
                     self.stmt(StmtKind::Assign(Place::local(local), Rvalue::Use(v)), span, Some(value.id));
                     Ok(())
                 }

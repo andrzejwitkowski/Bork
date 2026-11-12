@@ -10,7 +10,7 @@ use bork::codegen::{emit_ir, BuildOptions};
 use bork::frontend::check;
 
 /// Keeps a regressed MIR backend (one that lowers almost nothing) from passing.
-const MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS: usize = 155;
+const MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS: usize = 190;
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     let mut entries: Vec<_> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
@@ -35,6 +35,15 @@ fn region_calls(ir: &str) -> [usize; 4] {
         count(ir, "@bork_arena_pop("),
         count(ir, "@bork_arena_reset("),
     ]
+}
+
+/// Counts of `Ref` protocol, registration and counter runtime calls (M5d, #225); `call` lines only.
+fn protocol_calls(ir: &str) -> Vec<usize> {
+    ["@bork_ref_", "@bork_arena_register_", "@bork_arena_count_", "@bork_arena_strong_count(", "@bork_arena_weak_count("]
+        .iter()
+        // Not `release_observation`: HIR also releases an absent (null-guard, no-op) observation; MIR skips it.
+        .map(|p| ir.lines().filter(|l| l.contains("call ") && l.contains(p) && !l.contains("release_observation")).count())
+        .collect()
 }
 
 fn run(source: &Path, out: &Path, mir: bool) -> (i32, String) {
@@ -68,6 +77,7 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
             .unwrap_or_else(|e| panic!("MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
         compared += 1;
         assert_eq!(region_calls(&hir), region_calls(&mir), "push/push_child/pop/reset counts differ for {}", file.display());
+        assert_eq!(protocol_calls(&hir), protocol_calls(&mir), "Ref protocol call counts differ for {}", file.display());
         if hir == mir {
             continue; // every function fell back
         }

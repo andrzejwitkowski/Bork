@@ -1330,7 +1330,7 @@ fn make (parent=true, sink=true) {
     register_strong_root result_sink <- _11
     _12 = ref_clone copy _10
     _13 = alloc Object { class: "B" } in fresh11
-    ref_store _13.0 owner=fresh11 move _12
+    ref_store_fresh _13.0 owner=fresh11 move _12
     register_drop fresh11 _13.0 RefSlot
     _14 = ref_create source=current target=object_arena(_13) copy _13
     _15 = move _14  // label "b": Ref<B> decl
@@ -1377,7 +1377,7 @@ fn churn (parent=true, sink=false) {
     _3.0 = copy _1
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = alloc Object { class: "B" } in current
-    ref_store _5.0 owner=current move _4
+    ref_store_fresh _5.0 owner=current move _4
     register_drop current _5.0 RefSlot
     _6 = copy _5  // label "x": B decl
     _7 = arena_create_dynamic parent=current scoped=true
@@ -1387,7 +1387,7 @@ fn churn (parent=true, sink=false) {
     _9.0 = copy _8
     _10 = ref_create source=current target=object_arena(_9) copy _9
     _11 = alloc Object { class: "B" } in current
-    ref_store _11.0 owner=current move _10
+    ref_store_fresh _11.0 owner=current move _10
     register_drop current _11.0 RefSlot
     _12 = copy _11  // label "y": B decl
     _0 = copy _1

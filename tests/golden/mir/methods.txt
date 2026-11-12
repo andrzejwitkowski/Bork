@@ -215,7 +215,7 @@ fn main (parent=false, sink=false) {
     register_strong_root current <- _1
     _2 = alloc Object { class: "Node" } in fresh1
     _2.0 = 1
-    ref_store _2.1 owner=fresh1 none
+    ref_store_fresh _2.1 owner=fresh1 none
     register_drop fresh1 _2.1 RefSlot
     _3 = copy _2  // label "a": Node decl
     _4 = arena_create_dynamic parent=root scoped=false
@@ -223,7 +223,7 @@ fn main (parent=false, sink=false) {
     _5 = ref_create source=fresh4 target=object_arena(_3) copy _3
     _6 = alloc Object { class: "Node" } in fresh4
     _6.0 = 3
-    ref_store _6.1 owner=fresh4 move _5
+    ref_store_fresh _6.1 owner=fresh4 move _5
     register_drop fresh4 _6.1 RefSlot
     _7 = copy _6  // label "b": Node decl
     _8 = borrow _7

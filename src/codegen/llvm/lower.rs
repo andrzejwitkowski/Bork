@@ -1,6 +1,6 @@
-//! LLVM from MIR (RFC 0006 M5a-c, #222-#224). Covers scalars, plain classes and enums, scalar `Vec`s,
-//! arrays and slices, text, nullables, calls with the hidden arena arguments, control flow and
-//! regions. [`supported`] decides per function; anything else stays on the HIR emitter, so a
+//! LLVM from MIR (RFC 0006 M5a-d, #222-#225). Covers scalars, classes and enums (with `Ref` fields), the
+//! `Ref` protocol, presence observations, scalar `Vec`s, arrays and slices, text, nullables, calls with
+//! the hidden arena arguments, control flow and regions. [`supported`] decides per function; anything else stays on the HIR emitter, so a
 //! function is never half lowered.
 
 use std::collections::{HashMap, HashSet};
@@ -59,10 +59,11 @@ fn buffer_elem(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     plain_array(cx, ty).or_else(|| cx.tcx.is_text(ty).then(|| cx.tcx.prim_id(Prim::U8)))
 }
 
-/// A value that needs no drop registration: scalars, text, plain arrays and `Vec`s, and classes,
+/// A value this lowering handles: scalars, `Ref`s, text, plain arrays and `Vec`s, and classes,
 /// enums and nullables built only from those.
 fn plain_value(cx: &Codegen<'_>, ty: TyId) -> bool {
     prim(cx, ty).is_some()
+        || cx.tcx.is_managed_ref(ty)
         || cx.tcx.is_text(ty)
         || plain_array(cx, ty).is_some()
         || plain_vec(cx, ty).is_some()
@@ -88,7 +89,7 @@ fn memo_plain(
     found
 }
 
-/// A class whose fields are all plain values: no `Ref` fields, so it needs no drop registration.
+/// A class whose fields are all plain values.
 fn plain_class(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     memo_plain(cx, &cx.plain_classes, ty, |ty| {
         let name = crate::mono::class_instance_name(&cx.tcx, ty)?;
@@ -101,14 +102,11 @@ fn plain_class(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     })
 }
 
-/// An enum (or `T?`) whose variants carry only non-unit plain payloads and have no drop glue.
+/// An enum (or `T?`) whose variants carry only non-unit plain payloads.
 fn plain_enum(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     memo_plain(cx, &cx.plain_enums, ty, |ty| {
         let name = crate::mono::enum_instance_name(&cx.tcx, ty)?;
         cx.enum_layout(&name)?;
-        if cx.enum_drops.contains_key(&name) {
-            return None;
-        }
         let e = cx.enums.iter().find(|e| e.name == name)?;
         let plain = e.variants.iter().flat_map(|v| &v.fields).all(|f| f.ty != cx.unit_ty() && plain_value(cx, f.ty));
         plain.then_some(name)
@@ -159,6 +157,7 @@ fn place_ty(cx: &Codegen<'_>, body: &Body, p: &Place) -> Option<TyId> {
                 ty = buffer_elem(cx, ty)?;
             }
             (Proj::Some, None) => ty = nullable_payload(cx, ty)?,
+            (Proj::Deref, None) if !cx.tcx.is_managed_ref(ty) => {}
             _ => return None,
         }
     }
@@ -166,6 +165,24 @@ fn place_ty(cx: &Codegen<'_>, body: &Body, p: &Place) -> Option<TyId> {
         return None;
     }
     Some(ty)
+}
+
+/// Region each `Ref` local was declared in; its home arena is that region's (as `declare_local`).
+fn ref_homes(cx: &Codegen<'_>, body: &Body) -> HashMap<Local, RegionId> {
+    let mut homes: HashMap<Local, RegionId> = HashMap::new();
+    for (i, l) in body.locals.iter().enumerate() {
+        if l.kind == LocalKind::Arg && cx.tcx.is_managed_ref(l.ty) {
+            homes.insert(Local(i as u32), RegionId(0));
+        }
+    }
+    for s in body.blocks.iter().flat_map(|b| &b.stmts) {
+        if let StmtKind::Assign(dst, _) = &s.kind {
+            if dst.is_bare() && body.local(dst.local).is_some_and(|l| cx.tcx.is_managed_ref(l.ty)) {
+                homes.entry(dst.local).or_insert(s.region);
+            }
+        }
+    }
+    homes
 }
 
 /// Regions that some `RegionEnter` actually pushes (the others own no arena).
@@ -232,6 +249,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
     };
     let own_abi = CallAbi::of(cx, function);
     // Arenas lowering can name: the enclosing pushed region, the root, or a dynamic arena local.
+    let homes = ref_homes(cx, body);
     let arena_ok = |a: &ArenaRef| match a {
         ArenaRef::Current | ArenaRef::Root => true,
         ArenaRef::Fresh(n) => body.local(Local(*n)).is_some_and(|l| l.kind == LocalKind::Hidden(HiddenKind::DynamicArena)),
@@ -240,8 +258,10 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         ArenaRef::CallerParent => own_abi.hidden_len() > 0,
         // The arena a binding lives in is readable from its handle (objects, enums, `Vec` headers);
         // text and arrays carry no arena, so they stay on the HIR emitter.
+        ArenaRef::Home(l) if homes.contains_key(l) => true,
         ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => body.local(*l).is_some_and(|d| {
-            cx.tcx.ref_inner(d.ty).is_none() && (plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some() || plain_vec(cx, d.ty).is_some())
+            // A view of a class or enum (`&T`, observed `Ref`) is still the `{arena, object}` handle.
+            plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some() || (cx.tcx.ref_inner(d.ty).is_none() && plain_vec(cx, d.ty).is_some())
         }),
     };
     for block in &body.blocks {
@@ -251,6 +271,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 StmtKind::Assign(dst, rv) => {
                     let dty = place_ty(cx, body, dst)?;
                     match rv {
+                        Rvalue::Use(Operand::Const(Const::None)) if cx.tcx.is_managed_ref(dty) => {}
                         Rvalue::Use(a) => {
                             general(a)?;
                             if a.place().is_none() && plain_class(cx, dty).is_some() {
@@ -300,10 +321,80 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 StmtKind::ArenaCreateDynamic { parent, .. } if cx.debug.is_none() && arena_ok(parent) => {}
                 StmtKind::RegisterStrongRoot { owner, .. } if cx.debug.is_none() && arena_ok(owner) => {}
                 StmtKind::Borrow { dst, src, .. } | StmtKind::Move { dst, src } if dst.is_bare() && src.is_bare() => {
-                    // Handles and descriptors copy bit for bit; `Ref` state needs #225, so only plain values.
+                    // Handles and descriptors copy bit for bit; a `Ref` may only move out of a temporary.
                     let (st, dt) = (body.local(src.local)?.ty, body.local(dst.local)?.ty);
                     if !plain_value(cx, st) || !plain_value(cx, dt) || is_unit(cx, st) || is_unit(cx, dt) {
                         return None;
+                    }
+                    if cx.tcx.is_managed_ref(st) && matches!(s.kind, StmtKind::Move { .. }) && body.local(src.local)?.kind != LocalKind::Temp {
+                        return None;
+                    }
+                }
+                StmtKind::Ref(op) if cx.debug.is_none() => {
+                    let managed = |p: &Place| place_ty(cx, body, p).filter(|t| cx.tcx.is_managed_ref(*t)).map(|_| ());
+                    let refv = |o: &Operand| match o {
+                        Operand::Const(Const::None) => Some(()),
+                        _ => general(o).and(managed(o.place()?)),
+                    };
+                    match op {
+                        RefOp::Create { dst, source, target, object } => {
+                            managed(dst)?;
+                            arena_ok(source).then_some(())?;
+                            arena_ok(target).then_some(())?;
+                            general(object)?;
+                            let oty = place_ty(cx, body, object.place()?)?;
+                            (plain_class(cx, oty).is_some() || plain_enum(cx, oty).is_some()).then_some(())?;
+                        }
+                        RefOp::Clone { dst, src } => {
+                            managed(dst)?;
+                            refv(src)?;
+                        }
+                        RefOp::MoveOut { dst, src } => {
+                            managed(dst)?;
+                            managed(src)?;
+                        }
+                        RefOp::Store { slot, owner, value, .. } => {
+                            managed(slot)?;
+                            arena_ok(owner).then_some(())?;
+                            refv(value)?;
+                        }
+                        RefOp::Rehome { dst, owner, value } => {
+                            managed(dst)?;
+                            arena_ok(owner).then_some(())?;
+                            refv(value)?;
+                        }
+                        RefOp::Drop(v) => refv(v)?,
+                        RefOp::Eq { dst, lhs, rhs } => {
+                            dst.is_bare().then_some(())?;
+                            refv(lhs)?;
+                            refv(rhs)?;
+                        }
+                        RefOp::Count { dst, value, .. } => {
+                            cx.int_type(place_ty(cx, body, dst)?)?;
+                            refv(value)?;
+                        }
+                        RefOp::IsNone { dst, value } => {
+                            dst.is_bare().then_some(())?;
+                            refv(value)?;
+                        }
+                    }
+                }
+                StmtKind::Observe { object, absent, value, .. } if cx.debug.is_none() => {
+                    let vty = place_ty(cx, body, value.place()?)?;
+                    cx.tcx.is_managed_ref(vty).then_some(())?;
+                    general(value)?;
+                    let oty = body.local(*object)?.ty;
+                    (plain_class(cx, oty).is_some() || plain_enum(cx, oty).is_some()).then_some(())?;
+                    cx.int_type(body.local(*absent)?.ty)?;
+                }
+                StmtKind::ObservationRegister { arena, .. } if cx.debug.is_none() && arena_ok(arena) => {}
+                StmtKind::ObservationRelease(_) if cx.debug.is_none() => {}
+                StmtKind::RegisterDrop { arena, place, glue } if cx.debug.is_none() && arena_ok(arena) => {
+                    let t = place_ty(cx, body, place)?;
+                    match glue {
+                        DropGlue::RefSlot => cx.tcx.is_managed_ref(t).then_some(())?,
+                        DropGlue::Enum(n) => (plain_enum(cx, t)? == *n).then_some(())?,
+                        DropGlue::Vec(_) => plain_vec(cx, t).map(|_| ())?,
                     }
                 }
                 StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } if dst.is_bare() && cx.debug.is_none() && arena_ok(arena) => {
@@ -457,6 +548,7 @@ struct Lower<'a, 'ctx> {
     blocks: Vec<BasicBlock<'ctx>>,
     caller_parent: Option<PointerValue<'ctx>>,
     result_sink: Option<PointerValue<'ctx>>,
+    ref_homes: HashMap<Local, RegionId>,
 }
 
 pub(super) fn lower_function<'ctx>(
@@ -480,6 +572,7 @@ pub(super) fn lower_function<'ctx>(
         region_slots: HashMap::new(),
         blocks: Vec::new(),
         caller_parent: (abi.hidden_len() > 0).then(|| llvm_fn.get_nth_param(0).expect("callee has a parent arena parameter").into_pointer_value()),
+        ref_homes: ref_homes(cx, body),
         result_sink: abi.has_result_sink().then(|| llvm_fn.get_nth_param(1).expect("callee has a result sink parameter").into_pointer_value()),
     };
     lower.prologue(abi.hidden_len())?;
@@ -503,10 +596,15 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
     fn prologue(&mut self, hidden: usize) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let mut params = self.llvm_fn.get_param_iter().skip(hidden);
+        let observations: HashSet<Local> = self.body.blocks.iter().flat_map(|b| &b.stmts).filter_map(|s| if let StmtKind::Observe { obs, .. } = s.kind { Some(obs) } else { None }).collect();
         for (i, decl) in self.body.locals.iter().enumerate() {
             let local = Local(i as u32);
             if decl.kind == LocalKind::Hidden(HiddenKind::DynamicArena) {
                 self.slots.insert(local, cx.builder.build_alloca(cx.context.ptr_type(inkwell::AddressSpace::default()), "dynamic.arena")?);
+                continue;
+            }
+            if observations.contains(&local) {
+                self.slots.insert(local, cx.builder.build_alloca(cx.ref_observation_type(), "ref.guard")?);
                 continue;
             }
             if decl.kind == LocalKind::Hidden(HiddenKind::RegionArena) || is_unit(cx, decl.ty) {
@@ -566,6 +664,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 None => cx.basic_type(expect).expect("float constant type").into_float_type().const_float(*v as f64).into(),
             },
             Operand::Const(Const::Float(v)) => cx.basic_type(expect).expect("float type").into_float_type().const_float(*v).into(),
+            Operand::Const(Const::None) if cx.tcx.is_managed_ref(expect) => cx.ref_handle_type().const_zero().into(),
             Operand::Const(Const::Str(text)) => cx.str_literal(text).into(),
             Operand::Const(Const::Bool(b)) => cx.context.bool_type().const_int(*b as u64, false).into(),
             _ => return Err(not_yet_supported("operand", None)),
@@ -590,6 +689,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             ArenaRef::ResultSink => Ok(self.result_sink.expect("checked result sink")),
             ArenaRef::CallerParent => Ok(self.caller_parent.expect("checked caller parent")),
             // The arena inside the handle (`{arena, object}`) or the `Vec` header the binding holds.
+            ArenaRef::Home(l) if self.ref_homes.contains_key(l) => self.arena_of(self.ref_homes[l]),
             ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => {
                 let ty = self.body.local(*l).expect("checked local").ty;
                 if plain_vec(cx, ty).is_some() {
@@ -654,7 +754,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     ptr = unsafe { cx.builder.build_gep(cx.context.i8_type(), base, &[offset], "elem")? };
                     ty = elem;
                 }
-                _ => unreachable!("filtered by supported"),
+                Proj::Deref => {}
             }
         }
         Ok((ptr, ty))
@@ -721,11 +821,50 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let arena = self.load_ptr(self.slots[arena])?;
                 cx.builder.build_call(cx.arena_register_strong_root_fn(), &[owner.into(), arena.into()], "")?;
             }
-            // shortcut: a plain handle copy is enough while `Ref`/drop state is excluded; #225 must clear the source on `Move`.
             StmtKind::Borrow { dst, src, .. } | StmtKind::Move { dst, src } => {
                 let (ptr, ty) = self.place_ptr(src)?;
                 let v = cx.builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "")?;
                 self.store(dst, v)?;
+            }
+            StmtKind::Ref(op) => self.ref_op(op, stmt.region)?,
+            StmtKind::Observe { obs, object, absent, value } => {
+                let reference = self.ref_operand(value)?;
+                let (observation, ptr, is_absent) = cx.ref_observe(self.llvm_fn, reference)?;
+                cx.builder.build_store(self.slots[obs], observation)?;
+                // As `bind_observation`: the view's arena slot holds the Ref's control.
+                let control = cx.builder.build_extract_value(reference.into_struct_value(), 0, "ref.control")?;
+                let handle = cx.object_handle_type().const_named_struct(&[]);
+                let handle = cx.builder.build_insert_value(handle, control, 0, "borrow.arena")?;
+                let handle = cx.builder.build_insert_value(handle, ptr, 1, "borrow.ptr")?;
+                self.store(&Place::local(*object), handle.as_basic_value_enum())?;
+                let flag = cx.builder.build_int_z_extend_or_bit_cast(is_absent, cx.int_type(self.body.local(*absent).expect("checked").ty).expect("checked"), "absent")?;
+                self.store(&Place::local(*absent), flag.into())?;
+            }
+            StmtKind::ObservationRegister { arena, obs } => {
+                let owner = self.arena_ref(arena, stmt.region)?;
+                cx.builder.build_call(cx.arena_register_observation_drop_fn(), &[owner.into(), self.slots[obs].into()], "")?;
+            }
+            StmtKind::ObservationRelease(obs) => {
+                cx.builder.build_call(cx.ref_release_observation_fn(), &[self.slots[obs].into()], "")?;
+            }
+            StmtKind::RegisterDrop { arena, place, glue } => {
+                let owner = self.arena_ref(arena, stmt.region)?;
+                let (ptr, _) = self.place_ptr(place)?;
+                match glue {
+                    DropGlue::RefSlot => cx.ref_register_drop(owner, ptr)?,
+                    DropGlue::Enum(name) => {
+                        if let Some(f) = cx.enum_drop_glue(name) {
+                            let object = self.object_ptr(ptr)?;
+                            cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), object.into(), f.as_global_value().as_pointer_value().into()], "")?;
+                        }
+                    }
+                    DropGlue::Vec(elem) => {
+                        if let Some(f) = cx.vec_drop_glue(*elem) {
+                            let header = self.load_ptr(ptr)?;
+                            cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), header.into(), f.as_global_value().as_pointer_value().into()], "")?;
+                        }
+                    }
+                }
             }
             StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } => {
                 let arena = self.arena_ref(arena, stmt.region)?;
@@ -872,6 +1011,65 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 cx.builder.build_call(cx.print_i64_fn(*op == IntrinsicOp::PrintlnInt), &[wide.into()], "")?;
             }
             _ => unreachable!("filtered by supported"),
+        }
+        Ok(())
+    }
+
+    /// A `Ref` operand: a loaded handle, or the `None` handle (all zero).
+    fn ref_operand(&self, op: &Operand) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        match op {
+            Operand::Const(Const::None) => Ok(self.cx.ref_handle_type().const_zero().into()),
+            _ => self.operand(op, self.cx.unit_ty()),
+        }
+    }
+
+    /// The `Ref` protocol (RFC 0006 3.2); every op is the shared runtime call sequence of the HIR emitter.
+    fn ref_op(&self, op: &RefOp, region: RegionId) -> Result<(), Diagnostic> {
+        let (cx, f) = (self.cx, self.llvm_fn);
+        match op {
+            RefOp::Create { dst, source, target, object } => {
+                let (source, target) = (self.arena_ref(source, region)?, self.arena_ref(target, region)?);
+                let handle = self.ref_operand(object)?;
+                let ptr = cx.builder.build_extract_value(handle.into_struct_value(), 1, "object.ptr")?.into_pointer_value();
+                let r = cx.ref_create(f, source, target, ptr)?;
+                self.store(dst, r)?;
+            }
+            RefOp::Clone { dst, src } => {
+                let r = cx.ref_clone(f, self.ref_operand(src)?)?;
+                self.store(dst, r)?;
+            }
+            RefOp::MoveOut { dst, src } => {
+                let (slot, _) = self.place_ptr(src)?;
+                let r = cx.ref_move_out(f, slot)?;
+                self.store(dst, r)?;
+            }
+            RefOp::Store { slot, owner, value, fresh } => {
+                let owner = self.arena_ref(owner, region)?;
+                let value = self.ref_operand(value)?;
+                let (ptr, _) = self.place_ptr(slot)?;
+                if *fresh {
+                    cx.builder.build_store(ptr, cx.ref_handle_type().const_zero())?;
+                }
+                cx.ref_store(f, ptr, owner, value)?;
+            }
+            RefOp::Rehome { dst, owner, value } => {
+                let owner = self.arena_ref(owner, region)?;
+                let r = cx.ref_rehome(f, owner, self.ref_operand(value)?)?;
+                self.store(dst, r)?;
+            }
+            RefOp::Drop(v) => cx.ref_drop(f, self.ref_operand(v)?)?,
+            RefOp::Eq { dst, lhs, rhs } => {
+                let eq = cx.ref_eq(f, self.ref_operand(lhs)?, self.ref_operand(rhs)?, false)?;
+                self.store(dst, eq.into())?;
+            }
+            RefOp::Count { dst, value, weak } => {
+                let n = cx.ref_count(f, self.ref_operand(value)?, *weak)?;
+                self.store(dst, n)?;
+            }
+            RefOp::IsNone { dst, value } => {
+                let none = cx.ref_is_none(f, self.ref_operand(value)?)?;
+                self.store(dst, none.into())?;
+            }
         }
         Ok(())
     }

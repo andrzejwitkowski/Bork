@@ -14,6 +14,7 @@ mod managed_ref;
 mod match_emit;
 mod nullable;
 mod presence;
+mod ref_ops;
 mod region_emit;
 mod text;
 mod walk;

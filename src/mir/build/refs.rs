@@ -147,7 +147,7 @@ impl<'a> FnBuilder<'a> {
             self.cur = body_start;
         }
         match &sink {
-            Some(s) => self.with_sink(s.clone(), |b| b.block_value(peeled, result))?,
+            Some(s) => self.with_sink(s.clone(), |b| b.block_value_in(peeled, result, Some(s)))?,
             None => self.block_value(peeled, result)?,
         }
         self.exit_region(span)?;
@@ -155,8 +155,8 @@ impl<'a> FnBuilder<'a> {
         self.cur = none_b;
         if let Some(block) = none_block {
             match &sink {
-                Some(s) => self.with_sink(s.clone(), |b| b.presence_none(block, result, span))?,
-                None => self.presence_none(block, result, span)?,
+                Some(s) => self.with_sink(s.clone(), |b| b.presence_none(block, result, span, Some(s)))?,
+                None => self.presence_none(block, result, span, None)?,
             }
         }
         self.goto(merge, span);
@@ -164,9 +164,9 @@ impl<'a> FnBuilder<'a> {
         Ok(result.map_or(Operand::Const(Const::Unit), |r| Operand::Copy(Place::local(r))))
     }
 
-    fn presence_none(&mut self, block: &HirBlock, result: Option<Local>, span: Span) -> Res<()> {
+    fn presence_none(&mut self, block: &HirBlock, result: Option<Local>, span: Span, rehome: Option<&ArenaRef>) -> Res<()> {
         let (peeled, _, _) = self.enter_region(RegionSite::PresenceNone, block, false, None, span)?;
-        self.block_value(peeled, result)?;
+        self.block_value_in(peeled, result, rehome)?;
         self.exit_region(span)
     }
 

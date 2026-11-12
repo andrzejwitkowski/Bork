@@ -158,7 +158,7 @@ fn refop(r: &RefOp) -> String {
         }
         RefOp::Clone { dst, src } => format!("{} = ref_clone {}", place(dst), op(src)),
         RefOp::MoveOut { dst, src } => format!("{} = ref_move_out {}", place(dst), place(src)),
-        RefOp::Store { slot, owner, value } => format!("ref_store {} owner={} {}", place(slot), arena(owner), op(value)),
+        RefOp::Store { slot, owner, value, fresh } => format!("ref_store{} {} owner={} {}", if *fresh { "_fresh" } else { "" }, place(slot), arena(owner), op(value)),
         RefOp::Rehome { dst, owner, value } => format!("{} = ref_rehome owner={} {}", place(dst), arena(owner), op(value)),
         RefOp::Drop(v) => format!("ref_drop {}", op(v)),
         RefOp::Eq { dst, lhs, rhs } => format!("{} = ref_eq {}, {}", place(dst), op(lhs), op(rhs)),

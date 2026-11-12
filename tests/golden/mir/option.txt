@@ -1188,7 +1188,7 @@ fn optionFromRef<Node> (parent=true, sink=true) {
   bb2:
     _5 = ref_clone copy _1
     _6 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink
-    ref_store _6@0.0 owner=result_sink move _5
+    ref_store_fresh _6@0.0 owner=result_sink move _5
     register_drop result_sink _6 Enum("Option<Ref<Node>>")
     _0 = copy _6
     region_exit r0
@@ -2709,7 +2709,7 @@ fn make (parent=true, sink=true) {
     register_drop current _4 RefSlot
     _5 = ref_clone copy _4
     _6 = alloc Object { class: "RA" } in result_sink
-    ref_store _6.0 owner=result_sink move _5
+    ref_store_fresh _6.0 owner=result_sink move _5
     register_drop result_sink _6.0 RefSlot
     _7 = copy _6  // label "r": RA decl
     _8 = alloc EnumSlot { enum_name: "Option<RA>", variant: 0 } in result_sink
@@ -3332,7 +3332,7 @@ fn make (parent=true, sink=true) {
     _2.0 = 14
     _3 = ref_create source=result_sink target=object_arena(_2) copy _2
     _4 = alloc Object { class: "RA" } in result_sink
-    ref_store _4.0 owner=result_sink move _3
+    ref_store_fresh _4.0 owner=result_sink move _3
     register_drop result_sink _4.0 RefSlot
     _5 = alloc EnumSlot { enum_name: "Option<RA>", variant: 0 } in result_sink
     _5@0.0 = copy _4
