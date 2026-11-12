@@ -22,7 +22,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = 0  // label "total": i32 decl
     _3 = 3
-    _4 = 0
+    _4 = 0  // label "i": i32 decl
     storage_live _5
     goto bb1
   bb1:
@@ -31,7 +31,7 @@ fn main (parent=false, sink=false) {
   bb2:
     storage_live _7
     _8 = 2
-    _9 = 0
+    _9 = 0  // label "j": i32 decl
     storage_live _10
     goto bb5
   bb3:
@@ -79,7 +79,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = 0  // label "total": i32 decl
     _3 = 5
-    _4 = 0
+    _4 = 0  // label "i": i32 decl
     storage_live _5
     goto bb1
   bb1:

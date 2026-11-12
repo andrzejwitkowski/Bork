@@ -2636,7 +2636,7 @@ fn find (parent=true, sink=true) {
     _4.0 = copy _3  // label "A.x": P decl owner=result_sink
     _5 = copy _4  // label "keep": A decl
     _6 = copy _1
-    _7 = 0
+    _7 = 0  // label "i": i32 decl
     storage_live _8
     goto bb1
   bb1:

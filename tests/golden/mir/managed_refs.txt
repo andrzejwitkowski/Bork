@@ -2765,7 +2765,7 @@ fn find (parent=true, sink=true) {
     _5 = move _4  // label "keep": Ref<P> decl
     register_drop current _5 RefSlot
     _6 = 4
-    _7 = 0
+    _7 = 0  // label "i": i32 decl
     region_enter r1
     storage_live _8
     goto bb1
@@ -2775,7 +2775,7 @@ fn find (parent=true, sink=true) {
   bb2:
     storage_live _11
     _12 = 4
-    _13 = 0
+    _13 = 0  // label "j": i32 decl
     region_enter r2
     storage_live _14
     goto bb5

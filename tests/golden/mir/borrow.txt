@@ -356,7 +356,7 @@ fn outer (parent=true, sink=false) {
     storage_live _2
     region_enter r0
     _3 = 2
-    _4 = 0
+    _4 = 0  // label "i": i32 decl
     storage_live _5
     goto bb1
   bb1:

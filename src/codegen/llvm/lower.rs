@@ -695,6 +695,9 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 cx.debug_declaration(value, label.ty, &label.name, label.span, label.source)
             }
             StmtKind::Assign(dst, _) => {
+                if is_unit(cx, label.ty) {
+                    return Ok(());
+                }
                 let (ptr, _) = self.place_ptr(dst)?;
                 let value = cx.builder.build_load(cx.basic_type(label.ty).expect("checked value type"), ptr, "")?;
                 cx.debug_declaration(value, label.ty, &label.name, label.span, label.source)

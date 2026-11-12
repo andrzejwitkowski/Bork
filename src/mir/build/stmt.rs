@@ -152,7 +152,9 @@ impl<'a> FnBuilder<'a> {
         let hi_tmp = self.temp(rhs.ty);
         self.stmt(StmtKind::Assign(Place::local(hi_tmp), Rvalue::Use(hi)), span, None);
         let var = self.new_local(lhs.ty, LocalKind::Var, Some(name.to_string()));
-        self.stmt(StmtKind::Assign(Place::local(var), Rvalue::Use(lo)), span, None);
+        // The HIR emitter declares the counter like any other local.
+        let label = DebugLabel { name: name.to_string(), ty: lhs.ty, span, source: self.function.source, declaration: true, argument: None, owner: None, index: None };
+        self.stmt_with(StmtKind::Assign(Place::local(var), Rvalue::Use(lo)), span, None, Some(label));
         self.declare(name, var);
         let (peeled, region, pushed) = self.enter_region(RegionSite::For, body, false, None, span)?;
         let header = self.new_block();

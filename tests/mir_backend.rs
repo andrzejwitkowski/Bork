@@ -157,7 +157,9 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
             };
             // MIR may elide copies (and so their labels) but never invent a kind of registry event.
             let (sh, sm) = (strip(h), strip(m));
-            if sh.0 != sm.0 || !sm.1.is_subset(&sh.1) {
+            // A scope that is entered must still be left, so `scope_exit` is present in both or in neither.
+            let exits = |s: &std::collections::BTreeSet<String>| s.contains("bork_debug_scope_exit");
+            if sh.0 != sm.0 || !sm.1.is_subset(&sh.1) || exits(&sh.1) != exits(&sm.1) {
                 let only = |a: &Vec<String>, b: &Vec<String>| {
                     let mut rest = b.clone();
                     a.iter().filter(|c| rest.iter().position(|r| r == *c).map(|i| rest.remove(i)).is_none()).cloned().collect::<Vec<_>>()
@@ -167,5 +169,5 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
         }
     }
     eprintln!("-g mir-backend: {lowered} of {compared} programs have lowered functions");
-    assert!(compared > 0);
+    assert!(lowered >= MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS, "only {lowered} programs use the MIR backend under -g");
 }

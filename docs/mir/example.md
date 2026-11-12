@@ -98,7 +98,7 @@ fn main (parent=false, sink=false) {
     _4 = copy _3  // label "c": Counter decl
     _5 = 0  // label "total": i32 decl
     _6 = 3
-    _7 = 0
+    _7 = 0  // label "i": i32 decl
     region_enter r1
     storage_live _8
     goto bb1
