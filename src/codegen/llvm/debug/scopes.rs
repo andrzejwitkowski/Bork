@@ -150,36 +150,55 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         home: PointerValue<'ctx>,
         argument: Option<u32>,
     ) -> Result<(), Diagnostic> {
-        let Some(debug) = &self.cx.debug else {
+        if self.cx.debug.is_none() {
+            return Ok(());
+        }
+        let (scope, token) = *self.debug_scopes.last().unwrap();
+        self.cx.debug_local_in(scope, Some(token), name, ty, ptr, Some(home), argument)
+    }
+}
+
+impl<'ctx> Codegen<'ctx> {
+    /// Lexical block under `parent` at the current position.
+    pub(in crate::codegen::llvm) fn debug_lexical_block(&self, parent: DIScope<'ctx>) -> Option<DIScope<'ctx>> {
+        let debug = self.debug.as_ref()?;
+        let (line, col) = debug.line_column(debug.position.get());
+        Some(debug.builder.create_lexical_block(parent, debug.source_file(), line, col).as_debug_info_scope())
+    }
+
+    /// Sets the statement position and the current DWARF location inside `scope` (MIR lowerer).
+    pub(in crate::codegen::llvm) fn debug_at(&self, scope: DIScope<'ctx>, span: Span) {
+        let Some(debug) = &self.debug else {
+            return;
+        };
+        self.debug_stamp_current_block();
+        debug.position.set(span);
+        let (line, col) = debug.line_column(span);
+        let location = debug.builder.create_debug_location(self.context, line, col, scope, None);
+        self.builder.set_current_debug_location(location);
+    }
+
+    /// DILocalVariable plus `dbg.declare`; managed `Ref` locals also register their slot, which needs
+    /// the runtime scope `token` and the owning arena `home`.
+    pub(in crate::codegen::llvm) fn debug_local_in(
+        &self,
+        scope: DIScope<'ctx>,
+        token: Option<inkwell::values::IntValue<'ctx>>,
+        name: &str,
+        ty: TyId,
+        ptr: PointerValue<'ctx>,
+        home: Option<PointerValue<'ctx>>,
+        argument: Option<u32>,
+    ) -> Result<(), Diagnostic> {
+        let Some(debug) = &self.debug else {
             return Ok(());
         };
-        let (scope, token) = *self.debug_scopes.last().unwrap();
         let (line, col) = debug.line_column(debug.position.get());
         let variable = match argument {
-            Some(i) => debug.builder.create_parameter_variable(
-                scope,
-                name,
-                i,
-                debug.source_file(),
-                line,
-                debug.ty(self.cx, ty),
-                true,
-                DIFlags::PUBLIC,
-            ),
-            None => debug.builder.create_auto_variable(
-                scope,
-                name,
-                debug.source_file(),
-                line,
-                debug.ty(self.cx, ty),
-                true,
-                DIFlags::PUBLIC,
-                0,
-            ),
+            Some(i) => debug.builder.create_parameter_variable(scope, name, i, debug.source_file(), line, debug.ty(self, ty), true, DIFlags::PUBLIC),
+            None => debug.builder.create_auto_variable(scope, name, debug.source_file(), line, debug.ty(self, ty), true, DIFlags::PUBLIC, 0),
         };
-        let loc = debug
-            .builder
-            .create_debug_location(self.cx.context, line, col, scope, None);
+        let loc = debug.builder.create_debug_location(self.context, line, col, scope, None);
         // LLVM 23 returns a DbgRecord; Inkwell incorrectly wraps it as an InstructionValue.
         unsafe {
             inkwell::llvm_sys::debuginfo::LLVMDIBuilderInsertDeclareRecordAtEnd(
@@ -188,18 +207,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
                 variable.as_mut_ptr(),
                 debug.builder.create_expression(vec![]).as_mut_ptr(),
                 loc.as_mut_ptr(),
-                self.cx.builder.get_insert_block().unwrap().as_mut_ptr(),
+                self.builder.get_insert_block().unwrap().as_mut_ptr(),
             );
         }
-        if self.cx.tcx.is_managed_ref(ty) {
-            self.cx.debug_label_slot(
-                home,
-                ptr,
-                name,
-                ty,
-                token,
-                self.cx.context.i64_type().const_all_ones(),
-            )?;
+        if self.tcx.is_managed_ref(ty) {
+            let (Some(token), Some(home)) = (token, home) else {
+                panic!("managed Ref local `{name}` needs a scope token and a home arena");
+            };
+            self.debug_label_slot(home, ptr, name, ty, token, self.context.i64_type().const_all_ones())?;
         }
         Ok(())
     }

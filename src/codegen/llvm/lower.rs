@@ -199,9 +199,7 @@ fn pushed_regions(body: &Body) -> HashSet<RegionId> {
 }
 
 pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> bool {
-    // shortcut: with `-g` every function stays on the HIR emitter until DISubprogram, per-statement
-    // locations and the DebugLabel hooks are lowered (#226); a half-debug function would lose DWARF.
-    cx.debug.is_none() && check(cx, callees, function, body).is_some()
+    check(cx, callees, function, body).is_some()
 }
 
 fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> Option<()> {
@@ -209,7 +207,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
     let value = |ty: TyId| plain_value(cx, ty).then_some(());
     for l in &body.locals {
         match l.kind {
-            LocalKind::Hidden(HiddenKind::RegionArena | HiddenKind::DynamicArena) => {}
+            LocalKind::Hidden(HiddenKind::RegionArena | HiddenKind::DynamicArena | HiddenKind::DebugScope) => {}
             LocalKind::Hidden(_) => return None,
             _ => value(l.ty)?,
         }
@@ -551,6 +549,10 @@ struct Lower<'a, 'ctx> {
     caller_parent: Option<PointerValue<'ctx>>,
     result_sink: Option<PointerValue<'ctx>>,
     ref_homes: HashMap<Local, RegionId>,
+    /// `-g`: the DISubprogram, lexical blocks per region and the i64 token slot per `DebugScope` local.
+    subprogram: Option<inkwell::debug_info::DIScope<'ctx>>,
+    di_scopes: HashMap<RegionId, inkwell::debug_info::DIScope<'ctx>>,
+    scope_slots: HashMap<Local, PointerValue<'ctx>>,
 }
 
 pub(super) fn lower_function<'ctx>(
@@ -575,9 +577,13 @@ pub(super) fn lower_function<'ctx>(
         blocks: Vec::new(),
         caller_parent: (abi.hidden_len() > 0).then(|| llvm_fn.get_nth_param(0).expect("callee has a parent arena parameter").into_pointer_value()),
         ref_homes: ref_homes(cx, body),
+        subprogram: cx.debug.as_ref().map(|d| d.function(cx, function, llvm_fn)),
+        di_scopes: HashMap::new(),
+        scope_slots: HashMap::new(),
         result_sink: abi.has_result_sink().then(|| llvm_fn.get_nth_param(1).expect("callee has a result sink parameter").into_pointer_value()),
     };
     lower.prologue(abi.hidden_len())?;
+    lower.declare_arguments()?;
     for i in 0..body.blocks.len() {
         let block = cx.context.append_basic_block(llvm_fn, &format!("bb{i}"));
         lower.blocks.push(block);
@@ -586,21 +592,85 @@ pub(super) fn lower_function<'ctx>(
     for (i, block) in body.blocks.iter().enumerate() {
         cx.position_at_end(lower.blocks[i]);
         for s in &block.stmts {
+            lower.locate(s.region, s.span);
             lower.stmt(s)?;
         }
         let term = block.term.as_ref().expect("verified MIR has terminators");
+        lower.locate(term.region, term.span);
         lower.term(term)?;
     }
     Ok(())
 }
 
 impl<'a, 'ctx> Lower<'a, 'ctx> {
+    /// DI scope of `region`: the subprogram for the root, a lexical block (parent = enclosing region) otherwise.
+    fn di_scope(&mut self, region: RegionId) -> Option<inkwell::debug_info::DIScope<'ctx>> {
+        self.cx.debug.as_ref()?;
+        if let Some(scope) = self.di_scopes.get(&region) {
+            return Some(*scope);
+        }
+        let scope = match self.body.regions[region.0 as usize].parent {
+            None => self.subprogram?,
+            Some(parent) => {
+                let parent = self.di_scope(parent)?;
+                self.cx.debug_lexical_block(parent)?
+            }
+        };
+        self.di_scopes.insert(region, scope);
+        Some(scope)
+    }
+
+    fn locate(&mut self, region: RegionId, span: crate::span::Span) {
+        if let Some(scope) = self.di_scope(region) {
+            self.cx.debug_at(scope, span);
+        }
+    }
+
+    fn declare_arguments(&mut self) -> Result<(), Diagnostic> {
+        let Some(scope) = self.subprogram else {
+            return Ok(());
+        };
+        self.cx.debug_at(scope, self.function.name_span);
+        let mut index = 0;
+        for (i, decl) in self.body.locals.iter().enumerate() {
+            if decl.kind != LocalKind::Arg {
+                continue;
+            }
+            index += 1;
+            if let (Some(name), Some(slot)) = (&decl.name, self.slots.get(&Local(i as u32))) {
+                self.cx.debug_local_in(scope, None, name, decl.ty, *slot, None, Some(index))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The `declare_local` tail of the HIR emitter for a labelled plain assignment: DILocalVariable,
+    /// then the runtime allocation label of the stored value.
+    fn declare_label(&mut self, stmt: &Statement, label: &DebugLabel) -> Result<(), Diagnostic> {
+        let StmtKind::Assign(dst, _) = &stmt.kind else {
+            return Ok(());
+        };
+        let (Some(scope), true, Some(slot)) = (self.di_scope(stmt.region), dst.is_bare(), self.slots.get(&dst.local).copied()) else {
+            return Ok(());
+        };
+        self.cx.debug_local_in(scope, None, &label.name, label.ty, slot, None, label.argument)?;
+        let llvm_ty = self.cx.basic_type(label.ty).expect("checked value type");
+        let value = self.cx.builder.build_load(llvm_ty, slot, "")?;
+        self.cx.debug_declaration(value, label.ty, &label.name, label.span, label.source)
+    }
+
     fn prologue(&mut self, hidden: usize) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let mut params = self.llvm_fn.get_param_iter().skip(hidden);
         let observations: HashSet<Local> = self.body.blocks.iter().flat_map(|b| &b.stmts).filter_map(|s| if let StmtKind::Observe { obs, .. } = s.kind { Some(obs) } else { None }).collect();
         for (i, decl) in self.body.locals.iter().enumerate() {
             let local = Local(i as u32);
+            if decl.kind == LocalKind::Hidden(HiddenKind::DebugScope) {
+                if cx.debug.is_some() {
+                    self.scope_slots.insert(local, cx.builder.build_alloca(cx.context.i64_type(), "debug.scope")?);
+                }
+                continue;
+            }
             if decl.kind == LocalKind::Hidden(HiddenKind::DynamicArena) {
                 self.slots.insert(local, cx.builder.build_alloca(cx.context.ptr_type(inkwell::AddressSpace::default()), "dynamic.arena")?);
                 continue;
@@ -772,8 +842,18 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
 
     /// The object pointer inside the `{arena, object}` handle stored at `slot`.
     fn object_ptr(&self, slot: PointerValue<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
+        self.object_ptr_with(slot, true)
+    }
+
+    /// `check` is the `-g` handle validation; the HIR emitter skips it where it only registers drop glue.
+    fn object_ptr_with(&self, slot: PointerValue<'ctx>, check: bool) -> Result<PointerValue<'ctx>, Diagnostic> {
         let handle = self.cx.builder.build_load(self.cx.object_handle_type(), slot, "object")?.into_struct_value();
-        Ok(self.cx.builder.build_extract_value(handle, 1, "object.ptr")?.into_pointer_value())
+        let ptr = self.cx.builder.build_extract_value(handle, 1, "object.ptr")?.into_pointer_value();
+        if check && self.cx.debug.is_some() {
+            let owner = self.cx.builder.build_extract_value(handle, 0, "object.arena")?.into_pointer_value();
+            self.cx.debug_check_handle(owner, ptr)?;
+        }
+        Ok(ptr)
     }
 
     /// `bork_arena_alloc` of `size`/`align` bytes, wrapped as the `{arena, object}` handle and stored in `dst`.
@@ -806,6 +886,14 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
     }
 
     fn stmt(&mut self, stmt: &Statement) -> Result<(), Diagnostic> {
+        self.stmt_inner(stmt)?;
+        match &stmt.debug {
+            Some(label) if self.cx.debug.is_some() => self.declare_label(stmt, label),
+            _ => Ok(()),
+        }
+    }
+
+    fn stmt_inner(&mut self, stmt: &Statement) -> Result<(), Diagnostic> {
         let cx = self.cx;
         match &stmt.kind {
             StmtKind::ArenaCreateDynamic { dst, parent, scoped } => {
@@ -856,7 +944,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     DropGlue::RefSlot => cx.ref_register_drop(owner, ptr)?,
                     DropGlue::Enum(name) => {
                         if let Some(f) = cx.enum_drop_glue(name) {
-                            let object = self.object_ptr(ptr)?;
+                            let object = self.object_ptr_with(ptr, false)?;
                             cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), object.into(), f.as_global_value().as_pointer_value().into()], "")?;
                         }
                     }
@@ -945,6 +1033,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 };
                 let handle = call.try_as_basic_value().basic().expect("bork_arena_push returns a pointer");
                 cx.builder.build_store(self.region_slots[r], handle)?;
+                cx.debug_label_arena(handle.into_pointer_value())?;
             }
             StmtKind::RegionExit(r) => {
                 let handle = self.load_ptr(self.region_slots[r])?;
@@ -955,8 +1044,22 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let next = cx.builder.build_call(cx.arena_reset_fn(), &[handle.into()], "arena.reset")?;
                 let next = next.try_as_basic_value().basic().expect("bork_arena_reset returns a pointer");
                 cx.builder.build_store(self.region_slots[region], next)?;
+                cx.debug_label_arena(next.into_pointer_value())?;
             }
-            StmtKind::StorageLive(_) | StmtKind::StorageDead(_) => {}
+            StmtKind::StorageLive(l) | StmtKind::StorageDead(l) => {
+                if let Some(slot) = self.scope_slots.get(l).copied() {
+                    if matches!(stmt.kind, StmtKind::StorageLive(_)) {
+                        self.di_scope(self.body.local(*l).expect("checked").region);
+                        let f = cx.runtime_fn("bork_debug_scope_enter", || cx.context.i64_type().fn_type(&[], false));
+                        let token = cx.builder.build_call(f, &[], "debug.scope")?.try_as_basic_value().basic().expect("scope token");
+                        cx.builder.build_store(slot, token)?;
+                    } else {
+                        let f = cx.runtime_fn("bork_debug_scope_exit", || cx.context.void_type().fn_type(&[cx.context.i64_type().into()], false));
+                        let token = cx.builder.build_load(cx.context.i64_type(), slot, "")?;
+                        cx.builder.build_call(f, &[token.into()], "")?;
+                    }
+                }
+            }
             StmtKind::Alloc { dst, kind: AllocKind::Array, arena } => {
                 let arena = self.arena_ref(arena, stmt.region)?;
                 let ty = self.body.local(dst.local).expect("checked").ty;
@@ -1033,6 +1136,10 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let (source, target) = (self.arena_ref(source, region)?, self.arena_ref(target, region)?);
                 let handle = self.ref_operand(object)?;
                 let ptr = cx.builder.build_extract_value(handle.into_struct_value(), 1, "object.ptr")?.into_pointer_value();
+                if cx.debug.is_some() {
+                    let owner = cx.builder.build_extract_value(handle.into_struct_value(), 0, "object.arena")?.into_pointer_value();
+                    cx.debug_check_handle(owner, ptr)?;
+                }
                 let r = cx.ref_create(f, source, target, ptr)?;
                 self.store(dst, r)?;
             }

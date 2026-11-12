@@ -185,7 +185,10 @@ impl<'a> FnBuilder<'a> {
         let arena = pushed.then(|| self.new_local(self.unit, LocalKind::Hidden(HiddenKind::RegionArena), None));
         self.push_loop(exit, latch);
         self.cur = body_b;
+        // The per-iteration scope of the HIR emitter's `for`/`while` body (emit_fn.rs).
+        self.scope_enter(self.open_depth(), span);
         self.stmts(body)?;
+        self.scope_exit(span);
         self.goto(latch, span);
         self.pop_loop();
         self.cur = latch;

@@ -90,11 +90,23 @@ fn mir_backend_matches_the_hir_emitter_on_the_build_corpus() {
     assert!(lowered >= MIN_PROGRAMS_WITH_LOWERED_FUNCTIONS, "only {lowered} programs use the MIR backend");
 }
 
-/// Ordered `bork_debug_*` runtime calls with the callee name, one entry per call (M5e, #226 oracle).
-fn debug_calls(ir: &str) -> Vec<String> {
-    ir.lines()
-        .filter(|l| l.contains("call ") && l.contains("@bork_debug_"))
-        .map(|l| l.split('@').nth(1).unwrap_or("").split('(').next().unwrap_or("").to_string())
+/// `bork_debug_*` runtime calls per function, sorted: the two backends create basic blocks in a
+/// different order, so only the multiset of calls in each function is comparable (M5e, #226 oracle).
+fn debug_calls(ir: &str) -> Vec<Vec<String>> {
+    ir.split("\ndefine ")
+        .skip(1)
+        .map(|function| {
+            let mut calls: Vec<String> = function
+                .lines()
+                .take_while(|l| *l != "}")
+                .filter(|l| l.contains("call ") && l.contains("@bork_debug_"))
+                .map(|l| l.split('@').nth(1).unwrap_or("").split('(').next().unwrap_or("").to_string())
+                // Assertions, not registry contents: HIR re-checks the handle once per `when` arm, MIR reads the tag once.
+                .filter(|c| c != "bork_debug_check" && c != "bork_debug_check_handle")
+                .collect();
+            calls.sort();
+            calls
+        })
         .collect()
 }
 
@@ -116,7 +128,17 @@ fn debug_mir_backend_registers_what_the_hir_emitter_registers() {
         let mir = emit_ir_with_source(&result, BuildOptions { debug: true, mir_backend: true }, source())
             .unwrap_or_else(|e| panic!("-g MIR backend failed where HIR succeeded for {}: {e:?}", file.display()));
         compared += 1;
-        assert_eq!(debug_calls(&hir), debug_calls(&mir), "bork_debug_* calls differ for {}", file.display());
+        let (h, m) = (debug_calls(&hir), debug_calls(&mir));
+        for (i, (h, m)) in h.iter().zip(&m).enumerate() {
+            if h != m {
+                let only = |a: &Vec<String>, b: &Vec<String>| {
+                    let mut rest = b.clone();
+                    a.iter().filter(|c| rest.iter().position(|r| r == *c).map(|i| rest.remove(i)).is_none()).cloned().collect::<Vec<_>>()
+                };
+                panic!("bork_debug_* calls differ in function #{i} of {}: only HIR {:?}, only MIR {:?}", file.display(), only(h, m), only(m, h));
+            }
+        }
+        assert_eq!(h.len(), m.len());
     }
     assert!(compared > 0);
 }

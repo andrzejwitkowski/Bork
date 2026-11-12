@@ -68,59 +68,71 @@ That tree is exactly the `region` lines you will see at the top of `main`'s MIR.
 ```
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
-  let _1: unit [Hidden(DynamicArena)]
-  let _2: Counter [Temp]
-  let _3: Counter [Var] c
-  let _4: i32 [Var] total
-  let _5: i32 [Temp]
-  let _6: i32 [Var] i
-  let _7: bool [Temp]
-  let _8: unit [Hidden(RegionArena)]
-  let _9: String [Val] label
-  let _10: bool [Temp]
-  let _11: &rw Counter [Temp]
-  let _12: i32 [Temp]
-  let _13: i32 [Temp]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Counter [Temp]
+  let _4: Counter [Var] c
+  let _5: i32 [Var] total
+  let _6: i32 [Temp]
+  let _7: i32 [Var] i
+  let _8: unit [Hidden(DebugScope)]
+  let _9: bool [Temp]
+  let _10: unit [Hidden(RegionArena)]
+  let _11: unit [Hidden(DebugScope)]
+  let _12: String [Val] label
+  let _13: bool [Temp]
+  let _14: unit [Hidden(DebugScope)]
+  let _15: &rw Counter [Temp]
+  let _16: i32 [Temp]
+  let _17: i32 [Temp]
   region r0 Block
   region r1 For in r0
   region r2 IfThen in r1
   bb0:
+    storage_live _1
     region_enter r0
-    _1 = arena_create_dynamic parent=root scoped=false
-    register_strong_root current <- _1
-    _2 = alloc Object { class: "Counter" } in fresh1
-    _2.0 = 0
-    _3 = copy _2  // label "c": Counter decl
-    _4 = 0  // label "total": i32 decl
-    _5 = 3
-    _6 = 0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Counter" } in fresh2
+    _3.0 = 0
+    _4 = copy _3  // label "c": Counter decl
+    _5 = 0  // label "total": i32 decl
+    _6 = 3
+    _7 = 0
     region_enter r1
+    storage_live _8
     goto bb1
   bb1:
-    _7 = lt(copy _6, copy _5)
-    switch copy _7 [ 1 -> bb2, else -> bb4]
+    _9 = lt(copy _7, copy _6)
+    switch copy _9 [ 1 -> bb2, else -> bb4]
   bb2:
-    _9 = "step"  // label "label": String decl
-    _10 = gt(copy _6, 0)
-    switch copy _10 [ 1 -> bb5, else -> bb6]
+    storage_live _11
+    _12 = "step"  // label "label": String decl
+    _13 = gt(copy _7, 0)
+    switch copy _13 [ 1 -> bb5, else -> bb6]
   bb3:
-    _6 = add(copy _6, 1)
-    _8 = region_reset r1
+    _7 = add(copy _7, 1)
+    _10 = region_reset r1
     goto bb1
   bb4:
+    storage_dead _8
     region_exit r1
-    intrinsic PrintlnInt(copy _4)
-    _0 = copy _4
+    intrinsic PrintlnInt(copy _5)
+    _0 = copy _5
+    storage_dead _1
     region_exit r0
     return
   bb5:
-    _11 = borrow_rw _3
-    _12 = call bump(copy _11, copy _6) +current -> bb7
+    storage_live _14
+    _15 = borrow_rw _4
+    _16 = call bump(copy _15, copy _7) +current -> bb7
   bb6:
+    storage_dead _11
     goto bb3
   bb7:
-    _13 = add(copy _4, copy _12)
-    _4 = copy _13
+    _17 = add(copy _5, copy _16)
+    _5 = copy _17
+    storage_dead _14
     goto bb6
 }
 ```
@@ -277,13 +289,16 @@ fn bump (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: &rw Counter [Arg] c
   let _2: i32 [Arg] by
-  let _3: i32 [Temp]
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Temp]
   region r0 Block
   bb0:
+    storage_live _3
     region_enter r0
-    _3 = add(copy _1.0, copy _2)
-    _1.0 = copy _3
+    _4 = add(copy _1.0, copy _2)
+    _1.0 = copy _4
     _0 = copy _1.0
+    storage_dead _3
     region_exit r0
     return
 }

@@ -21,6 +21,8 @@ pub enum HiddenKind {
     RegionArena,
     /// The arena made by `ArenaCreateDynamic`.
     DynamicArena,
+    /// Runtime debug scope token (`-g`): `StorageLive` enters the scope, `StorageDead` leaves it (#226).
+    DebugScope,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
