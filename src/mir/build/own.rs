@@ -4,7 +4,7 @@ use super::expr::span_of;
 use super::{BuildError, FnBuilder, Res};
 use crate::ast::BinOp;
 use crate::hir::{HirArm, HirClassField, HirExpr, HirExprKind, HirPat, HirPatKind};
-use crate::memory::{ArenaClass, LifetimeDomain};
+use crate::mir::plan::{ArenaClass, LifetimeDomain};
 use crate::mir::body::*;
 use crate::mir::capability::Capability;
 use crate::region_walk::{pat_binds_owned_ref, RegionSite};

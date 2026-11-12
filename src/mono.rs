@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{self, HirClass, HirClassField, HirEnum, HirExpr, HirExprKind, HirFunction, HirImpl, HirProgram, HirTraitMethod, HirVariant};
-use crate::memory::MemoryPlan;
+use crate::mir::plan::MemoryPlan;
 use crate::sema::ArenaReport;
 use crate::span::Span;
 use crate::ty::{subst, TyCtx, TyData, TyId};

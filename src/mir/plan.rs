@@ -7,9 +7,44 @@ use std::collections::{HashMap, HashSet};
 
 use super::body::*;
 use crate::hir::{NodeId, VecOp};
-use crate::memory::{ArenaClass, ArenaPlan, LifetimeDomain, MemoryPlan};
 use crate::sema::ArenaNode;
+use crate::span::Span;
 use crate::ty::{TyCtx, TyId};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArenaClass {
+    Lexical,
+    Dynamic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifetimeDomain {
+    Program,
+    LexicalScope(usize),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArenaPlan {
+    /// The allocating expression; the key every lookup uses.
+    pub node: NodeId,
+    /// Where it is in the source; for display and ordering only.
+    pub allocation_site: Span,
+    pub class_name: String,
+    pub class: ArenaClass,
+    pub lifetime_domain: LifetimeDomain,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MemoryPlan {
+    pub allocations: Vec<ArenaPlan>,
+}
+
+impl MemoryPlan {
+    pub fn allocation_at(&self, node: NodeId) -> Option<&ArenaPlan> {
+        self.allocations.iter().find(|allocation| allocation.node == node)
+    }
+}
+
 
 type Origins = HashSet<NodeId>;
 

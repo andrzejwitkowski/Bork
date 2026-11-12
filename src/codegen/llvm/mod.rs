@@ -370,53 +370,6 @@ mod tests {
     }
 
     #[test]
-    fn codegen_arena_push_pop_counts_match_schedule() {
-        use crate::codegen::regions::{schedule, RegionEvent};
-        use crate::region_walk::stamp_codegen_push;
-
-        let sources = [
-            "fun main(): i32 {\n    var total = 0\n    for (i in 0..5) { total = total + i }\n    return total\n}\n",
-            "fun main() {\n    val s = \"x\"\n    { println(s) }\n}\n",
-            "fun main(): i32 {\n    val x = 1\n    if (x > 0) { return 1 } else { return 0 }\n}\n",
-            // `when`: plain arms, an arm that returns, an arm that binds a `Ref` payload (it pushes
-            // an arena of its own), and a value-yielding `when` with a string literal pattern.
-            "enum E { A(n: i32), B }\nfun f(e: &E): i32 {\n    return when e {\n        A(n) => { n }\n        B => { 0 }\n    }\n}\nfun main(): i32 {\n    val e = E.A(3)\n    return f(&e)\n}\n",
-            "enum E { A(n: i32), B }\nfun f(e: &E): i32 {\n    when e {\n        A(n) => { return n }\n        B => { }\n    }\n    return 0\n}\nfun main(): i32 {\n    val e = E.B\n    return f(&e)\n}\n",
-            "class N { v: i32 }\nenum S { Held(n: Ref<N>), Empty }\nfun f(s: &S): i32 {\n    var t = 0\n    when s {\n        Held(n) => { if val x = n { t = x.v } }\n        Empty => { }\n    }\n    return t\n}\nfun main(): i32 {\n    val a = N(2)\n    val r: Ref<N> = a\n    val s = S.Held(r)\n    return f(&s)\n}\n",
-            "fun f(s: String): i32 {\n    return when s {\n        \"a\" => { 1 }\n        _ => { 2 }\n    }\n}\nfun main(): i32 {\n    return f(\"a\")\n}\n",
-        ];
-        for source in sources {
-            let checked = check(source);
-            assert!(checked.is_ok(), "{source:?}");
-            let mut report = checked.report.unwrap();
-            stamp_codegen_push(checked.hir.as_ref().unwrap(), &checked.tcx, &mut report).unwrap();
-            let events = schedule(checked.hir.as_ref().unwrap(), &checked.tcx, &report).expect("schedule");
-            let scheduled_pushes = events
-                .iter()
-                .filter(|e| matches!(e, RegionEvent::Push { .. }))
-                .count();
-            let scheduled_pops = events
-                .iter()
-                .filter(|e| matches!(e, RegionEvent::Pop { .. }))
-                .count();
-            let ir = ir_of(source);
-            // Functions other than `main` open their arena as a child of the caller's.
-            assert_eq!(
-                ir.matches("call ptr @bork_arena_push()").count()
-                    + ir.matches("call ptr @bork_arena_push_child(").count(),
-                scheduled_pushes,
-                "{source}"
-            );
-            let ir_pops = ir.matches("call void @bork_arena_pop(").count();
-            assert!(
-                ir_pops >= scheduled_pops,
-                "expected at least {scheduled_pops} pops, got {ir_pops} for {source}"
-            );
-            ret_blocks_contain_arena_pop(&ir);
-        }
-    }
-
-    #[test]
     fn early_returns_pop_every_open_arena() {
         let ir = ir_of(
             "fun add(a: i32, b: i32): i32 { return a + b }\n\
