@@ -105,6 +105,56 @@ impl<'ctx> Codegen<'ctx> {
         Ok(header)
     }
 
+    /// Runs `body(i)` for `i` in `0..count` (`count` is an `i64`), leaving the builder after the loop.
+    pub(super) fn counted_loop(&self, llvm_fn: FunctionValue<'ctx>, count: IntValue<'ctx>, mut body: impl FnMut(IntValue<'ctx>) -> Result<(), Diagnostic>) -> Result<(), Diagnostic> {
+        let ctx = self.context;
+        let entry = self.builder.get_insert_block().expect("positioned");
+        let (head, work, done) = (ctx.append_basic_block(llvm_fn, "vec.loop.hdr"), ctx.append_basic_block(llvm_fn, "vec.loop.body"), ctx.append_basic_block(llvm_fn, "vec.loop.done"));
+        self.builder.build_unconditional_branch(head)?;
+        self.position_at_end(head);
+        let index = self.builder.build_phi(ctx.i64_type(), "vec.i")?;
+        index.add_incoming(&[(&self.word(0), entry)]);
+        let i = index.as_basic_value().into_int_value();
+        let more = self.builder.build_int_compare(IntPredicate::ULT, i, count, "vec.more")?;
+        self.builder.build_conditional_branch(more, work, done)?;
+        self.position_at_end(work);
+        body(i)?;
+        let next = self.builder.build_int_add(i, self.word(1), "vec.next")?;
+        let tail = self.builder.get_insert_block().expect("positioned");
+        self.builder.build_unconditional_branch(head)?;
+        index.add_incoming(&[(&next, tail)]);
+        self.position_at_end(done);
+        Ok(())
+    }
+
+    /// A copy of a `Vec` of `Ref`s or text in `arena`: `Ref` elements are cloned and stored with ownership,
+    /// text is copied, as `FnEmitter::copy_vec_into_arena`.
+    pub(super) fn copy_owning_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
+        let len = self.vec_load_word(source, super::vec::LEN)?;
+        let header = self.vec_alloc(llvm_fn, arena, elem_ty, Some(len))?;
+        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
+        let from = self.vec_load_ptr(source, super::vec::BUF)?;
+        let to = self.vec_load_ptr(header, super::vec::BUF)?;
+        // `vec_alloc` leaves `to` null for an empty source; the loop never runs then.
+        self.counted_loop(llvm_fn, len, |i| {
+            let loaded = self.builder.build_load(llvm_elem, self.vec_slot(from, i, stride)?, "vec.copy")?;
+            let dst = self.vec_slot(to, i, stride)?;
+            if self.tcx.is_managed_ref(elem_ty) {
+                let cloned = self.ref_clone(llvm_fn, loaded)?;
+                self.builder.build_store(dst, self.ref_handle_type().const_zero())?;
+                self.ref_store(llvm_fn, dst, arena, cloned)
+            } else {
+                let copied = self.copy_string_into(arena, loaded.into_struct_value())?;
+                self.builder.build_store(dst, copied)?;
+                Ok(())
+            }
+        })?;
+        self.vec_store(header, super::vec::LEN, len)?;
+        self.debug_copy_origin(source, header)?;
+        self.debug_copy_origin(from, to)?;
+        Ok(header)
+    }
+
     /// The `Option` instance behind `T?` and its payload type.
     pub(super) fn option_parts(&self, ty: TyId) -> Result<(String, TyId), Diagnostic> {
         let name = crate::mono::enum_instance_name(&self.tcx, ty)
@@ -253,6 +303,9 @@ impl<'ctx> Codegen<'ctx> {
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }
         if let Some(elem) = self.tcx.vec_elem(ty) {
+            if self.tcx.is_managed_ref(elem) || self.tcx.is_text(elem) {
+                return Ok(self.copy_owning_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
+            }
             return Ok(self.copy_plain_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
         }
         Ok(value)

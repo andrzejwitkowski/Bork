@@ -112,7 +112,9 @@ impl<'a> FnBuilder<'a> {
 
     pub(super) fn vec_op(&mut self, e: &HirExpr, op: VecOp, receiver: Operand, args: Vec<Operand>) -> Operand {
         let dst = (!self.is_unit(e.ty)).then(|| self.temp(e.ty));
-        self.stmt(StmtKind::VecOp { dst: dst.map(Place::local), op, receiver, args }, span_of(e), Some(e.id));
+        // The `Option` slot of a `pop` that is not a `Ref` lives in the sink arena.
+        let arena = (op == VecOp::Pop && !self.tcx.is_managed_ref(e.ty)).then(|| self.sink.clone());
+        self.stmt(StmtKind::VecOp { dst: dst.map(Place::local), op, receiver, args, arena }, span_of(e), Some(e.id));
         dst.map_or(Operand::Const(Const::Unit), |d| Operand::Copy(Place::local(d)))
     }
 
@@ -162,7 +164,7 @@ impl<'a> FnBuilder<'a> {
         let ty = self.locals[local.0 as usize].ty;
         if self.is_vec_ty(ty) {
             self.stmt(
-                StmtKind::VecOp { dst: None, op: VecOp::Set, receiver: Operand::Reborrow(Place::local(local)), args: vec![idx, v] },
+                StmtKind::VecOp { dst: None, op: VecOp::Set, receiver: Operand::Reborrow(Place::local(local)), args: vec![idx, v], arena: None },
                 span,
                 Some(value.id),
             );

@@ -78,7 +78,7 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
             }
         }
     }
-    let (mut report, ownership_errors) =
+    let (report, ownership_errors) =
         crate::sema::analyze_with_members(&program, node_tys, members.clone(), option_if_vals, &tcx);
     let mut diagnostics: Vec<_> = ownership_errors.iter().map(diag::from_sema).collect();
     diagnostics.append(&mut type_diagnostics);
