@@ -147,7 +147,9 @@ impl<'a> FnBuilder<'a> {
     /// object fields, registered for release), other owned values are copied in.
     pub(super) fn store_owned(&mut self, slot: Place, op: Operand, ty: TyId, arena: &ArenaRef, register: bool, span: Span) -> Res<()> {
         if self.tcx.is_managed_ref(ty) {
-            self.stmt(StmtKind::Ref(RefOp::Store { slot: slot.clone(), owner: arena.clone(), value: op }), span, None);
+            // Object fields (registered) and enum payloads are fresh memory; assignments overwrite a live handle.
+            let fresh = register || slot.proj.iter().any(|p| matches!(p, Proj::Variant(_)));
+            self.stmt(StmtKind::Ref(RefOp::Store { slot: slot.clone(), owner: arena.clone(), value: op, fresh }), span, None);
             if register {
                 self.stmt(StmtKind::RegisterDrop { arena: arena.clone(), place: slot, glue: DropGlue::RefSlot }, span, None);
             }

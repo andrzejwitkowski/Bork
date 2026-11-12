@@ -247,6 +247,12 @@ impl<'a> FnBuilder<'a> {
 
     /// Lowers `block`; with `result`, the last expression statement is its value.
     pub(super) fn block_value(&mut self, block: &HirBlock, result: Option<Local>) -> Res<()> {
+        self.block_value_in(block, result, None)
+    }
+
+    /// As [`Self::block_value`]; with `rehome` a `Ref` result is moved into that arena first (a presence arm's
+    /// value must outlive the arm's region, as `emit_presence_arm` does).
+    pub(super) fn block_value_in(&mut self, block: &HirBlock, result: Option<Local>, rehome: Option<&ArenaRef>) -> Res<()> {
         let Some(result) = result else { return self.stmts(block) };
         let Some((last, prefix)) = block.stmts.split_last() else { return Ok(()) };
         for (i, s) in prefix.iter().enumerate() {
@@ -254,7 +260,10 @@ impl<'a> FnBuilder<'a> {
         }
         match last {
             HirStmt::Expr(value) => {
-                let v = self.expr(value)?;
+                let mut v = self.expr(value)?;
+                if let Some(arena) = rehome.filter(|_| self.tcx.is_managed_ref(value.ty)) {
+                    v = self.materialize(v, value.ty, arena, span_of(value))?;
+                }
                 self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(v)), span_of(value), Some(value.id));
                 Ok(())
             }

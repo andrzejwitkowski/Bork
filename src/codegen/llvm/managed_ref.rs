@@ -16,30 +16,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs: BasicValueEnum<'ctx>,
         negate: bool,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let left = self.entry_alloca(self.cx.ref_handle_type(), "ref.eq.left")?;
-        let right = self.entry_alloca(self.cx.ref_handle_type(), "ref.eq.right")?;
-        self.cx.builder.build_store(left, lhs)?;
-        self.cx.builder.build_store(right, rhs)?;
-        let equal = self
-            .cx
-            .builder
-            .build_call(
-                self.cx.ref_equal_fn(),
-                &[left.into(), right.into()],
-                "ref.eq",
-            )?
-            .try_as_basic_value()
-            .basic()
-            .expect("Ref equality returns bool")
-            .into_int_value();
-        self.drop_ref_value(lhs)?;
-        self.drop_ref_value(rhs)?;
-        Ok(if negate {
-            self.cx.builder.build_not(equal, "ref.ne")?
-        } else {
-            equal
-        }
-        .into())
+        Ok(self.cx.ref_eq(self.llvm_fn, lhs, rhs, negate)?.into())
     }
 
     pub(super) fn materialize_owned_value(
@@ -337,16 +314,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         let target = self.object_control(object)?;
         let ptr = self.object_pointer(object)?;
         let source = self.sink_arena();
-        let output = self.entry_alloca(self.cx.ref_handle_type(), "ref.tmp")?;
-        self.cx.builder.build_call(
-            self.cx.ref_create_out_fn(),
-            &[output.into(), source.into(), target.into(), ptr.into()],
-            "",
-        )?;
-        Ok(self
-            .cx
-            .builder
-            .build_load(self.cx.ref_handle_type(), output, "ref")?)
+        self.cx.ref_create(self.llvm_fn, source, target, ptr)
     }
 
     pub(super) fn emit_object_field(
@@ -441,32 +409,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         slot: PointerValue<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let output = self.entry_alloca(self.cx.ref_handle_type(), "ref.move.tmp")?;
-        self.cx
-            .builder
-            .build_call(self.cx.ref_move_out_fn(), &[output.into(), slot.into()], "")?;
-        Ok(self
-            .cx
-            .builder
-            .build_load(self.cx.ref_handle_type(), output, "ref.move")?)
+        self.cx.ref_move_out(self.llvm_fn, slot)
     }
 
     pub(super) fn clone_ref(
         &mut self,
         reference: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let input = self.entry_alloca(self.cx.ref_handle_type(), "ref.copy.in")?;
-        let output = self.entry_alloca(self.cx.ref_handle_type(), "ref.copy.out")?;
-        self.cx.builder.build_store(input, reference)?;
-        self.cx.builder.build_call(
-            self.cx.ref_clone_out_fn(),
-            &[output.into(), input.into()],
-            "",
-        )?;
-        Ok(self
-            .cx
-            .builder
-            .build_load(self.cx.ref_handle_type(), output, "ref.copy")?)
+        self.cx.ref_clone(self.llvm_fn, reference)
     }
 
     pub(super) fn store_ref(
@@ -475,26 +425,14 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         owner: PointerValue<'ctx>,
         reference: BasicValueEnum<'ctx>,
     ) -> Result<(), Diagnostic> {
-        let incoming = self.entry_alloca(self.cx.ref_handle_type(), "ref.store.in")?;
-        self.cx.builder.build_store(incoming, reference)?;
-        self.cx.builder.build_call(
-            self.cx.ref_store_take_fn(),
-            &[slot.into(), owner.into(), incoming.into()],
-            "",
-        )?;
-        Ok(())
+        self.cx.ref_store(self.llvm_fn, slot, owner, reference)
     }
 
     pub(super) fn drop_ref_value(
         &mut self,
         reference: BasicValueEnum<'ctx>,
     ) -> Result<(), Diagnostic> {
-        let input = self.entry_alloca(self.cx.ref_handle_type(), "ref.drop")?;
-        self.cx.builder.build_store(input, reference)?;
-        self.cx
-            .builder
-            .build_call(self.cx.ref_drop_value_fn(), &[input.into()], "")?;
-        Ok(())
+        self.cx.ref_drop(self.llvm_fn, reference)
     }
 
     pub(super) fn register_ref_drop(
@@ -502,12 +440,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         owner: PointerValue<'ctx>,
         slot: PointerValue<'ctx>,
     ) -> Result<(), Diagnostic> {
-        self.cx.builder.build_call(
-            self.cx.arena_register_ref_drop_fn(),
-            &[owner.into(), slot.into()],
-            "",
-        )?;
-        Ok(())
+        self.cx.ref_register_drop(owner, slot)
     }
 
     pub(super) fn store_fresh_ref(
@@ -532,53 +465,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         reference: BasicValueEnum<'ctx>,
         weak: bool,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let control = self
-            .cx
-            .builder
-            .build_extract_value(reference.into_struct_value(), 0, "ref.control")?;
-        let leased = self
-            .cx
-            .builder
-            .build_call(
-                self.cx.arena_count_lease_retain_fn(),
-                &[control.into()],
-                "ref.count.lease",
-            )?
-            .try_as_basic_value()
-            .basic()
-            .expect("lease retain returns a flag")
-            .into_int_value();
-        self.drop_ref_value(reference)?;
-        let mut count = self
-            .cx
-            .builder
-            .build_call(self.cx.arena_count_fn(weak), &[control.into()], "ref.count")?
-            .try_as_basic_value()
-            .basic()
-            .expect("count returns usize")
-            .into_int_value();
-        if weak {
-            let without_lease = self.cx.builder.build_int_sub(
-                count,
-                count.get_type().const_int(1, false),
-                "ref.weak.unleased",
-            )?;
-            count = self
-                .cx
-                .builder
-                .build_select(leased, without_lease, count, "ref.weak")?
-                .into_int_value();
-        }
-        self.cx.builder.build_call(
-            self.cx.arena_count_lease_release_fn(),
-            &[control.into()],
-            "",
-        )?;
-        Ok(self
-            .cx
-            .builder
-            .build_int_truncate_or_bit_cast(count, self.cx.context.i32_type(), "ref.count.i32")?
-            .into())
+        self.cx.ref_count(self.llvm_fn, reference, weak)
     }
 
     pub(super) fn rehome_ref(
@@ -586,20 +473,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         owner: PointerValue<'ctx>,
         reference: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let input = self.entry_alloca(self.cx.ref_handle_type(), "ref.rehome.in")?;
-        let output = self.entry_alloca(self.cx.ref_handle_type(), "ref.rehome.out")?;
-        self.cx.builder.build_store(input, reference)?;
-        self.cx.builder.build_call(
-            self.cx.ref_rehome_out_fn(),
-            &[output.into(), owner.into(), input.into()],
-            "",
-        )?;
-        let rehomed =
-            self.cx
-                .builder
-                .build_load(self.cx.ref_handle_type(), output, "ref.rehome")?;
-        self.drop_ref_value(reference)?;
-        Ok(rehomed)
+        self.cx.ref_rehome(self.llvm_fn, owner, reference)
     }
 
     pub(super) fn object_pointer(

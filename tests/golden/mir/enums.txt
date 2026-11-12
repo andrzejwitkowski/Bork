@@ -76,8 +76,8 @@ fn main (parent=false, sink=false) {
     _17 = ref_clone copy _11
     _18 = ref_clone copy _13
     _19 = alloc EnumSlot { enum_name: "Expr", variant: 1 } in fresh16
-    ref_store _19@1.0 owner=fresh16 move _17
-    ref_store _19@1.1 owner=fresh16 move _18
+    ref_store_fresh _19@1.0 owner=fresh16 move _17
+    ref_store_fresh _19@1.1 owner=fresh16 move _18
     register_drop fresh16 _19 Enum("Expr")
     _20 = copy _19  // label "sum": Expr decl
     _21 = ref_create source=current target=object_arena(_20) copy _20
@@ -85,14 +85,14 @@ fn main (parent=false, sink=false) {
     register_drop current _22 RefSlot
     _23 = ref_clone copy _22
     _24 = alloc EnumSlot { enum_name: "Expr", variant: 3 } in current
-    ref_store _24@3.0 owner=current move _23
+    ref_store_fresh _24@3.0 owner=current move _23
     register_drop current _24 Enum("Expr")
     _25 = copy _24  // label "neg": Expr decl
     _26 = ref_clone copy _13
     _27 = ref_clone copy _15
     _28 = alloc EnumSlot { enum_name: "Expr", variant: 2 } in current
-    ref_store _28@2.0 owner=current move _26
-    ref_store _28@2.1 owner=current move _27
+    ref_store_fresh _28@2.0 owner=current move _26
+    ref_store_fresh _28@2.1 owner=current move _27
     register_drop current _28 Enum("Expr")
     _29 = copy _28  // label "prod": Expr decl
     _30 = ref_clone copy _13
@@ -474,7 +474,7 @@ fn main (parent=false, sink=false) {
     _7 = ref_clone copy _5
     _8 = alloc EnumSlot { enum_name: "List", variant: 1 } in fresh6
     _8@1.0 = 3
-    ref_store _8@1.1 owner=fresh6 move _7
+    ref_store_fresh _8@1.1 owner=fresh6 move _7
     register_drop fresh6 _8 Enum("List")
     _9 = copy _8  // label "l1": List decl
     _10 = ref_create source=current target=object_arena(_9) copy _9
@@ -485,7 +485,7 @@ fn main (parent=false, sink=false) {
     _13 = ref_clone copy _11
     _14 = alloc EnumSlot { enum_name: "List", variant: 1 } in fresh12
     _14@1.0 = 2
-    ref_store _14@1.1 owner=fresh12 move _13
+    ref_store_fresh _14@1.1 owner=fresh12 move _13
     register_drop fresh12 _14 Enum("List")
     _15 = copy _14  // label "l2": List decl
     _16 = ref_create source=current target=object_arena(_15) copy _15
@@ -494,7 +494,7 @@ fn main (parent=false, sink=false) {
     _18 = ref_clone copy _17
     _19 = alloc EnumSlot { enum_name: "List", variant: 1 } in current
     _19@1.0 = 1
-    ref_store _19@1.1 owner=current move _18
+    ref_store_fresh _19@1.1 owner=current move _18
     register_drop current _19 Enum("List")
     _20 = copy _19  // label "l3": List decl
     _21 = ref_clone copy _17
@@ -917,7 +917,7 @@ fn main (parent=false, sink=false) {
     register_drop current _5 RefSlot
     _6 = ref_clone copy _5
     _7 = alloc EnumSlot { enum_name: "Slot", variant: 1 } in current
-    ref_store _7@1.0 owner=current move _6
+    ref_store_fresh _7@1.0 owner=current move _6
     _7@1.1 = 7
     register_drop current _7 Enum("Slot")
     _8 = copy _7  // label "slot": Slot decl
@@ -1138,7 +1138,7 @@ fn make (parent=true, sink=true) {
     register_drop current _1 RefSlot
     _2 = ref_clone copy _1
     _3 = alloc EnumSlot { enum_name: "Slot", variant: 1 } in result_sink
-    ref_store _3@1.0 owner=result_sink move _2
+    ref_store_fresh _3@1.0 owner=result_sink move _2
     _3@1.1 = 4
     register_drop result_sink _3 Enum("Slot")
     _0 = copy _3
@@ -1568,7 +1568,7 @@ fn hold (parent=true, sink=false) {
     register_drop current _1 RefSlot
     _2 = ref_clone copy _1
     _3 = alloc EnumSlot { enum_name: "Slot", variant: 1 } in current
-    ref_store _3@1.0 owner=current move _2
+    ref_store_fresh _3@1.0 owner=current move _2
     _3@1.1 = 7
     register_drop current _3 Enum("Slot")
     _4 = copy _3  // label "s": Slot decl
@@ -1633,7 +1633,7 @@ fn link (parent=true, sink=false) {
     register_drop current _1 RefSlot
     _2 = ref_clone copy _1
     _3 = alloc EnumSlot { enum_name: "Tree", variant: 1 } in current
-    ref_store _3@1.0 owner=current move _2
+    ref_store_fresh _3@1.0 owner=current move _2
     _3@1.1 = 2
     register_drop current _3 Enum("Tree")
     _4 = copy _3  // label "node": Tree decl
@@ -3179,14 +3179,14 @@ fn make (parent=true, sink=true) {
     _3.0 = 42
     _4 = ref_create source=fresh1 target=object_arena(_3) copy _3
     _5 = alloc Object { class: "Box" } in fresh1
-    ref_store _5.0 owner=fresh1 move _4
+    ref_store_fresh _5.0 owner=fresh1 move _4
     register_drop fresh1 _5.0 RefSlot
     _6 = copy _5  // label "local": Box decl
     _7 = borrow _6
     _8 = call Box.get(copy _7) +current +result_sink -> bb1
   bb1:
     _9 = alloc Object { class: "Outer" } in result_sink
-    ref_store _9.0 owner=result_sink move _8
+    ref_store_fresh _9.0 owner=result_sink move _8
     register_drop result_sink _9.0 RefSlot
     _0 = copy _9
     region_exit r0
@@ -3216,7 +3216,7 @@ fn churn (parent=true, sink=false) {
     _3.0 = copy _1
     _4 = ref_create source=current target=object_arena(_3) copy _3
     _5 = alloc Object { class: "Box" } in current
-    ref_store _5.0 owner=current move _4
+    ref_store_fresh _5.0 owner=current move _4
     register_drop current _5.0 RefSlot
     _6 = copy _5  // label "x": Box decl
     _7 = arena_create_dynamic parent=current scoped=true
@@ -3226,7 +3226,7 @@ fn churn (parent=true, sink=false) {
     _9.0 = copy _8
     _10 = ref_create source=current target=object_arena(_9) copy _9
     _11 = alloc Object { class: "Box" } in current
-    ref_store _11.0 owner=current move _10
+    ref_store_fresh _11.0 owner=current move _10
     register_drop current _11.0 RefSlot
     _12 = copy _11  // label "y": Box decl
     _0 = copy _1
@@ -4340,7 +4340,7 @@ fn main (parent=false, sink=false) {
     intrinsic PrintlnInt(copy _7)
     _8 = ref_clone copy _5
     _9 = alloc EnumSlot { enum_name: "Link", variant: 1 } in current
-    ref_store _9@1.0 owner=current move _8
+    ref_store_fresh _9@1.0 owner=current move _8
     register_drop current _9 Enum("Link")
     _10 = copy _9  // label "first": Link decl
     _11 = ref_clone copy _5
@@ -4350,8 +4350,8 @@ fn main (parent=false, sink=false) {
     _14 = ref_clone copy _5
     _15 = alloc EnumSlot { enum_name: "Link", variant: 2 } in current
     _15@2.0 = 1
-    ref_store _15@2.1 owner=current move _13
-    ref_store _15@2.2 owner=current move _14
+    ref_store_fresh _15@2.1 owner=current move _13
+    ref_store_fresh _15@2.2 owner=current move _14
     register_drop current _15 Enum("Link")
     _16 = copy _15  // label "second": Link decl
     _17 = ref_clone copy _5
@@ -4392,7 +4392,7 @@ fn one (parent=true, sink=false) {
     register_drop current _1 RefSlot
     _2 = ref_clone copy _1
     _3 = alloc EnumSlot { enum_name: "Link", variant: 1 } in current
-    ref_store _3@1.0 owner=current move _2
+    ref_store_fresh _3@1.0 owner=current move _2
     register_drop current _3 Enum("Link")
     _4 = copy _3  // label "link": Link decl
     region_exit r0
@@ -4414,8 +4414,8 @@ fn two (parent=true, sink=false) {
     _3 = ref_clone copy _1
     _4 = alloc EnumSlot { enum_name: "Link", variant: 2 } in current
     _4@2.0 = 1
-    ref_store _4@2.1 owner=current move _2
-    ref_store _4@2.2 owner=current move _3
+    ref_store_fresh _4@2.1 owner=current move _2
+    ref_store_fresh _4@2.2 owner=current move _3
     register_drop current _4 Enum("Link")
     _5 = copy _4  // label "link": Link decl
     region_exit r0

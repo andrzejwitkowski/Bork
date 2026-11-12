@@ -1,7 +1,6 @@
 use inkwell::basic_block::BasicBlock;
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValue, BasicValueEnum, IntValue, PointerValue, StructValue};
-use inkwell::IntPredicate;
 
 use crate::diag::Diagnostic;
 use crate::ty::TyId;
@@ -30,30 +29,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         &mut self,
         reference: BasicValueEnum<'ctx>,
     ) -> Result<(StructValue<'ctx>, PointerValue<'ctx>, IntValue<'ctx>), Diagnostic> {
-        let input = self.entry_alloca(self.cx.ref_handle_type(), "ref.observe.in")?;
-        let output = self.entry_alloca(self.cx.ref_observation_type(), "ref.observe.out")?;
-        self.cx.builder.build_store(input, reference)?;
-        self.cx
-            .builder
-            .build_call(self.cx.ref_observe_fn(), &[output.into(), input.into()], "")?;
-        let observation = self.cx.builder.build_load(
-            self.cx.ref_observation_type(),
-            output,
-            "ref.observe",
-        )?
-            .into_struct_value();
-        let object = self
-            .cx
-            .builder
-            .build_extract_value(observation, 0, "ref.object")?
-            .into_pointer_value();
-        let is_absent = self.cx.builder.build_int_compare(
-            IntPredicate::EQ,
-            object,
-            object.get_type().const_null(),
-            "ref.absent",
-        )?;
-        Ok((observation, object, is_absent))
+        self.cx.ref_observe(self.llvm_fn, reference)
     }
 
     pub(super) fn open_presence(
@@ -214,16 +190,7 @@ impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
         rhs: &HirExpr,
         expr: &HirExpr,
     ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let input = self.entry_alloca(self.cx.ref_handle_type(), "ref.none.in")?;
-        self.cx.builder.build_store(input, lhs)?;
-        let is_absent = self
-            .cx
-            .builder
-            .build_call(self.cx.ref_is_none_fn(), &[input.into()], "ref.none")?
-            .try_as_basic_value()
-            .basic()
-            .expect("bork_ref_is_none returns bool")
-            .into_int_value();
+        let is_absent = self.cx.ref_is_none(self.llvm_fn, lhs)?;
         let mut split = self.open_presence("ref.elvis", is_absent, Some(expr.ty))?;
         self.end_present_arm(&mut split, Some(lhs))?;
         self.drop_ref_value(lhs)?;

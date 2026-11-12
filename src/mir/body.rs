@@ -182,7 +182,8 @@ pub enum RefOp {
     Create { dst: Place, source: ArenaRef, target: ArenaRef, object: Operand },
     Clone { dst: Place, src: Operand },
     MoveOut { dst: Place, src: Place },
-    Store { slot: Place, owner: ArenaRef, value: Operand },
+    /// `fresh`: the slot is uninitialized arena memory, so it is zeroed before the store.
+    Store { slot: Place, owner: ArenaRef, value: Operand, fresh: bool },
     Rehome { dst: Place, owner: ArenaRef, value: Operand },
     Drop(Operand),
     Eq { dst: Place, lhs: Operand, rhs: Operand },
@@ -408,7 +409,7 @@ impl StmtKind {
                     f(Use::Consume(src));
                     f(Use::Def(dst));
                 }
-                RefOp::Store { slot, owner, value } => {
+                RefOp::Store { slot, owner, value, .. } => {
                     f(Use::Arena(owner));
                     f(Use::Op(value));
                     f(Use::Def(slot));
