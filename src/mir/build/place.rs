@@ -40,7 +40,7 @@ impl<'a> FnBuilder<'a> {
             }
             HirExprKind::Index { receiver, index, .. } if !self.is_vec_ty(receiver.ty) => {
                 let mut place = self.place_of(receiver)?;
-                let idx = self.expr(index)?;
+                let idx = self.bare_operand(index)?;
                 self.bounds_guard(&place, &idx, span, e);
                 place.proj.push(Proj::Index(Box::new(idx)));
                 Ok(place)
@@ -49,6 +49,19 @@ impl<'a> FnBuilder<'a> {
                 let op = self.expr(e)?;
                 Ok(self.operand_place(op, e.ty, span))
             }
+        }
+    }
+
+    /// `e` as an operand the lowering can read: a constant or a bare local. A projected place (`h.v`, `b[1]`) is copied
+    /// to a temporary first; for a `Vec` receiver that copies the handle, and the header lives in its arena, so
+    /// mutations stay visible.
+    fn bare_operand(&mut self, e: &HirExpr) -> Res<Operand> {
+        let op = self.expr(e)?;
+        match &op {
+            Operand::Copy(p) | Operand::Move(p) | Operand::Reborrow(p) if !p.is_bare() => {
+                Ok(Operand::Copy(Place::local(self.operand_local(op.clone(), e.ty, span_of(e)))))
+            }
+            _ => Ok(op),
         }
     }
 
@@ -75,8 +88,8 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn index(&mut self, e: &HirExpr, receiver: &HirExpr, index: &HirExpr) -> Res<Operand> {
         let span = span_of(e);
         if self.is_vec_ty(receiver.ty) {
-            let recv = self.expr(receiver)?;
-            let idx = self.expr(index)?;
+            let recv = self.bare_operand(receiver)?;
+            let idx = self.bare_operand(index)?;
             return Ok(self.vec_op(e, VecOp::Get, recv, vec![idx]));
         }
         let place = self.place_of(e)?;
@@ -131,10 +144,11 @@ impl<'a> FnBuilder<'a> {
     }
 
     pub(super) fn vec_op_expr(&mut self, e: &HirExpr, op: VecOp, receiver: &HirExpr, args: &[HirExpr]) -> Res<Operand> {
-        let recv = self.expr(receiver)?;
+        let recv = self.bare_operand(receiver)?;
         let mut ops = Vec::with_capacity(args.len());
-        for a in args {
-            ops.push(self.expr(a)?);
+        for (i, a) in args.iter().enumerate() {
+            let is_index = i == 0 && matches!(op, VecOp::Get | VecOp::Set);
+            ops.push(if is_index { self.bare_operand(a)? } else { self.expr(a)? });
         }
         Ok(self.vec_op(e, op, recv, ops))
     }
@@ -173,7 +187,7 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn assign_index(&mut self, name: &str, index: &HirExpr, value: &HirExpr, span: Span) -> Res<()> {
         let local = self.lookup(name, span)?;
         let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
-        let idx = self.expr(index)?;
+        let idx = self.bare_operand(index)?;
         let ty = self.locals[local.0 as usize].ty;
         if self.is_vec_ty(ty) {
             self.stmt(

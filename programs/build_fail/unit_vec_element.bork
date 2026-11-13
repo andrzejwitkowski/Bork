@@ -1,0 +1,5 @@
+// diag: a `unit` element is not supported by codegen yet
+fun main(): i32 {
+    var v = Vec<()>()
+    return v.len()
+}

@@ -1,0 +1,9 @@
+// diag: a `unit` parameter is not supported by codegen yet
+fun f(u: ()): i32 {
+    return 1
+}
+fun g() {
+}
+fun main(): i32 {
+    return f(g())
+}

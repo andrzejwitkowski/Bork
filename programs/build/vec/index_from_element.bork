@@ -1,0 +1,7 @@
+// exit: 2
+// index read from an array element: the index is copied to a temporary, not read through a projection
+fun main(): i32 {
+    var a: [i32; 4] = [1, 2, 3, 4]
+    var b: [i32; 2] = [0, 1]
+    return a[b[1]]
+}

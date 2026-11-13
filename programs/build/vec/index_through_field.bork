@@ -1,0 +1,13 @@
+// exit: 13
+// a Vec read through a class field: the receiver is a projected place, copied to a temporary first
+class H {
+    v: Vec<i32>
+}
+fun main(): i32 {
+    var h = H(Vec<i32>())
+    h.v.push(4)
+    h.v.push(5)
+    val a = h.v[0]
+    h.v.push(6)
+    return a + h.v[2] + h.v.len()
+}

@@ -1,0 +1,8 @@
+// diag: comparing objects with `==` is not supported by codegen yet
+class P { x: i32 }
+fun main(): i32 {
+    val a: P? = None
+    val b: P? = None
+    if (a == b) { return 1 }
+    return 0
+}

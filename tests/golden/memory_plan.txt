@@ -570,6 +570,8 @@ programs/build/option/nullable_moved_into_owner.bork: 286..289 Box Lexical Lexic
 programs/build/option/nullable_moved_into_owner.bork: 342..370 Option<String> Lexical LexicalScope(1)
 programs/build/option/nullable_moved_into_owner.bork: 383..386 Box Lexical LexicalScope(1)
 programs/build/option/nullable_moved_into_owner.bork: 387..415 Option<String> Lexical LexicalScope(1)
+programs/build/option/nullable_object_equals_none.bork: 165..169 Option<P> Lexical LexicalScope(0)
+programs/build/option/nullable_object_equals_none.bork: 183..187 Option<P> Lexical LexicalScope(0)
 programs/build/option/nullable_string_eq.bork: 254..266 Option<String> Lexical LexicalScope(0)
 programs/build/option/nullable_string_eq.bork: 288..300 Option<String> Lexical LexicalScope(0)
 programs/build/option/nullable_string_eq.bork: 322..335 Option<String> Lexical LexicalScope(0)
@@ -766,6 +768,8 @@ programs/build/traits/dispatch_generic_impl.bork: 431..434 Box<Square> Dynamic P
 programs/build/traits/dispatch_generic_impl.bork: 435..441 Square Lexical LexicalScope(0)
 programs/build/traits/dispatch_impl.bork: 223..229 Circle Dynamic Program
 programs/build/traits/dispatch_inherent_shadows.bork: 241..247 Circle Dynamic Program
+programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
+programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program
 programs/build/vec/ref_nodes.bork: 279..283 Node Dynamic Program
 programs/build/vec/ref_promote.bork: 352..356 Node Dynamic Program
@@ -788,6 +792,7 @@ programs/build/vec/return_vec_of_linked_refs.bork: 260..261 A Dynamic LexicalSco
 programs/build/vec/return_vec_of_linked_refs.bork: 387..388 A Dynamic Program
 programs/build/vec/return_vec_of_linked_refs.bork: 421..422 B Dynamic Program
 programs/build/vec/return_vec_of_linked_refs.bork: 479..482 Bag Lexical LexicalScope(1)
+programs/build/vec/vec_field_repeated.bork: 118..119 H Lexical LexicalScope(0)
 programs/build/vec/with_capacity.bork: 1645..1649 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1669..1673 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1693..1697 Node Dynamic Program

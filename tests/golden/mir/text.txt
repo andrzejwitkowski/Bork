@@ -779,7 +779,7 @@ fn main (parent=false, sink=false) {
   let _7: bool [Temp]
   let _8: String? [Temp]
   let _9: String [Temp]
-  let _10: String [Temp]
+  let _10: unit [Temp]
   let _11: unit [Hidden(DebugScope)]
   let _12: String [Temp]
   let _13: String [Temp]
@@ -805,48 +805,32 @@ fn main (parent=false, sink=false) {
       None -> bb3
     }
   bb1:
-    switch copy _7 [ 1 -> bb8, else -> bb9]
+    switch copy _7 [ 1 -> bb4, else -> bb5]
   bb2:
-    match _8 {
-      Some(bind) _10=_8.some -> bb6
-      None -> bb7
-    }
-  bb3:
-    match _8 {
-      Some(bind) _10=_8.some -> bb4
-      None -> bb5
-    }
-  bb4:
     _7 = false
     goto bb1
-  bb5:
+  bb3:
     _7 = true
     goto bb1
-  bb6:
-    _7 = intrinsic StringEq(copy _9, copy _10)
-    goto bb1
-  bb7:
-    _7 = false
-    goto bb1
-  bb8:
+  bb4:
     storage_live _11
     _0 = 1
     storage_dead _11
     storage_dead _1
     region_exit r0
     return
-  bb9:
+  bb5:
     match _6 {
-      Some(bind) _13=_6.some -> bb10
-      None -> bb11
+      Some(bind) _13=_6.some -> bb6
+      None -> bb7
     }
-  bb10:
+  bb6:
     _12 = copy _13
-    goto bb12
-  bb11:
+    goto bb8
+  bb7:
     _12 = "absent"
-    goto bb12
-  bb12:
+    goto bb8
+  bb8:
     _14 = copy _12  // label "text": String decl
     _15 = len(_14)
     _16 = add(copy _15, 5)
@@ -868,7 +852,7 @@ fn main (parent=false, sink=false) {
   let _7: bool [Temp]
   let _8: String? [Temp]
   let _9: String [Temp]
-  let _10: String [Temp]
+  let _10: unit [Temp]
   let _11: unit [Hidden(DebugScope)]
   region r0 Block
   region r1 IfThen in r0
@@ -888,37 +872,21 @@ fn main (parent=false, sink=false) {
       None -> bb3
     }
   bb1:
-    switch copy _7 [ 1 -> bb8, else -> bb9]
+    switch copy _7 [ 1 -> bb4, else -> bb5]
   bb2:
-    match _8 {
-      Some(bind) _10=_8.some -> bb6
-      None -> bb7
-    }
-  bb3:
-    match _8 {
-      Some(bind) _10=_8.some -> bb4
-      None -> bb5
-    }
-  bb4:
     _7 = false
     goto bb1
-  bb5:
+  bb3:
     _7 = true
     goto bb1
-  bb6:
-    _7 = intrinsic StringEq(copy _9, copy _10)
-    goto bb1
-  bb7:
-    _7 = false
-    goto bb1
-  bb8:
+  bb4:
     storage_live _11
     _0 = 2
     storage_dead _11
     storage_dead _1
     region_exit r0
     return
-  bb9:
+  bb5:
     _0 = 1
     storage_dead _1
     region_exit r0
@@ -996,7 +964,7 @@ fn main (parent=false, sink=false) {
   let _10: bool [Temp]
   let _11: String? [Temp]
   let _12: String [Temp]
-  let _13: String [Temp]
+  let _13: unit [Temp]
   let _14: unit [Hidden(DebugScope)]
   let _15: String [Temp]
   let _16: String [Temp]
@@ -1035,59 +1003,43 @@ fn main (parent=false, sink=false) {
       None -> bb5
     }
   bb3:
-    switch copy _10 [ 1 -> bb10, else -> bb11]
+    switch copy _10 [ 1 -> bb6, else -> bb7]
   bb4:
-    match _11 {
-      Some(bind) _13=_11.some -> bb8
-      None -> bb9
-    }
-  bb5:
-    match _11 {
-      Some(bind) _13=_11.some -> bb6
-      None -> bb7
-    }
-  bb6:
     _10 = false
     goto bb3
-  bb7:
+  bb5:
     _10 = true
     goto bb3
-  bb8:
-    _10 = intrinsic StringEq(copy _12, copy _13)
-    goto bb3
-  bb9:
-    _10 = false
-    goto bb3
-  bb10:
+  bb6:
     storage_live _14
     _0 = 1
     storage_dead _14
     storage_dead _1
     region_exit r0
     return
-  bb11:
+  bb7:
     match _4 {
-      Some(bind) _16=_4.some -> bb12
-      None -> bb13
+      Some(bind) _16=_4.some -> bb8
+      None -> bb9
     }
-  bb12:
+  bb8:
     _15 = copy _16
-    goto bb14
-  bb13:
+    goto bb10
+  bb9:
     _15 = "absent"
-    goto bb14
-  bb14:
+    goto bb10
+  bb10:
     _17 = copy _15  // label "text": String decl
     _18 = intrinsic StringEq(copy _17, "OK")
-    switch copy _18 [ 1 -> bb15, else -> bb16]
-  bb15:
+    switch copy _18 [ 1 -> bb11, else -> bb12]
+  bb11:
     storage_live _19
     _0 = 2
     storage_dead _19
     storage_dead _1
     region_exit r0
     return
-  bb16:
+  bb12:
     _0 = 3
     storage_dead _1
     region_exit r0

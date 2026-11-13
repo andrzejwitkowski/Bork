@@ -508,12 +508,12 @@ fn main (parent=false, sink=false) {
   let _7: bool [Temp]
   let _8: i32? [Temp]
   let _9: i32 [Temp]
-  let _10: i32 [Temp]
+  let _10: unit [Temp]
   let _11: unit [Hidden(DebugScope)]
   let _12: bool [Temp]
   let _13: i32? [Temp]
   let _14: i32 [Temp]
-  let _15: i32 [Temp]
+  let _15: unit [Temp]
   let _16: bool [Temp]
   let _17: unit [Hidden(DebugScope)]
   let _18: bool [Temp]
@@ -537,79 +537,47 @@ fn main (parent=false, sink=false) {
       None -> bb3
     }
   bb1:
-    switch copy _7 [ 1 -> bb8, else -> bb9]
+    switch copy _7 [ 1 -> bb4, else -> bb5]
   bb2:
-    match _8 {
-      Some(bind) _10=_8.some -> bb6
-      None -> bb7
-    }
-  bb3:
-    match _8 {
-      Some(bind) _10=_8.some -> bb4
-      None -> bb5
-    }
-  bb4:
     _7 = false
     goto bb1
-  bb5:
+  bb3:
     _7 = true
     goto bb1
-  bb6:
-    _7 = eq(copy _9, copy _10)
-    goto bb1
-  bb7:
-    _7 = false
-    goto bb1
-  bb8:
+  bb4:
     storage_live _11
     intrinsic PrintlnInt(1)
     storage_dead _11
-    goto bb9
-  bb9:
+    goto bb5
+  bb5:
     _13 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current  // label "Option<i32>": i32?
     match _3 {
-      Some(bind) _14=_3.some -> bb11
-      None -> bb12
+      Some(bind) _14=_3.some -> bb7
+      None -> bb8
     }
-  bb10:
+  bb6:
     _16 = Not(copy _12)
-    switch copy _16 [ 1 -> bb17, else -> bb18]
-  bb11:
-    match _13 {
-      Some(bind) _15=_13.some -> bb15
-      None -> bb16
-    }
-  bb12:
-    match _13 {
-      Some(bind) _15=_13.some -> bb13
-      None -> bb14
-    }
-  bb13:
+    switch copy _16 [ 1 -> bb9, else -> bb10]
+  bb7:
     _12 = false
-    goto bb10
-  bb14:
+    goto bb6
+  bb8:
     _12 = true
-    goto bb10
-  bb15:
-    _12 = eq(copy _14, copy _15)
-    goto bb10
-  bb16:
-    _12 = false
-    goto bb10
-  bb17:
+    goto bb6
+  bb9:
     storage_live _17
     intrinsic PrintlnInt(2)
     storage_dead _17
-    goto bb18
-  bb18:
+    goto bb10
+  bb10:
     _18 = intrinsic StringEq(copy _6, "x")
-    switch copy _18 [ 1 -> bb19, else -> bb20]
-  bb19:
+    switch copy _18 [ 1 -> bb11, else -> bb12]
+  bb11:
     storage_live _19
     intrinsic PrintlnInt(3)
     storage_dead _19
-    goto bb20
-  bb20:
+    goto bb12
+  bb12:
     _0 = 0
     storage_dead _1
     region_exit r0
@@ -875,6 +843,51 @@ fn churn (parent=true, sink=false) {
     _12 = copy _10  // label "b": Box decl
     _0 = copy _1
     storage_dead _2
+    region_exit r0
+    return
+}
+
+== option/nullable_object_equals_none.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: P? [Temp]
+  let _3: P? [Val] a
+  let _4: bool [Temp]
+  let _5: P? [Temp]
+  let _6: P [Temp]
+  let _7: unit [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc EnumSlot { enum_name: "Option<P>", variant: 1 } in current  // label "Option<P>": P?
+    _3 = copy _2  // label "a": P? decl
+    _5 = alloc EnumSlot { enum_name: "Option<P>", variant: 1 } in current  // label "Option<P>": P?
+    match _3 {
+      Some(bind) _6=_3.some -> bb2
+      None -> bb3
+    }
+  bb1:
+    switch copy _4 [ 1 -> bb4, else -> bb5]
+  bb2:
+    _4 = false
+    goto bb1
+  bb3:
+    _4 = true
+    goto bb1
+  bb4:
+    storage_live _8
+    _0 = 1
+    storage_dead _8
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _0 = 0
+    storage_dead _1
     region_exit r0
     return
 }

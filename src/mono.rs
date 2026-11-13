@@ -695,8 +695,9 @@ fn plan_instances(mono: &mut Mono, tcx: &TyCtx, escape: bool, mir: bool) -> Resu
                     crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
                 }
             }
-            // A program MIR cannot lower (closure, `move` of a class object) keeps the empty plan: the codegen gate
-            // rejects it before anything reads the plan (every `programs/build` sample lowers, tests/mir_plan.rs).
+            // A program MIR cannot lower (closure, `move` of a class object, `==` on objects) keeps the empty plan. It must
+            // not fail here: `codegen_gate::gate` needs this `Mono` to report the named capability, and it (and `bork build`)
+            // rejects the program before anything reads the plan (every `programs/build` sample lowers, tests/mir_plan.rs).
             Err(crate::mir::build::BuildError::Unsupported(_) | crate::mir::build::BuildError::Unlowered { .. }) => {}
             Err(crate::mir::build::BuildError::Internal(message)) => diagnostics.push(error(format!("internal error: MIR: {message}"), None)),
         }

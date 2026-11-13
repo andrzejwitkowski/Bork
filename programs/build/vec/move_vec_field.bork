@@ -1,0 +1,8 @@
+// exit: 0
+// `move` of a Vec field is passed on like any other Vec handle
+class H { v: Vec<i32> }
+fun take(v: Vec<i32>): i32 { return v.len() }
+fun main(): i32 {
+    var h = H(Vec<i32>())
+    return take(move h.v)
+}

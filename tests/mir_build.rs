@@ -80,7 +80,13 @@ fn corpus_builds_and_verifies() {
                 "programs/build_fail/option/move_nullable_enum.bork",
             ],
         ),
+        ("main-signature", vec!["programs/build_fail/main_returns_i64.bork"]),
+        ("object-equality", vec!["programs/build_fail/nullable_object_equality.bork", "programs/build_fail/object_equality.bork"]),
         ("safe-field-enum", vec!["programs/build_fail/option/safe_field_of_enum.bork"]),
+        ("unit-payload-bind", vec!["programs/build_fail/nullable_unit_equality.bork"]),
+        ("unit-elem", vec!["programs/build_fail/unit_vec_element.bork"]),
+        ("unit-field", vec!["programs/build_fail/unit_field.bork"]),
+        ("unit-param", vec!["programs/build_fail/unit_param.bork"]),
     ]);
     let actual: BTreeMap<&str, Vec<&str>> = unsupported.iter().map(|(k, v)| (k.as_str(), v.iter().map(String::as_str).collect())).collect();
     assert_eq!(actual, expected);
