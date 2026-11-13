@@ -1,5 +1,5 @@
 //! A program that `check` and the codegen gate accept must not fail `bork build` with "MIR lowering does not
-//! cover" (#257): the gate and the LSP cannot see that check, so any hit is a shape the gate must reject.
+//! cover" (#257): the gate and the LSP cannot see that check, so any hit is a shape the gate must reject (e.g. `==` on objects, an index read through a projection).
 #![cfg(feature = "codegen")]
 
 use std::fs;

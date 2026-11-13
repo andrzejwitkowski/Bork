@@ -40,7 +40,7 @@ impl<'a> FnBuilder<'a> {
             }
             HirExprKind::Index { receiver, index, .. } if !self.is_vec_ty(receiver.ty) => {
                 let mut place = self.place_of(receiver)?;
-                let idx = self.expr(index)?;
+                let idx = self.index_operand(index)?;
                 self.bounds_guard(&place, &idx, span, e);
                 place.proj.push(Proj::Index(Box::new(idx)));
                 Ok(place)
@@ -49,6 +49,18 @@ impl<'a> FnBuilder<'a> {
                 let op = self.expr(e)?;
                 Ok(self.operand_place(op, e.ty, span))
             }
+        }
+    }
+
+    /// An index is a constant or a bare local (LLVM lowering reads nothing else); `a[b[1]]` copies `b[1]` into a temporary.
+    fn index_operand(&mut self, index: &HirExpr) -> Res<Operand> {
+        let idx = self.expr(index)?;
+        match &idx {
+            Operand::Copy(p) | Operand::Move(p) if !p.is_bare() => {
+                let local = self.operand_local(idx.clone(), index.ty, span_of(index));
+                Ok(Operand::Copy(Place::local(local)))
+            }
+            _ => Ok(idx),
         }
     }
 
@@ -76,7 +88,7 @@ impl<'a> FnBuilder<'a> {
         let span = span_of(e);
         if self.is_vec_ty(receiver.ty) {
             let recv = self.expr(receiver)?;
-            let idx = self.expr(index)?;
+            let idx = self.index_operand(index)?;
             return Ok(self.vec_op(e, VecOp::Get, recv, vec![idx]));
         }
         let place = self.place_of(e)?;
@@ -133,8 +145,9 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn vec_op_expr(&mut self, e: &HirExpr, op: VecOp, receiver: &HirExpr, args: &[HirExpr]) -> Res<Operand> {
         let recv = self.expr(receiver)?;
         let mut ops = Vec::with_capacity(args.len());
-        for a in args {
-            ops.push(self.expr(a)?);
+        for (i, a) in args.iter().enumerate() {
+            let is_index = i == 0 && matches!(op, VecOp::Get | VecOp::Set);
+            ops.push(if is_index { self.index_operand(a)? } else { self.expr(a)? });
         }
         Ok(self.vec_op(e, op, recv, ops))
     }
@@ -173,7 +186,7 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn assign_index(&mut self, name: &str, index: &HirExpr, value: &HirExpr, span: Span) -> Res<()> {
         let local = self.lookup(name, span)?;
         let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
-        let idx = self.expr(index)?;
+        let idx = self.index_operand(index)?;
         let ty = self.locals[local.0 as usize].ty;
         if self.is_vec_ty(ty) {
             self.stmt(

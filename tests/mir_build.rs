@@ -80,6 +80,7 @@ fn corpus_builds_and_verifies() {
                 "programs/build_fail/option/move_nullable_enum.bork",
             ],
         ),
+        ("object-equality", vec!["programs/build_fail/object_equality.bork"]),
         ("safe-field-enum", vec!["programs/build_fail/option/safe_field_of_enum.bork"]),
     ]);
     let actual: BTreeMap<&str, Vec<&str>> = unsupported.iter().map(|(k, v)| (k.as_str(), v.iter().map(String::as_str).collect())).collect();

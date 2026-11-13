@@ -506,6 +506,7 @@ programs/build/traits/dispatch_inherent_shadows.bork::main() -> i32
 programs/build/traits/dispatch_inherent_shadows.bork::Circle.show(this: &Circle) -> String
 programs/build/traits/dispatch_inherent_shadows.bork::Show@0.show(this: &Circle) -> String
 programs/build/vec/grow_past_page.bork::main() -> i32
+programs/build/vec/index_from_element.bork::main() -> i32
 programs/build/vec/move_to_outer.bork::main() -> i32
 programs/build/vec/negative_capacity_aborts.bork::main() -> i32
 programs/build/vec/pop_set_clear.bork::main() -> i32

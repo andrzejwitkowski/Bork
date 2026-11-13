@@ -15,10 +15,11 @@ pub enum Capability {
     IndirectCall,
     UnitElem,
     UnitPayloadBind,
+    ObjectEquality,
 }
 
 impl Capability {
-    pub const ALL: [Capability; 9] = [
+    pub const ALL: [Capability; 10] = [
         Capability::Closure,
         Capability::MatchRef,
         Capability::PatPresence,
@@ -28,6 +29,7 @@ impl Capability {
         Capability::IndirectCall,
         Capability::UnitElem,
         Capability::UnitPayloadBind,
+        Capability::ObjectEquality,
     ];
 
     pub fn id(self) -> &'static str {
@@ -41,6 +43,7 @@ impl Capability {
             Capability::IndirectCall => "indirect-call",
             Capability::UnitElem => "unit-elem",
             Capability::UnitPayloadBind => "unit-payload-bind",
+            Capability::ObjectEquality => "object-equality",
         }
     }
 
@@ -56,6 +59,7 @@ impl Capability {
             Capability::IndirectCall => "calls through a function value are not supported by codegen yet",
             Capability::UnitElem => "a `unit` element is not supported by codegen yet",
             Capability::UnitPayloadBind => "reading a bound `unit` payload is not supported by codegen yet",
+            Capability::ObjectEquality => "comparing objects with `==` is not supported by codegen yet",
         }
     }
 }
