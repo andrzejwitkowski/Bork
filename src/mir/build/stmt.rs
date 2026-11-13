@@ -20,10 +20,11 @@ impl<'a> FnBuilder<'a> {
         match s {
             HirStmt::Return { value } => {
                 // `return move a` hands an object to the caller's result arena.
-                let to_result = |b: &Self, v: &HirExpr| b.abi.result_sink && matches!(v.kind, HirExprKind::Ident { .. }) && b.moves_handle(v.ty);
                 let v = match value.as_ref() {
-                    Some(v) if to_result(self, v) => Some(self.with_sink(ArenaRef::ResultSink, |b| b.expr(v))?),
-                    Some(v) => Some(self.expr(v)?),
+                    Some(v) => {
+                        let to_result = self.abi.result_sink && matches!(v.kind, HirExprKind::Ident { .. }) && self.moves_handle(v.ty);
+                        Some(if to_result { self.with_sink(ArenaRef::ResultSink, |b| b.expr(v))? } else { self.expr(v)? })
+                    }
                     None => None,
                 };
                 if let Some(mut v) = v.filter(|_| !self.is_unit(self.function.return_ty)) {
