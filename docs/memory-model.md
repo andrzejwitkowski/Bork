@@ -334,13 +334,13 @@ In Cursor/VS Code with the Bork extension:
 
 ## Native codegen and region schedule
 
-With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Released slabs are kept on a **per-thread** pool (`thread_local`); there is no global mutex on `bork_arena_push` / `pop`. Ownership and arena layout are validated in `sema`; `src/codegen/regions.rs` walks HIR in lockstep with the arena report.
+With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_runtime`). Released slabs are kept on a **per-thread** pool (`thread_local`); there is no global mutex on `bork_arena_push` / `pop`. Ownership and arena layout are validated in `sema`; `mir::build` (`src/mir/build/`) consumes the arena report in lockstep with the typed HIR, and `src/codegen/llvm/lower.rs` lowers the resulting MIR (`bork build --emit-mir` prints it; see [mir/example.md](mir/example.md)).
 
 **Function exit and early `return`:** each `return` emits `bork_arena_pop` for every arena that is still open on that path. Fall-through at the end of the body and other exits emit their own pops on their paths. The compiler keeps the open-handle list across `return` unwinds so a later exit on another path is not skipped (without this, function-root arenas leaked ~4 KiB per call when a body had both an early `return` and another exit).
 
 **Object file:** `bork build` runs the LLVM `default<O3>` pipeline (plus `mergefunc`, `function-attrs`, `globaldce`) before writing the object. Set `BORK_DUMP_IR=/path/to/file.ll` to write unoptimized module text before that pass (useful for counting `bork_arena_push` / `pop` per block).
 
-**Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After typeck, `region_walk::stamp_codegen_push` sets `ArenaNode.codegen_push` from typed HIR: codegen calls `bork_arena_push` only when that flag is true (function roots always push; trailing closures never push). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
+**Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After monomorphization, `mir::plan::stamp_push` sets `ArenaNode.codegen_push` from the MIR of each instance: codegen calls `bork_arena_push` only when that flag is true (function roots always push; trailing closures never push). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
 
 The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, region-scoped borrow** model (not a full Rust-style borrow checker; see **Borrow** above and **Not planned**).
 
