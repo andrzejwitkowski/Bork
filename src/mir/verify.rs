@@ -142,13 +142,8 @@ impl Verifier<'_> {
         let mut work = VecDeque::from([0usize]);
         while let Some(bi) = work.pop_front() {
             let mut st = at[&bi].clone();
-            let block = &body.blocks[bi];
-            for s in &block.stmts {
-                self.apply_values(&mut st, |f| s.kind.walk(f), None);
-            }
-            let Some(term) = &block.term else { continue };
-            self.apply_values(&mut st, |f| term.kind.walk(f), None);
-            for next in term.kind.successors() {
+            self.run_block(bi, &mut st, &mut |_, _| {});
+            for next in body.blocks[bi].term.iter().flat_map(|t| t.kind.successors()) {
                 let n = next.0 as usize;
                 let merged = match at.get(&n) {
                     None => st.clone(),
@@ -163,32 +158,40 @@ impl Verifier<'_> {
         // Report from the settled entry states, once per block in order.
         let mut reached: Vec<usize> = at.keys().copied().collect();
         reached.sort_unstable();
+        let mut found = Vec::new();
         for bi in reached {
-            let b = BlockId(bi as u32);
             let mut st = at[&bi].clone();
-            let block = &body.blocks[bi];
-            for (si, s) in block.stmts.iter().enumerate() {
-                self.apply_values(&mut st, |f| s.kind.walk(f), Some((b, Some(si))));
-            }
-            let Some(term) = &block.term else { continue };
-            self.apply_values(&mut st, |f| term.kind.walk(f), Some((b, None)));
-            if matches!(term.kind, TermKind::Return) {
-                let ret_unit = body.local(body.ret).is_some_and(|d| d.ty == self.tcx.prim_id(crate::hir::Prim::Unit));
-                if !ret_unit && !st.init.contains(&body.ret) {
-                    self.err(Some(b), None, "return of a value that was not assigned on every path");
-                }
+            self.run_block(bi, &mut st, &mut |s, m| found.push((BlockId(bi as u32), s, m)));
+        }
+        for (b, s, m) in found {
+            self.err(Some(b), s, m);
+        }
+    }
+
+    /// Advances `st` over block `bi`; `on_err(statement, message)` gets every violation (`None` = the terminator).
+    fn run_block(&self, bi: usize, st: &mut ValueState, on_err: &mut dyn FnMut(Option<usize>, String)) {
+        let body = self.body;
+        let block = &body.blocks[bi];
+        for (si, s) in block.stmts.iter().enumerate() {
+            self.apply_values(st, |f| s.kind.walk(f)).into_iter().for_each(|m| on_err(Some(si), m));
+        }
+        let Some(term) = &block.term else { return };
+        self.apply_values(st, |f| term.kind.walk(f)).into_iter().for_each(|m| on_err(None, m));
+        if matches!(term.kind, TermKind::Return) {
+            let ret_unit = body.local(body.ret).is_some_and(|d| d.ty == self.tcx.prim_id(crate::hir::Prim::Unit));
+            if !ret_unit && !st.init.contains(&body.ret) {
+                on_err(None, "return of a value that was not assigned on every path".into());
             }
         }
     }
 
     /// One statement or terminator: reads are checked against `st` before its definitions apply (the order `walk`
-    /// reports). With `report`, a violation becomes an error; without it, only the state advances.
-    fn apply_values<'b>(&mut self, st: &mut ValueState, walk: impl FnOnce(&mut dyn FnMut(Use<'b>)), report: Option<(BlockId, Option<usize>)>) {
+    /// reports). Returns the violations and advances `st`.
+    fn apply_values<'b>(&self, st: &mut ValueState, walk: impl FnOnce(&mut dyn FnMut(Use<'b>))) -> Vec<String> {
         let mut errors: Vec<String> = Vec::new();
-        let this = &*self;
         let read = |st: &ValueState, p: &Place, errors: &mut Vec<String>| {
             let mut check = |l: Local| {
-                if this.is_value_local(l) {
+                if self.is_value_local(l) {
                     if st.moved.contains(&l) {
                         errors.push(format!("_{} is read after it was moved", l.0));
                     } else if !st.init.contains(&l) {
@@ -219,18 +222,12 @@ impl Verifier<'_> {
             Use::Local(l) => defs.push(l),
             _ => {}
         });
-        for l in moves {
-            st.moved.insert(l);
-        }
+        st.moved.extend(moves);
         for l in defs {
             st.moved.remove(&l);
             st.init.insert(l);
         }
-        if let Some((b, s)) = report {
-            for m in errors {
-                self.err(Some(b), s, m);
-            }
-        }
+        errors
     }
 
     fn check_uses<'b>(&mut self, b: BlockId, s: Option<usize>, walk: impl FnOnce(&mut dyn FnMut(Use<'b>))) {
