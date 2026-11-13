@@ -5,9 +5,8 @@ AST, typeck i HIR, analizę własności, analizę pamięci, bramkę codegenu, LL
 i linkowanie. Na każdym etapie pokazuje, który plik i która funkcja pracują
 oraz jak wygląda stan pośredni dla przykładu.
 
-Szczegóły `RegionVisitor` i `MemoryPlan` opisuje
-[memory-region-visitor.md](memory-region-visitor.md). Model aren opisuje
-[memory-model.md](memory-model.md).
+Model aren opisuje [memory-model.md](memory-model.md), a MIR, na którym
+pracuje plan pamięci i codegen, [mir/example.md](mir/example.md).
 
 ## Przykładowy program
 
@@ -55,12 +54,12 @@ src/main.rs                     bork build plik.bork
     ├── typeck::check           src/typeck/                      -> HirProgram + NodeTypes
     ├── sema::analyze_with_members   src/sema/                   -> ArenaReport (+ błędy własności)
     ├── hoist::annotate         src/hoist.rs                     (mutuje HIR)
-    ├── escape::check_function  src/escape.rs                    (tylko diagnostyki)
-    ├── memory::plan            src/memory.rs                    -> MemoryPlan
-    └── region_walk::stamp_codegen_push                          (stempluje ArenaReport)
+    └── escape::check_function  src/escape.rs                    (tylko diagnostyki)
 └── codegen::build              src/codegen/mod.rs
-    ├── gate                    src/codegen_gate.rs              (co LLVM jeszcze nie umie)
-    ├── llvm::emit_module       src/codegen/llvm/                -> inkwell Module
+    ├── mono::monomorphize      src/mono.rs                      -> instancje + plan z MIR
+    ├── mir::build              src/mir/build/                   -> Body na funkcję
+    ├── gate                    src/codegen_gate.rs              (co MIR nie umie zbudować)
+    ├── llvm::emit_module       src/codegen/llvm/lower.rs        -> inkwell Module
     ├── llvm::write_object      -> plik .o
     └── link::link_executable   src/codegen/link.rs              clang + bork_runtime
 ~~~
@@ -290,7 +289,7 @@ HirExpr {
 }
 ~~~
 
-Span konstruktora jest ważny. `memory::plan` i codegen używają go jako
+Span konstruktora jest ważny. plan pamięci z MIR i codegen używają go jako
 identyfikatora alokacji.
 
 ### 2e. `sum(&p)`: wywołanie funkcji
@@ -384,7 +383,7 @@ późniejsze `p.name` dałoby błąd:
 error: ownership: use of `p` after move from fun main
 ~~~
 
-## 4. Hoist, escape, memory plan
+## 4. Hoist i escape
 
 Te kroki działają na HIR i tylko wtedy, gdy wcześniej nie było błędów.
 
@@ -400,53 +399,21 @@ takiego wzorca, więc HIR się nie zmienia.
 w której leżą. Pole `name: String` jest kopiowane do areny obiektu przy
 konstrukcji (zobacz krok 6), więc nic nie ucieka.
 
-### `memory::plan`
-
-`src/memory.rs` przechodzi po HIR przez `region_walk::walk_program_readonly`.
-`Planner` dostaje `after_expr` dla każdego `ObjectConstruct` i zakłada
-alokację:
-
-~~~text
-ArenaPlan {
-    allocation_site: span `Point("a", 3, 4)`,
-    class_name: "Point",
-    class: Lexical,
-    lifetime_domain: LexicalScope(main),
-}
-~~~
-
-Potem zmienia ją ten fragment dla wywołań:
-
-~~~rust
-HirExprKind::Call { args, .. } => {
-    for argument in args.iter().filter(|argument| {
-        argument.ty.record_name().is_some() || argument.ty.is_managed_ref()
-    }) {
-        // ponytail: calls have no escape summaries, so record arguments are program-lived.
-        ...
-~~~
-
-`&p` ma typ `&Point`, a `record_name` przechodzi przez `Ref`, więc argument
-liczy się jako rekord. Wywołania nie mają jeszcze podsumowań ucieczki, więc
-planner konserwatywnie oznacza obiekt jako dynamiczny i żyjący na poziomie
-programu:
-
-~~~text
-ArenaPlan { class: Dynamic, lifetime_domain: Program, ... }
-~~~
-
-To jest świadome uproszczenie. Widać je w IR w kroku 6 jako
-`bork_arena_create_dynamic` podpięte pod `bork_arena_root`.
-
-Na koniec `region_walk::stamp_codegen_push` stempluje w `ArenaReport`, które
-regiony codegen musi naprawdę otworzyć jako areny.
+Plan pamięci nie powstaje już na HIR. `mono::plan_instances` buduje MIR
+dla każdej instancji (`mir::build`) i wyprowadza z niego `MemoryPlan` oraz
+flagi `codegen_push` (`src/mir/plan.rs`: `derive_memory_plan`, `stamp_push`).
+Wywołania nie mają podsumowań ucieczki, więc rekord przekazany do funkcji,
+także przez `&`, dostaje arenę `Dynamic` z `lifetime_domain: Program`. Widać to
+w IR w kroku 6 jako `bork_arena_create_dynamic` podpięte pod `bork_arena_root`.
+Treść MIR dla dowolnego pliku pokaże `bork build --emit-mir`.
 
 ## 5. Bramka codegenu
 
-`codegen::build` (`src/codegen/mod.rs`) zaczyna od `gate(hir)`
-(`src/codegen_gate.rs`). Bramka odrzuca konstrukcje, które frontend akceptuje,
-ale LLVM jeszcze nie umie wyemitować, np. nieobsługiwane typy nullable. Błąd
-bramki kończy `bork build` diagnostyką i bez binarki.
+`codegen::build` (`src/codegen/mod.rs`) buduje MIR raz i przekazuje wyniki do
+bramki (`src/codegen_gate.rs`). Bramka nie ma listy odrzucanych kształtów:
+każda konstrukcja, której MIR nie umie zbudować, zgłasza nazwaną
+`Capability` (`src/mir/capability.rs`), a bramka zamienia ją w diagnostykę ze
+spanem. Błąd bramki kończy `bork build` bez binarki.
 
 Klasa z polami `String`/`i32`, borrow parametru i odczyt pól przechodzą bramkę
 bez uwag.
@@ -456,182 +423,18 @@ bez uwag.
 `llvm::emit_module` (`src/codegen/llvm/mod.rs`) wymaga `fun main`, a potem:
 
 ~~~rust
-let cx = Codegen::new(context, "bork", &hir.classes, memory_plan)?;
+let mut cx = Codegen::new(context, "bork", &hir.classes, &hir.enums, tcx)?;
 let callees = hir.functions.iter()
-    .map(|function| { let value = emit_fn::declare_function(&cx, function)?; ... })
+    .map(|function| { let value = declare::declare_function(&cx, function)?; ... })
     .collect()?;
-let mut regions = RegionEmitter::new(report, ArenaCalls::new(&cx));
-for function in &hir.functions {
-    emit_fn::emit_function(&cx, &callees, &mut regions, &report.roots, function)?;
+for (function, body) in hir.functions.iter().zip(bodies) {
+    lower::lower_function(&cx, &callees, function, &body?)?;
 }
-regions.finish()?;
 cx.module.verify()?;
 ~~~
 
-### 6a. Typ klasy
-
-`Codegen::new` (`src/codegen/llvm/context.rs`) tworzy dla każdej klasy
-nazwaną strukturę `bork.<Nazwa>` i zapamiętuje typy pól. Kolejność pól to
-kolejność z deklaracji, czyli indeksy z typecku:
-
-~~~llvm
-%bork.Point = type { { ptr, i64 }, i32, i32 }
-;                    name: String  x    y
-~~~
-
-`String` to para `{ ptr, i64 }`: wskaźnik na bajty i długość.
-
-Obiekt klasy nie jest przekazywany przez wartość. Wartość typu `Point` w
-rejestrach to uchwyt `object_handle_type`:
-
-~~~text
-{ ptr arena_control, ptr object }   // arena, w której leży obiekt + wskaźnik na struct
-~~~
-
-### 6b. Deklaracje funkcji i ABI
-
-`declare_function` (`src/codegen/llvm/emit_fn.rs`) wybiera ABI przez
-`CallAbi::of` (`src/codegen/llvm/call_abi.rs`):
-
-| Funkcja | ABI | Ukryte parametry |
-|---|---|---|
-| `main` | `Main` | brak, symbol C `main`, zwraca `i32` |
-| zwraca rekord, `String` lub `Ref<T>` | `OwningReturn` | arena rodzica + result sink |
-| pozostałe | `Callee` | arena rodzica |
-
-`sum` zwraca `i32`, więc dostaje jeden ukryty parametr: arenę wywołującego.
-Funkcje inne niż `main` mają linkage `internal` i prefiks `bork.`, żeby nie
-kolidować z libc ani runtime'em.
-
-~~~llvm
-define internal i32 @bork.sum(ptr %0, { ptr, ptr } %1)
-;                             arena   p: &Point jako uchwyt obiektu
-define i32 @main()
-~~~
-
-### 6c. Ciało `main`: konstrukcja obiektu
-
-`emit_function` ustawia blok `entry` i oddaje sterowanie
-`region_emit::emit_function_body`, który przechodzi HIR tym samym
-`RegionVisitor` co planner. Region funkcji otwiera arenę
-(`bork_arena_push`).
-
-Przed dziećmi `ObjectConstruct` wywoływany jest `before_expr`
-(`src/codegen/llvm/region_emit.rs`), który woła `begin_object_construct`
-(`src/codegen/llvm/managed_ref.rs`). Ta funkcja czyta `ArenaPlan` po spanie:
-
-~~~rust
-let allocation = self.cx.memory_plan.allocation_at(span)?;
-let arena = if allocation.class == ArenaClass::Dynamic {
-    // Program -> rodzic to bork_arena_root, potem bork_arena_create_dynamic
-    // i bork_arena_register_strong_root(owner, arena)
-} else ...
-~~~
-
-Potem emitowane są argumenty pól, a na końcu `emit_object_construct`
-alokuje struct w wybranej arenie i zapisuje pola przez GEP. Pole `String`
-jest kopiowane do areny obiektu przez `materialize_owned_value`, więc literał
-`"a"` nie jest współdzielony z obiektem:
-
-~~~llvm
-%arena          = call ptr @bork_arena_push()
-%arena.root     = call ptr @bork_arena_root()
-%arena.dynamic  = call ptr @bork_arena_create_dynamic(ptr %arena.root, i8 0)
-call void @bork_arena_register_strong_root(ptr %arena, ptr %arena.dynamic)
-%object = call ptr @bork_arena_alloc(ptr %arena.dynamic, i64 <sizeof Point>, i64 <alignof Point>)
-
-%field    = getelementptr inbounds nuw %bork.Point, ptr %object, i32 0, i32 0   ; name
-%move.dst = call ptr @bork_arena_alloc(ptr %arena.dynamic, i64 1, i64 1)
-call void @llvm.memcpy.p0.p0.i64(ptr align 1 %move.dst, ptr align 1 @str, i64 1, i1 false)
-%moved    = insertvalue { ptr, i64 } { ptr @str, i64 1 }, ptr %move.dst, 0
-store { ptr, i64 } %moved, ptr %field
-
-%field1 = getelementptr inbounds nuw %bork.Point, ptr %object, i32 0, i32 1   ; x
-store i32 3, ptr %field1
-%field2 = getelementptr inbounds nuw %bork.Point, ptr %object, i32 0, i32 2   ; y
-store i32 4, ptr %field2
-
-%object.arena = insertvalue { ptr, ptr } zeroinitializer, ptr %arena.dynamic, 0
-%object.ptr   = insertvalue { ptr, ptr } %object.arena, ptr %object, 1
-store { ptr, ptr } %object.ptr, ptr %p
-~~~
-
-`val p` jest slotem `alloca` z uchwytem `{ arena, object }`. Sam obiekt leży
-w arenie, nie na stosie.
-
-### 6d. Wywołanie `sum(&p)`
-
-Borrow klasy przekazuje ten sam uchwyt. Pierwszym argumentem jest ukryta arena
-wywołującego:
-
-~~~llvm
-%p4   = load { ptr, ptr }, ptr %p
-%call = call i32 @bork.sum(ptr %arena, { ptr, ptr } %p4)
-~~~
-
-### 6e. Ciało `sum`: odczyt pól
-
-`sum` otwiera własną arenę jako dziecko areny wywołującego
-(`bork_arena_push_child`). `ObjectField` to `emit_object_field`: wyciąga
-wskaźnik obiektu z uchwytu (`object_pointer`), robi GEP z `field_index`
-z typecku i ładuje wartość:
-
-~~~llvm
-define internal i32 @bork.sum(ptr %0, { ptr, ptr } %1) {
-entry:
-  %p     = alloca { ptr, ptr }
-  %arena = call ptr @bork_arena_push_child(ptr %0)
-  store { ptr, ptr } %1, ptr %p
-  %p1         = load { ptr, ptr }, ptr %p
-  %object.ptr = extractvalue { ptr, ptr } %p1, 1
-  %field      = getelementptr inbounds nuw %bork.Point, ptr %object.ptr, i32 0, i32 1  ; p.x
-  %field2     = load i32, ptr %field
-  ...                                                                                  ; p.y
-  %add = add i32 %field2, %field6
-  call void @bork_arena_pop(ptr %arena)
-  ret i32 %add
-}
-~~~
-
-`bork_arena_pop` przed `ret` zamyka arenę funkcji. Obiekt `Point` przeżywa,
-bo leży w arenie `main`.
-
-### 6f. `p.name.length` i powrót z `main`
-
-`p.name` to GEP na pole 0 i load `{ ptr, i64 }`. `.length` to
-`extractvalue ..., 1` i `trunc` do `i32`:
-
-~~~llvm
-%field7   = getelementptr inbounds nuw %bork.Point, ptr %object.ptr6, i32 0, i32 0
-%field8   = load { ptr, i64 }, ptr %field7
-%len      = extractvalue { ptr, i64 } %field8, 1
-%len.i32  = trunc i64 %len to i32
-%add      = add i32 %call, %len.i32
-call void @bork_arena_pop(ptr %arena)
-ret i32 %add
-~~~
-
-Wynik to `3 + 4 + 1 = 8`.
-
-## 7. Obiekt i linkowanie
-
-`write_object` ustawia triple i data layout maszyny docelowej i zapisuje plik
-`.o`. Gdy ustawiona jest zmienna `BORK_DUMP_IR`, najpierw zapisuje tekstowy IR.
-Fragmenty IR w tym dokumencie pochodzą właśnie z tego zrzutu.
-
-`link::link_executable` (`src/codegen/link.rs`) woła `clang` z obiektem,
-biblioteką `bork_runtime` (funkcje `bork_arena_*`) i libc.
-
-## 8. Uruchomienie
-
-~~~text
-$ cargo build --features codegen
-$ BORK_DUMP_IR=/tmp/point.ll ./target/debug/bork build -o /tmp/point \
-      programs/build/classes/walkthrough_point.bork
-$ /tmp/point; echo $?
-8
-$ ./target/debug/bork --dump-arenas programs/build/classes/walkthrough_point.bork
-~~~
+Każda funkcja jest zamieniana z MIR (`src/codegen/llvm/lower.rs`); emitera
+HIR już nie ma.
 
 Korpus `programs/` buduje ten plik w `cargo test --features codegen` i
 porównuje kod wyjścia z komentarzem `// exit: 8`.
@@ -650,11 +453,12 @@ porównuje kod wyjścia z komentarzem `// exit: 8`.
 | HIR | `src/hir/mod.rs`, `src/hir/ty.rs` | `HirProgram`, `HirExprKind::ObjectConstruct`, `ObjectField`, `Ty::record_name` |
 | Własność | `src/sema/analyze.rs`, `walk.rs`, `region.rs` | `analyze_with_span_tys`, `open_ordinary`, `ArenaReport` |
 | Hoist / escape | `src/hoist.rs`, `src/escape.rs` | `annotate`, `check_function` |
-| Plan pamięci | `src/memory.rs` | `plan`, `Planner::after_expr`, `ArenaPlan`, `MemoryPlan::allocation_at` |
-| Bramka | `src/codegen_gate.rs` | `gate` |
-| Moduł LLVM | `src/codegen/llvm/mod.rs`, `context.rs` | `emit_module`, `Codegen::new`, `object_handle_type` |
-| Funkcje / ABI | `src/codegen/llvm/emit_fn.rs`, `call_abi.rs` | `declare_function`, `emit_function`, `CallAbi` |
-| Obiekty | `src/codegen/llvm/managed_ref.rs`, `region_emit.rs` | `begin_object_construct`, `emit_object_construct`, `emit_object_field` |
+| Plan pamięci | `src/mir/plan.rs`, `src/mono.rs` | `derive_memory_plan`, `stamp_push`, `plan_instances` |
+| MIR | `src/mir/build/`, `src/mir/body.rs` | `build_program`, `Body`, `StmtKind` |
+| Bramka | `src/codegen_gate.rs`, `src/mir/capability.rs` | `gate`, `Capability` |
+| Moduł LLVM | `src/codegen/llvm/mod.rs`, `context.rs` | `emit_module`, `Codegen::new` |
+| Funkcje / ABI | `src/codegen/llvm/declare.rs`, `call_abi.rs` | `declare_function`, `CallAbi` |
+| Ciała z MIR | `src/codegen/llvm/lower.rs`, `ref_ops.rs`, `value_ops.rs` | `lower_function` |
 | Link | `src/codegen/link.rs` | `link_executable` |
 
 ## Ograniczenia widoczne w tym przykładzie

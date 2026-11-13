@@ -47,7 +47,7 @@ MIR does not discover facts; it copies them from earlier stages. Three inputs ma
 |---|---|---|
 | Typed, monomorphic HIR (`Mono.hir`) | parser, typeck, `mono.rs` | The statements and expressions, with a type on every expression. |
 | `ArenaReport` (`Mono.report`) | `sema` (ownership analysis) | The *region tree*: one node per function, block, loop body, `if` branch, `when` arm, each with a `codegen_push` flag. |
-| `MemoryPlan` (`Mono.memory_plan`) | `src/memory.rs` | For each object/enum construction: arena class (Lexical or Dynamic) and lifetime domain. |
+| `MemoryPlan` (`Mono.memory_plan`) | `src/mir/plan.rs` (derived from MIR) | For each object/enum construction: arena class (Lexical or Dynamic) and lifetime domain. |
 
 You can see the region tree for this program with `bork --dump-arenas docs/mir/example.bork`:
 
@@ -169,10 +169,10 @@ region r2 IfThen in r1
 A *region* is a stretch of code that may own an arena. These three lines are the `ArenaReport`
 tree flattened: `r0` is the function body, `r1` the `for` body (child of `r0`), `r2` the
 `then` branch (child of `r1`). Names `Block`, `For`, `IfThen` are `RegionSite` values from
-`src/region_walk.rs`.
+`src/region_walk.rs` (the enum is all that file still holds).
 
 The builder does not guess which blocks open regions; it walks the HIR in the same order as
-`region_walk` and takes the next child of the report each time (`FnBuilder::take_child`).
+the report and takes the next child of the report each time (`FnBuilder::take_child`).
 That is why `r2` exists but never appears as a `region_enter`: the report says its
 `codegen_push` is false, because the `then` branch allocates nothing.
 
@@ -192,7 +192,7 @@ Source: `var c = Counter(0)`. Step by step:
 - `region_enter r0` opens the function's arena (the report says the root always pushes).
 - `arena_create_dynamic ... scoped=false` and `register_strong_root`: the `MemoryPlan`
   classified this `Counter` as **Dynamic with Program lifetime**. The reason is in
-  `src/memory.rs`: calls have no escape summaries, so a record passed to a call is assumed to
+  `src/mir/plan.rs`: calls have no escape summaries, so a record passed to a call is assumed to
   live for the whole program. A dynamic arena is a separate arena that is kept alive by a
   strong reference from its owner (`current`), not tied to the region it was made in.
 - `_2 = alloc Object ... in fresh1`: the allocation names its arena explicitly. `fresh1` is
@@ -316,8 +316,8 @@ fn bump (parent=true, sink=false) {
 | You see in MIR | Decided by |
 |---|---|
 | Blocks, `switch`, `goto`, `call -> bbN` | `mir::build` (this step): structured HIR becomes a graph |
-| `region rN ...` lines, which `region_enter`s exist | `sema` `ArenaReport` + `codegen_push` (stamped by `region_walk`) |
-| `arena_create_dynamic`, `fresh1`, `in fresh1` | `MemoryPlan` (`src/memory.rs`) |
+| `region rN ...` lines, which `region_enter`s exist | `sema` `ArenaReport` + `codegen_push` (stamped by `mir::plan::stamp_push`) |
+| `arena_create_dynamic`, `fresh1`, `in fresh1` | `MemoryPlan` (`src/mir/plan.rs`) |
 | `+current`, `parent=`, `sink=` | `CallAbi` rule from `codegen/llvm/call_abi.rs` |
 | `// label "c"` | `DebugLabel`, modelled on the `debug_*` hooks in `codegen/llvm/debug/` |
 | `_N` naming and kinds | builder: params, declared names, and invented temps |

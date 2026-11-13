@@ -1,26 +1,21 @@
 # Bork — follow-ups after `feat/fixed-arrays-slices`
 
-Tracked work after fixed arrays/slices, `while`/`break`/`continue`, logical ops, and unified `region_walk` codegen.
+Tracked work after fixed arrays/slices, `while`/`break`/`continue`, logical ops, and MIR-based codegen.
 
 ## Refactor
 
-> MIR migration (RFC 0006), in implementation order: 1 #215, 2 #220, 3-4 #66, 5 #216, 6 #217, 7 #218, 8 #219, 9 #221, 10 #222, 11 #223, 12 #224, 13 #225, 14 #226, 15 #67, 16 #227.
+> MIR migration (RFC 0006): steps 1-15 done (#215-#226, #67); step 16 is this documentation pass (#227). Open: #243 (`escape.rs`, `hoist.rs`) waits for `move-aggregate` (#260).
 
-- [x] **Codegen visitor split** (MIR step M0, #215) — done: `CodegenWalker` (`src/codegen/llvm/walk.rs`) is the `RegionVisitor`; `FnEmitter` re-enters the walk through a safe `SharedCursor` (no raw-pointer driver); leaf emitter modules never name `walk`.
-- [ ] **Region cursor** _(superseded by MIR, #67)_ — if `arena_cursor_shared!` grows, consider a single cursor type with explicit mut/ref modes instead of macro expansion.
-- [ ] **`RegionEmitter` vs walk** _(superseded by MIR, #67)_ — document (or assert in tests) the contract for loops: one `region_enter`, many `latch` resets in LLVM, one `region_exit`; keep schedule visitor and codegen visitor aligned.
 - [ ] **Array codegen** — `src/codegen/llvm/array/` is split from monolithic `array.rs`; optional further split (emit vs runtime helpers) if files grow.
 
 ## Fix / harden
 
-- [ ] **Codegen gate vs frontend** _(superseded by MIR, #67)_ — keep `gate.rs` in sync when adding surface syntax; add a test that every `check()`-ok MVP sample either passes gate or is listed as intentionally rejected.
-- [ ] **Walk errors** — ensure all codegen failures that originate as `Diagnostic` go through `WalkError::from_diagnostic` (no stray `schedule_error` wrappers on user messages).
+- [ ] **Codegen gate vs build** — a program the gate accepts must not fail `bork build` with `MIR lowering does not cover` (#257).
 - [ ] **Float / wider integers in arrays** — verify runtime abort paths and codegen for non-i32 element types where supported.
 - [ ] **Slice bounds** — typeck rejects bad literal bounds; document or test runtime index abort messaging if we add user-facing traces later.
 
 ## Tests & tooling
 
-- [ ] Extend **`codegen_arena_push_pop_counts_match_schedule`** to more samples (nested `if`, `move` blocks, string sinks) once those paths are stable in CI LLVM env. (`when` samples added in #53.)
 - [ ] **Integration**: `tests/build.rs` — quicksort/smoke binaries only if committed as fixtures (avoid orphan `.bork` in repo root).
 
 ## Docs
