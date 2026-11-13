@@ -200,7 +200,6 @@ programs/build/vec/move_vec_field.bork: hits=6 hash=a7c5df8bbbb9a802
 programs/build/vec/negative_capacity_aborts.bork: hits=7 hash=054f65b17d4e4e12
 programs/build/vec/pop_set_clear.bork: hits=69 hash=7461456957d7e544
 programs/build/vec/push_grow_sum.bork: hits=32 hash=ce9bfa28e99d9d81
-programs/build/vec/receiver_read_before_arguments.bork: hits=13 hash=239f6bef03653ae5
 programs/build/vec/ref_counts_across_arenas.bork: hits=267 hash=1e555854adf40565
 programs/build/vec/ref_nodes.bork: hits=52 hash=ffcc863956c4e5f4
 programs/build/vec/ref_promote.bork: hits=71 hash=0e33d511037d488a

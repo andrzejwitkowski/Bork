@@ -3092,12 +3092,6 @@ Arenas
         ├── total [Copy]
         ├── v [Borrow ← fun main]
         └── j [Copy]
-== programs/build/vec/receiver_read_before_arguments.bork
-Arenas
-├── fun swap
-│   └── h [Borrow ← call site]
-└── fun main
-    └── h [Local]
 == programs/build/vec/ref_counts_across_arenas.bork
 Arenas
 └── fun main

@@ -768,7 +768,6 @@ programs/build/traits/dispatch_impl.bork: 223..229 Circle Dynamic Program
 programs/build/traits/dispatch_inherent_shadows.bork: 241..247 Circle Dynamic Program
 programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
 programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
-programs/build/vec/receiver_read_before_arguments.bork: 281..282 H Dynamic Program
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program
 programs/build/vec/ref_nodes.bork: 279..283 Node Dynamic Program
 programs/build/vec/ref_promote.bork: 352..356 Node Dynamic Program

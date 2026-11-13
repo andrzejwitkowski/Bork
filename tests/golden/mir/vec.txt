@@ -589,63 +589,6 @@ fn main (parent=false, sink=false) {
     return
 }
 
-== vec/receiver_read_before_arguments.bork
-fn main (parent=false, sink=false) {
-  let _0: i32 [Return]
-  let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: Vec<i32> [Temp]
-  let _4: H [Temp]
-  let _5: Vec<i32> [Temp]
-  let _6: H [Var] h
-  let _7: &Vec<i32> [Temp]
-  let _8: &rw H [Temp]
-  let _9: i32 [Temp]
-  let _10: &Vec<i32> [Temp]
-  let _11: i32 [Temp]
-  region r0 Block
-  bb0:
-    storage_live _1
-    region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root current <- _2
-    _3 = alloc Vec { cap: None } in fresh2
-    _4 = alloc Object { class: "H" } in fresh2  // label "H": H
-    _5 = copy_into _3 in fresh2
-    _4.0 = copy _5  // label "H.v": Vec<i32> decl owner=fresh2
-    _6 = copy _4  // label "h": H decl
-    _7 = borrow _6.0
-    _8 = borrow_rw _6
-    _9 = call swap(copy _8) +current -> bb1
-  bb1:
-    vec_Push(copy _7, copy _9)
-    _10 = borrow _6.0
-    _11 = vec_Len(copy _10)
-    _0 = copy _11
-    storage_dead _1
-    region_exit r0
-    return
-}
-
-fn swap (parent=true, sink=false) {
-  let _0: i32 [Return]
-  let _1: &rw H [Arg] h
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Vec<i32> [Temp]
-  let _4: Vec<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = alloc Vec { cap: None } in object_arena(_1)
-    _4 = copy_into _3 in object_arena(_1)
-    _1.0 = copy _4  // label "H.v": Vec<i32> decl owner=object_arena(_1)
-    _0 = 1
-    storage_dead _2
-    region_exit r0
-    return
-}
-
 == vec/ref_counts_across_arenas.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

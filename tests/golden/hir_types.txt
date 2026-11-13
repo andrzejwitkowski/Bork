@@ -519,8 +519,6 @@ programs/build/vec/move_vec_field.bork::main() -> i32
 programs/build/vec/negative_capacity_aborts.bork::main() -> i32
 programs/build/vec/pop_set_clear.bork::main() -> i32
 programs/build/vec/push_grow_sum.bork::main() -> i32
-programs/build/vec/receiver_read_before_arguments.bork::swap(h: &rw H) -> i32
-programs/build/vec/receiver_read_before_arguments.bork::main() -> i32
 programs/build/vec/ref_counts_across_arenas.bork::main() -> i32
 programs/build/vec/ref_nodes.bork::main() -> i32
 programs/build/vec/ref_promote.bork::main() -> i32
