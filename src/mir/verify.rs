@@ -9,9 +9,8 @@
 //! - **Value facts**, joined as a fixpoint over the CFG: a bare local is not read after it was moved (maybe-moved,
 //!   union at joins) or before it was initialised (definitely-initialised, intersection at joins).
 //!
-//! Not checked here: that the value stored into an arena does not outlive it. That is `mir::escape` (#217), which
-//! #260 makes authoritative; a second copy here would be the duplicate #237 item 5 asks to avoid. Moves out of a
-//! projected place (`a.f`) are not tracked either.
+//! Not checked here: that the value stored into an arena does not outlive it (that is `mir::escape`; a second copy
+//! here would be a duplicate), nor moves out of a projected place (`a.f`).
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::fmt;
