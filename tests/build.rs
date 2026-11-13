@@ -72,17 +72,14 @@ fn gate_rejection_exits_one_without_binary() {
 }
 
 #[test]
-fn moving_a_class_reports_a_diagnostic_without_panicking() {
-    let dir = scratch_dir("move_class_diagnostic");
+fn moving_a_class_passes_its_handle() {
+    let dir = scratch_dir("move_class");
     let (build, binary) = bork_build(
         &dir,
         "class Node { value: i32 }\nfun main(): i32 {\n var source = Node(42)\n val moved = move source\n return moved.value\n}",
     );
-    assert_eq!(build.status.code(), Some(1), "{build:?}");
-    assert!(
-        String::from_utf8_lossy(&build.stderr).contains("moving class objects is not supported")
-    );
-    assert!(!binary.exists());
+    assert_eq!(build.status.code(), Some(0), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(std::process::Command::new(&binary).status().unwrap().code(), Some(42));
 }
 
 fn build_and_run(name: &str, source: &str) -> std::process::Output {
@@ -1068,14 +1065,13 @@ fn enum_slot_is_sized_for_its_biggest_variant() {
 }
 
 #[test]
-fn moving_an_enum_value_is_rejected_not_a_crash() {
+fn moving_an_enum_value_passes_its_handle() {
     let (output, binary) = bork_build(
         &scratch_dir("move_enum"),
-        "enum E { A(s: String), B }\nfun main() {\n    val e = E.A(\"x\")\n    val f = move e\n}\n",
+        "enum E { A(s: String), B }\nfun main(): i32 {\n    val e = E.A(\"x\")\n    val f = move e\n    when f {\n        A(s) => { return s.length }\n        B => { return 0 }\n    }\n}\n",
     );
-    assert_eq!(output.status.code(), Some(1));
-    assert!(!binary.exists());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("moving enum values is not supported"));
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(std::process::Command::new(&binary).status().unwrap().code(), Some(1));
 }
 
 #[test]

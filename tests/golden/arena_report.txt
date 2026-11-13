@@ -790,6 +790,24 @@ Arenas
 │       └── n [Borrow ← presence guard]
 └── fun Box.get
     └── this [Borrow ← call site]
+== programs/build/enums/return_move_object.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   └── IfThen
+│       └── a [Moved ← fun make]
+└── fun main
+    ├── r [Local]
+    ├── s [Local]
+    ├── i [Local]
+    └── WhileLoop
+        └── i [Copy]
 == programs/build/enums/return_nested_hoisted_object.bork
 Arenas
 ├── fun churn
@@ -1118,6 +1136,12 @@ Arenas
 └── fun Pair.with
     ├── this [Borrow ← call site]
     └── c [Local]
+== programs/build/generics/promote_class_object.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── inner [Moved ← Block]
 == programs/build/generics/ref_cleanup.bork
 Arenas
 └── fun main
@@ -1919,6 +1943,92 @@ Arenas
     ├── outer [Local]
     └── Block
         └── piece [Moved ← Block]
+== programs/build/move_and_promote/enum_out_of_block.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    ├── Block
+    │   └── inner [Moved ← Block]
+    ├── MatchArm
+    │   └── p [Borrow ← pattern binding]
+    └── MatchArm
+== programs/build/move_and_promote/nullable_out_of_block.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   └── p [Local]
+└── fun main
+    ├── outer [Local]
+    ├── i [Local]
+    ├── Block
+    │   └── inner [Moved ← Block]
+    ├── WhileLoop
+    │   └── i [Copy]
+    ├── MatchArm
+    │   ├── e [Borrow ← pattern binding]
+    │   ├── MatchArm
+    │   │   └── p [Borrow ← pattern binding]
+    │   └── MatchArm
+    └── MatchArm
+== programs/build/move_and_promote/object_in_loop.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    ├── i [Local]
+    └── WhileLoop
+        ├── inner [Moved ← WhileLoop]
+        └── i [Copy]
+== programs/build/move_and_promote/object_out_of_block.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── inner [Moved ← Block]
+== programs/build/move_and_promote/object_through_call.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun take
+│   └── a [Local]
+└── fun main
+    ├── a [Moved ← fun main]
+    └── b [Local]
 == programs/build/move_and_promote/print_ints.bork
 Arenas
 └── fun main
@@ -1931,12 +2041,38 @@ Arenas
     └── Block
         ├── held [Local]
         └── held [Moved ← Block]
+== programs/build/move_and_promote/ref_array_out_of_block.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        └── inner [Moved ← Block]
 == programs/build/move_and_promote/regional_move.bork
 Arenas
 └── fun main
     ├── s [Local]
     └── MoveBlock (move)
         └── s [Moved ← fun main]
+== programs/build/move_and_promote/return_move_in_branches.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+├── fun make
+│   ├── flag [Local]
+│   ├── a [Local]
+│   ├── b [Moved ← fun make]
+│   └── IfThen
+│       └── a [Moved ← fun make]
+└── fun main
+    └── r [Local]
 == programs/build/move_and_promote/string_shared_nested.bork
 Arenas
 └── fun main
@@ -2024,6 +2160,11 @@ Arenas
     ├── IfThen
     ├── IfThen
     └── IfThen
+== programs/build/option/move_nullable_enum.bork
+Arenas
+└── fun main
+    ├── s [Moved ← fun main]
+    └── t [Local]
 == programs/build/option/nested_option_returned.bork
 Arenas
 ├── fun make
@@ -3315,24 +3456,6 @@ Arenas
     ├── IfThen
     ├── IfThen
     └── IfThen
-== programs/build_fail/enums/return_move_object.bork
-Arenas
-├── fun churn
-│   ├── k [Local]
-│   ├── a [Local]
-│   ├── b [Local]
-│   └── c [Local]
-├── fun make
-│   ├── flag [Local]
-│   ├── a [Local]
-│   └── IfThen
-│       └── a [Moved ← fun make]
-└── fun main
-    ├── r [Local]
-    ├── s [Local]
-    ├── i [Local]
-    └── WhileLoop
-        └── i [Copy]
 == programs/build_fail/escape_inner_return_string.bork
 Ownership Error [103..104] returning a `String` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
 Arenas
@@ -3342,12 +3465,6 @@ Arenas
 │       ├── x [Local]
 │       └── s [Moved ← fun mk]
 └── fun main
-== programs/build_fail/generics/promote_class_object.bork
-Arenas
-└── fun main
-    ├── outer [Local]
-    └── Block
-        └── inner [Moved ← Block]
 == programs/build_fail/main_returns_i64.bork
 Arenas
 └── fun main
@@ -3361,6 +3478,54 @@ Arenas
     ├── this [Borrow ← call site]
     ├── k [Local]
     └── f [Local]
+== programs/build_fail/move_in_branch.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    └── Block
+        ├── inner [Local]
+        └── IfThen
+            └── inner [Moved ← Block]
+== programs/build_fail/move_into_field.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── h [Local]
+    └── Block
+        └── inner [Moved ← Block]
+== programs/build_fail/move_not_next_statement.bork
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    └── Block
+        ├── inner [Moved ← Block]
+        └── z [Local]
 == programs/build_fail/nullable_object_equality.bork
 Arenas
 └── fun main
@@ -3380,11 +3545,6 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── IfThen
-== programs/build_fail/option/move_nullable_enum.bork
-Arenas
-└── fun main
-    ├── s [Moved ← fun main]
-    └── t [Local]
 == programs/build_fail/option/safe_field_of_enum.bork
 Arenas
 └── fun main

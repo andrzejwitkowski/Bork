@@ -178,6 +178,666 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== move_and_promote/enum_out_of_block.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: E [Temp]
+  let _4: E [Var] outer
+  let _5: unit [Hidden(DebugScope)]
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: P [Temp]
+  let _8: E [Temp]
+  let _9: E [Val] inner
+  let _10: unit [Temp]
+  let _11: &P [Val] p
+  let _12: unit [Hidden(DebugScope)]
+  let _13: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 Block in r0
+  region r2 MatchArm in r0
+  region r3 MatchArm in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc EnumSlot { enum_name: "E", variant: 1 } in fresh2  // label "E": E
+    _4 = copy _3  // label "outer": E decl
+    region_enter r1
+    storage_live _5
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_4) <- _6
+    _7 = alloc Object { class: "P" } in fresh6  // label "P": P
+    _7.0 = 7  // label "P.n": i32 decl owner=fresh6
+    _8 = alloc EnumSlot { enum_name: "E", variant: 0 } in fresh6  // label "E": E
+    _8@0.0 = copy _7  // label "E.A.p": P decl owner=fresh6
+    _9 = copy _8  // label "inner": E decl
+    _4 = move _9
+    storage_dead _5
+    region_exit r1
+    _10 = call spin() +current -> bb1
+  bb1:
+    match _4 {
+      E#0(bind) _11=_4@0.0 -> bb3
+      E#1() -> bb4
+    }
+  bb2:
+    unreachable
+  bb3:
+    storage_live _12
+    _0 = copy _11.0
+    storage_dead _12
+    storage_dead _1
+    region_exit r0
+    return
+  bb4:
+    storage_live _13
+    _0 = 0
+    storage_dead _13
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] i
+  let _3: bool [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 0  // label "i": i32 decl
+    storage_live _4
+    goto bb1
+  bb1:
+    _3 = lt(copy _2, 300)
+    switch copy _3 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _5
+    _6 = call churn(copy _2) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _4
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _7 = add(copy _2, 1)
+    _2 = copy _7
+    storage_dead _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: P [Temp]
+  let _4: P [Val] p
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: P [Val] q
+  let _8: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = copy _3  // label "p": P decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current  // label "P": P
+    _6.0 = copy _5  // label "P.n": i32 decl owner=current
+    _7 = copy _6  // label "q": P decl
+    _8 = add(copy _4.0, copy _7.0)
+    _0 = copy _8
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== move_and_promote/nullable_out_of_block.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: E? [Temp]
+  let _4: E? [Var] outer
+  let _5: unit [Hidden(DebugScope)]
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: P [Temp]
+  let _8: E [Temp]
+  let _9: E? [Temp]
+  let _10: E? [Val] inner
+  let _11: i32 [Var] i
+  let _12: bool [Temp]
+  let _13: unit [Hidden(DebugScope)]
+  let _14: unit [Hidden(DebugScope)]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  let _17: &E [Val] e
+  let _18: unit [Hidden(DebugScope)]
+  let _19: &P [Val] p
+  let _20: unit [Hidden(DebugScope)]
+  let _21: unit [Hidden(DebugScope)]
+  let _22: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 Block in r0
+  region r2 While in r0
+  region r3 MatchArm in r0
+  region r4 MatchArm in r3
+  region r5 MatchArm in r3
+  region r6 MatchArm in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc EnumSlot { enum_name: "Option<E>", variant: 1 } in fresh2  // label "Option<E>": E?
+    _4 = copy _3  // label "outer": E? decl
+    region_enter r1
+    storage_live _5
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_4) <- _6
+    _7 = alloc Object { class: "P" } in fresh6  // label "P": P
+    _7.0 = 11  // label "P.n": i32 decl owner=fresh6
+    _8 = alloc EnumSlot { enum_name: "E", variant: 0 } in fresh6  // label "E": E
+    _8@0.0 = copy _7  // label "E.A.p": P decl owner=fresh6
+    _9 = alloc EnumSlot { enum_name: "Option<E>", variant: 0 } in fresh6  // label "Option<E>": E?
+    _9@0.0 = copy _8  // label "Option<E>.Some.value": E decl owner=fresh6
+    _10 = copy _9  // label "inner": E? decl
+    _4 = move _10
+    storage_dead _5
+    region_exit r1
+    _11 = 0  // label "i": i32 decl
+    storage_live _13
+    goto bb1
+  bb1:
+    _12 = lt(copy _11, 300)
+    switch copy _12 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _14
+    _15 = call churn(copy _11) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _13
+    match _4 {
+      Option#0(bind) _17=_4@0.0 -> bb7
+      Option#1() -> bb8
+    }
+  bb5:
+    _16 = add(copy _11, 1)
+    _11 = copy _16
+    storage_dead _14
+    goto bb3
+  bb6:
+    unreachable
+  bb7:
+    storage_live _18
+    match _17 {
+      E#0(bind) _19=_17@0.0 -> bb10
+      E#1() -> bb11
+    }
+  bb8:
+    storage_live _22
+    _0 = 1
+    storage_dead _22
+    storage_dead _1
+    region_exit r0
+    return
+  bb9:
+    storage_dead _18
+    goto bb6
+  bb10:
+    storage_live _20
+    _0 = copy _19.0
+    storage_dead _20
+    storage_dead _18
+    storage_dead _1
+    region_exit r0
+    return
+  bb11:
+    storage_live _21
+    _0 = 0
+    storage_dead _21
+    storage_dead _18
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: P [Temp]
+  let _4: P [Val] p
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = copy _3  // label "p": P decl
+    _0 = copy _4.0
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== move_and_promote/object_in_loop.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: P [Temp]
+  let _4: A [Temp]
+  let _5: A [Var] outer
+  let _6: i32 [Var] i
+  let _7: bool [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(RegionArena)]
+  let _10: unit [Hidden(DebugScope)]
+  let _11: unit [Hidden(DynamicArena)]
+  let _12: P [Temp]
+  let _13: A [Temp]
+  let _14: A [Val] inner
+  let _15: unit [Temp]
+  let _16: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 0  // label "P.n": i32 decl owner=fresh2
+    _4 = alloc Object { class: "A" } in fresh2  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=fresh2
+    _5 = copy _4  // label "outer": A decl
+    _6 = 0  // label "i": i32 decl
+    region_enter r1
+    storage_live _8
+    goto bb1
+  bb1:
+    _7 = lt(copy _6, 20)
+    switch copy _7 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _10
+    _11 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_5) <- _11
+    _12 = alloc Object { class: "P" } in fresh11  // label "P": P
+    _12.0 = copy _6  // label "P.n": i32 decl owner=fresh11
+    _13 = alloc Object { class: "A" } in fresh11  // label "A": A
+    _13.0 = copy _12  // label "A.x": P decl owner=fresh11
+    _14 = copy _13  // label "inner": A decl
+    _5 = move _14
+    _15 = call spin() +current -> bb5
+  bb3:
+    _9 = region_reset r1
+    goto bb1
+  bb4:
+    storage_dead _8
+    region_exit r1
+    _0 = copy _5.0.0
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _16 = add(copy _6, 1)
+    _6 = copy _16
+    storage_dead _10
+    goto bb3
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] i
+  let _3: bool [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 0  // label "i": i32 decl
+    storage_live _4
+    goto bb1
+  bb1:
+    _3 = lt(copy _2, 300)
+    switch copy _3 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _5
+    _6 = call churn(copy _2) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _4
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _7 = add(copy _2, 1)
+    _2 = copy _7
+    storage_dead _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: String [Temp]
+  let _4: String [Val] a
+  let _5: String [Temp]
+  let _6: String [Val] b
+  let _7: P [Temp]
+  let _8: P [Val] p
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: P [Val] q
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic Concat("ZZZZZZ", "ZZZ") in current
+    _4 = copy _3  // label "a": String decl
+    _5 = intrinsic Concat("YYYYYY", "YYY") in current
+    _6 = copy _5  // label "b": String decl
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _1  // label "P.n": i32 decl owner=current
+    _8 = copy _7  // label "p": P decl
+    _9 = add(copy _1, 1)
+    _10 = alloc Object { class: "P" } in current  // label "P": P
+    _10.0 = copy _9  // label "P.n": i32 decl owner=current
+    _11 = copy _10  // label "q": P decl
+    _12 = len(_4)
+    _13 = len(_6)
+    _14 = add(copy _12, copy _13)
+    _15 = add(copy _14, copy _8.0)
+    _16 = add(copy _15, copy _11.0)
+    _0 = copy _16
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== move_and_promote/object_out_of_block.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: P [Temp]
+  let _4: A [Temp]
+  let _5: A [Var] outer
+  let _6: unit [Hidden(DebugScope)]
+  let _7: unit [Hidden(DynamicArena)]
+  let _8: P [Temp]
+  let _9: A [Temp]
+  let _10: A [Val] inner
+  let _11: unit [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 1  // label "P.n": i32 decl owner=fresh2
+    _4 = alloc Object { class: "A" } in fresh2  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=fresh2
+    _5 = copy _4  // label "outer": A decl
+    region_enter r1
+    storage_live _6
+    _7 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_5) <- _7
+    _8 = alloc Object { class: "P" } in fresh7  // label "P": P
+    _8.0 = 42  // label "P.n": i32 decl owner=fresh7
+    _9 = alloc Object { class: "A" } in fresh7  // label "A": A
+    _9.0 = copy _8  // label "A.x": P decl owner=fresh7
+    _10 = copy _9  // label "inner": A decl
+    _5 = move _10
+    storage_dead _6
+    region_exit r1
+    _11 = call spin() +current -> bb1
+  bb1:
+    _0 = copy _5.0.0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] i
+  let _3: bool [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 0  // label "i": i32 decl
+    storage_live _4
+    goto bb1
+  bb1:
+    _3 = lt(copy _2, 300)
+    switch copy _3 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _5
+    _6 = call churn(copy _2) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _4
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _7 = add(copy _2, 1)
+    _2 = copy _7
+    storage_dead _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: String [Temp]
+  let _4: String [Val] a
+  let _5: String [Temp]
+  let _6: String [Val] b
+  let _7: P [Temp]
+  let _8: P [Val] p
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: P [Val] q
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic Concat("ZZZZZZ", "ZZZ") in current
+    _4 = copy _3  // label "a": String decl
+    _5 = intrinsic Concat("YYYYYY", "YYY") in current
+    _6 = copy _5  // label "b": String decl
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _1  // label "P.n": i32 decl owner=current
+    _8 = copy _7  // label "p": P decl
+    _9 = add(copy _1, 1)
+    _10 = alloc Object { class: "P" } in current  // label "P": P
+    _10.0 = copy _9  // label "P.n": i32 decl owner=current
+    _11 = copy _10  // label "q": P decl
+    _12 = len(_4)
+    _13 = len(_6)
+    _14 = add(copy _12, copy _13)
+    _15 = add(copy _14, copy _8.0)
+    _16 = add(copy _15, copy _11.0)
+    _0 = copy _16
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== move_and_promote/object_through_call.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: P [Temp]
+  let _4: A [Temp]
+  let _5: A [Val] a
+  let _6: A [Temp]
+  let _7: A [Val] b
+  let _8: unit [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 9  // label "P.n": i32 decl owner=fresh2
+    _4 = alloc Object { class: "A" } in fresh2  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=fresh2
+    _5 = copy _4  // label "a": A decl
+    _6 = call take(move _5) +current +current -> bb1
+  bb1:
+    _7 = copy _6  // label "b": A decl
+    _8 = call spin() +current -> bb2
+  bb2:
+    _0 = copy _7.0.0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn take (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: A [Arg] a
+  let _2: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _0 = copy _1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] i
+  let _3: bool [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 0  // label "i": i32 decl
+    storage_live _4
+    goto bb1
+  bb1:
+    _3 = lt(copy _2, 300)
+    switch copy _3 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _5
+    _6 = call churn(copy _2) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _4
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _7 = add(copy _2, 1)
+    _2 = copy _7
+    storage_dead _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: String [Temp]
+  let _4: String [Val] a
+  let _5: String [Temp]
+  let _6: String [Val] b
+  let _7: P [Temp]
+  let _8: P [Val] p
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: P [Val] q
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic Concat("ZZZZZZ", "ZZZ") in current
+    _4 = copy _3  // label "a": String decl
+    _5 = intrinsic Concat("YYYYYY", "YYY") in current
+    _6 = copy _5  // label "b": String decl
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _1  // label "P.n": i32 decl owner=current
+    _8 = copy _7  // label "p": P decl
+    _9 = add(copy _1, 1)
+    _10 = alloc Object { class: "P" } in current  // label "P": P
+    _10.0 = copy _9  // label "P.n": i32 decl owner=current
+    _11 = copy _10  // label "q": P decl
+    _12 = len(_4)
+    _13 = len(_6)
+    _14 = add(copy _12, copy _13)
+    _15 = add(copy _14, copy _8.0)
+    _16 = add(copy _15, copy _11.0)
+    _0 = copy _16
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == move_and_promote/print_ints.bork
 fn main (parent=false, sink=false) {
   let _0: unit [Return]
@@ -231,6 +891,79 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== move_and_promote/ref_array_out_of_block.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: P [Temp]
+  let _4: Ref<P> [Temp]
+  let _5: unit [Hidden(DynamicArena)]
+  let _6: P [Temp]
+  let _7: Ref<P> [Temp]
+  let _8: [Ref<P>; 2] [Temp]
+  let _9: [Ref<P>; 2] [Var] outer
+  let _10: unit [Hidden(DebugScope)]
+  let _11: unit [Hidden(DynamicArena)]
+  let _12: P [Temp]
+  let _13: Ref<P> [Temp]
+  let _14: unit [Hidden(DynamicArena)]
+  let _15: P [Temp]
+  let _16: Ref<P> [Temp]
+  let _17: [Ref<P>; 2] [Temp]
+  let _18: [Ref<P>; 2] [Var] inner
+  let _19: [Ref<P>; 2] [Temp]
+  let _20: [Ref<P>; 2] [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 1  // label "P.n": i32 decl owner=fresh2
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _5
+    _6 = alloc Object { class: "P" } in fresh5  // label "P": P
+    _6.0 = 2  // label "P.n": i32 decl owner=fresh5
+    _7 = ref_create source=current target=object_arena(_6) copy _6
+    _8 = alloc Array in current
+    ref_store_fresh _8[0] owner=current move _4  // label "[]": Ref<P> owner=current index=0
+    register_drop current _8[0] RefSlot
+    ref_store_fresh _8[1] owner=current move _7  // label "[]": Ref<P> owner=current index=1
+    register_drop current _8[1] RefSlot
+    _9 = copy _8  // label "outer": [Ref<P>; 2] decl
+    region_enter r1
+    storage_live _10
+    _11 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _11
+    _12 = alloc Object { class: "P" } in fresh11  // label "P": P
+    _12.0 = 7  // label "P.n": i32 decl owner=fresh11
+    _13 = ref_create source=current target=object_arena(_12) copy _12
+    _14 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _14
+    _15 = alloc Object { class: "P" } in fresh14  // label "P": P
+    _15.0 = 8  // label "P.n": i32 decl owner=fresh14
+    _16 = ref_create source=current target=object_arena(_15) copy _15
+    _17 = alloc Array in current
+    ref_store_fresh _17[0] owner=current move _13  // label "[]": Ref<P> owner=current index=0
+    register_drop current _17[0] RefSlot
+    ref_store_fresh _17[1] owner=current move _16  // label "[]": Ref<P> owner=current index=1
+    register_drop current _17[1] RefSlot
+    _18 = copy _17  // label "inner": [Ref<P>; 2] decl
+    _19 = move _18
+    _20 = copy_into _19 in home(_9)
+    _9 = copy _20
+    storage_dead _10
+    region_exit r1
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == move_and_promote/regional_move.bork
 fn main (parent=false, sink=false) {
   let _0: unit [Return]
@@ -247,6 +980,150 @@ fn main (parent=false, sink=false) {
     intrinsic PrintlnStr(copy _2)
     storage_dead _3
     storage_dead _1
+    region_exit r0
+    return
+}
+
+== move_and_promote/return_move_in_branches.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: A [Temp]
+  let _3: A [Val] r
+  let _4: unit [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = call make(false) +current +current -> bb1
+  bb1:
+    _3 = copy _2  // label "r": A decl
+    _4 = call spin() +current -> bb2
+  bb2:
+    _0 = copy _3.0.0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn make (parent=true, sink=true) {
+  let _0: A [Return]
+  let _1: bool [Arg] flag
+  let _2: unit [Hidden(DebugScope)]
+  let _3: P [Temp]
+  let _4: A [Temp]
+  let _5: A [Val] a
+  let _6: P [Temp]
+  let _7: A [Temp]
+  let _8: A [Val] b
+  let _9: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _3.0 = 5  // label "P.n": i32 decl owner=result_sink
+    _4 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _4.0 = copy _3  // label "A.x": P decl owner=result_sink
+    _5 = copy _4  // label "a": A decl
+    _6 = alloc Object { class: "P" } in result_sink  // label "P": P
+    _6.0 = 6  // label "P.n": i32 decl owner=result_sink
+    _7 = alloc Object { class: "A" } in result_sink  // label "A": A
+    _7.0 = copy _6  // label "A.x": P decl owner=result_sink
+    _8 = copy _7  // label "b": A decl
+    switch copy _1 [ 1 -> bb1, else -> bb2]
+  bb1:
+    storage_live _9
+    _0 = move _5
+    storage_dead _9
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    _0 = move _8
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn spin (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] i
+  let _3: bool [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 0  // label "i": i32 decl
+    storage_live _4
+    goto bb1
+  bb1:
+    _3 = lt(copy _2, 300)
+    switch copy _3 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _5
+    _6 = call churn(copy _2) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _4
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _7 = add(copy _2, 1)
+    _2 = copy _7
+    storage_dead _5
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: String [Temp]
+  let _4: String [Val] a
+  let _5: String [Temp]
+  let _6: String [Val] b
+  let _7: P [Temp]
+  let _8: P [Val] p
+  let _9: i32 [Temp]
+  let _10: P [Temp]
+  let _11: P [Val] q
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic Concat("ZZZZZZ", "ZZZ") in current
+    _4 = copy _3  // label "a": String decl
+    _5 = intrinsic Concat("YYYYYY", "YYY") in current
+    _6 = copy _5  // label "b": String decl
+    _7 = alloc Object { class: "P" } in current  // label "P": P
+    _7.0 = copy _1  // label "P.n": i32 decl owner=current
+    _8 = copy _7  // label "p": P decl
+    _9 = add(copy _1, 1)
+    _10 = alloc Object { class: "P" } in current  // label "P": P
+    _10.0 = copy _9  // label "P.n": i32 decl owner=current
+    _11 = copy _10  // label "q": P decl
+    _12 = len(_4)
+    _13 = len(_6)
+    _14 = add(copy _12, copy _13)
+    _15 = add(copy _14, copy _8.0)
+    _16 = add(copy _15, copy _11.0)
+    _0 = copy _16
+    storage_dead _2
     region_exit r0
     return
 }

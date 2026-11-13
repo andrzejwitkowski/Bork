@@ -37,9 +37,6 @@ impl BuildError {
     pub(super) fn unsupported(capability: Capability, span: Span) -> BuildError {
         BuildError::Unsupported(Unsupported { capability, span, message: None })
     }
-    pub(super) fn unsupported_with(capability: Capability, span: Span, message: &'static str) -> BuildError {
-        BuildError::Unsupported(Unsupported { capability, span, message: Some(message) })
-    }
     pub(super) fn unlowered(what: impl Into<String>, span: Span) -> BuildError {
         BuildError::Unlowered { what: what.into(), span }
     }
@@ -137,6 +134,14 @@ struct Open {
     pushed: bool,
 }
 
+/// An arena as the builder names it, independent of whether the region owns a pushed arena (`codegen_push`), so the
+/// same program gets the same verdict in neutral and non-neutral mode.
+#[derive(Clone, PartialEq)]
+pub(super) enum SinkKey {
+    Region(RegionId),
+    Other(ArenaRef),
+}
+
 /// A point in the open regions and live debug scopes that `exit_to` unwinds to. Captured together so the two
 /// stacks cannot disagree.
 #[derive(Clone, Copy, Default)]
@@ -178,6 +183,8 @@ pub(super) struct FnBuilder<'a> {
     pub(super) bool_ty: TyId,
     /// Arena that fresh payloads are allocated in (`alloc_sink` in the LLVM emitter).
     pub(super) sink: ArenaRef,
+    /// Where each `val`/`var` initialiser was allocated, for deciding whether a `move` of an object may pass its handle.
+    pub(super) decl_sinks: HashMap<Local, SinkKey>,
     /// See [`build_program_neutral`].
     pub(super) neutral: bool,
 }
@@ -211,6 +218,7 @@ impl<'a> FnBuilder<'a> {
             unit: tcx.prim_id(Prim::Unit),
             bool_ty: tcx.prim_id(Prim::Bool),
             sink: ArenaRef::Current,
+            decl_sinks: HashMap::new(),
             neutral,
         }
     }
@@ -456,6 +464,13 @@ impl<'a> FnBuilder<'a> {
 
     pub(super) fn innermost_pushed(&self) -> Option<RegionId> {
         self.open.iter().rev().find(|o| o.pushed).map(|o| o.id)
+    }
+
+    pub(super) fn sink_key(&self, a: &ArenaRef) -> SinkKey {
+        match a {
+            ArenaRef::Current => SinkKey::Region(self.cur_region()),
+            other => SinkKey::Other(other.clone()),
+        }
     }
 
     pub(super) fn mark(&self) -> Mark {

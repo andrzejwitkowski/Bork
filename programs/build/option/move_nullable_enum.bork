@@ -1,0 +1,11 @@
+// exit: 0
+// A moved `T?` of an enum passes its handle: copying the slot would leave the enum payload pointing into the source's arena.
+enum Shape {
+    Circle(r: i32),
+    Empty,
+}
+
+fun main() {
+    val s: Shape? = Some(Shape.Circle(1))
+    val t = move s
+}

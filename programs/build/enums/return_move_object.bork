@@ -1,4 +1,6 @@
-// diag: moving class objects is not supported
+// exit: 0
+// stdout: 1\n2\n
+// `return move a` hands the object to the caller's result arena; the churn loop would clobber it otherwise.
 class P { n: i32 }
 class A { x: P }
 class W { a: A }

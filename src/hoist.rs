@@ -95,7 +95,7 @@ fn hoist_target(
 fn value_may_hoist(value: &crate::hir::HirExpr) -> bool {
     matches!(
         value.kind,
-        HirExprKind::Str { .. } | HirExprKind::Call { .. }
+        HirExprKind::Str { .. } | HirExprKind::Call { .. } | HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. }
     )
 }
 

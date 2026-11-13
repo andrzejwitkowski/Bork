@@ -19,7 +19,14 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn stmt_of(&mut self, s: &HirStmt, span: Span) -> Res<()> {
         match s {
             HirStmt::Return { value } => {
-                let v = value.as_ref().map(|v| self.expr(v)).transpose()?;
+                // `return move a` hands an object to the caller's result arena.
+                let v = match value.as_ref() {
+                    Some(v) => {
+                        let to_result = self.abi.result_sink && matches!(v.kind, HirExprKind::Ident { .. }) && self.moves_handle(v.ty);
+                        Some(if to_result { self.with_sink(ArenaRef::ResultSink, |b| b.expr(v))? } else { self.expr(v)? })
+                    }
+                    None => None,
+                };
                 if let Some(mut v) = v.filter(|_| !self.is_unit(self.function.return_ty)) {
                     if self.abi.result_sink {
                         v = self.materialize(v, self.function.return_ty, &ArenaRef::ResultSink, span)?;
@@ -33,16 +40,18 @@ impl<'a> FnBuilder<'a> {
             HirStmt::Block(b) => self.region_block(RegionSite::Block, b, span),
             HirStmt::MoveBlock { body, .. } => self.region_block(RegionSite::MoveBlock, body, span),
             HirStmt::VarDecl { kind, name, ty, value, alloc_in_binding } => {
-                let v = match alloc_in_binding.as_deref() {
-                    None => self.expr(value)?,
-                    Some(crate::hoist::RESULT_SINK) => self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?,
+                let (sink, v) = match alloc_in_binding.as_deref() {
+                    None => (self.sink.clone(), self.expr(value)?),
+                    Some(crate::hoist::RESULT_SINK) => (ArenaRef::ResultSink, self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?),
                     Some(target) => {
                         let home = self.lookup(target, span)?;
-                        self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?
+                        (ArenaRef::Home(home), self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?)
                     }
                 };
+                let key = self.sink_key(&sink);
                 let local_kind = if matches!(kind, BindingKind::Val) { LocalKind::Val } else { LocalKind::Var };
                 let local = self.new_local(*ty, local_kind, Some(name.clone()));
+                self.decl_sinks.insert(local, key);
                 let label = DebugLabel {
                     name: name.clone(),
                     ty: *ty,

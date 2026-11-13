@@ -35,6 +35,9 @@ fun Pair.with<i32,bool,i32>
 fun Pair.first<i32,bool>
 class Pair<i32,bool>
 class Pair<i32,String>
+== programs/build/generics/promote_class_object.bork
+fun main
+class Box<String>
 == programs/build/generics/ref_cleanup.bork
 fun main
 class Box<i32>
