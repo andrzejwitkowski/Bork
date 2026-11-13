@@ -1,0 +1,19 @@
+// exit: 24
+// stdout: hellox\n
+// a String stored through a borrowed Vec lives in the Vec's arena, not the callee's: it survives the call and later allocations
+fun clobber(): i32 {
+    val a = concat("ZZZZZZ", "ZZZ")
+    val b = concat("YYYYYY", "YYY")
+    return a.length + b.length
+}
+fun set(v: &rw Vec<String>) {
+    v[0] = concat("hello", "x")
+}
+fun main(): i32 {
+    var v = Vec<String>()
+    v.push("z")
+    set(&rw v)
+    val c = clobber()
+    println(v.get(0))
+    return v.get(0).length + c
+}

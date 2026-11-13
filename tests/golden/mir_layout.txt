@@ -480,6 +480,8 @@ class Circle size=8 align=8 fields=[0]
 class Square size=8 align=8 fields=[0]
 == programs/build/traits/dispatch_inherent_shadows.bork
 class Circle size=8 align=8 fields=[0]
+== programs/build/vec/index_through_field.bork
+class H size=8 align=8 fields=[0]
 == programs/build/vec/pop_set_clear.bork
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/vec/ref_counts_across_arenas.bork

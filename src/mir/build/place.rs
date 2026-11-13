@@ -52,6 +52,18 @@ impl<'a> FnBuilder<'a> {
         }
     }
 
+    /// A `Vec` is a handle to a header in its arena, so `h.v[0]` can run on a copy of the handle in a temporary: the
+    /// lowering only takes a bare local as receiver.
+    fn vec_receiver(&mut self, receiver: &HirExpr) -> Res<Operand> {
+        let recv = self.expr(receiver)?;
+        match &recv {
+            Operand::Copy(p) | Operand::Move(p) | Operand::Reborrow(p) if !p.is_bare() => {
+                Ok(Operand::Copy(Place::local(self.operand_local(recv.clone(), receiver.ty, span_of(receiver)))))
+            }
+            _ => Ok(recv),
+        }
+    }
+
     /// An index is a constant or a bare local (LLVM lowering reads nothing else); `a[b[1]]` copies `b[1]` into a temporary.
     fn index_operand(&mut self, index: &HirExpr) -> Res<Operand> {
         let idx = self.expr(index)?;
@@ -87,7 +99,7 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn index(&mut self, e: &HirExpr, receiver: &HirExpr, index: &HirExpr) -> Res<Operand> {
         let span = span_of(e);
         if self.is_vec_ty(receiver.ty) {
-            let recv = self.expr(receiver)?;
+            let recv = self.vec_receiver(receiver)?;
             let idx = self.index_operand(index)?;
             return Ok(self.vec_op(e, VecOp::Get, recv, vec![idx]));
         }
@@ -143,7 +155,7 @@ impl<'a> FnBuilder<'a> {
     }
 
     pub(super) fn vec_op_expr(&mut self, e: &HirExpr, op: VecOp, receiver: &HirExpr, args: &[HirExpr]) -> Res<Operand> {
-        let recv = self.expr(receiver)?;
+        let recv = self.vec_receiver(receiver)?;
         let mut ops = Vec::with_capacity(args.len());
         for (i, a) in args.iter().enumerate() {
             let is_index = i == 0 && matches!(op, VecOp::Get | VecOp::Set);

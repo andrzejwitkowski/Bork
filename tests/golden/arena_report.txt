@@ -21,6 +21,11 @@ Arenas
 == programs/build/basics/return_constant.bork
 Arenas
 └── fun main
+== programs/build/basics/unit_equality.bork
+Arenas
+├── fun f
+└── fun main
+    └── IfThen
 == programs/build/basics/unit_main.bork
 Arenas
 └── fun main
@@ -3008,6 +3013,16 @@ Arenas
 │   └── this [Borrow ← call site]
 └── fun Show@0.show
     └── this [Borrow ← call site]
+== programs/build/vec/assign_concat_through_borrowed_vec.bork
+Arenas
+├── fun clobber
+│   ├── a [Local]
+│   └── b [Local]
+├── fun set
+│   └── v [Borrow ← call site]
+└── fun main
+    ├── v [Local]
+    └── c [Local]
 == programs/build/vec/grow_past_page.bork
 Arenas
 └── fun main
@@ -3027,6 +3042,11 @@ Arenas
 └── fun main
     ├── a [Local]
     └── b [Local]
+== programs/build/vec/index_through_field.bork
+Arenas
+└── fun main
+    ├── h [Local]
+    └── a [Local]
 == programs/build/vec/move_to_outer.bork
 Arenas
 └── fun main
@@ -3299,6 +3319,9 @@ Arenas
     ├── outer [Local]
     └── Block
         └── inner [Moved ← Block]
+== programs/build_fail/main_returns_i64.bork
+Arenas
+└── fun main
 == programs/build_fail/methods/trailing_closure.bork
 Arenas
 ├── fun main
@@ -3357,6 +3380,21 @@ Arenas
 │   ├── b [Local]
 │   └── s [Local]
 └── fun main
+== programs/build_fail/unit_field.bork
+Arenas
+├── fun g
+└── fun main
+    └── p [Local]
+== programs/build_fail/unit_param.bork
+Arenas
+├── fun f
+│   └── u [Local]
+├── fun g
+└── fun main
+== programs/build_fail/unit_vec_element.bork
+Arenas
+└── fun main
+    └── v [Local]
 == programs/check/borrow/array_slice_length.bork
 Arenas
 └── fun main

@@ -16,10 +16,13 @@ pub enum Capability {
     UnitElem,
     UnitPayloadBind,
     ObjectEquality,
+    UnitParam,
+    UnitField,
+    MainSignature,
 }
 
 impl Capability {
-    pub const ALL: [Capability; 10] = [
+    pub const ALL: [Capability; 13] = [
         Capability::Closure,
         Capability::MatchRef,
         Capability::PatPresence,
@@ -30,6 +33,9 @@ impl Capability {
         Capability::UnitElem,
         Capability::UnitPayloadBind,
         Capability::ObjectEquality,
+        Capability::UnitParam,
+        Capability::UnitField,
+        Capability::MainSignature,
     ];
 
     pub fn id(self) -> &'static str {
@@ -44,6 +50,9 @@ impl Capability {
             Capability::UnitElem => "unit-elem",
             Capability::UnitPayloadBind => "unit-payload-bind",
             Capability::ObjectEquality => "object-equality",
+            Capability::UnitParam => "unit-param",
+            Capability::UnitField => "unit-field",
+            Capability::MainSignature => "main-signature",
         }
     }
 
@@ -60,6 +69,9 @@ impl Capability {
             Capability::UnitElem => "a `unit` element is not supported by codegen yet",
             Capability::UnitPayloadBind => "reading a bound `unit` payload is not supported by codegen yet",
             Capability::ObjectEquality => "comparing objects with `==` is not supported by codegen yet",
+            Capability::UnitParam => "a `unit` parameter is not supported by codegen yet",
+            Capability::UnitField => "a `unit` class field is not supported by codegen yet",
+            Capability::MainSignature => "`main` must take no parameters and return `i32` or `unit` for codegen",
         }
     }
 }

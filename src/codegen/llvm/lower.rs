@@ -285,7 +285,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         ArenaRef::Home(l) if homes.contains_key(l) => true,
         ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => body.local(*l).is_some_and(|d| {
             // A view of a class or enum (`&T`, observed `Ref`) is still the `{arena, object}` handle.
-            plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some() || (cx.tcx.ref_inner(d.ty).is_none() && plain_vec(cx, d.ty).is_some())
+            plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some() || plain_vec(cx, d.ty).is_some()
         }),
     };
     for block in &body.blocks {

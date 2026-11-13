@@ -1,3 +1,90 @@
+== vec/assign_concat_through_borrowed_vec.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<String> [Temp]
+  let _3: Vec<String> [Var] v
+  let _4: &Vec<String> [Temp]
+  let _5: &rw Vec<String> [Temp]
+  let _6: unit [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Val] c
+  let _9: &Vec<String> [Temp]
+  let _10: String [Temp]
+  let _11: &Vec<String> [Temp]
+  let _12: String [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<String> decl
+    _4 = borrow _3
+    vec_Push(copy _4, "z")
+    _5 = borrow_rw _3
+    _6 = call set(copy _5) +current -> bb1
+  bb1:
+    _7 = call clobber() +current -> bb2
+  bb2:
+    _8 = copy _7  // label "c": i32 decl
+    _9 = borrow _3
+    _10 = vec_Get(copy _9, 0)
+    intrinsic PrintlnStr(copy _10)
+    _11 = borrow _3
+    _12 = vec_Get(copy _11, 0)
+    _13 = len(_12)
+    _14 = add(copy _13, copy _8)
+    _0 = copy _14
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn set (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &rw Vec<String> [Arg] v
+  let _2: unit [Hidden(DebugScope)]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic Concat("hello", "x") in home(_1)
+    vec_Set(reborrow _1, 0, copy _3)
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn clobber (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: String [Temp]
+  let _3: String [Val] a
+  let _4: String [Temp]
+  let _5: String [Val] b
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = intrinsic Concat("ZZZZZZ", "ZZZ") in current
+    _3 = copy _2  // label "a": String decl
+    _4 = intrinsic Concat("YYYYYY", "YYY") in current
+    _5 = copy _4  // label "b": String decl
+    _6 = len(_3)
+    _7 = len(_5)
+    _8 = add(copy _6, copy _7)
+    _0 = copy _8
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == vec/grow_past_page.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
@@ -123,6 +210,56 @@ fn main (parent=false, sink=false) {
     switch copy _12 [ 1 -> bb6, else -> bb4]
   bb6:
     _0 = copy _3[copy _9]
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+== vec/index_through_field.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<i32> [Temp]
+  let _3: H [Temp]
+  let _4: Vec<i32> [Temp]
+  let _5: H [Var] h
+  let _6: &Vec<i32> [Temp]
+  let _7: &Vec<i32> [Temp]
+  let _8: Vec<i32> [Temp]
+  let _9: i32 [Temp]
+  let _10: i32 [Val] a
+  let _11: &Vec<i32> [Temp]
+  let _12: Vec<i32> [Temp]
+  let _13: i32 [Temp]
+  let _14: i32 [Temp]
+  let _15: &Vec<i32> [Temp]
+  let _16: i32 [Temp]
+  let _17: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = alloc Object { class: "H" } in current  // label "H": H
+    _4 = copy_into _2 in current
+    _3.0 = copy _4  // label "H.v": Vec<i32> decl owner=current
+    _5 = copy _3  // label "h": H decl
+    _6 = borrow _5.0
+    vec_Push(copy _6, 4)
+    _7 = borrow _5.0
+    vec_Push(copy _7, 5)
+    _8 = copy _5.0
+    _9 = vec_Get(copy _8, 0)
+    _10 = copy _9  // label "a": i32 decl
+    _11 = borrow _5.0
+    vec_Push(copy _11, 6)
+    _12 = copy _5.0
+    _13 = vec_Get(copy _12, 2)
+    _14 = add(copy _10, copy _13)
+    _15 = borrow _5.0
+    _16 = vec_Len(copy _15)
+    _17 = add(copy _14, copy _16)
+    _0 = copy _17
     storage_dead _1
     region_exit r0
     return

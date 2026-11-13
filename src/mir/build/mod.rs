@@ -75,7 +75,52 @@ fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>>
     build_each(mono, tcx, neutral)?.into_iter().collect()
 }
 
+/// Whole-program shapes LLVM has no type for: `unit` as a parameter, a class field or a `Vec`/array element, and a
+/// `main` that is not `fun main(): i32|unit`. Reported here so the gate sees them (declaration and layout would
+/// otherwise fail after it).
+fn check_signatures(mono: &Mono, tcx: &TyCtx) -> Res<()> {
+    let unit = tcx.prim_id(Prim::Unit);
+    let unit_elem = |ty: TyId| has_unit_elem(tcx, ty);
+    for class in &mono.hir.classes {
+        for field in &class.fields {
+            let cap = if field.ty == unit { Capability::UnitField } else { Capability::UnitElem };
+            if field.ty == unit || unit_elem(field.ty) {
+                return Err(BuildError::unsupported(cap, field.span));
+            }
+        }
+    }
+    for e in &mono.hir.enums {
+        for field in e.variants.iter().flat_map(|v| &v.fields) {
+            if unit_elem(field.ty) {
+                return Err(BuildError::unsupported(Capability::UnitElem, field.span));
+            }
+        }
+    }
+    for f in &mono.hir.functions {
+        for p in &f.params {
+            if p.ty == unit || unit_elem(p.ty) {
+                return Err(BuildError::unsupported(if p.ty == unit { Capability::UnitParam } else { Capability::UnitElem }, f.name_span));
+            }
+        }
+        if unit_elem(f.return_ty) {
+            return Err(BuildError::unsupported(Capability::UnitElem, f.name_span));
+        }
+        let i32_ty = tcx.prim_id(Prim::I32);
+        if f.name == "main" && (!f.params.is_empty() || (f.return_ty != i32_ty && f.return_ty != unit)) {
+            return Err(BuildError::unsupported(Capability::MainSignature, f.name_span));
+        }
+    }
+    Ok(())
+}
+
+/// Whether `ty` holds a `Vec` or array of `unit` anywhere inside it.
+fn has_unit_elem(tcx: &TyCtx, ty: TyId) -> bool {
+    let unit = tcx.prim_id(Prim::Unit);
+    tcx.vec_elem(ty).or_else(|| tcx.array_elem(ty)).is_some_and(|e| e == unit) || tcx.data(ty).children().into_iter().any(|c| has_unit_elem(tcx, c))
+}
+
 fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
+    check_signatures(mono, tcx)?;
     let functions = &mono.hir.functions;
     let roots = &mono.report.roots;
     if functions.len() != roots.len() {
@@ -196,6 +241,14 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::Internal(format!("function `{}` left report regions unconsumed", function.name)));
         }
         let mut blocks = self.blocks;
+        // A `Vec`/array of `unit` is allocated in the body that writes `Vec<()>(...)` or `[(), ()]`.
+        for stmt in blocks.iter().flat_map(|b| &b.stmts) {
+            if let StmtKind::Alloc { dst, kind: AllocKind::Vec { .. } | AllocKind::Array, .. } = &stmt.kind {
+                if self.locals.get(dst.local.0 as usize).is_some_and(|l| has_unit_elem(self.tcx, l.ty)) {
+                    return Err(BuildError::unsupported(Capability::UnitElem, stmt.span));
+                }
+            }
+        }
         for block in &mut blocks {
             if block.term.is_none() {
                 block.term = Some(Terminator { span, node: None, kind: TermKind::Unreachable, region: RegionId(0) });

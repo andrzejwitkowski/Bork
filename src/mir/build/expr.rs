@@ -94,6 +94,13 @@ impl<'a> FnBuilder<'a> {
         }
         let l = self.expr(lhs)?;
         let r = self.expr(rhs)?;
+        // `unit` has one value: both sides ran for their effects, the comparison is a constant.
+        if self.is_unit(lhs.ty) {
+            return match op {
+                BinOp::Eq | BinOp::Ne => Ok(Operand::Const(Const::Bool(matches!(op, BinOp::Eq)))),
+                _ => Err(BuildError::Internal(format!("operator {op:?} on `unit` operands"))),
+            };
+        }
         if matches!(op, BinOp::Div) && self.tcx.is_integer(e.ty) {
             // Same guards as `guard_int_div` in the LLVM emitter: `/ 0`, and for signed types `MIN / -1`.
             let abort = self.new_block();

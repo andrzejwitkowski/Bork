@@ -86,11 +86,14 @@ mod tests {
     #[test]
     fn nullable_sample_passes_codegen_gate() {
         let source = r#"
-fun main(name: String?): String {
+fun pick(name: String?): String {
     val empty: String? = None
     val wrapped: String? = Some("x")
     val asserted: String = wrapped!!
     return name ?: asserted
+}
+fun main(): i32 {
+    return pick(None).length
 }
 "#;
         let result = crate::frontend::check(source);

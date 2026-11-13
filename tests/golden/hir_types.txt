@@ -3,6 +3,8 @@ programs/build/basics/nested_i64.bork::sub(a: i64, b: i64) -> i64
 programs/build/basics/nested_i64.bork::main() -> i32
 programs/build/basics/println_string.bork::main() -> unit
 programs/build/basics/return_constant.bork::main() -> i32
+programs/build/basics/unit_equality.bork::f() -> unit
+programs/build/basics/unit_equality.bork::main() -> i32
 programs/build/basics/unit_main.bork::main() -> unit
 programs/build/borrow/alloc_after_early_return.bork::build(a: &[i32; 8], n: i32) -> i32
 programs/build/borrow/alloc_after_early_return.bork::main() -> i32
@@ -505,8 +507,12 @@ programs/build/traits/dispatch_impl.bork::Show@0.show(this: &Circle) -> String
 programs/build/traits/dispatch_inherent_shadows.bork::main() -> i32
 programs/build/traits/dispatch_inherent_shadows.bork::Circle.show(this: &Circle) -> String
 programs/build/traits/dispatch_inherent_shadows.bork::Show@0.show(this: &Circle) -> String
+programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
+programs/build/vec/assign_concat_through_borrowed_vec.bork::set(v: &rw Vec<String>) -> unit
+programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
 programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/index_from_element.bork::main() -> i32
+programs/build/vec/index_through_field.bork::main() -> i32
 programs/build/vec/move_to_outer.bork::main() -> i32
 programs/build/vec/negative_capacity_aborts.bork::main() -> i32
 programs/build/vec/pop_set_clear.bork::main() -> i32

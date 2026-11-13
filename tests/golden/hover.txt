@@ -2,6 +2,7 @@ programs/build/basics/array_index_assign.bork: hits=5 hash=2c86fda0538e41b9
 programs/build/basics/nested_i64.bork: hits=25 hash=c1982f4f08379390
 programs/build/basics/println_string.bork: hits=8 hash=52786b685a7d82dd
 programs/build/basics/return_constant.bork: hits=0 hash=cbf29ce484222325
+programs/build/basics/unit_equality.bork: hits=8 hash=38746a2f45e5304d
 programs/build/basics/unit_main.bork: hits=1 hash=06021f3b90845078
 programs/build/borrow/alloc_after_early_return.bork: hits=52 hash=abbc012898752f05
 programs/build/borrow/array_slice.bork: hits=4 hash=82e73e2b8696742f
@@ -190,8 +191,10 @@ programs/build/traits/dispatch_field_in_impl.bork: hits=22 hash=e4c505ab390f059f
 programs/build/traits/dispatch_generic_impl.bork: hits=33 hash=5fa472c6bf990703
 programs/build/traits/dispatch_impl.bork: hits=14 hash=4cf359feb4e34f01
 programs/build/traits/dispatch_inherent_shadows.bork: hits=18 hash=c00eec5943259eec
+programs/build/vec/assign_concat_through_borrowed_vec.bork: hits=52 hash=678611fb43fef205
 programs/build/vec/grow_past_page.bork: hits=32 hash=54fe673543deac60
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90
+programs/build/vec/index_through_field.bork: hits=24 hash=54e5472b13fb1fde
 programs/build/vec/move_to_outer.bork: hits=94 hash=31cd0af2d02d7bef
 programs/build/vec/negative_capacity_aborts.bork: hits=7 hash=054f65b17d4e4e12
 programs/build/vec/pop_set_clear.bork: hits=69 hash=7461456957d7e544
@@ -207,6 +210,7 @@ programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
 programs/build_fail/enums/return_move_object.bork: hits=43 hash=27f38da37a54fddd
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/generics/promote_class_object.bork: hits=10 hash=a1195c3575bc6795
+programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
 programs/build_fail/object_equality.bork: hits=4 hash=ff785bb926c91dbd
 programs/build_fail/option/move_nullable_enum.bork: hits=2 hash=eb576e188b42db50
@@ -216,6 +220,9 @@ programs/build_fail/text/return_elvis.bork: hits=32 hash=d8c2dd8631502ce1
 programs/build_fail/text/return_not_null_assert.bork: hits=32 hash=d8c2dd8631502ce1
 programs/build_fail/text/return_some_concat.bork: hits=14 hash=a167b742d4cd8b80
 programs/build_fail/text/return_through_local.bork: hits=19 hash=4627695b67f9c94e
+programs/build_fail/unit_field.bork: hits=1 hash=33a9e498806fea19
+programs/build_fail/unit_param.bork: hits=1 hash=9b6538f32aac8e2f
+programs/build_fail/unit_vec_element.bork: hits=5 hash=49a1fe16b41d477d
 programs/check/borrow/array_slice_length.bork: hits=4 hash=0ee8f1f1d1457067
 programs/check/borrow/reborrow_in_for.bork: hits=7 hash=f81d7f8fe3b05b7a
 programs/check/borrow/reborrow_in_if.bork: hits=14 hash=7c1318531e4538d6

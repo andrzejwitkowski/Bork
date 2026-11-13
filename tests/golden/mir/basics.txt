@@ -135,6 +135,50 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== basics/unit_equality.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Temp]
+  let _3: unit [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = call f() +current -> bb1
+  bb1:
+    _3 = call f() +current -> bb2
+  bb2:
+    switch true [ 1 -> bb3, else -> bb4]
+  bb3:
+    storage_live _4
+    _0 = 1
+    storage_dead _4
+    storage_dead _1
+    region_exit r0
+    return
+  bb4:
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn f (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    intrinsic PrintlnInt(7)
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == basics/unit_main.bork
 fn main (parent=false, sink=false) {
   let _0: unit [Return]

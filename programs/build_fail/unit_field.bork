@@ -1,0 +1,10 @@
+// diag: a `unit` class field is not supported by codegen yet
+class P {
+    u: ()
+}
+fun g() {
+}
+fun main(): i32 {
+    val p = P(g())
+    return 0
+}

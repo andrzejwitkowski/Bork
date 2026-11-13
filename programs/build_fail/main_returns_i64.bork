@@ -1,0 +1,4 @@
+// diag: `main` must take no parameters and return `i32` or `unit` for codegen
+fun main(): i64 {
+    return 0
+}
