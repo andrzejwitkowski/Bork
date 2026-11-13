@@ -35,7 +35,10 @@ pub type Res<T> = Result<T, BuildError>;
 
 impl BuildError {
     pub(super) fn unsupported(capability: Capability, span: Span) -> BuildError {
-        BuildError::Unsupported(Unsupported { capability, span })
+        BuildError::Unsupported(Unsupported { capability, span, message: None })
+    }
+    pub(super) fn unsupported_with(capability: Capability, span: Span, message: &'static str) -> BuildError {
+        BuildError::Unsupported(Unsupported { capability, span, message: Some(message) })
     }
     pub(super) fn unlowered(what: impl Into<String>, span: Span) -> BuildError {
         BuildError::Unlowered { what: what.into(), span }
@@ -83,7 +86,7 @@ fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
         .iter()
         .zip(roots)
         .map(|(function, root)| {
-            if root.label != format!("fun {}", function.name) {
+            if root.label.strip_prefix("fun ") != Some(function.name.as_str()) {
                 return Err(BuildError::Internal(format!("report root `{}` for function `{}`", root.label, function.name)));
             }
             FnBuilder::new(mono, tcx, &abis, function, root, neutral).build()

@@ -7,16 +7,10 @@
 //! - `layout`: header field access and slot addressing
 //! - `alloc`: `Vec<T>()` / `Vec<T>(n)`
 //! - `grow`: the resize that `push` runs before storing
-//! - `access`: `v[i]`, `get`, `set`
-//! - `ops`: the method dispatch (`push`, `pop`, `len`, `capacity`, `clear`)
-//! - `copy`: `move` / `promote` into another arena
 
-mod access;
 mod alloc;
-mod copy;
 mod grow;
 mod layout;
-mod ops;
 
 /// Capacity of the first buffer; later growth doubles.
 const FIRST_CAPACITY: u64 = 4;

@@ -6,7 +6,6 @@ use inkwell::IntPredicate;
 use crate::diag::Diagnostic;
 
 use super::super::context::Codegen;
-use super::super::emit_fn::FnEmitter;
 
 impl<'ctx> Codegen<'ctx> {
     pub(in crate::codegen::llvm) fn guard_index(
@@ -36,16 +35,5 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.build_unreachable()?;
         self.position_at_end(ok);
         Ok(())
-    }
-}
-
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(in crate::codegen::llvm) fn guard_index(
-        &mut self,
-        index: IntValue<'ctx>,
-        len: IntValue<'ctx>,
-        _span: Option<crate::span::Span>,
-    ) -> Result<(), Diagnostic> {
-        self.cx.guard_index(self.llvm_fn, index, len)
     }
 }

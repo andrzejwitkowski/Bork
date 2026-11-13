@@ -1,7 +1,7 @@
 //! Source locations, lexical scopes and local variable declarations.
 use crate::ty::TyId;
 use crate::{
-    codegen::llvm::{context::Codegen, emit_fn::FnEmitter},
+    codegen::llvm::context::Codegen,
     diag::Diagnostic,
     span::Span,
 };
@@ -54,96 +54,6 @@ impl<'ctx> Codegen<'ctx> {
             next = instruction.get_next_instruction();
         }
         stamped.insert(block, last.unwrap());
-    }
-}
-
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    pub(in crate::codegen::llvm) fn debug_location(&self, span: Option<Span>) {
-        let Some(debug) = &self.cx.debug else {
-            return;
-        };
-        self.cx.debug_stamp_current_block();
-        if let Some(span) = span {
-            debug.position.set(span);
-        }
-        if let Some((scope, _)) = self.debug_scopes.last() {
-            let (line, col) = debug.line_column(debug.position.get());
-            let location =
-                debug
-                    .builder
-                    .create_debug_location(self.cx.context, line, col, *scope, None);
-            self.cx.builder.set_current_debug_location(location);
-        }
-    }
-
-    pub(in crate::codegen::llvm) fn debug_enter_scope(
-        &mut self,
-        function: Option<DIScope<'ctx>>,
-    ) -> Result<(), Diagnostic> {
-        if self.cx.debug.is_none() {
-            return Ok(());
-        }
-        let is_function = function.is_some();
-        let scope = function.or_else(|| self.cx.debug_lexical_block(self.debug_scopes.last().unwrap().0)).expect("debug is on");
-        let f = self.cx.runtime_fn("bork_debug_scope_enter", || {
-            self.cx.context.i64_type().fn_type(&[], false)
-        });
-        let token = self
-            .cx
-            .builder
-            .build_call(f, &[], "debug.scope")?
-            .try_as_basic_value()
-            .basic()
-            .unwrap()
-            .into_int_value();
-        self.debug_scopes.push((scope, token));
-        if !is_function {
-            self.debug_location(None);
-        }
-        Ok(())
-    }
-
-    pub(in crate::codegen::llvm) fn debug_unwind(&self, depth: usize) -> Result<(), Diagnostic> {
-        if self.cx.debug.is_none() {
-            return Ok(());
-        }
-        let f = self.cx.runtime_fn("bork_debug_scope_exit", || {
-            self.cx
-                .context
-                .void_type()
-                .fn_type(&[self.cx.context.i64_type().into()], false)
-        });
-        for (_, token) in self.debug_scopes.iter().skip(depth).rev() {
-            self.cx.builder.build_call(f, &[(*token).into()], "")?;
-        }
-        Ok(())
-    }
-
-    pub(in crate::codegen::llvm) fn debug_exit_scope(&mut self) -> Result<(), Diagnostic> {
-        if self.cx.debug.is_none() {
-            return Ok(());
-        }
-        if !self.cx.current_block_terminated() {
-            self.debug_unwind(self.debug_scopes.len() - 1)?;
-        }
-        self.debug_scopes.pop();
-        self.debug_location(None);
-        Ok(())
-    }
-
-    pub(in crate::codegen::llvm) fn debug_local(
-        &self,
-        name: &str,
-        ty: TyId,
-        ptr: PointerValue<'ctx>,
-        home: PointerValue<'ctx>,
-        argument: Option<u32>,
-    ) -> Result<(), Diagnostic> {
-        if self.cx.debug.is_none() {
-            return Ok(());
-        }
-        let (scope, token) = *self.debug_scopes.last().unwrap();
-        self.cx.debug_local_in(scope, Some(token), name, ty, ptr, Some(home), argument)
     }
 }
 

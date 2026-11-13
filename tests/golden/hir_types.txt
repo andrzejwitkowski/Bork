@@ -205,6 +205,8 @@ programs/build/managed_refs/chained_partial_cleanup.bork::main() -> i32
 programs/build/managed_refs/chained_three_bindings_value.bork::main() -> i32
 programs/build/managed_refs/count_of_last_reference.bork::main() -> i32
 programs/build/managed_refs/expired_weak_back_edge.bork::main() -> i32
+programs/build/managed_refs/none_arg_to_ref_param.bork::take(r: Ref<Node>) -> i32
+programs/build/managed_refs/none_arg_to_ref_param.bork::main() -> i32
 programs/build/managed_refs/presence_int_result.bork::pick(r: Ref<Node>) -> i32
 programs/build/managed_refs/presence_int_result.bork::main() -> i32
 programs/build/managed_refs/program_dynamic_across_blocks.bork::make_shared() -> Ref<Box>

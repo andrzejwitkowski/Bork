@@ -7,7 +7,6 @@ use crate::diag::Diagnostic;
 use crate::ty::TyId;
 
 use super::super::context::Codegen;
-use super::super::emit_fn::FnEmitter;
 use super::{ARENA, BUF, CAP, HEADER_ALIGN, HEADER_SIZE, LEN};
 
 impl<'ctx> Codegen<'ctx> {
@@ -73,17 +72,5 @@ impl<'ctx> Codegen<'ctx> {
             None => None,
         };
         self.vec_alloc(llvm_fn, arena, elem_ty, cap)
-    }
-}
-
-impl<'ctx> FnEmitter<'_, '_, '_, 'ctx> {
-    /// `Vec<T>()` / `Vec<T>(cap)`; `cap` is the `i32` value of the optional argument.
-    pub(in crate::codegen::llvm) fn emit_vec_new(
-        &mut self,
-        elem_ty: TyId,
-        cap: Option<BasicValueEnum<'ctx>>,
-    ) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let arena = self.sink_arena();
-        Ok(self.cx.vec_new(self.llvm_fn, arena, elem_ty, cap)?.into())
     }
 }

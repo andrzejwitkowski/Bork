@@ -79,7 +79,7 @@ impl<'a> FnBuilder<'a> {
             BinOp::And | BinOp::Or => return self.logical(e, matches!(op, BinOp::And), lhs, rhs),
             BinOp::Elvis => return self.elvis(e, lhs, rhs),
             BinOp::RangeTo => return Err(BuildError::unlowered("a range outside `for`", span)),
-            _ => {}
+            BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le | BinOp::Eq | BinOp::Ne => {}
         }
         let special = |t| self.tcx.is_managed_ref(t) || self.tcx.is_text(t) || self.tcx.is_nullable(t);
         if matches!(op, BinOp::Eq | BinOp::Ne)

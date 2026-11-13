@@ -4,7 +4,7 @@ use super::expr::span_of;
 use super::{BuildError, FnBuilder, Res};
 use crate::ast::BinOp;
 use crate::hir::{HirArm, HirClassField, HirExpr, HirExprKind, HirPat, HirPatKind};
-use crate::memory::{ArenaClass, LifetimeDomain};
+use crate::mir::plan::{ArenaClass, LifetimeDomain};
 use crate::mir::body::*;
 use crate::mir::capability::Capability;
 use crate::region_walk::{pat_binds_owned_ref, RegionSite};
@@ -175,7 +175,8 @@ impl<'a> FnBuilder<'a> {
             if self.tcx.is_managed_ref(receiver.ty) {
                 return self.safe_ref_field(e, receiver, field_index);
             }
-            return self.safe_navigate(e, receiver, |_, mut base| {
+            let flatten = self.class_field_ty(self.nullable_payload(receiver.ty), field_index);
+            return self.safe_navigate(e, receiver, flatten, |_, mut base| {
                 base.proj.push(Proj::Field(field_index as u32));
                 Ok(Operand::Copy(base))
             });
@@ -216,7 +217,8 @@ impl<'a> FnBuilder<'a> {
         } else {
             Operand::Copy(field)
         };
-        let wrapped = self.make_some(e.ty, value, field_ty, span)?;
+        let actual = self.class_field_ty(target, field_index);
+        let wrapped = self.some_or_flatten(e.ty, value, field_ty, actual, span)?;
         self.stmt(StmtKind::ObservationRelease(obs), span, Some(e.id));
         self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(wrapped)), span, Some(e.id));
         self.goto(end, span);
@@ -232,8 +234,26 @@ impl<'a> FnBuilder<'a> {
         self.tcx.enum_args(ty).is_some()
     }
 
+    fn class_field_ty(&self, ty: TyId, index: usize) -> Option<TyId> {
+        let name = crate::mono::class_instance_name(self.tcx, ty)?;
+        self.mono.hir.classes.iter().find(|c| c.name == name)?.fields.get(index).map(|f| f.ty)
+    }
+
+    /// `Some(value)`, or `value` copied into the sink when its own type `actual` is already nullable.
+    fn some_or_flatten(&mut self, ty: TyId, value: Operand, inner_ty: TyId, actual: Option<TyId>, span: Span) -> Res<Operand> {
+        match actual.filter(|t| self.tcx.is_nullable(*t)) {
+            Some(t) => {
+                let arena = self.sink.clone();
+                self.materialize(value, t, &arena, span)
+            }
+            None => self.make_some(ty, value, inner_ty, span),
+        }
+    }
+
     /// `recv?.f`: `None` when `recv` is `None`, otherwise `Some(project(recv.some))`.
-    pub(super) fn safe_navigate(&mut self, e: &HirExpr, receiver: &HirExpr, project: impl FnOnce(&mut Self, Place) -> Res<Operand>) -> Res<Operand> {
+    /// `flatten` is the type of the projected value when it is already nullable: `a?.f` over `f: T?` is `T?`, not `T??`,
+    /// so the value is copied as is instead of wrapped in `Some`.
+    pub(super) fn safe_navigate(&mut self, e: &HirExpr, receiver: &HirExpr, flatten: Option<TyId>, project: impl FnOnce(&mut Self, Place) -> Res<Operand>) -> Res<Operand> {
         let span = span_of(e);
         let place = self.place_of(receiver)?;
         let payload_ty = self.nullable_payload(receiver.ty);
@@ -244,7 +264,7 @@ impl<'a> FnBuilder<'a> {
         self.cur = some_b;
         let value = project(self, Place::local(inner))?;
         let inner_ty = self.nullable_payload(e.ty);
-        let wrapped = self.make_some(e.ty, value, inner_ty, span)?;
+        let wrapped = self.some_or_flatten(e.ty, value, inner_ty, flatten, span)?;
         self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(wrapped)), span, Some(e.id));
         self.goto(end, span);
         self.cur = none_b;

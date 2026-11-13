@@ -3,7 +3,6 @@
 //!
 //! A generic `T` is conservative (RFC 0002 section 4): move-only, maybe-droppable, not handle-clone.
 
-use std::collections::HashSet;
 
 use super::{TyCtx, TyData, TyId};
 

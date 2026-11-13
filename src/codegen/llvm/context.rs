@@ -13,7 +13,6 @@ use inkwell::{AddressSpace, OptimizationLevel};
 
 use crate::hir::{HirClass, HirEnum, Prim};
 use crate::ty::{TyCtx, TyData, TyId};
-use crate::memory::MemoryPlan;
 
 
 /// How one enum instance sits in its arena slot: `{ i32 tag, payload.. }` per variant, the slot
@@ -43,7 +42,6 @@ pub struct Codegen<'ctx> {
     pub(super) enum_drops: HashMap<String, FunctionValue<'ctx>>,
     /// The checked program's types; ids in the HIR resolve here.
     pub(super) tcx: TyCtx,
-    pub memory_plan: MemoryPlan,
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -62,7 +60,6 @@ impl<'ctx> Codegen<'ctx> {
         classes: &[HirClass],
         enums: &[HirEnum],
         tcx: &TyCtx,
-        memory_plan: MemoryPlan,
     ) -> Result<Self, String> {
         let record_types = classes
             .iter()
@@ -90,7 +87,6 @@ impl<'ctx> Codegen<'ctx> {
             record_types,
             record_fields,
             target_data: machine.get_target_data(),
-            memory_plan,
             debug: None,
             classes: classes.to_vec(),
             enums: enums.to_vec(),
@@ -217,10 +213,6 @@ impl<'ctx> Codegen<'ctx> {
         self.tcx.prim_id(Prim::I32)
     }
 
-    pub(super) fn bool_ty(&self) -> TyId {
-        self.tcx.prim_id(Prim::Bool)
-    }
-
     pub fn record_type(&self, name: &str) -> Option<StructType<'ctx>> {
         self.record_types.get(name).copied()
     }
@@ -228,14 +220,6 @@ impl<'ctx> Codegen<'ctx> {
     /// The `HirClass` laid out under `name` (a plain class name or a mono instance name).
     pub fn class_by_name(&self, name: &str) -> Option<&HirClass> {
         self.classes.iter().find(|class| class.name == name)
-    }
-
-    /// Name of field `index` of class `name`; a missing class is a diagnostic, not a panic.
-    pub fn class_field_name(&self, name: &str, index: usize) -> Result<&str, crate::diag::Diagnostic> {
-        self.class_by_name(name)
-            .and_then(|class| class.fields.get(index))
-            .map(|field| field.name.as_str())
-            .ok_or_else(|| super::not_yet_supported(&format!("record `{name}`"), None))
     }
 
     pub fn record_field_type(&self, name: &str, index: usize) -> Option<TyId> {
@@ -302,27 +286,6 @@ impl<'ctx> Codegen<'ctx> {
             Prim::Bool => self.context.bool_type(),
             Prim::F32 | Prim::F64 | Prim::Unit => return None,
         })
-    }
-
-    /// True when the insertion block already ends in a terminator, so anything emitted is dead.
-    pub fn current_block_terminated(&self) -> bool {
-        self.builder
-            .get_insert_block()
-            .and_then(|block| block.get_terminator())
-            .is_some()
-    }
-
-    /// True when code at the insertion point can never run: the block is terminated, or it is
-    /// not the entry block and nothing branches to it.
-    pub fn insertion_is_dead(&self) -> bool {
-        let Some(block) = self.builder.get_insert_block() else {
-            return true;
-        };
-        let is_entry = block
-            .get_parent()
-            .and_then(|function| function.get_first_basic_block())
-            == Some(block);
-        block.get_terminator().is_some() || (!is_entry && block.get_first_use().is_none())
     }
 
     pub fn arena_push_fn(&self) -> FunctionValue<'ctx> {
@@ -602,7 +565,7 @@ mod tests {
     #[test]
     fn ref_handle_layout_matches_runtime() {
         let context = Context::create();
-        let cg = Codegen::new(&context, "layout", &[], &[], &TyCtx::new(&Default::default()), MemoryPlan::default()).unwrap();
+        let cg = Codegen::new(&context, "layout", &[], &[], &TyCtx::new(&Default::default())).unwrap();
         let (size, align, offsets) = bork_runtime::REF_HANDLE_LAYOUT;
         assert_eq!(
             (cg.ref_handle_layout(), cg.ref_handle_offsets()),
@@ -632,7 +595,7 @@ mod tests {
             let (hir, report) = (checked.hir.take().unwrap(), checked.report.take().unwrap());
             let Ok(mono) = crate::mono::monomorphize(&hir, &mut checked.tcx, &report) else { continue };
             // Programs codegen cannot lay out (gate rejects) are not part of the comparison.
-            let Ok(cg) = Codegen::new(&context, "layout", &mono.hir.classes, &mono.hir.enums, &checked.tcx, MemoryPlan::default()) else { continue };
+            let Ok(cg) = Codegen::new(&context, "layout", &mono.hir.classes, &mono.hir.enums, &checked.tcx) else { continue };
             let ls = Layouts::new(&checked.tcx, &mono.hir, DataLayout::default());
             let at = |name: &str, what: &str| format!("{}: {what} `{name}`", file.display());
             let size_align = |t: &inkwell::types::StructType<'_>| (cg.target_data.get_abi_size(t), u64::from(cg.target_data.get_abi_alignment(t)));

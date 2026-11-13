@@ -1076,6 +1076,61 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== managed_refs/none_arg_to_ref_param.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = call take(none) +current -> bb1
+  bb1:
+    _0 = copy _2
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn take (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] r
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Ref<Node> [Temp]
+  let _4: unit [Temp]
+  let _5: &Node [Val]
+  let _6: bool [Temp]
+  let _7: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 PresenceSome in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    register_drop current _1 RefSlot
+    _3 = ref_clone copy _1
+    (_4, _5, _6) = observe copy _3
+    ref_drop move _3
+    switch copy _6 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = 5
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _7
+    observation_register current _4
+    _0 = copy _5.0
+    storage_dead _7
+    storage_dead _2
+    region_exit r1
+    region_exit r0
+    return
+}
+
 == managed_refs/presence_int_result.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
