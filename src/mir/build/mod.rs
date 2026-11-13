@@ -80,7 +80,7 @@ fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>>
 /// otherwise fail after it).
 fn check_signatures(mono: &Mono, tcx: &TyCtx) -> Res<()> {
     let (unit, i32_ty) = (tcx.prim_id(Prim::Unit), tcx.prim_id(Prim::I32));
-    // `unit` itself is `own` here, a `Vec`/array of `unit` inside the type is always `UnitElem`.
+    // A bare `unit` is reported as `own`; a `Vec`/array of `unit` inside the type is always `UnitElem`.
     let shape = |ty: TyId, own: Capability, span: Span| {
         let cap = if ty == unit { own } else if has_unit_elem(tcx, ty) { Capability::UnitElem } else { return Ok(()) };
         Err(BuildError::unsupported(cap, span))

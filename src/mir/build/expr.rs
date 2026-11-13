@@ -87,7 +87,7 @@ impl<'a> FnBuilder<'a> {
         {
             return self.equality(e, matches!(op, BinOp::Ne), lhs, rhs);
         }
-        // Only scalars reach `Rvalue::Binary`: `==` on objects has no lowering (the HIR emitter rejected it too).
+        // Only scalars reach `Rvalue::Binary`: `==` on objects has no lowering.
         let scalar = |t| matches!(self.tcx.data(self.tcx.ref_inner(t).unwrap_or(t)), crate::ty::TyData::Prim(_));
         if !scalar(lhs.ty) || !scalar(rhs.ty) {
             return Err(BuildError::unsupported(Capability::ObjectEquality, span));
