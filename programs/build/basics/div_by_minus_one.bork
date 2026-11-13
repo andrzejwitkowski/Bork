@@ -1,0 +1,8 @@
+// exit: 0
+// stdout: -6\n
+// dividing by -1 is fine away from MIN
+fun main(): i32 {
+    val d = 0 - 1
+    println(6 / d)
+    return 0
+}

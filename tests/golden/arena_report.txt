@@ -3,6 +3,19 @@ Arenas
 └── fun main
     ├── a [Local]
     └── i [Local]
+== programs/build/basics/div_by_minus_one.bork
+Arenas
+└── fun main
+    └── d [Local]
+== programs/build/basics/div_by_zero_aborts.bork
+Arenas
+└── fun main
+    └── z [Local]
+== programs/build/basics/div_min_by_minus_one_aborts.bork
+Arenas
+└── fun main
+    ├── m [Local]
+    └── d [Local]
 == programs/build/basics/nested_i64.bork
 Arenas
 ├── fun sub

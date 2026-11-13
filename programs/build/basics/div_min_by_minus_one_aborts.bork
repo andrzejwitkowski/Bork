@@ -1,0 +1,8 @@
+// exit: 1
+// signed MIN / -1 overflows: it aborts like a division by zero, the harness reports a process killed by a signal as exit 1
+fun main(): i32 {
+    val m = 0 - 2147483647 - 1
+    val d = 0 - 1
+    println(m / d)
+    return 0
+}

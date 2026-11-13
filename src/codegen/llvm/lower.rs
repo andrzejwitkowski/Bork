@@ -335,7 +335,6 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             index_operand(cx, body, lo)?;
                             index_operand(cx, body, hi)?;
                         }
-                        _ => return None,
                     }
                 }
                 StmtKind::RegionEnter(r) | StmtKind::RegionExit(r) | StmtKind::RegionReset { region: r, .. } if !pushed.contains(r) => return None,
@@ -1179,7 +1178,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                         let new_len = cx.tcx.array_len(dty).expect("checked slice length");
                         cx.descriptor(new_base, cx.word(u64::from(new_len))).into()
                     }
-                    _ => unreachable!("filtered by supported"),
                 };
                 self.store(dst, value)?;
             }

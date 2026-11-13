@@ -107,7 +107,6 @@ fn rvalue(r: &Rvalue, tcx: &TyCtx) -> String {
         Rvalue::Binary(b, l, r) => format!("{}({}, {})", binop(b), op(l), op(r)),
         Rvalue::Unary(u, a) => format!("{u:?}({})", op(a)),
         Rvalue::Cast(a, t) => format!("cast({}, {})", op(a), tcx.display(*t)),
-        Rvalue::Aggregate(k, f) => format!("{k:?}{{{}}}", ops(f)),
         Rvalue::Len(p) => format!("len({})", place(p)),
         Rvalue::Slice { base, lo, hi } => format!("slice({}, {}, {})", op(base), op(lo), op(hi)),
     }
