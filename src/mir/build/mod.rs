@@ -79,33 +79,26 @@ fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>>
 /// `main` that is not `fun main(): i32|unit`. Reported here so the gate sees them (declaration and layout would
 /// otherwise fail after it).
 fn check_signatures(mono: &Mono, tcx: &TyCtx) -> Res<()> {
-    let unit = tcx.prim_id(Prim::Unit);
-    let unit_elem = |ty: TyId| has_unit_elem(tcx, ty);
+    let (unit, i32_ty) = (tcx.prim_id(Prim::Unit), tcx.prim_id(Prim::I32));
+    // `unit` itself is `own` here, a `Vec`/array of `unit` inside the type is always `UnitElem`.
+    let shape = |ty: TyId, own: Capability, span: Span| {
+        let cap = if ty == unit { own } else if has_unit_elem(tcx, ty) { Capability::UnitElem } else { return Ok(()) };
+        Err(BuildError::unsupported(cap, span))
+    };
     for class in &mono.hir.classes {
         for field in &class.fields {
-            let cap = if field.ty == unit { Capability::UnitField } else { Capability::UnitElem };
-            if field.ty == unit || unit_elem(field.ty) {
-                return Err(BuildError::unsupported(cap, field.span));
-            }
+            shape(field.ty, Capability::UnitField, field.span)?;
         }
     }
-    for e in &mono.hir.enums {
-        for field in e.variants.iter().flat_map(|v| &v.fields) {
-            if unit_elem(field.ty) {
-                return Err(BuildError::unsupported(Capability::UnitElem, field.span));
-            }
-        }
+    // A `unit` enum payload is laid out as zero-sized, so only the element rule applies there.
+    for field in mono.hir.enums.iter().flat_map(|e| &e.variants).flat_map(|v| &v.fields) {
+        shape(if field.ty == unit { i32_ty } else { field.ty }, Capability::UnitElem, field.span)?;
     }
     for f in &mono.hir.functions {
         for p in &f.params {
-            if p.ty == unit || unit_elem(p.ty) {
-                return Err(BuildError::unsupported(if p.ty == unit { Capability::UnitParam } else { Capability::UnitElem }, f.name_span));
-            }
+            shape(p.ty, Capability::UnitParam, f.name_span)?;
         }
-        if unit_elem(f.return_ty) {
-            return Err(BuildError::unsupported(Capability::UnitElem, f.name_span));
-        }
-        let i32_ty = tcx.prim_id(Prim::I32);
+        shape(if f.return_ty == unit { i32_ty } else { f.return_ty }, Capability::UnitElem, f.name_span)?;
         if f.name == "main" && (!f.params.is_empty() || (f.return_ty != i32_ty && f.return_ty != unit)) {
             return Err(BuildError::unsupported(Capability::MainSignature, f.name_span));
         }
