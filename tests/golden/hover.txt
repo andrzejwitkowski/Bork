@@ -144,6 +144,7 @@ programs/build/option/assign_option_overwritten.bork: hits=31 hash=e78607f96e013
 programs/build/option/equality_cases_still_work.bork: hits=30 hash=ebb33cc5cd686d6d
 programs/build/option/nested_option_returned.bork: hits=33 hash=0e01b5f60d37a96a
 programs/build/option/nullable_moved_into_owner.bork: hits=62 hash=eacd4526ecb7c71b
+programs/build/option/nullable_object_equals_none.bork: hits=2 hash=9be342cc45f4154a
 programs/build/option/nullable_string_eq.bork: hits=57 hash=8a8e6a8a8651da34
 programs/build/option/nullable_when.bork: hits=98 hash=6bcd66b4bfac2309
 programs/build/option/option_conversions.bork: hits=134 hash=777e46b9b8b0c322
@@ -214,6 +215,8 @@ programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa
 programs/build_fail/generics/promote_class_object.bork: hits=10 hash=a1195c3575bc6795
 programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
+programs/build_fail/nullable_object_equality.bork: hits=4 hash=b4e5cc943fc50229
+programs/build_fail/nullable_unit_equality.bork: hits=4 hash=b6fd62a419e6d6bf
 programs/build_fail/object_equality.bork: hits=4 hash=ff785bb926c91dbd
 programs/build_fail/option/move_nullable_enum.bork: hits=2 hash=eb576e188b42db50
 programs/build_fail/option/safe_field_of_enum.bork: hits=5 hash=9c43688f90b639ca

@@ -570,6 +570,8 @@ programs/build/option/nullable_moved_into_owner.bork: 286..289 Box Lexical Lexic
 programs/build/option/nullable_moved_into_owner.bork: 342..370 Option<String> Lexical LexicalScope(1)
 programs/build/option/nullable_moved_into_owner.bork: 383..386 Box Lexical LexicalScope(1)
 programs/build/option/nullable_moved_into_owner.bork: 387..415 Option<String> Lexical LexicalScope(1)
+programs/build/option/nullable_object_equals_none.bork: 165..169 Option<P> Lexical LexicalScope(0)
+programs/build/option/nullable_object_equals_none.bork: 183..187 Option<P> Lexical LexicalScope(0)
 programs/build/option/nullable_string_eq.bork: 254..266 Option<String> Lexical LexicalScope(0)
 programs/build/option/nullable_string_eq.bork: 288..300 Option<String> Lexical LexicalScope(0)
 programs/build/option/nullable_string_eq.bork: 322..335 Option<String> Lexical LexicalScope(0)

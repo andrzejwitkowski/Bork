@@ -359,6 +359,7 @@ programs/build/option/nested_option_returned.bork::main() -> i32
 programs/build/option/nullable_moved_into_owner.bork::make() -> Box
 programs/build/option/nullable_moved_into_owner.bork::churn(k: i32) -> i32
 programs/build/option/nullable_moved_into_owner.bork::main() -> i32
+programs/build/option/nullable_object_equals_none.bork::main() -> i32
 programs/build/option/nullable_string_eq.bork::main() -> i32
 programs/build/option/nullable_when.bork::show(x: i32?) -> i32
 programs/build/option/nullable_when.bork::main() -> i32

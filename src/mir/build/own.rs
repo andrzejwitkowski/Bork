@@ -343,7 +343,14 @@ impl<'a> FnBuilder<'a> {
             self.stmt(StmtKind::Ref(RefOp::Eq { dst: Place::local(result), lhs: l, rhs: r }), span, Some(e.id));
         } else if t.is_nullable(lhs.ty) || t.is_nullable(rhs.ty) || matches!(lhs.kind, HirExprKind::None) || matches!(rhs.kind, HirExprKind::None) {
             let (lp, rp) = (self.place_of(lhs)?, self.place_of(rhs)?);
-            self.nullable_eq(result, &lp, lhs.ty, &rp, rhs.ty, span, e)?;
+            // A `None` literal is typed like its peer but has no payload: it only equals a `None`.
+            let is_none_literal = |x: &HirExpr| match &x.kind {
+                HirExprKind::None => true,
+                HirExprKind::EnumConstruct { variant, fields, .. } => variant == "None" && fields.is_empty(),
+                _ => false,
+            };
+            let has_payload = |x: &HirExpr| t.is_nullable(x.ty) && !is_none_literal(x);
+            self.nullable_eq(result, (&lp, has_payload(lhs)), (&rp, has_payload(rhs)), lhs.ty, span, e)?;
         } else {
             let (l, r) = (self.expr(lhs)?, self.expr(rhs)?);
             self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(result)), op: IntrinsicOp::StringEq, args: vec![l, r], arena: None }, span, Some(e.id));
@@ -356,15 +363,12 @@ impl<'a> FnBuilder<'a> {
 
     /// Equal when both are `None`, or both `Some` with equal payloads.
     #[allow(clippy::too_many_arguments)]
-    fn nullable_eq(&mut self, result: Local, l: &Place, lt: TyId, r: &Place, rt: TyId, span: Span, e: &HirExpr) -> Res<()> {
+    fn nullable_eq(&mut self, result: Local, (l, l_is_nullable): (&Place, bool), (r, r_is_nullable): (&Place, bool), lt: TyId, span: Span, e: &HirExpr) -> Res<()> {
         let set = |b: &mut Self, v: bool| b.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(Operand::Const(Const::Bool(v)))), span, Some(e.id));
         let end = self.new_block();
         let (l_some, l_none) = (self.new_block(), self.new_block());
         // Bound by `Match`; `payload_eq` gives them the payload type once it is known.
         let (lx, rx) = (self.temp(self.unit), self.temp(self.unit));
-        // The `None` literal has no payload: it equals only a `None`.
-        let l_is_nullable = self.tcx.is_nullable(lt);
-        let r_is_nullable = self.tcx.is_nullable(rt);
         match (l_is_nullable, r_is_nullable) {
             (true, true) => {
                 self.nullable_match(l, lx, l_some, l_none, span, e);
@@ -385,11 +389,17 @@ impl<'a> FnBuilder<'a> {
                 self.goto(end, span);
                 self.cur = s_some;
                 let payload = self.nullable_payload(lt);
-                self.payload_eq(result, lx, rx, payload, span, e);
+                self.payload_eq(result, lx, rx, payload, span, e)?;
                 self.goto(end, span);
             }
             (true, false) | (false, true) => {
                 let nullable = if l_is_nullable { l } else { r };
+                // The payload is bound but never read; give the binding its real type (a `unit` payload binds no local).
+                let payload = self.nullable_payload(lt);
+                if self.is_unit(payload) {
+                    return Err(BuildError::unsupported(Capability::UnitPayloadBind, span));
+                }
+                self.locals[lx.0 as usize].ty = payload;
                 self.nullable_match(nullable, lx, l_some, l_none, span, e);
                 self.cur = l_some;
                 set(self, false);
@@ -398,13 +408,22 @@ impl<'a> FnBuilder<'a> {
                 set(self, true);
                 self.goto(end, span);
             }
-            (false, false) => return Err(BuildError::Internal("nullable equality without a nullable".into())),
+            // `None == None`
+            (false, false) => set(self, true),
         }
         self.cur = end;
         Ok(())
     }
 
-    fn payload_eq(&mut self, result: Local, l: Local, r: Local, payload: TyId, span: Span, e: &HirExpr) {
+    fn payload_eq(&mut self, result: Local, l: Local, r: Local, payload: TyId, span: Span, e: &HirExpr) -> Res<()> {
+        // Only text and scalar payloads compare: an object has no `==` lowering, and a `unit` payload binds no local.
+        let t = self.tcx;
+        if self.is_unit(payload) {
+            return Err(BuildError::unsupported(Capability::UnitPayloadBind, span));
+        }
+        if !t.is_text(payload) && !matches!(t.data(t.ref_inner(payload).unwrap_or(payload)), crate::ty::TyData::Prim(_)) {
+            return Err(BuildError::unsupported(Capability::ObjectEquality, span));
+        }
         // `l`/`r` were bound with a placeholder type; retype them to the payload.
         self.locals[l.0 as usize].ty = payload;
         self.locals[r.0 as usize].ty = payload;
@@ -414,6 +433,7 @@ impl<'a> FnBuilder<'a> {
         } else {
             self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Binary(BinOp::Eq, lo, ro)), span, Some(e.id));
         }
+        Ok(())
     }
 
     // --- `when` ---

@@ -1,0 +1,8 @@
+// diag: reading a bound `unit` payload is not supported by codegen yet
+fun g() { }
+fun main(): i32 {
+    val a: ()? = Some(g())
+    val b: ()? = Some(g())
+    if (a == b) { return 1 }
+    return 0
+}

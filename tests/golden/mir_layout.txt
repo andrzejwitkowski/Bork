@@ -349,6 +349,9 @@ enum Option<i32?> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/option/nullable_moved_into_owner.bork
 class Box size=16 align=8 fields=[0]
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/nullable_object_equals_none.bork
+class P size=4 align=4 fields=[0]
+enum Option<P> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/option/nullable_string_eq.bork
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/option/nullable_when.bork

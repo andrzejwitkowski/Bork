@@ -1,0 +1,8 @@
+// exit: 1
+// presence-only comparison of a nullable object: `None` has no payload, so no object `==` is needed
+class P { x: i32 }
+fun main(): i32 {
+    val a: P? = None
+    if (a == None) { return 1 }
+    return 0
+}
