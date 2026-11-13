@@ -1,0 +1,12 @@
+// exit: 0
+// the receiver is read before the arguments run: the push lands in the Vec that `h.v` named first (same as before the receiver went through a temporary)
+class H { v: Vec<i32> }
+fun swap(h: &rw H): i32 {
+    h.v = Vec<i32>()
+    return 1
+}
+fun main(): i32 {
+    var h = H(Vec<i32>())
+    h.v.push(swap(&rw h))
+    return h.v.len()
+}

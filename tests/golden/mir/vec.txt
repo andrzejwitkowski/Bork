@@ -348,6 +348,50 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== vec/move_vec_field.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<i32> [Temp]
+  let _3: H [Temp]
+  let _4: Vec<i32> [Temp]
+  let _5: H [Var] h
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = alloc Object { class: "H" } in current  // label "H": H
+    _4 = copy_into _2 in current
+    _3.0 = copy _4  // label "H.v": Vec<i32> decl owner=current
+    _5 = copy _3  // label "h": H decl
+    _6 = call take(copy _5.0) +current -> bb1
+  bb1:
+    _0 = copy _6
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn take (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<i32> [Arg] v
+  let _2: unit [Hidden(DebugScope)]
+  let _3: &Vec<i32> [Temp]
+  let _4: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = borrow _1
+    _4 = vec_Len(copy _3)
+    _0 = copy _4
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == vec/negative_capacity_aborts.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
@@ -541,6 +585,63 @@ fn main (parent=false, sink=false) {
     storage_dead _15
     _0 = copy _10
     storage_dead _1
+    region_exit r0
+    return
+}
+
+== vec/receiver_read_before_arguments.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Vec<i32> [Temp]
+  let _4: H [Temp]
+  let _5: Vec<i32> [Temp]
+  let _6: H [Var] h
+  let _7: &Vec<i32> [Temp]
+  let _8: &rw H [Temp]
+  let _9: i32 [Temp]
+  let _10: &Vec<i32> [Temp]
+  let _11: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Vec { cap: None } in fresh2
+    _4 = alloc Object { class: "H" } in fresh2  // label "H": H
+    _5 = copy_into _3 in fresh2
+    _4.0 = copy _5  // label "H.v": Vec<i32> decl owner=fresh2
+    _6 = copy _4  // label "h": H decl
+    _7 = borrow _6.0
+    _8 = borrow_rw _6
+    _9 = call swap(copy _8) +current -> bb1
+  bb1:
+    vec_Push(copy _7, copy _9)
+    _10 = borrow _6.0
+    _11 = vec_Len(copy _10)
+    _0 = copy _11
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn swap (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &rw H [Arg] h
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Vec<i32> [Temp]
+  let _4: Vec<i32> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = alloc Vec { cap: None } in object_arena(_1)
+    _4 = copy_into _3 in object_arena(_1)
+    _1.0 = copy _4  // label "H.v": Vec<i32> decl owner=object_arena(_1)
+    _0 = 1
+    storage_dead _2
     region_exit r0
     return
 }
@@ -1840,6 +1941,45 @@ fn main (parent=false, sink=false) {
     _10 = vec_Get(copy _9, 1)
     _11 = copy _10  // label "s": String decl
     _12 = len(_11)
+    _0 = copy _12
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+== vec/vec_field_repeated.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<i32> [Temp]
+  let _3: H [Temp]
+  let _4: Vec<i32> [Temp]
+  let _5: H [Var] h
+  let _6: &Vec<i32> [Temp]
+  let _7: &Vec<i32> [Temp]
+  let _8: i32 [Temp]
+  let _9: i32 [Val] n
+  let _10: &Vec<i32> [Temp]
+  let _11: Vec<i32> [Temp]
+  let _12: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = alloc Object { class: "H" } in current  // label "H": H
+    _4 = copy_into _2 in current
+    _3.0 = copy _4  // label "H.v": Vec<i32> decl owner=current
+    _5 = copy _3  // label "h": H decl
+    _6 = borrow _5.0
+    vec_Push(copy _6, 2)
+    _7 = borrow _5.0
+    _8 = vec_Len(copy _7)
+    _9 = copy _8  // label "n": i32 decl
+    _10 = borrow _5.0
+    vec_Push(copy _10, copy _9)
+    _11 = copy _5.0
+    _12 = vec_Get(copy _11, 1)
     _0 = copy _12
     storage_dead _1
     region_exit r0

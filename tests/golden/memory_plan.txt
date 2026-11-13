@@ -767,6 +767,8 @@ programs/build/traits/dispatch_generic_impl.bork: 435..441 Square Lexical Lexica
 programs/build/traits/dispatch_impl.bork: 223..229 Circle Dynamic Program
 programs/build/traits/dispatch_inherent_shadows.bork: 241..247 Circle Dynamic Program
 programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
+programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
+programs/build/vec/receiver_read_before_arguments.bork: 281..282 H Dynamic Program
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program
 programs/build/vec/ref_nodes.bork: 279..283 Node Dynamic Program
 programs/build/vec/ref_promote.bork: 352..356 Node Dynamic Program
@@ -789,6 +791,7 @@ programs/build/vec/return_vec_of_linked_refs.bork: 260..261 A Dynamic LexicalSco
 programs/build/vec/return_vec_of_linked_refs.bork: 387..388 A Dynamic Program
 programs/build/vec/return_vec_of_linked_refs.bork: 421..422 B Dynamic Program
 programs/build/vec/return_vec_of_linked_refs.bork: 479..482 Bag Lexical LexicalScope(1)
+programs/build/vec/vec_field_repeated.bork: 118..119 H Lexical LexicalScope(0)
 programs/build/vec/with_capacity.bork: 1645..1649 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1669..1673 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1693..1697 Node Dynamic Program

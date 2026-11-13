@@ -3060,6 +3060,12 @@ Arenas
         ├── total [Copy]
         ├── outer [Borrow ← fun main]
         └── j [Copy]
+== programs/build/vec/move_vec_field.bork
+Arenas
+├── fun take
+│   └── v [Local]
+└── fun main
+    └── h [Moved ← fun main]
 == programs/build/vec/negative_capacity_aborts.bork
 Arenas
 └── fun main
@@ -3086,6 +3092,12 @@ Arenas
         ├── total [Copy]
         ├── v [Borrow ← fun main]
         └── j [Copy]
+== programs/build/vec/receiver_read_before_arguments.bork
+Arenas
+├── fun swap
+│   └── h [Borrow ← call site]
+└── fun main
+    └── h [Local]
 == programs/build/vec/ref_counts_across_arenas.bork
 Arenas
 └── fun main
@@ -3258,6 +3270,11 @@ Arenas
 └── fun main
     ├── v [Local]
     └── s [Local]
+== programs/build/vec/vec_field_repeated.bork
+Arenas
+└── fun main
+    ├── h [Local]
+    └── n [Local]
 == programs/build/vec/with_capacity.bork
 Arenas
 └── fun main

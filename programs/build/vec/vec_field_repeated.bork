@@ -1,0 +1,10 @@
+// exit: 1
+// a Vec through a field, read and pushed repeatedly
+class H { v: Vec<i32> }
+fun main(): i32 {
+    var h = H(Vec<i32>())
+    h.v.push(2)
+    val n = h.v.len()
+    h.v.push(n)
+    return h.v[1]
+}

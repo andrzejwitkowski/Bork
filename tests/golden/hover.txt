@@ -196,9 +196,11 @@ programs/build/vec/grow_past_page.bork: hits=32 hash=54fe673543deac60
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90
 programs/build/vec/index_through_field.bork: hits=24 hash=54e5472b13fb1fde
 programs/build/vec/move_to_outer.bork: hits=94 hash=31cd0af2d02d7bef
+programs/build/vec/move_vec_field.bork: hits=6 hash=a7c5df8bbbb9a802
 programs/build/vec/negative_capacity_aborts.bork: hits=7 hash=054f65b17d4e4e12
 programs/build/vec/pop_set_clear.bork: hits=69 hash=7461456957d7e544
 programs/build/vec/push_grow_sum.bork: hits=32 hash=ce9bfa28e99d9d81
+programs/build/vec/receiver_read_before_arguments.bork: hits=13 hash=239f6bef03653ae5
 programs/build/vec/ref_counts_across_arenas.bork: hits=267 hash=1e555854adf40565
 programs/build/vec/ref_nodes.bork: hits=52 hash=ffcc863956c4e5f4
 programs/build/vec/ref_promote.bork: hits=71 hash=0e33d511037d488a
@@ -206,6 +208,7 @@ programs/build/vec/ref_promote_strong.bork: hits=127 hash=14bcefaf30457cb8
 programs/build/vec/ref_weak_expires.bork: hits=180 hash=c4b25c52eaf3c31c
 programs/build/vec/return_vec_of_linked_refs.bork: hits=64 hash=b94ea82a72352d73
 programs/build/vec/strings.bork: hits=32 hash=f73312c73c823f7e
+programs/build/vec/vec_field_repeated.bork: hits=18 hash=334d14e4ac0d1f2b
 programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
 programs/build_fail/enums/return_move_object.bork: hits=43 hash=27f38da37a54fddd
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21

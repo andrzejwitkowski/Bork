@@ -514,9 +514,13 @@ programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/index_from_element.bork::main() -> i32
 programs/build/vec/index_through_field.bork::main() -> i32
 programs/build/vec/move_to_outer.bork::main() -> i32
+programs/build/vec/move_vec_field.bork::take(v: Vec<i32>) -> i32
+programs/build/vec/move_vec_field.bork::main() -> i32
 programs/build/vec/negative_capacity_aborts.bork::main() -> i32
 programs/build/vec/pop_set_clear.bork::main() -> i32
 programs/build/vec/push_grow_sum.bork::main() -> i32
+programs/build/vec/receiver_read_before_arguments.bork::swap(h: &rw H) -> i32
+programs/build/vec/receiver_read_before_arguments.bork::main() -> i32
 programs/build/vec/ref_counts_across_arenas.bork::main() -> i32
 programs/build/vec/ref_nodes.bork::main() -> i32
 programs/build/vec/ref_promote.bork::main() -> i32
@@ -526,6 +530,7 @@ programs/build/vec/return_vec_of_linked_refs.bork::churn(k: i32) -> i32
 programs/build/vec/return_vec_of_linked_refs.bork::make() -> Bag
 programs/build/vec/return_vec_of_linked_refs.bork::main() -> i32
 programs/build/vec/strings.bork::main() -> i32
+programs/build/vec/vec_field_repeated.bork::main() -> i32
 programs/build/vec/with_capacity.bork::main() -> i32
 programs/check/borrow/array_slice_length.bork::main() -> i32
 programs/check/borrow/reborrow_in_for.bork::inner(a: &rw [i32; 2]) -> unit
