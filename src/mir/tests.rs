@@ -96,7 +96,7 @@ fn loop_with_reset_on_the_back_edge_passes() {
         stmts: vec![stmt(StmtKind::RegionReset { region: RegionId(0), dst: Local(2) })],
         term: term(TermKind::Switch { value: Operand::Const(Const::Bool(true)), cases: vec![(1, BlockId(1))], otherwise: BlockId(2) }),
     });
-    b.blocks.push(Block { stmts: vec![stmt(StmtKind::RegionExit(RegionId(0)))], term: term(TermKind::Return) });
+    b.blocks.push(Block { stmts: vec![stmt(set(0, 0)), stmt(StmtKind::RegionExit(RegionId(0)))], term: term(TermKind::Return) });
     assert_eq!(messages(&e, &b), Vec::<String>::new());
 }
 
@@ -201,7 +201,7 @@ fn scoped(e: &Env, stmts: Vec<StmtKind>, t: TermKind) -> Body {
 #[test]
 fn balanced_debug_scopes_pass() {
     let e = env();
-    let b = scoped(&e, vec![StmtKind::StorageLive(Local(3)), StmtKind::StorageLive(Local(4)), StmtKind::StorageDead(Local(4)), StmtKind::StorageDead(Local(3))], TermKind::Return);
+    let b = scoped(&e, vec![set(0, 0), StmtKind::StorageLive(Local(3)), StmtKind::StorageLive(Local(4)), StmtKind::StorageDead(Local(4)), StmtKind::StorageDead(Local(3))], TermKind::Return);
     assert_eq!(messages(&e, &b), Vec::<String>::new());
 }
 
@@ -237,9 +237,70 @@ fn an_arena_must_exist_where_an_op_names_it() {
     has(&messages(&e, &body(&e, alloc(ArenaRef::Current), TermKind::Return)), "no open region and no caller parent");
     // The local is a plain temporary, not a dynamic arena.
     has(&messages(&e, &body(&e, alloc(ArenaRef::Fresh(1)), TermKind::Return)), "not a DynamicArena");
-    let mut with_parent = body(&e, alloc(ArenaRef::Current), TermKind::Return);
+    let mut with_parent = body(&e, [alloc(ArenaRef::Current), vec![set(0, 0)]].concat(), TermKind::Return);
     with_parent.abi.caller_parent = true;
     assert_eq!(messages(&e, &with_parent), Vec::<String>::new());
-    let open = body(&e, [vec![StmtKind::RegionEnter(RegionId(0))], alloc(ArenaRef::Region(RegionId(0))), vec![StmtKind::RegionExit(RegionId(0))]].concat(), TermKind::Return);
+    let open = body(&e, [vec![StmtKind::RegionEnter(RegionId(0))], alloc(ArenaRef::Region(RegionId(0))), vec![set(0, 0), StmtKind::RegionExit(RegionId(0))]].concat(), TermKind::Return);
     assert_eq!(messages(&e, &open), Vec::<String>::new());
+}
+
+/// `_3: i32` and `_4: i32` plain temporaries on top of `body`.
+fn with_ints(e: &Env, stmts: Vec<StmtKind>, t: TermKind) -> Body {
+    let mut b = body(e, stmts, t);
+    b.locals.push(local(e.int, LocalKind::Temp));
+    b.locals.push(local(e.int, LocalKind::Temp));
+    b
+}
+
+fn set(dst: u32, v: i64) -> StmtKind {
+    StmtKind::Assign(p(dst), Rvalue::Use(Operand::Const(Const::Int(v))))
+}
+
+fn mv(dst: u32, src: u32) -> StmtKind {
+    StmtKind::Assign(p(dst), Rvalue::Use(Operand::Move(p(src))))
+}
+
+fn cp(dst: u32, src: u32) -> StmtKind {
+    StmtKind::Assign(p(dst), Rvalue::Use(Operand::Copy(p(src))))
+}
+
+#[test]
+fn rejects_a_read_before_assignment_and_after_a_move() {
+    let e = env();
+    has(&messages(&e, &with_ints(&e, vec![cp(0, 3)], TermKind::Return)), "_3 is read before it was assigned");
+    has(&messages(&e, &with_ints(&e, vec![set(3, 1), mv(4, 3), cp(0, 3)], TermKind::Return)), "_3 is read after it was moved");
+    // Assigning again makes it readable.
+    assert_eq!(messages(&e, &with_ints(&e, vec![set(3, 1), mv(4, 3), set(3, 2), cp(0, 3)], TermKind::Return)), Vec::<String>::new());
+    // The return local must be assigned on every path.
+    has(&messages(&e, &with_ints(&e, vec![], TermKind::Return)), "not assigned on every path");
+}
+
+/// bb0 branches to bb1 (runs `then`) or bb2 (nothing); both join at bb3, which runs `after`.
+fn diamond(e: &Env, then: Vec<StmtKind>, after: Vec<StmtKind>) -> Body {
+    let mut b = with_ints(e, vec![set(3, 1)], TermKind::Switch { value: Operand::Const(Const::Bool(true)), cases: vec![(1, BlockId(1))], otherwise: BlockId(2) });
+    b.blocks.push(Block { stmts: then.into_iter().map(stmt).collect(), term: term(TermKind::Goto(BlockId(3))) });
+    b.blocks.push(Block { stmts: vec![], term: term(TermKind::Goto(BlockId(3))) });
+    b.blocks.push(Block { stmts: after.into_iter().map(stmt).collect(), term: term(TermKind::Return) });
+    b
+}
+
+#[test]
+fn a_conditional_move_is_only_an_error_when_read_afterwards() {
+    let e = env();
+    // Moved on one branch, never read again: fine.
+    assert_eq!(messages(&e, &diamond(&e, vec![mv(4, 3)], vec![set(0, 0)])), Vec::<String>::new());
+    // Moved on one branch, read after the join: maybe-moved.
+    has(&messages(&e, &diamond(&e, vec![mv(4, 3)], vec![cp(0, 3)])), "_3 is read after it was moved");
+    // Assigned on one branch only, read after the join: not definitely assigned.
+    let mut b = diamond(&e, vec![set(4, 2)], vec![cp(0, 4)]);
+    b.blocks[0].stmts.clear();
+    has(&messages(&e, &b), "_4 is read before it was assigned");
+}
+
+#[test]
+fn unreachable_blocks_are_not_analysed() {
+    let e = env();
+    let mut b = with_ints(&e, vec![set(0, 1)], TermKind::Return);
+    b.blocks.push(Block { stmts: vec![stmt(cp(0, 3))], term: term(TermKind::Return) });
+    assert_eq!(messages(&e, &b), Vec::<String>::new());
 }

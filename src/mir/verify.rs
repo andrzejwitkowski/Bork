@@ -13,7 +13,7 @@
 //! #260 makes authoritative; a second copy here would be the duplicate #237 item 5 asks to avoid. Moves out of a
 //! projected place (`a.f`) are not tracked either.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::fmt;
 
 use super::body::*;
@@ -37,6 +37,13 @@ impl fmt::Display for VerifyError {
         }
         f.write_str(&self.message)
     }
+}
+
+/// Value facts at a point: definitely-initialised and maybe-moved bare locals.
+#[derive(Clone, PartialEq, Eq)]
+struct ValueState {
+    init: BTreeSet<Local>,
+    moved: BTreeSet<Local>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -114,6 +121,115 @@ impl Verifier<'_> {
         }
         if self.errors.is_empty() {
             self.walk_paths();
+        }
+        if self.errors.is_empty() {
+            self.check_values();
+        }
+    }
+
+    /// Locals whose value the init/move check follows: variables and temporaries, not the hidden ABI locals.
+    fn is_value_local(&self, l: Local) -> bool {
+        self.body.local(l).is_some_and(|d| !matches!(d.kind, LocalKind::Hidden(_)))
+    }
+
+    /// Value facts as a forward fixpoint from the entry block only (unreachable blocks are never analysed): `moved`
+    /// grows by union at joins (maybe-moved), `init` shrinks by intersection (definitely-initialised). A conditional
+    /// move with no later read therefore passes, a read after it does not.
+    fn check_values(&mut self) {
+        let body = self.body;
+        let entry = ValueState { init: body.locals.iter().enumerate().filter(|(_, d)| d.kind == LocalKind::Arg).map(|(i, _)| Local(i as u32)).collect(), moved: BTreeSet::new() };
+        let mut at: HashMap<usize, ValueState> = HashMap::from([(0, entry)]);
+        let mut work = VecDeque::from([0usize]);
+        while let Some(bi) = work.pop_front() {
+            let mut st = at[&bi].clone();
+            let block = &body.blocks[bi];
+            for s in &block.stmts {
+                self.apply_values(&mut st, |f| s.kind.walk(f), None);
+            }
+            let Some(term) = &block.term else { continue };
+            self.apply_values(&mut st, |f| term.kind.walk(f), None);
+            for next in term.kind.successors() {
+                let n = next.0 as usize;
+                let merged = match at.get(&n) {
+                    None => st.clone(),
+                    Some(old) => ValueState { init: old.init.intersection(&st.init).copied().collect(), moved: old.moved.union(&st.moved).copied().collect() },
+                };
+                if at.get(&n) != Some(&merged) {
+                    at.insert(n, merged);
+                    work.push_back(n);
+                }
+            }
+        }
+        // Report from the settled entry states, once per block in order.
+        let mut reached: Vec<usize> = at.keys().copied().collect();
+        reached.sort_unstable();
+        for bi in reached {
+            let b = BlockId(bi as u32);
+            let mut st = at[&bi].clone();
+            let block = &body.blocks[bi];
+            for (si, s) in block.stmts.iter().enumerate() {
+                self.apply_values(&mut st, |f| s.kind.walk(f), Some((b, Some(si))));
+            }
+            let Some(term) = &block.term else { continue };
+            self.apply_values(&mut st, |f| term.kind.walk(f), Some((b, None)));
+            if matches!(term.kind, TermKind::Return) {
+                let ret_unit = body.local(body.ret).is_some_and(|d| d.ty == self.tcx.prim_id(crate::hir::Prim::Unit));
+                if !ret_unit && !st.init.contains(&body.ret) {
+                    self.err(Some(b), None, "return of a value that was not assigned on every path");
+                }
+            }
+        }
+    }
+
+    /// One statement or terminator: reads are checked against `st` before its definitions apply (the order `walk`
+    /// reports). With `report`, a violation becomes an error; without it, only the state advances.
+    fn apply_values<'b>(&mut self, st: &mut ValueState, walk: impl FnOnce(&mut dyn FnMut(Use<'b>)), report: Option<(BlockId, Option<usize>)>) {
+        let mut errors: Vec<String> = Vec::new();
+        let this = &*self;
+        let read = |st: &ValueState, p: &Place, errors: &mut Vec<String>| {
+            let mut check = |l: Local| {
+                if this.is_value_local(l) {
+                    if st.moved.contains(&l) {
+                        errors.push(format!("_{} is read after it was moved", l.0));
+                    } else if !st.init.contains(&l) {
+                        errors.push(format!("_{} is read before it was assigned on every path", l.0));
+                    }
+                }
+            };
+            check(p.local);
+            for pr in &p.proj {
+                if let Proj::Index(idx) = pr {
+                    if let Operand::Copy(i) | Operand::Move(i) | Operand::Reborrow(i) = &**idx {
+                        check(i.local);
+                    }
+                }
+            }
+        };
+        let mut moves: Vec<Local> = Vec::new();
+        let mut defs: Vec<Local> = Vec::new();
+        walk(&mut |u| match u {
+            Use::Read(p) | Use::Op(Operand::Copy(p) | Operand::Reborrow(p)) => read(st, p, &mut errors),
+            Use::Consume(p) | Use::Op(Operand::Move(p)) => {
+                read(st, p, &mut errors);
+                if p.is_bare() {
+                    moves.push(p.local);
+                }
+            }
+            Use::Def(p) if p.is_bare() => defs.push(p.local),
+            Use::Local(l) => defs.push(l),
+            _ => {}
+        });
+        for l in moves {
+            st.moved.insert(l);
+        }
+        for l in defs {
+            st.moved.remove(&l);
+            st.init.insert(l);
+        }
+        if let Some((b, s)) = report {
+            for m in errors {
+                self.err(Some(b), s, m);
+            }
         }
     }
 
