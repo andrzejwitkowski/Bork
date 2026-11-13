@@ -1,8 +1,17 @@
 //! MIR verifier v0 (RFC 0006 3.6). A failure is an internal compiler error.
 //!
-//! Checked here: CFG shape, references to locals/regions/hidden ABI, region nesting on every path, and
-//! that each `Ref` temporary is defined and consumed exactly once per path. Init/move dataflow and
-//! arena-lifetime enclosure need real bodies and arrive with `build.rs` / M3.
+//! Checked here, in two kinds (RFC 0006 3.6):
+//! - **Structural facts**, identical on every path into a block (the builder emits structured control flow and
+//!   lowering keeps one state per block): CFG shape, references to locals/regions/hidden ABI, region nesting, live
+//!   `Ref` temporaries, live debug scopes (`StorageLive`/`StorageDead` pair up and none is live at `return`), and that
+//!   an arena named by an op exists at that point (`Region(r)` is open, `Current` has an open region or a caller
+//!   parent, `Fresh(n)` is a dynamic-arena local).
+//! - **Value facts**, joined as a fixpoint over the CFG: a bare local is not read after it was moved (maybe-moved,
+//!   union at joins) or before it was initialised (definitely-initialised, intersection at joins).
+//!
+//! Not checked here: that the value stored into an arena does not outlive it. That is `mir::escape` (#217), which
+//! #260 makes authoritative; a second copy here would be the duplicate #237 item 5 asks to avoid. Moves out of a
+//! projected place (`a.f`) are not tracked either.
 
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
@@ -42,6 +51,8 @@ enum Event {
 struct State {
     regions: Vec<RegionId>,
     live: BTreeSet<Local>,
+    /// Live `DebugScope` locals, innermost last.
+    scopes: Vec<Local>,
 }
 
 pub fn verify(body: &Body, tcx: &TyCtx) -> Vec<VerifyError> {
@@ -161,12 +172,17 @@ impl Verifier<'_> {
     /// Depth-first over the CFG; every block must be reached with one agreed state.
     fn walk_paths(&mut self) {
         let mut seen: HashMap<usize, State> = HashMap::new();
-        let mut stack = vec![(0usize, State { regions: Vec::new(), live: BTreeSet::new() })];
+        let mut stack = vec![(0usize, State { regions: Vec::new(), live: BTreeSet::new(), scopes: Vec::new() })];
         while let Some((bi, entry)) = stack.pop() {
             match seen.get(&bi) {
                 Some(prev) if *prev == entry => continue,
-                Some(_) => {
-                    self.err(Some(BlockId(bi as u32)), None, "paths reach this block with different open regions or live Ref temporaries");
+                Some(prev) => {
+                    let message = if prev.scopes != entry.scopes && prev.regions == entry.regions && prev.live == entry.live {
+                        "paths reach this block with different live debug scopes"
+                    } else {
+                        "paths reach this block with different open regions or live Ref temporaries"
+                    };
+                    self.err(Some(BlockId(bi as u32)), None, message);
                     continue;
                 }
                 None => {
@@ -184,6 +200,20 @@ impl Verifier<'_> {
                             self.err(Some(b), Some(si), format!("region_exit r{} does not close the innermost open region", r.0));
                         }
                     }
+                    StmtKind::StorageLive(l) => {
+                        if self.body.local(*l).is_none_or(|d| d.kind != LocalKind::Hidden(HiddenKind::DebugScope)) {
+                            self.err(Some(b), Some(si), "storage_live of a local that is not a DebugScope");
+                        } else if st.scopes.contains(l) {
+                            self.err(Some(b), Some(si), format!("storage_live _{} while its scope is already live", l.0));
+                        } else {
+                            st.scopes.push(*l);
+                        }
+                    }
+                    StmtKind::StorageDead(l) => {
+                        if st.scopes.pop() != Some(*l) {
+                            self.err(Some(b), Some(si), format!("storage_dead _{} does not close the innermost live debug scope", l.0));
+                        }
+                    }
                     StmtKind::RegionReset { region, dst } => {
                         if st.regions.last() != Some(region) {
                             self.err(Some(b), Some(si), format!("region_reset r{} outside its region", region.0));
@@ -195,12 +225,32 @@ impl Verifier<'_> {
                     _ => {}
                 }
                 let mut events = Vec::new();
-                s.kind.walk(&mut |u| events.push(self.temp_event(u)));
+                let mut arenas = Vec::new();
+                s.kind.walk(&mut |u| {
+                    if let Use::Arena(a) = u {
+                        arenas.push(a);
+                    } else {
+                        events.push(self.temp_event(u));
+                    }
+                });
+                for a in arenas {
+                    self.check_arena(a, &st, b, Some(si));
+                }
                 self.apply_temps(&mut st, events, b, Some(si));
             }
             let Some(term) = &block.term else { continue };
             let mut events = Vec::new();
-            term.kind.walk(&mut |u| events.push(self.temp_event(u)));
+            let mut arenas = Vec::new();
+            term.kind.walk(&mut |u| {
+                if let Use::Arena(a) = u {
+                    arenas.push(a);
+                } else {
+                    events.push(self.temp_event(u));
+                }
+            });
+            for a in arenas {
+                self.check_arena(a, &st, b, None);
+            }
             self.apply_temps(&mut st, events, b, None);
             match &term.kind {
                 TermKind::Return => {
@@ -210,6 +260,9 @@ impl Verifier<'_> {
                     if !st.live.is_empty() {
                         self.err(Some(b), None, format!("return with unconsumed Ref temporaries {:?}", st.live));
                     }
+                    if !st.scopes.is_empty() {
+                        self.err(Some(b), None, format!("return leaves debug scopes live {:?}", st.scopes));
+                    }
                 }
                 other => {
                     for next in other.successors() {
@@ -217,6 +270,20 @@ impl Verifier<'_> {
                     }
                 }
             }
+        }
+    }
+
+    /// The arena `a` exists at this point of the path.
+    fn check_arena(&mut self, a: &ArenaRef, st: &State, b: BlockId, s: Option<usize>) {
+        match a {
+            ArenaRef::Region(r) if !st.regions.contains(r) => self.err(Some(b), s, format!("arena r{} is not open here", r.0)),
+            ArenaRef::Current if st.regions.is_empty() && !self.body.abi.caller_parent => {
+                self.err(Some(b), s, "`current` arena with no open region and no caller parent")
+            }
+            ArenaRef::Fresh(n) if self.body.local(Local(*n)).is_none_or(|d| d.kind != LocalKind::Hidden(HiddenKind::DynamicArena)) => {
+                self.err(Some(b), s, format!("fresh arena _{n} is not a DynamicArena local"))
+            }
+            _ => {}
         }
     }
 

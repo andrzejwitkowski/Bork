@@ -189,3 +189,57 @@ fn rejects_match_binding_to_missing_local() {
     let b = body(&e, vec![], TermKind::Match { scrutinee: p(0), arms: vec![arm] });
     has(&messages(&e, &b), "missing local _77");
 }
+
+/// `body` plus two `DebugScope` locals `_3`, `_4`.
+fn scoped(e: &Env, stmts: Vec<StmtKind>, t: TermKind) -> Body {
+    let mut b = body(e, stmts, t);
+    b.locals.push(local(e.unit, LocalKind::Hidden(HiddenKind::DebugScope)));
+    b.locals.push(local(e.unit, LocalKind::Hidden(HiddenKind::DebugScope)));
+    b
+}
+
+#[test]
+fn balanced_debug_scopes_pass() {
+    let e = env();
+    let b = scoped(&e, vec![StmtKind::StorageLive(Local(3)), StmtKind::StorageLive(Local(4)), StmtKind::StorageDead(Local(4)), StmtKind::StorageDead(Local(3))], TermKind::Return);
+    assert_eq!(messages(&e, &b), Vec::<String>::new());
+}
+
+#[test]
+fn rejects_unbalanced_debug_scopes() {
+    let e = env();
+    has(&messages(&e, &scoped(&e, vec![StmtKind::StorageLive(Local(3))], TermKind::Return)), "leaves debug scopes live");
+    has(&messages(&e, &scoped(&e, vec![StmtKind::StorageDead(Local(3))], TermKind::Return)), "innermost live debug scope");
+    let crossed = scoped(&e, vec![StmtKind::StorageLive(Local(3)), StmtKind::StorageLive(Local(4)), StmtKind::StorageDead(Local(3))], TermKind::Return);
+    has(&messages(&e, &crossed), "innermost live debug scope");
+    has(&messages(&e, &scoped(&e, vec![StmtKind::StorageLive(Local(3)), StmtKind::StorageLive(Local(3))], TermKind::Return)), "already live");
+    has(&messages(&e, &scoped(&e, vec![StmtKind::StorageLive(Local(1))], TermKind::Return)), "not a DebugScope");
+}
+
+#[test]
+fn rejects_paths_that_disagree_about_live_debug_scopes() {
+    let e = env();
+    let mut b = scoped(&e, vec![], TermKind::Switch { value: Operand::Const(Const::Bool(true)), cases: vec![(1, BlockId(1))], otherwise: BlockId(2) });
+    b.blocks.push(Block { stmts: vec![stmt(StmtKind::StorageLive(Local(3)))], term: term(TermKind::Goto(BlockId(3))) });
+    b.blocks.push(Block { stmts: vec![], term: term(TermKind::Goto(BlockId(3))) });
+    b.blocks.push(Block { stmts: vec![], term: term(TermKind::Abort(AbortReason::Bounds)) });
+    has(&messages(&e, &b), "different live debug scopes");
+}
+
+#[test]
+fn an_arena_must_exist_where_an_op_names_it() {
+    let e = env();
+    // `_0` is the `i32` return local: not a `Ref` temporary, so the allocation leaves nothing to consume.
+    let alloc = |arena: ArenaRef| vec![StmtKind::Alloc { dst: p(0), kind: AllocKind::String, arena }];
+    // `r0` is not entered yet.
+    has(&messages(&e, &body(&e, alloc(ArenaRef::Region(RegionId(0))), TermKind::Return)), "not open here");
+    // No open region and no caller parent: `current` names nothing.
+    has(&messages(&e, &body(&e, alloc(ArenaRef::Current), TermKind::Return)), "no open region and no caller parent");
+    // The local is a plain temporary, not a dynamic arena.
+    has(&messages(&e, &body(&e, alloc(ArenaRef::Fresh(1)), TermKind::Return)), "not a DynamicArena");
+    let mut with_parent = body(&e, alloc(ArenaRef::Current), TermKind::Return);
+    with_parent.abi.caller_parent = true;
+    assert_eq!(messages(&e, &with_parent), Vec::<String>::new());
+    let open = body(&e, [vec![StmtKind::RegionEnter(RegionId(0))], alloc(ArenaRef::Region(RegionId(0))), vec![StmtKind::RegionExit(RegionId(0))]].concat(), TermKind::Return);
+    assert_eq!(messages(&e, &open), Vec::<String>::new());
+}
