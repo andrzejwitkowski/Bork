@@ -1,0 +1,8 @@
+// exit: 5
+// `None` passed for a `Ref` parameter is the absent handle.
+class Node { v: i32 }
+fun take(r: Ref<Node>): i32 {
+    if val n = r { return n.v }
+    return 5
+}
+fun main(): i32 { return take(None) }

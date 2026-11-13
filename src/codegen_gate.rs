@@ -11,11 +11,17 @@ use crate::mono::Mono;
 use crate::sema::ArenaReport;
 use crate::ty::TyCtx;
 
-/// Diagnostics for the constructs of `hir` codegen cannot lower, instance by instance. A program that cannot be
+/// Diagnostics for the constructs of `hir` codegen cannot lower, instance by instance. Like `check` and `build`, it
+/// specialises what `main` reaches (every non-generic function when there is no `main`), so a program that cannot be
 /// specialised yields none: `check` already reported why.
 pub fn gate(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> Vec<Diagnostic> {
     let mut tcx = tcx.clone();
-    match crate::mono::monomorphize_unchecked(hir, &mut tcx, report) {
+    let specialised = if hir.functions.iter().any(|f| f.name == "main") {
+        crate::mono::monomorphize(hir, &mut tcx, report)
+    } else {
+        crate::mono::monomorphize_unchecked(hir, &mut tcx, report)
+    };
+    match specialised {
         Ok(mono) => gate_mono(&mono, &tcx),
         Err(_) => Vec::new(),
     }
@@ -191,5 +197,14 @@ fun main(): i32 {
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    }
+
+    #[test]
+    fn an_unused_helper_that_cannot_be_specialised_does_not_hide_a_gate_error() {
+        let source = "class P { x: i32 }\nfun g<T>(): i32 { return 1 }\nfun unused(): i32 { return g::<i32>() }\nfun main(): i32 {\n    val p = P(1)\n    val q = move p\n    return q.x\n}\n";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
+        assert!(diagnostics.iter().any(|d| d.message.contains("moving class objects")), "{diagnostics:?}");
     }
 }

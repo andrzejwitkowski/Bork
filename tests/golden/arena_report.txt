@@ -1299,6 +1299,13 @@ Arenas
         ├── live_child [Borrow ← presence guard]
         └── IfValSome
             └── live_parent [Borrow ← presence guard]
+== programs/build/managed_refs/none_arg_to_ref_param.bork
+Arenas
+├── fun take
+│   ├── r [Local]
+│   └── IfValSome
+│       └── n [Borrow ← presence guard]
+└── fun main
 == programs/build/managed_refs/presence_int_result.bork
 Arenas
 ├── fun pick

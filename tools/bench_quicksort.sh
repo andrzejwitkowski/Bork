@@ -20,7 +20,7 @@ median() {
     local times=() i start end
     for ((i = 0; i < runs; i++)); do
         start=$(date +%s.%N)
-        "$@" >/dev/null 2>&1 || true
+        "$@" >/dev/null 2>&1 || { echo "FAILED: $*" >&2; exit 1; }
         end=$(date +%s.%N)
         times+=("$(echo "$end - $start" | bc -l)")
     done

@@ -91,12 +91,14 @@ impl<'ctx> Codegen<'ctx> {
 
     /// One element of a copied buffer of text or `Ref`s: a `Ref` is cloned and stored into `dst` with ownership in
     /// `arena`, text bytes are copied into `arena`.
-    fn copy_owned_element(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, elem_ty: TyId, llvm_elem: inkwell::types::BasicTypeEnum<'ctx>, src: PointerValue<'ctx>, dst: PointerValue<'ctx>) -> Result<(), Diagnostic> {
+    fn copy_owned_element(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, elem_ty: TyId, llvm_elem: inkwell::types::BasicTypeEnum<'ctx>, src: PointerValue<'ctx>, dst: PointerValue<'ctx>, register: bool) -> Result<(), Diagnostic> {
         let loaded = self.builder.build_load(llvm_elem, src, "elem.copy")?;
         if self.tcx.is_managed_ref(elem_ty) {
             let cloned = self.ref_clone(llvm_fn, loaded)?;
             self.builder.build_store(dst, self.ref_handle_type().const_zero())?;
-            return self.ref_store(llvm_fn, dst, arena, cloned);
+            self.ref_store(llvm_fn, dst, arena, cloned)?;
+            // An array slot has no header glue to release it; a `Vec` registers one glue for all its slots.
+            return if register { self.ref_register_drop(arena, dst) } else { Ok(()) };
         }
         let copied = self.copy_string_into(arena, loaded.into_struct_value())?;
         self.builder.build_store(dst, copied)?;
@@ -116,7 +118,7 @@ impl<'ctx> Codegen<'ctx> {
             self.debug_copy_origin(base, dst)?;
         }
         self.counted_loop(llvm_fn, len, |i| {
-            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(base, i, stride)?, self.vec_slot(dst, i, stride)?)
+            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(base, i, stride)?, self.vec_slot(dst, i, stride)?, true)
         })?;
         Ok(self.descriptor(dst, len))
     }
@@ -168,7 +170,7 @@ impl<'ctx> Codegen<'ctx> {
         let to = self.vec_load_ptr(header, super::vec::BUF)?;
         // `vec_alloc` leaves `to` null for an empty source; the loop never runs then.
         self.counted_loop(llvm_fn, len, |i| {
-            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(from, i, stride)?, self.vec_slot(to, i, stride)?)
+            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(from, i, stride)?, self.vec_slot(to, i, stride)?, false)
         })?;
         self.vec_store(header, super::vec::LEN, len)?;
         self.debug_copy_origin(source, header)?;

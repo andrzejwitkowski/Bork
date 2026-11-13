@@ -397,7 +397,7 @@ pub fn derive_push(body: &Body) -> HashSet<usize> {
             | StmtKind::CopyInto { arena, .. }
             | StmtKind::Promote { arena, .. } => lands_here(arena),
             StmtKind::ArenaCreateDynamic { .. } => true,
-            StmtKind::Intrinsic { arena, .. } => arena.as_ref().is_some_and(lands_here),
+            StmtKind::Intrinsic { arena, .. } | StmtKind::VecOp { arena, .. } => arena.as_ref().is_some_and(lands_here),
             _ => false,
         };
         if needs || has_str(&s.kind) {

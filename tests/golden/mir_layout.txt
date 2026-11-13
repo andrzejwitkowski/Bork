@@ -197,6 +197,8 @@ class Node size=32 align=8 fields=[0, 8]
 class Node size=4 align=4 fields=[0]
 == programs/build/managed_refs/expired_weak_back_edge.bork
 class Node size=32 align=8 fields=[0, 8]
+== programs/build/managed_refs/none_arg_to_ref_param.bork
+class Node size=4 align=4 fields=[0]
 == programs/build/managed_refs/presence_int_result.bork
 class Node size=32 align=8 fields=[0, 8]
 == programs/build/managed_refs/program_dynamic_across_blocks.bork

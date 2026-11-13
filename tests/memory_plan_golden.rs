@@ -40,8 +40,9 @@ fn render() -> String {
         let mut result = check(&source);
         assert!(result.is_ok(), "{rel}: frontend rejected a passing sample: {:?}", result.diagnostics);
         let (hir, report) = (result.hir.take().unwrap(), result.report.take().unwrap());
-        // The plan exists per monomorphized instance; programs MIR cannot lower (closures, `move` of an object) have none.
-        let Ok(mono) = bork::mono::monomorphize_unchecked(&hir, &mut result.tcx, &report) else { continue };
+        // The plan exists per monomorphized instance; programs MIR cannot lower (closures, `move` of an object) have an
+        // empty one. Any other failure is a bug, not a missing row.
+        let mono = bork::mono::monomorphize_unchecked(&hir, &mut result.tcx, &report).unwrap_or_else(|e| panic!("{rel}: {e:?}"));
         for a in &mono.memory_plan.allocations {
             out.push_str(&format!(
                 "{rel}: {}..{} {} {:?} {:?}\n",

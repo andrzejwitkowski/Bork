@@ -548,7 +548,10 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     return None;
                 }
                 for (a, p) in args.iter().zip(&target.params) {
-                    general(a)?;
+                    // `None` for a `Ref` parameter is the absent handle.
+                    if !(matches!(a, Operand::Const(Const::None)) && cx.tcx.is_managed_ref(p.ty)) {
+                        general(a)?;
+                    }
                     value(p.ty)?;
                 }
             }

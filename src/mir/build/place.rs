@@ -139,8 +139,8 @@ impl<'a> FnBuilder<'a> {
         Ok(self.vec_op(e, op, recv, ops))
     }
 
-    /// Stores a `Ref` into an array element through the runtime protocol (which registers the slot for release), labelled
-    /// `[]` with its index for the debug registry.
+    /// Stores a `Ref` into an array element through the runtime protocol, labelled `[]` with its index for the debug
+    /// registry. The runtime store does not register the slot for release: `array_lit` does that for its fresh slots.
     fn ref_element_store(&mut self, slot: Place, value: Operand, el: &HirExpr, arena: &ArenaRef, fresh: bool, index: Operand) {
         let label = DebugLabel { name: "[]".into(), ty: el.ty, span: span_of(el), source: None, declaration: false, argument: None, owner: Some(arena.clone()), index: Some(index) };
         self.stmt_with(StmtKind::Ref(RefOp::Store { slot, owner: arena.clone(), value, fresh }), span_of(el), Some(el.id), Some(label));
@@ -159,7 +159,8 @@ impl<'a> FnBuilder<'a> {
             let index = Operand::Const(Const::Int(i as i64));
             let slot = Place { local: dst, proj: vec![Proj::Index(Box::new(index.clone()))] };
             if self.tcx.is_managed_ref(el.ty) {
-                self.ref_element_store(slot, op, el, &arena, true, index);
+                self.ref_element_store(slot.clone(), op, el, &arena, true, index);
+                self.stmt(StmtKind::RegisterDrop { arena: arena.clone(), place: slot, glue: DropGlue::RefSlot }, span_of(el), None);
                 continue;
             }
             let v = self.materialize(op, el.ty, &arena, span_of(el))?;
