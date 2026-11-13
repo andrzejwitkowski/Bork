@@ -1,274 +1,62 @@
 //! Codegen subset checks shared by `bork build` and the LSP (no LLVM dependency).
+//!
+//! There is no list of rejected shapes here: MIR building reports the construct it cannot lower as a named
+//! [`Capability`](crate::mir::Capability) and this turns each into a diagnostic (RFC 0006 3.8).
 
-use crate::ast::{BinOp, UnaryOp};
 use crate::diag::{Diagnostic, Phase, Severity};
-use crate::hir::{
-    HirBlock, HirExpr, HirExprKind, HirPat, HirPatKind, HirProgram, HirStmt, UseKind,
-};
+use crate::hir::HirProgram;
+use crate::mir::build::{build_function_results, BuildError};
+use crate::mir::Body;
+use crate::mono::Mono;
+use crate::sema::ArenaReport;
 use crate::span::Span;
 use crate::ty::TyCtx;
 
-pub fn gate(hir: &HirProgram, tcx: &TyCtx) -> Vec<Diagnostic> {
-    let mut diagnostics = Vec::new();
-    for function in &hir.functions {
-        let mut found = Vec::new();
-        gate_block(tcx, &function.body, &mut found);
-        diagnostics.extend(found);
+/// Diagnostics for the constructs of `hir` codegen cannot lower, instance by instance. Like `check` and `build`, it
+/// specialises what `main` reaches (every non-generic function when there is no `main`), so a program that cannot be
+/// specialised yields none: `check` already reported why.
+pub fn gate(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> Vec<Diagnostic> {
+    let mut tcx = tcx.clone();
+    let specialised = if hir.functions.iter().any(|f| f.name == "main") {
+        crate::mono::monomorphize(hir, &mut tcx, report)
+    } else {
+        crate::mono::monomorphize_unchecked(hir, &mut tcx, report)
+    };
+    match specialised {
+        Ok(mono) => gate_mono(&mono, &tcx),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// [`gate`] over a program that is already monomorphized.
+pub fn gate_mono(mono: &Mono, tcx: &TyCtx) -> Vec<Diagnostic> {
+    match build_function_results(mono, tcx) {
+        Ok(results) => gate_results(&results),
+        Err(error) => gate_results(&[Err(error)]),
+    }
+}
+
+/// Message and span of a MIR build failure, shared by the gate and `bork build`.
+pub fn describe(error: &BuildError) -> (String, Option<Span>) {
+    match error {
+        BuildError::Unsupported(u) => (u.message().to_owned(), Some(u.span)),
+        BuildError::Unlowered { what, span } => (format!("{what} is not supported by codegen yet"), Some(*span)),
+        BuildError::Internal(message) => (format!("internal error: MIR: {message}"), None),
+    }
+}
+
+/// The diagnostics of the functions in `results` that MIR could not build (the build path reuses the same
+/// results for emission, so MIR is built once).
+pub fn gate_results(results: &[Result<Body, BuildError>]) -> Vec<Diagnostic> {
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
+    for error in results.iter().filter_map(|result| result.as_ref().err()) {
+        let (message, span) = describe(error);
+        // A generic body is built once per instance: report its mistake once.
+        if !diagnostics.iter().any(|d| d.message == message && d.span == span) {
+            diagnostics.push(Diagnostic { phase: Phase::Codegen, severity: Severity::Error, message, span, notes: Vec::new() });
+        }
     }
     diagnostics
-}
-
-fn gate_block(tcx: &TyCtx, block: &HirBlock, diagnostics: &mut Vec<Diagnostic>) {
-    for statement in &block.stmts {
-        match statement {
-            HirStmt::Return { value } => {
-                if let Some(value) = value {
-                    gate_expr(tcx, value, diagnostics);
-                }
-            }
-            HirStmt::Block(block) | HirStmt::MoveBlock { body: block, .. } => {
-                gate_block(tcx, block, diagnostics);
-            }
-            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => gate_expr(tcx, value, diagnostics),
-            HirStmt::Assign { target, value } => {
-                if let Some(receiver) = target.receiver() {
-                    gate_expr(tcx, receiver, diagnostics);
-                }
-                if let Some(index) = target.index() {
-                    gate_expr(tcx, index, diagnostics);
-                }
-                gate_expr(tcx, value, diagnostics);
-            }
-            HirStmt::For { iter, body, .. } => {
-                gate_expr(tcx, iter, diagnostics);
-                gate_block(tcx, body, diagnostics);
-            }
-            HirStmt::While { cond, body } => {
-                gate_expr(tcx, cond, diagnostics);
-                gate_block(tcx, body, diagnostics);
-            }
-            HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
-        }
-    }
-}
-
-fn gate_expr(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    match &expr.kind {
-        HirExprKind::Int { .. }
-        | HirExprKind::Float { .. }
-        | HirExprKind::Bool { .. }
-        | HirExprKind::Str { .. } => {}
-        HirExprKind::Ident {
-            use_kind: UseKind::Move | UseKind::Promote,
-            ..
-        } => gate_move(tcx, expr, diagnostics),
-        HirExprKind::Ident { .. } => {}
-        HirExprKind::ArrayLit { elements } => {
-            for element in elements {
-                gate_expr(tcx, element, diagnostics);
-            }
-        }
-        HirExprKind::VecNew { cap, .. } => {
-            if let Some(cap) = cap {
-                gate_expr(tcx, cap, diagnostics);
-            }
-        }
-        HirExprKind::VecOp { receiver, args, .. } => {
-            gate_expr(tcx, receiver, diagnostics);
-            for arg in args {
-                gate_expr(tcx, arg, diagnostics);
-            }
-        }
-        HirExprKind::Index {
-            receiver,
-            index,
-            use_kind: _,
-        } => {
-            gate_expr(tcx, receiver, diagnostics);
-            gate_expr(tcx, index, diagnostics);
-        }
-        HirExprKind::Slice { receiver, lo, hi } => {
-            gate_expr(tcx, receiver, diagnostics);
-            gate_expr(tcx, lo, diagnostics);
-            gate_expr(tcx, hi, diagnostics);
-        }
-        HirExprKind::Binary { op, lhs, rhs } => {
-            gate_binary_op(op, expr.span, diagnostics);
-            gate_expr(tcx, lhs, diagnostics);
-            gate_expr(tcx, rhs, diagnostics);
-        }
-        HirExprKind::Call {
-            callee,
-            args,
-            has_trailing_closure,
-        } => {
-            if *has_trailing_closure {
-                reject(
-                    diagnostics,
-                    "trailing closures are not supported by codegen",
-                    expr.span.or(callee.span),
-                );
-            }
-            gate_expr(tcx, callee, diagnostics);
-            for argument in args {
-                gate_expr(tcx, argument, diagnostics);
-            }
-        }
-        HirExprKind::If {
-            cond,
-            then_block,
-            else_block,
-        } => {
-            gate_expr(tcx, cond, diagnostics);
-            gate_block(tcx, then_block, diagnostics);
-            if let Some(else_block) = else_block {
-                gate_block(tcx, else_block, diagnostics);
-            }
-        }
-        HirExprKind::None => {}
-        HirExprKind::Some(inner)
-        | HirExprKind::RefCreate(inner)
-        | HirExprKind::Unary {
-            op: UnaryOp::NotNullAssert | UnaryOp::Not | UnaryOp::Borrow { .. },
-            expr: inner,
-        } => gate_expr(tcx, inner, diagnostics),
-        HirExprKind::EnumConstruct { fields, .. } => {
-            for field in fields {
-                gate_expr(tcx, field, diagnostics);
-            }
-        }
-        HirExprKind::ObjectConstruct { fields, .. } => {
-            for field in fields {
-                gate_expr(tcx, field, diagnostics);
-            }
-        }
-        HirExprKind::ObjectField { receiver, safe, .. } => {
-            // `r?.shape` would copy the outer slot but keep the enum payload in the object's arena.
-            if *safe && tcx.is_nullable(expr.ty) && tcx.enum_args(tcx.base(expr.ty)).is_some() {
-                reject(diagnostics, "`?.` of an enum field is not supported by codegen yet", expr.span);
-            }
-            gate_expr(tcx, receiver, diagnostics);
-        }
-        HirExprKind::Match { scrutinee, arms } => {
-            let scrutinee_ty = tcx.deref_ty(scrutinee.ty);
-            if tcx.is_managed_ref(scrutinee_ty) {
-                reject(
-                    diagnostics,
-                    "`when` over a `Ref` is not supported by codegen yet; use `if val`",
-                    scrutinee.span,
-                );
-            }
-            gate_expr(tcx, scrutinee, diagnostics);
-            for arm in arms {
-                gate_pat(&arm.pat, diagnostics);
-                gate_block(tcx, &arm.body, diagnostics);
-            }
-        }
-        HirExprKind::PresenceMatch {
-            bindings,
-            some_block,
-            none_block,
-            ..
-        } => {
-            for binding in bindings.iter() {
-                gate_expr(tcx, &binding.value, diagnostics);
-            }
-            gate_block(tcx, some_block, diagnostics);
-            if let Some(block) = none_block {
-                gate_block(tcx, block, diagnostics);
-            }
-        }
-        HirExprKind::Field {
-            receiver,
-            name,
-            safe,
-            ..
-        } => {
-            gate_field(tcx, expr, receiver, name, *safe, diagnostics);
-            gate_expr(tcx, receiver, diagnostics);
-        }
-    }
-}
-
-/// `Some` / `None` patterns are not lowered (only the `if val` pair is); everything else is.
-fn gate_pat(pat: &HirPat, diagnostics: &mut Vec<Diagnostic>) {
-    match &pat.kind {
-        HirPatKind::Some(_) | HirPatKind::None => {
-            reject(diagnostics, "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`", Some(pat.span));
-        }
-        HirPatKind::Variant { fields, .. } => fields.iter().for_each(|field| gate_pat(field, diagnostics)),
-        HirPatKind::Wildcard | HirPatKind::Bind { .. } | HirPatKind::Lit(_) => {}
-    }
-}
-
-/// Moving a class object, an enum value, or an array of managed `Ref` is not lowered yet.
-fn gate_move(tcx: &TyCtx, expr: &HirExpr, diagnostics: &mut Vec<Diagnostic>) {
-    // A moved `T?` copies its slot and a `String` / array payload, but an enum payload (`Shape?`,
-    // `Option<T?>`) would still point into the source's arena.
-    if tcx.enum_args(expr.ty).is_some() && (!tcx.is_nullable(expr.ty) || tcx.enum_args(tcx.base(expr.ty)).is_some()) {
-        reject(diagnostics, "moving enum values is not supported by codegen yet", expr.span);
-    }
-    if tcx.record_def(expr.ty).is_some() {
-        reject(diagnostics, "moving class objects is not supported by codegen yet", expr.span);
-    }
-    if tcx.array_elem(expr.ty).is_some_and(|elem| tcx.is_managed_ref(elem)) {
-        reject(
-            diagnostics,
-            "moving an array of managed Ref is not supported by codegen yet",
-            expr.span,
-        );
-    }
-}
-
-fn gate_binary_op(op: &BinOp, span: Option<Span>, diagnostics: &mut Vec<Diagnostic>) {
-    let supported = matches!(
-        op,
-        BinOp::Add
-            | BinOp::Sub
-            | BinOp::Mul
-            | BinOp::Div
-            | BinOp::Gt
-            | BinOp::Lt
-            | BinOp::Ge
-            | BinOp::Le
-            | BinOp::Eq
-            | BinOp::Ne
-            | BinOp::And
-            | BinOp::Or
-            | BinOp::Elvis
-            | BinOp::RangeTo
-    );
-    if !supported {
-        reject(diagnostics, "this binary operator is not supported by codegen", span);
-    }
-}
-
-/// Only `.length` of a string or array (also through `?.`) is a field access codegen lowers.
-fn gate_field(
-    tcx: &TyCtx,
-    expr: &HirExpr,
-    receiver: &HirExpr,
-    name: &str,
-    safe: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let inner = tcx.base(receiver.ty);
-    let length_ok = name == "length"
-        && (tcx.uses_arena_storage(receiver.ty)
-            || (safe && tcx.is_nullable(receiver.ty) && (tcx.is_string(inner) || tcx.is_array(inner))));
-    if !length_ok {
-        reject(diagnostics, "field access is not supported by codegen", expr.span.or(receiver.span));
-    }
-}
-
-fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
-    diagnostics.push(Diagnostic {
-        phase: Phase::Codegen,
-        severity: Severity::Error,
-        message: message.to_owned(),
-        span,
-        notes: Vec::new(),
-    });
 }
 
 #[cfg(test)]
@@ -280,7 +68,7 @@ mod tests {
         let result = crate::frontend::check(crate::MVP_SAMPLE);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
 
         assert!(diagnostics
             .iter()
@@ -292,7 +80,7 @@ mod tests {
         let source = "class P {\n    x: i32\n    fun get(): i32 {\n        return x\n    }\n}\nfun main(): i32 {\n    val p = P(1)\n    return p.get()\n}";
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        assert!(super::gate(result.hir.as_ref().unwrap(), &result.tcx).is_empty());
+        assert!(super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx).is_empty());
     }
 
     #[test]
@@ -308,7 +96,7 @@ fun main(name: String?): String {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
 
         assert!(
             diagnostics.is_empty(),
@@ -325,7 +113,7 @@ fun main(name: String?): String {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
 
         assert!(
             diagnostics.is_empty(),
@@ -346,7 +134,7 @@ fun main(): i32 {
 "#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.is_empty(),
             "records and if-val should lower: {diagnostics:?}"
@@ -366,7 +154,7 @@ fun main() {
 "#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -381,7 +169,7 @@ fun main() {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.is_empty(),
             "f32? is a scalar T? and must lower: {diagnostics:?}"
@@ -400,10 +188,28 @@ fun main(): i32 {
 "#;
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
-        let diagnostics = super::gate(result.hir.as_ref().unwrap(), &result.tcx);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
         assert!(
             diagnostics.is_empty(),
             "Ref<Point> `?.x` must pass codegen gate: {diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn a_mistake_in_a_generic_body_is_reported_once_per_site() {
+        let source = "class P { x: i32 }\nfun id<T>(v: T, k: i32): i32 {\n    val p = P(k)\n    val q = move p\n    return q.x\n}\nfun main(): i32 {\n    return id(1, 2) + id(\"s\", 3)\n}\n";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    }
+
+    #[test]
+    fn an_unused_helper_that_cannot_be_specialised_does_not_hide_a_gate_error() {
+        let source = "class P { x: i32 }\nfun g<T>(): i32 { return 1 }\nfun unused(): i32 { return g::<i32>() }\nfun main(): i32 {\n    val p = P(1)\n    val q = move p\n    return q.x\n}\n";
+        let result = crate::frontend::check(source);
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
+        assert!(diagnostics.iter().any(|d| d.message.contains("moving class objects")), "{diagnostics:?}");
     }
 }

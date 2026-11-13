@@ -35,7 +35,10 @@ pub type Res<T> = Result<T, BuildError>;
 
 impl BuildError {
     pub(super) fn unsupported(capability: Capability, span: Span) -> BuildError {
-        BuildError::Unsupported(Unsupported { capability, span })
+        BuildError::Unsupported(Unsupported { capability, span, message: None })
+    }
+    pub(super) fn unsupported_with(capability: Capability, span: Span, message: &'static str) -> BuildError {
+        BuildError::Unsupported(Unsupported { capability, span, message: Some(message) })
     }
     pub(super) fn unlowered(what: impl Into<String>, span: Span) -> BuildError {
         BuildError::Unlowered { what: what.into(), span }
@@ -83,7 +86,7 @@ fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
         .iter()
         .zip(roots)
         .map(|(function, root)| {
-            if root.label != format!("fun {}", function.name) {
+            if root.label.strip_prefix("fun ") != Some(function.name.as_str()) {
                 return Err(BuildError::Internal(format!("report root `{}` for function `{}`", root.label, function.name)));
             }
             FnBuilder::new(mono, tcx, &abis, function, root, neutral).build()
@@ -330,7 +333,7 @@ impl<'a> FnBuilder<'a> {
         }
         let depth = self.open.len();
         self.open.push(Open { id, pushed });
-        // HIR emitter order: the region is pushed, then its debug scope is entered.
+        // The region is pushed, then its debug scope is entered.
         self.scope_enter(depth, span, enter_in);
         self.cursors.push((child, 0));
         self.scopes.push(HashMap::new());
@@ -355,7 +358,7 @@ impl<'a> FnBuilder<'a> {
     /// `RegionExit` for every pushed region above `depth`, innermost first, without closing them:
     /// `return`, `break` and `continue` leave regions on the way out only.
     pub(super) fn exit_to(&mut self, depth: usize, span: Span) {
-        // Debug scopes are left before any region, innermost first (as the HIR emitter's unwind does).
+        // Debug scopes are left before any region, innermost first.
         let dead: Vec<Local> = self.dscopes.iter().rev().take_while(|(d, _)| *d >= depth).map(|(_, l)| *l).collect();
         for l in dead {
             self.stmt(StmtKind::StorageDead(l), span, None);

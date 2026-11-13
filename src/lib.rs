@@ -1,7 +1,4 @@
 mod region_walk;
-/// The old push-flag pass, kept public only as the reference of `tests/mir_plan.rs` until it is deleted (#245).
-#[doc(hidden)]
-pub use region_walk::stamp_codegen_push as legacy_stamp_codegen_push;
 pub mod arena;
 pub mod ast;
 pub mod ast_number;
@@ -19,7 +16,6 @@ pub mod hoist;
 pub mod hir;
 pub mod infer;
 mod layout;
-pub mod memory;
 pub mod mir;
 mod prelude;
 pub mod mono;

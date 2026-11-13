@@ -94,6 +94,7 @@ programs/build/managed_refs/chained_partial_cleanup.bork: hits=104 hash=91e71853
 programs/build/managed_refs/chained_three_bindings_value.bork: hits=22 hash=e95c192a4f6a9f4c
 programs/build/managed_refs/count_of_last_reference.bork: hits=31 hash=e7a34c41bab8ae4d
 programs/build/managed_refs/expired_weak_back_edge.bork: hits=74 hash=917c7b80288ffb67
+programs/build/managed_refs/none_arg_to_ref_param.bork: hits=4 hash=0fd5995ab49e99dc
 programs/build/managed_refs/presence_int_result.bork: hits=40 hash=6a90237e74bfbada
 programs/build/managed_refs/program_dynamic_across_blocks.bork: hits=93 hash=b505111b552f06df
 programs/build/managed_refs/return_chain_local_ref.bork: hits=35 hash=53c2e98cda695fd4

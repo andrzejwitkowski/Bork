@@ -35,12 +35,18 @@ impl<'a> FnBuilder<'a> {
     }
 
     /// `move x` / `promote x` of values the gate cannot yet move (RFC 3.10 `move-aggregate`).
-    fn move_unsupported(&self, ty: TyId) -> bool {
+    fn move_unsupported(&self, ty: TyId) -> Option<&'static str> {
         let t = self.tcx;
-        let payload = if t.is_nullable(ty) { self.tcx.enum_args(ty).and_then(|(_, a)| a.first().copied()).unwrap_or(ty) } else { ty };
-        t.enum_args(payload).is_some()
-            || t.record_def(ty).is_some() && !t.is_managed_ref(ty)
-            || t.array_elem(ty).is_some_and(|el| t.is_managed_ref(el))
+        let payload = if t.is_nullable(ty) { t.enum_args(ty).and_then(|(_, a)| a.first().copied()).unwrap_or(ty) } else { ty };
+        if t.enum_args(payload).is_some() {
+            Some("moving enum values is not supported by codegen yet")
+        } else if t.record_def(ty).is_some() && !t.is_managed_ref(ty) {
+            Some("moving class objects is not supported by codegen yet")
+        } else if t.array_elem(ty).is_some_and(|el| t.is_managed_ref(el)) {
+            Some("moving an array of managed Ref is not supported by codegen yet")
+        } else {
+            None
+        }
     }
 
     pub(super) fn ident_moved(&mut self, e: &HirExpr, place: Place, use_kind: UseKind) -> Res<Operand> {
@@ -57,8 +63,8 @@ impl<'a> FnBuilder<'a> {
                 Ok(Operand::Copy(Place::local(dst)))
             }
             _ => {
-                if self.move_unsupported(e.ty) {
-                    return Err(BuildError::unsupported(Capability::MoveAggregate, span));
+                if let Some(message) = self.move_unsupported(e.ty) {
+                    return Err(BuildError::unsupported_with(Capability::MoveAggregate, span, message));
                 }
                 let t = self.tcx;
                 if !(t.is_nullable(e.ty) || t.is_string(e.ty) || t.is_array(e.ty) || t.is_vec(e.ty)) {

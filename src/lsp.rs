@@ -180,7 +180,7 @@ pub fn analyze_source(source: &str) -> Analysis {
         .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
         .collect();
     if let Some(hir) = &result.hir {
-        for diagnostic in gate(hir, &result.tcx) {
+        for diagnostic in gate(hir, result.report.as_ref().expect("clean check produces arenas"), &result.tcx) {
             diagnostics.push(frontend_diagnostic_to_lsp(source, &diagnostic));
         }
     }

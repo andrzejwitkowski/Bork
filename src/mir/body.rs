@@ -212,7 +212,8 @@ pub enum StmtKind {
     RegionEnter(RegionId),
     RegionExit(RegionId),
     RegionReset { region: RegionId, dst: Local },
-    VecOp { dst: Option<Place>, op: VecOp, receiver: Operand, args: Vec<Operand> },
+    /// `arena` holds the `Option` slot a scalar or text `pop` returns (`None` for every other op).
+    VecOp { dst: Option<Place>, op: VecOp, receiver: Operand, args: Vec<Operand>, arena: Option<ArenaRef> },
     /// `arena` is the allocation arena of ops that return fresh bytes (`concat`, `stringFromUtf8`).
     Intrinsic { dst: Option<Place>, op: IntrinsicOp, args: Vec<Operand>, arena: Option<ArenaRef> },
     StorageLive(Local),
@@ -299,7 +300,7 @@ pub struct Block {
 pub struct RegionInfo {
     pub parent: Option<RegionId>,
     pub site: RegionSite,
-    /// `ArenaNode::id` of the report region this one was built from (M3 shadow comparison).
+    /// `ArenaNode::id` of the report region this one was built from.
     pub arena: usize,
 }
 
@@ -454,9 +455,12 @@ impl StmtKind {
                 f(Use::Region(*region));
                 f(Use::Local(*dst));
             }
-            StmtKind::VecOp { dst, receiver, args, .. } => {
+            StmtKind::VecOp { dst, receiver, args, arena, .. } => {
                 f(Use::Op(receiver));
                 args.iter().for_each(|a| f(Use::Op(a)));
+                if let Some(a) = arena {
+                    f(Use::Arena(a));
+                }
                 if let Some(d) = dst {
                     f(Use::Def(d));
                 }

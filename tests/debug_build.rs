@@ -44,7 +44,7 @@ fn debug_api_requires_source_context() {
     let result = build_with_options(
         &checked,
         &dir.path().join("main"),
-        BuildOptions { debug: true, hir_backend: false },
+        BuildOptions { debug: true },
         None,
     );
     assert!(result.is_err());
@@ -121,6 +121,44 @@ fn debug_build_names_enums() {
     assert!(info.contains("bork::Payload<Slot>"), "{info}");
     let strings = Command::new("strings").arg(&binary).output().unwrap();
     assert!(String::from_utf8_lossy(&strings.stdout).contains("Slot.Held.node"));
+}
+
+#[test]
+fn debug_build_leaves_scopes_on_break_and_continue_in_nested_loops() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("main.bork");
+    let binary = dir.path().join("main");
+    fs::write(
+        &source,
+        "fun main(): i32 {\n    var total = 0\n    for (i in 0..4) {\n        var j = 0\n        while (j < 4) {\n            j = j + 1\n            if (j == 2) { continue }\n            if (j == 3) { break }\n            total = total + i\n        }\n    }\n    return total - 3\n}\n",
+    )
+    .unwrap();
+    let build = Command::new(env!("CARGO_BIN_EXE_bork")).args(["build", "-g", "-o"]).arg(&binary).arg(&source).output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(3));
+}
+
+#[test]
+fn debug_build_names_generic_instances() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("main.bork");
+    let binary = dir.path().join("main");
+    fs::write(
+        &source,
+        "class Box<T> { v: T }\nenum Maybe<T> { Just(v: T), Nothing }\n\
+         fun main(): i32 {\n    val a = Box(1)\n    val b = Box(\"s\")\n    \
+         val m: Maybe<i32> = Maybe.Just(2)\n    return a.v - 1\n}\n",
+    )
+    .unwrap();
+    let build = Command::new(env!("CARGO_BIN_EXE_bork")).args(["build", "-g", "-o"]).arg(&binary).arg(&source).output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(0));
+    let info = Command::new("readelf").args(["--debug-dump=info"]).arg(&binary).output().unwrap();
+    let info = String::from_utf8_lossy(&info.stdout);
+    // One described type per instance, named with its arguments (the generic `Box` itself has no layout).
+    for name in ["bork::Object<Box<i32>>", "bork::Object<Box<String>>", "bork::Payload<Box<i32>>", "bork::Object<Maybe<i32>>"] {
+        assert!(info.contains(name), "missing `{name}` in DWARF");
+    }
 }
 
 #[test]

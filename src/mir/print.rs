@@ -135,8 +135,9 @@ fn stmt(k: &StmtKind, tcx: &TyCtx) -> String {
         StmtKind::RegionEnter(r) => format!("region_enter r{}", r.0),
         StmtKind::RegionExit(r) => format!("region_exit r{}", r.0),
         StmtKind::RegionReset { region, dst } => format!("_{} = region_reset r{}", dst.0, region.0),
-        StmtKind::VecOp { dst, op: o, receiver, args } => {
-            format!("{}vec_{o:?}({}{})", dst_prefix(dst), op(receiver), args.iter().map(|a| format!(", {}", op(a))).collect::<String>())
+        StmtKind::VecOp { dst, op: o, receiver, args, arena: a } => {
+            let a = a.as_ref().map(|a| format!(" in {}", arena(a))).unwrap_or_default();
+            format!("{}vec_{o:?}({}{}){a}", dst_prefix(dst), op(receiver), args.iter().map(|a| format!(", {}", op(a))).collect::<String>())
         }
         StmtKind::Intrinsic { dst, op: o, args, arena: a } => {
             let a = a.as_ref().map(|a| format!(" in {}", arena(a))).unwrap_or_default();

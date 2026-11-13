@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{self, HirClass, HirClassField, HirEnum, HirExpr, HirExprKind, HirFunction, HirImpl, HirProgram, HirTraitMethod, HirVariant};
-use crate::memory::MemoryPlan;
+use crate::mir::plan::MemoryPlan;
 use crate::sema::ArenaReport;
 use crate::span::Span;
 use crate::ty::{subst, TyCtx, TyData, TyId};
@@ -394,7 +394,7 @@ pub(crate) fn monomorphize_every_function(hir: &HirProgram, tcx: &mut TyCtx, rep
     monomorphize_from(hir, tcx, report, true, true, true)
 }
 
-/// Every non-generic function as a root and no HIR escape check: the MIR escape shadow (#217) needs the
+/// Every non-generic function as a root and no HIR escape check: the MIR escape analysis (#217) needs the
 /// concrete program even when the HIR check rejects it.
 #[doc(hidden)]
 pub fn monomorphize_unchecked(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
@@ -679,8 +679,7 @@ impl<'a> Collector<'a> {
 /// Ownership and memory planning, now on concrete types: escape, the memory plan and the codegen push
 /// stamps. A failure here is not a user error (the generic body was already accepted).
 ///
-/// The plan and the push flags are derived from MIR (RFC 0006 M4b, `mir::plan`). A program MIR cannot lower
-/// (a gate gap such as a closure) keeps the old `memory.rs` / `region_walk` path until those gaps close.
+/// The plan and the push flags are derived from MIR (RFC 0006 M4b, `mir::plan`).
 fn plan_instances(mono: &mut Mono, tcx: &TyCtx, escape: bool, mir: bool) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     if escape {
@@ -688,24 +687,18 @@ fn plan_instances(mono: &mut Mono, tcx: &TyCtx, escape: bool, mir: bool) -> Resu
             crate::escape::check_function(function, tcx, &mut diagnostics);
         }
     }
-    let bodies = if mir {
-        crate::mir::build::build_program_neutral(mono, tcx).ok()
-    } else {
-        None
-    };
-    if let Some(bodies) = bodies {
-        mono.memory_plan = crate::mir::plan::derive_memory_plan(&bodies, tcx);
-        for (root, body) in mono.report.roots.iter_mut().zip(&bodies) {
-            crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
-        }
-    } else {
-        let (memory_plan, mut plan_diagnostics) = crate::memory::plan(&mono.hir, tcx, &mono.report);
-        diagnostics.append(&mut plan_diagnostics);
-        mono.memory_plan = memory_plan;
-        if diagnostics.is_empty() {
-            if let Err(ice) = crate::region_walk::stamp_codegen_push(&mono.hir, tcx, &mut mono.report) {
-                diagnostics.push(ice);
+    if mir {
+        match crate::mir::build::build_program_neutral(mono, tcx) {
+            Ok(bodies) => {
+                mono.memory_plan = crate::mir::plan::derive_memory_plan(&bodies, tcx);
+                for (root, body) in mono.report.roots.iter_mut().zip(&bodies) {
+                    crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
+                }
             }
+            // A program MIR cannot lower (closure, `move` of a class object) keeps the empty plan: the codegen gate
+            // rejects it before anything reads the plan (every `programs/build` sample lowers, tests/mir_plan.rs).
+            Err(crate::mir::build::BuildError::Unsupported(_) | crate::mir::build::BuildError::Unlowered { .. }) => {}
+            Err(crate::mir::build::BuildError::Internal(message)) => diagnostics.push(error(format!("internal error: MIR: {message}"), None)),
         }
     }
     if diagnostics.is_empty() { Ok(()) } else { Err(diagnostics) }

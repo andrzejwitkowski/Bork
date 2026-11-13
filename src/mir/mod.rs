@@ -1,5 +1,5 @@
 //! Mono MIR (RFC 0006). Steps so far: [`layout`] (M1) and the data types, printer and verifier (M2a).
-//! Consumed by the default backend (M5e, `codegen/llvm/lower.rs`; `--hir-backend` opts out until M6) and the shadow analyses.
+//! Consumed by the default backend (`codegen/llvm/lower.rs`) and the plan analyses.
 
 pub mod body;
 pub mod borrows;
@@ -10,10 +10,10 @@ pub mod escape;
 pub mod layout;
 pub mod plan;
 pub mod print;
-pub mod shadow;
 pub mod verify;
 
 pub use body::*;
+pub use capability::Capability;
 
 #[cfg(test)]
 mod tests;

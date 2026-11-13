@@ -100,7 +100,7 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::unsupported(Capability::FieldAccess, span));
         }
         if safe {
-            return self.safe_navigate(e, receiver, |b, base| {
+            return self.safe_navigate(e, receiver, None, |b, base| {
                 let len = b.temp(b.tcx.prim_id(crate::hir::Prim::I32));
                 b.stmt(StmtKind::Assign(Place::local(len), Rvalue::Len(base)), span, Some(e.id));
                 Ok(Operand::Copy(Place::local(len)))
@@ -112,7 +112,9 @@ impl<'a> FnBuilder<'a> {
 
     pub(super) fn vec_op(&mut self, e: &HirExpr, op: VecOp, receiver: Operand, args: Vec<Operand>) -> Operand {
         let dst = (!self.is_unit(e.ty)).then(|| self.temp(e.ty));
-        self.stmt(StmtKind::VecOp { dst: dst.map(Place::local), op, receiver, args }, span_of(e), Some(e.id));
+        // The `Option` slot of a `pop` that is not a `Ref` lives in the sink arena.
+        let arena = (op == VecOp::Pop && !self.tcx.is_managed_ref(e.ty)).then(|| self.sink.clone());
+        self.stmt(StmtKind::VecOp { dst: dst.map(Place::local), op, receiver, args, arena }, span_of(e), Some(e.id));
         dst.map_or(Operand::Const(Const::Unit), |d| Operand::Copy(Place::local(d)))
     }
 
@@ -137,6 +139,13 @@ impl<'a> FnBuilder<'a> {
         Ok(self.vec_op(e, op, recv, ops))
     }
 
+    /// Stores a `Ref` into an array element through the runtime protocol, labelled `[]` with its index for the debug
+    /// registry. The runtime store does not register the slot for release: `array_lit` does that for its fresh slots.
+    fn ref_element_store(&mut self, slot: Place, value: Operand, el: &HirExpr, arena: &ArenaRef, fresh: bool, index: Operand) {
+        let label = DebugLabel { name: "[]".into(), ty: el.ty, span: span_of(el), source: None, declaration: false, argument: None, owner: Some(arena.clone()), index: Some(index) };
+        self.stmt_with(StmtKind::Ref(RefOp::Store { slot, owner: arena.clone(), value, fresh }), span_of(el), Some(el.id), Some(label));
+    }
+
     pub(super) fn array_lit(&mut self, e: &HirExpr, elements: &[HirExpr]) -> Res<Operand> {
         let span = span_of(e);
         let mut ops = Vec::with_capacity(elements.len());
@@ -147,8 +156,14 @@ impl<'a> FnBuilder<'a> {
         let arena = self.sink.clone();
         self.stmt(StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::Array, arena: arena.clone() }, span, Some(e.id));
         for (i, (op, el)) in ops.into_iter().zip(elements).enumerate() {
+            let index = Operand::Const(Const::Int(i as i64));
+            let slot = Place { local: dst, proj: vec![Proj::Index(Box::new(index.clone()))] };
+            if self.tcx.is_managed_ref(el.ty) {
+                self.ref_element_store(slot.clone(), op, el, &arena, true, index);
+                self.stmt(StmtKind::RegisterDrop { arena: arena.clone(), place: slot, glue: DropGlue::RefSlot }, span_of(el), None);
+                continue;
+            }
             let v = self.materialize(op, el.ty, &arena, span_of(el))?;
-            let slot = Place { local: dst, proj: vec![Proj::Index(Box::new(Operand::Const(Const::Int(i as i64))))] };
             self.stmt(StmtKind::Assign(slot, Rvalue::Use(v)), span_of(el), Some(el.id));
         }
         Ok(Operand::Copy(Place::local(dst)))
@@ -162,7 +177,7 @@ impl<'a> FnBuilder<'a> {
         let ty = self.locals[local.0 as usize].ty;
         if self.is_vec_ty(ty) {
             self.stmt(
-                StmtKind::VecOp { dst: None, op: VecOp::Set, receiver: Operand::Reborrow(Place::local(local)), args: vec![idx, v] },
+                StmtKind::VecOp { dst: None, op: VecOp::Set, receiver: Operand::Reborrow(Place::local(local)), args: vec![idx, v], arena: None },
                 span,
                 Some(value.id),
             );
@@ -170,7 +185,11 @@ impl<'a> FnBuilder<'a> {
         }
         let base = Place::local(local);
         self.bounds_guard(&base, &idx, span, value);
-        let slot = Place { local, proj: vec![Proj::Index(Box::new(idx))] };
+        let slot = Place { local, proj: vec![Proj::Index(Box::new(idx.clone()))] };
+        if self.tcx.is_managed_ref(value.ty) {
+            self.ref_element_store(slot, v, value, &ArenaRef::Home(local), false, idx);
+            return Ok(());
+        }
         self.stmt(StmtKind::Assign(slot, Rvalue::Use(v)), span, Some(value.id));
         Ok(())
     }

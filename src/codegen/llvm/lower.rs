@@ -1,24 +1,25 @@
 //! LLVM from MIR (RFC 0006 M5a-d, #222-#225). Covers scalars, classes and enums (with `Ref` fields), the
 //! `Ref` protocol, presence observations, scalar `Vec`s, arrays and slices, text, nullables, calls with
-//! the hidden arena arguments, control flow and regions. [`supported`] decides per function; anything else stays on the HIR emitter, so a
+//! the hidden arena arguments, control flow and regions. [`supported`] checks a function before it is lowered, so a
 //! function is never half lowered.
 
 use std::collections::{HashMap, HashSet};
 
 use inkwell::basic_block::BasicBlock;
-use inkwell::types::BasicType;
+use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{FloatPredicate, IntPredicate};
 
 use crate::ast::BinOp;
 use crate::diag::Diagnostic;
+use crate::ast::PatLit;
 use crate::hir::{HirFunction, Prim, VecOp};
 use crate::mir::*;
 use crate::ty::{TyData, TyId};
 
 use super::call_abi::CallAbi;
 use super::context::{is_unsigned, Codegen};
-use super::emit_fn::Callees;
+use super::declare::Callees;
 use super::vec;
 use super::not_yet_supported;
 
@@ -27,7 +28,8 @@ fn trace() -> bool {
 }
 
 fn prim(cx: &Codegen<'_>, ty: TyId) -> Option<Prim> {
-    match cx.tcx.data(ty) {
+    // `&i32` is represented as the `i32` itself (`Codegen::basic_type`).
+    match cx.tcx.data(cx.tcx.ref_inner(ty).unwrap_or(ty)) {
         TyData::Prim(p) => Some(*p),
         _ => None,
     }
@@ -41,17 +43,17 @@ fn is_float(cx: &Codegen<'_>, ty: TyId) -> bool {
     matches!(prim(cx, ty), Some(Prim::F32 | Prim::F64))
 }
 
-/// Element type of a `Vec` (or `&Vec`) of non-unit scalars: no `Ref`/text elements, so no drop glue.
+/// Element type of a `Vec` (or `&Vec`) of non-unit scalars, text or `Ref`s.
 fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
     let elem = cx.tcx.vec_elem(ty)?;
-    (prim(cx, elem).is_some() && !is_unit(cx, elem)).then_some(elem)
+    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
 }
 
-/// Element type of an array (or `&array`) of non-unit scalars.
+/// Element type of an array (or `&array`) of non-unit scalars, text or `Ref`s.
 fn plain_array(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     let elem = cx.tcx.array_elem(ty)?;
-    (prim(cx, elem).is_some() && !is_unit(cx, elem)).then_some(elem)
+    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
 }
 
 /// Element type of an indexable buffer: a plain array, or `u8` for text.
@@ -102,13 +104,14 @@ fn plain_class(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     })
 }
 
-/// An enum (or `T?`) whose variants carry only non-unit plain payloads.
+/// An enum (or `T?`) whose variants carry only plain payloads.
 fn plain_enum(cx: &Codegen<'_>, ty: TyId) -> Option<String> {
     memo_plain(cx, &cx.plain_enums, ty, |ty| {
         let name = crate::mono::enum_instance_name(&cx.tcx, ty)?;
         cx.enum_layout(&name)?;
         let e = cx.enums.iter().find(|e| e.name == name)?;
-        let plain = e.variants.iter().flat_map(|v| &v.fields).all(|f| f.ty != cx.unit_ty() && plain_value(cx, f.ty));
+        // A `unit` payload takes no storage but keeps its field index (`enum_layout_of`).
+        let plain = e.variants.iter().flat_map(|v| &v.fields).all(|f| plain_value(cx, f.ty));
         plain.then_some(name)
     })
 }
@@ -167,17 +170,19 @@ fn place_ty(cx: &Codegen<'_>, body: &Body, p: &Place) -> Option<TyId> {
     Some(ty)
 }
 
-/// Region each `Ref` local was declared in; its home arena is that region's (as `declare_local`).
+/// Region each `Ref`, text or array local was declared in; its home arena is that region's (as `declare_local`).
+/// These values carry no arena of their own, unlike objects, enums and `Vec` headers.
 fn ref_homes(cx: &Codegen<'_>, body: &Body) -> HashMap<Local, RegionId> {
     let mut homes: HashMap<Local, RegionId> = HashMap::new();
+    let homed = |ty: TyId| cx.tcx.is_managed_ref(ty) || cx.tcx.is_text(ty) || plain_array(cx, ty).is_some();
     for (i, l) in body.locals.iter().enumerate() {
-        if l.kind == LocalKind::Arg && cx.tcx.is_managed_ref(l.ty) {
+        if l.kind == LocalKind::Arg && homed(l.ty) {
             homes.insert(Local(i as u32), RegionId(0));
         }
     }
     for s in body.blocks.iter().flat_map(|b| &b.stmts) {
         if let StmtKind::Assign(dst, _) = &s.kind {
-            if dst.is_bare() && body.local(dst.local).is_some_and(|l| cx.tcx.is_managed_ref(l.ty)) {
+            if dst.is_bare() && body.local(dst.local).is_some_and(|l| homed(l.ty)) {
                 homes.entry(dst.local).or_insert(s.region);
             }
         }
@@ -205,17 +210,36 @@ pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &
 fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> Option<()> {
     let scalar = |ty: TyId| prim(cx, ty).map(|_| ());
     let value = |ty: TyId| plain_value(cx, ty).then_some(());
+    let why = |what: &str, ty: TyId| {
+        if trace() {
+            eprintln!("mir-backend: unsupported {what} type `{}`", cx.tcx.display(ty));
+        }
+    };
     for l in &body.locals {
         match l.kind {
             LocalKind::Hidden(HiddenKind::RegionArena | HiddenKind::DynamicArena | HiddenKind::DebugScope) => {}
-            LocalKind::Hidden(_) => return None,
-            _ => value(l.ty)?,
+            LocalKind::Hidden(k) => {
+                if trace() {
+                    eprintln!("mir-backend: unsupported hidden local {k:?}");
+                }
+                return None;
+            }
+            _ => value(l.ty).or_else(|| {
+                why("local", l.ty);
+                None
+            })?,
         }
     }
     for p in &function.params {
-        value(p.ty)?;
+        value(p.ty).or_else(|| {
+            why("param", p.ty);
+            None
+        })?;
     }
-    value(function.return_ty)?;
+    value(function.return_ty).or_else(|| {
+        why("return", function.return_ty);
+        None
+    })?;
     if body.locals.iter().filter(|l| l.kind == LocalKind::Arg).count() != function.params.len() {
         return None;
     }
@@ -257,7 +281,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         ArenaRef::ResultSink => own_abi.has_result_sink(),
         ArenaRef::CallerParent => own_abi.hidden_len() > 0,
         // The arena a binding lives in is readable from its handle (objects, enums, `Vec` headers);
-        // text and arrays carry no arena, so they stay on the HIR emitter.
+        // text and arrays carry no arena of their own.
         ArenaRef::Home(l) if homes.contains_key(l) => true,
         ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => body.local(*l).is_some_and(|d| {
             // A view of a class or enum (`&T`, observed `Ref`) is still the `{arena, object}` handle.
@@ -319,9 +343,9 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 StmtKind::StorageLive(_) | StmtKind::StorageDead(_) => {}
                 StmtKind::ArenaCreateDynamic { parent, .. } if arena_ok(parent) => {}
                 StmtKind::RegisterStrongRoot { owner, .. } if arena_ok(owner) => {}
-                StmtKind::Borrow { dst, src, .. } | StmtKind::Move { dst, src } if dst.is_bare() && src.is_bare() => {
+                StmtKind::Borrow { dst, src, .. } | StmtKind::Move { dst, src } if dst.is_bare() && (src.is_bare() || matches!(s.kind, StmtKind::Borrow { .. })) => {
                     // Handles and descriptors copy bit for bit; a `Ref` may only move out of a temporary.
-                    let (st, dt) = (body.local(src.local)?.ty, body.local(dst.local)?.ty);
+                    let (st, dt) = (place_ty(cx, body, src)?, body.local(dst.local)?.ty);
                     if !plain_value(cx, st) || !plain_value(cx, dt) || is_unit(cx, st) || is_unit(cx, dt) {
                         return None;
                     }
@@ -414,19 +438,43 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         operand(c)?;
                     }
                 }
-                StmtKind::VecOp { dst, op, receiver, args } => {
-                    plain_vec(cx, body.local(receiver.place().filter(|p| p.is_bare())?.local)?.ty)?;
+                StmtKind::VecOp { dst, op, receiver, args, arena } => {
                     if dst.as_ref().is_some_and(|d| !d.is_bare()) {
                         return None;
                     }
                     let index = |op: &Operand| index_operand(cx, body, op);
+                    // An element to store: a scalar, text, or a `Ref` (or `None`) for a `Vec` of `Ref`s.
+                    let elem = plain_vec(cx, body.local(receiver.place().filter(|p| p.is_bare())?.local)?.ty)?;
+                    let element = |op: &Operand| -> Option<()> {
+                        if cx.tcx.is_managed_ref(elem) {
+                            match op {
+                                Operand::Const(Const::None) => Some(()),
+                                _ => general(op).and(place_ty(cx, body, op.place()?).filter(|t| cx.tcx.is_managed_ref(*t)).map(|_| ())),
+                            }
+                        } else if cx.tcx.is_text(elem) {
+                            text(op)
+                        } else {
+                            operand(op)
+                        }
+                    };
                     match (op, args.as_slice()) {
                         (VecOp::Len | VecOp::Capacity | VecOp::Clear, []) => {}
+                        (VecOp::Pop, []) => {
+                            let d = dst.as_ref()?;
+                            let dty = body.local(d.local)?.ty;
+                            if cx.tcx.is_managed_ref(elem) {
+                                cx.tcx.is_managed_ref(dty).then_some(())?;
+                            } else {
+                                // The `Some` payload is the element, so the slot is a plain `Option<elem>` in an arena we can name.
+                                nullable_payload(cx, dty).filter(|p| *p == elem)?;
+                                arena.as_ref().filter(|a| arena_ok(a))?;
+                            }
+                        }
                         (VecOp::Get, [i]) => index(i)?,
-                        (VecOp::Push, [v]) => operand(v)?,
+                        (VecOp::Push, [v]) => element(v)?,
                         (VecOp::Set, [i, v]) => {
                             index(i)?;
-                            operand(v)?;
+                            element(v)?;
                         }
                         _ => return None,
                     }
@@ -445,7 +493,10 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         || plain_array(cx, t).is_some()
                         || plain_vec(cx, t).is_some()
                         // The payload moves with the slot; handles pass through like `materialize_owned_value`.
-                        || nullable_payload(cx, t).is_some();
+                        || nullable_payload(cx, t).is_some_and(|p| !is_unit(cx, p));
+                    if !copyable && trace() {
+                        eprintln!("mir-backend: unsupported CopyInto of `{}`", cx.tcx.display(t));
+                    }
                     copyable.then_some(())?;
                 }
                 StmtKind::Intrinsic { dst: None, op: IntrinsicOp::PrintStr | IntrinsicOp::PrintlnStr, args, arena: None } if args.len() == 1 => text(&args[0])?,
@@ -497,24 +548,18 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     return None;
                 }
                 for (a, p) in args.iter().zip(&target.params) {
-                    general(a)?;
+                    // `None` for a `Ref` parameter is the absent handle.
+                    if !(matches!(a, Operand::Const(Const::None)) && cx.tcx.is_managed_ref(p.ty)) {
+                        general(a)?;
+                    }
                     value(p.ty)?;
                 }
             }
             TermKind::Match { scrutinee, arms } => {
                 let sty = place_ty(cx, body, scrutinee)?;
-                let name = plain_enum(cx, sty)?;
-                let nullable = cx.tcx.is_nullable(sty);
+                plain_value(cx, sty).then_some(())?;
                 for arm in arms {
-                    match &arm.pat {
-                        MirPat::Wildcard | MirPat::Bind => {}
-                        MirPat::Variant { index, fields, .. } if fields.iter().all(|f| matches!(f, MirPat::Wildcard | MirPat::Bind)) => {
-                            cx.enum_layout(&name)?.variants.get(*index as usize)?;
-                        }
-                        MirPat::Some(inner) if nullable && matches!(**inner, MirPat::Wildcard | MirPat::Bind) => {}
-                        MirPat::None if nullable => {}
-                        _ => return None,
-                    }
+                    pat_ok(cx, body, &arm.pat, scrutinee)?;
                     for (l, src) in &arm.bindings {
                         let lt = body.local(*l)?.ty;
                         if src.local != scrutinee.local || !plain_value(cx, lt) || is_unit(cx, lt) || place_ty(cx, body, src)? != cx.tcx.ref_inner(lt).unwrap_or(lt) {
@@ -534,6 +579,41 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         }
     }
     Some(())
+}
+
+/// `place` projected to field `field` of variant `index`.
+fn variant_field(place: &Place, index: u32, field: usize) -> Place {
+    let mut p = place.clone();
+    p.proj.push(Proj::Variant(index));
+    p.proj.push(Proj::Field(field as u32));
+    p
+}
+
+/// `pat` can be tested against the value at `place`: literals of scalar, bool or text type, enum variants and
+/// `Some`/`None` of a nullable, nested to any depth.
+fn pat_ok(cx: &Codegen<'_>, body: &Body, pat: &MirPat, place: &Place) -> Option<()> {
+    let ty = place_ty(cx, body, place)?;
+    match pat {
+        MirPat::Wildcard | MirPat::Bind => Some(()),
+        MirPat::Lit(PatLit::Int(_)) => cx.int_type(ty).map(|_| ()),
+        MirPat::Lit(PatLit::Bool(_)) => (prim(cx, ty) == Some(Prim::Bool)).then_some(()),
+        MirPat::Lit(PatLit::Str(_)) => cx.tcx.is_text(ty).then_some(()),
+        MirPat::Variant { index, fields, .. } => {
+            let name = plain_enum(cx, ty)?;
+            cx.enum_layout(&name)?.variants.get(*index as usize)?;
+            fields.iter().enumerate().try_for_each(|(i, f)| match f {
+                MirPat::Wildcard | MirPat::Bind => Some(()),
+                _ => pat_ok(cx, body, f, &variant_field(place, *index, i)),
+            })
+        }
+        MirPat::Some(inner) => {
+            cx.tcx.is_nullable(ty).then_some(())?;
+            let mut p = place.clone();
+            p.proj.push(Proj::Some);
+            pat_ok(cx, body, inner, &p)
+        }
+        MirPat::None => cx.tcx.is_nullable(ty).then_some(()),
+    }
 }
 
 struct Lower<'a, 'ctx> {
@@ -706,7 +786,12 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let (ptr, _) = self.place_ptr(slot)?;
                 let owner = self.arena_ref(owner, stmt.region)?;
                 let word = cx.context.i64_type();
-                cx.debug_label_slot(owner, ptr, &label.name, label.ty, word.const_zero(), word.const_all_ones())
+                // Array elements carry their runtime index; fields and locals use the all-ones "no index".
+                let index = match &label.index {
+                    Some(i) => self.index_i64(i)?,
+                    None => word.const_all_ones(),
+                };
+                cx.debug_label_slot(owner, ptr, &label.name, label.ty, word.const_zero(), index)
             }
             _ => Ok(()),
         }
@@ -1012,12 +1097,8 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                             cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), object.into(), f.as_global_value().as_pointer_value().into()], "")?;
                         }
                     }
-                    DropGlue::Vec(elem) => {
-                        if let Some(f) = cx.vec_drop_glue(*elem) {
-                            let header = self.load_ptr(ptr)?;
-                            cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), header.into(), f.as_global_value().as_pointer_value().into()], "")?;
-                        }
-                    }
+                    // `vec_alloc` registers the glue with the header it allocates; the op only carries it for the plan.
+                    DropGlue::Vec(_) => {}
                 }
             }
             StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } => {
@@ -1040,11 +1121,17 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let header = cx.vec_new(self.llvm_fn, arena, elem, cap)?;
                 self.store(dst, header.into())?;
             }
-            StmtKind::VecOp { dst, op, receiver, args } => {
+            StmtKind::VecOp { dst, op, receiver, args, arena } => {
                 let rty = self.op_ty(receiver).expect("checked");
                 let elem = plain_vec(cx, rty).expect("checked vec");
                 let header = self.operand(receiver, rty)?.into_pointer_value();
-                let result = self.vec_op(*op, header, elem, args)?;
+                let result = if *op == VecOp::Pop {
+                    let arena = arena.as_ref().map(|a| self.arena_ref(a, stmt.region)).transpose()?;
+                    let dty = place_ty(cx, self.body, dst.as_ref().expect("checked pop result")).expect("checked place");
+                    Some(self.vec_pop(header, elem, dty, arena)?)
+                } else {
+                    self.vec_op(*op, header, elem, args)?
+                };
                 if let (Some(d), Some(v)) = (dst, result) {
                     self.store(d, v)?;
                 }
@@ -1053,7 +1140,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let arena = self.arena_ref(arena, stmt.region)?;
                 let record = cx.record_type(class).expect("checked record");
                 let size = record.size_of().ok_or_else(|| not_yet_supported("unsized record", None))?;
-                // The HIR emitter labels the construction arena once per source-level construct (`begin_object_construct`).
+                // The construction arena is labelled once per source-level construct (`begin_object_construct`).
                 if stmt.debug.is_some() {
                     cx.debug_label_arena(arena)?;
                 }
@@ -1204,7 +1291,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         }
     }
 
-    /// The `Ref` protocol (RFC 0006 3.2); every op is the shared runtime call sequence of the HIR emitter.
+    /// The `Ref` protocol (RFC 0006 3.2); every op is one runtime call sequence.
     fn ref_op(&self, op: &RefOp, region: RegionId) -> Result<(), Diagnostic> {
         let (cx, f) = (self.cx, self.llvm_fn);
         match op {
@@ -1259,11 +1346,13 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         Ok(())
     }
 
-    /// Built-in `Vec` method on a scalar-element vector; mirrors `FnEmitter::emit_vec_op`.
+    /// Built-in `Vec` method; `Ref` elements are cloned out and stored with
+    /// ownership, text is copied into the vector's arena.
     fn vec_op(&self, op: VecOp, header: PointerValue<'ctx>, elem: TyId, args: &[Operand]) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
         let cx = self.cx;
         let i32_ty = cx.i32_ty();
         let (llvm_elem, stride, _) = cx.elem_storage(elem)?;
+        let is_ref = cx.tcx.is_managed_ref(elem);
         // Bounds-checked address of element `args[0]`.
         let slot = || -> Result<PointerValue<'ctx>, Diagnostic> {
             let idx = self.int_as(self.operand(&args[0], i32_ty)?, i32_ty)?;
@@ -1271,30 +1360,104 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             cx.guard_index(self.llvm_fn, idx, cx.vec_load_word(header, vec::LEN)?)?;
             cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, idx, stride)
         };
+        let store = |slot: PointerValue<'ctx>, value: &Operand, fresh: bool| -> Result<(), Diagnostic> {
+            let arena = cx.vec_load_ptr(header, vec::ARENA)?;
+            if is_ref {
+                if fresh {
+                    cx.builder.build_store(slot, cx.ref_handle_type().const_zero())?;
+                }
+                return cx.ref_store(self.llvm_fn, slot, arena, self.ref_operand(value)?);
+            }
+            let value = self.operand(value, elem)?;
+            let value = if cx.tcx.is_text(elem) { cx.copy_string_into(arena, value.into_struct_value())?.into() } else { value };
+            cx.builder.build_store(slot, value)?;
+            Ok(())
+        };
         Ok(match op {
             VecOp::Len | VecOp::Capacity => {
                 let count = cx.vec_load_word(header, if op == VecOp::Len { vec::LEN } else { vec::CAP })?;
                 Some(cx.builder.build_int_truncate(count, cx.context.i32_type(), "vec.count")?.into())
             }
-            VecOp::Get => Some(cx.builder.build_load(llvm_elem, slot()?, "vec.get")?),
+            VecOp::Get => {
+                let loaded = cx.builder.build_load(llvm_elem, slot()?, "vec.get")?;
+                Some(if is_ref { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
+            }
             VecOp::Set => {
-                let slot = slot()?;
-                cx.builder.build_store(slot, self.operand(&args[1], elem)?)?;
+                store(slot()?, &args[1], false)?;
                 None
             }
             VecOp::Push => {
                 cx.vec_reserve_one(self.llvm_fn, header, elem)?;
                 let len = cx.vec_load_word(header, vec::LEN)?;
                 let slot = cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, len, stride)?;
-                cx.builder.build_store(slot, self.operand(&args[0], elem)?)?;
+                store(slot, &args[0], true)?;
                 cx.vec_store(header, vec::LEN, cx.builder.build_int_add(len, cx.word(1), "vec.len.new")?)?;
                 None
             }
             VecOp::Clear => {
+                if is_ref {
+                    self.release_elements(header, llvm_elem, stride)?;
+                }
                 cx.vec_store(header, vec::LEN, cx.word(0))?;
                 None
             }
-            VecOp::Pop => unreachable!("filtered by supported"),
+            VecOp::Pop => unreachable!("`vec_pop`"),
+        })
+    }
+
+    /// `pop`: the last element, or none. A `Ref` moves out of its slot; anything else becomes `Some(elem)` in `arena`.
+    fn vec_pop(&self, header: PointerValue<'ctx>, elem: TyId, result_ty: TyId, arena: Option<PointerValue<'ctx>>) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
+        let cx = self.cx;
+        let ctx = cx.context;
+        let len = cx.vec_load_word(header, vec::LEN)?;
+        let empty = cx.builder.build_int_compare(IntPredicate::EQ, len, cx.word(0), "vec.pop.empty")?;
+        let (present, absent, merge) = (ctx.append_basic_block(self.llvm_fn, "vec.pop.some"), ctx.append_basic_block(self.llvm_fn, "vec.pop.none"), ctx.append_basic_block(self.llvm_fn, "vec.pop.done"));
+        cx.builder.build_conditional_branch(empty, absent, present)?;
+
+        cx.position_at_end(present);
+        let last = cx.builder.build_int_sub(len, cx.word(1), "vec.last")?;
+        cx.vec_store(header, vec::LEN, last)?;
+        let (llvm_elem, stride, _) = cx.elem_storage(elem)?;
+        let slot = cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, last, stride)?;
+        let (name, some_tag, none_tag) = if cx.tcx.is_managed_ref(elem) {
+            (String::new(), 0, 0)
+        } else {
+            let (name, _) = cx.option_parts(result_ty)?;
+            let tag = |v: &str| cx.enum_variant(&name, v).map(|(_, t)| t).ok_or_else(|| not_yet_supported("the prelude `Option`", None));
+            let tags = (tag("Some")?, tag("None")?);
+            (name, tags.0, tags.1)
+        };
+        let popped = if cx.tcx.is_managed_ref(elem) {
+            // The slot is past `len` now, so the handle moves out and the slot becomes `None`.
+            cx.ref_move_out(self.llvm_fn, slot)?
+        } else {
+            let loaded = cx.builder.build_load(llvm_elem, slot, "vec.pop")?;
+            cx.option_slot(arena.expect("checked pop arena"), &name, some_tag, Some(loaded))?.into()
+        };
+        let present_end = cx.builder.get_insert_block().expect("positioned");
+        cx.builder.build_unconditional_branch(merge)?;
+
+        cx.position_at_end(absent);
+        let none: BasicValueEnum<'ctx> = if cx.tcx.is_managed_ref(elem) {
+            cx.ref_handle_type().const_zero().into()
+        } else {
+            cx.option_slot(arena.expect("checked pop arena"), &name, none_tag, None)?.into()
+        };
+        let absent_end = cx.builder.get_insert_block().expect("positioned");
+        cx.builder.build_unconditional_branch(merge)?;
+
+        cx.position_at_end(merge);
+        let phi = cx.builder.build_phi(popped.get_type(), "vec.pop.value")?;
+        phi.add_incoming(&[(&popped, present_end), (&none, absent_end)]);
+        Ok(phi.as_basic_value())
+    }
+
+    fn release_elements(&self, header: PointerValue<'ctx>, llvm_elem: BasicTypeEnum<'ctx>, stride: usize) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let (len, buf) = (cx.vec_load_word(header, vec::LEN)?, cx.vec_load_ptr(header, vec::BUF)?);
+        cx.counted_loop(self.llvm_fn, len, |i| {
+            let handle = cx.builder.build_load(llvm_elem, cx.vec_slot(buf, i, stride)?, "vec.drop")?;
+            cx.ref_drop(self.llvm_fn, handle)
         })
     }
 
@@ -1352,6 +1515,64 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         })
     }
 
+    fn pat_test(&self, pat: &MirPat, place: &Place, fail: BasicBlock<'ctx>) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let unless = |hit: inkwell::values::IntValue<'ctx>| -> Result<(), Diagnostic> {
+            let ok = cx.context.append_basic_block(self.llvm_fn, "match.ok");
+            cx.builder.build_conditional_branch(hit, ok, fail)?;
+            cx.position_at_end(ok);
+            Ok(())
+        };
+        let tag_is = |index: u32| -> Result<inkwell::values::IntValue<'ctx>, Diagnostic> {
+            let (slot, ty) = self.place_ptr(place)?;
+            let name = plain_enum(cx, ty).expect("checked plain enum");
+            let object = self.object_ptr(slot)?;
+            let first = cx.enum_layout(&name).expect("checked layout").variants[0];
+            let tag_ptr = cx.builder.build_struct_gep(first, object, 0, "enum.tag")?;
+            let tag = cx.builder.build_load(cx.context.i32_type(), tag_ptr, "tag")?.into_int_value();
+            Ok(cx.builder.build_int_compare(IntPredicate::EQ, tag, cx.context.i32_type().const_int(u64::from(index), false), "arm.hit")?)
+        };
+        let variant_of = |name: &str| cx.enum_variant(&self.enum_name_at(place), name).expect("prelude Option").1;
+        match pat {
+            MirPat::Wildcard | MirPat::Bind => {}
+            MirPat::Lit(lit) => {
+                let (ptr, ty) = self.place_ptr(place)?;
+                let value = cx.builder.build_load(cx.basic_type(ty).expect("checked value type"), ptr, "lit.value")?;
+                let hit = match lit {
+                    PatLit::Int(n) => {
+                        let int = value.into_int_value();
+                        cx.builder.build_int_compare(IntPredicate::EQ, int, int.get_type().const_int(*n as u64, true), "lit.eq")?
+                    }
+                    PatLit::Bool(b) => {
+                        let flag = value.into_int_value();
+                        cx.builder.build_int_compare(IntPredicate::EQ, flag, flag.get_type().const_int(u64::from(*b), false), "lit.eq")?
+                    }
+                    PatLit::Str(text) => cx.string_equal(value.into_struct_value(), cx.str_literal(text))?,
+                };
+                unless(hit)?;
+            }
+            MirPat::Variant { index, fields, .. } => {
+                unless(tag_is(*index)?)?;
+                for (i, f) in fields.iter().enumerate() {
+                    self.pat_test(f, &variant_field(place, *index, i), fail)?;
+                }
+            }
+            MirPat::Some(inner) => {
+                unless(tag_is(variant_of("Some"))?)?;
+                let mut p = place.clone();
+                p.proj.push(Proj::Some);
+                self.pat_test(inner, &p, fail)?;
+            }
+            MirPat::None => unless(tag_is(variant_of("None"))?)?,
+        }
+        Ok(())
+    }
+
+    fn enum_name_at(&self, place: &Place) -> String {
+        let (_, ty) = self.place_ptr(place).expect("checked place");
+        plain_enum(self.cx, ty).expect("checked plain enum")
+    }
+
     fn term(&mut self, term: &Terminator) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let builder = &cx.builder;
@@ -1403,29 +1624,11 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 builder.build_unreachable()?;
             }
             TermKind::Match { scrutinee, arms } => {
-                let (slot, sty) = self.place_ptr(scrutinee)?;
-                let name = plain_enum(cx, sty).expect("checked plain enum");
-                let object = self.object_ptr(slot)?;
-                let first = cx.enum_layout(&name).expect("checked layout").variants[0];
-                let tag_ptr = builder.build_struct_gep(first, object, 0, "enum.tag")?;
-                let tag = builder.build_load(cx.context.i32_type(), tag_ptr, "tag")?.into_int_value();
                 for arm in arms {
                     let bind = cx.context.append_basic_block(self.llvm_fn, "arm");
                     let next = cx.context.append_basic_block(self.llvm_fn, "arm.next");
-                    match &arm.pat {
-                        MirPat::Variant { .. } | MirPat::Some(_) | MirPat::None => {
-                            let index = match &arm.pat {
-                                MirPat::Variant { index, .. } => *index,
-                                MirPat::Some(_) => cx.enum_variant(&name, "Some").expect("prelude Some").1,
-                                _ => cx.enum_variant(&name, "None").expect("prelude None").1,
-                            };
-                            let hit = builder.build_int_compare(IntPredicate::EQ, tag, cx.context.i32_type().const_int(u64::from(index), false), "arm.hit")?;
-                            builder.build_conditional_branch(hit, bind, next)?;
-                        }
-                        _ => {
-                            builder.build_unconditional_branch(bind)?;
-                        }
-                    }
+                    self.pat_test(&arm.pat, scrutinee, next)?;
+                    builder.build_unconditional_branch(bind)?;
                     cx.position_at_end(bind);
                     for (l, src) in &arm.bindings {
                         let (ptr, ty) = self.place_ptr(src)?;

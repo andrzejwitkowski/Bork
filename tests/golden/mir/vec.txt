@@ -232,7 +232,7 @@ fn main (parent=false, sink=false) {
     vec_Set(copy _7, 1, 20)
     _8 = 0  // label "out": i32 decl
     _10 = borrow _3
-    _11 = vec_Pop(copy _10)
+    _11 = vec_Pop(copy _10) in current
     match _11 {
       Some(bind) _12=_11.some -> bb1
       None -> bb2
@@ -255,7 +255,7 @@ fn main (parent=false, sink=false) {
     _20 = borrow _3
     vec_Clear(copy _20)
     _22 = borrow _3
-    _23 = vec_Pop(copy _22)
+    _23 = vec_Pop(copy _22) in current
     match _23 {
       Some(bind) _24=_23.some -> bb4
       None -> bb5
