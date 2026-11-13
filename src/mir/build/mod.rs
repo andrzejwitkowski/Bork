@@ -137,11 +137,21 @@ struct Open {
     pushed: bool,
 }
 
+/// A point in the open regions and live debug scopes that `exit_to` unwinds to. Captured together so the two
+/// stacks cannot disagree.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Mark {
+    /// `open.len()`
+    depth: usize,
+    /// `dscopes.len()`
+    scopes: usize,
+}
+
 struct LoopCtx {
     exit: BlockId,
     latch: BlockId,
-    /// `open.len()` once the loop's own region is open: `break`/`continue` leave everything above it.
-    depth: usize,
+    /// Taken once the loop's own region is open: `break`/`continue` leave everything above it, including the body scope.
+    mark: Mark,
 }
 
 pub(super) struct FnBuilder<'a> {
@@ -156,7 +166,8 @@ pub(super) struct FnBuilder<'a> {
     open: Vec<Open>,
     loops: Vec<LoopCtx>,
     /// Open debug scopes (`open.len()` before the region they belong to was pushed, scope local), outermost first.
-    dscopes: Vec<(usize, Local)>,
+    /// Live debug scopes, innermost last.
+    dscopes: Vec<Local>,
     scopes: Vec<HashMap<String, Local>>,
     /// Names bound to a `unit` payload: no local exists, so reading one is the `unit-payload-bind` capability gap.
     pub(super) unit_binds: std::collections::HashSet<String>,
@@ -213,7 +224,7 @@ impl<'a> FnBuilder<'a> {
         }
         let span = function.name_span;
         self.regions.push(RegionInfo { parent: None, site: RegionSite::Block, arena: self.cursors[0].0.id });
-        self.scope_enter(0, span, None);
+        self.scope_enter(span, None);
         self.open.push(Open { id: RegionId(0), pushed: true });
         self.stmt(StmtKind::RegionEnter(RegionId(0)), span, None);
         for (local, param) in (1u32..).map(Local).zip(&function.params) {
@@ -223,7 +234,7 @@ impl<'a> FnBuilder<'a> {
         self.stmts(body)?;
         if !self.terminated() {
             if function.return_ty == self.unit {
-                self.exit_to(0, span);
+                self.exit_to(Mark::default(), span);
                 self.terminate(TermKind::Return, span, None);
             } else {
                 // Typeck guarantees a non-unit function returns on every path.
@@ -377,10 +388,9 @@ impl<'a> FnBuilder<'a> {
                 None => self.stmt(StmtKind::RegionEnter(id), span, None),
             }
         }
-        let depth = self.open.len();
         self.open.push(Open { id, pushed });
         // The region is pushed, then its debug scope is entered.
-        self.scope_enter(depth, span, enter_in);
+        self.scope_enter(span, enter_in);
         self.cursors.push((child, 0));
         self.scopes.push(HashMap::new());
         Ok((peeled, id, pushed))
@@ -401,11 +411,14 @@ impl<'a> FnBuilder<'a> {
         Ok(())
     }
 
-    /// `RegionExit` for every pushed region above `depth`, innermost first, without closing them:
-    /// `return`, `break` and `continue` leave regions on the way out only.
-    pub(super) fn exit_to(&mut self, depth: usize, span: Span) {
+    /// `StorageDead` for the debug scopes above `to`, then `RegionExit` for every pushed region above it, innermost
+    /// first, without closing them: `return`, `break`, `continue` and a failed presence guard leave regions on the way
+    /// out only. Scopes are marked by position, not region depth: a loop body's scope shares its depth with the
+    /// regions nested in it.
+    pub(super) fn exit_to(&mut self, to: Mark, span: Span) {
+        let depth = to.depth;
         // Debug scopes are left before any region, innermost first.
-        let dead: Vec<Local> = self.dscopes.iter().rev().take_while(|(d, _)| *d >= depth).map(|(_, l)| *l).collect();
+        let dead: Vec<Local> = self.dscopes[to.scopes..].iter().rev().copied().collect();
         for l in dead {
             self.stmt(StmtKind::StorageDead(l), span, None);
         }
@@ -415,15 +428,15 @@ impl<'a> FnBuilder<'a> {
         }
     }
 
-    fn new_scope_local(&mut self, depth: usize) -> Local {
+    fn new_scope_local(&mut self) -> Local {
         let l = self.new_local(self.unit, LocalKind::Hidden(HiddenKind::DebugScope), None);
-        self.dscopes.push((depth, l));
+        self.dscopes.push(l);
         l
     }
 
     /// Opens a debug scope; `in_block` is where a `while` enters its region (not the current block).
-    pub(super) fn scope_enter(&mut self, depth: usize, span: Span, in_block: Option<BlockId>) {
-        let l = self.new_scope_local(depth);
+    pub(super) fn scope_enter(&mut self, span: Span, in_block: Option<BlockId>) {
+        let l = self.new_scope_local();
         match in_block {
             Some(b) => {
                 let region = self.cur_region();
@@ -435,7 +448,7 @@ impl<'a> FnBuilder<'a> {
 
     /// Leaves the innermost debug scope; nothing is emitted when the block already ended.
     pub(super) fn scope_exit(&mut self, span: Span) {
-        let (_, l) = self.dscopes.pop().expect("open debug scope");
+        let l = self.dscopes.pop().expect("open debug scope");
         if !self.terminated() {
             self.stmt(StmtKind::StorageDead(l), span, None);
         }
@@ -445,20 +458,21 @@ impl<'a> FnBuilder<'a> {
         self.open.iter().rev().find(|o| o.pushed).map(|o| o.id)
     }
 
-    pub(super) fn open_depth(&self) -> usize {
-        self.open.len()
+    pub(super) fn mark(&self) -> Mark {
+        Mark { depth: self.open.len(), scopes: self.dscopes.len() }
     }
 
+
     pub(super) fn push_loop(&mut self, exit: BlockId, latch: BlockId) {
-        self.loops.push(LoopCtx { exit, latch, depth: self.open.len() });
+        self.loops.push(LoopCtx { exit, latch, mark: self.mark() });
     }
 
     pub(super) fn pop_loop(&mut self) {
         self.loops.pop();
     }
 
-    pub(super) fn loop_ctx(&self) -> Option<(BlockId, BlockId, usize)> {
-        self.loops.last().map(|l| (l.exit, l.latch, l.depth))
+    pub(super) fn loop_ctx(&self) -> Option<(BlockId, BlockId, Mark)> {
+        self.loops.last().map(|l| (l.exit, l.latch, l.mark))
     }
 
     pub(super) fn push_scope(&mut self) {

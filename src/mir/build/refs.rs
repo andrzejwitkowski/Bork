@@ -123,7 +123,7 @@ impl<'a> FnBuilder<'a> {
     ) -> Res<Operand> {
         let span = span_of(e);
         let result = (!self.is_unit(e.ty)).then(|| self.temp(e.ty));
-        let outer = self.open_depth();
+        let outer = self.mark();
         let sink = self.owning(e.ty).then(|| self.outer_sink());
         let (merge, none_b) = (self.new_block(), self.new_block());
         let some_b = self.new_block();

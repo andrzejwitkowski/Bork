@@ -1,0 +1,7 @@
+// exit: 1
+// division by zero aborts
+fun main(): i32 {
+    val z = 0
+    println(10 / z)
+    return 0
+}

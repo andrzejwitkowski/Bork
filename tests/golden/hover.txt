@@ -1,4 +1,7 @@
 programs/build/basics/array_index_assign.bork: hits=5 hash=2c86fda0538e41b9
+programs/build/basics/div_by_minus_one.bork: hits=10 hash=dabc9a2f9762367b
+programs/build/basics/div_by_zero_aborts.bork: hits=10 hash=d40100cb7aa35f9e
+programs/build/basics/div_min_by_minus_one_aborts.bork: hits=12 hash=0600d3e34552a270
 programs/build/basics/nested_i64.bork: hits=25 hash=c1982f4f08379390
 programs/build/basics/println_string.bork: hits=8 hash=52786b685a7d82dd
 programs/build/basics/return_constant.bork: hits=0 hash=cbf29ce484222325

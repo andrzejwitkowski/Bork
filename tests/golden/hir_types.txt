@@ -1,4 +1,7 @@
 programs/build/basics/array_index_assign.bork::main() -> i32
+programs/build/basics/div_by_minus_one.bork::main() -> i32
+programs/build/basics/div_by_zero_aborts.bork::main() -> i32
+programs/build/basics/div_min_by_minus_one_aborts.bork::main() -> i32
 programs/build/basics/nested_i64.bork::sub(a: i64, b: i64) -> i64
 programs/build/basics/nested_i64.bork::main() -> i32
 programs/build/basics/println_string.bork::main() -> unit

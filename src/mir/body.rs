@@ -147,19 +147,11 @@ pub enum MirUnOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AggKind {
-    Object(String),
-    Variant { enum_name: String, index: u32 },
-    Array,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum Rvalue {
     Use(Operand),
     Binary(BinOp, Operand, Operand),
     Unary(MirUnOp, Operand),
     Cast(Operand, TyId),
-    Aggregate(AggKind, Vec<Operand>),
     Len(Place),
     Slice { base: Operand, lo: Operand, hi: Operand },
 }
@@ -351,7 +343,6 @@ fn rvalue_uses<'a>(r: &'a Rvalue, f: &mut dyn FnMut(Use<'a>)) {
             f(Use::Op(a));
             f(Use::Op(b));
         }
-        Rvalue::Aggregate(_, ops) => ops.iter().for_each(|o| f(Use::Op(o))),
         Rvalue::Len(p) => f(Use::Read(p)),
         Rvalue::Slice { base, lo, hi } => {
             f(Use::Op(base));

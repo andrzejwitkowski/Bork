@@ -208,7 +208,6 @@ impl Pass<'_> {
                 v
             }
             Rvalue::Unary(_, a) | Rvalue::Cast(a, _) | Rvalue::Slice { base: a, .. } => self.origins(a),
-            Rvalue::Aggregate(_, ops) => ops.iter().flat_map(|op| self.origins(op)).collect(),
             _ => Origins::new(),
         };
         let src_ty = match rv {

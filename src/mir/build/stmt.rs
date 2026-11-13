@@ -1,7 +1,7 @@
 //! Statement lowering, loops and early exits.
 
 use super::expr::span_of;
-use super::{BuildError, FnBuilder, Res};
+use super::{BuildError, FnBuilder, Mark, Res};
 use crate::ast::{BinOp, BindingKind};
 use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirStmt};
 use crate::mir::body::*;
@@ -26,7 +26,7 @@ impl<'a> FnBuilder<'a> {
                     }
                     self.stmt(StmtKind::Assign(Place::local(self.ret_local()), Rvalue::Use(v)), span, None);
                 }
-                self.exit_to(0, span);
+                self.exit_to(Mark::default(), span);
                 self.terminate(TermKind::Return, span, None);
                 Ok(())
             }
@@ -121,8 +121,8 @@ impl<'a> FnBuilder<'a> {
     /// `break` leaves the loop's inner regions and goes to its exit (which pops the loop region);
     /// `continue` goes to the latch, which resets the loop region.
     fn jump(&mut self, is_break: bool, span: Span) -> Res<()> {
-        let (exit, latch, depth) = self.loop_ctx().ok_or_else(|| BuildError::Internal("break outside a loop".into()))?;
-        self.exit_to(depth, span);
+        let (exit, latch, mark) = self.loop_ctx().ok_or_else(|| BuildError::Internal("break outside a loop".into()))?;
+        self.exit_to(mark, span);
         self.terminate(TermKind::Goto(if is_break { exit } else { latch }), span, None);
         Ok(())
     }
@@ -190,7 +190,7 @@ impl<'a> FnBuilder<'a> {
         self.push_loop(exit, latch);
         self.cur = body_b;
         // The per-iteration scope of a `for`/`while` body.
-        self.scope_enter(self.open_depth(), span, None);
+        self.scope_enter(span, None);
         self.stmts(body)?;
         self.scope_exit(span);
         self.goto(latch, span);

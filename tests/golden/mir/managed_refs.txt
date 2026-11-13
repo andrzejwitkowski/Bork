@@ -559,7 +559,6 @@ fn main (parent=false, sink=false) {
     switch copy _27 [ 1 -> bb11, else -> bb12]
   bb11:
     storage_dead _23
-    storage_dead _17
     region_exit r3
     goto bb9
   bb12:
