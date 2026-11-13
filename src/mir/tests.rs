@@ -224,6 +224,7 @@ fn rejects_paths_that_disagree_about_live_debug_scopes() {
     b.blocks.push(Block { stmts: vec![], term: term(TermKind::Goto(BlockId(3))) });
     b.blocks.push(Block { stmts: vec![], term: term(TermKind::Abort(AbortReason::Bounds)) });
     has(&messages(&e, &b), "different live debug scopes");
+    assert!(!messages(&e, &b).iter().any(|m| m.contains("regions")), "{:?}", messages(&e, &b));
 }
 
 #[test]
@@ -303,4 +304,20 @@ fn unreachable_blocks_are_not_analysed() {
     let mut b = with_ints(&e, vec![set(0, 1)], TermKind::Return);
     b.blocks.push(Block { stmts: vec![stmt(cp(0, 3))], term: term(TermKind::Return) });
     assert_eq!(messages(&e, &b), Vec::<String>::new());
+}
+
+#[test]
+fn a_store_into_a_projected_place_needs_its_base_and_index() {
+    let e = env();
+    let field = |base: u32| Place { local: Local(base), proj: vec![Proj::Field(0)] };
+    let store = |dst: Place| StmtKind::Assign(dst, Rvalue::Use(Operand::Const(Const::Int(1))));
+    // `_3` was never assigned.
+    has(&messages(&e, &with_ints(&e, vec![store(field(3)), set(0, 0)], TermKind::Return)), "_3 is read before it was assigned");
+    // Moved away first.
+    has(&messages(&e, &with_ints(&e, vec![set(3, 1), mv(4, 3), store(field(3)), set(0, 0)], TermKind::Return)), "_3 is read after it was moved");
+    // An uninitialised index local.
+    let slot = Place { local: Local(3), proj: vec![Proj::Index(Box::new(Operand::Copy(p(4))))] };
+    has(&messages(&e, &with_ints(&e, vec![set(3, 1), store(slot), set(0, 0)], TermKind::Return)), "_4 is read before it was assigned");
+    // An assigned base is fine, and the store does not initialise it.
+    assert_eq!(messages(&e, &with_ints(&e, vec![set(3, 1), store(field(3)), set(0, 0)], TermKind::Return)), Vec::<String>::new());
 }

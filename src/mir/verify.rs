@@ -218,6 +218,8 @@ impl Verifier<'_> {
                 }
             }
             Use::Def(p) if p.is_bare() => defs.push(p.local),
+            // A store into `a.f` / `a[i]` needs `a` (and `i`) to be there; it does not initialise `a`.
+            Use::Def(p) => read(st, p, &mut errors),
             Use::Local(l) => defs.push(l),
             _ => {}
         });
@@ -289,11 +291,17 @@ impl Verifier<'_> {
             match seen.get(&bi) {
                 Some(prev) if *prev == entry => continue,
                 Some(prev) => {
-                    let message = if prev.scopes != entry.scopes && prev.regions == entry.regions && prev.live == entry.live {
-                        "paths reach this block with different live debug scopes"
-                    } else {
-                        "paths reach this block with different open regions or live Ref temporaries"
-                    };
+                    let mut differ = Vec::new();
+                    if prev.regions != entry.regions {
+                        differ.push("open regions");
+                    }
+                    if prev.live != entry.live {
+                        differ.push("live Ref temporaries");
+                    }
+                    if prev.scopes != entry.scopes {
+                        differ.push("live debug scopes");
+                    }
+                    let message = format!("paths reach this block with different {}", differ.join(" and "));
                     self.err(Some(BlockId(bi as u32)), None, message);
                     continue;
                 }

@@ -123,7 +123,7 @@ impl<'a> FnBuilder<'a> {
     ) -> Res<Operand> {
         let span = span_of(e);
         let result = (!self.is_unit(e.ty)).then(|| self.temp(e.ty));
-        let (outer, scope_mark) = (self.open_depth(), self.dscopes_len());
+        let outer = self.mark();
         let sink = self.owning(e.ty).then(|| self.outer_sink());
         let (merge, none_b) = (self.new_block(), self.new_block());
         let some_b = self.new_block();
@@ -148,7 +148,7 @@ impl<'a> FnBuilder<'a> {
             // A failed tail guard leaves the `Some` region and takes the absent path.
             let body_start = self.cur;
             self.cur = cleanup;
-            self.exit_to(outer, scope_mark, span);
+            self.exit_to(outer, span);
             self.goto(none_b, span);
             self.cur = body_start;
         }

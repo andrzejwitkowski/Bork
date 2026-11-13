@@ -137,13 +137,21 @@ struct Open {
     pushed: bool,
 }
 
+/// A point in the open regions and live debug scopes that `exit_to` unwinds to. Captured together so the two
+/// stacks cannot disagree.
+#[derive(Clone, Copy, Default)]
+pub(super) struct Mark {
+    /// `open.len()`
+    depth: usize,
+    /// `dscopes.len()`
+    scopes: usize,
+}
+
 struct LoopCtx {
     exit: BlockId,
     latch: BlockId,
-    /// `open.len()` once the loop's own region is open: `break`/`continue` leave everything above it.
-    depth: usize,
-    /// `dscopes.len()` at the same point: the loop body's own scope is above it.
-    scopes: usize,
+    /// Taken once the loop's own region is open: `break`/`continue` leave everything above it, including the body scope.
+    mark: Mark,
 }
 
 pub(super) struct FnBuilder<'a> {
@@ -158,7 +166,7 @@ pub(super) struct FnBuilder<'a> {
     open: Vec<Open>,
     loops: Vec<LoopCtx>,
     /// Open debug scopes (`open.len()` before the region they belong to was pushed, scope local), outermost first.
-    /// Live debug scopes, innermost last; `exit_to` takes a mark into this stack.
+    /// Live debug scopes, innermost last.
     dscopes: Vec<Local>,
     scopes: Vec<HashMap<String, Local>>,
     /// Names bound to a `unit` payload: no local exists, so reading one is the `unit-payload-bind` capability gap.
@@ -226,7 +234,7 @@ impl<'a> FnBuilder<'a> {
         self.stmts(body)?;
         if !self.terminated() {
             if function.return_ty == self.unit {
-                self.exit_to(0, 0, span);
+                self.exit_to(Mark::default(), span);
                 self.terminate(TermKind::Return, span, None);
             } else {
                 // Typeck guarantees a non-unit function returns on every path.
@@ -403,13 +411,14 @@ impl<'a> FnBuilder<'a> {
         Ok(())
     }
 
-    /// `StorageDead` for the debug scopes above `scope_mark` (a past `dscopes.len()`), then `RegionExit` for every pushed
-    /// region above `depth`, innermost first, without closing them: `return`, `break`, `continue` and a failed presence
-    /// guard leave regions on the way out only. Scopes are marked by position, not region depth: a loop body's scope
-    /// shares its depth with the regions nested in it.
-    pub(super) fn exit_to(&mut self, depth: usize, scope_mark: usize, span: Span) {
+    /// `StorageDead` for the debug scopes above `to`, then `RegionExit` for every pushed region above it, innermost
+    /// first, without closing them: `return`, `break`, `continue` and a failed presence guard leave regions on the way
+    /// out only. Scopes are marked by position, not region depth: a loop body's scope shares its depth with the
+    /// regions nested in it.
+    pub(super) fn exit_to(&mut self, to: Mark, span: Span) {
+        let depth = to.depth;
         // Debug scopes are left before any region, innermost first.
-        let dead: Vec<Local> = self.dscopes[scope_mark..].iter().rev().copied().collect();
+        let dead: Vec<Local> = self.dscopes[to.scopes..].iter().rev().copied().collect();
         for l in dead {
             self.stmt(StmtKind::StorageDead(l), span, None);
         }
@@ -449,24 +458,21 @@ impl<'a> FnBuilder<'a> {
         self.open.iter().rev().find(|o| o.pushed).map(|o| o.id)
     }
 
-    pub(super) fn dscopes_len(&self) -> usize {
-        self.dscopes.len()
+    pub(super) fn mark(&self) -> Mark {
+        Mark { depth: self.open.len(), scopes: self.dscopes.len() }
     }
 
-    pub(super) fn open_depth(&self) -> usize {
-        self.open.len()
-    }
 
     pub(super) fn push_loop(&mut self, exit: BlockId, latch: BlockId) {
-        self.loops.push(LoopCtx { exit, latch, depth: self.open.len(), scopes: self.dscopes.len() });
+        self.loops.push(LoopCtx { exit, latch, mark: self.mark() });
     }
 
     pub(super) fn pop_loop(&mut self) {
         self.loops.pop();
     }
 
-    pub(super) fn loop_ctx(&self) -> Option<(BlockId, BlockId, usize, usize)> {
-        self.loops.last().map(|l| (l.exit, l.latch, l.depth, l.scopes))
+    pub(super) fn loop_ctx(&self) -> Option<(BlockId, BlockId, Mark)> {
+        self.loops.last().map(|l| (l.exit, l.latch, l.mark))
     }
 
     pub(super) fn push_scope(&mut self) {
