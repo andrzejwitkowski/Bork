@@ -1,0 +1,27 @@
+// diag: this `move` would leave the object in an arena that is freed before its new owner
+// only a plain assignment to a local is a hoisting target; a field store is not
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = concat("ZZZZZZ", "ZZZ")
+    val p = P(k)
+    val q = P(k + 1)
+    return a.length + p.n + q.n
+}
+fun spin() {
+    var i = 0
+    while (i < 300) {
+        churn(i)
+        i = i + 1
+    }
+}
+class H { a: A }
+fun main(): i32 {
+    var h = H(A(P(1)))
+    {
+        val inner = A(P(42))
+        h.a = move inner
+    }
+    spin()
+    return h.a.x.n
+}

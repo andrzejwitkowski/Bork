@@ -641,6 +641,50 @@ fn Pair.first<i32,bool> (parent=true, sink=false) {
     return
 }
 
+== generics/promote_class_object.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Box<String> [Temp]
+  let _4: String [Temp]
+  let _5: String [Temp]
+  let _6: Box<String> [Var] outer
+  let _7: unit [Hidden(DebugScope)]
+  let _8: unit [Hidden(DynamicArena)]
+  let _9: Box<String> [Temp]
+  let _10: String [Temp]
+  let _11: String [Temp]
+  let _12: Box<String> [Val] inner
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Box<String>" } in fresh2  // label "Box<String>": Box<String>
+    _4 = "a"
+    _5 = copy_into _4 in fresh2
+    _3.0 = copy _5  // label "Box<String>.v": String decl owner=fresh2
+    _6 = copy _3  // label "outer": Box<String> decl
+    region_enter r1
+    storage_live _7
+    _8 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_6) <- _8
+    _9 = alloc Object { class: "Box<String>" } in fresh8  // label "Box<String>": Box<String>
+    _10 = "b"
+    _11 = copy_into _10 in fresh8
+    _9.0 = copy _11  // label "Box<String>.v": String decl owner=fresh8
+    _12 = copy _9  // label "inner": Box<String> decl
+    _6 = move _12
+    storage_dead _7
+    region_exit r1
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == generics/ref_cleanup.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

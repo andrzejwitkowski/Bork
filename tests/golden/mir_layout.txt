@@ -107,6 +107,10 @@ enum K size=4 align=4 variants=[[0], [0]]
 class N size=4 align=4 fields=[0]
 class Box size=24 align=8 fields=[0]
 class Outer size=24 align=8 fields=[0]
+== programs/build/enums/return_move_object.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+class W size=16 align=8 fields=[0]
 == programs/build/enums/return_nested_hoisted_object.bork
 class N size=4 align=4 fields=[0]
 class Box size=16 align=8 fields=[0]
@@ -174,6 +178,8 @@ class Node<i32> size=32 align=8 fields=[0, 8]
 == programs/build/generics/pair.bork
 class Pair<i32,bool> size=8 align=4 fields=[0, 4]
 class Pair<i32,String> size=24 align=8 fields=[0, 8]
+== programs/build/generics/promote_class_object.bork
+class Box<String> size=16 align=8 fields=[0]
 == programs/build/generics/ref_cleanup.bork
 class Box<i32> size=4 align=4 fields=[0]
 == programs/build/generics/tree_regions.bork
@@ -329,6 +335,27 @@ class Point size=24 align=8 fields=[0, 16]
 == programs/build/methods/same_name.bork
 class A size=0 align=1 fields=[]
 class B size=0 align=1 fields=[]
+== programs/build/move_and_promote/enum_out_of_block.bork
+class P size=4 align=4 fields=[0]
+enum E size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/move_and_promote/nullable_out_of_block.bork
+class P size=4 align=4 fields=[0]
+enum E size=24 align=8 variants=[[0, 8], [0]]
+enum Option<E> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/move_and_promote/object_in_loop.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/move_and_promote/object_out_of_block.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/move_and_promote/object_through_call.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
+== programs/build/move_and_promote/ref_array_out_of_block.bork
+class P size=4 align=4 fields=[0]
+== programs/build/move_and_promote/return_move_in_branches.bork
+class P size=4 align=4 fields=[0]
+class A size=16 align=8 fields=[0]
 == programs/build/option/assign_option_from_block.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
@@ -343,6 +370,9 @@ class A size=16 align=8 fields=[0]
 enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/option/equality_cases_still_work.bork
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/option/move_nullable_enum.bork
+enum Shape size=8 align=4 variants=[[0, 4], [0]]
+enum Option<Shape> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/option/nested_option_returned.bork
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 enum Option<i32?> size=24 align=8 variants=[[0, 8], [0]]

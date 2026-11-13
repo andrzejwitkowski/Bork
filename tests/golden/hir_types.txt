@@ -142,6 +142,9 @@ programs/build/enums/return_method_result_ref.bork::churn(k: i32) -> i32
 programs/build/enums/return_method_result_ref.bork::make() -> Outer
 programs/build/enums/return_method_result_ref.bork::main() -> i32
 programs/build/enums/return_method_result_ref.bork::Box.get(this: &Box) -> Ref<N>
+programs/build/enums/return_move_object.bork::churn(k: i32) -> i32
+programs/build/enums/return_move_object.bork::make(flag: bool) -> A
+programs/build/enums/return_move_object.bork::main() -> i32
 programs/build/enums/return_nested_hoisted_object.bork::churn(k: i32) -> i32
 programs/build/enums/return_nested_hoisted_object.bork::make() -> Holder
 programs/build/enums/return_nested_hoisted_object.bork::main() -> i32
@@ -195,6 +198,7 @@ programs/build/generics/list_node.bork::main() -> i32
 programs/build/generics/pair.bork::main() -> i32
 programs/build/generics/pair.bork::Pair.first(this: &Pair<T0, T1>) -> T0
 programs/build/generics/pair.bork::Pair.with(this: &Pair<T0, T1>, c: T2) -> T2
+programs/build/generics/promote_class_object.bork::main() -> unit
 programs/build/generics/ref_cleanup.bork::main() -> i32
 programs/build/generics/tree_regions.bork::main() -> i32
 programs/build/loops/for_nested.bork::main() -> i32
@@ -338,9 +342,29 @@ programs/build/move_and_promote/assign_up_move.bork::main() -> unit
 programs/build/move_and_promote/both_branches_return_move.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/both_branches_return_move.bork::main() -> i32
 programs/build/move_and_promote/concat_outer.bork::main() -> unit
+programs/build/move_and_promote/enum_out_of_block.bork::churn(k: i32) -> i32
+programs/build/move_and_promote/enum_out_of_block.bork::spin() -> unit
+programs/build/move_and_promote/enum_out_of_block.bork::main() -> i32
+programs/build/move_and_promote/nullable_out_of_block.bork::churn(k: i32) -> i32
+programs/build/move_and_promote/nullable_out_of_block.bork::main() -> i32
+programs/build/move_and_promote/object_in_loop.bork::churn(k: i32) -> i32
+programs/build/move_and_promote/object_in_loop.bork::spin() -> unit
+programs/build/move_and_promote/object_in_loop.bork::main() -> i32
+programs/build/move_and_promote/object_out_of_block.bork::churn(k: i32) -> i32
+programs/build/move_and_promote/object_out_of_block.bork::spin() -> unit
+programs/build/move_and_promote/object_out_of_block.bork::main() -> i32
+programs/build/move_and_promote/object_through_call.bork::churn(k: i32) -> i32
+programs/build/move_and_promote/object_through_call.bork::spin() -> unit
+programs/build/move_and_promote/object_through_call.bork::take(a: A) -> A
+programs/build/move_and_promote/object_through_call.bork::main() -> i32
 programs/build/move_and_promote/print_ints.bork::main() -> unit
 programs/build/move_and_promote/promote_outer.bork::main() -> unit
+programs/build/move_and_promote/ref_array_out_of_block.bork::main() -> i32
 programs/build/move_and_promote/regional_move.bork::main() -> unit
+programs/build/move_and_promote/return_move_in_branches.bork::churn(k: i32) -> i32
+programs/build/move_and_promote/return_move_in_branches.bork::spin() -> unit
+programs/build/move_and_promote/return_move_in_branches.bork::make(flag: bool) -> A
+programs/build/move_and_promote/return_move_in_branches.bork::main() -> i32
 programs/build/move_and_promote/string_shared_nested.bork::main() -> unit
 programs/build/move_and_promote/then_return_move_not_taken.bork::run(flag: bool) -> i32
 programs/build/move_and_promote/then_return_move_not_taken.bork::main() -> i32
@@ -356,6 +380,7 @@ programs/build/option/assign_option_overwritten.bork::churn(k: i32) -> i32
 programs/build/option/assign_option_overwritten.bork::spin() -> unit
 programs/build/option/assign_option_overwritten.bork::main() -> i32
 programs/build/option/equality_cases_still_work.bork::main() -> i32
+programs/build/option/move_nullable_enum.bork::main() -> unit
 programs/build/option/nested_option_returned.bork::make() -> Option<i32?>
 programs/build/option/nested_option_returned.bork::churn() -> unit
 programs/build/option/nested_option_returned.bork::main() -> i32

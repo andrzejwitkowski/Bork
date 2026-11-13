@@ -1,0 +1,28 @@
+// exit: 7
+// an enum with an object payload moved out of a block
+class P { n: i32 }
+enum E { A(p: P), B }
+fun churn(k: i32): i32 {
+    val p = P(k)
+    val q = P(k + 1)
+    return p.n + q.n
+}
+fun spin() {
+    var i = 0
+    while (i < 300) {
+        churn(i)
+        i = i + 1
+    }
+}
+fun main(): i32 {
+    var outer = E.B
+    {
+        val inner = E.A(P(7))
+        outer = move inner
+    }
+    spin()
+    when outer {
+        A(p) => { return p.n }
+        B => { return 0 }
+    }
+}

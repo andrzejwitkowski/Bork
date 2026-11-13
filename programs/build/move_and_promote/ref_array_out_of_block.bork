@@ -1,0 +1,11 @@
+// exit: 0
+// an array of Ref moved out of a block clones and rehomes each Ref
+class P { n: i32 }
+fun main(): i32 {
+    var outer: [Ref<P>; 2] = [P(1), P(2)]
+    {
+        var inner: [Ref<P>; 2] = [P(7), P(8)]
+        outer = move inner
+    }
+    return 0
+}

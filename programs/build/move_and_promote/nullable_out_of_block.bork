@@ -1,0 +1,29 @@
+// exit: 11
+// a nullable enum moved out of a block
+class P { n: i32 }
+enum E { A(p: P), B }
+fun churn(k: i32): i32 {
+    val p = P(k)
+    return p.n
+}
+fun main(): i32 {
+    var outer: E? = None
+    {
+        val inner: E? = Some(E.A(P(11)))
+        outer = move inner
+    }
+    var i = 0
+    while (i < 300) {
+        churn(i)
+        i = i + 1
+    }
+    when outer {
+        Some(e) => {
+            when e {
+                A(p) => { return p.n }
+                B => { return 0 }
+            }
+        }
+        None => { return 1 }
+    }
+}

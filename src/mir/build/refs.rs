@@ -1,7 +1,7 @@
 //! Ownership: moves and promotes, the `Ref` protocol, `if val` and drop registration.
 
 use super::expr::span_of;
-use super::{BuildError, FnBuilder, Res};
+use super::{BuildError, FnBuilder, Res, SinkKey};
 use crate::hir::{HirBlock, HirConditionalBindings, HirExpr, UseKind};
 use crate::mir::body::*;
 use crate::mir::capability::Capability;
@@ -34,19 +34,28 @@ impl<'a> FnBuilder<'a> {
         temp
     }
 
-    /// `move x` / `promote x` of values the gate cannot yet move (RFC 3.10 `move-aggregate`).
-    fn move_unsupported(&self, ty: TyId) -> Option<&'static str> {
+    /// A class object, or an enum (also behind `T?`): a handle into the arena that holds it. Copying it would leave its
+    /// fields pointing into the source arena, so a `move` passes the handle instead.
+    pub(super) fn moves_handle(&self, ty: TyId) -> bool {
         let t = self.tcx;
         let payload = if t.is_nullable(ty) { t.enum_args(ty).and_then(|(_, a)| a.first().copied()).unwrap_or(ty) } else { ty };
-        if t.enum_args(payload).is_some() {
-            Some("moving enum values is not supported by codegen yet")
-        } else if t.record_def(ty).is_some() && !t.is_managed_ref(ty) {
-            Some("moving class objects is not supported by codegen yet")
-        } else if t.array_elem(ty).is_some_and(|el| t.is_managed_ref(el)) {
-            Some("moving an array of managed Ref is not supported by codegen yet")
-        } else {
-            None
+        t.enum_args(payload).is_some() || (t.record_def(ty).is_some() && !t.is_managed_ref(ty))
+    }
+
+    /// `move x` of an object: the handle is passed on, which is only sound when `x` was allocated in the arena that
+    /// outlives its new owner. `hoist` puts the initialiser there for `outer = move inner` (next statement) and
+    /// `return move a`; anywhere else the object would die with its region, so the move is reported instead.
+    fn move_handle(&mut self, place: Place, span: Span) -> Res<Operand> {
+        let dest = self.sink_key(&self.sink.clone());
+        let ok = match self.decl_sinks.get(&place.local) {
+            Some(decl) => *decl == dest,
+            // A parameter lives in the caller's arena, which outlives this call and every region in it.
+            None => !matches!(&dest, SinkKey::Other(ArenaRef::Home(h)) if self.locals[h.0 as usize].kind == LocalKind::Arg),
+        };
+        if !ok {
+            return Err(BuildError::unsupported(Capability::MoveEscapesArena, span));
         }
+        Ok(Operand::Move(place))
     }
 
     pub(super) fn ident_moved(&mut self, e: &HirExpr, place: Place, use_kind: UseKind) -> Res<Operand> {
@@ -63,10 +72,10 @@ impl<'a> FnBuilder<'a> {
                 Ok(Operand::Copy(Place::local(dst)))
             }
             _ => {
-                if let Some(message) = self.move_unsupported(e.ty) {
-                    return Err(BuildError::unsupported_with(Capability::MoveAggregate, span, message));
-                }
                 let t = self.tcx;
+                if self.moves_handle(e.ty) {
+                    return self.move_handle(place, span);
+                }
                 if !(t.is_nullable(e.ty) || t.is_string(e.ty) || t.is_array(e.ty) || t.is_vec(e.ty)) {
                     return Ok(Operand::Move(place));
                 }
