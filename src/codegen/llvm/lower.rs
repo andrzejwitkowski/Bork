@@ -1140,7 +1140,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let arena = self.arena_ref(arena, stmt.region)?;
                 let record = cx.record_type(class).expect("checked record");
                 let size = record.size_of().ok_or_else(|| not_yet_supported("unsized record", None))?;
-                // The HIR emitter labels the construction arena once per source-level construct (`begin_object_construct`).
+                // The construction arena is labelled once per source-level construct (`begin_object_construct`).
                 if stmt.debug.is_some() {
                     cx.debug_label_arena(arena)?;
                 }

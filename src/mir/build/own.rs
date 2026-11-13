@@ -113,7 +113,7 @@ impl<'a> FnBuilder<'a> {
         let index = self.variant_index(enum_name, variant)?;
         let decl = self.mono.hir.enums.iter().find(|x| x.name == enum_name).expect("variant_index found it");
         let dst = self.temp(e.ty);
-        // The label marks a source-level construct: the HIR emitter names its arena for the debug registry.
+        // The label marks a source-level construct: its arena is named for the debug registry.
         let construct = DebugLabel { name: enum_name.to_string(), ty: e.ty, span, source: self.function.source, declaration: false, argument: None, owner: None, index: None };
         self.stmt_with(
             StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::EnumSlot { enum_name: enum_name.to_string(), variant: index }, arena: arena.clone() },
@@ -175,7 +175,7 @@ impl<'a> FnBuilder<'a> {
             if self.tcx.is_managed_ref(receiver.ty) {
                 return self.safe_ref_field(e, receiver, field_index);
             }
-            let flatten = self.class_field_ty(self.nullable_payload(receiver.ty), field_index);
+            let flatten = Some(self.class_field_ty(self.nullable_payload(receiver.ty), field_index)?);
             return self.safe_navigate(e, receiver, flatten, |_, mut base| {
                 base.proj.push(Proj::Field(field_index as u32));
                 Ok(Operand::Copy(base))
@@ -217,7 +217,7 @@ impl<'a> FnBuilder<'a> {
         } else {
             Operand::Copy(field)
         };
-        let actual = self.class_field_ty(target, field_index);
+        let actual = Some(self.class_field_ty(target, field_index)?);
         let wrapped = self.some_or_flatten(e.ty, value, field_ty, actual, span)?;
         self.stmt(StmtKind::ObservationRelease(obs), span, Some(e.id));
         self.stmt(StmtKind::Assign(Place::local(result), Rvalue::Use(wrapped)), span, Some(e.id));
@@ -234,9 +234,12 @@ impl<'a> FnBuilder<'a> {
         self.tcx.enum_args(ty).is_some()
     }
 
-    fn class_field_ty(&self, ty: TyId, index: usize) -> Option<TyId> {
-        let name = crate::mono::class_instance_name(self.tcx, ty)?;
-        self.mono.hir.classes.iter().find(|c| c.name == name)?.fields.get(index).map(|f| f.ty)
+    /// Declared type of field `index` of the class instance `ty`; a miss would wrap a nullable field in a second `Some`.
+    fn class_field_ty(&self, ty: TyId, index: usize) -> Res<TyId> {
+        let field = crate::mono::class_instance_name(self.tcx, ty)
+            .and_then(|name| self.mono.hir.classes.iter().find(|c| c.name == name))
+            .and_then(|class| class.fields.get(index));
+        field.map(|f| f.ty).ok_or_else(|| BuildError::Internal(format!("no field {index} on the class of a safe field access")))
     }
 
     /// `Some(value)`, or `value` copied into the sink when its own type `actual` is already nullable.

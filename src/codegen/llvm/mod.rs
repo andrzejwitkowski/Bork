@@ -157,12 +157,8 @@ pub(super) fn not_yet_supported(what: &str, span: Option<Span>) -> Diagnostic {
 
 /// A MIR build failure: a gate gap names its capability, anything else is a compiler bug.
 fn mir_error(error: crate::mir::build::BuildError) -> Diagnostic {
-    use crate::mir::build::BuildError;
-    match error {
-        BuildError::Unsupported(u) => codegen_error(u.message().to_owned(), Some(u.span)),
-        BuildError::Unlowered { what, span } => not_yet_supported(&what, Some(span)),
-        BuildError::Internal(message) => codegen_error(format!("internal error: MIR: {message}"), None),
-    }
+    let (message, span) = crate::codegen_gate::describe(&error);
+    codegen_error(message, span)
 }
 
 impl From<BuilderError> for Diagnostic {

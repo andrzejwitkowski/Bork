@@ -9,6 +9,7 @@ use crate::mir::build::{build_function_results, BuildError};
 use crate::mir::Body;
 use crate::mono::Mono;
 use crate::sema::ArenaReport;
+use crate::span::Span;
 use crate::ty::TyCtx;
 
 /// Diagnostics for the constructs of `hir` codegen cannot lower, instance by instance. Like `check` and `build`, it
@@ -31,8 +32,16 @@ pub fn gate(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> Vec<Diagnost
 pub fn gate_mono(mono: &Mono, tcx: &TyCtx) -> Vec<Diagnostic> {
     match build_function_results(mono, tcx) {
         Ok(results) => gate_results(&results),
-        Err(BuildError::Internal(message)) => gate_results(&[Err(BuildError::Internal(message))]),
-        Err(_) => Vec::new(),
+        Err(error) => gate_results(&[Err(error)]),
+    }
+}
+
+/// Message and span of a MIR build failure, shared by the gate and `bork build`.
+pub fn describe(error: &BuildError) -> (String, Option<Span>) {
+    match error {
+        BuildError::Unsupported(u) => (u.message().to_owned(), Some(u.span)),
+        BuildError::Unlowered { what, span } => (format!("{what} is not supported by codegen yet"), Some(*span)),
+        BuildError::Internal(message) => (format!("internal error: MIR: {message}"), None),
     }
 }
 
@@ -41,11 +50,7 @@ pub fn gate_mono(mono: &Mono, tcx: &TyCtx) -> Vec<Diagnostic> {
 pub fn gate_results(results: &[Result<Body, BuildError>]) -> Vec<Diagnostic> {
     let mut diagnostics: Vec<Diagnostic> = Vec::new();
     for error in results.iter().filter_map(|result| result.as_ref().err()) {
-        let (message, span) = match error {
-            BuildError::Unsupported(u) => (u.message().to_owned(), Some(u.span)),
-            BuildError::Unlowered { what, span } => (format!("{what} is not supported by codegen yet"), Some(*span)),
-            BuildError::Internal(message) => (format!("internal error: MIR: {message}"), None),
-        };
+        let (message, span) = describe(error);
         // A generic body is built once per instance: report its mistake once.
         if !diagnostics.iter().any(|d| d.message == message && d.span == span) {
             diagnostics.push(Diagnostic { phase: Phase::Codegen, severity: Severity::Error, message, span, notes: Vec::new() });

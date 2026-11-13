@@ -333,7 +333,7 @@ impl<'a> FnBuilder<'a> {
         }
         let depth = self.open.len();
         self.open.push(Open { id, pushed });
-        // HIR emitter order: the region is pushed, then its debug scope is entered.
+        // The region is pushed, then its debug scope is entered.
         self.scope_enter(depth, span, enter_in);
         self.cursors.push((child, 0));
         self.scopes.push(HashMap::new());
@@ -358,7 +358,7 @@ impl<'a> FnBuilder<'a> {
     /// `RegionExit` for every pushed region above `depth`, innermost first, without closing them:
     /// `return`, `break` and `continue` leave regions on the way out only.
     pub(super) fn exit_to(&mut self, depth: usize, span: Span) {
-        // Debug scopes are left before any region, innermost first (as the HIR emitter's unwind does).
+        // Debug scopes are left before any region, innermost first.
         let dead: Vec<Local> = self.dscopes.iter().rev().take_while(|(d, _)| *d >= depth).map(|(_, l)| *l).collect();
         for l in dead {
             self.stmt(StmtKind::StorageDead(l), span, None);

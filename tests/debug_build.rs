@@ -124,6 +124,21 @@ fn debug_build_names_enums() {
 }
 
 #[test]
+fn debug_build_leaves_scopes_on_break_and_continue_in_nested_loops() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("main.bork");
+    let binary = dir.path().join("main");
+    fs::write(
+        &source,
+        "fun main(): i32 {\n    var total = 0\n    for (i in 0..4) {\n        var j = 0\n        while (j < 4) {\n            j = j + 1\n            if (j == 2) { continue }\n            if (j == 3) { break }\n            total = total + i\n        }\n    }\n    return total - 3\n}\n",
+    )
+    .unwrap();
+    let build = Command::new(env!("CARGO_BIN_EXE_bork")).args(["build", "-g", "-o"]).arg(&binary).arg(&source).output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(3));
+}
+
+#[test]
 fn debug_build_names_generic_instances() {
     let dir = tempfile::tempdir().unwrap();
     let source = dir.path().join("main.bork");
