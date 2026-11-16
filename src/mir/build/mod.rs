@@ -208,10 +208,7 @@ pub(super) struct FnBuilder<'a> {
     pub(super) decl_sinks: HashMap<Local, SinkKey>,
     /// Declarations whose initialiser is allocated in an outer arena (`sinks::decl_sinks`).
     pub(super) planned_sinks: HashMap<NodeId, sinks::Sink>,
-    /// See [`build_program_neutral`].
-    pub(super) neutral: bool,
-    /// See [`build_function_results_neutral`].
-    pub(super) lifetimes: bool,
+    mode: Mode,
 }
 
 impl<'a> FnBuilder<'a> {
@@ -245,8 +242,7 @@ impl<'a> FnBuilder<'a> {
             sink: ArenaRef::Current,
             decl_sinks: HashMap::new(),
             planned_sinks: sinks::decl_sinks(function, tcx),
-            neutral: mode != Mode::Plan,
-            lifetimes: mode == Mode::Lifetimes,
+            mode,
         }
     }
 
@@ -413,7 +409,7 @@ impl<'a> FnBuilder<'a> {
                 child.label, child.compacted_braces
             )));
         }
-        let pushed = self.neutral || child.codegen_push || force;
+        let pushed = self.neutral() || child.codegen_push || force;
         let parent = self.open.last().map(|o| o.id);
         self.regions.push(RegionInfo { parent, site, arena: child.id });
         let id = RegionId(self.regions.len() as u32 - 1);
@@ -491,6 +487,16 @@ impl<'a> FnBuilder<'a> {
 
     pub(super) fn innermost_pushed(&self) -> Option<RegionId> {
         self.open.iter().rev().find(|o| o.pushed).map(|o| o.id)
+    }
+
+    /// Built without the memory plan (see [`build_program_neutral`]).
+    pub(super) fn neutral(&self) -> bool {
+        self.mode != Mode::Plan
+    }
+
+    /// Built for the lifetime analysis (see [`build_function_results_neutral`]).
+    pub(super) fn lifetimes(&self) -> bool {
+        self.mode == Mode::Lifetimes
     }
 
     pub(super) fn sink_key(&self, a: &ArenaRef) -> SinkKey {
