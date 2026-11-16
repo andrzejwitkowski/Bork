@@ -11,6 +11,7 @@ pub mod codegen;
 pub mod diag;
 pub mod dump;
 mod escape;
+mod return_rules;
 pub mod frontend;
 pub mod hir;
 pub mod infer;

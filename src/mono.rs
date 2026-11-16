@@ -431,7 +431,7 @@ pub fn check_instances(hir: &HirProgram, tcx: &mut TyCtx) -> Vec<Diagnostic> {
 }
 
 /// The region half: runs `bork build`'s escape and memory planning on every instance, so `bork check`
-/// rejects what the build would. `hir` must already carry the hoisting annotations, as `build`'s does.
+/// rejects what the build would.
 pub fn check_instance_regions(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, escape: bool) -> Vec<Diagnostic> {
     monomorphize_from(hir, tcx, report, false, escape, false).err().unwrap_or_default()
 }
