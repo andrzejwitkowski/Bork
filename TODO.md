@@ -4,7 +4,7 @@ Tracked work after fixed arrays/slices, `while`/`break`/`continue`, logical ops,
 
 ## Refactor
 
-> MIR migration (RFC 0006): steps 1-15 done (#215-#226, #67); step 16 is this documentation pass (#227). `hoist.rs` is gone and `check` reports object lifetimes from MIR (#260); `escape.rs` keeps the String/type rules.
+> MIR migration (RFC 0006): steps 1-15 done (#215-#226, #67); step 16 (#227) is done except the `memory-model.md` rewrite (#270). `hoist.rs` is gone and `check` reports object lifetimes from MIR (#260); `escape.rs` keeps only the arena-depth rules, the form rules live in `return_rules.rs` (#269, RFC 0006 section 6).
 
 - [ ] **Array codegen** — `src/codegen/llvm/array/` is split from monolithic `array.rs`; optional further split (emit vs runtime helpers) if files grow.
 

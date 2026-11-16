@@ -59,7 +59,7 @@ impl<'a> FnBuilder<'a> {
     }
 
     /// `move x` of an object: the handle is passed on, which is only sound when `x` was allocated in an arena that
-    /// outlives its new owner. `hoist` puts the initialiser there for `outer = move inner` (next statement) and
+    /// outlives its new owner. `mir::build::sinks` allocates the initialiser there for `outer = move inner` (next statement) and
     /// `return move a`; anywhere else the object would die with its region, so the move is reported instead.
     fn move_handle(&mut self, place: Place, span: Span) -> Res<Operand> {
         let dest = self.sink_key(&self.sink);

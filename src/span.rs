@@ -14,7 +14,7 @@ impl Span {
 
 /// Identity of an AST node that typeck records a fact about. Assigned by
 /// [`crate::ast_number::number_nodes`] right after parsing; the grammar leaves `DUMMY`.
-/// Not [`crate::hir::NodeId`]: that numbers HIR expressions after hoisting.
+/// Not [`crate::hir::NodeId`]: that numbers HIR expressions after lowering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AstId(pub u32);
 

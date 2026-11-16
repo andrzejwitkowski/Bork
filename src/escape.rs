@@ -11,7 +11,6 @@
 
 use std::collections::HashMap;
 
-use crate::ast::BinOp;
 use crate::builtins;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{
@@ -42,7 +41,7 @@ pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec
 }
 
 
-fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
+pub(crate) fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
     diagnostics.push(Diagnostic {
         phase: Phase::Ownership,
         severity: Severity::Error,
@@ -50,6 +49,15 @@ fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) 
         span,
         notes: Vec::new(),
     });
+}
+
+/// Appended to a `String`-worded rejection when `ty` involves an opaque type parameter.
+pub(crate) fn param_note(tcx: &TyCtx, ty: TyId) -> &'static str {
+    if tcx.has_param(ty) {
+        " (a type parameter is judged as its strictest instance, `String`)"
+    } else {
+        ""
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -137,7 +145,7 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                if self.tcx.is_ref(value.ty) {
+                if crate::return_rules::returns_reference(self.tcx, value) {
                     reject(
                         self.diagnostics,
                         "returning a reference is not supported",
@@ -164,7 +172,7 @@ impl<'h> Escape<'h, '_> {
                         value.span,
                     );
                 }
-                self.check_return_string_form(value);
+                crate::return_rules::check_return_string_form(self.tcx, self.diagnostics, value);
             }
             HirStmt::Return { value: None } => {}
             HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => {
@@ -229,105 +237,8 @@ impl<'h> Escape<'h, '_> {
         }
     }
 
-    fn check_return_string_form(&mut self, expr: &'h HirExpr) {
-        if self.tcx.is_string(expr.ty) && self.is_fresh_string(expr) {
-            reject(
-                self.diagnostics,
-                "returning the result of `concat` or `stringFromUtf8` is not supported yet: \
-                 returned `String` bytes must outlive the callee arena",
-                expr.span,
-            );
-            return;
-        }
-        if self.is_moved_or_promoted_string(expr) {
-            let note = self.param_note(expr.ty);
-            reject(
-                self.diagnostics,
-                &format!(
-                    "returning a moved or promoted `String` is not supported yet: use \
-                     `return s` for parameters and locals, or return a string literal{note}"
-                ),
-                expr.span,
-            );
-            return;
-        }
-        match &expr.kind {
-            HirExprKind::If {
-                then_block,
-                else_block,
-                ..
-            }
-            | HirExprKind::PresenceMatch {
-                some_block: then_block,
-                none_block: else_block,
-                ..
-            } => {
-                self.check_return_string_in_block(then_block);
-                if let Some(else_block) = else_block {
-                    self.check_return_string_in_block(else_block);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn check_return_string_in_block(&mut self, block: &'h HirBlock) {
-        let block = peel_to_body(block);
-        if let Some(HirStmt::Expr(expr)) = block.stmts.last() {
-            self.check_return_string_form(expr);
-        }
-    }
-
-    /// A value whose bytes are allocated by an allocating builtin, possibly wrapped in
-    /// `Some`, `!!`, `?:`, `if`, or `when` whose branch ends in one.
-    fn is_fresh_string(&self, expr: &HirExpr) -> bool {
-        match &expr.kind {
-            HirExprKind::Call { callee, .. } => matches!(
-                &callee.kind,
-                HirExprKind::Ident { name, .. } if builtins::is_string_alloc(name)
-            ),
-            HirExprKind::Some(inner)
-            | HirExprKind::Unary { expr: inner, .. } => self.is_fresh_string(inner),
-            HirExprKind::Binary { op: BinOp::Elvis, lhs, rhs } => {
-                self.is_fresh_string(lhs) || self.is_fresh_string(rhs)
-            }
-            HirExprKind::If { then_block, else_block, .. } => {
-                self.block_ends_fresh(then_block)
-                    || else_block.as_ref().is_some_and(|block| self.block_ends_fresh(block))
-            }
-            HirExprKind::PresenceMatch {
-                some_block,
-                none_block,
-                ..
-            } => {
-                self.block_ends_fresh(some_block)
-                    || none_block.as_ref().is_some_and(|block| self.block_ends_fresh(block))
-            }
-            _ => false,
-        }
-    }
-
-    fn block_ends_fresh(&self, block: &HirBlock) -> bool {
-        matches!(peel_to_body(block).stmts.last(), Some(HirStmt::Expr(expr)) if self.is_fresh_string(expr))
-    }
-
-    fn is_moved_or_promoted_string(&self, expr: &HirExpr) -> bool {
-        matches!(
-            &expr.kind,
-            HirExprKind::Ident {
-                use_kind: UseKind::Move | UseKind::Promote,
-                ..
-            } if self.tcx.is_string(expr.ty) || self.tcx.is_param(expr.ty)
-        )
-    }
-
-    /// Appended to a `String`-worded rejection when `ty` involves an opaque type parameter.
     fn param_note(&self, ty: TyId) -> &'static str {
-        if self.tcx.has_param(ty) {
-            " (a type parameter is judged as its strictest instance, `String`)"
-        } else {
-            ""
-        }
+        param_note(self.tcx, ty)
     }
 
     /// Whether a value of `ty` may live in an arena. An opaque `T` is judged as its most
