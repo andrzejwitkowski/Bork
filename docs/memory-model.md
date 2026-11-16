@@ -396,6 +396,10 @@ Examples:
 
 `move x` of a class object or an enum (also behind `T?`) **passes the handle**; it never copies, because a copy would leave the fields pointing into the source arena. That is only sound when the object was allocated where its new owner lives, which `hoist` arranges for exactly two shapes: `outer = move inner` as the statement right after `val inner = ...`, and `return move a`. Any other `move` of an object whose declaration was not hoisted to the destination (a move in a branch, into a field, with a statement between the declaration and the move) is a lifetime error: `bork check` reports it as "freed before the value that stores it" (`mir::escape`, from the `move-escapes-arena` capability the builder raises). An array of `Ref` is copied with each `Ref` cloned and rehomed, like a `Vec`.
 
+### Storing through a borrowed array
+
+`buf[i] = value` where `buf` is a `&rw` array parameter and `value` is a `String`, an array or a `Ref` is rejected (`borrowed-store-escapes`, #255): a text or array descriptor does not name the arena that holds its bytes, so the value would be allocated in the callee's arena and dangle after the call. Scalars are fine. Build the value in the caller and pass it in.
+
 ### `promote`
 
 - **Syntax:** `promote name` (expression).
