@@ -398,7 +398,7 @@ Examples:
 
 ### Storing through a borrowed array
 
-`buf[i] = value` where `buf` is a `&rw` array parameter and `value` is a `String`, an array or a `Ref` is rejected (`borrowed-store-escapes`, #255): a text or array descriptor does not name the arena that holds its bytes, so the value would be allocated in the callee's arena and dangle after the call. Scalars are fine. Build the value in the caller and pass it in.
+`buf[i] = value` where `buf` is a `&rw` array parameter (or an alias of one) and `value` is a `String`, an array or a `Ref` is rejected (`borrowed-store-escapes`, #255): a text or array descriptor does not name the arena that holds its bytes, so the value would be allocated in the callee's arena and dangle after the call. Scalars are fine. Build the value in the caller and pass it in.
 
 ### `promote`
 

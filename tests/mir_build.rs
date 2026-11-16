@@ -159,7 +159,7 @@ fn a_move_into_a_longer_lived_owner_is_the_move_escapes_arena_capability() {
 /// A `String`/`Ref` stored through a borrowed array parameter would dangle after the call (#255).
 #[test]
 fn a_store_through_a_borrowed_array_is_the_borrowed_store_escapes_capability() {
-    for name in ["store_string_into_borrowed_array", "store_ref_into_borrowed_array"] {
+    for name in ["store_string_into_borrowed_array", "store_ref_into_borrowed_array", "store_string_through_borrow_alias"] {
         let source = fs::read_to_string(root().join("programs/build_fail/borrow").join(format!("{name}.bork"))).unwrap();
         let mut result = check_with(&source, false);
         let (hir, report) = (result.hir.take().unwrap(), result.report.take().unwrap());

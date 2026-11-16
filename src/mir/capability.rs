@@ -66,7 +66,7 @@ impl Capability {
             Capability::MatchRef => "`when` over a `Ref` is not supported by codegen yet; use `if val`",
             Capability::PatPresence => "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`",
             Capability::MoveEscapesArena => "this `move` would leave the object in an arena that is freed before its new owner; build it where it ends up (the next statement, or the `return`)",
-            Capability::BorrowedStoreEscapes => "storing a `String`, array or `Ref` into a borrowed array would allocate it in this function's arena, which is freed on return; build the value in the caller and pass it in",
+            Capability::BorrowedStoreEscapes => "storing a `String`, array or `Ref` into a borrowed array would allocate it in this function's arena, which is freed on return; build the value where the array lives (the caller) and pass it in",
             Capability::FieldAccess => "field access is not supported by codegen",
             Capability::SafeFieldEnum => "`?.` of an enum field is not supported by codegen yet",
             Capability::IndirectCall => "calls through a function value are not supported by codegen yet",

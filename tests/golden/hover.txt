@@ -226,6 +226,7 @@ programs/build/vec/vec_field_repeated.bork: hits=18 hash=334d14e4ac0d1f2b
 programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
 programs/build_fail/borrow/store_ref_into_borrowed_array.bork: hits=8 hash=0dbca6980761e4f2
 programs/build_fail/borrow/store_string_into_borrowed_array.bork: hits=15 hash=689b38856acb49d8
+programs/build_fail/borrow/store_string_through_borrow_alias.bork: hits=25 hash=8e3e77681cfb0019
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
