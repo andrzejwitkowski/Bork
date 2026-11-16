@@ -382,7 +382,7 @@ późniejsze `p.name` dałoby błąd:
 error: ownership: use of `p` after move from fun main
 ~~~
 
-## 4. Hoist i escape
+## 4. Sinki deklaracji i escape
 
 Te kroki działają na HIR i tylko wtedy, gdy wcześniej nie było błędów.
 

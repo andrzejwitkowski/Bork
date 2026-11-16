@@ -346,7 +346,7 @@ The sections below describe behavior that is **implemented today** for avoiding 
 
 ## Assign-up, sink allocation, and escape
 
-Goal: owned payload for a **sink** (assignment target, `return`, or builtin `concat`) is bumped in that sink’s arena even when the expression is evaluated lexically inside a shorter-lived child region. Sema, codegen, hoist, `promote`, and `escape::place` cooperate on this; see also [language.md](language.md) for surface rules.
+Goal: owned payload for a **sink** (assignment target, `return`, or builtin `concat`) is bumped in that sink’s arena even when the expression is evaluated lexically inside a shorter-lived child region. Sema, `mir::build::sinks`, MIR lowering, `promote`, and the escape passes (`mir::escape`, `escape.rs`) cooperate on this; see also [language.md](language.md) for surface rules.
 
 ### Assign-up (mutate outer `var` from inner region)
 
@@ -361,11 +361,11 @@ var outer = "a"
 }
 ```
 
-### Sink allocation (`alloc_sink`)
+### Sink allocation
 
 - **Rule:** for `sink = rhs`, `return expr`, or `concat(…)` used as that value, owned **String** bytes for the result are allocated in **`arena(sink)`** while lowering runs, even inside a nested `{ … }`.
 - **Not:** every sub-expression in `rhs` uses the sink (that would bloat the parent with temporaries). Only the **stored/returned** owned value uses the sink; callee bodies keep their own regions.
-- **Codegen:** `alloc_sink` on `FnEmitter` — set to the destination slot’s `home_arena` on assign and the active sink while emitting the **result** of `concat` (`emit_fn`, `expr`). Operand and call-argument lowering clears `alloc_sink` so temporaries stay in the current region.
+- **MIR:** the sink is an explicit arena operand on the allocating op (`ArenaRef`, RFC 0006 §3.1): the destination's home arena on assign, the caller's result arena on return. Operand and call-argument lowering leaves temporaries in the current region.
 
 Examples:
 
@@ -384,17 +384,17 @@ Examples:
 - Builtin `concat(a, b)` allocates **one** result buffer in the current sink arena (two `memcpy` from arguments). No separate call-scoped temp arena type yet; argument strings are read in place (Copy/Shared/move as usual).
 - Typical use: `outer = concat(left, right)` in a child block → result in `outer`’s arena.
 
-### Hoist (`mir::build::sinks`)
+### Declaration sinks (`mir::build::sinks`)
 
-- **Problem:** `var inner = …` in a child, then `outer = move inner` — without hoist, initialization runs in the child arena and move copies on assign.
-- **Implemented pattern:** linear siblings in one block — `var inner = <hoistable init>` immediately followed by `outer = move inner`, where `outer` is already in scope (parameter or earlier `var`). HIR sets `alloc_in_binding` on `inner` so codegen initializes in `outer`’s arena (`hoist.rs`).
-- **Hoistable inits:** string literals and calls (including `concat`) today.
-- **Not hoisted:** conditional escape, loops, closures, multiple sinks, or `outer` not visible — use **`promote`** or restructure.
-- **Result sink (class/enum objects):** a `val` of a class or enum (construct or call) that is stored in, or itself returned by, **any** `return` of the function, in the top-level block or nested in `if` / `else`, `when` arms or loops, is allocated in the caller's result arena (`hoist::RESULT_SINK`), so the returned value does not point into a freed arena. This costs the caller's arena the object on paths that do not return it. A `val` declared **inside a loop body** is not hoisted (it would add one object per iteration), so returning it, or storing it in a returned object, is rejected: declare it before the loop. `val a = A(..); return a` counts (only a `val` initialised by a construct; `var`, aliases and call results do not), and `return move a` passes the object's handle to the caller's result arena (the declaration is hoisted the same way). Any other local object stored in a returned construct is rejected by `escape` (it would dangle).
+- **Problem:** `var inner = …` in a child, then `outer = move inner` — without a declaration sink, initialization runs in the child arena and move copies on assign.
+- **Implemented pattern:** linear siblings in one block — `var inner = <eligible init>` immediately followed by `outer = move inner`, where `outer` is already in scope (parameter or earlier `var`). `sinks.rs` (`outer_hoists`) gives the declaration of `inner` the sink `Outer(outer)`, so MIR initializes it in `outer`’s arena.
+- **Eligible inits:** string literals, calls (including `concat`), and class/enum constructs.
+- **No declaration sink:** conditional escape, loops, closures, multiple sinks, or `outer` not visible — use **`promote`** or restructure.
+- **Result sink (class/enum objects):** a `val` of a class or enum (construct or call) that is stored in, or itself returned by, **any** `return` of the function, in the top-level block or nested in `if` / `else`, `when` arms or loops, is allocated in the caller's result arena (`Sink::Result`, `result_hoists`), so the returned value does not point into a freed arena. This costs the caller's arena the object on paths that do not return it. A `val` declared **inside a loop body** gets no result sink (it would add one object per iteration), so returning it, or storing it in a returned object, is rejected: declare it before the loop. `val a = A(..); return a` counts (only a `val` initialised by a construct; `var`, aliases and call results do not), and `return move a` passes the object's handle to the caller's result arena (the declaration gets the same sink). Any other local object stored in a returned construct is rejected by `mir::escape` (it would dangle).
 
 ### `move` of an object
 
-`move x` of a class object or an enum (also behind `T?`) **passes the handle**; it never copies, because a copy would leave the fields pointing into the source arena. That is only sound when the object was allocated where its new owner lives, which `hoist` arranges for exactly two shapes: `outer = move inner` as the statement right after `val inner = ...`, and `return move a`. Any other `move` of an object whose declaration was not hoisted to the destination (a move in a branch, into a field, with a statement between the declaration and the move) is a lifetime error: `bork check` reports it as "freed before the value that stores it" (`mir::escape`, from the `move-escapes-arena` capability the builder raises). An array of `Ref` is copied with each `Ref` cloned and rehomed, like a `Vec`.
+`move x` of a class object or an enum (also behind `T?`) **passes the handle**; it never copies, because a copy would leave the fields pointing into the source arena. That is only sound when the object was allocated where its new owner lives, which `sinks.rs` arranges for exactly two shapes: `outer = move inner` as the statement right after `val inner = ...`, and `return move a`. Any other `move` of an object whose declaration has no sink in the destination (a move in a branch, into a field, with a statement between the declaration and the move) is a lifetime error: `bork check` reports it as "freed before the value that stores it" (`mir::escape`, from the `move-escapes-arena` capability the builder raises). An array of `Ref` is copied with each `Ref` cloned and rehomed, like a `Vec`.
 
 ### Storing through a borrowed array
 
@@ -431,10 +431,10 @@ Examples:
 - **`?:`**, **`!!`**, and **`?.length`** read the tag and then the payload; they add no ownership beyond their operands. `move` / `promote` of a nullable copy the slot and its payload into the sink arena.
 - The old inline forms (a null pointer for `String?`, `{ i1, T }` for scalars) are gone; a niche layout for `Option` is a possible later optimisation.
 
-### Escape analysis (`escape::place`)
+### Escape analysis
 
-- After typecheck, `frontend::check` runs `escape::place` (same rules as codegen `alloc_sink` for strings). Diagnostics use phase **Ownership** (LSP sees them without `codegen`).
-- Rejects, among others: assigning a string built in an inner region to an outer `var` without sink/hoist/promote, `if` branches that yield a moved string as the `if` value, returning a `String` from an inner region, and `return move` / `return concat(…)` until return-arena codegen exists.
+- After typecheck, `frontend::check` runs the escape passes: `escape.rs` (depth rules, with the return-form rules in `return_rules.rs`) and `mir::escape` (object lifetimes, on MIR). They apply the same sink rules as MIR lowering. Diagnostics use phase **Ownership** (LSP sees them without `codegen`).
+- Rejects, among others: assigning a string built in an inner region to an outer `var` without a sink or `promote`, `if` branches that yield a moved string as the `if` value, returning a `String` from an inner region, and `return move` / `return concat(…)` until return-arena codegen exists.
 
 ### Generic bodies (pre-mono)
 
@@ -479,8 +479,8 @@ Lexical arenas still bulk-free on scope exit. A `Ref<T>` that must outlive that 
 | Caller-owned return arena | `return move`, `return concat`, and other returns that would bump in the callee arena before `bork_arena_pop`; needs a hidden `ret_arena` (or equivalent) from the caller. |
 | Call-scoped temp arenas | General calls may still allocate scratch in the current region; only sink results and `concat` are specialized today. |
 | `promote` on `return` | Would need a return transfer sink in sema + codegen. |
-| Hoist beyond linear siblings | Use-def / definite escape for more patterns; else `promote`. |
-| `memcpy` elision | When hoist or sink already placed bytes in the target arena. |
+| Declaration sinks beyond linear siblings | Use-def / definite escape for more patterns; else `promote`. |
+| `memcpy` elision | When a declaration sink already placed bytes in the target arena. |
 
 ### Chained presence guards
 
@@ -505,7 +505,7 @@ Copy, handle-clone, move-only, needs-drop and contains-borrow are answered in on
 
 Escape and memory planning run on the generic program, with a type parameter judged as its strictest instance (`String`). `bork check` then runs the same planning on every instance (`mono::check_instance_regions`), exactly as `bork build` does, so the two agree. A diagnostic found in an instance, or an instantiation that makes an ill-formed type (`Ref<i32>`, `Vec<P>`), carries a **note** (`Diagnostic::notes`) pointing at the generic definition. The CLI prints it as `file:line:col: note: ...`, the LSP appends it to the message.
 
-A `Vec<Ref<T>>` inside a generic structure (`Node<T>` with `kids: Vec<Ref<Node<T>>>`) is classified like any other: a slot is strong when its vector lives in an arena older than its target, weak otherwise, and `promote` into an outer arena rehomes each slot (`programs/build/generics/tree_regions.bork`). `move` and `promote` of a class object, generic or not, are still rejected by the codegen gate (`moving class objects is not supported by codegen yet`); this is a deliberate open design question, not a generic-code limitation.
+A `Vec<Ref<T>>` inside a generic structure (`Node<T>` with `kids: Vec<Ref<Node<T>>>`) is classified like any other: a slot is strong when its vector lives in an arena older than its target, weak otherwise, and `promote` into an outer arena rehomes each slot (`programs/build/generics/tree_regions.bork`). `move` of a class object, generic or not, passes the handle under the rules in **`move` of an object** above.
 
 ### Negative suite for generic memory misuse
 
