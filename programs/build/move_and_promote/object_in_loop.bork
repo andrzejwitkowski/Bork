@@ -1,0 +1,29 @@
+// exit: 19
+// a moved object assigned each iteration keeps the last value after the loop's allocations
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = concat("ZZZZZZ", "ZZZ")
+    val b = concat("YYYYYY", "YYY")
+    val p = P(k)
+    val q = P(k + 1)
+    return a.length + b.length + p.n + q.n
+}
+fun spin() {
+    var i = 0
+    while (i < 300) {
+        churn(i)
+        i = i + 1
+    }
+}
+fun main(): i32 {
+    var outer = A(P(0))
+    var i = 0
+    while (i < 20) {
+        val inner = A(P(i))
+        outer = move inner
+        spin()
+        i = i + 1
+    }
+    return outer.x.n
+}

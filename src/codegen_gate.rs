@@ -145,7 +145,7 @@ fun main(): i32 {
     }
 
     #[test]
-    fn moving_an_array_of_ref_is_rejected_by_the_codegen_gate() {
+    fn moving_an_array_of_ref_passes_the_codegen_gate() {
         let source = r#"
 class Box { value: i32 }
 fun main() {
@@ -158,12 +158,7 @@ fun main() {
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
-        assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("array of managed Ref")),
-            "{diagnostics:?}"
-        );
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
@@ -200,7 +195,7 @@ fun main(): i32 {
 
     #[test]
     fn a_mistake_in_a_generic_body_is_reported_once_per_site() {
-        let source = "class P { x: i32 }\nfun id<T>(v: T, k: i32): i32 {\n    val p = P(k)\n    val q = move p\n    return q.x\n}\nfun main(): i32 {\n    return id(1, 2) + id(\"s\", 3)\n}\n";
+        let source = "class P { x: i32 }\nfun id<T>(v: T, k: i32): i32 {\n    val p = P(k)\n    val q = P(k)\n    if (p == q) { return 1 }\n    return 0\n}\nfun main(): i32 {\n    return id(1, 2) + id(\"s\", 3)\n}\n";
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
@@ -209,10 +204,11 @@ fun main(): i32 {
 
     #[test]
     fn an_unused_helper_that_cannot_be_specialised_does_not_hide_a_gate_error() {
-        let source = "class P { x: i32 }\nfun g<T>(): i32 { return 1 }\nfun unused(): i32 { return g::<i32>() }\nfun main(): i32 {\n    val p = P(1)\n    val q = move p\n    return q.x\n}\n";
+        // `==` on objects is a gate error; `unused` cannot be specialised and must not hide it.
+        let source = "class P { x: i32 }\nfun g<T>(): i32 { return 1 }\nfun unused(): i32 { return g::<i32>() }\nfun main(): i32 {\n    val p = P(1)\n    val q = P(1)\n    if (p == q) { return 1 }\n    return 0\n}\n";
         let result = crate::frontend::check(source);
         assert!(result.is_ok(), "{:?}", result.diagnostics);
         let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);
-        assert!(diagnostics.iter().any(|d| d.message.contains("moving class objects")), "{diagnostics:?}");
+        assert!(diagnostics.iter().any(|d| d.message.contains("comparing objects")), "{diagnostics:?}");
     }
 }

@@ -1,0 +1,13 @@
+// exit: 0
+// `outer = move inner` out of a block: the object is allocated in `outer`'s arena, the handle is passed on.
+class Box<T> {
+    v: T
+}
+
+fun main() {
+    var outer = Box("a")
+    {
+        val inner = Box("b")
+        outer = move inner
+    }
+}

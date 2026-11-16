@@ -1,0 +1,25 @@
+// exit: 8
+// an array of Ref moved out of a block: each Ref is cloned and rehomed, so the element still reads after the churn below
+class P { n: i32 }
+fun churn(k: i32): i32 {
+    val p = P(k)
+    val q = P(k + 1)
+    return p.n + q.n
+}
+fun main(): i32 {
+    var outer: [Ref<P>; 2] = [P(1), P(2)]
+    {
+        var inner: [Ref<P>; 2] = [P(7), P(8)]
+        outer = move inner
+    }
+    var i = 0
+    while (i < 300) {
+        churn(i)
+        i = i + 1
+    }
+    val r = outer[1]
+    if val p = r {
+        return p.n
+    }
+    return 0
+}

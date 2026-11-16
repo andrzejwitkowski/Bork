@@ -1,0 +1,27 @@
+// exit: 42
+// outer = move inner out of a block: the object is built in outer's arena, so the churn below cannot clobber it
+class P { n: i32 }
+class A { x: P }
+fun churn(k: i32): i32 {
+    val a = concat("ZZZZZZ", "ZZZ")
+    val b = concat("YYYYYY", "YYY")
+    val p = P(k)
+    val q = P(k + 1)
+    return a.length + b.length + p.n + q.n
+}
+fun spin() {
+    var i = 0
+    while (i < 300) {
+        churn(i)
+        i = i + 1
+    }
+}
+fun main(): i32 {
+    var outer = A(P(1))
+    {
+        val inner = A(P(42))
+        outer = move inner
+    }
+    spin()
+    return outer.x.n
+}

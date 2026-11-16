@@ -1,5 +1,5 @@
 //! #245: every `programs/build` sample lowers in MIR, so the plan and the push flags always come from MIR
-//! (`move-aggregate` and closures only occur in `programs/check`, which the gate rejects).
+//! (closures only occur in `programs/check`, which the gate rejects).
 
 use std::fs;
 use std::path::{Path, PathBuf};

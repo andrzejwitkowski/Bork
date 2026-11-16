@@ -584,6 +584,29 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== option/move_nullable_enum.bork
+fn main (parent=false, sink=false) {
+  let _0: unit [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Shape [Temp]
+  let _3: Shape? [Temp]
+  let _4: Shape? [Val] s
+  let _5: Shape? [Val] t
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc EnumSlot { enum_name: "Shape", variant: 0 } in current  // label "Shape": Shape
+    _2@0.0 = 1  // label "Shape.Circle.r": i32 decl owner=current
+    _3 = alloc EnumSlot { enum_name: "Option<Shape>", variant: 0 } in current  // label "Option<Shape>": Shape?
+    _3@0.0 = copy _2  // label "Option<Shape>.Some.value": Shape decl owner=current
+    _4 = copy _3  // label "s": Shape? decl
+    _5 = move _4  // label "t": Shape? decl
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == option/nested_option_returned.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
