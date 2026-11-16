@@ -1,6 +1,7 @@
 //! Statement lowering, loops and early exits.
 
 use super::expr::span_of;
+use super::sinks::Sink;
 use super::{BuildError, FnBuilder, Mark, Res};
 use crate::ast::{BinOp, BindingKind};
 use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirStmt};
@@ -40,11 +41,14 @@ impl<'a> FnBuilder<'a> {
             HirStmt::Block(b) => self.region_block(RegionSite::Block, b, span),
             HirStmt::MoveBlock { body, .. } => self.region_block(RegionSite::MoveBlock, body, span),
             HirStmt::VarDecl { kind, name, ty, value, alloc_in_binding } => {
-                let (sink, v) = match alloc_in_binding.as_deref() {
+                let planned = self.planned_sinks.get(&value.id).cloned();
+                // The HIR annotation is still the input of `escape.rs`; both must agree until it goes.
+                debug_assert_eq!(alloc_in_binding.as_deref(), planned.as_ref().map(Sink::annotation), "`{name}` at {span:?}");
+                let (sink, v) = match planned {
                     None => (self.sink.clone(), self.expr(value)?),
-                    Some(crate::hoist::RESULT_SINK) => (ArenaRef::ResultSink, self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?),
-                    Some(target) => {
-                        let home = self.lookup(target, span)?;
+                    Some(Sink::Result) => (ArenaRef::ResultSink, self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?),
+                    Some(Sink::Outer(target)) => {
+                        let home = self.lookup(&target, span)?;
                         (ArenaRef::Home(home), self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?)
                     }
                 };

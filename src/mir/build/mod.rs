@@ -9,6 +9,7 @@ mod expr;
 mod own;
 mod place;
 mod refs;
+pub(crate) mod sinks;
 mod stmt;
 
 use std::collections::HashMap;
@@ -185,6 +186,8 @@ pub(super) struct FnBuilder<'a> {
     pub(super) sink: ArenaRef,
     /// Where each `val`/`var` initialiser was allocated, for deciding whether a `move` of an object may pass its handle.
     pub(super) decl_sinks: HashMap<Local, SinkKey>,
+    /// Declarations whose initialiser is allocated in an outer arena (`sinks::decl_sinks`).
+    pub(super) planned_sinks: HashMap<NodeId, sinks::Sink>,
     /// See [`build_program_neutral`].
     pub(super) neutral: bool,
 }
@@ -219,6 +222,7 @@ impl<'a> FnBuilder<'a> {
             bool_ty: tcx.prim_id(Prim::Bool),
             sink: ArenaRef::Current,
             decl_sinks: HashMap::new(),
+            planned_sinks: sinks::decl_sinks(function, tcx),
             neutral,
         }
     }

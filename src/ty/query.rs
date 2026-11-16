@@ -4,6 +4,12 @@
 use super::{DefId, Prim, TyCtx, TyData, TyId};
 
 impl TyCtx {
+    /// A class or enum value, nullable or not: a handle into some arena.
+    pub fn holds_object(&self, ty: TyId) -> bool {
+        let ty = self.base(ty);
+        self.class_def(ty).is_some() || matches!(self.data(ty), TyData::Enum(..))
+    }
+
     /// `T` for `T?`, otherwise `id` itself.
     pub fn base(&self, id: TyId) -> TyId {
         match self.data(id) {

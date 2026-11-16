@@ -109,7 +109,7 @@ impl<'h> Escape<'h, '_> {
     /// assignment into an outer `var`); without it, every short-lived local does (a `return`).
     fn check_stored_objects(&mut self, value: &'h HirExpr, owner_depth: Option<usize>) {
         let mut tails = Vec::new();
-        crate::hoist::value_tails(value, &mut tails);
+        crate::mir::build::sinks::value_tails(value, &mut tails);
         for tail in tails {
             self.check_stored_in(tail, owner_depth);
         }
@@ -121,7 +121,7 @@ impl<'h> Escape<'h, '_> {
             return;
         };
         let mut names = Vec::new();
-        crate::hoist::collect_idents(fields, self.tcx, &mut names);
+        crate::mir::build::sinks::collect_idents(fields, self.tcx, &mut names);
         for name in names {
             let Some(local) = self.lookup(&name).copied().filter(|local| {
                 local.short_lived_object && owner_depth.is_none_or(|depth| local.decl_depth > depth)
@@ -143,7 +143,7 @@ impl<'h> Escape<'h, '_> {
     /// `return a` where `a` is an object declared in a loop body.
     fn check_returned_loop_local(&mut self, value: &'h HirExpr) -> bool {
         let mut tails = Vec::new();
-        crate::hoist::value_tails(value, &mut tails);
+        crate::mir::build::sinks::value_tails(value, &mut tails);
         tails.into_iter().fold(false, |found, tail| self.check_loop_local_tail(tail) || found)
     }
 
@@ -252,7 +252,7 @@ impl<'h> Escape<'h, '_> {
                 let local = Local {
                     decl_depth: self.depth,
                     value_depth,
-                    short_lived_object: !hoisted && crate::hoist::holds_object(self.tcx, *ty),
+                    short_lived_object: !hoisted && self.tcx.holds_object(*ty),
                     in_loop: self.loop_depth > 0,
                 };
                 self.scopes
@@ -509,7 +509,7 @@ impl<'h> Escape<'h, '_> {
             // A `T?` is `Option<T>`, but for escape it stays transparent as `Some(e)` always was:
             // codegen copies a returned value into the caller's sink arena at the return.
             HirExprKind::EnumConstruct { fields, .. }
-                if self.tcx.is_nullable(expr.ty) && !fields.iter().any(|f| crate::hoist::holds_object(self.tcx, f.ty)) =>
+                if self.tcx.is_nullable(expr.ty) && !fields.iter().any(|f| self.tcx.holds_object(f.ty)) =>
             {
                 fields.iter().map(|field| self.place(field, None)).max().unwrap_or(0)
             }
