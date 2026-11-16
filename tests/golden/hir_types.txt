@@ -41,6 +41,8 @@ programs/build/borrow/rw_two_distinct.bork::copy_first(dst: &rw [i32; 2], src: &
 programs/build/borrow/rw_two_distinct.bork::main() -> i32
 programs/build/borrow/shared_borrow_of_val_array.bork::sum(a: &[i32; 3]) -> i32
 programs/build/borrow/shared_borrow_of_val_array.bork::main() -> i32
+programs/build/borrow/store_scalar_into_borrowed_array.bork::set(buf: &rw [i32; 2]) -> unit
+programs/build/borrow/store_scalar_into_borrowed_array.bork::main() -> i32
 programs/build/classes/call_arg.bork::take(p: Point) -> i32
 programs/build/classes/call_arg.bork::main() -> i32
 programs/build/classes/mutable_field.bork::main() -> i32

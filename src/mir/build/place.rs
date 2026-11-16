@@ -197,6 +197,14 @@ impl<'a> FnBuilder<'a> {
             );
             return Ok(());
         }
+        // A text/array descriptor names no owner arena, so the store would land in this callee's (dying) region.
+        let t = self.tcx;
+        // Any `&rw` local, not only a parameter: `val alias: &rw [..] = &rw buf` has the same owner. shortcut: also rejects an alias of a local array, upgrade when origins are tracked.
+        if t.is_rw_ref(ty)
+            && (t.is_managed_ref(value.ty) || t.is_string(value.ty) || t.is_array(value.ty))
+        {
+            return Err(BuildError::unsupported(Capability::BorrowedStoreEscapes, span));
+        }
         let base = Place::local(local);
         self.bounds_guard(&base, &idx, span, value);
         let slot = Place { local, proj: vec![Proj::Index(Box::new(idx.clone()))] };

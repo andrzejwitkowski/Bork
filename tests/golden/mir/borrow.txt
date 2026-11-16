@@ -1186,3 +1186,66 @@ fn sum (parent=true, sink=false) {
     return
 }
 
+== borrow/store_scalar_into_borrowed_array.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: [i32; 2] [Temp]
+  let _3: [i32; 2] [Var] a
+  let _4: &rw [i32; 2] [Temp]
+  let _5: unit [Temp]
+  let _6: i32 [Temp]
+  let _7: bool [Temp]
+  let _8: bool [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Array in current
+    _2[0] = 1
+    _2[1] = 2
+    _3 = copy _2  // label "a": [i32; 2] decl
+    _4 = borrow_rw _3
+    _5 = call set(copy _4) +current -> bb1
+  bb1:
+    _6 = len(_3)
+    _7 = ge(1, 0)
+    switch copy _7 [ 1 -> bb3, else -> bb2]
+  bb2:
+    abort Bounds
+  bb3:
+    _8 = lt(1, copy _6)
+    switch copy _8 [ 1 -> bb4, else -> bb2]
+  bb4:
+    _0 = copy _3[1]
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn set (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &rw [i32; 2] [Arg] buf
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: bool [Temp]
+  let _5: bool [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = len(_1)
+    _4 = ge(1, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort Bounds
+  bb2:
+    _5 = lt(1, copy _3)
+    switch copy _5 [ 1 -> bb3, else -> bb1]
+  bb3:
+    _1[1] = 9
+    storage_dead _2
+    region_exit r0
+    return
+}
+

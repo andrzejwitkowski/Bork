@@ -183,6 +183,12 @@ Arenas
 │   └── a [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/build/borrow/store_scalar_into_borrowed_array.bork
+Arenas
+├── fun set
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
 == programs/build/classes/call_arg.bork
 Arenas
 ├── fun take
@@ -3466,6 +3472,28 @@ Arenas
     ├── IfThen
     ├── IfThen
     └── IfThen
+== programs/build_fail/borrow/store_ref_into_borrowed_array.bork
+Ownership Error [121..134] storing a `String`, array or `Ref` into a borrowed array would allocate it in this function's arena, which is freed on return; build the value where the array lives (the caller) and pass it in
+Arenas
+├── fun set
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/build_fail/borrow/store_string_into_borrowed_array.bork
+Ownership Error [102..131] storing a `String`, array or `Ref` into a borrowed array would allocate it in this function's arena, which is freed on return; build the value where the array lives (the caller) and pass it in
+Arenas
+├── fun set
+│   └── buf [Borrow ← call site]
+└── fun main
+    └── a [Local]
+== programs/build_fail/borrow/store_string_through_borrow_alias.bork
+Ownership Error [143..174] storing a `String`, array or `Ref` into a borrowed array would allocate it in this function's arena, which is freed on return; build the value where the array lives (the caller) and pass it in
+Arenas
+├── fun set
+│   ├── buf [Borrow ← call site]
+│   └── alias [Local]
+└── fun main
+    └── a [Local]
 == programs/build_fail/escape_inner_return_string.bork
 Ownership Error [103..104] returning a `String` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
 Arenas

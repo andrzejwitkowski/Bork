@@ -1,0 +1,10 @@
+// exit: 9
+// scalars carry no arena, so a store through a `&rw` array parameter stays supported
+fun set(buf: &rw [i32; 2]) {
+    buf[1] = 9
+}
+fun main(): i32 {
+    var a: [i32; 2] = [1, 2]
+    set(&rw a)
+    return a[1]
+}

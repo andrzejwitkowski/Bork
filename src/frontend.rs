@@ -145,6 +145,7 @@ fn object_lifetimes(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx, source:
                 let name = source.get(u.span.start..u.span.end).unwrap_or("value");
                 found.push((u.span, stored(name)));
             }
+            Err(BuildError::Unsupported(u)) if u.capability == Capability::BorrowedStoreEscapes => found.push((u.span, u.message().to_string())),
             Err(_) => {}
         }
     }

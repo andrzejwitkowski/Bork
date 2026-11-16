@@ -21,6 +21,7 @@ programs/build/borrow/rw_downgrade_to_shared.bork: hits=7 hash=a284d49cd0aa69d4
 programs/build/borrow/rw_param.bork: hits=9 hash=7d5d3f76b78b1218
 programs/build/borrow/rw_two_distinct.bork: hits=17 hash=c5347569c00e8021
 programs/build/borrow/shared_borrow_of_val_array.bork: hits=6 hash=58ec55fddf0b8415
+programs/build/borrow/store_scalar_into_borrowed_array.bork: hits=9 hash=61597fcd189e7760
 programs/build/classes/call_arg.bork: hits=3 hash=e78e04710ecea6e2
 programs/build/classes/mutable_field.bork: hits=5 hash=cd3878e5291db128
 programs/build/classes/nested_field.bork: hits=2 hash=35c04f12e683a17a
@@ -223,6 +224,9 @@ programs/build/vec/return_vec_of_linked_refs.bork: hits=64 hash=b94ea82a72352d73
 programs/build/vec/strings.bork: hits=32 hash=f73312c73c823f7e
 programs/build/vec/vec_field_repeated.bork: hits=18 hash=334d14e4ac0d1f2b
 programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
+programs/build_fail/borrow/store_ref_into_borrowed_array.bork: hits=8 hash=0dbca6980761e4f2
+programs/build_fail/borrow/store_string_into_borrowed_array.bork: hits=15 hash=689b38856acb49d8
+programs/build_fail/borrow/store_string_through_borrow_alias.bork: hits=25 hash=8e3e77681cfb0019
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1

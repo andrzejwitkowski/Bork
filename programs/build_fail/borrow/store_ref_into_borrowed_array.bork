@@ -1,0 +1,10 @@
+// diag: storing a `String`, array or `Ref` into a borrowed array
+class P { n: i32 }
+fun set(buf: &rw [Ref<P>; 2]) {
+    buf[1] = P(3)
+}
+fun main(): i32 {
+    var a: [Ref<P>; 2] = [P(1), P(2)]
+    set(&rw a)
+    return 0
+}

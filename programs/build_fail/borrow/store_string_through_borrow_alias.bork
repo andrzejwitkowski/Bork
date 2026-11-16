@@ -1,0 +1,10 @@
+// diag: storing a `String`, array or `Ref` into a borrowed array
+fun set(buf: &rw [String; 2]) {
+    val alias: &rw [String; 2] = &rw buf
+    alias[1] = concat("hello", "x")
+}
+fun main(): i32 {
+    var a: [String; 2] = ["a", "b"]
+    set(&rw a)
+    return 0
+}
