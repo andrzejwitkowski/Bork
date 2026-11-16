@@ -2,7 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::ty::{TyCtx, TyData, TyId};
+use crate::mir::build::sinks::{collect_decls, collect_idents, collect_returns, value_tails};
+use crate::ty::TyCtx;
 use crate::hir::{HirAssignTarget, HirBlock, HirExprKind, HirProgram, HirStmt, UseKind};
 
 pub fn annotate(program: &mut HirProgram, tcx: &TyCtx) {
@@ -162,45 +163,6 @@ fn hoist_into_result(body: &mut HirBlock, tcx: &TyCtx) {
     mark_decls(body, &used, false);
 }
 
-fn nested_blocks(stmt: &HirStmt) -> Vec<&HirBlock> {
-    match stmt {
-        HirStmt::Block(b) | HirStmt::MoveBlock { body: b, .. } | HirStmt::For { body: b, .. } | HirStmt::While { body: b, .. } => vec![b],
-        HirStmt::Expr(e) => expr_blocks(e),
-        _ => vec![],
-    }
-}
-
-fn expr_blocks(e: &crate::hir::HirExpr) -> Vec<&HirBlock> {
-    match &e.kind {
-        HirExprKind::If { then_block, else_block, .. } => std::iter::once(then_block).chain(else_block.iter()).collect(),
-        HirExprKind::Match { arms, .. } => arms.iter().map(|arm| &arm.body).collect(),
-        HirExprKind::PresenceMatch { some_block, none_block, .. } => std::iter::once(some_block).chain(none_block.iter()).collect(),
-        _ => vec![],
-    }
-}
-
-fn collect_returns<'a>(block: &'a HirBlock, out: &mut Vec<&'a crate::hir::HirExpr>) {
-    for stmt in &block.stmts {
-        if let HirStmt::Return { value: Some(v) } = stmt {
-            out.push(v);
-        }
-        for inner in nested_blocks(stmt) {
-            collect_returns(inner, out);
-        }
-    }
-}
-
-fn collect_decls<'a>(block: &'a HirBlock, out: &mut Vec<(String, &'a crate::hir::HirExpr)>) {
-    for stmt in &block.stmts {
-        if let HirStmt::VarDecl { name, value, .. } = stmt {
-            out.push((name.clone(), value));
-        }
-        for inner in nested_blocks(stmt) {
-            collect_decls(inner, out);
-        }
-    }
-}
-
 /// Marks `val`s for the result sink. A declaration inside a loop body is left alone: hoisting it would
 /// allocate in the caller's arena on every iteration and never free it. `escape` rejects it instead.
 fn mark_decls(block: &mut HirBlock, used: &[String], in_loop: bool) {
@@ -232,45 +194,4 @@ fn mark_decls(block: &mut HirBlock, used: &[String], in_loop: bool) {
             _ => {}
         }
     }
-}
-
-/// The expressions a returned value can actually be: itself, or for an `if`/`else` the tail
-/// expression of each branch, recursively. `return if (f) { A(p) } else { A(q) }` stores `p` or `q`.
-pub fn value_tails<'a>(expr: &'a crate::hir::HirExpr, out: &mut Vec<&'a crate::hir::HirExpr>) {
-    match &expr.kind {
-        HirExprKind::If { then_block, else_block, .. } => {
-            for block in std::iter::once(then_block).chain(else_block.iter()) {
-                if let Some(HirStmt::Expr(tail)) = block.stmts.last() {
-                    value_tails(tail, out);
-                }
-            }
-        }
-        _ => out.push(expr),
-    }
-}
-
-/// Names used directly as fields of a construct, looking through nested constructs.
-pub fn collect_idents(fields: &[crate::hir::HirExpr], tcx: &TyCtx, out: &mut Vec<String>) {
-    for field in fields {
-        match &field.kind {
-            HirExprKind::Ident { name, .. } => out.push(name.clone()),
-            HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => {
-                collect_idents(fields, tcx, out)
-            }
-            // `local.n` stored in the result still points into `local`'s arena.
-            // Only when the field is itself an object handle: a scalar read copies the value.
-            HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. }
-                if holds_object(tcx, field.ty) =>
-            {
-                collect_idents(std::slice::from_ref(receiver.as_ref()), tcx, out)
-            }
-            _ => {}
-        }
-    }
-}
-
-/// A class or enum value, nullable or not: a handle into some arena.
-pub fn holds_object(tcx: &TyCtx, ty: TyId) -> bool {
-    let ty = tcx.base(ty);
-    tcx.class_def(ty).is_some() || matches!(tcx.data(ty), TyData::Enum(..))
 }

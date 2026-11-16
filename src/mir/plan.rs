@@ -245,7 +245,7 @@ impl Pass<'_> {
         let tcx = self.tcx;
         if src_ty.is_some_and(|t| tcx.array_elem(t).is_some_and(|e| tcx.is_managed_ref(e))) {
             self.st.mark_program(value);
-        } else if src_ty.is_some_and(|t| crate::hoist::holds_object(tcx, t)) {
+        } else if src_ty.is_some_and(|t| tcx.holds_object(t)) {
             let owners = self.local_origins(local);
             // A node-less slot is the `Some(..)` wrapper: it passes the payload's origins on.
             if owners.is_empty() {
