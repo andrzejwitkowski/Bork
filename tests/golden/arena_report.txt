@@ -5126,7 +5126,7 @@ Arenas
         ├── inner [Moved ← Block]
         └── z [Local]
 == programs/check_fail/option/assign_some_local_to_outer.bork
-Ownership Error [385..397] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
+Ownership Error [395..396] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
 Arenas
 ├── fun churn
 │   ├── k [Local]

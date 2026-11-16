@@ -2,7 +2,7 @@
 
 use super::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, NodeId};
 
-/// Run after the last pass that rewrites the HIR (`hoist::annotate`), so ids cover every node.
+/// Run after the last pass that rewrites the HIR, so ids cover every node.
 pub fn number_nodes(program: &mut HirProgram) {
     let mut next = 0;
     for function in &mut program.functions {

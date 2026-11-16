@@ -15,16 +15,6 @@ pub(crate) enum Sink {
     Outer(String),
 }
 
-impl Sink {
-    /// The string `hoist::annotate` stores in `HirStmt::VarDecl::alloc_in_binding` for the same decision.
-    pub(crate) fn annotation(&self) -> &str {
-        match self {
-            Sink::Result => crate::hoist::RESULT_SINK,
-            Sink::Outer(name) => name,
-        }
-    }
-}
-
 pub(crate) fn decl_sinks(function: &HirFunction, tcx: &TyCtx) -> HashMap<NodeId, Sink> {
     let mut sinks = HashMap::new();
     let visible: HashSet<String> = function.params.iter().map(|p| p.name.clone()).collect();

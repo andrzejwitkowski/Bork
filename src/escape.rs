@@ -16,8 +16,9 @@ use crate::builtins;
 use crate::diag::{Diagnostic, Phase, Severity};
 use crate::hir::{
     peel_to_body, HirBlock, HirConditionalBinding, HirConditionalBindings, HirExpr, HirExprKind,
-    HirFunction, HirStmt, UseKind,
+    HirFunction, HirStmt, NodeId, UseKind,
 };
+use crate::mir::build::sinks::{decl_sinks, Sink};
 use crate::span::Span;
 use crate::ty::{TyCtx, TyId};
 
@@ -26,18 +27,13 @@ pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec
         .params
         .iter()
         .map(|param| {
-            let local = Local {
-                decl_depth: 0,
-                value_depth: 0,
-                short_lived_object: false,
-                in_loop: false,
-            };
+            let local = Local { decl_depth: 0, value_depth: 0 };
             (param.name.as_str(), local)
         })
         .collect();
     let mut escape = Escape {
         depth: 0,
-        loop_depth: 0,
+        result_sinks: decl_sinks(function, tcx),
         scopes: vec![params],
         tcx,
         diagnostics,
@@ -45,7 +41,6 @@ pub fn check_function(function: &HirFunction, tcx: &TyCtx, diagnostics: &mut Vec
     escape.region(&function.body, false, None);
 }
 
-const LOOP_HINT: &str = "declare it before the loop and return it from inside, or build the returned value outside the loop";
 
 fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) {
     diagnostics.push(Diagnostic {
@@ -61,16 +56,12 @@ fn reject(diagnostics: &mut Vec<Diagnostic>, message: &str, span: Option<Span>) 
 struct Local {
     decl_depth: usize,
     value_depth: usize,
-    /// A `val`/`var` of this function holding a class or enum handle that is not hoisted into
-    /// the result sink: it dies with its region.
-    short_lived_object: bool,
-    /// Declared inside a `for` / `while` body.
-    in_loop: bool,
 }
 
 struct Escape<'h, 'd> {
     depth: usize,
-    loop_depth: usize,
+    /// Which declarations are built in the caller's result arena (`mir::build::sinks`).
+    result_sinks: HashMap<NodeId, Sink>,
     scopes: Vec<HashMap<&'h str, Local>>,
     tcx: &'d TyCtx,
     diagnostics: &'d mut Vec<Diagnostic>,
@@ -97,68 +88,6 @@ impl<'h> Escape<'h, '_> {
             self.bind_guard(binding);
         }
         self.region_body(body, true, sink)
-    }
-
-    /// A local object stored in a returned construct would be freed with its region while the
-    /// result still points at it. `hoist` allocates the simple cases in the result sink.
-    fn check_returned_objects(&mut self, value: &'h HirExpr) {
-        self.check_stored_objects(value, None);
-    }
-
-    /// With `owner_depth`, only locals declared in a deeper region than the owner dangle (an
-    /// assignment into an outer `var`); without it, every short-lived local does (a `return`).
-    fn check_stored_objects(&mut self, value: &'h HirExpr, owner_depth: Option<usize>) {
-        let mut tails = Vec::new();
-        crate::mir::build::sinks::value_tails(value, &mut tails);
-        for tail in tails {
-            self.check_stored_in(tail, owner_depth);
-        }
-    }
-
-    fn check_stored_in(&mut self, value: &'h HirExpr, owner_depth: Option<usize>) {
-        let (HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. }) = &value.kind
-        else {
-            return;
-        };
-        let mut names = Vec::new();
-        crate::mir::build::sinks::collect_idents(fields, self.tcx, &mut names);
-        for name in names {
-            let Some(local) = self.lookup(&name).copied().filter(|local| {
-                local.short_lived_object && owner_depth.is_none_or(|depth| local.decl_depth > depth)
-            }) else {
-                continue;
-            };
-            let message = if local.in_loop {
-                format!("`{name}` is declared inside a loop, so it is freed on every iteration; {LOOP_HINT}")
-            } else {
-                format!(
-                    "`{name}` is freed before the value that stores it, but that value would still point at it; \
-                     build it directly in the constructor, or declare it at the top level of the function"
-                )
-            };
-            reject(self.diagnostics, &message, value.span);
-        }
-    }
-
-    /// `return a` where `a` is an object declared in a loop body.
-    fn check_returned_loop_local(&mut self, value: &'h HirExpr) -> bool {
-        let mut tails = Vec::new();
-        crate::mir::build::sinks::value_tails(value, &mut tails);
-        tails.into_iter().fold(false, |found, tail| self.check_loop_local_tail(tail) || found)
-    }
-
-    fn check_loop_local_tail(&mut self, value: &'h HirExpr) -> bool {
-        let HirExprKind::Ident { name, .. } = &value.kind else { return false };
-        let Some(local) = self.lookup(name).copied() else { return false };
-        if !(local.short_lived_object && local.in_loop) {
-            return false;
-        }
-        reject(
-            self.diagnostics,
-            &format!("`{name}` is declared inside a loop, so it is freed on every iteration; {LOOP_HINT}"),
-            value.span,
-        );
-        true
     }
 
     fn open_scope(&mut self) {
@@ -208,10 +137,6 @@ impl<'h> Escape<'h, '_> {
     fn stmt(&mut self, stmt: &'h HirStmt) {
         match stmt {
             HirStmt::Return { value: Some(value) } => {
-                self.check_returned_objects(value);
-                if self.check_returned_loop_local(value) {
-                    return;
-                }
                 if self.tcx.is_ref(value.ty) {
                     reject(
                         self.diagnostics,
@@ -245,16 +170,11 @@ impl<'h> Escape<'h, '_> {
             HirStmt::Block(body) | HirStmt::MoveBlock { body, .. } => {
                 self.region(body, false, None);
             }
-            HirStmt::VarDecl { name, value, ty, alloc_in_binding, .. } => {
-                let hoisted = alloc_in_binding.as_deref() == Some(crate::hoist::RESULT_SINK);
-                // A hoisted object lives in the caller's arena (depth 0), not in this region.
-                let value_depth = if hoisted { 0 } else { self.place(value, None) };
-                let local = Local {
-                    decl_depth: self.depth,
-                    value_depth,
-                    short_lived_object: !hoisted && self.tcx.holds_object(*ty),
-                    in_loop: self.loop_depth > 0,
-                };
+            HirStmt::VarDecl { name, value, .. } => {
+                // An object built in the caller's result arena lives at depth 0, not in this region.
+                let in_result_arena = self.result_sinks.get(&value.id) == Some(&Sink::Result);
+                let value_depth = if in_result_arena { 0 } else { self.place(value, None) };
+                let local = Local { decl_depth: self.depth, value_depth };
                 self.scopes
                     .last_mut()
                     .expect("regions open a scope")
@@ -275,7 +195,6 @@ impl<'h> Escape<'h, '_> {
                     .lookup(name)
                     .map(|local| local.decl_depth)
                     .unwrap_or(0);
-                self.check_stored_objects(value, Some(depth));
                 let value_depth = self.place(value, Some(depth));
                 if target.index().is_none() {
                     if let Some(local) = self.lookup_mut(name) {
@@ -300,15 +219,11 @@ impl<'h> Escape<'h, '_> {
             }
             HirStmt::For { iter, body, .. } => {
                 self.place(iter, None);
-                self.loop_depth += 1;
                 self.region(body, false, None);
-                self.loop_depth -= 1;
             }
             HirStmt::While { cond, body } => {
                 self.place(cond, None);
-                self.loop_depth += 1;
                 self.region(body, false, None);
-                self.loop_depth -= 1;
             }
             HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
         }
@@ -599,8 +514,6 @@ impl<'h> Escape<'h, '_> {
             Local {
                 decl_depth: self.depth,
                 value_depth: self.depth,
-                short_lived_object: false,
-                in_loop: false,
             },
         );
     }

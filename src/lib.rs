@@ -12,7 +12,6 @@ pub mod diag;
 pub mod dump;
 mod escape;
 pub mod frontend;
-pub mod hoist;
 pub mod hir;
 pub mod infer;
 mod layout;

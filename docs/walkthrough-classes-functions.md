@@ -53,7 +53,6 @@ src/main.rs                     bork build plik.bork
     ├── parse                   src/lib.rs + src/parser.lalrpop  -> ast::Program
     ├── typeck::check           src/typeck/                      -> HirProgram + NodeTypes
     ├── sema::analyze_with_members   src/sema/                   -> ArenaReport (+ błędy własności)
-    ├── hoist::annotate         src/hoist.rs                     (mutuje HIR)
     └── escape::check_function  src/escape.rs                    (tylko diagnostyki)
 └── codegen::build              src/codegen/mod.rs
     ├── mono::monomorphize      src/mono.rs                      -> instancje + plan z MIR
@@ -387,11 +386,12 @@ error: ownership: use of `p` after move from fun main
 
 Te kroki działają na HIR i tylko wtedy, gdy wcześniej nie było błędów.
 
-### `hoist::annotate`
+### Sinki deklaracji (`mir::build::sinks`)
 
-`src/hoist.rs` szuka inicjalizatorów, których alokację można od razu umieścić
-w arenie zewnętrznego wiązania (`alloc_in_binding`). W przykładzie nie ma
-takiego wzorca, więc HIR się nie zmienia.
+`src/mir/build/sinks.rs` wylicza dla każdej deklaracji, czy jej inicjalizator
+ma powstać od razu w arenie zewnętrznego wiązania (`outer = move inner`) albo w
+arenie wyniku (wartość zwracana). W przykładzie nie ma takiego wzorca. Od
+tej decyzji zależy też, czy `move` obiektu przekazuje uchwyt.
 
 ### `escape::check_function`
 
@@ -452,7 +452,7 @@ porównuje kod wyjścia z komentarzem `// exit: 8`.
 | Pola | `src/typeck/expr/field.rs` | `check_field` |
 | HIR | `src/hir/mod.rs`, `src/hir/ty.rs` | `HirProgram`, `HirExprKind::ObjectConstruct`, `ObjectField`, `Ty::record_name` |
 | Własność | `src/sema/analyze.rs`, `walk.rs`, `region.rs` | `analyze_with_span_tys`, `open_ordinary`, `ArenaReport` |
-| Hoist / escape | `src/hoist.rs`, `src/escape.rs` | `annotate`, `check_function` |
+| Sinki / escape | `src/mir/build/sinks.rs`, `src/mir/escape.rs`, `src/escape.rs` | `decl_sinks`, `check`, `check_function` |
 | Plan pamięci | `src/mir/plan.rs`, `src/mono.rs` | `derive_memory_plan`, `stamp_push`, `plan_instances` |
 | MIR | `src/mir/build/`, `src/mir/body.rs` | `build_program`, `Body`, `StmtKind` |
 | Bramka | `src/codegen_gate.rs`, `src/mir/capability.rs` | `gate`, `Capability` |
