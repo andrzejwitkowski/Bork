@@ -20,10 +20,11 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn stmt_of(&mut self, s: &HirStmt, span: Span) -> Res<()> {
         match s {
             HirStmt::Return { value } => {
-                // `return move a` hands an object to the caller's result arena.
+                // `return move a` hands an object to the caller's result arena; when checking lifetimes so does every
+                // returned construct, which is where the language puts it.
                 let v = match value.as_ref() {
                     Some(v) => {
-                        let to_result = self.abi.result_sink && matches!(v.kind, HirExprKind::Ident { .. }) && self.moves_handle(v.ty);
+                        let to_result = self.abi.result_sink && self.moves_handle(v.ty) && (self.lifetimes || matches!(v.kind, HirExprKind::Ident { .. }));
                         Some(if to_result { self.with_sink(ArenaRef::ResultSink, |b| b.expr(v))? } else { self.expr(v)? })
                     }
                     None => None,
@@ -32,7 +33,9 @@ impl<'a> FnBuilder<'a> {
                     if self.abi.result_sink {
                         v = self.materialize(v, self.function.return_ty, &ArenaRef::ResultSink, span)?;
                     }
-                    self.stmt(StmtKind::Assign(Place::local(self.ret_local()), Rvalue::Use(v)), span, None);
+                    // At the value's own span, where the escape diagnostics of a returned local point.
+                    let at = value.as_ref().map_or(span, span_of);
+                    self.stmt(StmtKind::Assign(Place::local(self.ret_local()), Rvalue::Use(v)), at, None);
                 }
                 self.exit_to(Mark::default(), span);
                 self.terminate(TermKind::Return, span, None);

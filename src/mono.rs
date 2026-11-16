@@ -401,6 +401,13 @@ pub fn monomorphize_unchecked(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaR
     monomorphize_from(hir, tcx, report, true, false, true)
 }
 
+/// What `main` reaches (every non-generic function when there is no `main`), without the HIR escape check or the memory
+/// plan: the concrete program the MIR analyses of `check` read.
+pub(crate) fn specialise_for_analysis(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {
+    let has_main = hir.functions.iter().any(|f| f.name == "main");
+    monomorphize_from(hir, tcx, report, !has_main, false, false)
+}
+
 /// `mir` is false when only the diagnostics are wanted (`check_instance_regions`): the plan is then not derived from MIR.
 fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool, escape: bool, mir: bool) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;

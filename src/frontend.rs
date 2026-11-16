@@ -98,6 +98,9 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
                 crate::escape::check_function(function, &tcx, &mut diagnostics);
             }
         }
+        if escape && diagnostics.is_empty() {
+            diagnostics.extend(object_lifetimes(&program, &report, &tcx, source));
+        }
         if diagnostics.is_empty() && has_generics(&program) {
             diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report, escape));
         }
@@ -112,6 +115,44 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
         tcx,
         node_index,
     }
+}
+
+/// Only the MIR object-lifetime errors of `source` (what `check` adds on top of the HIR pass), for tests.
+#[doc(hidden)]
+pub fn object_lifetime_errors(source: &str) -> Vec<Diagnostic> {
+    let result = check_with(source, false);
+    match (&result.hir, &result.report) {
+        (Some(hir), Some(report)) => object_lifetimes(hir, report, &result.tcx, source),
+        _ => Vec::new(),
+    }
+}
+
+/// Object-lifetime errors from MIR (`mir::escape`): an object stored into a longer-lived owner, or returned, from a
+/// region that closes first. Only what `main` reaches is analysed, as `gate` does. A
+/// `move` that would leave an object in a dying arena is the same error: `source` names the moved binding.
+fn object_lifetimes(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx, source: &str) -> Vec<Diagnostic> {
+    use crate::mir::{build::{build_function_results_neutral, BuildError}, capability::Capability, escape};
+    let mut tcx = tcx.clone();
+    let Ok(mono) = crate::mono::specialise_for_analysis(hir, &mut tcx, report) else { return Vec::new() };
+    let Ok(results) = build_function_results_neutral(&mono, &tcx) else { return Vec::new() };
+    let stored = |name: &str| format!("`{name}` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function");
+    let mut found: Vec<(crate::span::Span, String)> = Vec::new();
+    for result in &results {
+        match result {
+            Ok(body) => found.extend(escape::check(body)),
+            Err(BuildError::Unsupported(u)) if u.capability == Capability::MoveEscapesArena => {
+                let name = source.get(u.span.start..u.span.end).unwrap_or("value");
+                found.push((u.span, stored(name)));
+            }
+            Err(_) => {}
+        }
+    }
+    found.sort_by_key(|(span, message)| (span.start, span.end, message.clone()));
+    found.dedup();
+    found
+        .into_iter()
+        .map(|(span, message)| Diagnostic { phase: diag::Phase::Ownership, severity: diag::Severity::Error, message, span: Some(span), notes: Vec::new() })
+        .collect()
 }
 
 #[cfg(test)]

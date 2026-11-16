@@ -394,7 +394,7 @@ Examples:
 
 ### `move` of an object
 
-`move x` of a class object or an enum (also behind `T?`) **passes the handle**; it never copies, because a copy would leave the fields pointing into the source arena. That is only sound when the object was allocated where its new owner lives, which `hoist` arranges for exactly two shapes: `outer = move inner` as the statement right after `val inner = ...`, and `return move a`. Any other `move` of an object whose declaration was not hoisted to the destination (a move in a branch, into a field, with a statement between the declaration and the move) is rejected by the codegen gate as `move-escapes-arena`. An array of `Ref` is copied with each `Ref` cloned and rehomed, like a `Vec`.
+`move x` of a class object or an enum (also behind `T?`) **passes the handle**; it never copies, because a copy would leave the fields pointing into the source arena. That is only sound when the object was allocated where its new owner lives, which `hoist` arranges for exactly two shapes: `outer = move inner` as the statement right after `val inner = ...`, and `return move a`. Any other `move` of an object whose declaration was not hoisted to the destination (a move in a branch, into a field, with a statement between the declaration and the move) is a lifetime error: `bork check` reports it as "freed before the value that stores it" (`mir::escape`, from the `move-escapes-arena` capability the builder raises). An array of `Ref` is copied with each `Ref` cloned and rehomed, like a `Vec`.
 
 ### `promote`
 

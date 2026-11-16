@@ -1,4 +1,4 @@
-// diag: this `move` would leave the object in an arena that is freed before its new owner
+// diag: is freed before the value that stores it
 // the move runs only on one path, so the declaration cannot be placed in the outer arena
 class P { n: i32 }
 class A { x: P }

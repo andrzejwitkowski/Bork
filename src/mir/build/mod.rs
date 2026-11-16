@@ -66,11 +66,20 @@ pub fn build_program_neutral(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Body>> {
 
 /// One result per function, in `mono.hir.functions` order, so the MIR backend can fall back per function.
 pub fn build_function_results(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Res<Body>>> {
-    build_each(mono, tcx, false)
+    build_each(mono, tcx, Mode::Plan)
+}
+
+/// One result per function, built as [`build_program_neutral`] does: every region is entered and every allocation goes
+/// to the sink, so lifetime analyses see where a value is written, not where the memory plan placed it.
+///
+/// Also places each returned construct in the caller's result arena, where the language puts it: the memory plan reads
+/// the neutral MIR and must not see that.
+pub fn build_function_results_neutral(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Res<Body>>> {
+    build_each(mono, tcx, Mode::Lifetimes)
 }
 
 fn build_program_with(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Body>> {
-    build_each(mono, tcx, neutral)?.into_iter().collect()
+    build_each(mono, tcx, if neutral { Mode::Neutral } else { Mode::Plan })?.into_iter().collect()
 }
 
 /// Whole-program shapes LLVM has no type for: `unit` as a parameter, a class field or a `Vec`/array element, and a
@@ -110,7 +119,7 @@ fn has_unit_elem(tcx: &TyCtx, ty: TyId) -> bool {
     tcx.vec_elem(ty).or_else(|| tcx.array_elem(ty)).is_some_and(|e| e == unit) || tcx.data(ty).children().into_iter().any(|c| has_unit_elem(tcx, c))
 }
 
-fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
+fn build_each(mono: &Mono, tcx: &TyCtx, mode: Mode) -> Res<Vec<Res<Body>>> {
     check_signatures(mono, tcx)?;
     let functions = &mono.hir.functions;
     let roots = &mono.report.roots;
@@ -125,7 +134,7 @@ fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
             if root.label.strip_prefix("fun ") != Some(function.name.as_str()) {
                 return Err(BuildError::Internal(format!("report root `{}` for function `{}`", root.label, function.name)));
             }
-            FnBuilder::new(mono, tcx, &abis, function, root, neutral).build()
+            FnBuilder::new(mono, tcx, &abis, function, root, mode).build()
         })
         .collect())
 }
@@ -133,6 +142,17 @@ fn build_each(mono: &Mono, tcx: &TyCtx, neutral: bool) -> Res<Vec<Res<Body>>> {
 struct Open {
     id: RegionId,
     pushed: bool,
+}
+
+/// How much of the memory plan a body is built with.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    /// The plan's allocation classes and the `codegen_push` flags (what `bork build` lowers).
+    Plan,
+    /// Ignore the plan: every region entered, every allocation to the sink (input of the plan's own analyses).
+    Neutral,
+    /// [`Mode::Neutral`] for lifetime analyses (`check`).
+    Lifetimes,
 }
 
 /// An arena as the builder names it, independent of whether the region owns a pushed arena (`codegen_push`), so the
@@ -190,6 +210,8 @@ pub(super) struct FnBuilder<'a> {
     pub(super) planned_sinks: HashMap<NodeId, sinks::Sink>,
     /// See [`build_program_neutral`].
     pub(super) neutral: bool,
+    /// See [`build_function_results_neutral`].
+    pub(super) lifetimes: bool,
 }
 
 impl<'a> FnBuilder<'a> {
@@ -199,7 +221,7 @@ impl<'a> FnBuilder<'a> {
         abis: &'a HashMap<&'a str, CallAbi>,
         function: &'a HirFunction,
         root: &'a ArenaNode,
-        neutral: bool,
+        mode: Mode,
     ) -> Self {
         FnBuilder {
             mono,
@@ -223,7 +245,8 @@ impl<'a> FnBuilder<'a> {
             sink: ArenaRef::Current,
             decl_sinks: HashMap::new(),
             planned_sinks: sinks::decl_sinks(function, tcx),
-            neutral,
+            neutral: mode != Mode::Plan,
+            lifetimes: mode == Mode::Lifetimes,
         }
     }
 

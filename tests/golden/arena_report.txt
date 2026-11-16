@@ -3488,54 +3488,6 @@ Arenas
     ├── this [Borrow ← call site]
     ├── k [Local]
     └── f [Local]
-== programs/build_fail/move_in_branch.bork
-Arenas
-├── fun churn
-│   ├── k [Local]
-│   ├── a [Local]
-│   ├── p [Local]
-│   └── q [Local]
-├── fun spin
-│   ├── i [Local]
-│   └── WhileLoop
-│       └── i [Copy]
-└── fun main
-    ├── outer [Local]
-    └── Block
-        ├── inner [Local]
-        └── IfThen
-            └── inner [Moved ← Block]
-== programs/build_fail/move_into_field.bork
-Arenas
-├── fun churn
-│   ├── k [Local]
-│   ├── a [Local]
-│   ├── p [Local]
-│   └── q [Local]
-├── fun spin
-│   ├── i [Local]
-│   └── WhileLoop
-│       └── i [Copy]
-└── fun main
-    ├── h [Local]
-    └── Block
-        └── inner [Moved ← Block]
-== programs/build_fail/move_not_next_statement.bork
-Arenas
-├── fun churn
-│   ├── k [Local]
-│   ├── a [Local]
-│   ├── p [Local]
-│   └── q [Local]
-├── fun spin
-│   ├── i [Local]
-│   └── WhileLoop
-│       └── i [Copy]
-└── fun main
-    ├── outer [Local]
-    └── Block
-        ├── inner [Moved ← Block]
-        └── z [Local]
 == programs/build_fail/nullable_object_equality.bork
 Arenas
 └── fun main
@@ -5122,6 +5074,57 @@ Arenas
 │   └── s [Local]
 └── fun main
     └── s [Local]
+== programs/check_fail/move_in_branch.bork
+Ownership Error [523..528] `inner` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    └── Block
+        ├── inner [Local]
+        └── IfThen
+            └── inner [Moved ← Block]
+== programs/check_fail/move_into_field.bork
+Ownership Error [504..509] `inner` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── h [Local]
+    └── Block
+        └── inner [Moved ← Block]
+== programs/check_fail/move_not_next_statement.bork
+Ownership Error [524..529] `inner` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
+Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── a [Local]
+│   ├── p [Local]
+│   └── q [Local]
+├── fun spin
+│   ├── i [Local]
+│   └── WhileLoop
+│       └── i [Copy]
+└── fun main
+    ├── outer [Local]
+    └── Block
+        ├── inner [Moved ← Block]
+        └── z [Local]
 == programs/check_fail/option/assign_some_local_to_outer.bork
 Ownership Error [385..397] `n` is freed before the value that stores it, but that value would still point at it; build it directly in the constructor, or declare it at the top level of the function
 Arenas

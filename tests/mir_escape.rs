@@ -1,14 +1,10 @@
-//! Shadow of the object-lifetime rules of `escape.rs` on MIR (#217): everything the MIR analysis reports
-//! must be a diagnostic the old pass reports too, and the cases it covers are pinned.
+//! Object-lifetime errors come from MIR (`mir::escape`, run by `check`): every `check_fail` program that expects one
+//! gets it from MIR alone, and no program that must check or build gets a false one.
 
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bork::frontend::check_with;
-use bork::mir::build::build_program;
-use bork::mir::escape;
-use bork::mono::monomorphize_unchecked;
+use bork::frontend::object_lifetime_errors;
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(dir).unwrap() {
@@ -21,36 +17,42 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+const LIFETIME: [&str; 2] = ["is freed before the value that stores it", "is declared inside a loop"];
+
+fn expected(source: &str) -> Option<&'static str> {
+    let diag = source.lines().take(30).find_map(|l| l.trim().strip_prefix("//")?.trim().strip_prefix("diag:").map(|d| d.trim().to_owned()))?;
+    LIFETIME.into_iter().find(|m| diag.contains(m))
+}
+
 #[test]
-fn mir_escape_is_a_subset_of_the_old_pass_and_covers_the_pinned_cases() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+fn check_fail_lifetime_errors_come_from_mir() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("programs");
     let mut files = Vec::new();
-    for suite in ["check_fail", "check", "build", "build_fail"] {
-        collect(&root.join("programs").join(suite), &mut files);
-    }
+    collect(&root.join("check_fail"), &mut files);
     files.sort();
-    let (mut covered, mut same) = (BTreeSet::new(), BTreeSet::new());
+    let (mut pinned, mut missing) = (0, Vec::new());
     for file in files {
-        let rel = file.strip_prefix(&root).unwrap().to_string_lossy().to_string();
         let source = fs::read_to_string(&file).unwrap();
-        let old: BTreeSet<_> = check_with(&source, true).diagnostics.iter().map(|d| (d.span.map(|s| (s.start, s.end)), d.message.clone())).collect();
-        let mut new = check_with(&source, false);
-        let (Some(hir), Some(report)) = (new.hir.take(), new.report.take()) else { continue };
-        let Ok(mono) = monomorphize_unchecked(&hir, &mut new.tcx, &report) else { continue };
-        let Ok(bodies) = build_program(&mono, &new.tcx) else { continue };
-        for (span, message) in bodies.iter().flat_map(escape::check) {
-            // MIR sees the dangling store itself; the old pass may report the same fact later (at the `return`).
-            assert!(old.iter().any(|(_, m)| m.contains("freed before") || m.contains("declared inside a loop") || m.contains("inner region")), "{rel}: MIR reports `{message}` at {span:?}, the old pass has no escape diagnostic");
-            if old.contains(&(Some((span.start, span.end)), message.clone())) {
-                same.insert(rel.clone());
-            }
-            covered.insert(rel.clone());
+        let Some(wanted) = expected(&source) else { continue };
+        pinned += 1;
+        if !object_lifetime_errors(&source).iter().any(|d| d.message.contains(wanted)) {
+            missing.push(file.strip_prefix(&root).unwrap().display().to_string());
         }
     }
-    let pin = |names: &[&str]| -> BTreeSet<String> { names.iter().map(|n| format!("programs/check_fail/{n}.bork")).collect() };
-    // Same span and message as `escape.rs`.
-    assert_eq!(same, pin(&["enums/assign_local_object_to_outer_var", "enums/return_loop_local_stored", "enums/return_value_if_loop_local", "option/return_some_loop_local"]));
-    // MIR also sees the dangling store in `return_alias_hoisted`, which `escape.rs` reports later, at the `return`.
-    // Not covered yet (stored into an `Option` slot): option/assign_some_local_to_outer, see #243.
-    assert_eq!(covered.difference(&same).cloned().collect::<BTreeSet<_>>(), pin(&["enums/return_alias_hoisted"]));
+    assert!(pinned >= 10, "only {pinned} lifetime programs found");
+    assert!(missing.is_empty(), "MIR does not report: {missing:?}");
+}
+
+#[test]
+fn no_lifetime_error_on_programs_that_check_or_build() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("programs");
+    let mut files = Vec::new();
+    for suite in ["check", "build"] {
+        collect(&root.join(suite), &mut files);
+    }
+    files.sort();
+    for file in files {
+        let found = object_lifetime_errors(&fs::read_to_string(&file).unwrap());
+        assert!(found.is_empty(), "{}: {found:?}", file.display());
+    }
 }

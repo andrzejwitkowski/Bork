@@ -42,13 +42,29 @@ impl<'a> FnBuilder<'a> {
         t.enum_args(payload).is_some() || (t.record_def(ty).is_some() && !t.is_managed_ref(ty))
     }
 
-    /// `move x` of an object: the handle is passed on, which is only sound when `x` was allocated in the arena that
+    /// Whether the arena `decl` is not freed before the arena `dest` names: the same region, an enclosing one, or one
+    /// that outlives every region (the caller's result arena).
+    fn outlives(&self, decl: &SinkKey, dest: &SinkKey) -> bool {
+        let region_of = |key: &SinkKey| match key {
+            SinkKey::Region(r) => Some(*r),
+            // An object's arena is the one its owner was declared in.
+            SinkKey::Other(ArenaRef::Home(h)) => Some(self.locals[h.0 as usize].region),
+            SinkKey::Other(_) => None,
+        };
+        match (decl, region_of(decl), region_of(dest)) {
+            (SinkKey::Other(ArenaRef::ResultSink | ArenaRef::CallerParent | ArenaRef::Root), ..) => true,
+            (_, Some(d), Some(r)) => std::iter::successors(Some(r), |r| self.regions[r.0 as usize].parent).any(|r| r == d),
+            _ => decl == dest,
+        }
+    }
+
+    /// `move x` of an object: the handle is passed on, which is only sound when `x` was allocated in an arena that
     /// outlives its new owner. `hoist` puts the initialiser there for `outer = move inner` (next statement) and
     /// `return move a`; anywhere else the object would die with its region, so the move is reported instead.
     fn move_handle(&mut self, place: Place, span: Span) -> Res<Operand> {
         let dest = self.sink_key(&self.sink);
         let ok = match self.decl_sinks.get(&place.local) {
-            Some(decl) => *decl == dest,
+            Some(decl) => self.outlives(decl, &dest),
             // A parameter lives in the caller's arena, which outlives this call and every region in it. Any other
             // local without a recorded declaration (a temporary, a binding) has no known arena: reject it.
             None => self.locals[place.local.0 as usize].kind == LocalKind::Arg && !matches!(&dest, SinkKey::Other(ArenaRef::Home(h)) if self.locals[h.0 as usize].kind == LocalKind::Arg),
