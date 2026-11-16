@@ -189,8 +189,6 @@ pub enum HirStmt {
         name: String,
         ty: TyId,
         value: HirExpr,
-        /// When set, owned payload for `value` is allocated in the named outer binding's arena.
-        alloc_in_binding: Option<String>,
     },
     Assign {
         target: HirAssignTarget,

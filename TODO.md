@@ -4,7 +4,7 @@ Tracked work after fixed arrays/slices, `while`/`break`/`continue`, logical ops,
 
 ## Refactor
 
-> MIR migration (RFC 0006): steps 1-15 done (#215-#226, #67); step 16 is this documentation pass (#227). Open: #260 (delete `escape.rs` and `hoist.rs`; `move` of objects now lowers, deleting them is its second PR).
+> MIR migration (RFC 0006): steps 1-15 done (#215-#226, #67); step 16 is this documentation pass (#227). `hoist.rs` is gone and `check` reports object lifetimes from MIR (#260); `escape.rs` keeps the String/type rules.
 
 - [ ] **Array codegen** — `src/codegen/llvm/array/` is split from monolithic `array.rs`; optional further split (emit vs runtime helpers) if files grow.
 

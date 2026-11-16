@@ -384,7 +384,7 @@ Examples:
 - Builtin `concat(a, b)` allocates **one** result buffer in the current sink arena (two `memcpy` from arguments). No separate call-scoped temp arena type yet; argument strings are read in place (Copy/Shared/move as usual).
 - Typical use: `outer = concat(left, right)` in a child block → result in `outer`’s arena.
 
-### Hoist (`hoist::annotate`)
+### Hoist (`mir::build::sinks`)
 
 - **Problem:** `var inner = …` in a child, then `outer = move inner` — without hoist, initialization runs in the child arena and move copies on assign.
 - **Implemented pattern:** linear siblings in one block — `var inner = <hoistable init>` immediately followed by `outer = move inner`, where `outer` is already in scope (parameter or earlier `var`). HIR sets `alloc_in_binding` on `inner` so codegen initializes in `outer`’s arena (`hoist.rs`).

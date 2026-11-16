@@ -43,10 +43,8 @@ impl<'a> FnBuilder<'a> {
             }
             HirStmt::Block(b) => self.region_block(RegionSite::Block, b, span),
             HirStmt::MoveBlock { body, .. } => self.region_block(RegionSite::MoveBlock, body, span),
-            HirStmt::VarDecl { kind, name, ty, value, alloc_in_binding } => {
+            HirStmt::VarDecl { kind, name, ty, value } => {
                 let planned = self.planned_sinks.get(&value.id).cloned();
-                // The HIR annotation is still the input of `escape.rs`; both must agree until it goes.
-                debug_assert_eq!(alloc_in_binding.as_deref(), planned.as_ref().map(Sink::annotation), "`{name}` at {span:?}");
                 let (sink, v) = match planned {
                     None => (self.sink.clone(), self.expr(value)?),
                     Some(Sink::Result) => (ArenaRef::ResultSink, self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?),

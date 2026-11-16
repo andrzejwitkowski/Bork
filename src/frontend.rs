@@ -91,15 +91,16 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
     }
     let mut hir = diagnostics.is_empty().then_some(hir);
     if let Some(mut program) = hir {
-        crate::hoist::annotate(&mut program, &tcx);
         crate::hir::number_nodes(&mut program);
         if escape {
-            for function in &program.functions {
-                crate::escape::check_function(function, &tcx, &mut diagnostics);
-            }
-        }
-        if escape && diagnostics.is_empty() {
+            // Object lifetimes first: a program they reject would otherwise also get the String rules' more general
+            // "inner region" message for the same value.
             diagnostics.extend(object_lifetimes(&program, &report, &tcx, source));
+            if diagnostics.is_empty() {
+                for function in &program.functions {
+                    crate::escape::check_function(function, &tcx, &mut diagnostics);
+                }
+            }
         }
         if diagnostics.is_empty() && has_generics(&program) {
             diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report, escape));

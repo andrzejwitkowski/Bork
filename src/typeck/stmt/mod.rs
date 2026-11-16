@@ -151,7 +151,6 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
         name: name.to_string(),
         ty: declared_ty,
         value: value.hir,
-        alloc_in_binding: None,
     }
 }
 
