@@ -1,4 +1,4 @@
-// diag: this `move` would leave the object in an arena that is freed before its new owner
+// diag: is freed before the value that stores it
 // a statement between the declaration and the move keeps hoisting from reaching the declaration
 class P { n: i32 }
 class A { x: P }

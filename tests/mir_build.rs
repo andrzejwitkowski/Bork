@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bork::frontend::check;
+use bork::frontend::{check, check_with};
 use bork::mir::build::{build_program, BuildError};
 use bork::mir::verify::verify;
 use bork::mono::monomorphize;
@@ -72,14 +72,6 @@ fn corpus_builds_and_verifies() {
     // Exactly the programs the codegen gate rejects (RFC 0006 3.10), each under its named capability.
     let expected: BTreeMap<&str, Vec<&str>> = BTreeMap::from([
         ("closure", vec!["programs/build_fail/methods/trailing_closure.bork", "programs/check/methods/trailing_closure.bork"]),
-        (
-            "move-escapes-arena",
-            vec![
-                "programs/build_fail/move_in_branch.bork",
-                "programs/build_fail/move_into_field.bork",
-                "programs/build_fail/move_not_next_statement.bork",
-            ],
-        ),
         ("main-signature", vec!["programs/build_fail/main_returns_i64.bork"]),
         ("object-equality", vec!["programs/build_fail/nullable_object_equality.bork", "programs/build_fail/object_equality.bork"]),
         ("safe-field-enum", vec!["programs/build_fail/option/safe_field_of_enum.bork"]),
@@ -147,5 +139,19 @@ fn the_worked_example_doc_quotes_current_output() {
     let doc = fs::read_to_string(dir.join("example.md")).unwrap();
     for body in text.trim().split("\n\n") {
         assert!(doc.contains(body.trim()), "docs/mir/example.md is stale; update it from:\n{body}");
+    }
+}
+
+/// A `move` that would leave an object in an arena freed before its new owner is a lifetime error `check` reports (from
+/// `mir::escape`); the builder names it as a capability for any caller that skips that pass.
+#[test]
+fn a_move_into_a_longer_lived_owner_is_the_move_escapes_arena_capability() {
+    for name in ["move_in_branch", "move_into_field", "move_not_next_statement"] {
+        let source = fs::read_to_string(root().join("programs/check_fail").join(format!("{name}.bork"))).unwrap();
+        let mut result = check_with(&source, false);
+        let (hir, report) = (result.hir.take().unwrap(), result.report.take().unwrap());
+        let mono = bork::mono::monomorphize_unchecked(&hir, &mut result.tcx, &report).unwrap();
+        let err = build_program(&mono, &result.tcx).unwrap_err();
+        assert!(matches!(&err, BuildError::Unsupported(u) if u.capability.to_string() == "move-escapes-arena"), "{name}: {err:?}");
     }
 }

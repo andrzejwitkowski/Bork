@@ -1,4 +1,4 @@
-// diag: this `move` would leave the object in an arena that is freed before its new owner
+// diag: is freed before the value that stores it
 // only a plain assignment to a local is a hoisting target; a field store is not
 class P { n: i32 }
 class A { x: P }

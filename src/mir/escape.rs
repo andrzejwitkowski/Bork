@@ -1,6 +1,9 @@
-//! Shadow of the object-lifetime part of `src/escape.rs` on MIR (RFC 0006 M4a, #217): a handle to an object
-//! allocated in an inner region, stored into an object that outlives that region. Only the cases MIR can
-//! see are covered; the rest of `escape.rs` stays (see #243). Not wired into `check`; tests compare it.
+//! Object-lifetime rules on MIR (RFC 0006 M4a, #217): a handle to an object allocated in an inner region that is
+//! stored into an object that outlives that region. Run by `check` on the MIR `bork build` lowers.
+//!
+//! Not here, and staying in `escape.rs`: `return_via_var`, an alias returned, and the rest of "returning a value whose
+//! bytes live in an inner region". MIR sees those objects allocated in the result sink, which is correct for the
+//! lifetime, so rejecting them is a language rule, not a lifetime fact.
 
 use std::collections::{HashMap, HashSet};
 
@@ -35,7 +38,12 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                     alloc.insert(dst.local, (depth, in_loop));
                 }
                 StmtKind::Assign(dst, Rvalue::Use(Operand::Copy(src) | Operand::Move(src))) if src.is_bare() => {
-                    if dst.is_bare() {
+                    if dst.is_bare() && dst.local == body.ret {
+                        // `return a` of an object declared in a loop body: freed on every iteration.
+                        if let (Some(&(_, true)), Some(name)) = (alloc.get(&src.local), body.local(src.local).and_then(|l| l.name.clone())) {
+                            found.push((s.span, format!("`{name}` is declared inside a loop, so it is freed on every iteration; {LOOP_HINT}")));
+                        }
+                    } else if dst.is_bare() {
                         // `val n = <temp>` keeps the allocation's depth.
                         if let Some(&a) = alloc.get(&src.local) {
                             alloc.insert(dst.local, a);

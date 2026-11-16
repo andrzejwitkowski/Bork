@@ -226,9 +226,6 @@ programs/build/vec/with_capacity.bork: hits=279 hash=05fe25321ed2102c
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
-programs/build_fail/move_in_branch.bork: hits=39 hash=d72d33ae9c211697
-programs/build_fail/move_into_field.bork: hits=26 hash=1890fb700dd7cd64
-programs/build_fail/move_not_next_statement.bork: hits=35 hash=46bdca1e85fedd9c
 programs/build_fail/nullable_object_equality.bork: hits=4 hash=b4e5cc943fc50229
 programs/build_fail/nullable_unit_equality.bork: hits=4 hash=b6fd62a419e6d6bf
 programs/build_fail/object_equality.bork: hits=4 hash=ff785bb926c91dbd
@@ -419,6 +416,9 @@ programs/check_fail/methods/unknown_method.bork: hits=3 hash=4d8982181d8b6248
 programs/check_fail/methods/use_after_move_receiver.bork: hits=12 hash=66729f291193b713
 programs/check_fail/methods/wrong_arg_count.bork: hits=5 hash=367421aba358dd74
 programs/check_fail/move_and_promote/move_without_keyword.bork: hits=2 hash=b2ca9113f75d5f91
+programs/check_fail/move_in_branch.bork: hits=39 hash=76c0c06810d634a7
+programs/check_fail/move_into_field.bork: hits=26 hash=551bb8ea44b87353
+programs/check_fail/move_not_next_statement.bork: hits=35 hash=2952d8f64344b869
 programs/check_fail/option/assign_some_local_to_outer.bork: hits=32 hash=be923936f11334ce
 programs/check_fail/option/if_val_option_needs_else.bork: hits=12 hash=b649cd95496b00ce
 programs/check_fail/option/none_without_type.bork: hits=1 hash=82921468ce025a0f
