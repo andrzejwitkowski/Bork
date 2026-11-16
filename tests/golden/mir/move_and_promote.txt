@@ -914,8 +914,26 @@ fn main (parent=false, sink=false) {
   let _18: [Ref<P>; 2] [Var] inner
   let _19: [Ref<P>; 2] [Temp]
   let _20: [Ref<P>; 2] [Temp]
+  let _21: i32 [Var] i
+  let _22: bool [Temp]
+  let _23: unit [Hidden(DebugScope)]
+  let _24: unit [Hidden(DebugScope)]
+  let _25: i32 [Temp]
+  let _26: i32 [Temp]
+  let _27: i32 [Temp]
+  let _28: bool [Temp]
+  let _29: bool [Temp]
+  let _30: Ref<P> [Temp]
+  let _31: Ref<P> [Val] r
+  let _32: Ref<P> [Temp]
+  let _33: unit [Temp]
+  let _34: &P [Val]
+  let _35: bool [Temp]
+  let _36: unit [Hidden(DebugScope)]
   region r0 Block
   region r1 Block in r0
+  region r2 While in r0
+  region r3 PresenceSome in r0
   bb0:
     storage_live _1
     region_enter r0
@@ -958,8 +976,83 @@ fn main (parent=false, sink=false) {
     _9 = copy _20
     storage_dead _10
     region_exit r1
+    _21 = 0  // label "i": i32 decl
+    storage_live _23
+    goto bb1
+  bb1:
+    _22 = lt(copy _21, 300)
+    switch copy _22 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _24
+    _25 = call churn(copy _21) +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _23
+    _27 = len(_9)
+    _28 = ge(1, 0)
+    switch copy _28 [ 1 -> bb7, else -> bb6]
+  bb5:
+    _26 = add(copy _21, 1)
+    _21 = copy _26
+    storage_dead _24
+    goto bb3
+  bb6:
+    abort Bounds
+  bb7:
+    _29 = lt(1, copy _27)
+    switch copy _29 [ 1 -> bb8, else -> bb6]
+  bb8:
+    _30 = ref_clone copy _9[1]
+    _31 = move _30  // label "r": Ref<P> decl
+    register_drop current _31 RefSlot
+    _32 = ref_clone copy _31
+    (_33, _34, _35) = observe copy _32
+    ref_drop move _32
+    switch copy _35 [ 1 -> bb10, else -> bb11]
+  bb9:
     _0 = 0
     storage_dead _1
+    region_exit r0
+    return
+  bb10:
+    goto bb9
+  bb11:
+    region_enter r3
+    storage_live _36
+    observation_register current _33
+    _0 = copy _34.0
+    storage_dead _36
+    storage_dead _1
+    region_exit r3
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: P [Temp]
+  let _4: P [Val] p
+  let _5: i32 [Temp]
+  let _6: P [Temp]
+  let _7: P [Val] q
+  let _8: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = alloc Object { class: "P" } in current  // label "P": P
+    _3.0 = copy _1  // label "P.n": i32 decl owner=current
+    _4 = copy _3  // label "p": P decl
+    _5 = add(copy _1, 1)
+    _6 = alloc Object { class: "P" } in current  // label "P": P
+    _6.0 = copy _5  // label "P.n": i32 decl owner=current
+    _7 = copy _6  // label "q": P decl
+    _8 = add(copy _4.0, copy _7.0)
+    _0 = copy _8
+    storage_dead _2
     region_exit r0
     return
 }

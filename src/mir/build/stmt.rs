@@ -48,10 +48,12 @@ impl<'a> FnBuilder<'a> {
                         (ArenaRef::Home(home), self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?)
                     }
                 };
-                let key = self.sink_key(&sink);
+                let key = self.moves_handle(*ty).then(|| self.sink_key(&sink));
                 let local_kind = if matches!(kind, BindingKind::Val) { LocalKind::Val } else { LocalKind::Var };
                 let local = self.new_local(*ty, local_kind, Some(name.clone()));
-                self.decl_sinks.insert(local, key);
+                if let Some(key) = key {
+                    self.decl_sinks.insert(local, key);
+                }
                 let label = DebugLabel {
                     name: name.clone(),
                     ty: *ty,

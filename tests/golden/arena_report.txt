@@ -2043,10 +2043,20 @@ Arenas
         └── held [Moved ← Block]
 == programs/build/move_and_promote/ref_array_out_of_block.bork
 Arenas
+├── fun churn
+│   ├── k [Local]
+│   ├── p [Local]
+│   └── q [Local]
 └── fun main
     ├── outer [Local]
-    └── Block
-        └── inner [Moved ← Block]
+    ├── i [Local]
+    ├── r [Local]
+    ├── Block
+    │   └── inner [Moved ← Block]
+    ├── WhileLoop
+    │   └── i [Copy]
+    └── IfValSome
+        └── p [Borrow ← presence guard]
 == programs/build/move_and_promote/regional_move.bork
 Arenas
 └── fun main

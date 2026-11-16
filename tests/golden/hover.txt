@@ -144,7 +144,7 @@ programs/build/move_and_promote/object_out_of_block.bork: hits=43 hash=39ef2d210
 programs/build/move_and_promote/object_through_call.bork: hits=33 hash=f7e10b96b425c99c
 programs/build/move_and_promote/print_ints.bork: hits=25 hash=eb467e642ced558c
 programs/build/move_and_promote/promote_outer.bork: hits=26 hash=4fbb8050bbb13b96
-programs/build/move_and_promote/ref_array_out_of_block.bork: hits=10 hash=12a0d9e5e637db70
+programs/build/move_and_promote/ref_array_out_of_block.bork: hits=29 hash=b8faa335b2111b93
 programs/build/move_and_promote/regional_move.bork: hits=11 hash=cbc0ee523f69c055
 programs/build/move_and_promote/return_move_in_branches.bork: hits=41 hash=43d7316d014ac993
 programs/build/move_and_promote/string_shared_nested.bork: hits=10 hash=e545363eb2141308

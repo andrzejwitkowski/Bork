@@ -49,8 +49,9 @@ impl<'a> FnBuilder<'a> {
         let dest = self.sink_key(&self.sink);
         let ok = match self.decl_sinks.get(&place.local) {
             Some(decl) => *decl == dest,
-            // A parameter lives in the caller's arena, which outlives this call and every region in it.
-            None => !matches!(&dest, SinkKey::Other(ArenaRef::Home(h)) if self.locals[h.0 as usize].kind == LocalKind::Arg),
+            // A parameter lives in the caller's arena, which outlives this call and every region in it. Any other
+            // local without a recorded declaration (a temporary, a binding) has no known arena: reject it.
+            None => self.locals[place.local.0 as usize].kind == LocalKind::Arg && !matches!(&dest, SinkKey::Other(ArenaRef::Home(h)) if self.locals[h.0 as usize].kind == LocalKind::Arg),
         };
         if !ok {
             return Err(BuildError::unsupported(Capability::MoveEscapesArena, span));

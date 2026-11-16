@@ -359,6 +359,7 @@ programs/build/move_and_promote/object_through_call.bork::take(a: A) -> A
 programs/build/move_and_promote/object_through_call.bork::main() -> i32
 programs/build/move_and_promote/print_ints.bork::main() -> unit
 programs/build/move_and_promote/promote_outer.bork::main() -> unit
+programs/build/move_and_promote/ref_array_out_of_block.bork::churn(k: i32) -> i32
 programs/build/move_and_promote/ref_array_out_of_block.bork::main() -> i32
 programs/build/move_and_promote/regional_move.bork::main() -> unit
 programs/build/move_and_promote/return_move_in_branches.bork::churn(k: i32) -> i32

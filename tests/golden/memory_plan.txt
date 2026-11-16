@@ -557,10 +557,12 @@ programs/build/move_and_promote/object_through_call.bork: 212..213 P Lexical Lex
 programs/build/move_and_promote/object_through_call.bork: 229..230 P Lexical LexicalScope(0)
 programs/build/move_and_promote/object_through_call.bork: 436..437 A Dynamic Program
 programs/build/move_and_promote/object_through_call.bork: 438..439 P Lexical LexicalScope(4)
-programs/build/move_and_promote/ref_array_out_of_block.bork: 146..147 P Dynamic Program
-programs/build/move_and_promote/ref_array_out_of_block.bork: 152..153 P Dynamic Program
-programs/build/move_and_promote/ref_array_out_of_block.bork: 198..199 P Dynamic Program
-programs/build/move_and_promote/ref_array_out_of_block.bork: 204..205 P Dynamic Program
+programs/build/move_and_promote/ref_array_out_of_block.bork: 189..190 P Lexical LexicalScope(0)
+programs/build/move_and_promote/ref_array_out_of_block.bork: 206..207 P Lexical LexicalScope(0)
+programs/build/move_and_promote/ref_array_out_of_block.bork: 286..287 P Dynamic Program
+programs/build/move_and_promote/ref_array_out_of_block.bork: 292..293 P Dynamic Program
+programs/build/move_and_promote/ref_array_out_of_block.bork: 338..339 P Dynamic Program
+programs/build/move_and_promote/ref_array_out_of_block.bork: 344..345 P Dynamic Program
 programs/build/move_and_promote/return_move_in_branches.bork: 188..189 P Lexical LexicalScope(0)
 programs/build/move_and_promote/return_move_in_branches.bork: 205..206 P Lexical LexicalScope(0)
 programs/build/move_and_promote/return_move_in_branches.bork: 389..390 A Lexical LexicalScope(3)
