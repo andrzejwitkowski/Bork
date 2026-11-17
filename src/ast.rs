@@ -614,6 +614,24 @@ impl Expr {
         Expr::Call { callee: Box::new(callee), type_args, args, trailing }
     }
 
+    /// `expr?` on a `Result` (#274): `when expr { Ok(v) => { v } Err(e) => { return Result.Err(e) } }`.
+    /// The binders `?v` / `?e` cannot be written in source, so they capture nothing.
+    pub fn try_op(expr: Expr, span: crate::span::Span) -> Expr {
+        use crate::span::{AstId, SpannedName};
+        let name = |n: &str| SpannedName { name: n.to_string(), span, id: AstId::DUMMY };
+        let ident = |n: &str| Expr::Ident { name: n.to_string(), span, id: AstId::DUMMY };
+        let block = |stmt: Stmt| Block::from_spanned(span, vec![(stmt, span)]);
+        let ok = Pattern::unqualified_variant(name("Ok"), vec![Pattern::Binding(name("?v"))], span);
+        let err = Pattern::unqualified_variant(name("Err"), vec![Pattern::Binding(name("?e"))], span);
+        let err_variant = Expr::Field { receiver: Box::new(ident("Result")), name: "Err".to_string(), safe: false, span, id: AstId::DUMMY };
+        let rethrow = Expr::call(err_variant, Vec::new(), vec![ident("?e")], None, span);
+        let arms = vec![
+            MatchArm { pat: ok, body: block(Stmt::Expr(ident("?v"))) },
+            MatchArm { pat: err, body: block(Stmt::Return(Some(rethrow))) },
+        ];
+        Expr::Match { scrutinee: Box::new(expr), arms, span }
+    }
+
     /// `when value { arms }`. The `Some(name)` + `None` pair parses as `if val`; typeck turns it back
     /// into a plain `when` unless the value is a `Ref`, which keeps its regions and codegen.
     pub fn when(value: Expr, value_span: crate::span::Span, mut arms: Vec<MatchArm>, span: crate::span::Span) -> Expr {

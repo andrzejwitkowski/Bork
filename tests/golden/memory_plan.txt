@@ -791,6 +791,11 @@ programs/build/option/return_option_wrapped_object.bork: 321..322 N Lexical Lexi
 programs/build/option/return_option_wrapped_object.bork: 340..343 Box Lexical LexicalScope(1)
 programs/build/option/return_option_wrapped_object.bork: 344..358 Option<N> Lexical LexicalScope(1)
 programs/build/option/return_option_wrapped_object.bork: 349..350 N Lexical LexicalScope(1)
+programs/build/option/try_result.bork: 96..106 Result<i32,i32> Lexical LexicalScope(1)
+programs/build/option/try_result.bork: 123..132 Result<i32,i32> Lexical LexicalScope(0)
+programs/build/option/try_result.bork: 188..197 Result<i32,i32> Lexical LexicalScope(4)
+programs/build/option/try_result.bork: 210..223 Result<i32,i32> Lexical LexicalScope(6)
+programs/build/option/try_result.bork: 235..244 Result<i32,i32> Lexical LexicalScope(2)
 programs/build/option/user_option_wins.bork: 236..247 Option Lexical LexicalScope(0)
 programs/build/option/when_some_first.bork: 581..591 Option<String> Dynamic Program
 programs/build/option/when_some_first.bork: 613..617 Option<String> Dynamic Program

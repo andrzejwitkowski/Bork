@@ -478,6 +478,10 @@ programs/build/option/return_option_some_with_ref.bork::main() -> i32
 programs/build/option/return_option_wrapped_object.bork::make() -> Box
 programs/build/option/return_option_wrapped_object.bork::churn(k: i32) -> i32
 programs/build/option/return_option_wrapped_object.bork::main() -> i32
+programs/build/option/try_result.bork::parse(n: i32) -> Result<i32, i32>
+programs/build/option/try_result.bork::twice(n: i32) -> Result<i32, i32>
+programs/build/option/try_result.bork::show(r: Result<i32, i32>) -> unit
+programs/build/option/try_result.bork::main() -> i32
 programs/build/option/user_function_named_some.bork::Some(x: i32) -> i32
 programs/build/option/user_function_named_some.bork::main() -> i32
 programs/build/option/user_names_shadow_none.bork::f(None: i32) -> i32

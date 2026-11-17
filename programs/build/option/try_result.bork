@@ -1,0 +1,23 @@
+// exit: 0
+// stdout: 7\n-1\n-2\n
+fun parse(n: i32): Result<i32, i32> {
+    if (n < 0) { return Result.Err(n) }
+    return Result.Ok(n)
+}
+fun twice(n: i32): Result<i32, i32> {
+    val a = parse(n)?
+    val b = parse(a - 3)?
+    return Result.Ok(a + b)
+}
+fun show(r: Result<i32, i32>) {
+    when r {
+        Ok(v) => { println(v) }
+        Err(e) => { println(e) }
+    }
+}
+fun main(): i32 {
+    show(twice(5))
+    show(twice(0 - 1))
+    show(twice(1))
+    return 0
+}

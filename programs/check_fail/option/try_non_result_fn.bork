@@ -1,0 +1,7 @@
+// diag: return value has type Result
+fun parse(n: i32): Result<i32, i32> { return Result.Ok(n) }
+fun f(): i32 {
+    val a = parse(1)?
+    return a
+}
+fun main(): i32 { return f() }

@@ -2668,6 +2668,31 @@ Arenas
     ├── MatchArm
     │   └── v [Borrow ← pattern binding]
     └── MatchArm
+== programs/build/option/try_result.bork
+Arenas
+├── fun parse
+│   ├── n [Local]
+│   └── IfThen
+│       └── n [Copy]
+├── fun twice
+│   ├── n [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   ├── MatchArm
+│   │   └── ?e [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   └── MatchArm
+│       └── ?e [Local]
+├── fun show
+│   ├── r [Local]
+│   ├── MatchArm
+│   │   └── v [Local]
+│   └── MatchArm
+│       └── e [Local]
+└── fun main
 == programs/build/option/user_function_named_some.bork
 Arenas
 ├── fun Some
@@ -5296,6 +5321,31 @@ Type Error [133..134] initializer for `o` has type i32, expected i32?
 Arenas
 └── fun main
     └── o [Local]
+== programs/check_fail/option/try_error_type_mismatch.bork
+Type Error [180..189] field `error` of variant `Result.Err` has type i32, expected String
+Arenas
+├── fun parse
+│   └── n [Local]
+├── fun f
+│   ├── a [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   └── MatchArm
+│       └── ?e [Local]
+└── fun main
+== programs/check_fail/option/try_non_result_fn.bork
+Type Error [125..134] cannot infer type parameter `T` of `Result`; annotate the binding with its type to fix it
+Type Error [125..134] return value has type Result<?1, ?2>, expected i32
+Arenas
+├── fun parse
+│   └── n [Local]
+├── fun f
+│   ├── a [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   └── MatchArm
+│       └── ?e [Local]
+└── fun main
 == programs/check_fail/traits/arity_mismatch.bork
 Type Error [130..136] method `scaled` has 0 parameters but trait `Shape` declares 1
 Arenas

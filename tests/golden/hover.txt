@@ -178,6 +178,7 @@ programs/build/option/return_option_some_param.bork: hits=57 hash=1c25246d1136f0
 programs/build/option/return_option_some_two_paths.bork: hits=73 hash=0074eeb4f623b1f9
 programs/build/option/return_option_some_with_ref.bork: hits=55 hash=2e40b535c4a8001b
 programs/build/option/return_option_wrapped_object.bork: hits=31 hash=ac9105fd4c4ff341
+programs/build/option/try_result.bork: hits=33 hash=0c7fb50e32a56d69
 programs/build/option/user_function_named_some.bork: hits=12 hash=b05f3340f19e1457
 programs/build/option/user_names_shadow_none.bork: hits=24 hash=a3a838e354b8d1a1
 programs/build/option/user_option_wins.bork: hits=16 hash=76dafa6f555185aa
@@ -433,6 +434,8 @@ programs/check_fail/option/option_to_ref.bork: hits=10 hash=6cb29c36e0253a51
 programs/check_fail/option/ref_to_option.bork: hits=5 hash=937b38eeb6b22764
 programs/check_fail/option/return_some_loop_local.bork: hits=58 hash=a172b475e3566b6d
 programs/check_fail/option/t_to_option.bork: hits=1 hash=38267fa358db6232
+programs/check_fail/option/try_error_type_mismatch.bork: hits=4 hash=73a84965b9d29fc3
+programs/check_fail/option/try_non_result_fn.bork: hits=4 hash=b8cbb608f6c97a81
 programs/check_fail/traits/arity_mismatch.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/assoc_ambiguous.bork: hits=5 hash=08162d56618047d7
 programs/check_fail/traits/assoc_cycle.bork: hits=4 hash=6c68d83dd8280fa9

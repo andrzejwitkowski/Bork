@@ -1028,3 +1028,10 @@ fn parses_the_editable_borrow_in_types_and_expressions_and_prints_it_back() {
 fn rw_is_a_reserved_word() {
     assert!(parse("fun main() {\n    val rw = 1\n}").is_err());
 }
+
+#[test]
+fn postfix_question_desugars_to_a_match_on_result() {
+    let program = bork::parse("fun f(): Result<i32, i32> {\n    val a = g()?\n    return Result.Ok(a)\n}\n").expect("parses");
+    let dump = format!("{:?}", program.functions[0].body);
+    assert!(dump.contains("Match") && dump.contains("?e"), "{dump}");
+}
