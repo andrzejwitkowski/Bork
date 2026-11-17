@@ -246,6 +246,7 @@ programs/build_fail/text/return_through_local.bork: hits=19 hash=4627695b67f9c94
 programs/build_fail/unit_field.bork: hits=1 hash=33a9e498806fea19
 programs/build_fail/unit_param.bork: hits=1 hash=9b6538f32aac8e2f
 programs/build_fail/unit_vec_element.bork: hits=5 hash=49a1fe16b41d477d
+programs/build_fail/user_eq_without_eq_method.bork: hits=4 hash=61de472bcc54131d
 programs/check/borrow/array_slice_length.bork: hits=4 hash=0ee8f1f1d1457067
 programs/check/borrow/reborrow_in_for.bork: hits=7 hash=f81d7f8fe3b05b7a
 programs/check/borrow/reborrow_in_if.bork: hits=14 hash=7c1318531e4538d6

@@ -47,9 +47,13 @@ fn trait_operator(
     expr_span: Span,
     env: &mut Env<'_>,
 ) -> Result<Checked, (Checked, Checked)> {
-    let (trait_name, method) = match op {
-        BinOp::Eq | BinOp::Ne => ("Eq", "eq"),
-        BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => ("Ord", "cmp"),
+    let (trait_name, method, symbol) = match op {
+        BinOp::Eq => ("Eq", "eq", "=="),
+        BinOp::Ne => ("Eq", "eq", "!="),
+        BinOp::Lt => ("Ord", "cmp", "<"),
+        BinOp::Le => ("Ord", "cmp", "<="),
+        BinOp::Gt => ("Ord", "cmp", ">"),
+        BinOp::Ge => ("Ord", "cmp", ">="),
         _ => return Err((lhs, rhs)),
     };
     // `a == b` on `&T` operands compares the targets.
@@ -59,7 +63,7 @@ fn trait_operator(
     if !(object || env.is_param(self_ty)) || !env.same(lhs.ty, rhs.ty) {
         return Err((lhs, rhs));
     }
-    let Some(trait_id) = env.traits.keys().copied().find(|&id| env.defs.get(id).name == trait_name) else {
+    let Some(trait_id) = env.traits.keys().copied().find(|&id| env.defs.get(id).name == trait_name && env.traits[&id].methods.iter().any(|m| m.name == method)) else {
         return Err((lhs, rhs));
     };
     let span = span.unwrap_or(expr_span);
@@ -68,7 +72,7 @@ fn trait_operator(
         return Ok(env.expr_at(HirExprKind::None, unknown, expr_span));
     };
     let required = Predicate { self_ty, trait_ref: TraitRef { trait_id, args: Vec::new() } };
-    solve::require(env, required, span, &format!("operator `{}`", op_symbol(op)));
+    solve::require(env, required, span, &format!("operator `{symbol}`"));
     let by_ref = |side: Checked, env: &mut Env<'_>| if env.tcx.is_ref(side.ty) { side.hir } else { borrow(side, env).hir };
     let args = vec![by_ref(lhs, env), by_ref(rhs, env)];
     let callee_ty = env.tcx.func(params, ret);
@@ -83,17 +87,6 @@ fn trait_operator(
     };
     let bool_ty = env.tcx.bool();
     Ok(env.expr_at(kind, bool_ty, expr_span))
-}
-
-fn op_symbol(op: &BinOp) -> &'static str {
-    match op {
-        BinOp::Eq => "==",
-        BinOp::Ne => "!=",
-        BinOp::Lt => "<",
-        BinOp::Le => "<=",
-        BinOp::Gt => ">",
-        _ => ">=",
-    }
 }
 
 /// Checks both operands, letting each one's type guide the other where a literal could not

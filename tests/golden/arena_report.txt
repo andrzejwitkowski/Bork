@@ -3672,6 +3672,12 @@ Arenas
 Arenas
 └── fun main
     └── v [Local]
+== programs/build_fail/user_eq_without_eq_method.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── IfThen
 == programs/check/borrow/array_slice_length.bork
 Arenas
 └── fun main
