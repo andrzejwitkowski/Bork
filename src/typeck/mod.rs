@@ -158,7 +158,8 @@ fn check_bodies(
         .filter(|function| !crate::builtins::is_intrinsic(&function.name))
         .map(|function| check_function(checker, function, None))
         .collect();
-    for class in &program.classes {
+    // An intrinsic class has no bodies to check: the compiler supplies its methods.
+    for class in program.classes.iter().filter(|c| !c.intrinsic) {
         let owner = defs.lookup_class(&class.name).expect("every class is registered");
         for method in &class.methods {
             functions.push(check_function(checker, method, Some(Owner::Class(owner))));
