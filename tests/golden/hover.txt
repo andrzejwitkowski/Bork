@@ -407,6 +407,7 @@ programs/check_fail/inference/literal_vs_return_type.bork: hits=7 hash=26c492d6c
 programs/check_fail/inference/none_without_annotation.bork: hits=1 hash=cd4e4748d3484768
 programs/check_fail/inference/u8_then_f32.bork: hits=7 hash=333e2743dbfa43c0
 programs/check_fail/loops/break_outside_loop.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/loops/for_inherent_next.bork: hits=5 hash=a783593e153ecda5
 programs/check_fail/loops/for_not_iterator.bork: hits=3 hash=8f45a4e83c20390c
 programs/check_fail/managed_refs/chained_borrow_escape.bork: hits=22 hash=a17d01e0beb7aab8
 programs/check_fail/managed_refs/chained_duplicate.bork: hits=5 hash=1ac80569ae9b81ae

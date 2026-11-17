@@ -146,11 +146,29 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
+    if name == "?it" {
+        require_iterator(declared_ty, name_span, env);
+    }
     HirStmt::VarDecl {
         kind,
         name: name.to_string(),
         ty: declared_ty,
         value: value.hir,
+    }
+}
+
+/// `for` over a non-range desugars to `var ?it = iter` (`Expr::for_in`): the iterable must
+/// implement `Iterator`, else an inherent `next()` would pass for one.
+fn require_iterator(ty: TyId, span: crate::span::Span, env: &mut Env<'_>) {
+    if env.tcx.is_unknown(ty) {
+        return;
+    }
+    match env.defs.lookup_trait("Iterator") {
+        Some(trait_id) => {
+            let predicate = crate::ty::Predicate { self_ty: ty, trait_ref: crate::ty::TraitRef { trait_id, args: Vec::new() } };
+            super::solve::require(env, predicate, span, "for-loop iterator");
+        }
+        None => env.error("for-loop iterator must be a range or implement `Iterator`", Some(span)),
     }
 }
 

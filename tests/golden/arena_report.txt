@@ -5098,9 +5098,22 @@ Arenas
 Type Error [37..42] `break` outside of a loop
 Arenas
 └── fun main
+== programs/check_fail/loops/for_inherent_next.bork
+Type Error [124..134] for-loop iterator must be a range or implement `Iterator`
+Arenas
+├── fun main (compacted 1 brace)
+│   ├── ?it [Local]
+│   └── WhileLoop
+│       ├── ?it [Borrow ← fun main]
+│       ├── MatchArm
+│       │   └── x [Local]
+│       └── MatchArm
+└── fun Counter.next
+    └── this [Borrow ← call site]
 == programs/check_fail/loops/for_not_iterator.bork
 Ownership Error [86..87] `?it` is not Copy; move it into `WhileLoop` with `move`
 Type Error [86..87] class `Box` has no method `next`
+Type Error [86..87] for-loop iterator must be a range or implement `Iterator`
 Arenas
 └── fun main
     ├── b [Local]

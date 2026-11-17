@@ -1199,17 +1199,18 @@ fn main (parent=false, sink=false) {
   let _6: unit [Hidden(DebugScope)]
   let _7: Counter [Var] ?it
   let _8: unit [Hidden(DebugScope)]
-  let _9: unit [Hidden(DebugScope)]
-  let _10: &Counter [Temp]
-  let _11: i32? [Temp]
-  let _12: i32 [Val] x
-  let _13: unit [Hidden(DebugScope)]
-  let _14: bool [Temp]
-  let _15: unit [Hidden(DebugScope)]
-  let _16: bool [Temp]
-  let _17: unit [Hidden(DebugScope)]
-  let _18: i32 [Temp]
-  let _19: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(RegionArena)]
+  let _10: unit [Hidden(DebugScope)]
+  let _11: &Counter [Temp]
+  let _12: i32? [Temp]
+  let _13: i32 [Val] x
+  let _14: unit [Hidden(DebugScope)]
+  let _15: bool [Temp]
+  let _16: unit [Hidden(DebugScope)]
+  let _17: bool [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: i32 [Temp]
+  let _20: unit [Hidden(DebugScope)]
   region r0 Block
   region r1 Block in r0
   region r2 While in r1
@@ -1227,61 +1228,66 @@ fn main (parent=false, sink=false) {
     _3.1 = 5  // label "Counter.max": i32 decl owner=fresh2
     _4 = copy _3  // label "c": Counter decl
     _5 = 0  // label "sum": i32 decl
+    region_enter r1
     storage_live _6
     _7 = move _4  // label "?it": Counter decl
+    region_enter r2
     storage_live _8
     goto bb1
   bb1:
     switch true [ 1 -> bb2, else -> bb4]
   bb2:
-    storage_live _9
-    _10 = borrow _7
-    _11 = call Iterator@0.next(copy _10) +current +current -> bb5
+    storage_live _10
+    _11 = borrow _7
+    _12 = call Iterator@0.next(copy _11) +current +current -> bb5
   bb3:
+    _9 = region_reset r2
     goto bb1
   bb4:
     storage_dead _8
+    region_exit r2
     storage_dead _6
+    region_exit r1
     _0 = copy _5
     storage_dead _1
     region_exit r0
     return
   bb5:
-    match _11 {
-      Option#0(bind) _12=_11@0.0 -> bb7
+    match _12 {
+      Option#0(bind) _13=_12@0.0 -> bb7
       Option#1() -> bb8
     }
   bb6:
-    storage_dead _9
+    storage_dead _10
     goto bb3
   bb7:
-    storage_live _13
-    _14 = eq(copy _12, 2)
-    switch copy _14 [ 1 -> bb9, else -> bb10]
+    storage_live _14
+    _15 = eq(copy _13, 2)
+    switch copy _15 [ 1 -> bb9, else -> bb10]
   bb8:
-    storage_live _19
-    storage_dead _19
-    storage_dead _9
+    storage_live _20
+    storage_dead _20
+    storage_dead _10
     goto bb4
   bb9:
-    storage_live _15
-    storage_dead _15
-    storage_dead _13
-    storage_dead _9
+    storage_live _16
+    storage_dead _16
+    storage_dead _14
+    storage_dead _10
     goto bb3
   bb10:
-    _16 = eq(copy _12, 5)
-    switch copy _16 [ 1 -> bb11, else -> bb12]
+    _17 = eq(copy _13, 5)
+    switch copy _17 [ 1 -> bb11, else -> bb12]
   bb11:
-    storage_live _17
-    storage_dead _17
-    storage_dead _13
-    storage_dead _9
+    storage_live _18
+    storage_dead _18
+    storage_dead _14
+    storage_dead _10
     goto bb4
   bb12:
-    _18 = add(copy _5, copy _12)
-    _5 = copy _18
-    storage_dead _13
+    _19 = add(copy _5, copy _13)
+    _5 = copy _19
+    storage_dead _14
     goto bb6
 }
 
