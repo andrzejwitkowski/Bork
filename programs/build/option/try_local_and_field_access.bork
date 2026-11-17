@@ -1,9 +1,9 @@
 // exit: 0
-// stdout: 3\n3\n3\n
+// stdout: 3\n4\n3\n
 class Box { v: String }
 fun parse(n: i32): Result<Box, String> {
     if (n < 0) { return Result.Err("neg") }
-    return Result.Ok(Box("ok!"))
+    return Result.Ok(Box("okay"))
 }
 fun name(n: i32): Result<String, String> {
     val r = parse(n)
