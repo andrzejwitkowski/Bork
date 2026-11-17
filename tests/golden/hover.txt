@@ -178,7 +178,7 @@ programs/build/option/return_option_some_param.bork: hits=57 hash=1c25246d1136f0
 programs/build/option/return_option_some_two_paths.bork: hits=73 hash=0074eeb4f623b1f9
 programs/build/option/return_option_some_with_ref.bork: hits=55 hash=2e40b535c4a8001b
 programs/build/option/return_option_wrapped_object.bork: hits=31 hash=ac9105fd4c4ff341
-programs/build/option/try_local_and_field_access.bork: hits=82 hash=f1370f5eba208cd5
+programs/build/option/try_local_and_field_access.bork: hits=82 hash=899b48aac9b3c687
 programs/build/option/try_result.bork: hits=33 hash=0c7fb50e32a56d69
 programs/build/option/user_function_named_some.bork: hits=12 hash=b05f3340f19e1457
 programs/build/option/user_names_shadow_none.bork: hits=24 hash=a3a838e354b8d1a1

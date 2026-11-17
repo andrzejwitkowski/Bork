@@ -4592,7 +4592,7 @@ fn parse (parent=true, sink=true) {
     return
   bb2:
     _8 = alloc Object { class: "Box" } in result_sink  // label "Box": Box
-    _9 = "ok!"
+    _9 = "okay"
     _10 = copy_into _9 in result_sink
     _8.0 = copy _10  // label "Box.v": String decl owner=result_sink
     _11 = alloc EnumSlot { enum_name: "Result<Box,String>", variant: 0 } in result_sink  // label "Result<Box,String>": Result<Box, String>
