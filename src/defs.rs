@@ -77,6 +77,8 @@ pub struct DefTable {
     enums: HashMap<String, DefId>,
     /// The enum that is `T?`: named `Option`, one parameter, `Some(value)` and a payload-free `None`.
     option: Option<DefId>,
+    /// The `intrinsic class Vec<T>` of the prelude: the type `Vec<T>` is an instance of it.
+    vec: Option<DefId>,
     variants: HashMap<(DefId, String), DefId>,
     fns: HashMap<String, DefId>,
     consts: HashMap<String, DefId>,
@@ -157,6 +159,9 @@ impl DefTable {
                 clashes.push(Clash::ClassDuplicate);
             } else {
                 self.classes.insert(class.name.clone(), id);
+                if class.intrinsic && class.name == "Vec" {
+                    self.vec = Some(id);
+                }
             }
             if fn_names.contains(&class.name) {
                 clashes.push(Clash::ClassFn);
@@ -297,6 +302,10 @@ impl DefTable {
     /// The enum `T?` stands for. A program that defines its own `Option` of another shape has none.
     pub fn lookup_option(&self) -> Option<DefId> {
         self.option
+    }
+
+    pub fn lookup_vec(&self) -> Option<DefId> {
+        self.vec
     }
 
     pub fn lookup_enum(&self, name: &str) -> Option<DefId> {

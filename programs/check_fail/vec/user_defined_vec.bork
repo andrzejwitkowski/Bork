@@ -1,0 +1,7 @@
+// diag: `Vec` takes no type arguments
+class Vec {
+    x: i32
+}
+fun main() {
+    var v = Vec::<i32>()
+}

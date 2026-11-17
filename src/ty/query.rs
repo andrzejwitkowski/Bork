@@ -30,10 +30,7 @@ impl TyCtx {
     /// Whether `payload` could have been written `payload?`. An `Option<Ref<T>>` is only an enum:
     /// the kind queries do not look through it.
     fn supports_nullable_payload(&self, payload: TyId) -> bool {
-        !matches!(
-            self.data(payload),
-            TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
-        )
+        !self.is_vec(payload) && !matches!(self.data(payload), TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
     }
 
     /// a type that cannot be nullable (`Error`) is unchanged.
@@ -47,10 +44,8 @@ impl TyCtx {
     }
 
     pub fn supports_nullable(&self, id: TyId) -> bool {
-        !matches!(
-            self.data(self.base(id)),
-            TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Vec(_) | TyData::Error
-        )
+        let base = self.base(id);
+        !self.is_vec(base) && !matches!(self.data(base), TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
     }
 
     /// Whether `id` mentions an opaque type parameter anywhere (`Ref<T>`, `Vec<T>`, `T?`, ...).
@@ -126,7 +121,8 @@ impl TyCtx {
     /// as the class definition: an object or a borrow of one.
     pub fn record_def(&self, id: TyId) -> Option<DefId> {
         match self.data(self.base(id)) {
-            TyData::Class(def, _) => Some(*def),
+            // `Vec<T>` is a class only in name: it has no fields and is not an object.
+            TyData::Class(def, _) if Some(*def) != self.vec_def => Some(*def),
             TyData::Ref(inner, _) => self.record_def(*inner),
             _ => None,
         }
@@ -161,9 +157,13 @@ impl TyCtx {
         self.record_def(id).map(|def| self.class_name(def))
     }
 
+    pub fn vec_def(&self) -> Option<DefId> {
+        self.vec_def
+    }
+
     pub fn class_def(&self, id: TyId) -> Option<DefId> {
         match self.data(id) {
-            TyData::Class(def, _) => Some(*def),
+            TyData::Class(def, _) if Some(*def) != self.vec_def => Some(*def),
             _ => None,
         }
     }
@@ -192,14 +192,14 @@ impl TyCtx {
     /// through borrows and `?`.
     pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
-            TyData::Vec(elem) => Some(*elem),
+            TyData::Class(def, args) if Some(*def) == self.vec_def && args.len() == 1 => Some(args[0]),
             TyData::Ref(inner, _) => self.vec_elem(*inner),
             _ => None,
         }
     }
 
     pub fn is_vec(&self, id: TyId) -> bool {
-        matches!(self.data(id), TyData::Vec(_))
+        matches!(self.data(id), TyData::Class(def, args) if Some(*def) == self.vec_def && args.len() == 1)
     }
 
     pub fn range_elem(&self, id: TyId) -> Option<TyId> {
@@ -244,7 +244,7 @@ impl TyCtx {
         }
         match self.data(self.base(id)) {
             TyData::Ref(inner, _) => self.uses_arena_storage(*inner),
-            TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } | TyData::Vec(_) => true,
+            TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } => true,
             _ => false,
         }
     }
@@ -315,8 +315,8 @@ impl TyCtx {
             TyData::ManagedRef(inner) if !self.is_unknown(*inner) && !self.managed_ref_target_ok(*inner) => {
                 Some(self.managed_ref_target_message(*inner))
             }
-            TyData::Vec(elem) if !self.is_unknown(*elem) && !self.is_array_elem_supported(*elem) => {
-                Some(self.vec_elem_message(*elem))
+            TyData::Class(def, args) if Some(*def) == self.vec_def && args.len() == 1 && !self.is_unknown(args[0]) && !self.is_array_elem_supported(args[0]) => {
+                Some(self.vec_elem_message(args[0]))
             }
             data => self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.ill_formed(child))),
         }
@@ -396,7 +396,10 @@ impl TyCtx {
     }
 
     pub fn vec_of(&mut self, elem: TyId) -> TyId {
-        self.add(TyData::Vec(elem))
+        // Without the prelude `Vec` (a program that defines its own) there is no such type; the
+        // lowering of the written type has already reported why.
+        let Some(def) = self.vec_def else { return self.error() };
+        self.add(TyData::Class(def, vec![elem]))
     }
 
     pub fn range(&mut self, elem: TyId) -> TyId {

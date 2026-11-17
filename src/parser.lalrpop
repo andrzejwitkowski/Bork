@@ -203,6 +203,9 @@ ClassDecl: Class = {
     "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
         Class::from_members(name, generics.unwrap_or_default(), members)
     },
+    "intrinsic" "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
+        Class { intrinsic: true, ..Class::from_members(name, generics.unwrap_or_default(), members) }
+    },
 };
 
 EnumDecl: Enum = {

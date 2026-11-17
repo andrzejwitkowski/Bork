@@ -847,7 +847,7 @@ fn main (parent=false, sink=false) {
     _3 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _3
     _4 = alloc Vec { cap: None } in fresh3
-    register_drop fresh3 _4 Vec(TyId(25))
+    register_drop fresh3 _4 Vec(TyId(26))
     _5 = alloc Object { class: "Node<i32>" } in fresh3  // label "Node<i32>": Node<i32>
     _5.0 = 2  // label "Node<i32>.value": i32 decl owner=fresh3
     _6 = copy_into _4 in fresh3
@@ -863,7 +863,7 @@ fn main (parent=false, sink=false) {
     _14 = ref_count_weak move _13
     _15 = copy _14  // label "w0": i32 decl
     _16 = alloc Vec { cap: None } in current
-    register_drop current _16 Vec(TyId(25))
+    register_drop current _16 Vec(TyId(26))
     _17 = alloc Object { class: "Node<i32>" } in current  // label "Node<i32>": Node<i32>
     _17.0 = 1  // label "Node<i32>.value": i32 decl owner=current
     _18 = copy_into _16 in current
@@ -888,14 +888,14 @@ fn main (parent=false, sink=false) {
     goto bb2
   bb2:
     _31 = alloc Vec { cap: None } in current
-    register_drop current _31 Vec(TyId(25))
+    register_drop current _31 Vec(TyId(26))
     _32 = copy _31  // label "held": Vec<Ref<Node<i32>>> decl
     region_enter r2
     storage_live _33
     _34 = arena_create_dynamic parent=root scoped=false
     register_strong_root current <- _34
     _35 = alloc Vec { cap: None } in fresh34
-    register_drop fresh34 _35 Vec(TyId(25))
+    register_drop fresh34 _35 Vec(TyId(26))
     _36 = alloc Object { class: "Node<i32>" } in fresh34  // label "Node<i32>": Node<i32>
     _36.0 = 3  // label "Node<i32>.value": i32 decl owner=fresh34
     _37 = copy_into _35 in fresh34
@@ -911,7 +911,7 @@ fn main (parent=false, sink=false) {
     _45 = ref_count_weak move _44
     _46 = copy _45  // label "iw0": i32 decl
     _47 = alloc Vec { cap: None } in current
-    register_drop current _47 Vec(TyId(25))
+    register_drop current _47 Vec(TyId(26))
     _48 = copy _47  // label "staging": Vec<Ref<Node<i32>>> decl
     _49 = borrow _48
     _50 = ref_clone copy _40

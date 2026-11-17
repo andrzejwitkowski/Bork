@@ -18,6 +18,8 @@ pub struct Class {
     pub generics: Vec<TypeParam>,
     pub fields: Vec<ClassField>,
     pub methods: Vec<Function>,
+    /// `intrinsic class Vec<T> {}`: a compiler-known type (prelude only).
+    pub intrinsic: bool,
 }
 
 /// `enum Shape { Circle(r: f64), Empty }`. Payload fields are named like class fields.
@@ -56,6 +58,7 @@ impl Class {
             generics,
             fields,
             methods,
+            intrinsic: false,
         }
     }
 }

@@ -883,7 +883,6 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
         TyData::ManagedRef(inner) => Type::ManagedRef {
             inner: Box::new(id_to_ast(tcx, *inner)?),
         },
-        TyData::Vec(elem) => Type::Named { name: "Vec".to_string(), args: vec![id_to_ast(tcx, *elem)?], nullable: false },
         TyData::Func { .. }
         | TyData::Range(_)
         | TyData::Param(_)

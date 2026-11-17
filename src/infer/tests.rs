@@ -2,7 +2,7 @@ use super::*;
 use crate::defs::DefTable;
 
 fn tcx() -> (TyCtx, DefTable) {
-    let program = crate::parse("class Point {\n x: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nfun main() {}\n").unwrap();
+    let program = crate::parse_unnumbered("class Point {\n x: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nintrinsic class Vec<T> {}\nfun main() {}\n").unwrap();
     let defs = DefTable::build(&program);
     (TyCtx::new(&defs), defs)
 }

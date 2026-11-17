@@ -114,7 +114,6 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
         }
         (TyData::Ref(p, rp), TyData::Ref(a, ra)) if rp == ra => bind(tcx, *p, *a, out),
         (TyData::ManagedRef(p), TyData::ManagedRef(a))
-        | (TyData::Vec(p), TyData::Vec(a))
         | (TyData::Range(p), TyData::Range(a)) => bind(tcx, *p, *a, out),
         _ => false,
     }
@@ -175,7 +174,8 @@ fn projection_leaves(tcx: &TyCtx, ty: TyId, out: &mut Vec<TyId>) {
 /// Every `Class` or `Enum` type with arguments inside `ty`, outermost first.
 fn class_instances(tcx: &TyCtx, ty: TyId, seen: &mut HashSet<TyId>, out: &mut Vec<TyId>) {
     if let TyData::Class(_, args) | TyData::Enum(_, args) = tcx.data(ty) {
-        if !args.is_empty() && seen.insert(ty) {
+        // `Vec<T>` is not an object: it has no `HirClass` and no layout of its own.
+        if !args.is_empty() && !tcx.is_vec(ty) && seen.insert(ty) {
             out.push(ty);
         }
     }

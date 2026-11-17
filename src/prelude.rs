@@ -23,13 +23,14 @@ struct Chunk {
 const OPTION: usize = 0;
 /// Chunks from here on are always added: `==` and `<` on objects resolve `Eq` / `Ord` without the
 /// program naming them. Each trait is its own chunk, so a program's own `Display` leaves `Eq` alone.
-const ALWAYS_FROM: usize = 4;
+const ALWAYS_FROM: usize = 5;
 
-const CHUNKS: [Chunk; 7] = [
+const CHUNKS: [Chunk; 8] = [
     Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
     Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
+    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec"], needs: &[], source: include_str!("prelude/vec.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
     Chunk { path: "<bork-prelude>/ord.bork", names: &["Ord"], needs: &[], source: include_str!("prelude/ord.bork") },
     Chunk { path: "<bork-prelude>/display.bork", names: &["Display"], needs: &[], source: include_str!("prelude/display.bork") },

@@ -59,7 +59,8 @@ pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::As
         .parse(input)
         .map_err(|err| err.map_token(|token| token.to_string()))?;
     let intrinsic = |f: &Function| f.intrinsic;
-    if program.functions.iter().any(intrinsic)
+    if program.classes.iter().any(|c| c.intrinsic)
+        || program.functions.iter().any(intrinsic)
         || program.classes.iter().flat_map(|c| &c.methods).any(intrinsic)
         || program.impls.iter().flat_map(|i| &i.methods).any(intrinsic)
     {

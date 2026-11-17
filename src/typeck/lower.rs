@@ -120,7 +120,8 @@ impl LowerCx<'_> {
         if let Some(&(_, idx)) = self.scope.iter().find(|(param, _)| param == name) {
             return self.lower_param(name, idx, args, nullable);
         }
-        if name == "Vec" {
+        // A program that defines its own `Vec` has no prelude one; its class is an ordinary class.
+        if name == "Vec" && self.tcx.vec_def().is_some() {
             return match args {
                 [elem] => self.lower_vec(elem),
                 _ => {

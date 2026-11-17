@@ -484,3 +484,4 @@ programs/check_fail/vec/class_element.bork: hits=5 hash=6b9808d9766039a4
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
 programs/check_fail/vec/push_on_val.bork: hits=10 hash=667092e735ec2ae8
 programs/check_fail/vec/push_through_val_field.bork: hits=10 hash=0ac596befa076723
+programs/check_fail/vec/user_defined_vec.bork: hits=1 hash=661b79fed4ce73e4

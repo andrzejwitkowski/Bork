@@ -5789,3 +5789,8 @@ Type Error [152..164] cannot mutate immutable `val` binding `h` (through a field
 Arenas
 └── fun main
     └── h [Local]
+== programs/check_fail/vec/user_defined_vec.bork
+Type Error [89..101] `Vec` takes no type arguments
+Arenas
+└── fun main
+    └── v [Local]
