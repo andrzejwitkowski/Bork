@@ -282,7 +282,7 @@ fn a_write_needs_an_editable_borrow_on_a_var() {
     assert!(m.iter().any(|d| d.contains("cannot borrow `val` `a` as `&rw`; declare it `var`")), "{m:?}");
     let m = borrow_messages(
         "fun w(p: &rw [i32; 2]) {\n    p[0] = 1\n}\nfun v(p: &Vec<i32>) {\n}\n",
-        "    var a: [i32; 2] = [1, 2]\n    w(&rw a)\n    var b = Vec<i32>()\n    v(&b)\n",
+        "    var a: [i32; 2] = [1, 2]\n    w(&rw a)\n    var b = Vec::<i32>()\n    v(&b)\n",
     );
     assert!(m.is_empty(), "{m:?}");
 }

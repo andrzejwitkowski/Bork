@@ -276,7 +276,7 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::Internal(format!("function `{}` left report regions unconsumed", function.name)));
         }
         let mut blocks = self.blocks;
-        // A `Vec`/array of `unit` is allocated in the body that writes `Vec<()>(...)` or `[(), ()]`.
+        // A `Vec`/array of `unit` is allocated in the body that writes `Vec::<()>(...)` or `[(), ()]`.
         for stmt in blocks.iter().flat_map(|b| &b.stmts) {
             if let StmtKind::Alloc { dst, kind: AllocKind::Vec { .. } | AllocKind::Array, .. } = &stmt.kind {
                 if self.locals.get(dst.local.0 as usize).is_some_and(|l| has_unit_elem(self.tcx, l.ty)) {

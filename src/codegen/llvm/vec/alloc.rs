@@ -1,4 +1,4 @@
-//! Creating a vector: the header and, for `Vec<T>(n)`, the first buffer.
+//! Creating a vector: the header and, for `Vec::<T>(n)`, the first buffer.
 
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 use inkwell::{AddressSpace, IntPredicate};
@@ -54,7 +54,7 @@ impl<'ctx> Codegen<'ctx> {
         Ok(header)
     }
 
-    /// `Vec<T>()` / `Vec<T>(cap)` in `arena`; `cap` is the `i32` value of the optional argument.
+    /// `Vec::<T>()` / `Vec::<T>(cap)` in `arena`; `cap` is the `i32` value of the optional argument.
     pub(in crate::codegen::llvm) fn vec_new(
         &self,
         llvm_fn: FunctionValue<'ctx>,

@@ -9,7 +9,7 @@ use super::super::env::{Checked, Env};
 use super::super::MemberRef;
 use super::check;
 
-/// `Vec<T>()` and `Vec<T>(capacity)`.
+/// `Vec::<T>()` and `Vec::<T>(capacity)`.
 pub(super) fn check_vec_new(
     elem: &Type,
     cap: Option<&Expr>,

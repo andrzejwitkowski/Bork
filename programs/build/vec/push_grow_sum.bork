@@ -2,7 +2,7 @@
 // Ten pushes grow the buffer twice (capacity 4 -> 8 -> 16) and the sum reads every element back
 // through v[j] and v.len(): 0 + 1 + ... + 9 = 45.
 fun main(): i32 {
-    var v = Vec<i32>()
+    var v = Vec::<i32>()
     var i = 0
     while (i < 10) {
         v.push(i)

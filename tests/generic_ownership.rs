@@ -77,7 +77,7 @@ const CASES: &[Case] = &[
     // `Vec<T>` is accepted for a parameter `T`, but not `Vec<P>` for a class `P`.
     Case {
         name: "move_into_vec",
-        body: "fun f<T>(var x: T) {\n    var v = Vec<T>()\n    v.push(move x)\n}",
+        body: "fun f<T>(var x: T) {\n    var v = Vec::<T>()\n    v.push(move x)\n}",
         accepted: true,
         skip: &["P"],
     },

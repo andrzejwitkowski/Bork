@@ -5,7 +5,7 @@
 //! arena so `push` can grow without knowing where the vector lives.
 //!
 //! - `layout`: header field access and slot addressing
-//! - `alloc`: `Vec<T>()` / `Vec<T>(n)`
+//! - `alloc`: `Vec::<T>()` / `Vec::<T>(n)`
 //! - `grow`: the resize that `push` runs before storing
 
 mod alloc;

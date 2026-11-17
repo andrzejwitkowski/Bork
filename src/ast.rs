@@ -515,7 +515,7 @@ pub enum Expr {
         hi: Box<Expr>,
         span: crate::span::Span,
     },
-    /// `Vec<T>()` or `Vec<T>(capacity)`.
+    /// `Vec::<T>()` or `Vec::<T>(capacity)`.
     VecNew {
         elem: Type,
         cap: Option<Box<Expr>>,

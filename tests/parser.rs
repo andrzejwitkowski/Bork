@@ -818,9 +818,9 @@ fn parses_global_constants_among_items() {
 }
 
 /// Keep in sync with "Reserved words" in docs/language.md.
-const RESERVED: [&str; 21] = [
+const RESERVED: [&str; 20] = [
     "break", "class", "const", "continue", "else", "false", "for", "fun", "if", "in", "move",
-    "promote", "Ref", "return", "this", "true", "val", "var", "Vec", "when", "while",
+    "promote", "Ref", "return", "this", "true", "val", "var", "when", "while",
 ];
 
 #[test]
@@ -829,16 +829,6 @@ fn reserved_words_cannot_be_binding_names() {
         let source = format!("fun main() {{ val {word}: i32 = 1 }}");
         assert!(parse(&source).is_err(), "`{word}` parsed as a binding name");
     }
-}
-
-#[test]
-fn vec_cannot_name_a_param_class_or_function() {
-    assert!(parse("fun f(Vec: i32) {}").is_err());
-    assert!(parse("class Point {\n x: i32\n}\n").is_ok());
-    assert!(parse("class Vec {\n x: i32\n}\n").is_err());
-    assert!(parse("fun Point() {}").is_ok());
-    assert!(parse("fun Vec() {}").is_err());
-    assert!(parse("fun f(Ref: i32) {}").is_err());
 }
 
 #[test]
@@ -912,7 +902,7 @@ fn angle_brackets_in_expressions_stay_comparisons() {
 
 #[test]
 fn malformed_generic_lists_are_rejected() {
-    for src in ["fun f<>() {}", "fun f<T,>() {}", "fun f<Vec>() {}", "class C<> {\n}\n", "fun f(): Box<> {}", "fun main() { f::<>(1) }"] {
+    for src in ["fun f<>() {}", "fun f<T,>() {}", "class C<> {\n}\n", "fun f(): Box<> {}", "fun main() { f::<>(1) }"] {
         assert!(parse(src).is_err(), "{src}");
     }
 }

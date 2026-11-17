@@ -10,7 +10,7 @@ fun churn(k: i32): i32 {
     return k
 }
 fun make(): Bag {
-    var v = Vec<Ref<B>>()
+    var v = Vec::<Ref<B>>()
     var i = 0
     while (i < 5) {
         val a: Ref<A> = A(i + 10)

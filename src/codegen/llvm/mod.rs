@@ -545,7 +545,7 @@ mod tests {
              fun main() {\n\
                  val s = Shape.Dot(1)\n\
                  val p = Pair(1, 2)\n\
-                 var v = Vec<i32>()\n\
+                 var v = Vec::<i32>()\n\
                  v.push(3)\n\
              }\n",
         );
@@ -562,7 +562,7 @@ mod tests {
                  val n = Node(1)\n\
                  val r: Ref<Node> = n\n\
                  val s = Slot.Held(r)\n\
-                 var v = Vec<Ref<Node>>()\n\
+                 var v = Vec::<Ref<Node>>()\n\
                  v.push(r)\n\
              }\n",
         );

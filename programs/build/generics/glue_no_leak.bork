@@ -49,7 +49,7 @@ fun main(): i32 {
     if (weakCount(r) != w0) { code = 2 }
 
     {
-        var items = Vec<Ref<Node>>()
+        var items = Vec::<Ref<Node>>()
         items.push(r)
         val outer = Outer(Holder(move items), r)
         // Check 3: something is held weakly inside the block.
@@ -59,7 +59,7 @@ fun main(): i32 {
     if (weakCount(r) != w0) { code = 4 }
 
     {
-        var items = Vec<Ref<Node>>()
+        var items = Vec::<Ref<Node>>()
         items.push(r)
         val w = Wrapped.Full(Holder(move items))
         val e = Wrapped.Empty

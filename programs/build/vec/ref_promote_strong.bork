@@ -8,7 +8,7 @@ class Node {
 }
 
 fun main(): i32 {
-    var saved = Vec<Ref<Node>>()
+    var saved = Vec::<Ref<Node>>()
     {
         val n1 = Node(1)
         val n2 = Node(2)
@@ -17,7 +17,7 @@ fun main(): i32 {
         val n5 = Node(5)
         val n6 = Node(6)
         {
-            var tmp = Vec<Ref<Node>>()
+            var tmp = Vec::<Ref<Node>>()
             tmp.push(n1)
             tmp.push(n2)
             tmp.push(n3)

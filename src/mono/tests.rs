@@ -171,7 +171,7 @@ fn an_instance_that_makes_ref_of_a_non_class_is_rejected() {
 
 #[test]
 fn an_instance_that_makes_vec_of_a_class_is_rejected() {
-    let src = "class P {\n    n: i32\n}\nfun f<T>(x: T) {\n    var v = Vec<T>()\n}\nfun main() {\n    f(P(1))\n}\n";
+    let src = "class P {\n    n: i32\n}\nfun f<T>(x: T) {\n    var v = Vec::<T>()\n}\nfun main() {\n    f(P(1))\n}\n";
     let diagnostics = rejected(src);
     assert!(diagnostics.iter().any(|d| d.message.contains("`Vec` element")), "{diagnostics:?}");
 }
@@ -185,14 +185,14 @@ fn a_class_instance_with_an_ill_formed_field_is_rejected() {
 
 #[test]
 fn well_formed_ref_and_vec_instances_are_still_accepted() {
-    let src = "class P {\n    n: i32\n}\nfun g<T>(x: T): Ref<T> {\n    return None\n}\nfun f<T>(x: T) {\n    var v = Vec<T>()\n}\nfun main() {\n    val r = g(P(1))\n    f(1)\n    f(\"s\")\n}\n";
+    let src = "class P {\n    n: i32\n}\nfun g<T>(x: T): Ref<T> {\n    return None\n}\nfun f<T>(x: T) {\n    var v = Vec::<T>()\n}\nfun main() {\n    val r = g(P(1))\n    f(1)\n    f(\"s\")\n}\n";
     let m = mono(src);
     assert!(names(&m).contains(&"g<P>") && names(&m).contains(&"f<i32>") && names(&m).contains(&"f<String>"));
 }
 
 #[test]
 fn every_ill_formed_type_of_one_instance_is_reported() {
-    let src = "class P {\n    n: i32\n}\nfun f<A, B>(a: A, b: B): Ref<A> {\n    var v = Vec<B>()\n    return None\n}\nfun main() {\n    val r = f(1, P(1))\n}\n";
+    let src = "class P {\n    n: i32\n}\nfun f<A, B>(a: A, b: B): Ref<A> {\n    var v = Vec::<B>()\n    return None\n}\nfun main() {\n    val r = f(1, P(1))\n}\n";
     let diagnostics = rejected(src);
     let in_instance = |needle: &str| diagnostics.iter().filter(|d| d.message.contains("f<i32,P>") && d.message.contains(needle)).count();
     assert_eq!((in_instance("managed Ref target"), in_instance("`Vec` element")), (1, 1), "{diagnostics:?}");

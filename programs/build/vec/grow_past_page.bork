@@ -4,7 +4,7 @@
 // sees 5000 mod 256 = 136 (5000 = 19 * 256 + 136). Any other value would mean lost or duplicated
 // elements.
 fun main(): i32 {
-    var v = Vec<i32>()
+    var v = Vec::<i32>()
     var i = 0
     while (i < 5000) {
         v.push(1)

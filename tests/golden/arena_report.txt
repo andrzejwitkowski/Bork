@@ -4991,7 +4991,7 @@ Arenas
 │   └── z [Local]
 └── fun main
 == programs/check_fail/generics/vec_of_class.bork
-Type Error [210..211] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
+Type Error [212..213] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
 Arenas
 ├── fun f
 │   ├── x [Local]
@@ -5548,7 +5548,7 @@ Arenas
 └── fun Show@0.show
     └── this [Borrow ← call site]
 == programs/check_fail/traits/assoc_impl_undetermined.bork
-Type Error [337..342] cannot normalize `Foo::Item`: a type parameter of the impl is not determined by its type
+Type Error [339..344] cannot normalize `Foo::Item`: a type parameter of the impl is not determined by its type
 Arenas
 ├── fun first
 │   └── c [Borrow ← call site]
@@ -5770,7 +5770,7 @@ Type Error [58..62] unknown trait `Nope`
 Arenas
 └── fun main
 == programs/check_fail/vec/class_element.bork
-Type Error [89..100] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
+Type Error [89..102] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
 Arenas
 └── fun main
     └── v [Local]
@@ -5780,12 +5780,12 @@ Arenas
 └── fun main
     └── n [Local]
 == programs/check_fail/vec/push_on_val.bork
-Type Error [96..102] cannot mutate immutable `val` binding `v`
+Type Error [98..104] cannot mutate immutable `val` binding `v`
 Arenas
 └── fun main
     └── v [Local]
 == programs/check_fail/vec/push_through_val_field.bork
-Type Error [150..162] cannot mutate immutable `val` binding `h` (through a field)
+Type Error [152..164] cannot mutate immutable `val` binding `h` (through a field)
 Arenas
 └── fun main
     └── h [Local]

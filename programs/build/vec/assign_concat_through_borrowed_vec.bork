@@ -10,7 +10,7 @@ fun set(v: &rw Vec<String>) {
     v[0] = concat("hello", "x")
 }
 fun main(): i32 {
-    var v = Vec<String>()
+    var v = Vec::<String>()
     v.push("z")
     set(&rw v)
     val c = clobber()

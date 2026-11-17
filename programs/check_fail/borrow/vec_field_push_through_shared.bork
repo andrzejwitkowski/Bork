@@ -6,6 +6,6 @@ fun f(h: &H) {
     h.items.push(1)
 }
 fun main() {
-    var h = H(Vec<i32>())
+    var h = H(Vec::<i32>())
     f(&h)
 }
