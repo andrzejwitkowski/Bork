@@ -46,8 +46,10 @@ One drop per `Vec<Ref<T>>`, registered on the header with `bork_arena_register_d
 
 ## Borrows
 
-Intended rule (not enforced yet, see "Not done yet"): a borrowed element (`get`, `v[i]`) blocks `push`, `pop`, `clear`, `move` and `promote` of that Vec for
-the borrow's lifetime. Index reads follow the array rules (runtime `i32`, out of range aborts).
+A borrowed element (`get`, `v[i]`) would block `push`, `pop`, `clear`, `move` and `promote` of that Vec for
+the borrow's lifetime. The rule has nothing to enforce today: `v[i]` and `get` yield an owned value (a `String`/array descriptor copy, a `Ref` clone or a scalar), `&v[i]` is rejected
+("`&` borrows a name") and `v[i]` does not coerce to `&T`, so no borrow of an element exists and a `push` that moves the buffer cannot leave one dangling.
+`programs/check_fail/vec/borrow_element_*.bork` pin this. Borrowing an element (`&v[i]`) is a separate feature with its own lock on the Vec (RFC 0004 section 3.6). Index reads follow the array rules (runtime `i32`, out of range aborts).
 
 ## Constructors
 
@@ -55,6 +57,6 @@ the borrow's lifetime. Index reads follow the array rules (runtime `i32`, out of
 
 ## Not done yet
 
-- Element borrows do not block `push` / `pop` / `clear` / `move`; index reads and methods only
+- Borrowing an element (`&v[i]`) does not exist, so there is no element-borrow lock; index reads and methods only
   borrow the receiver for the call.
 - `bork-debug` does not know the `Vec` header layout.

@@ -5769,6 +5769,28 @@ Arenas
 Type Error [58..62] unknown trait `Nope`
 Arenas
 └── fun main
+== programs/check_fail/vec/borrow_element_as_argument.bork
+Type Error [232..236] argument 1 to `grow` expects borrow `&…`, got String
+Type Error [232..236] argument 1 to `grow` has type String, expected &String
+Arenas
+├── fun grow
+│   ├── s [Borrow ← call site]
+│   └── v [Borrow ← call site]
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/borrow_element_by_ampersand.bork
+Ownership Error [203..208] `&` borrows a name
+Type Error [203..208] `&` borrows a name
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/borrow_element_in_binding.bork
+Type Error [133..134] initializer for `e` has type String, expected &String
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
 == programs/check_fail/vec/class_element.bork
 Type Error [89..92] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
 Arenas
