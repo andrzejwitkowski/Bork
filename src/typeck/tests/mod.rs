@@ -795,5 +795,5 @@ fn invalid_vec_element_diagnostic_has_span() {
         .find(|d| d.message.contains("`Vec` element must be"))
         .expect("element diagnostic");
     let span = diagnostic.span.expect("element diagnostic carries a span");
-    assert_eq!(&source[span.start..span.end], "Vec::<Node>()");
+    assert_eq!(&source[span.start..span.end], "Vec");
 }

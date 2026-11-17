@@ -636,17 +636,11 @@ MulOp: BinOp = {
 ExprSuffix: Expr = {
     <start:@L> <callee:ExprSuffix> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> <end:@R> =>
         Expr::call(callee, Vec::new(), args.unwrap_or_default(), trailing, Span::new(start, end)),
-    <start:@L> <callee:ExprSuffix> "::" <type_args:TypeArgs> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> <end:@R> => {
-        let mut args = args.unwrap_or_default();
-        match (&callee, type_args.as_slice(), args.len(), &trailing) {
-            // `Vec::<T>()` / `Vec::<T>(capacity)` until `Vec` is a prelude class (#276).
-            (Expr::Ident { name, .. }, [_], 0..=1, None) if name == "Vec" => Expr::VecNew {
-                elem: type_args.into_iter().next().unwrap(),
-                cap: args.pop().map(Box::new),
-                span: Span::new(start, end),
-            },
-            _ => Expr::Call { callee: Box::new(callee), type_args, args, trailing },
-        }
+    <callee:ExprSuffix> "::" <type_args:TypeArgs> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
+        callee: Box::new(callee),
+        type_args,
+        args: args.unwrap_or_default(),
+        trailing,
     },
     <start:@L> <receiver:ExprSuffix> "[" <lo:ExprCompare> ".." <hi:ExprCompare> "]" <end:@R> => Expr::Slice {
         receiver: Box::new(receiver),

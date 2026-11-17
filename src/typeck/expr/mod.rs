@@ -81,7 +81,6 @@ pub(super) fn dispatch(
             hi,
             span,
         } => check_slice(receiver, lo, hi, *span, return_ty, env),
-        Expr::VecNew { elem, cap, span } => vec::check_vec_new(elem, cap.as_deref(), *span, return_ty, env),
         Expr::Str(value) => {
             let ty = env.tcx.string(false);
             env.expr(HirExprKind::Str { value: value.clone() }, ty)

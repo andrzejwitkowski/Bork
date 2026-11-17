@@ -1,4 +1,4 @@
-// diag: `Vec` takes no type arguments
+// diag: `Vec` is not generic
 class Vec {
     x: i32
 }

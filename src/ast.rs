@@ -518,12 +518,6 @@ pub enum Expr {
         hi: Box<Expr>,
         span: crate::span::Span,
     },
-    /// `Vec::<T>()` or `Vec::<T>(capacity)`.
-    VecNew {
-        elem: Type,
-        cap: Option<Box<Expr>>,
-        span: crate::span::Span,
-    },
     Ident {
         name: String,
         span: crate::span::Span,

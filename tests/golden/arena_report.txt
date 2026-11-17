@@ -5770,7 +5770,7 @@ Type Error [58..62] unknown trait `Nope`
 Arenas
 └── fun main
 == programs/check_fail/vec/class_element.bork
-Type Error [89..102] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
+Type Error [89..92] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
 Arenas
 └── fun main
     └── v [Local]
@@ -5790,7 +5790,8 @@ Arenas
 └── fun main
     └── h [Local]
 == programs/check_fail/vec/user_defined_vec.bork
-Type Error [89..101] `Vec` takes no type arguments
+Type Error [46..47] missing constructor argument for field `x`
+Type Error [80..83] `Vec` is not generic; it takes no explicit type arguments
 Arenas
 └── fun main
     └── v [Local]

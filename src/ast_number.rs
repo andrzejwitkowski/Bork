@@ -213,7 +213,6 @@ impl Numberer {
                 self.expr(lo);
                 self.expr(hi);
             }
-            Expr::VecNew { cap, .. } => cap.iter_mut().for_each(|c| self.expr(c)),
             Expr::Ident { span, id, .. } | Expr::Move { span, id, .. } | Expr::Promote { span, id, .. } => {
                 *id = self.fresh(*span);
             }

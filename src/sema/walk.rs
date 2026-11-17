@@ -342,11 +342,6 @@ fn walk(
                 walk(az, element, node, transfer, record_borrow);
             }
         }
-        Expr::VecNew { cap, .. } => {
-            if let Some(cap) = cap {
-                walk(az, cap, node, None, record_borrow);
-            }
-        }
         Expr::Index { receiver, index, .. } => {
             if receiver_is_vec(az, receiver) {
                 // Reading `v[i]` borrows the vector like `v.get(i)`.
