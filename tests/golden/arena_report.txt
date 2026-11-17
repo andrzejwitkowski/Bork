@@ -2688,9 +2688,22 @@ Arenas
 │   │   └── ?v [Local]
 │   └── MatchArm
 │       └── ?e [Local]
+├── fun fails
+│   ├── n [Local]
+│   ├── r [Moved ← fun fails]
+│   ├── b [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   └── MatchArm
+│       └── ?e [Local]
 └── fun main
+    ├── c [Local]
     ├── a [Local]
     ├── b [Local]
+    ├── MatchArm
+    │   └── v [Borrow ← pattern binding]
+    ├── MatchArm
+    │   └── e [Borrow ← pattern binding]
     ├── MatchArm
     │   └── v [Borrow ← pattern binding]
     ├── MatchArm

@@ -243,7 +243,7 @@ Nothing converts implicitly between `Ref<T>` and `Option<Ref<T>>` (an absent ref
 | `Ref<T>` | `Option<Ref<T>>` | `optionFromRef::<T>(r)` |
 | `Option<Ref<T>>` | `Ref<T>` | `optionToRef::<T>(&o)` (a counted copy; absent gives `None`) |
 
-Use `T?` for a value that may be absent, `Ref<T>` for an optional link to an object, and `Option<T>` / `Result<T, E>` in signatures and enum payloads where you want the enum spelled out. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), there is no `T?`, and its `?` operator is sugar over `match`; Bork's `?` propagation is a later ticket (TS-P8-01).
+Use `T?` for a value that may be absent, `Ref<T>` for an optional link to an object, and `Option<T>` / `Result<T, E>` in signatures and enum payloads where you want the enum spelled out. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), there is no `T?`, and its `?` operator is sugar over `match`; Bork's `expr?` is the same sugar for `Result<T, E>`: it evaluates to the `Ok` value, or returns `Result.Err(e)` from the enclosing function, which must return a `Result` with the same `E` (no `From` conversion). The operand is a call result or a local, which is moved into the check; a field cannot be moved out, so `h.r?` is an error. `?` on an `Option` is not supported. `g()?.value` reads as the safe access `?.`, so write `(g()?).value`.
 
 
 ## Constants

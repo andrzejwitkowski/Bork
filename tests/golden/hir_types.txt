@@ -481,6 +481,7 @@ programs/build/option/return_option_wrapped_object.bork::main() -> i32
 programs/build/option/try_local_and_field_access.bork::parse(n: i32) -> Result<Box, String>
 programs/build/option/try_local_and_field_access.bork::name(n: i32) -> Result<String, String>
 programs/build/option/try_local_and_field_access.bork::label(n: i32) -> Result<String, String>
+programs/build/option/try_local_and_field_access.bork::fails(n: i32) -> Result<String, String>
 programs/build/option/try_local_and_field_access.bork::main() -> i32
 programs/build/option/try_result.bork::parse(n: i32) -> Result<i32, i32>
 programs/build/option/try_result.bork::twice(n: i32) -> Result<i32, i32>
