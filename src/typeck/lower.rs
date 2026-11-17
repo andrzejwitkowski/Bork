@@ -53,7 +53,6 @@ impl LowerCx<'_> {
             }
             Type::Named { name, args, nullable } => self.lower_named(name, args, *nullable),
             Type::ManagedRef { inner } => self.lower_managed_ref(inner),
-            Type::Vec { elem } => self.lower_vec(elem),
             Type::Func { params, ret, nullable } => {
                 let params = params.iter().map(|param| self.lower(param)).collect();
                 let ret = self.lower(ret);
@@ -120,6 +119,15 @@ impl LowerCx<'_> {
     fn lower_named(&mut self, name: &str, args: &[Type], nullable: bool) -> TyId {
         if let Some(&(_, idx)) = self.scope.iter().find(|(param, _)| param == name) {
             return self.lower_param(name, idx, args, nullable);
+        }
+        if name == "Vec" {
+            return match args {
+                [elem] => self.lower_vec(elem),
+                _ => {
+                    self.error("`Vec` takes one type argument");
+                    self.tcx.error()
+                }
+            };
         }
         let lowered: Vec<TyId> = args.iter().map(|arg| self.lower(arg)).collect();
         if name == "String" {

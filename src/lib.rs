@@ -58,6 +58,13 @@ pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::As
     let mut program = parser::ProgramParser::new()
         .parse(input)
         .map_err(|err| err.map_token(|token| token.to_string()))?;
+    let intrinsic = |f: &Function| f.intrinsic;
+    if program.functions.iter().any(intrinsic)
+        || program.classes.iter().flat_map(|c| &c.methods).any(intrinsic)
+        || program.impls.iter().flat_map(|i| &i.methods).any(intrinsic)
+    {
+        return Err(ParseError::User { error: "`intrinsic fun` is only allowed in the prelude" });
+    }
     let index = ast_number::number_nodes(&mut program);
     Ok((program, index))
 }
@@ -101,3 +108,14 @@ fun processUser(name: String?, score: i32): i32 {
     return 0
 }
 "#;
+
+#[cfg(test)]
+mod intrinsic_syntax_tests {
+    #[test]
+    fn intrinsic_fun_parses_without_body_only_unnumbered() {
+        let src = "class Bag<T> { intrinsic fun len(): i32 }";
+        assert!(super::parse(src).is_err(), "user source must reject `intrinsic fun`");
+        let program = super::parse_unnumbered(src).unwrap();
+        assert!(program.classes[0].methods[0].intrinsic);
+    }
+}

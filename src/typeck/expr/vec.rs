@@ -19,9 +19,7 @@ pub(super) fn check_vec_new(
 ) -> Checked {
     // Lower the whole `Vec<T>` type so the element rule is enforced in one place.
     let lowered = env.lower(
-        &Type::Vec {
-            elem: Box::new(elem.clone()),
-        },
+        &Type::Named { name: "Vec".to_string(), args: vec![elem.clone()], nullable: false },
         Some(span),
     );
     let elem_ty = match env.tcx.vec_elem(lowered) {

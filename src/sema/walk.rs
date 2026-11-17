@@ -731,7 +731,7 @@ fn method_call(az: &Analyzer, callee: &Expr) -> Option<(Expr, String)> {
 
 fn receiver_is_vec(az: &Analyzer, receiver: &Expr) -> bool {
     matches!(receiver, Expr::Ident { name, .. }
-        if az.env.get(name).is_some_and(|b| matches!(b.ty.as_option(), Some(Type::Vec { .. }))))
+        if az.env.get(name).is_some_and(|b| matches!(b.ty.as_option(), Some(Type::Named { name, .. }) if name == "Vec")))
 }
 
 /// A method receiver is borrowed for the call, like an `&T` argument; a field chain borrows its root.
@@ -883,9 +883,7 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
         TyData::ManagedRef(inner) => Type::ManagedRef {
             inner: Box::new(id_to_ast(tcx, *inner)?),
         },
-        TyData::Vec(elem) => Type::Vec {
-            elem: Box::new(id_to_ast(tcx, *elem)?),
-        },
+        TyData::Vec(elem) => Type::Named { name: "Vec".to_string(), args: vec![id_to_ast(tcx, *elem)?], nullable: false },
         TyData::Func { .. }
         | TyData::Range(_)
         | TyData::Param(_)
