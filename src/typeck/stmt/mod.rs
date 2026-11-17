@@ -146,11 +146,29 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
+    if name == "?it" {
+        require_iterator(declared_ty, name_span, env);
+    }
     HirStmt::VarDecl {
         kind,
         name: name.to_string(),
         ty: declared_ty,
         value: value.hir,
+    }
+}
+
+/// `for` over a non-range desugars to `var ?it = iter` (`Expr::for_in`): the iterable must
+/// implement `Iterator`, else an inherent `next()` would pass for one.
+fn require_iterator(ty: TyId, span: crate::span::Span, env: &mut Env<'_>) {
+    if env.tcx.is_unknown(ty) {
+        return;
+    }
+    match env.defs.lookup_trait("Iterator") {
+        Some(trait_id) => {
+            let predicate = crate::ty::Predicate { self_ty: ty, trait_ref: crate::ty::TraitRef { trait_id, args: Vec::new() } };
+            super::solve::require(env, predicate, span, "for-loop iterator");
+        }
+        None => env.error("for-loop iterator must be a range or implement `Iterator`", Some(span)),
     }
 }
 
@@ -182,26 +200,10 @@ fn check_for(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let iter = expr::synthesize(iter, return_ty, env);
-    let elem = match env.tcx.range_elem(iter.ty) {
-        Some(elem) => Some(elem),
-        None => {
-            if !env.tcx.is_unknown(iter.ty) {
-                env.error("for-loop iterator must be a range", None);
-            }
-            None
-        }
-    };
-    let i32_ty = env.tcx.i32();
-    if elem.is_some_and(|elem| !env.same(elem, i32_ty)) {
-        env.error("for-loop range elements must have type i32", None);
-    }
-
+    // the parser only leaves a literal `a..b` here, which always types as `Range<i32>`
+    let elem = env.tcx.range_elem(iter.ty).unwrap_or_else(|| env.tcx.error());
     env.loop_depth += 1;
     env.enter_scope();
-    let elem = match elem {
-        Some(elem) => elem,
-        None => env.tcx.error(),
-    };
     env.bind(name.to_string(), BindingKind::Val, elem, false);
     let body = check_block(body, return_ty, env, false);
     env.exit_scope();

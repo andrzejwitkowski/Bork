@@ -1,0 +1,44 @@
+class Counter {
+    n: i32
+}
+impl Iterator for Counter {
+    type Item = i32
+    fun next(): i32? {
+        if (this.n >= 3) {
+            return None
+        }
+        this.n = this.n + 1
+        return Some(this.n)
+    }
+}
+class Words {
+    n: i32
+}
+impl Iterator for Words {
+    type Item = String
+    fun next(): String? {
+        if (this.n >= 2) {
+            return None
+        }
+        this.n = this.n + 1
+        return Some("w")
+    }
+}
+fun make(): Counter {
+    return Counter(0)
+}
+fun main() {
+    var total = 0
+    for (x in make()) {
+        total = total + x
+    }
+    val c = Counter(0)
+    for (a in c) {
+        for (b in Counter(1)) {
+            total = total + a + b
+        }
+    }
+    for (w in Words(0)) {
+        println(w)
+    }
+}

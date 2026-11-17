@@ -383,7 +383,7 @@ pub fn derive_memory_plan(bodies: &[Body], tcx: &TyCtx) -> MemoryPlan {
 /// `ArenaNode::id`s of the regions of `body` that need a real `arena_push` (RFC 0006 3.3): the function root, and
 /// every region that, itself or through a nested region, allocates, registers a drop, creates a dynamic arena or
 /// observes a presence guard. `body` must come from `build_program_neutral` so that every region is visible.
-pub fn derive_push(body: &Body) -> HashSet<usize> {
+pub fn derive_push(body: &Body, bodies: &[Body]) -> HashSet<usize> {
     let mut out = HashSet::from([body.regions[0].arena]);
     for s in body.blocks.iter().flat_map(|b| &b.stmts) {
         // A presence guard pushes its own region only (its ancestors have to allocate on their own).
@@ -406,6 +406,13 @@ pub fn derive_push(body: &Body) -> HashSet<usize> {
     for t in body.blocks.iter().filter_map(|b| b.term.as_ref()) {
         if matches!(&t.kind, TermKind::Call { args, .. } if args.iter().any(is_str)) {
             mark(body, &mut out, t.region);
+        }
+        // A callee that allocates its result into the caller's sink (last hidden argument) allocates here.
+        if let TermKind::Call { callee, hidden, .. } = &t.kind {
+            let sinks = bodies.iter().any(|b| b.name == *callee && b.abi.result_sink);
+            if sinks && hidden.last().is_some_and(lands_here) {
+                mark(body, &mut out, t.region);
+            }
         }
     }
     out

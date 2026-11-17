@@ -699,7 +699,7 @@ fn plan_instances(mono: &mut Mono, tcx: &TyCtx, escape: bool, mir: bool) -> Resu
             Ok(bodies) => {
                 mono.memory_plan = crate::mir::plan::derive_memory_plan(&bodies, tcx);
                 for (root, body) in mono.report.roots.iter_mut().zip(&bodies) {
-                    crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body));
+                    crate::mir::plan::stamp_push(root, &crate::mir::plan::derive_push(body, &bodies));
                 }
             }
             // A program MIR cannot lower (closure, `move` of a class object, `==` on objects) keeps the empty plan. It must

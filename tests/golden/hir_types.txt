@@ -565,6 +565,8 @@ programs/build/traits/eq_ord_operators.bork::main() -> i32
 programs/build/traits/eq_ord_operators.bork::Eq@0.eq(this: &P, other: &P) -> bool
 programs/build/traits/eq_ord_operators.bork::Ord@1.cmp(this: &P, other: &P) -> i32
 programs/build/traits/eq_ord_operators.bork::Eq@2.eq(this: &E, other: &E) -> bool
+programs/build/traits/iterator_for.bork::main() -> i32
+programs/build/traits/iterator_for.bork::Iterator@0.next(this: &Counter) -> i32?
 programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
 programs/build/vec/assign_concat_through_borrowed_vec.bork::set(v: &rw Vec<String>) -> unit
 programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
@@ -674,6 +676,10 @@ programs/check/inference/two_literals_share_type.bork::takes_f32(a: f32) -> unit
 programs/check/inference/two_literals_share_type.bork::takes_f64(a: f64) -> unit
 programs/check/inference/two_literals_share_type.bork::ret_u8() -> u8
 programs/check/inference/two_literals_share_type.bork::main() -> unit
+programs/check/loops/for_iterator.bork::make() -> Counter
+programs/check/loops/for_iterator.bork::main() -> unit
+programs/check/loops/for_iterator.bork::Iterator@0.next(this: &Counter) -> i32?
+programs/check/loops/for_iterator.bork::Iterator@1.next(this: &Words) -> String?
 programs/check/loops/for_sum.bork::main() -> i32
 programs/check/loops/while_break_continue.bork::main() -> i32
 programs/check/managed_refs/chained_scope.bork::use(a: Ref<Node>) -> unit

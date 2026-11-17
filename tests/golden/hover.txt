@@ -212,6 +212,7 @@ programs/build/traits/display_impl.bork: hits=20 hash=8af5b1da0b082e71
 programs/build/traits/eq_bound.bork: hits=32 hash=ec5de37db466a793
 programs/build/traits/eq_ord_generic.bork: hits=72 hash=ba68fcc71fd090f6
 programs/build/traits/eq_ord_operators.bork: hits=95 hash=dbb64698417248b5
+programs/build/traits/iterator_for.bork: hits=35 hash=a654cb71d2eda2bb
 programs/build/vec/assign_concat_through_borrowed_vec.bork: hits=52 hash=678611fb43fef205
 programs/build/vec/grow_past_page.bork: hits=32 hash=54fe673543deac60
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90
@@ -279,6 +280,7 @@ programs/check/inference/fixed_through_assignment.bork: hits=8 hash=863a08d69662
 programs/check/inference/literal_fixed_by_use.bork: hits=8 hash=027909b1f0fb4b3e
 programs/check/inference/return_value_fixes_literal.bork: hits=6 hash=dc29da4fba7a7480
 programs/check/inference/two_literals_share_type.bork: hits=8 hash=253de0997bc3de2a
+programs/check/loops/for_iterator.bork: hits=61 hash=caf1af8cdcd103de
 programs/check/loops/for_sum.bork: hits=17 hash=c2d57bc83a3ab548
 programs/check/loops/while_break_continue.bork: hits=4 hash=db99b682a48e983e
 programs/check/managed_refs/chained_scope.bork: hits=8 hash=ca379a0f1405957b
@@ -405,6 +407,8 @@ programs/check_fail/inference/literal_vs_return_type.bork: hits=7 hash=26c492d6c
 programs/check_fail/inference/none_without_annotation.bork: hits=1 hash=cd4e4748d3484768
 programs/check_fail/inference/u8_then_f32.bork: hits=7 hash=333e2743dbfa43c0
 programs/check_fail/loops/break_outside_loop.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/loops/for_inherent_next.bork: hits=5 hash=a783593e153ecda5
+programs/check_fail/loops/for_not_iterator.bork: hits=3 hash=8f45a4e83c20390c
 programs/check_fail/managed_refs/chained_borrow_escape.bork: hits=22 hash=a17d01e0beb7aab8
 programs/check_fail/managed_refs/chained_duplicate.bork: hits=5 hash=1ac80569ae9b81ae
 programs/check_fail/managed_refs/chained_forward_reference.bork: hits=4 hash=12ba0f4337a85720

@@ -630,11 +630,38 @@ impl Expr {
             MatchArm { pat: err, body: block(Stmt::Return(Some(rethrow))) },
         ];
         // A local is moved into the match: a place scrutinee would bind `&T` payloads, not owned ones.
-        let scrutinee = match expr {
+        Expr::Match { scrutinee: Box::new(expr.moved_if_local()), arms, span }
+    }
+
+    /// A bare local name becomes `move name`; any other expression is unchanged.
+    fn moved_if_local(self) -> Expr {
+        match self {
             Expr::Ident { name, span, id } => Expr::Move { name, span, id },
             other => other,
+        }
+    }
+
+    /// `for (name in iter) body` (#275). A literal `a..b` stays a `For` (the counted-loop fast
+    /// path); anything else desugars to `{ var ?it = iter; while (true) { if (val name = ?it.next()) body else break } }`.
+    /// `?it` cannot be written in source, so it captures nothing.
+    pub fn for_in(name: crate::span::SpannedName, iter: Expr, iter_span: crate::span::Span, body: Block) -> Stmt {
+        use crate::span::AstId;
+        if matches!(iter, Expr::Binary { op: BinOp::RangeTo, .. }) {
+            return Stmt::For { name, iter, body };
+        }
+        let span = iter_span; // errors about `next` point at the iterable, not the loop variable
+        let iter = iter.moved_if_local(); // the loop consumes a local iterator
+        let it = || Expr::Ident { name: "?it".to_string(), span, id: AstId::DUMMY };
+        let next = Expr::call(Expr::Field { receiver: Box::new(it()), name: "next".to_string(), safe: false, span, id: AstId::DUMMY }, Vec::new(), Vec::new(), None, span);
+        let brk = Block::from_spanned(span, vec![(Stmt::Break { span }, span)]);
+        let step = Expr::IfVal {
+            bindings: ConditionalBindings { head: Box::new(ConditionalBinding { name, value: next, value_span: span }), tail: Vec::new() },
+            then_block: body,
+            else_block: Some(brk),
         };
-        Expr::Match { scrutinee: Box::new(scrutinee), arms, span }
+        let looped = Stmt::While { cond: Expr::Bool(true), body: Block::from_spanned(span, vec![(Stmt::Expr(step), span)]) };
+        let decl = Stmt::VarDecl { kind: BindingKind::Var, name: "?it".to_string(), name_span: span, id: AstId::DUMMY, ty: None, value: iter };
+        Stmt::Block(Block::from_spanned(span, vec![(decl, span), (looped, span)]))
     }
 
     /// `when value { arms }`. The `Some(name)` + `None` pair parses as `if val`; typeck turns it back

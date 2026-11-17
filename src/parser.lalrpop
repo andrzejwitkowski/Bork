@@ -542,11 +542,7 @@ Stmt: Stmt = {
             }),
         }
     },
-    "for" "(" <name:SpannedIdent> "in" <iter:Expr> ")" <body:Block> => Stmt::For {
-        name,
-        iter,
-        body,
-    },
+    "for" "(" <name:SpannedIdent> "in" <start:@L> <iter:Expr> <end:@R> ")" <body:Block> => Expr::for_in(name, iter, Span::new(start, end), body),
     "while" "(" <cond:Expr> ")" <body:Block> => Stmt::While {
         cond,
         body,

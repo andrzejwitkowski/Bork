@@ -1,0 +1,12 @@
+// diag: Iterator
+class Counter {
+    n: i32
+
+    fun next(): i32? {
+        return None
+    }
+}
+fun main() {
+    for (x in Counter(0)) {
+    }
+}

@@ -1,0 +1,4 @@
+trait Iterator {
+    type Item
+    fun next(): Option<Self::Item>
+}
