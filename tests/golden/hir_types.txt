@@ -478,6 +478,15 @@ programs/build/option/return_option_some_with_ref.bork::main() -> i32
 programs/build/option/return_option_wrapped_object.bork::make() -> Box
 programs/build/option/return_option_wrapped_object.bork::churn(k: i32) -> i32
 programs/build/option/return_option_wrapped_object.bork::main() -> i32
+programs/build/option/try_local_and_field_access.bork::parse(n: i32) -> Result<Box, String>
+programs/build/option/try_local_and_field_access.bork::name(n: i32) -> Result<String, String>
+programs/build/option/try_local_and_field_access.bork::label(n: i32) -> Result<String, String>
+programs/build/option/try_local_and_field_access.bork::fails(n: i32) -> Result<String, String>
+programs/build/option/try_local_and_field_access.bork::main() -> i32
+programs/build/option/try_result.bork::parse(n: i32) -> Result<i32, i32>
+programs/build/option/try_result.bork::twice(n: i32) -> Result<i32, i32>
+programs/build/option/try_result.bork::show(r: Result<i32, i32>) -> unit
+programs/build/option/try_result.bork::main() -> i32
 programs/build/option/user_function_named_some.bork::Some(x: i32) -> i32
 programs/build/option/user_function_named_some.bork::main() -> i32
 programs/build/option/user_names_shadow_none.bork::f(None: i32) -> i32
@@ -539,6 +548,23 @@ programs/build/traits/dispatch_impl.bork::Show@0.show(this: &Circle) -> String
 programs/build/traits/dispatch_inherent_shadows.bork::main() -> i32
 programs/build/traits/dispatch_inherent_shadows.bork::Circle.show(this: &Circle) -> String
 programs/build/traits/dispatch_inherent_shadows.bork::Show@0.show(this: &Circle) -> String
+programs/build/traits/display_impl.bork::show(v: &T0) -> String
+programs/build/traits/display_impl.bork::main() -> i32
+programs/build/traits/display_impl.bork::Display@0.toString(this: &P) -> String
+programs/build/traits/eq_bound.bork::same(a: &T0, b: &T0) -> bool
+programs/build/traits/eq_bound.bork::main() -> i32
+programs/build/traits/eq_bound.bork::Eq@0.eq(this: &P, other: &P) -> bool
+programs/build/traits/eq_ord_generic.bork::same(a: &T0, b: &T0) -> bool
+programs/build/traits/eq_ord_generic.bork::below(a: &T0, b: &T0) -> bool
+programs/build/traits/eq_ord_generic.bork::atLeast(a: &T0, b: &T0) -> bool
+programs/build/traits/eq_ord_generic.bork::main() -> i32
+programs/build/traits/eq_ord_generic.bork::Eq@0.eq(this: &P, other: &P) -> bool
+programs/build/traits/eq_ord_generic.bork::Ord@1.cmp(this: &P, other: &P) -> i32
+programs/build/traits/eq_ord_operators.bork::same(a: &T0, b: &T0) -> bool
+programs/build/traits/eq_ord_operators.bork::main() -> i32
+programs/build/traits/eq_ord_operators.bork::Eq@0.eq(this: &P, other: &P) -> bool
+programs/build/traits/eq_ord_operators.bork::Ord@1.cmp(this: &P, other: &P) -> i32
+programs/build/traits/eq_ord_operators.bork::Eq@2.eq(this: &E, other: &E) -> bool
 programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
 programs/build/vec/assign_concat_through_borrowed_vec.bork::set(v: &rw Vec<String>) -> unit
 programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
@@ -709,5 +735,7 @@ programs/check/traits/generic_impl.bork::main() -> unit
 programs/check/traits/generic_impl.bork::Show@0.show(this: &Box<T0>) -> String
 programs/check/traits/generic_impl.bork::Show@1.show(this: &Maybe<T0>) -> String
 programs/check/traits/generic_impl.bork::Conv@2.conv(this: &Box<T0>, u: i32, v: T1) -> T1
+programs/check/traits/shadow_display_keeps_eq.bork::main() -> i32
+programs/check/traits/shadow_display_keeps_eq.bork::Eq@0.eq(this: &P, other: &P) -> bool
 programs/check/vec/push_via_this_field.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::H.add(this: &H, k: i32) -> i32

@@ -658,6 +658,7 @@ ExprSuffix: Expr = {
         expr: Box::new(expr),
         span: Span::new(start, end),
     },
+    <start:@L> <expr:ExprSuffix> "?" <end:@R> => Expr::try_op(expr, Span::new(start, end)),
     <e:Atom> => e,
 };
 

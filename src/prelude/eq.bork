@@ -1,0 +1,3 @@
+trait Eq {
+    fun eq(other: &Self): bool
+}

@@ -1,9 +1,12 @@
-use crate::ast::{BinOp, Expr};
+use crate::ast::{BinOp, Expr, UnaryOp};
 use crate::hir::HirExprKind;
 use crate::span::Span;
-use crate::ty::TyId;
+use crate::ty::{Predicate, TraitRef, TyData, TyId};
 
 use super::super::env::{Checked, Env};
+use super::super::solve;
+use super::call::build_call;
+use super::method::{borrow, trait_method_sig};
 use super::{check, dispatch, synthesize};
 
 pub(super) fn check_binary(
@@ -17,6 +20,10 @@ pub(super) fn check_binary(
 ) -> Checked {
     let (lhs, rhs) = check_operands(op, lhs, rhs, expected, return_ty, env);
     let span = lhs.span.or(rhs.span);
+    let (lhs, rhs) = match trait_operator(op, lhs, rhs, span, expr_span, env) {
+        Ok(call) => return call,
+        Err(operands) => operands,
+    };
     let result_ty = binary_result_ty(op, lhs.ty, rhs.ty, span, env);
     env.expr_at(
         HirExprKind::Binary {
@@ -27,6 +34,65 @@ pub(super) fn check_binary(
         result_ty,
         expr_span,
     )
+}
+
+/// `a == b`, `a != b` and `a < b` (…) on a class, an enum or a type parameter: a call of
+/// `Eq.eq` / `Ord.cmp` (#274), compared with 0 for `<`. Any other operands are given back for the
+/// builtin rules.
+fn trait_operator(
+    op: &BinOp,
+    lhs: Checked,
+    rhs: Checked,
+    span: Option<Span>,
+    expr_span: Span,
+    env: &mut Env<'_>,
+) -> Result<Checked, (Checked, Checked)> {
+    let (trait_name, method, symbol) = match op {
+        BinOp::Eq => ("Eq", "eq", "=="),
+        BinOp::Ne => ("Eq", "eq", "!="),
+        BinOp::Lt => ("Ord", "cmp", "<"),
+        BinOp::Le => ("Ord", "cmp", "<="),
+        BinOp::Gt => ("Ord", "cmp", ">"),
+        BinOp::Ge => ("Ord", "cmp", ">="),
+        _ => return Err((lhs, rhs)),
+    };
+    // `a == b` on `&T` operands compares the targets.
+    let settled = env.settle(lhs.ty);
+    let self_ty = env.tcx.ref_inner(settled).unwrap_or(settled);
+    let object = matches!(env.tcx.data(self_ty), TyData::Class(..) | TyData::Enum(..)) && !env.tcx.is_nullable(self_ty);
+    if !(object || env.is_param(self_ty)) || !env.same(lhs.ty, rhs.ty) {
+        return Err((lhs, rhs));
+    }
+    let Some(trait_id) = env.traits.keys().copied().find(|&id| env.defs.get(id).name == trait_name && env.traits[&id].methods.iter().any(|m| m.name == method)) else {
+        return Err((lhs, rhs));
+    };
+    let span = span.unwrap_or(expr_span);
+    let Some((name, params, ret)) = trait_method_sig(trait_id, method, self_ty, &[], span, env) else {
+        let unknown = env.tcx.error();
+        return Ok(env.expr_at(HirExprKind::None, unknown, expr_span));
+    };
+    // The receiver plus the one operand: the call below passes both.
+    if params.len() != 2 {
+        env.error(format!("`{name}` must take one parameter to implement `{symbol}`"), Some(span));
+        let unknown = env.tcx.error();
+        return Ok(env.expr_at(HirExprKind::None, unknown, expr_span));
+    }
+    let required = Predicate { self_ty, trait_ref: TraitRef { trait_id, args: Vec::new() } };
+    solve::require(env, required, span, &format!("operator `{symbol}`"));
+    let by_ref = |side: Checked, env: &mut Env<'_>| if env.tcx.is_ref(side.ty) { side.hir } else { borrow(side, env).hir };
+    let args = vec![by_ref(lhs, env), by_ref(rhs, env)];
+    let callee_ty = env.tcx.func(params, ret);
+    let call = build_call(env, name, expr_span, callee_ty, args, ret, false);
+    let kind = match op {
+        BinOp::Eq => return Ok(call),
+        BinOp::Ne => HirExprKind::Unary { op: UnaryOp::Not, expr: Box::new(call.hir) },
+        _ => {
+            let zero = env.expr_at(HirExprKind::Int { value: 0 }, ret, expr_span);
+            HirExprKind::Binary { op: op.clone(), lhs: Box::new(call.hir), rhs: Box::new(zero.hir) }
+        }
+    };
+    let bool_ty = env.tcx.bool();
+    Ok(env.expr_at(kind, bool_ty, expr_span))
 }
 
 /// Checks both operands, letting each one's type guide the other where a literal could not

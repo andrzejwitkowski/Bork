@@ -1,0 +1,8 @@
+// diag: Eq
+class P { x: i32 }
+fun main(): i32 {
+    val a = P(1)
+    val b = P(2)
+    if (a == b) { println(1) }
+    return 0
+}

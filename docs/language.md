@@ -59,7 +59,7 @@ fun main() {
 
 - `class` is the only record declaration: fields in declaration order, methods, no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
 - Fields use `name: Type` without `val` or `var` modifiers and are mutable. Fields cannot store borrow views (`&T`); their lifetimes are not tracked inside objects ([RFC 0003](rfcs/0003-borrows-regions-generics.md)). `val` keeps the binding fixed; fields of that class instance can still be assigned. A `Vec` is the exception: a `val` `Vec` cannot be mutated (`push`, `pop`, `set`, `clear`), either directly or through a field of a `val` object (`h.items.push(1)` is an error). `this`, borrows and `Ref` handles are exempt; a call result such as `getVec().push(1)` is a temporary and is not checked.
-- Class values are not Copy and do not have structural `==` or `!=`.
+- Class values are not Copy and do not have structural `==` or `!=`; `==`, `!=`, `<`, `<=`, `>`, `>=` on a class or enum call its `Eq` (`eq`) / `Ord` (`cmp`, compared with 0) impl, and are errors without one. The prelude declares `Eq`, `Ord` and `Display` (`toString`); `String` and the primitives keep the builtin operators.
 - `Ref<T>` is a managed handle to a **non-nullable class** declared with `class` (or an enum, see [Enums](#enums); the frontend accepts it, codegen does not yet). `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
 - `Ref<T>` copies without `move`. After `move`, the source reads as moved.
 - Field access on a `Ref` goes through `if val`, `when`, or `?.`. The bound name inside `if val` / `when Some` is `&T` for that guard only.
@@ -243,7 +243,7 @@ Nothing converts implicitly between `Ref<T>` and `Option<Ref<T>>` (an absent ref
 | `Ref<T>` | `Option<Ref<T>>` | `optionFromRef::<T>(r)` |
 | `Option<Ref<T>>` | `Ref<T>` | `optionToRef::<T>(&o)` (a counted copy; absent gives `None`) |
 
-Use `T?` for a value that may be absent, `Ref<T>` for an optional link to an object, and `Option<T>` / `Result<T, E>` in signatures and enum payloads where you want the enum spelled out. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), there is no `T?`, and its `?` operator is sugar over `match`; Bork's `?` propagation is a later ticket (TS-P8-01).
+Use `T?` for a value that may be absent, `Ref<T>` for an optional link to an object, and `Option<T>` / `Result<T, E>` in signatures and enum payloads where you want the enum spelled out. Rust comparison: `Option` is an ordinary enum there too (`Some` / `None` re-exported by the prelude), there is no `T?`, and its `?` operator is sugar over `match`; Bork's `expr?` is the same sugar for `Result<T, E>`: it evaluates to the `Ok` value, or returns `Result.Err(e)` from the enclosing function, which must return a `Result` with the same `E` (no `From` conversion). The operand is a call result or a local, which is moved into the check; a field cannot be moved out, so `h.r?` is an error. `?` on an `Option` is not supported. `g()?.value` reads as the safe access `?.`, so write `(g()?).value`.
 
 
 ## Constants
