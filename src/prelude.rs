@@ -23,12 +23,13 @@ struct Chunk {
 const OPTION: usize = 0;
 /// Chunks from here on are always added: `==` and `<` on objects resolve `Eq` / `Ord` without the
 /// program naming them. Each trait is its own chunk, so a program's own `Display` leaves `Eq` alone.
-const ALWAYS_FROM: usize = 3;
+const ALWAYS_FROM: usize = 4;
 
-const CHUNKS: [Chunk; 6] = [
+const CHUNKS: [Chunk; 7] = [
     Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
+    Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
     Chunk { path: "<bork-prelude>/ord.bork", names: &["Ord"], needs: &[], source: include_str!("prelude/ord.bork") },
     Chunk { path: "<bork-prelude>/display.bork", names: &["Display"], needs: &[], source: include_str!("prelude/display.bork") },
@@ -144,6 +145,8 @@ mod tests {
         assert_eq!(enum_names("fun f(r: Result<i32, String>) {}\nfun main() {}\n"), ["Option", "Result"]);
         let conv = "class Node {\n    v: i32\n}\nfun main() {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    val o = optionFromRef::<Node>(r)\n}\n";
         assert_eq!(enum_names(conv), ["Option"]);
+        let iter = "class C {\n    n: i32\n}\nimpl Iterator for C {\n    type Item = i32\n    fun next(): i32? { return None }\n}\nfun main() {}\n";
+        assert_eq!(enum_names(iter), ["Option"]);
     }
 
     #[test]

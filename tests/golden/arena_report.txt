@@ -3323,6 +3323,25 @@ Arenas
 └── fun Eq@2.eq
     ├── this [Borrow ← call site]
     └── other [Borrow ← call site]
+== programs/build/traits/iterator_for.bork
+Arenas
+├── fun main
+│   ├── c [Local]
+│   ├── sum [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── c [Moved ← fun main]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── sum [Copy]
+│           │   ├── IfThen
+│           │   └── IfThen
+│           └── MatchArm
+└── fun Iterator@0.next
+    ├── this [Borrow ← call site]
+    └── IfThen
 == programs/build/vec/assign_concat_through_borrowed_vec.bork
 Arenas
 ├── fun clobber
@@ -4033,6 +4052,49 @@ Arenas
 └── fun main
     ├── a [Local]
     └── b [Local]
+== programs/check/loops/for_iterator.bork
+Arenas
+├── fun make
+├── fun main
+│   ├── total [Local]
+│   ├── c [Local]
+│   ├── Block
+│   │   ├── ?it [Local]
+│   │   └── WhileLoop
+│   │       ├── ?it [Borrow ← Block]
+│   │       ├── MatchArm
+│   │       │   ├── x [Local]
+│   │       │   └── total [Copy]
+│   │       └── MatchArm
+│   ├── Block
+│   │   ├── ?it [Local]
+│   │   ├── c [Moved ← fun main]
+│   │   └── WhileLoop
+│   │       ├── ?it [Borrow ← Block]
+│   │       ├── MatchArm (compacted 1 brace)
+│   │       │   ├── a [Local]
+│   │       │   ├── ?it [Local]
+│   │       │   └── WhileLoop
+│   │       │       ├── ?it [Borrow ← MatchArm]
+│   │       │       ├── MatchArm
+│   │       │       │   ├── b [Local]
+│   │       │       │   ├── total [Copy]
+│   │       │       │   └── a [Copy]
+│   │       │       └── MatchArm
+│   │       └── MatchArm
+│   └── Block
+│       ├── ?it [Local]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   └── w [Local]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   └── IfThen
+└── fun Iterator@1.next
+    ├── this [Borrow ← call site]
+    └── IfThen
 == programs/check/loops/for_sum.bork
 Arenas
 └── fun main
@@ -5036,6 +5098,19 @@ Arenas
 Type Error [37..42] `break` outside of a loop
 Arenas
 └── fun main
+== programs/check_fail/loops/for_not_iterator.bork
+Ownership Error [86..87] `?it` is not Copy; move it into `WhileLoop` with `move`
+Type Error [86..87] class `Box` has no method `next`
+Arenas
+└── fun main
+    ├── b [Local]
+    └── Block
+        ├── ?it [Local]
+        ├── b [Moved ← fun main]
+        └── WhileLoop
+            ├── IfValSome
+            │   └── x [Local]
+            └── IfValNone
 == programs/check_fail/managed_refs/chained_borrow_escape.bork
 Ownership Error [133..134] returning a reference is not supported
 Ownership Error [174..183] returning a reference is not supported

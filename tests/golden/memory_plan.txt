@@ -843,6 +843,9 @@ programs/build/traits/eq_ord_operators.bork: 366..367 P Dynamic Program
 programs/build/traits/eq_ord_operators.bork: 383..384 P Dynamic Program
 programs/build/traits/eq_ord_operators.bork: 539..542 E Lexical LexicalScope(1)
 programs/build/traits/eq_ord_operators.bork: 546..549 E Lexical LexicalScope(1)
+programs/build/traits/iterator_for.bork: 177..181 Option<i32> Lexical LexicalScope(8)
+programs/build/traits/iterator_for.bork: 235..247 Option<i32> Lexical LexicalScope(7)
+programs/build/traits/iterator_for.bork: 286..293 Counter Dynamic Program
 programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
 programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program
@@ -893,6 +896,14 @@ programs/check/generics/generic_class.bork: 158..162 Pair<i32,String> Dynamic Pr
 programs/check/generics/generic_class.bork: 281..285 Pair<i64,String> Lexical LexicalScope(0)
 programs/check/generics/identity.bork: 126..131 Point Dynamic Program
 programs/check/generics/ownership_ok.bork: 91..98 Holder2<String,i32> Lexical LexicalScope(1)
+programs/check/loops/for_iterator.bork: 146..150 Option<i32> Lexical LexicalScope(18)
+programs/check/loops/for_iterator.bork: 204..216 Option<i32> Lexical LexicalScope(17)
+programs/check/loops/for_iterator.bork: 373..377 Option<String> Lexical LexicalScope(20)
+programs/check/loops/for_iterator.bork: 431..440 Option<String> Lexical LexicalScope(19)
+programs/check/loops/for_iterator.bork: 482..489 Counter Lexical LexicalScope(0)
+programs/check/loops/for_iterator.bork: 594..601 Counter Dynamic Program
+programs/check/loops/for_iterator.bork: 642..649 Counter Dynamic Program
+programs/check/loops/for_iterator.bork: 720..725 Words Dynamic Program
 programs/check/managed_refs/chained_val_both_return_move.bork: 135..139 Node Dynamic Program
 programs/check/managed_refs/chained_val_else_moves_owner.bork: 130..134 Node Dynamic Program
 programs/check/option/nullable_is_option.bork: 291..302 Option<i32> Lexical LexicalScope(2)

@@ -182,26 +182,10 @@ fn check_for(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let iter = expr::synthesize(iter, return_ty, env);
-    let elem = match env.tcx.range_elem(iter.ty) {
-        Some(elem) => Some(elem),
-        None => {
-            if !env.tcx.is_unknown(iter.ty) {
-                env.error("for-loop iterator must be a range", None);
-            }
-            None
-        }
-    };
-    let i32_ty = env.tcx.i32();
-    if elem.is_some_and(|elem| !env.same(elem, i32_ty)) {
-        env.error("for-loop range elements must have type i32", None);
-    }
-
+    // the parser only leaves a literal `a..b` here, which always types as `Range<i32>`
+    let elem = env.tcx.range_elem(iter.ty).unwrap_or_else(|| env.tcx.error());
     env.loop_depth += 1;
     env.enter_scope();
-    let elem = match elem {
-        Some(elem) => elem,
-        None => env.tcx.error(),
-    };
     env.bind(name.to_string(), BindingKind::Val, elem, false);
     let body = check_block(body, return_ty, env, false);
     env.exit_scope();

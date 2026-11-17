@@ -1,0 +1,25 @@
+// exit: 8
+class Counter {
+    n: i32
+    max: i32
+}
+impl Iterator for Counter {
+    type Item = i32
+    fun next(): i32? {
+        if (this.n >= this.max) {
+            return None
+        }
+        this.n = this.n + 1
+        return Some(this.n)
+    }
+}
+fun main(): i32 {
+    val c = Counter(0, 5)
+    var sum = 0
+    for (x in c) {
+        if (x == 2) { continue }
+        if (x == 5) { break }
+        sum = sum + x
+    }
+    return sum
+}

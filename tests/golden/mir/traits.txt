@@ -1188,3 +1188,141 @@ fn Eq@2.eq (parent=true, sink=false) {
     return
 }
 
+== traits/iterator_for.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Counter [Temp]
+  let _4: Counter [Val] c
+  let _5: i32 [Var] sum
+  let _6: unit [Hidden(DebugScope)]
+  let _7: Counter [Var] ?it
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(DebugScope)]
+  let _10: &Counter [Temp]
+  let _11: i32? [Temp]
+  let _12: i32 [Val] x
+  let _13: unit [Hidden(DebugScope)]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: bool [Temp]
+  let _17: unit [Hidden(DebugScope)]
+  let _18: i32 [Temp]
+  let _19: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 Block in r0
+  region r2 While in r1
+  region r3 MatchArm in r2
+  region r4 IfThen in r3
+  region r5 IfThen in r3
+  region r6 MatchArm in r2
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Counter" } in fresh2  // label "Counter": Counter
+    _3.0 = 0  // label "Counter.n": i32 decl owner=fresh2
+    _3.1 = 5  // label "Counter.max": i32 decl owner=fresh2
+    _4 = copy _3  // label "c": Counter decl
+    _5 = 0  // label "sum": i32 decl
+    storage_live _6
+    _7 = move _4  // label "?it": Counter decl
+    storage_live _8
+    goto bb1
+  bb1:
+    switch true [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _9
+    _10 = borrow _7
+    _11 = call Iterator@0.next(copy _10) +current +current -> bb5
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _8
+    storage_dead _6
+    _0 = copy _5
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    match _11 {
+      Option#0(bind) _12=_11@0.0 -> bb7
+      Option#1() -> bb8
+    }
+  bb6:
+    storage_dead _9
+    goto bb3
+  bb7:
+    storage_live _13
+    _14 = eq(copy _12, 2)
+    switch copy _14 [ 1 -> bb9, else -> bb10]
+  bb8:
+    storage_live _19
+    storage_dead _19
+    storage_dead _9
+    goto bb4
+  bb9:
+    storage_live _15
+    storage_dead _15
+    storage_dead _13
+    storage_dead _9
+    goto bb3
+  bb10:
+    _16 = eq(copy _12, 5)
+    switch copy _16 [ 1 -> bb11, else -> bb12]
+  bb11:
+    storage_live _17
+    storage_dead _17
+    storage_dead _13
+    storage_dead _9
+    goto bb4
+  bb12:
+    _18 = add(copy _5, copy _12)
+    _5 = copy _18
+    storage_dead _13
+    goto bb6
+}
+
+fn Iterator@0.next (parent=true, sink=true) {
+  let _0: i32? [Return]
+  let _1: &Counter [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: bool [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: i32? [Temp]
+  let _6: i32? [Temp]
+  let _7: i32 [Temp]
+  let _8: i32? [Temp]
+  let _9: i32? [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = ge(copy _1.0, copy _1.1)
+    switch copy _3 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    storage_live _4
+    _5 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in result_sink  // label "Option<i32>": i32?
+    _6 = copy_into _5 in result_sink
+    _0 = copy _6
+    storage_dead _4
+    storage_dead _2
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _7 = add(copy _1.0, 1)
+    _1.0 = copy _7  // label "Counter.n": i32 decl owner=object_arena(_1)
+    _8 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
+    _8@0.0 = copy _1.0  // label "Option<i32>.Some.value": i32 decl owner=result_sink
+    _9 = copy_into _8 in result_sink
+    _0 = copy _9
+    storage_dead _2
+    region_exit r0
+    return
+}
+

@@ -1,0 +1,8 @@
+// diag: next
+class Box { v: i32 }
+fun main(): i32 {
+    val b = Box(1)
+    for (x in b) {
+    }
+    return 0
+}

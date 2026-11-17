@@ -302,6 +302,8 @@ move (s) {
 ```
 
 - `for (name in lo..hi)` is a half-open integer range. Bounds are evaluated once. The loop body arena resets every iteration.
+- `for (name in coll)` over anything else (#275) calls `coll.next()` until it returns `None`. It is sugar for `var ?it = move coll; while (true) { if (val name = ?it.next()) { body } else { break } }`, and a local `coll` is moved into the loop.
+- A type can be looped over when it has `impl Iterator` (prelude: `trait Iterator { type Item; fun next(): Option<Self::Item> }`). `next` advances the iterator by assigning its fields through `this`; there is no `&rw this` receiver yet.
 - `while (cond) { ... }` repeats while `cond` is true. `break` exits the innermost loop; `continue` starts the next iteration.
 - `move (a, b) { ... }` moves the listed non-Copy bindings into the block. `move () { ... }` moves nothing. `move { ... }` infers which parent `var`s the block consumes.
 - Names in an explicit capture list are already local inside the block. Do not write `move` again for them.
