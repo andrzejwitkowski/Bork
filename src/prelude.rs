@@ -2,6 +2,8 @@
 //! explicit conversions between them and `T?` / `Ref<T>` are ordinary generic functions. Nothing
 //! converts implicitly.
 //!
+//! A chunk may also declare traits and impls (#273).
+//!
 //! `Option` is always added, because `T?` is `Option<T>`. Every other chunk is added only when the
 //! program mentions one of its names, and a chunk is skipped when the program defines that name
 //! itself (a program with its own `Option` cannot use `T?`). Prelude items are numbered after the user's and kept out
@@ -39,6 +41,7 @@ fn defines(program: &Program, name: &str) -> bool {
         || program.enums.iter().any(|e| e.name.name == name)
         || program.functions.iter().any(|f| f.name == name)
         || program.constants.iter().any(|c| c.name.name == name)
+        || program.traits.iter().any(|t| t.name.name == name)
 }
 
 /// `source` with comments and string literals blanked out, so only code can name a prelude item.
@@ -99,12 +102,16 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         extra.classes.extend(parsed.classes);
         extra.enums.extend(parsed.enums);
         extra.functions.extend(parsed.functions);
+        extra.traits.extend(parsed.traits);
+        extra.impls.extend(parsed.impls);
     }
     crate::ast_number::number_nodes_from(&mut extra, next_id);
     program.constants.extend(extra.constants);
     program.classes.extend(extra.classes);
     program.enums.extend(extra.enums);
     program.functions.extend(extra.functions);
+    program.traits.extend(extra.traits);
+    program.impls.extend(extra.impls);
 }
 
 #[cfg(test)]
