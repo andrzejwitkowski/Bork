@@ -2668,6 +2668,37 @@ Arenas
     ├── MatchArm
     │   └── v [Borrow ← pattern binding]
     └── MatchArm
+== programs/build/option/try_local_and_field_access.bork
+Arenas
+├── fun parse
+│   ├── n [Local]
+│   └── IfThen
+├── fun name
+│   ├── n [Local]
+│   ├── r [Moved ← fun name]
+│   ├── b [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   └── MatchArm
+│       └── ?e [Local]
+├── fun label
+│   ├── n [Local]
+│   ├── s [Local]
+│   ├── MatchArm
+│   │   └── ?v [Local]
+│   └── MatchArm
+│       └── ?e [Local]
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    ├── MatchArm
+    │   └── v [Borrow ← pattern binding]
+    ├── MatchArm
+    │   └── e [Borrow ← pattern binding]
+    ├── MatchArm
+    │   └── v [Borrow ← pattern binding]
+    └── MatchArm
+        └── e [Borrow ← pattern binding]
 == programs/build/option/try_result.bork
 Arenas
 ├── fun parse
@@ -4203,6 +4234,15 @@ Arenas
     ├── this [Borrow ← call site]
     ├── u [Local]
     └── v [Local]
+== programs/check/traits/shadow_display_keeps_eq.bork
+Arenas
+├── fun main
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Eq@0.eq
+    ├── this [Borrow ← call site]
+    └── other [Borrow ← call site]
 == programs/check/vec/push_via_this_field.bork
 Arenas
 ├── fun main
@@ -5562,6 +5602,15 @@ Type Error [119..124] not all trait items implemented, missing: `scaled`
 Arenas
 ├── fun main
 └── fun Shape@0.area
+    └── this [Borrow ← call site]
+== programs/check_fail/traits/operator_method_arity.bork
+Type Error [215..216] `Eq.eq` must take one parameter to implement `==`
+Arenas
+├── fun main
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Eq@0.eq
     └── this [Borrow ← call site]
 == programs/check_fail/traits/overlap_bounds_ignored.bork
 Type Error [309..313] conflicting implementations of trait `Show`: `Show for Box<T> where T: Eq` overlaps with the earlier impl `Show for Box<T> where T: Show`; make the types differ or remove one

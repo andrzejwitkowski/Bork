@@ -21,14 +21,17 @@ struct Chunk {
 }
 
 const OPTION: usize = 0;
-/// Always added: `==` and `<` on objects resolve `Eq` / `Ord` without the program naming them.
-const OPS: usize = 3;
+/// Chunks from here on are always added: `==` and `<` on objects resolve `Eq` / `Ord` without the
+/// program naming them. Each trait is its own chunk, so a program's own `Display` leaves `Eq` alone.
+const ALWAYS_FROM: usize = 3;
 
-const CHUNKS: [Chunk; 4] = [
+const CHUNKS: [Chunk; 6] = [
     Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
-    Chunk { path: "<bork-prelude>/ops.bork", names: &["Eq", "Ord", "Display"], needs: &[], source: include_str!("prelude/ops.bork") },
+    Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
+    Chunk { path: "<bork-prelude>/ord.bork", names: &["Ord"], needs: &[], source: include_str!("prelude/ord.bork") },
+    Chunk { path: "<bork-prelude>/display.bork", names: &["Display"], needs: &[], source: include_str!("prelude/display.bork") },
 ];
 
 pub(crate) fn source_file(name: &str) -> Option<&'static str> {
@@ -90,7 +93,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         // A chunk is skipped when the user defines its names, or one it builds on: the user's
         // `Option` has its own shape, so the conversions written for the prelude's cannot work.
         let blocked = shadowed(chunk) || chunk.needs.iter().any(|&need| shadowed(&CHUNKS[need]));
-        wanted[index] = !blocked && (index == OPTION || index == OPS || chunk.names.iter().any(|name| mentions(&code, name)));
+        wanted[index] = !blocked && (index == OPTION || index >= ALWAYS_FROM || chunk.names.iter().any(|name| mentions(&code, name)));
     }
     for (index, chunk) in CHUNKS.iter().enumerate() {
         if wanted[index] {

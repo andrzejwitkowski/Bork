@@ -178,6 +178,7 @@ programs/build/option/return_option_some_param.bork: hits=57 hash=1c25246d1136f0
 programs/build/option/return_option_some_two_paths.bork: hits=73 hash=0074eeb4f623b1f9
 programs/build/option/return_option_some_with_ref.bork: hits=55 hash=2e40b535c4a8001b
 programs/build/option/return_option_wrapped_object.bork: hits=31 hash=ac9105fd4c4ff341
+programs/build/option/try_local_and_field_access.bork: hits=55 hash=4c9009a8e9e6bba7
 programs/build/option/try_result.bork: hits=33 hash=0c7fb50e32a56d69
 programs/build/option/user_function_named_some.bork: hits=12 hash=b05f3340f19e1457
 programs/build/option/user_names_shadow_none.bork: hits=24 hash=a3a838e354b8d1a1
@@ -299,6 +300,7 @@ programs/check/traits/bounds_where.bork: hits=10 hash=00ef17b21aa5e956
 programs/check/traits/coherence_ok.bork: hits=0 hash=cbf29ce484222325
 programs/check/traits/dispatch_all.bork: hits=27 hash=2cf71ec12fa5cd9b
 programs/check/traits/generic_impl.bork: hits=3 hash=37568ab25063e631
+programs/check/traits/shadow_display_keeps_eq.bork: hits=18 hash=5dfdf61ee1c91934
 programs/check/vec/push_via_this_field.bork: hits=25 hash=d5a48199a4c0eb84
 programs/check_fail/borrow/assign_view_to_var.bork: hits=6 hash=956b21b38f209d1d
 programs/check_fail/borrow/borrow_array_element.bork: hits=1 hash=9b804be4edfe91f1
@@ -465,6 +467,7 @@ programs/check_fail/traits/method_ambiguous.bork: hits=2 hash=c66b750bd682a084
 programs/check_fail/traits/method_no_impl.bork: hits=3 hash=09ef0354a326120c
 programs/check_fail/traits/method_not_in_bounds.bork: hits=2 hash=bbf805e9a3c92124
 programs/check_fail/traits/missing_item.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/traits/operator_method_arity.bork: hits=4 hash=84439dce5a0f251d
 programs/check_fail/traits/overlap_bounds_ignored.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/overlap_generic.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/overlap_identical.bork: hits=0 hash=cbf29ce484222325

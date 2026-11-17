@@ -1,0 +1,29 @@
+// exit: 0
+// stdout: 3\n3\n
+class Box { v: String }
+fun parse(n: i32): Result<Box, String> {
+    if (n < 0) { return Result.Err("neg") }
+    return Result.Ok(Box("ok!"))
+}
+fun name(n: i32): Result<String, String> {
+    val r = parse(n)
+    val b = r?
+    return Result.Ok(b.v)
+}
+fun label(n: i32): Result<String, String> {
+    val s = (parse(n)?).v
+    return Result.Ok(s)
+}
+fun main(): i32 {
+    val a = name(1)
+    val b = label(0 - 1)
+    when a {
+        Ok(v) => { println(v.length) }
+        Err(e) => { println(e.length) }
+    }
+    when b {
+        Ok(v) => { println(v.length) }
+        Err(e) => { println(e.length) }
+    }
+    return 0
+}

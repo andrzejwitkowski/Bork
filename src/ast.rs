@@ -629,7 +629,12 @@ impl Expr {
             MatchArm { pat: ok, body: block(Stmt::Expr(ident("?v"))) },
             MatchArm { pat: err, body: block(Stmt::Return(Some(rethrow))) },
         ];
-        Expr::Match { scrutinee: Box::new(expr), arms, span }
+        // A local is moved into the match: a place scrutinee would bind `&T` payloads, not owned ones.
+        let scrutinee = match expr {
+            Expr::Ident { name, span, id } => Expr::Move { name, span, id },
+            other => other,
+        };
+        Expr::Match { scrutinee: Box::new(scrutinee), arms, span }
     }
 
     /// `when value { arms }`. The `Some(name)` + `None` pair parses as `if val`; typeck turns it back

@@ -1,0 +1,3 @@
+trait Display {
+    fun toString(): String
+}

@@ -791,6 +791,13 @@ programs/build/option/return_option_wrapped_object.bork: 321..322 N Lexical Lexi
 programs/build/option/return_option_wrapped_object.bork: 340..343 Box Lexical LexicalScope(1)
 programs/build/option/return_option_wrapped_object.bork: 344..358 Option<N> Lexical LexicalScope(1)
 programs/build/option/return_option_wrapped_object.bork: 349..350 N Lexical LexicalScope(1)
+programs/build/option/try_local_and_field_access.bork: 118..128 Result<Box,String> Lexical LexicalScope(1)
+programs/build/option/try_local_and_field_access.bork: 149..158 Result<Box,String> Lexical LexicalScope(0)
+programs/build/option/try_local_and_field_access.bork: 159..162 Box Lexical LexicalScope(0)
+programs/build/option/try_local_and_field_access.bork: 249..251 Result<String,String> Lexical LexicalScope(4)
+programs/build/option/try_local_and_field_access.bork: 263..272 Result<String,String> Lexical LexicalScope(2)
+programs/build/option/try_local_and_field_access.bork: 337..346 Result<String,String> Lexical LexicalScope(7)
+programs/build/option/try_local_and_field_access.bork: 361..370 Result<String,String> Lexical LexicalScope(5)
 programs/build/option/try_result.bork: 96..106 Result<i32,i32> Lexical LexicalScope(1)
 programs/build/option/try_result.bork: 123..132 Result<i32,i32> Lexical LexicalScope(0)
 programs/build/option/try_result.bork: 188..197 Result<i32,i32> Lexical LexicalScope(4)
@@ -911,4 +918,6 @@ programs/check/traits/bounds_where.bork: 456..462 Circle Dynamic Program
 programs/check/traits/dispatch_all.bork: 620..623 Box<Circle> Dynamic Program
 programs/check/traits/dispatch_all.bork: 624..630 Circle Lexical LexicalScope(2)
 programs/check/traits/dispatch_all.bork: 671..681 Maybe<i32> Lexical LexicalScope(2)
+programs/check/traits/shadow_display_keeps_eq.bork: 157..158 P Dynamic Program
+programs/check/traits/shadow_display_keeps_eq.bork: 174..175 P Dynamic Program
 programs/check/vec/push_via_this_field.bork: 156..157 H Dynamic Program

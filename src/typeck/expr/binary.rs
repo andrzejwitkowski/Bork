@@ -71,6 +71,12 @@ fn trait_operator(
         let unknown = env.tcx.error();
         return Ok(env.expr_at(HirExprKind::None, unknown, expr_span));
     };
+    // The receiver plus the one operand: the call below passes both.
+    if params.len() != 2 {
+        env.error(format!("`{name}` must take one parameter to implement `{symbol}`"), Some(span));
+        let unknown = env.tcx.error();
+        return Ok(env.expr_at(HirExprKind::None, unknown, expr_span));
+    }
     let required = Predicate { self_ty, trait_ref: TraitRef { trait_id, args: Vec::new() } };
     solve::require(env, required, span, &format!("operator `{symbol}`"));
     let by_ref = |side: Checked, env: &mut Env<'_>| if env.tcx.is_ref(side.ty) { side.hir } else { borrow(side, env).hir };

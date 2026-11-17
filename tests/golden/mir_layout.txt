@@ -469,6 +469,10 @@ class N size=4 align=4 fields=[0]
 class Box size=16 align=8 fields=[0]
 enum Option<A> size=24 align=8 variants=[[0, 8], [0]]
 enum Option<N> size=24 align=8 variants=[[0, 8], [0]]
+== programs/build/option/try_local_and_field_access.bork
+class Box size=16 align=8 fields=[0]
+enum Result<Box,String> size=24 align=8 variants=[[0, 8], [0, 8]]
+enum Result<String,String> size=24 align=8 variants=[[0, 8], [0, 8]]
 == programs/build/option/try_result.bork
 enum Result<i32,i32> size=8 align=4 variants=[[0, 4], [0, 4]]
 == programs/build/option/user_option_wins.bork
