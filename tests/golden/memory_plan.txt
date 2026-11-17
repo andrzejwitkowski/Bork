@@ -820,6 +820,15 @@ programs/build/traits/dispatch_generic_impl.bork: 431..434 Box<Square> Dynamic P
 programs/build/traits/dispatch_generic_impl.bork: 435..441 Square Lexical LexicalScope(0)
 programs/build/traits/dispatch_impl.bork: 223..229 Circle Dynamic Program
 programs/build/traits/dispatch_inherent_shadows.bork: 241..247 Circle Dynamic Program
+programs/build/traits/display_impl.bork: 208..209 P Dynamic Program
+programs/build/traits/eq_bound.bork: 206..207 P Dynamic Program
+programs/build/traits/eq_bound.bork: 223..224 P Dynamic Program
+programs/build/traits/eq_ord_generic.bork: 398..399 P Dynamic Program
+programs/build/traits/eq_ord_generic.bork: 415..416 P Dynamic Program
+programs/build/traits/eq_ord_operators.bork: 366..367 P Dynamic Program
+programs/build/traits/eq_ord_operators.bork: 383..384 P Dynamic Program
+programs/build/traits/eq_ord_operators.bork: 539..542 E Lexical LexicalScope(1)
+programs/build/traits/eq_ord_operators.bork: 546..549 E Lexical LexicalScope(1)
 programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
 programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program

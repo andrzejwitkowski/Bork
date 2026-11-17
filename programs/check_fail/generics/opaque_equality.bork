@@ -1,4 +1,4 @@
-// diag: a type parameter has no bounds yet
+// diag: the trait bound `T: Eq` is not satisfied
 fun same<T>(a: T, b: T): bool {
     return a == b
 }

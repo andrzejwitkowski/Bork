@@ -73,7 +73,7 @@ fn corpus_builds_and_verifies() {
     let expected: BTreeMap<&str, Vec<&str>> = BTreeMap::from([
         ("closure", vec!["programs/build_fail/methods/trailing_closure.bork", "programs/check/methods/trailing_closure.bork"]),
         ("main-signature", vec!["programs/build_fail/main_returns_i64.bork"]),
-        ("object-equality", vec!["programs/build_fail/nullable_object_equality.bork", "programs/build_fail/object_equality.bork"]),
+        ("object-equality", vec!["programs/build_fail/nullable_object_equality.bork"]),
         ("safe-field-enum", vec!["programs/build_fail/option/safe_field_of_enum.bork"]),
         ("unit-payload-bind", vec!["programs/build_fail/nullable_unit_equality.bork"]),
         ("unit-elem", vec!["programs/build_fail/unit_vec_element.bork"]),

@@ -3188,6 +3188,72 @@ Arenas
 │   └── this [Borrow ← call site]
 └── fun Show@0.show
     └── this [Borrow ← call site]
+== programs/build/traits/display_impl.bork
+Arenas
+├── fun show
+│   └── v [Borrow ← call site]
+├── fun main
+│   └── p [Local]
+└── fun Display@0.toString
+    └── this [Borrow ← call site]
+== programs/build/traits/eq_bound.bork
+Arenas
+├── fun same
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+├── fun main
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Eq@0.eq
+    ├── this [Borrow ← call site]
+    └── other [Borrow ← call site]
+== programs/build/traits/eq_ord_generic.bork
+Arenas
+├── fun same
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+├── fun below
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+├── fun atLeast
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+├── fun main
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── IfThen
+│   ├── IfThen
+│   └── IfThen
+├── fun Eq@0.eq
+│   ├── this [Borrow ← call site]
+│   └── other [Borrow ← call site]
+└── fun Ord@1.cmp
+    ├── this [Borrow ← call site]
+    └── other [Borrow ← call site]
+== programs/build/traits/eq_ord_operators.bork
+Arenas
+├── fun same
+│   ├── a [Borrow ← call site]
+│   └── b [Borrow ← call site]
+├── fun main
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── IfThen
+│   ├── IfElse
+│   ├── IfThen
+│   ├── IfThen
+│   ├── IfThen
+│   └── IfThen
+├── fun Eq@0.eq
+│   ├── this [Borrow ← call site]
+│   └── other [Borrow ← call site]
+├── fun Ord@1.cmp
+│   ├── this [Borrow ← call site]
+│   └── other [Borrow ← call site]
+└── fun Eq@2.eq
+    ├── this [Borrow ← call site]
+    └── other [Borrow ← call site]
 == programs/build/vec/assign_concat_through_borrowed_vec.bork
 Arenas
 ├── fun clobber
@@ -3525,12 +3591,6 @@ Arenas
 == programs/build_fail/nullable_unit_equality.bork
 Arenas
 ├── fun g
-└── fun main
-    ├── a [Local]
-    ├── b [Local]
-    └── IfThen
-== programs/build_fail/object_equality.bork
-Arenas
 └── fun main
     ├── a [Local]
     ├── b [Local]
@@ -4344,8 +4404,8 @@ Arenas
 Type Error [86..89] enum `Foo` conflicts with another type or function
 Arenas
 └── fun main
-== programs/check_fail/enums/enum_equality_unsupported.bork
-Type Error [92..95] `==` is not supported for the enum E yet; match on it with `when`
+== programs/check_fail/enums/enum_equality_without_eq.bork
+Type Error [54..57] the trait bound `E: Eq` is not satisfied; it has no implementations
 Arenas
 └── fun main
     ├── IfThen
@@ -4695,7 +4755,7 @@ Arenas
 │   └── x [Local]
 └── fun main
 == programs/check_fail/generics/opaque_equality.bork
-Type Error [87..88] equality operands must have the same type, got T and T; a type parameter has no bounds yet, so operators and members need a bound (not supported yet)
+Type Error [93..94] the trait bound `T: Eq` is not satisfied; a type parameter only implements the traits in its bounds
 Arenas
 ├── fun same
 │   ├── a [Local]
@@ -5400,6 +5460,13 @@ Arenas
 │   └── s [Local]
 └── fun Show@0.show
     └── this [Borrow ← call site]
+== programs/check_fail/traits/eq_missing_impl.bork
+Type Error [91..92] the trait bound `P: Eq` is not satisfied; it has no implementations
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── b [Local]
+    └── IfThen
 == programs/check_fail/traits/extra_item.bork
 Type Error [155..164] method `perimeter` is not a member of trait `Shape`
 Arenas

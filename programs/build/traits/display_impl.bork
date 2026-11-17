@@ -1,0 +1,12 @@
+// exit: 0
+// stdout: point\n
+class P { x: i32 }
+impl Display for P {
+    fun toString(): String { return "point" }
+}
+fun show<T: Display>(v: &T): String { return v.toString() }
+fun main(): i32 {
+    val p = P(7)
+    println(show(&p))
+    return 0
+}

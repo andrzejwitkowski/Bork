@@ -1,0 +1,24 @@
+// exit: 0
+// stdout: 2\n3\n4\n6\n
+class P { x: i32 }
+impl Eq for P {
+    fun eq(other: &P): bool { return this.x == other.x }
+}
+impl Ord for P {
+    fun cmp(other: &P): i32 { return this.x - other.x }
+}
+enum E { A, B }
+impl Eq for E {
+    fun eq(other: &E): bool { return true }
+}
+fun same<T: Eq>(a: &T, b: &T): bool { return a == b }
+fun main(): i32 {
+    val a = P(1)
+    val b = P(2)
+    if (a == b) { println(1) } else { println(2) }
+    if (a != b) { println(3) }
+    if (a < b) { println(4) }
+    if (a >= b) { println(5) }
+    if (E.A == E.B) { println(6) }
+    return 0
+}

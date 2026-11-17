@@ -1,0 +1,13 @@
+// exit: 0
+// stdout: 1\n
+class P { x: i32 }
+impl Eq for P {
+    fun eq(other: &P): bool { return this.x == other.x }
+}
+fun same<T: Eq>(a: &T, b: &T): bool { return a.eq(&b) }
+fun main(): i32 {
+    val a = P(4)
+    val b = P(4)
+    if (same(&a, &b)) { println(1) }
+    return 0
+}

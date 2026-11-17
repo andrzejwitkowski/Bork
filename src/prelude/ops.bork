@@ -1,0 +1,10 @@
+trait Eq {
+    fun eq(other: &Self): bool
+}
+trait Ord {
+    // negative, zero or positive: `this` is less than, equal to or greater than `other`
+    fun cmp(other: &Self): i32
+}
+trait Display {
+    fun toString(): String
+}

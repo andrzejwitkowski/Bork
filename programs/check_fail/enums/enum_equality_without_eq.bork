@@ -1,4 +1,4 @@
-// diag: `==` is not supported for the enum E yet
+// diag: Eq
 enum E { A, B }
 fun main(): i32 {
     if (E.A == E.B) { println(1) } else { println(2) }

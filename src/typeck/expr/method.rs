@@ -98,18 +98,7 @@ fn check_trait_method_call(
     };
     let trait_id = candidate.trait_id;
     let trait_name = env.defs.get(trait_id).name.clone();
-    let info = &env.traits[&trait_id];
-    let tm = info.methods.iter().find(|m| m.name == method).expect("the candidate declares the method");
-    let (own_names, mut sig_params, sig_ret) = (tm.generic_names.clone(), tm.params.clone(), tm.ret);
-    let this_ty = env.tcx.param(crate::ty::ParamIdx(0));
-    sig_params.insert(0, env.tcx.ref_to(this_ty));
-    let name = format!("{trait_name}.{method}");
-    // `Self`, the trait's arguments, then the method's own parameters, as the signature was lowered.
-    let mut subst_args = vec![self_ty];
-    subst_args.extend(&candidate.args);
-    subst_args.extend(super::call::fresh_params(&own_names, &name, span, env));
-    let sig = FnSig::new(sig_params, sig_ret);
-    let Some((params, ret)) = subst_sig(&name, span, &sig, &subst_args, env) else {
+    let Some((name, params, ret)) = trait_method_sig(trait_id, method, self_ty, &candidate.args, span, env) else {
         return poisoned(args, span, return_ty, env);
     };
     let required = Predicate { self_ty, trait_ref: TraitRef { trait_id, args: candidate.args.clone() } };
@@ -119,6 +108,29 @@ fn check_trait_method_call(
     env.members.insert(id.numbered(), MemberRef::Method { class: trait_name, name: method.to_string(), signature });
     let receiver = borrow(checked, env);
     finish_call(name, params, ret, Some(receiver), site, env)
+}
+
+/// `Trait.method` instantiated for `self_ty`: its name, parameters (receiver first) and return type.
+/// `None` when the instantiation is unusable (reported).
+pub(super) fn trait_method_sig(
+    trait_id: DefId,
+    method: &str,
+    self_ty: TyId,
+    trait_args: &[TyId],
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<(String, Vec<TyId>, TyId)> {
+    let name = format!("{}.{method}", env.defs.get(trait_id).name);
+    let tm = env.traits[&trait_id].methods.iter().find(|m| m.name == method).expect("the trait declares the method");
+    let (own_names, mut sig_params, sig_ret) = (tm.generic_names.clone(), tm.params.clone(), tm.ret);
+    let this_ty = env.tcx.param(crate::ty::ParamIdx(0));
+    sig_params.insert(0, env.tcx.ref_to(this_ty));
+    // `Self`, the trait's arguments, then the method's own parameters, as the signature was lowered.
+    let mut subst_args = vec![self_ty];
+    subst_args.extend(trait_args);
+    subst_args.extend(fresh_params(&own_names, &name, span, env));
+    let (params, ret) = subst_sig(&name, span, &FnSig::new(sig_params, sig_ret), &subst_args, env)?;
+    Some((name, params, ret))
 }
 
 /// A hint for `recv.name` without a call when `name` is a method of the receiver.
@@ -227,7 +239,7 @@ pub(super) fn is_place(expr: &Expr) -> bool {
     }
 }
 
-fn borrow(receiver: Checked, env: &mut Env<'_>) -> Checked {
+pub(super) fn borrow(receiver: Checked, env: &mut Env<'_>) -> Checked {
     let ty = if env.tcx.is_ref(receiver.ty) {
         receiver.ty
     } else {

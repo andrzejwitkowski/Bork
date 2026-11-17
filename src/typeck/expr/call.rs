@@ -365,7 +365,7 @@ fn check_argument(name: &str, index: usize, argument: &Checked, expected: TyId, 
     }
 }
 
-fn build_call(
+pub(super) fn build_call(
     env: &Env<'_>,
     name: String,
     span: Span,

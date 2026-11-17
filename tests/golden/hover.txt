@@ -206,6 +206,10 @@ programs/build/traits/dispatch_field_in_impl.bork: hits=22 hash=e4c505ab390f059f
 programs/build/traits/dispatch_generic_impl.bork: hits=33 hash=5fa472c6bf990703
 programs/build/traits/dispatch_impl.bork: hits=14 hash=4cf359feb4e34f01
 programs/build/traits/dispatch_inherent_shadows.bork: hits=18 hash=c00eec5943259eec
+programs/build/traits/display_impl.bork: hits=20 hash=8af5b1da0b082e71
+programs/build/traits/eq_bound.bork: hits=32 hash=ec5de37db466a793
+programs/build/traits/eq_ord_generic.bork: hits=72 hash=ba68fcc71fd090f6
+programs/build/traits/eq_ord_operators.bork: hits=95 hash=dbb64698417248b5
 programs/build/vec/assign_concat_through_borrowed_vec.bork: hits=52 hash=678611fb43fef205
 programs/build/vec/grow_past_page.bork: hits=32 hash=54fe673543deac60
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90
@@ -232,7 +236,6 @@ programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
 programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
 programs/build_fail/nullable_object_equality.bork: hits=4 hash=b4e5cc943fc50229
 programs/build_fail/nullable_unit_equality.bork: hits=4 hash=b6fd62a419e6d6bf
-programs/build_fail/object_equality.bork: hits=4 hash=ff785bb926c91dbd
 programs/build_fail/option/safe_field_of_enum.bork: hits=5 hash=9c43688f90b639ca
 programs/build_fail/text/return_direct.bork: hits=32 hash=6cf5f68adde835de
 programs/build_fail/text/return_elvis.bork: hits=32 hash=d8c2dd8631502ce1
@@ -328,7 +331,7 @@ programs/check_fail/enums/assign_local_object_to_outer_var.bork: hits=26 hash=93
 programs/check_fail/enums/bool_missing.bork: hits=2 hash=03e305ae320b9b37
 programs/check_fail/enums/cannot_infer.bork: hits=1 hash=6650c5f7466b933c
 programs/check_fail/enums/class_name_clash.bork: hits=0 hash=cbf29ce484222325
-programs/check_fail/enums/enum_equality_unsupported.bork: hits=16 hash=f3aa1ad319c84fd5
+programs/check_fail/enums/enum_equality_without_eq.bork: hits=16 hash=8921763297b39355
 programs/check_fail/enums/generic_enum_instance_invalid.bork: hits=1 hash=8e67ba2478f53988
 programs/check_fail/enums/generic_mismatch.bork: hits=1 hash=f1fab92d2c3dd32c
 programs/check_fail/enums/int_needs_wildcard.bork: hits=2 hash=62253ab5e450103d
@@ -373,7 +376,7 @@ programs/check_fail/generics/generic_mutual_cycle.bork: hits=0 hash=cbf29ce48422
 programs/check_fail/generics/instantiation_cycle.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/move_twice_string_instance.bork: hits=3 hash=fde39b0229798e99
 programs/check_fail/generics/opaque_add.bork: hits=3 hash=1a70dc74ade3e4b3
-programs/check_fail/generics/opaque_equality.bork: hits=4 hash=3a0bc1f1fbbe81d4
+programs/check_fail/generics/opaque_equality.bork: hits=4 hash=b3fedd893492894c
 programs/check_fail/generics/phantom_parameter.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/generics/polymorphic_recursion.bork: hits=1 hash=ad0952c317d7ec9b
 programs/check_fail/generics/ref_field_of_non_class.bork: hits=3 hash=cab5b3765552ef4a
@@ -451,6 +454,7 @@ programs/check_fail/traits/bound_on_class.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/bound_primitive.bork: hits=3 hash=21d915c6dfca8d0c
 programs/check_fail/traits/bound_unknown_trait.bork: hits=1 hash=6e792d6a8956bb26
 programs/check_fail/traits/bound_unsatisfied.bork: hits=3 hash=1da8ea2623af17dd
+programs/check_fail/traits/eq_missing_impl.bork: hits=12 hash=c288788ddc105fb5
 programs/check_fail/traits/extra_item.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/impl_body_type_error.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/method_ambiguous.bork: hits=2 hash=c66b750bd682a084

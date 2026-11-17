@@ -59,7 +59,7 @@ fun main() {
 
 - `class` is the only record declaration: fields in declaration order, methods, no inheritance. `Node(...)` builds one. Omitted `Ref` fields are `None`.
 - Fields use `name: Type` without `val` or `var` modifiers and are mutable. Fields cannot store borrow views (`&T`); their lifetimes are not tracked inside objects ([RFC 0003](rfcs/0003-borrows-regions-generics.md)). `val` keeps the binding fixed; fields of that class instance can still be assigned. A `Vec` is the exception: a `val` `Vec` cannot be mutated (`push`, `pop`, `set`, `clear`), either directly or through a field of a `val` object (`h.items.push(1)` is an error). `this`, borrows and `Ref` handles are exempt; a call result such as `getVec().push(1)` is a temporary and is not checked.
-- Class values are not Copy and do not have structural `==` or `!=`.
+- Class values are not Copy and do not have structural `==` or `!=`; `==`, `!=`, `<`, `<=`, `>`, `>=` on a class or enum call its `Eq` (`eq`) / `Ord` (`cmp`, compared with 0) impl, and are errors without one. The prelude declares `Eq`, `Ord` and `Display` (`toString`); `String` and the primitives keep the builtin operators.
 - `Ref<T>` is a managed handle to a **non-nullable class** declared with `class` (or an enum, see [Enums](#enums); the frontend accepts it, codegen does not yet). `Ref<String>`, arrays, primitives, nullable classes, and nested `Ref` targets are rejected. It is always presence-capable (`None` or a live target), and is not `&T` or `T?`.
 - `Ref<T>` copies without `move`. After `move`, the source reads as moved.
 - Field access on a `Ref` goes through `if val`, `when`, or `?.`. The bound name inside `if val` / `when Some` is `&T` for that guard only.
