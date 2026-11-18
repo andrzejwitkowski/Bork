@@ -512,7 +512,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         source: None,
         params,
         env_params: None,
-        env_by_ref: false,
+        env_mode: crate::hir::CaptureMode::ByValue,
         return_ty,
         body,
     }

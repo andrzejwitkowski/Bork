@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn gate_rejects_a_move_closure_with_captures() {
-        let result = crate::frontend::check("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return apply() move (n) { -> n }\n}");
+        let result = crate::frontend::check("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val s = \"hi\"\n    return apply() move (s) { -> println(s)\n        0 }\n}");
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
         let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);

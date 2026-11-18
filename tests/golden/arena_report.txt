@@ -255,6 +255,29 @@ Arenas
 └── fun main
     └── Closure
         └── x [Local]
+== programs/build/closures/move_counter.bork
+Arenas
+├── fun makeCounter
+│   ├── start [Local]
+│   ├── count [Local]
+│   └── Closure (move)
+│       └── count [Moved ← fun makeCounter]
+└── fun main
+    ├── next [Local]
+    ├── outer [Local]
+    ├── own [Local]
+    └── Closure (move)
+        └── outer [Moved ← fun main]
+== programs/build/closures/move_returned_adder.bork
+Arenas
+├── fun makeAdder
+│   ├── n [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── n [Moved ← fun makeAdder]
+└── fun main
+    ├── add3 [Local]
+    └── add8 [Local]
 == programs/build/closures/trailing_with_capture.bork
 Arenas
 ├── fun apply
@@ -3719,9 +3742,9 @@ Arenas
 ├── fun apply
 │   └── f [Local]
 └── fun main
-    ├── n [Local]
+    ├── s [Local]
     └── Closure (move)
-        └── n [Moved ← fun main]
+        └── s [Moved ← fun main]
 == programs/build_fail/nullable_object_equality.bork
 Arenas
 └── fun main

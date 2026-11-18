@@ -162,10 +162,21 @@ pub struct HirFunction {
     /// `Some(n)` for a lifted closure: its first `n` `params` are captures, which codegen passes as the one
     /// environment pointer every closure takes (also with `n == 0`). `None` for every ordinary function.
     pub env_params: Option<usize>,
-    /// The environment holds the address of each captured variable, not a copy (an `FnMut` closure).
-    pub env_by_ref: bool,
+    /// How a lifted closure reaches its captures.
+    pub env_mode: CaptureMode,
     pub return_ty: TyId,
     pub body: HirBlock,
+}
+
+/// Where a lifted closure's captured variables live (RFC 0007).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureMode {
+    /// A copy made when the closure is built, reloaded on each call (an `Fn` closure).
+    ByValue,
+    /// The environment holds the outer variable's address (a plain `FnMut` closure).
+    ByAddress,
+    /// The environment owns the value and the body updates it there (a `move` `FnMut` closure).
+    InPlace,
 }
 
 /// An outer binding a closure uses; `ty` is the binding's type.

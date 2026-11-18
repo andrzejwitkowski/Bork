@@ -1,0 +1,20 @@
+// exit: 0
+// stdout: 1\n2\n3\n12\n
+fun makeCounter(start: i32): () -> i32 {
+    var count = start
+    return move (count) { -> count = count + 1
+        count }
+}
+
+fun main(): i32 {
+    val next = makeCounter(0)
+    println(next())
+    println(next())
+    println(next())
+    var outer = 10
+    val own = move (outer) { -> outer = outer + 1
+        outer }
+    own()
+    println(own())
+    return 0
+}

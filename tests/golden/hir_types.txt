@@ -59,6 +59,10 @@ programs/build/closures/fnmut_counter.bork::twice(f: ()->i32) -> i32
 programs/build/closures/fnmut_counter.bork::main() -> i32
 programs/build/closures/generic_fn_bound.bork::apply(f: T0, v: i32) -> i32
 programs/build/closures/generic_fn_bound.bork::main() -> i32
+programs/build/closures/move_counter.bork::makeCounter(start: i32) -> ()->i32
+programs/build/closures/move_counter.bork::main() -> i32
+programs/build/closures/move_returned_adder.bork::makeAdder(n: i32) -> (i32)->i32
+programs/build/closures/move_returned_adder.bork::main() -> i32
 programs/build/closures/trailing_with_capture.bork::apply(v: i32, f: (i32)->i32) -> i32
 programs/build/closures/trailing_with_capture.bork::main() -> i32
 programs/build/conditionals/else_if.bork::pick(n: i32) -> i32

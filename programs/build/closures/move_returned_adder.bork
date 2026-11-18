@@ -1,0 +1,13 @@
+// exit: 0
+// stdout: 7\n12\n
+fun makeAdder(n: i32): (i32) -> i32 {
+    return move (n) { x -> x + n }
+}
+
+fun main(): i32 {
+    val add3 = makeAdder(3)
+    val add8 = makeAdder(8)
+    println(add3(4))
+    println(add8(4))
+    return 0
+}

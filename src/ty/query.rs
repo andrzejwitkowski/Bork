@@ -276,6 +276,8 @@ impl TyCtx {
         match self.data(self.base(id)) {
             TyData::Ref(inner, _) => self.uses_arena_storage(*inner),
             TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } => true,
+            // A closure value points at an environment that may live in the caller's arena (RFC 0007).
+            TyData::Func { .. } | TyData::Closure { .. } => true,
             _ => false,
         }
     }

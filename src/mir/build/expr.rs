@@ -255,10 +255,17 @@ impl<'a> FnBuilder<'a> {
     /// `&rw` / drop-glue steps first.
     fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
         use crate::hir::ClosureKind;
-        if kind == ClosureKind::FnOnce || (is_move && !captures.is_empty()) {
+        // A `move` closure owns its captures: only values that are copied (no drop glue yet) lower.
+        let owns = is_move && captures.iter().any(|c| self.tcx.is_move_only(c.ty));
+        if kind == ClosureKind::FnOnce || owns {
             return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
         }
-        let by_ref = kind == ClosureKind::FnMut;
+        let by_ref = kind == ClosureKind::FnMut && !is_move;
+        // A returned `move` closure must outlive this call, so its environment goes to the caller's arena
+        // (any `move` closure in a function that returns a closure: a closure not returned just lives longer).
+        // shortcut: a `move` closure is also allocated there when it is not the returned value.
+        let returns_closure = matches!(self.tcx.data(self.function.return_ty), crate::ty::TyData::Func { .. });
+        let arena = if is_move && !captures.is_empty() && returns_closure && self.abi.result_sink { ArenaRef::ResultSink } else { ArenaRef::Current };
         let captures = if by_ref {
             // The environment keeps each variable's address, so the closure updates the variable itself.
             let mut places = Vec::new();
@@ -272,7 +279,7 @@ impl<'a> FnBuilder<'a> {
         } else {
             self.with_sink(ArenaRef::Current, |b| b.exprs(captures))?
         };
-        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures, by_ref }))
+        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures, by_ref, arena }))
     }
 
     fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {

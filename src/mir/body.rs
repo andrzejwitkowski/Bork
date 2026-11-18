@@ -157,7 +157,8 @@ pub enum Rvalue {
     /// A closure value (RFC 0007): the environment `{ code pointer of `function`, captures... }`,
     /// allocated in the current region (none for a closure without captures).
     /// `by_ref`: each capture operand names a variable whose address is stored (an `FnMut` closure).
-    Closure { function: String, captures: Vec<Operand>, by_ref: bool },
+    /// `arena` holds the environment: the current region, or the result sink when the closure is returned.
+    Closure { function: String, captures: Vec<Operand>, by_ref: bool, arena: ArenaRef },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -361,7 +362,10 @@ fn rvalue_uses<'a>(r: &'a Rvalue, f: &mut dyn FnMut(Use<'a>)) {
             f(Use::Op(lo));
             f(Use::Op(hi));
         }
-        Rvalue::Closure { captures, .. } => captures.iter().for_each(|c| f(Use::Op(c))),
+        Rvalue::Closure { captures, arena, .. } => {
+            captures.iter().for_each(|c| f(Use::Op(c)));
+            f(Use::Arena(arena));
+        }
     }
 }
 

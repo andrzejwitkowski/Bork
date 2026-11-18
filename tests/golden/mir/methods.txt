@@ -782,7 +782,7 @@ fn main (parent=false, sink=false) {
     _3.0 = 1  // label "P.x": i32 decl owner=fresh2
     _4 = copy _3  // label "p": P decl
     _5 = borrow _4
-    _6 = closure main$closure0()
+    _6 = closure main$closure0() in current
     _7 = call P.apply(copy _5, 2, copy _6) +current -> bb1
   bb1:
     _0 = copy _7

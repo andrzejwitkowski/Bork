@@ -11,7 +11,7 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = 4  // label "n": i32 decl
-    _3 = closure main$closure0(copy _2)
+    _3 = closure main$closure0(copy _2) in current
     _4 = copy _3  // label "add": (i32)->i32 decl
     _5 = call_closure copy _4(3) +current -> bb1
   bb1:
@@ -51,7 +51,7 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = 0  // label "total": i32 decl
-    _3 = closure main$closure0(copy _2) by_ref
+    _3 = closure main$closure0(copy _2) by_ref in current
     _4 = call run<closure#0()->i32>(copy _3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _4)
@@ -114,7 +114,7 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = 1  // label "n": i32 decl
-    _3 = closure main$closure0(copy _2) by_ref
+    _3 = closure main$closure0(copy _2) by_ref in current
     _4 = call twice(copy _3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _4)
@@ -173,7 +173,7 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = closure main$closure0()
+    _2 = closure main$closure0() in current
     _3 = call apply<closure#0(i32)->i32>(copy _2, 3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _3)
@@ -217,6 +217,167 @@ fn main$closure0 (parent=true, sink=false) {
     return
 }
 
+== closures/move_counter.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: ()->i32 [Temp]
+  let _3: ()->i32 [Val] next
+  let _4: i32 [Temp]
+  let _5: i32 [Temp]
+  let _6: i32 [Temp]
+  let _7: i32 [Var] outer
+  let _8: closure#1()->i32 [Temp]
+  let _9: closure#1()->i32 [Val] own
+  let _10: i32 [Temp]
+  let _11: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = call makeCounter(0) +current +current -> bb1
+  bb1:
+    _3 = copy _2  // label "next": ()->i32 decl
+    _4 = call_closure copy _3() +current -> bb2
+  bb2:
+    intrinsic PrintlnInt(copy _4)
+    _5 = call_closure copy _3() +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _5)
+    _6 = call_closure copy _3() +current -> bb4
+  bb4:
+    intrinsic PrintlnInt(copy _6)
+    _7 = 10  // label "outer": i32 decl
+    _8 = closure main$closure0(copy _7) in current
+    _9 = copy _8  // label "own": closure#1()->i32 decl
+    _10 = call_closure copy _9() +current -> bb5
+  bb5:
+    _11 = call_closure copy _9() +current -> bb6
+  bb6:
+    intrinsic PrintlnInt(copy _11)
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn makeCounter (parent=true, sink=true) {
+  let _0: ()->i32 [Return]
+  let _1: i32 [Arg] start
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Var] count
+  let _4: closure#0()->i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = copy _1  // label "count": i32 decl
+    _4 = closure makeCounter$closure0(copy _3) in result_sink
+    _0 = copy _4
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] outer
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 1)
+    _1 = copy _3
+    _0 = copy _1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn makeCounter$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] count
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 1)
+    _1 = copy _3
+    _0 = copy _1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== closures/move_returned_adder.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: (i32)->i32 [Temp]
+  let _3: (i32)->i32 [Val] add3
+  let _4: (i32)->i32 [Temp]
+  let _5: (i32)->i32 [Val] add8
+  let _6: i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = call makeAdder(3) +current +current -> bb1
+  bb1:
+    _3 = copy _2  // label "add3": (i32)->i32 decl
+    _4 = call makeAdder(8) +current +current -> bb2
+  bb2:
+    _5 = copy _4  // label "add8": (i32)->i32 decl
+    _6 = call_closure copy _3(4) +current -> bb3
+  bb3:
+    intrinsic PrintlnInt(copy _6)
+    _7 = call_closure copy _5(4) +current -> bb4
+  bb4:
+    intrinsic PrintlnInt(copy _7)
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn makeAdder (parent=true, sink=true) {
+  let _0: (i32)->i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: unit [Hidden(DebugScope)]
+  let _3: closure#0(i32)->i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = closure makeAdder$closure0(copy _1) in result_sink
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn makeAdder$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: i32 [Arg] x
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = add(copy _2, copy _1)
+    _0 = copy _4
+    storage_dead _3
+    region_exit r0
+    return
+}
+
 == closures/trailing_with_capture.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
@@ -231,11 +392,11 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = 3  // label "k": i32 decl
-    _3 = closure main$closure0(copy _2)
+    _3 = closure main$closure0(copy _2) in current
     _4 = call apply(2, copy _3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _4)
-    _5 = closure main$closure1()
+    _5 = closure main$closure1() in current
     _6 = call apply(5, copy _5) +current -> bb2
   bb2:
     intrinsic PrintlnInt(copy _6)

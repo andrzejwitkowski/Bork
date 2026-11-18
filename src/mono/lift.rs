@@ -88,7 +88,11 @@ fn lift_one(outer: &HirFunction, name: String, closure: HirExpr, tcx: &TyCtx) ->
         name_span: span.unwrap_or(outer.name_span),
         source: outer.source,
         env_params: Some(captures.len()),
-        env_by_ref: kind == crate::hir::ClosureKind::FnMut,
+        env_mode: match (kind, is_move) {
+            (crate::hir::ClosureKind::FnMut, false) => crate::hir::CaptureMode::ByAddress,
+            (crate::hir::ClosureKind::FnMut, true) => crate::hir::CaptureMode::InPlace,
+            _ => crate::hir::CaptureMode::ByValue,
+        },
         params: capture_params.chain(params).collect(),
         return_ty: ret,
         body,
