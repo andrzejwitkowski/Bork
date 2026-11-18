@@ -71,7 +71,7 @@ fn corpus_builds_and_verifies() {
     assert!(built > 250, "corpus too thin: {built} programs built");
     // Exactly the programs the codegen gate rejects (RFC 0006 3.10), each under its named capability.
     let expected: BTreeMap<&str, Vec<&str>> = BTreeMap::from([
-        ("closure", vec!["programs/build_fail/methods/trailing_closure.bork", "programs/check/methods/trailing_closure.bork"]),
+        ("closure", vec!["programs/build_fail/closure_assigns_capture.bork"]),
         ("main-signature", vec!["programs/build_fail/main_returns_i64.bork"]),
         ("object-equality", vec!["programs/build_fail/nullable_object_equality.bork", "programs/build_fail/user_eq_without_eq_method.bork"]),
         ("safe-field-enum", vec!["programs/build_fail/option/safe_field_of_enum.bork"]),

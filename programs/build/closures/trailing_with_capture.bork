@@ -1,0 +1,12 @@
+// exit: 0
+// stdout: 5\n10\n
+fun apply(v: i32, f: (i32) -> i32): i32 {
+    return f(v)
+}
+
+fun main(): i32 {
+    val k = 3
+    println(apply(2) { x -> x + k })
+    println(apply(5) { x -> x * 2 })
+    return 0
+}

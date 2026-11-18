@@ -113,6 +113,7 @@ impl<'a> Layouts<'a> {
             return Some(Layout { size: 2 * ptr, align: self.data.pointer_align, fields: vec![0, ptr], repr: Repr::ObjectHandle });
         }
         match tcx.data(ty) {
+            TyData::Func { .. } | TyData::Closure { .. } => Some(scalar(ptr, Repr::Scalar)),
             TyData::Prim(Prim::Unit) => None,
             TyData::Prim(p) => Some(scalar(prim_size(*p), Repr::Scalar)),
             _ => None,

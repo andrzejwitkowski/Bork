@@ -223,6 +223,34 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── p [Local]
+== programs/build/closures/closure_in_val.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── add [Local]
+    └── Closure
+        ├── x [Local]
+        └── n [Copy]
+== programs/build/closures/generic_fn_bound.bork
+Arenas
+├── fun apply
+│   ├── f [Local]
+│   └── v [Local]
+└── fun main
+    └── Closure
+        └── x [Local]
+== programs/build/closures/trailing_with_capture.bork
+Arenas
+├── fun apply
+│   ├── v [Local]
+│   └── f [Local]
+└── fun main
+    ├── k [Local]
+    ├── Closure
+    │   ├── x [Local]
+    │   └── k [Copy]
+    └── Closure
+        └── x [Local]
 == programs/build/conditionals/else_if.bork
 Arenas
 ├── fun pick
@@ -1920,6 +1948,16 @@ Arenas
 │   └── this [Borrow ← call site]
 └── fun B.size
     └── this [Borrow ← call site]
+== programs/build/methods/trailing_closure.bork
+Arenas
+├── fun main
+│   ├── p [Local]
+│   └── Closure
+│       └── v [Local]
+└── fun P.apply
+    ├── this [Borrow ← call site]
+    ├── k [Local]
+    └── f [Local]
 == programs/build/move_and_promote/array_string_move_index.bork
 Arenas
 └── fun main
@@ -3648,6 +3686,13 @@ Arenas
 │   └── alias [Local]
 └── fun main
     └── a [Local]
+== programs/build_fail/closure_assigns_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    └── Closure
 == programs/build_fail/escape_inner_return_string.bork
 Ownership Error [103..104] returning a `String` whose bytes live in an inner region is not supported: that arena is freed before the value is returned
 Arenas
@@ -3660,16 +3705,6 @@ Arenas
 == programs/build_fail/main_returns_i64.bork
 Arenas
 └── fun main
-== programs/build_fail/methods/trailing_closure.bork
-Arenas
-├── fun main
-│   ├── p [Local]
-│   └── Closure
-│       └── v [Local]
-└── fun P.apply
-    ├── this [Borrow ← call site]
-    ├── k [Local]
-    └── f [Local]
 == programs/build_fail/nullable_object_equality.bork
 Arenas
 └── fun main
@@ -4142,16 +4177,6 @@ Arenas
     └── IfValNone
         └── MoveBlock (move)
             └── owner [Moved ← fun run]
-== programs/check/methods/trailing_closure.bork
-Arenas
-├── fun main
-│   ├── p [Local]
-│   └── Closure
-│       └── v [Local]
-└── fun P.apply
-    ├── this [Borrow ← call site]
-    ├── k [Local]
-    └── f [Local]
 == programs/check/move_and_promote/move_block.bork
 Arenas
 └── fun main

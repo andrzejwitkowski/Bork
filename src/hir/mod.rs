@@ -159,6 +159,9 @@ pub struct HirFunction {
     /// None denotes the user's input; prelude spans need their separate source file.
     pub source: Option<&'static str>,
     pub params: Vec<HirParam>,
+    /// `Some(n)` for a lifted closure: its first `n` `params` are captures, which codegen passes as the one
+    /// environment pointer every closure takes (also with `n == 0`). `None` for every ordinary function.
+    pub env_params: Option<usize>,
     pub return_ty: TyId,
     pub body: HirBlock,
 }
@@ -431,6 +434,8 @@ pub enum HirExprKind {
     MakeClosure {
         function: String,
         captures: Vec<HirExpr>,
+        kind: ClosureKind,
+        is_move: bool,
     },
     /// A closure body kept from source (RFC 0007). Captures are computed later (step F5).
     Closure {

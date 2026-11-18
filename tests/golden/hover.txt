@@ -29,6 +29,9 @@ programs/build/classes/nullable_field_assign.bork: hits=3 hash=cf496e48c59ad0d1
 programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
+programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
+programs/build/closures/generic_fn_bound.bork: hits=15 hash=a99614085a455147
+programs/build/closures/trailing_with_capture.bork: hits=26 hash=6e595dff0d820f8e
 programs/build/conditionals/else_if.bork: hits=3 hash=6c2fc00716667e73
 programs/build/conditionals/if_else_return.bork: hits=7 hash=24d78fb03c7163dd
 programs/build/conditionals/logical_short_circuit.bork: hits=2 hash=0acb01501f1629a8
@@ -134,6 +137,7 @@ programs/build/methods/mutate_field.bork: hits=23 hash=bb2c597d66a8698a
 programs/build/methods/nested_calls.bork: hits=24 hash=03dff4b6db0e6e31
 programs/build/methods/owning_return.bork: hits=49 hash=459369fbaaae9b8a
 programs/build/methods/same_name.bork: hits=30 hash=3e59da8cdc0e456c
+programs/build/methods/trailing_closure.bork: hits=18 hash=7da5cc95bce6398b
 programs/build/move_and_promote/array_string_move_index.bork: hits=12 hash=3622c8842bc32b8a
 programs/build/move_and_promote/assign_up_move.bork: hits=23 hash=d646425e04e25c83
 programs/build/move_and_promote/both_branches_return_move.bork: hits=11 hash=dbb8faf78a1f345e
@@ -234,9 +238,9 @@ programs/build/vec/with_capacity.bork: hits=279 hash=fb4761a22c58c53e
 programs/build_fail/borrow/store_ref_into_borrowed_array.bork: hits=8 hash=0dbca6980761e4f2
 programs/build_fail/borrow/store_string_into_borrowed_array.bork: hits=15 hash=689b38856acb49d8
 programs/build_fail/borrow/store_string_through_borrow_alias.bork: hits=25 hash=8e3e77681cfb0019
+programs/build_fail/closure_assigns_capture.bork: hits=3 hash=606a80027ddc05b8
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
-programs/build_fail/methods/trailing_closure.bork: hits=18 hash=4c51074a6d8159c1
 programs/build_fail/nullable_object_equality.bork: hits=4 hash=b4e5cc943fc50229
 programs/build_fail/nullable_unit_equality.bork: hits=4 hash=b6fd62a419e6d6bf
 programs/build_fail/option/safe_field_of_enum.bork: hits=5 hash=9c43688f90b639ca
@@ -286,7 +290,6 @@ programs/check/loops/while_break_continue.bork: hits=4 hash=db99b682a48e983e
 programs/check/managed_refs/chained_scope.bork: hits=8 hash=ca379a0f1405957b
 programs/check/managed_refs/chained_val_both_return_move.bork: hits=15 hash=85deb66300b4e8bb
 programs/check/managed_refs/chained_val_else_moves_owner.bork: hits=20 hash=05daaaca4ff90e73
-programs/check/methods/trailing_closure.bork: hits=18 hash=dd8877fda4760c9d
 programs/check/move_and_promote/move_block.bork: hits=6 hash=4c084e5a5cb997c3
 programs/check/option/nullable_is_option.bork: hits=8 hash=b907ae1da5a6e826
 programs/check/option/option_check.bork: hits=20 hash=65400fd946b27717

@@ -61,10 +61,16 @@ fn buffer_elem(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     plain_array(cx, ty).or_else(|| cx.tcx.is_text(ty).then(|| cx.tcx.prim_id(Prim::U8)))
 }
 
+/// A closure value (RFC 0007): a pointer to its environment.
+fn callable(cx: &Codegen<'_>, ty: TyId) -> bool {
+    matches!(cx.tcx.data(cx.tcx.ref_inner(ty).unwrap_or(ty)), TyData::Func { .. } | TyData::Closure { .. })
+}
+
 /// A value this lowering handles: scalars, `Ref`s, text, plain arrays and `Vec`s, and classes,
 /// enums and nullables built only from those.
 fn plain_value(cx: &Codegen<'_>, ty: TyId) -> bool {
-    prim(cx, ty).is_some()
+    callable(cx, ty)
+        || prim(cx, ty).is_some()
         || cx.tcx.is_managed_ref(ty)
         || cx.tcx.is_text(ty)
         || plain_array(cx, ty).is_some()
@@ -203,6 +209,14 @@ fn pushed_regions(body: &Body) -> HashSet<RegionId> {
     set
 }
 
+fn op_place_ty(cx: &Codegen<'_>, body: &Body, op: &Operand) -> Option<TyId> {
+    place_ty(cx, body, op.place()?)
+}
+
+fn returns_into_sink_ty(cx: &Codegen<'_>, ty: TyId) -> bool {
+    cx.tcx.owns_result(ty) || cx.tcx.uses_arena_storage(ty)
+}
+
 pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> bool {
     check(cx, callees, function, body).is_some()
 }
@@ -326,6 +340,13 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             if !(cx.tcx.is_text(t) || plain_array(cx, t).is_some()) || cx.int_type(dty).is_none() {
                                 return None;
                             }
+                        }
+                        Rvalue::Closure { function: target, captures } => {
+                            let (_, f) = callees.get(target.as_str())?;
+                            if !callable(cx, dty) || f.env_params != Some(captures.len()) {
+                                return None;
+                            }
+                            captures.iter().try_for_each(|c| general(c))?;
                         }
                         Rvalue::Slice { base, lo, hi } => {
                             let t = place_ty(cx, body, base.place()?)?;
@@ -552,6 +573,19 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         general(a)?;
                     }
                     value(p.ty)?;
+                }
+            }
+            TermKind::CallClosure { callee, args, hidden, dest, .. } => {
+                let sig = cx.tcx.func_sig(cx.tcx.base(op_place_ty(cx, body, callee)?))?;
+                let abi = if returns_into_sink_ty(cx, sig.1) { 2 } else { 1 };
+                if hidden.len() != abi || !hidden.iter().all(&arena_ok) || args.len() != sig.0.len() || !dest.is_bare() {
+                    return None;
+                }
+                general(callee)?;
+                value(sig.1)?;
+                for (a, &p) in args.iter().zip(&sig.0) {
+                    general(a)?;
+                    value(p)?;
                 }
             }
             TermKind::Match { scrutinee, arms } => {
@@ -796,9 +830,22 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         }
     }
 
+    /// `{ code pointer, captures... }` of the lifted closure being lowered, from its capture parameters.
+    fn closure_env_type(&self) -> inkwell::types::StructType<'ctx> {
+        let cx = self.cx;
+        let n = self.function.env_params.unwrap_or(0);
+        let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![cx.context.ptr_type(inkwell::AddressSpace::default()).into()];
+        let args = self.body.locals.iter().filter(|l| l.kind == LocalKind::Arg).take(n);
+        fields.extend(args.map(|l| cx.basic_type(l.ty).expect("checked capture type")));
+        cx.context.struct_type(&fields, false)
+    }
+
     fn prologue(&mut self, hidden: usize) -> Result<(), Diagnostic> {
         let cx = self.cx;
         let mut params = self.llvm_fn.get_param_iter().skip(hidden);
+        // A lifted closure's captures arrive in its environment: `{ code pointer, captures... }`.
+        let env = self.function.env_params.map(|_| params.next().expect("closure environment parameter").into_pointer_value());
+        let mut captured = 0usize;
         let observations: HashSet<Local> = self.body.blocks.iter().flat_map(|b| &b.stmts).filter_map(|s| if let StmtKind::Observe { obs, .. } = s.kind { Some(obs) } else { None }).collect();
         for (i, decl) in self.body.locals.iter().enumerate() {
             let local = Local(i as u32);
@@ -822,7 +869,15 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             let ty = cx.basic_type(decl.ty).ok_or_else(|| not_yet_supported("local type", None))?;
             let slot = cx.builder.build_alloca(ty, "local")?;
             if decl.kind == LocalKind::Arg {
-                let value = params.next().expect("one parameter per argument local");
+                let from_env = env.filter(|_| captured < self.function.env_params.unwrap_or(0));
+                let value = match from_env {
+                    Some(env) => {
+                        let ptr = cx.builder.build_struct_gep(self.closure_env_type(), env, captured as u32 + 1, "capture.ptr")?;
+                        captured += 1;
+                        cx.builder.build_load(ty, ptr, "capture")?
+                    }
+                    None => params.next().expect("one parameter per argument local"),
+                };
                 cx.builder.build_store(slot, value)?;
             }
             self.slots.insert(local, slot);
@@ -1145,12 +1200,46 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 }
                 self.alloc_handle(dst, arena, size, record.get_alignment(), None, class)?;
             }
+            StmtKind::Assign(dst, Rvalue::Closure { function, captures }) => {
+                let (callee_fn, _) = self.callees[function.as_str()];
+                let code = callee_fn.as_global_value().as_pointer_value();
+                let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![code.get_type().into()];
+                let mut values: Vec<BasicValueEnum<'ctx>> = vec![code.into()];
+                for c in captures {
+                    let ty = self.op_ty(c).expect("checked capture");
+                    fields.push(cx.basic_type(ty).expect("checked capture type"));
+                    values.push(self.operand(c, ty)?);
+                }
+                let env_ty = cx.context.struct_type(&fields, false);
+                let env = if captures.is_empty() {
+                    // Nothing to keep alive: a constant, so the closure may outlive the region.
+                    let init = env_ty.const_named_struct(&values);
+                    let global = cx.module.add_global(env_ty, None, "bork.closure");
+                    global.set_constant(true);
+                    global.set_linkage(inkwell::module::Linkage::Internal);
+                    global.set_initializer(&init);
+                    global.as_pointer_value()
+                } else {
+                    let arena = self.arena_ref(&ArenaRef::Current, stmt.region)?;
+                    let size = env_ty.size_of().ok_or_else(|| not_yet_supported("unsized closure environment", None))?;
+                    let align = cx.context.i64_type().const_int(8, false);
+                    let raw = cx.builder.build_call(cx.arena_alloc_fn(), &[arena.into(), size.into(), align.into()], "closure.env")?;
+                    let env = raw.try_as_basic_value().basic().expect("arena_alloc returns a pointer").into_pointer_value();
+                    for (i, v) in values.iter().enumerate() {
+                        let field = cx.builder.build_struct_gep(env_ty, env, i as u32, "env.field")?;
+                        cx.builder.build_store(field, *v)?;
+                    }
+                    env
+                };
+                self.store(dst, env.into())?;
+            }
             StmtKind::Assign(dst, rv) => {
                 let dty = place_ty(cx, self.body, dst).expect("checked place");
                 if is_unit(cx, dty) {
                     return Ok(());
                 }
                 let value = match rv {
+                    Rvalue::Closure { .. } => unreachable!("closure construction is lowered before this match"),
                     Rvalue::Use(a) => self.operand(a, dty)?,
                     Rvalue::Unary(_, a) => cx.builder.build_not(self.operand(a, dty)?.into_int_value(), "not")?.into(),
                     Rvalue::Binary(op, a, b) => self.binary(op, a, b, dty)?,
@@ -1595,6 +1684,38 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     call_args.push(if cx.int_type(p.ty).is_some() { self.int_as(v, p.ty)?.into() } else { v.into() });
                 }
                 let call = builder.build_call(callee_fn, &call_args, "call")?;
+                if let Some(value) = call.try_as_basic_value().basic() {
+                    self.store(dest, value)?;
+                }
+                match target {
+                    Some(b) => builder.build_unconditional_branch(self.blocks[b.0 as usize])?,
+                    None => builder.build_unreachable()?,
+                };
+            }
+            TermKind::CallClosure { callee, args, dest, target, hidden } => {
+                let callee_ty = self.op_ty(callee).expect("checked callee");
+                let (params, ret) = cx.tcx.func_sig(cx.tcx.base(callee_ty)).expect("checked closure signature");
+                let env = self.operand(callee, callee_ty)?.into_pointer_value();
+                let ptr = cx.context.ptr_type(inkwell::AddressSpace::default());
+                let code = builder.build_load(ptr, env, "closure.code")?.into_pointer_value();
+                let mut call_args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+                for h in hidden {
+                    call_args.push(self.arena_ref(h, term.region)?.into());
+                }
+                call_args.push(env.into());
+                for (a, &p) in args.iter().zip(&params) {
+                    let v = self.operand(a, p)?;
+                    call_args.push(if cx.int_type(p).is_some() { self.int_as(v, p)?.into() } else { v.into() });
+                }
+                let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum<'ctx>> = vec![ptr.into(); hidden.len() + 1];
+                for &p in &params {
+                    param_types.push(cx.basic_type(p).expect("checked parameter type").into());
+                }
+                let fn_type = match cx.basic_type(ret) {
+                    Some(r) if !is_unit(cx, ret) => r.fn_type(&param_types, false),
+                    _ => cx.context.void_type().fn_type(&param_types, false),
+                };
+                let call = builder.build_indirect_call(fn_type, code, &call_args, "call.closure")?;
                 if let Some(value) = call.try_as_basic_value().basic() {
                     self.store(dest, value)?;
                 }

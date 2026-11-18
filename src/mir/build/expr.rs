@@ -36,7 +36,8 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Binary { op, lhs, rhs } => self.binary(e, op, lhs, rhs),
             HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
             HirExprKind::Call { callee, args, trailing } => self.call(e, callee, args, trailing.is_some()),
-            HirExprKind::Closure { .. } | HirExprKind::MakeClosure { .. } => Err(BuildError::unsupported(Capability::Closure, span_of(e))),
+            HirExprKind::MakeClosure { function, captures, kind, is_move } => self.make_closure(e, function, captures, *kind, *is_move),
+            HirExprKind::Closure { .. } => Err(BuildError::unsupported(Capability::Closure, span_of(e))),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
             HirExprKind::Index { receiver, index, .. } => self.index(e, receiver, index),
             HirExprKind::Slice { receiver, lo, hi } => self.slice(e, receiver, lo, hi),
@@ -223,8 +224,41 @@ impl<'a> FnBuilder<'a> {
             self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(dst)), op, args: ops, arena }, span, Some(e.id));
             return Ok(Operand::Copy(Place::local(dst)));
         }
-        // Not a user function and not a builtin: a call through a value.
+        // Not a user function and not a builtin: a call through a closure value.
+        if self.tcx.func_sig(self.tcx.base(callee.ty)).is_some() {
+            if let Ok(local) = self.lookup(name, span) {
+                let abi = super::abi_for_return(self.tcx, e.ty);
+                let mut hidden = Vec::new();
+                if abi.caller_parent {
+                    hidden.push(ArenaRef::Current);
+                }
+                if abi.result_sink {
+                    hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
+                }
+                let dest = self.temp(e.ty);
+                let target = self.new_block();
+                let callee = Operand::Copy(Place::local(local));
+                self.terminate(
+                    TermKind::CallClosure { callee, args: ops, hidden, dest: Place::local(dest), target: Some(target) },
+                    span,
+                    Some(e.id),
+                );
+                self.cur = target;
+                return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
+            }
+        }
         Err(BuildError::unsupported(Capability::IndirectCall, span))
+    }
+
+    /// A closure value (RFC 0007). Only a closure that reads its captures and does not own them lowers
+    /// so far: a capture is copied into the environment, so one that is assigned or moved needs the
+    /// `&rw` / drop-glue steps first.
+    fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
+        if kind != crate::hir::ClosureKind::Fn || (is_move && !captures.is_empty()) {
+            return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
+        }
+        let captures = self.with_sink(ArenaRef::Current, |b| b.exprs(captures))?;
+        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures }))
     }
 
     fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {

@@ -195,6 +195,10 @@ impl<'ctx> Codegen<'ctx> {
         if self.tcx.class_def(ty).is_some() || matches!(self.tcx.data(ty), TyData::Enum(..)) {
             return Some(self.object_handle_type().into());
         }
+        // A closure value is a pointer to its environment `{ code pointer, captures... }` (RFC 0007).
+        if matches!(self.tcx.data(ty), TyData::Func { .. } | TyData::Closure { .. }) {
+            return Some(self.context.ptr_type(AddressSpace::default()).into());
+        }
         if let TyData::Prim(prim) = *self.tcx.data(ty) {
             return match prim {
                 Prim::F32 => Some(self.context.f32_type().into()),

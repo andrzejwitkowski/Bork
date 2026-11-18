@@ -436,15 +436,7 @@ fn split_trailing_param<'a>(
         if let Some(sig) = env.tcx.func_sig(env.tcx.base(ty)) {
             return Some((sig, regular));
         }
-        let fn_bounds: Vec<(TyId, TyId)> = env
-            .infcx
-            .obligations()
-            .iter()
-            .filter(|o| env.tcx.is_fn_trait(o.predicate.trait_ref.trait_id))
-            .filter_map(|o| Some((o.predicate.self_ty, *o.predicate.trait_ref.args.first()?)))
-            .collect();
-        let sig = fn_bounds.into_iter().find_map(|(self_ty, arg)| (env.settle(self_ty) == ty).then(|| env.tcx.func_sig(arg)).flatten());
-        Some((sig?, regular))
+        Some((fn_bound_sig(ty, env)?, regular))
     });
     match last {
         Some((signature, regular)) => (regular, Some(signature)),
@@ -471,8 +463,21 @@ fn closure_type(hir: &HirExpr, params: Vec<TyId>, ret: TyId, env: &mut Env<'_>) 
     env.tcx.closure(params, ret, *kind, *is_move, captures.iter().map(|c| c.ty).collect())
 }
 
+/// The signature a pending `Fn*` bound gives the (inference-variable) type `ty`.
+fn fn_bound_sig(ty: TyId, env: &mut Env<'_>) -> Option<(Vec<TyId>, TyId)> {
+    let fn_bounds: Vec<(TyId, TyId)> = env
+        .infcx
+        .obligations()
+        .iter()
+        .filter(|o| env.tcx.is_fn_trait(o.predicate.trait_ref.trait_id))
+        .filter_map(|o| Some((o.predicate.self_ty, *o.predicate.trait_ref.args.first()?)))
+        .collect();
+    fn_bounds.into_iter().find_map(|(self_ty, arg)| (env.settle(self_ty) == ty).then(|| env.tcx.func_sig(arg)).flatten())
+}
+
 pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
-    let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))) {
+    let from_bound = expected.and_then(|ty| fn_bound_sig(env.settle(ty), env));
+    let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))).or(from_bound) {
         Some(sig) => sig,
         None => {
             let params = closure.params.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
