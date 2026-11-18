@@ -1,0 +1,11 @@
+// diag: a borrow cannot be stored in a generic type
+enum Holder<T> {
+    Full(value: T)
+}
+fun wrap<F: Fn() -> i32>(f: F): Holder<F> {
+    return Holder.Full(f)
+}
+fun main() {
+    val n = 3
+    val slot = wrap({ -> n })
+}

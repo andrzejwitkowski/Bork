@@ -367,6 +367,14 @@ Arenas
     │   └── k [Copy]
     └── Closure
         └── x [Local]
+== programs/build/closures/view_passed_to_generic_callback.bork
+Arenas
+├── fun call
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    └── Closure
+        └── n [Copy]
 == programs/build/conditionals/else_if.bork
 Arenas
 ├── fun pick
@@ -4679,6 +4687,16 @@ Arenas
     └── Closure (move)
         ├── n [Moved ← fun main]
         └── m [Copy]
+== programs/check_fail/closures/view_in_generic_wrapper.bork
+Type Error [205..209] `wrap<closure#0()->i32>`: `closure#0()->i32` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
+Arenas
+├── fun wrap
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    ├── slot [Local]
+    └── Closure
+        └── n [Copy]
 == programs/check_fail/closures/view_returned.bork
 Type Error [] cannot return a closure that borrows its captures; make it `move`
 Arenas

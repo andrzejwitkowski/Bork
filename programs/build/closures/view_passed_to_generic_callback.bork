@@ -1,0 +1,10 @@
+// exit: 0
+// stdout: 3\n
+fun call<F: Fn() -> i32>(f: F): i32 {
+    return f()
+}
+fun main(): i32 {
+    val n = 3
+    println(call({ -> n }))
+    return 0
+}

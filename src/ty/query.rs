@@ -328,14 +328,16 @@ impl TyCtx {
 
     /// The first of `args` that stores a borrow (RFC 0003 section 2). `args` must be fully resolved.
     pub fn first_borrow_arg(&self, args: &[TyId]) -> Option<TyId> {
-        // shortcut: a closure passed for a type parameter (`F: Fn`) lives for the call; returning it is not checked yet.
+        // A closure passed for a function's type parameter (`F: Fn`) lives for the call; a class or enum holding one is
+        // checked separately (`borrow_arg_at`).
         args.iter().copied().find(|&arg| !matches!(self.data(arg), TyData::Closure { .. }) && self.stores_borrow(arg))
     }
 
     /// The borrow-type-argument error for this node alone (not its children).
     fn borrow_arg_at(&self, data: &TyData) -> Option<String> {
         let (TyData::Class(def, args) | TyData::Enum(def, args)) = data else { return None };
-        self.first_borrow_arg(args).map(|arg| self.borrow_type_arg_message(arg, self.class_name(*def)))
+        // Strict: a class or enum that holds a view closure stores it, unlike a call's `F: Fn` argument.
+        args.iter().copied().find(|&arg| self.stores_borrow(arg)).map(|arg| self.borrow_type_arg_message(arg, self.class_name(*def)))
     }
 
     /// The first class or enum anywhere in `id` that takes a borrow as a type argument.

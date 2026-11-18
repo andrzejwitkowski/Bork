@@ -43,6 +43,7 @@ programs/build/closures/move_temp_in_loop.bork: hits=42 hash=882e1050c01fe29a
 programs/build/closures/nested_fnmut_updates_outer.bork: hits=39 hash=1bbf6b0413abf5a7
 programs/build/closures/outer_name_before_shadowing_decl.bork: hits=18 hash=6ae2ecc8d682b816
 programs/build/closures/trailing_with_capture.bork: hits=26 hash=6e595dff0d820f8e
+programs/build/closures/view_passed_to_generic_callback.bork: hits=12 hash=c27a78ff7588bdc4
 programs/build/conditionals/else_if.bork: hits=3 hash=6c2fc00716667e73
 programs/build/conditionals/if_else_return.bork: hits=7 hash=24d78fb03c7163dd
 programs/build/conditionals/logical_short_circuit.bork: hits=2 hash=0acb01501f1629a8
@@ -347,6 +348,7 @@ programs/check_fail/closures/break_in_closure.bork: hits=6 hash=8041edeea34d2536
 programs/check_fail/closures/fnmut_to_fn_bound.bork: hits=3 hash=8a6ecd6bfbfccf09
 programs/check_fail/closures/move_in_loop.bork: hits=13 hash=43adea5b603d904f
 programs/check_fail/closures/move_list_misses_a_capture.bork: hits=15 hash=c7e6ae8dcc435822
+programs/check_fail/closures/view_in_generic_wrapper.bork: hits=8 hash=f611a91afdd8c7e9
 programs/check_fail/closures/view_returned.bork: hits=2 hash=850bdccb70b29015
 programs/check_fail/closures/view_returned_through_call.bork: hits=4 hash=4c63f7f94fc6f711
 programs/check_fail/closures/view_stored_in_var.bork: hits=18 hash=9303ecab71d8eb03

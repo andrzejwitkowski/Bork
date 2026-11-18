@@ -79,6 +79,8 @@ programs/build/closures/nested_fnmut_updates_outer.bork::main() -> i32
 programs/build/closures/outer_name_before_shadowing_decl.bork::main() -> i32
 programs/build/closures/trailing_with_capture.bork::apply(v: i32, f: (i32)->i32) -> i32
 programs/build/closures/trailing_with_capture.bork::main() -> i32
+programs/build/closures/view_passed_to_generic_callback.bork::call(f: T0) -> i32
+programs/build/closures/view_passed_to_generic_callback.bork::main() -> i32
 programs/build/conditionals/else_if.bork::pick(n: i32) -> i32
 programs/build/conditionals/else_if.bork::main() -> i32
 programs/build/conditionals/if_else_return.bork::add(a: i32, b: i32) -> i32
