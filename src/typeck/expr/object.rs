@@ -27,6 +27,11 @@ pub(super) fn check_construct(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    if env.tcx.is_intrinsic_def(class.id) {
+        let hint = if Some(class.id) == env.tcx.vec_def() { "; write `Vec::<T>()` or `Vec::<T>(capacity)`" } else { "" };
+        env.error(format!("`{}` is a built-in type and cannot be constructed like a class{hint}", class.name), Some(span));
+        return super::method::poisoned(args, span, return_ty, env);
+    }
     if trailing.is_some() {
         env.error("record constructors do not accept trailing closures", Some(span));
     }

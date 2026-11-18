@@ -173,8 +173,12 @@ impl TyCtx {
         self.vec_def
     }
 
+    pub fn range_def(&self) -> Option<DefId> {
+        self.range_def
+    }
+
     /// `Vec` and `Range` are classes in name only: one type argument, no fields, no object layout.
-    fn is_intrinsic_def(&self, def: DefId) -> bool {
+    pub fn is_intrinsic_def(&self, def: DefId) -> bool {
         Some(def) == self.vec_def || Some(def) == self.range_def
     }
 

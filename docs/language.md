@@ -282,9 +282,9 @@ These are lexer tokens, so they cannot name a binding, parameter, field, functio
 - control flow: `if`, `else`, `when`, `for`, `in`, `while`, `break`, `continue`, `return`
 - values: `true`, `false`
 - ownership: `move`, `promote`
-- type constructors: `Ref`, `Vec`
+- type constructors: `Ref`
 
-`const` is an ordinary keyword. `Ref` is still reserved. `Vec` is an ordinary identifier (#276); `Vec::<T>(cap)` is the constructor call, which the parser still turns into its own expression until `Vec` is a prelude class. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
+`const` is an ordinary keyword. `Ref` is still reserved. `Vec` is an ordinary identifier (#276): the prelude declares it as `intrinsic class Vec<T>`, and `Vec::<T>(cap)` is an ordinary call. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
 
 ## Statements
 

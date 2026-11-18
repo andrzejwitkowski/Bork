@@ -5796,6 +5796,11 @@ Type Error [89..92] `Vec` element must be a Copy type, a non-null `String` or a 
 Arenas
 └── fun main
     └── v [Local]
+== programs/check_fail/vec/construct_like_class.bork
+Type Error [108..111] `Vec` is a built-in type and cannot be constructed like a class; write `Vec::<T>()` or `Vec::<T>(capacity)`
+Arenas
+└── fun main
+    └── v [Local]
 == programs/check_fail/vec/count_of_non_ref.bork
 Type Error [97..98] `strongCount` expects a `Ref<T>`, got i32
 Arenas
@@ -5827,6 +5832,12 @@ Type Error [81..84] `Vec` takes at most one argument, the capacity
 Arenas
 └── fun main
     └── v [Local]
+== programs/check_fail/vec/user_defined_range.bork
+Type Error [] a range `a..b` needs the prelude `Range`, but this program defines its own `Range`
+Arenas
+└── fun main
+    └── ForLoop (i)
+        └── i [Local]
 == programs/check_fail/vec/user_defined_vec.bork
 Type Error [46..47] missing constructor argument for field `x`
 Type Error [80..83] `Vec` is not generic; it takes no explicit type arguments

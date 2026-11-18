@@ -224,6 +224,9 @@ fn binary_result_ty(op: &BinOp, lhs_ty: TyId, rhs_ty: TyId, span: Option<Span>, 
                     span,
                 );
             }
+            if env.tcx.range_def().is_none() {
+                env.error("a range `a..b` needs the prelude `Range`, but this program defines its own `Range`", span);
+            }
             env.tcx.range(i32_ty)
         }
         BinOp::Elvis => unreachable!("Elvis is handled before other binary operators"),

@@ -1,0 +1,7 @@
+// diag: a range `a..b` needs the prelude `Range`
+class Range {
+    x: i32
+}
+fun main() {
+    for (i in 0..3) { }
+}
