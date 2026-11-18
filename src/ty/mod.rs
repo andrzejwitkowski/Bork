@@ -46,7 +46,8 @@ pub enum TyData {
     Func { params: Vec<TyId>, ret: TyId },
     /// The type of one closure expression (RFC 0007), never written in source. `id` makes each
     /// expression's type its own; it unifies with the `Func` of the same signature.
-    Closure { id: u32, params: Vec<TyId>, ret: TyId },
+    /// `captures` are the types of the bindings the body uses, so substitution reaches them.
+    Closure { id: u32, params: Vec<TyId>, ret: TyId, captures: Vec<TyId> },
     /// `&T`, or `&rw T` (the editable borrow, RFC 0003) when the flag is set.
     Ref(TyId, bool),
     ManagedRef(TyId),
@@ -103,8 +104,8 @@ pub struct TyCtx {
     vec_def: Option<DefId>,
     /// The prelude's `intrinsic class Range<T>`: the type of a literal `a..b`.
     range_def: Option<DefId>,
-    /// The kind of each `TyData::Closure`, by its id.
-    closure_kinds: Vec<ClosureKind>,
+    /// The kind and `move`-ness of each `TyData::Closure`, by its id.
+    closure_kinds: Vec<(ClosureKind, bool)>,
     /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by name.
     // shortcut: matched by name, so a program's own trait called `Fn` would get the built-in rules; the prelude chunk is skipped then, so give it a prelude-origin check if that ever happens.
     fn_traits: [Option<DefId>; 3],

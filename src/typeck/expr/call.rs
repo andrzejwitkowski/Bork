@@ -305,7 +305,7 @@ pub(super) fn finish_call(
             let mut hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
             // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
             if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
-                hir.ty = env.tcx.closure(closure_params, closure_ret, closure_kind(&hir));
+                hir.ty = closure_type(&hir, closure_params, closure_ret, env);
                 let _ = env.infcx.unify(env.tcx, last, hir.ty);
                 super::super::solve::select_where_possible(env);
             }
@@ -464,11 +464,11 @@ fn split_trailing_param<'a>(
 /// A closure written as a value (RFC 0007). Parameter and result types come from an expected
 /// function type, else from fresh variables the body then fixes. Its type is its own `Closure`,
 /// which unifies with the `Func` of the same signature.
-fn closure_kind(hir: &HirExpr) -> crate::hir::ClosureKind {
-    match &hir.kind {
-        HirExprKind::Closure { kind, .. } => *kind,
-        _ => unreachable!("a checked closure is a closure node"),
-    }
+fn closure_type(hir: &HirExpr, params: Vec<TyId>, ret: TyId, env: &mut Env<'_>) -> TyId {
+    let HirExprKind::Closure { kind, is_move, captures, .. } = &hir.kind else {
+        unreachable!("a checked closure is a closure node")
+    };
+    env.tcx.closure(params, ret, *kind, *is_move, captures.iter().map(|c| c.ty).collect())
 }
 
 pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
@@ -480,7 +480,7 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
         }
     };
     let mut hir = check_trailing_closure(closure, &params, ret, env);
-    hir.ty = env.tcx.closure(params, ret, closure_kind(&hir));
+    hir.ty = closure_type(&hir, params, ret, env);
     Checked { ty: hir.ty, hir }
 }
 

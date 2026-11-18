@@ -42,7 +42,10 @@ impl InferCtxt {
                 self.unify_sig(tcx, pa, ra, pb, rb)
             }
             // The same closure seen through two variables; another closure is a different type.
-            (TyData::Closure { id: ia, params: pa, ret: ra }, TyData::Closure { id: ib, params: pb, ret: rb }) if ia == ib => {
+            (TyData::Closure { id: ia, params: pa, ret: ra, captures: ca }, TyData::Closure { id: ib, params: pb, ret: rb, captures: cb }) if ia == ib => {
+                for (x, y) in ca.into_iter().zip(cb) {
+                    self.unify_inner(tcx, x, y)?;
+                }
                 self.unify_sig(tcx, pa, ra, pb, rb)
             }
             (TyData::Class(da, xa), TyData::Class(db, xb)) | (TyData::Enum(da, xa), TyData::Enum(db, xb)) => {

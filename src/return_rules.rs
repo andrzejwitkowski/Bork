@@ -9,7 +9,7 @@ use crate::ty::TyCtx;
 
 /// The "returning a reference" rule: a pure type check.
 pub(crate) fn returns_reference(tcx: &TyCtx, value: &HirExpr) -> bool {
-    tcx.is_ref(value.ty)
+    tcx.is_ref(value.ty) || tcx.is_view_closure(value.ty)
 }
 
 /// Rejects a returned `String` that is a fresh allocation or a moved/promoted binding.

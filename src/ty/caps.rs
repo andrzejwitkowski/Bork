@@ -81,8 +81,8 @@ impl<'a> TyCaps<'a> {
                 any
             }
             TyData::String | TyData::Prim(_) | TyData::Ref(..) | TyData::Func { .. } | TyData::Error => false,
-            // shortcut: captures are not modelled yet, so a closure owns nothing; RFC 0007 step F5.
-            TyData::Closure { .. } => false,
+            // A `move` closure owns its captures; a plain one only views them.
+            TyData::Closure { id, captures, .. } => tcx.closure_is_move(*id) && captures.iter().any(|&c| self.drop_rec(c, path)),
         }
     }
 }

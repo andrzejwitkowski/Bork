@@ -134,3 +134,14 @@ fn closure_expression_records_its_captures() {
     let HirExprKind::Closure { captures, .. } = &found.expect("val f").kind else { panic!("closure") };
     assert_eq!(captures.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["a"]);
 }
+
+#[test]
+fn plain_closure_that_captures_is_a_view_and_cannot_be_returned() {
+    let src = "fun make(): () -> i32 {\n    val n = 1\n    return { -> n }\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("returning a reference")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn plain_closure_without_captures_may_be_returned() {
+    hir_of("fun make(): () -> i32 {\n    return { -> 1 }\n}");
+}

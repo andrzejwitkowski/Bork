@@ -311,15 +311,23 @@ impl TyCtx {
     fn stores_borrow(&self, id: TyId) -> bool {
         match self.data(id) {
             TyData::Ref(..) => true,
-            // shortcut: no captures modelled yet, so a closure stores no borrow; RFC 0007 step F5.
-            TyData::Func { .. } | TyData::Closure { .. } => false,
+            TyData::Func { .. } => false,
+            // A plain closure views what it captures; a `move` one stores what its captures store.
+            TyData::Closure { id, captures, .. } => {
+                if self.closure_kinds[*id as usize].1 {
+                    captures.iter().any(|&c| self.stores_borrow(c))
+                } else {
+                    !captures.is_empty()
+                }
+            }
             data => data.children().into_iter().any(|child| self.stores_borrow(child)),
         }
     }
 
     /// The first of `args` that stores a borrow (RFC 0003 section 2). `args` must be fully resolved.
     pub fn first_borrow_arg(&self, args: &[TyId]) -> Option<TyId> {
-        args.iter().copied().find(|&arg| self.stores_borrow(arg))
+        // shortcut: a closure passed for a type parameter (`F: Fn`) lives for the call; returning it is not checked yet.
+        args.iter().copied().find(|&arg| !matches!(self.data(arg), TyData::Closure { .. }) && self.stores_borrow(arg))
     }
 
     /// The borrow-type-argument error for this node alone (not its children).
@@ -452,20 +460,29 @@ impl TyCtx {
         Some([ClosureKind::Fn, ClosureKind::FnMut, ClosureKind::FnOnce][at])
     }
 
+    /// A plain closure that captures something: it views its captures, so it cannot leave them.
+    pub fn is_view_closure(&self, ty: TyId) -> bool {
+        matches!(self.data(ty), TyData::Closure { .. }) && self.stores_borrow(ty)
+    }
+
+    pub fn closure_is_move(&self, id: u32) -> bool {
+        self.closure_kinds[id as usize].1
+    }
+
     /// The kind of a closure type; a plain function type is `Fn`.
     pub fn closure_kind(&self, ty: TyId) -> Option<ClosureKind> {
         match self.data(ty) {
-            TyData::Closure { id, .. } => Some(self.closure_kinds[*id as usize]),
+            TyData::Closure { id, .. } => Some(self.closure_kinds[*id as usize].0),
             TyData::Func { .. } => Some(ClosureKind::Fn),
             _ => None,
         }
     }
 
     /// A fresh closure type: each call is a new closure expression (RFC 0007).
-    pub fn closure(&mut self, params: Vec<TyId>, ret: TyId, kind: ClosureKind) -> TyId {
+    pub fn closure(&mut self, params: Vec<TyId>, ret: TyId, kind: ClosureKind, is_move: bool, captures: Vec<TyId>) -> TyId {
         let id = self.closure_kinds.len() as u32;
-        self.closure_kinds.push(kind);
-        self.add(TyData::Closure { id, params, ret })
+        self.closure_kinds.push((kind, is_move));
+        self.add(TyData::Closure { id, params, ret, captures })
     }
 
     /// The name of a class definition, for messages and the legacy view.
