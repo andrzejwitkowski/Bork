@@ -51,13 +51,13 @@ After monomorphization the node is gone: `mono/lift.rs` turns each closure into 
 
 ## 5. Captures, regions and escape
 
-- **`move (caps)`** moves each non-Copy capture into the closure and copies each Copy one. The source binding is dead afterwards (as for any `move`).
+- **`move (caps)`** moves each non-Copy capture into the closure and copies each Copy one. The source binding is dead afterwards (as for any `move`). An explicit list names exactly the outer bindings the body uses: a name the body uses but the list lacks, or a listed binding the body never uses, is an error (`check_capture_list`). An omitted list means the bindings the body uses.
 - **Plain closure** captures by view. The closure type is a view (`stores_borrow` is true when it has any capture), the same as a `&T`: it lives in `val` locals and parameters, and returning one is rejected with "returning a reference is not supported" (`return_rules::returns_reference`). A plain closure without captures stores nothing and may be returned.
-- **Move closure.** `stores_borrow` is true only if one of its captures stores a borrow, so it is an ordinary owned value. Its environment goes to the arena of its destination: the result sink when the function returns a closure, else the current region.
+- **Move closure.** `stores_borrow` is true only if one of its captures stores a borrow, so it is an ordinary owned value. Its environment goes to the arena of the expression that builds it: the result sink for a returned closure (`return move (..) {..}`), the current region otherwise (a temporary in a loop does not accumulate in the caller's arena).
 - **Region.** The closure gets the region sema already opens (`open_move` / `open_ordinary`).
 - **Type arguments.** A closure passed for a type parameter (`F: Fn`) is exempt from "a type argument cannot store a borrow" (`first_borrow_arg`): it lives for the call. Returning such a generic value is not checked yet.
-- **Storing.** A view closure (the expression's type is a `Closure` with a borrowed capture) is rejected as a `var` initializer, as the value of an assignment to a variable, array element or field, and as a constructor argument (`Env::reject_stored_view_closure`). Found by testing: before this rule `keep = { -> n }` inside an inner block compiled and called into a dead stack slot.
-- **Not checked yet.** The check sees the closure's own type. Once a view closure is passed as a `Func`-typed parameter, the callee sees only `Func` and may store it; closures in a field cannot be called (`only named functions can be called`), and a `Vec` of closures is untested.
+- **Storing.** A view closure is rejected as a `var` initializer, as the value of an assignment to a variable, array element or field, as a constructor argument, and as a returned value (`Env::reject_stored_view_closure`). A view is recognised by its type (`Closure` with a borrowed capture) or, because an annotation such as `val h: () -> i32 = { -> n }` turns the type into a plain `Func`, by a binding flag (`Binding::view_closure`) that follows the name through `val g = h` and `move h`. Found by testing: before this rule `keep = { -> n }` inside an inner block compiled and called into a dead stack slot.
+- **Not checked yet.** Once a view closure is passed as a `Func`-typed parameter, the callee sees only `Func` and may store it; closures in a field cannot be called (`only named functions can be called`), and a `Vec` of closures is untested. Returning a local `val` that holds a `move` closure is rejected by the escape check ("bytes live in an inner region"); `return move (..) {..}` works.
 
 ## 6. MIR and codegen
 
@@ -120,7 +120,6 @@ Still to add: `FnOnce`, closure in a `Vec`, closure over a `&rw` capture while t
 - The `"Closure"` label is the only tie between HIR sites and sema arena nodes. Lifting depends on the report's closure nodes appearing in the same post-order as the HIR closures; a mismatch is an internal error.
 - Capture by address (`FnMut`) points into the caller's frame. It is safe because a plain closure with captures cannot be returned or stored beyond its region; the checks cover return, `var`, field, array element and constructor argument, but not a `Func` parameter that stores its argument (section 5).
 - `uses_arena_storage` is true for every function type, so any function returning a closure takes a result sink, whether or not the closure captures anything.
-- A `move` closure in a function that returns a closure gets its environment in the caller's arena even if it is not the returned value. This only costs memory.
 - Distinguishing a closure from a block by `->` must not change how existing blocks parse (`braces_without_arrow_stay_blocks`, the golden corpus).
 
 ## 11. Mapping to issues

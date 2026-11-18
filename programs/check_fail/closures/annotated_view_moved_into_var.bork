@@ -1,0 +1,11 @@
+// diag: cannot store a closure that borrows its captures
+fun main(): i32 {
+    var keep: () -> i32 = { -> 0 }
+    {
+        var n = 5
+        val h: () -> i32 = { -> n }
+        keep = move h
+    }
+    println(keep())
+    return 0
+}

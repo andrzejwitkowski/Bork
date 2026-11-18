@@ -84,7 +84,7 @@ fn result_hoists(body: &HirBlock, tcx: &TyCtx, out: &mut HashMap<NodeId, Sink>) 
     for ret in &tails {
         // Only a construct: a call's result may own bytes (a `String?`) that this does not move.
         if let HirExprKind::Ident { name, .. } = &ret.kind {
-            if decls.iter().any(|(n, v)| n == name && matches!(v.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. })) {
+            if decls.iter().any(|(n, v)| n == name && matches!(v.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } | HirExprKind::MakeClosure { .. })) {
                 used.push(name.clone());
             }
         }
@@ -113,7 +113,7 @@ fn mark_decls(block: &HirBlock, used: &[String], in_loop: bool, out: &mut HashMa
     for stmt in &block.stmts {
         match stmt {
             HirStmt::VarDecl { name, value, .. } => {
-                let constructs = matches!(value.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } | HirExprKind::Call { .. });
+                let constructs = matches!(value.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } | HirExprKind::Call { .. } | HirExprKind::MakeClosure { .. });
                 if constructs && !in_loop && used.contains(name) {
                     out.entry(value.id).or_insert(Sink::Result);
                 }

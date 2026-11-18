@@ -574,7 +574,7 @@ fun main(): i32 {
 
     #[test]
     fn chained_header_gate_checks_later_rhs() {
-        let source = "class Node { next: Ref<Node> }\nfun apply(f: () -> Ref<Node>): Ref<Node> { return f() }\nfun use(r: Ref<Node>) { val v = Vec::<i32>()\n if val (a = r, b = apply() move (v) { -> v.len()\n r }) {} }";
+        let source = "class Node { next: Ref<Node> }\nfun apply(f: () -> Ref<Node>): Ref<Node> { return f() }\nfun use(r: Ref<Node>) { val v = Vec::<i32>()\n if val (a = r, b = apply() move (v, r) { -> v.len()\n r }) {} }";
         let diagnostics = analyze_source(source).diagnostics;
         assert!(
             diagnostics

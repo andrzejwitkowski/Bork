@@ -62,7 +62,7 @@ pub(super) fn check_construct(
             let value = check(arg, field_ty, return_ty, env);
             let what = format!("constructor field `{}`", field.name);
             env.mismatch(&what, value.ty, field_ty, value.span.or(Some(field.span)));
-            env.reject_stored_view_closure(value.ty, "a field", value.span.or(Some(field.span)));
+            env.reject_stored_view_closure(&value, "a field", value.span.or(Some(field.span)));
             values.push(value.hir);
         } else if env.tcx.is_managed_ref(field_ty) {
             values.push(env.expr_at(HirExprKind::None, field_ty, field.span).hir);

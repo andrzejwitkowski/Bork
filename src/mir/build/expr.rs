@@ -265,10 +265,9 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
         }
         let by_ref = kind == ClosureKind::FnMut && !is_move;
-        // A returned `move` closure must outlive this call, so its environment goes to the caller's arena
-        // shortcut: a `move` closure is also allocated there when it is not the returned value.
-        let returns_closure = matches!(self.tcx.data(self.function.return_ty), crate::ty::TyData::Func { .. });
-        let arena = if is_move && !captures.is_empty() && returns_closure && self.abi.result_sink { ArenaRef::ResultSink } else { ArenaRef::Current };
+        // The environment goes where the surrounding expression allocates: the result sink for a returned closure
+        // (`return`, or a `val` that is returned: `sinks::result_hoists`), the current region otherwise.
+        let arena = if is_move && !captures.is_empty() { self.sink.clone() } else { ArenaRef::Current };
         let captures = if by_ref {
             // The environment keeps each variable's address, so the closure updates the variable itself.
             let mut places = Vec::new();

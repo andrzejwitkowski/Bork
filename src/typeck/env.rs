@@ -32,6 +32,8 @@ pub(super) struct Binding {
     pub(super) ty: TyId,
     /// Written `&T` in a type annotation or a `&T` parameter (not inferred `val b = &a`).
     pub(super) explicit_ref: bool,
+    /// Holds a closure that borrows its captures, whatever type it was annotated with (`Func` erases it).
+    pub(super) view_closure: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -176,6 +178,7 @@ impl<'a> Env<'a> {
                     kind,
                     ty,
                     explicit_ref,
+                    view_closure: false,
                 },
             );
     }
@@ -218,10 +221,26 @@ impl<'a> Env<'a> {
         Some(ty)
     }
 
+    /// A closure that borrows its captures: its own type says so, or it is a name bound to one
+    /// (an annotation such as `val h: () -> i32 = { -> n }` types it as a plain `Func`).
+    pub(super) fn is_view_closure_value(&self, value: &Checked) -> bool {
+        if self.tcx.is_view_closure(value.ty) {
+            return true;
+        }
+        matches!(&value.hir.kind, HirExprKind::Ident { name, .. } if self.binding(name).is_some_and(|b| b.view_closure))
+    }
+
+    /// Remembers that the binding just made holds a view closure.
+    pub(super) fn mark_view_closure(&mut self, name: &str) {
+        if let Some(binding) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+            binding.view_closure = true;
+        }
+    }
+
     /// A closure that borrows its captures is a view (RFC 0007 section 5): it cannot be stored where it
-    /// would outlive them, i.e. in a `var`, a field or an array element.
-    pub(super) fn reject_stored_view_closure(&mut self, ty: TyId, what: &str, span: Option<Span>) {
-        if self.tcx.is_view_closure(ty) {
+    /// would outlive them, i.e. in a `var`, a field, an array element or a return value.
+    pub(super) fn reject_stored_view_closure(&mut self, value: &Checked, what: &str, span: Option<Span>) {
+        if self.is_view_closure_value(value) {
             self.error(format!("cannot store a closure that borrows its captures in {what}; use `val`, or `move`"), span);
         }
     }

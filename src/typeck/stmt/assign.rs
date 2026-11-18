@@ -26,7 +26,7 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: TyId, env: &
             if let Some(bound) = bound {
                 env.mismatch(&format!("assignment to `{name}`"), value.ty, bound, Some(*name_span));
             }
-            env.reject_stored_view_closure(value.ty, &format!("`{name}`"), Some(*name_span));
+            env.reject_stored_view_closure(&value, &format!("`{name}`"), Some(*name_span));
             HirStmt::Assign {
                 target: HirAssignTarget::Name { name: name.clone() },
                 value: value.hir,
@@ -71,7 +71,7 @@ fn check_index_assign(
     let index = expr::check(index, i32_ty, return_ty, env);
     env.mismatch("array index", index.ty, i32_ty, index.span.or(Some(name_span)));
     let value = expr::dispatch(value, elem, return_ty, env);
-    env.reject_stored_view_closure(value.ty, "an array element", Some(name_span));
+    env.reject_stored_view_closure(&value, "an array element", Some(name_span));
     if let Some(elem) = elem {
         env.mismatch(&format!("assignment to `{name}` element"), value.ty, elem, Some(name_span));
     }
@@ -126,7 +126,7 @@ fn check_receiver_field(
     env.node_tys.insert(field_id.numbered(), field_ty);
     let value = expr::check(value, field_ty, return_ty, env);
     env.mismatch(&format!("assignment to field `{field}`"), value.ty, field_ty, Some(field_span));
-    env.reject_stored_view_closure(value.ty, "a field", Some(field_span));
+    env.reject_stored_view_closure(&value, "a field", Some(field_span));
     HirStmt::Assign {
         target: HirAssignTarget::Field {
             receiver: receiver.hir,

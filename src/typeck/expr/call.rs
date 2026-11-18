@@ -489,6 +489,23 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
     Checked { ty: hir.ty, hir }
 }
 
+/// An explicit `move (a, b)` list names exactly the outer bindings the body uses. (`this` is how a bare field
+/// is reached and fields are reported elsewhere, so neither is compared.)
+fn check_capture_list(listed: &[crate::span::SpannedName], used: &[(String, TyId)], env: &mut Env<'_>) {
+    for (name, _) in used.iter().filter(|(n, _)| n != "this") {
+        if !listed.iter().any(|l| &l.name == name) {
+            let span = listed.first().map(|l| l.span);
+            env.error(format!("`{name}` is used by the closure but not listed in its `move (..)` capture list"), span);
+        }
+    }
+    for item in listed {
+        let bound = env.binding(&item.name).is_some();
+        if bound && item.name != "this" && !used.iter().any(|(n, _)| n == &item.name) {
+            env.error(format!("`{}` is listed in the `move (..)` capture list but the closure does not use it", item.name), Some(item.span));
+        }
+    }
+}
+
 fn check_trailing_closure(
     closure: &Closure,
     param_tys: &[TyId],
@@ -525,6 +542,9 @@ fn check_trailing_closure(
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
     let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty));
+    if let Some(listed) = &closure.captures {
+        check_capture_list(listed, &used, env);
+    }
     let captures = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
     let ty = env.tcx.func(param_tys.to_vec(), closure_ret);
     HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move, captures, kind }, ty)

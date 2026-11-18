@@ -70,6 +70,8 @@ programs/build/closures/move_string_capture.bork::main() -> i32
 programs/build/closures/move_string_outlives_frame.bork::make(n: i32) -> ()->String
 programs/build/closures/move_string_outlives_frame.bork::churn() -> i32
 programs/build/closures/move_string_outlives_frame.bork::main() -> i32
+programs/build/closures/move_temp_in_loop.bork::make(n: i32) -> ()->i32
+programs/build/closures/move_temp_in_loop.bork::main() -> i32
 programs/build/closures/nested_fnmut_updates_outer.bork::main() -> i32
 programs/build/closures/outer_name_before_shadowing_decl.bork::main() -> i32
 programs/build/closures/trailing_with_capture.bork::apply(v: i32, f: (i32)->i32) -> i32

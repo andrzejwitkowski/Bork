@@ -311,6 +311,22 @@ Arenas
 │   └── b [Local]
 └── fun main
     └── f [Local]
+== programs/build/closures/move_temp_in_loop.bork
+Arenas
+├── fun make
+│   ├── n [Local]
+│   ├── total [Local]
+│   ├── ForLoop (i)
+│   │   ├── i [Local]
+│   │   ├── tmp [Local]
+│   │   ├── total [Copy]
+│   │   └── Closure (move)
+│   │       └── i [Moved ← ForLoop (i)]
+│   └── Closure (move)
+│       ├── n [Moved ← fun make]
+│       └── total [Moved ← fun make]
+└── fun main
+    └── f [Local]
 == programs/build/closures/nested_fnmut_updates_outer.bork
 Arenas
 └── fun main
@@ -4603,6 +4619,17 @@ Type Error [126..129] field access on managed Ref `Ref<Point>` requires `if val`
 Arenas
 └── fun main
     └── p [Local]
+== programs/check_fail/closures/annotated_view_moved_into_var.bork
+Type Error [179..183] cannot store a closure that borrows its captures in `keep`; use `val`, or `move`
+Arenas
+└── fun main
+    ├── keep [Local]
+    ├── Closure
+    └── Block
+        ├── n [Local]
+        ├── h [Moved ← Block]
+        └── Closure
+            └── n [Copy]
 == programs/check_fail/closures/break_in_closure.bork
 Type Error [160..165] `break` outside of a loop
 Arenas
@@ -4633,8 +4660,18 @@ Arenas
         ├── i [Local]
         └── Closure (move)
             └── s [Shared ← fun main]
+== programs/check_fail/closures/move_list_misses_a_capture.bork
+Type Error [108..109] `m` is used by the closure but not listed in its `move (..)` capture list
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── m [Local]
+    ├── f [Local]
+    └── Closure (move)
+        ├── n [Moved ← fun main]
+        └── m [Copy]
 == programs/check_fail/closures/view_returned.bork
-Ownership Error [] returning a reference is not supported
+Type Error [] returning a reference is not supported: the closure borrows its captures
 Arenas
 └── fun make
     ├── n [Local]
