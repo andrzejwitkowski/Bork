@@ -9,9 +9,7 @@ impl TyData {
         match self {
             TyData::Array { elem, .. } => vec![*elem],
             TyData::Func { params, ret } => params.iter().copied().chain([*ret]).collect(),
-            TyData::Ref(t, _) | TyData::ManagedRef(t) => {
-                vec![*t]
-            }
+            TyData::Ref(t, _) | TyData::ManagedRef(t) => vec![*t],
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
             TyData::Projection(self_ty, _, _) => vec![*self_ty],
             _ => Vec::new(),

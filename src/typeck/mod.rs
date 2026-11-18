@@ -574,10 +574,6 @@ fn enter_function(
 
 fn check_body(env: &mut Env<'_>, function: &Function, return_ty: TyId) -> crate::hir::HirBlock {
     let body = stmt::check_block(&function.body, return_ty, env, false);
-    // An intrinsic has no body; the compiler supplies it.
-    if function.intrinsic {
-        return body;
-    }
     let unit = env.tcx.unit();
     if return_ty != unit && !stmt::block_always_returns(&body) {
         env.error(

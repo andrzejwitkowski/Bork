@@ -375,7 +375,7 @@ Type: Type = {
     "Ref" "<" <inner:Type> ">" => Type::ManagedRef {
         inner: Box::new(inner),
     },
-        "&" <inner:Type> => Type::Ref {
+    "&" <inner:Type> => Type::Ref {
         inner: Box::new(inner),
         rw: false,
         nullable: false,

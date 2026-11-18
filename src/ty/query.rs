@@ -157,6 +157,18 @@ impl TyCtx {
         self.record_def(id).map(|def| self.class_name(def))
     }
 
+    /// The element type of `id` when it is the intrinsic class `def` (`Vec<T>` or `Range<T>`).
+    fn intrinsic_arg(&self, id: TyId, def: Option<DefId>) -> Option<TyId> {
+        match self.data(id) {
+            TyData::Class(d, args) if Some(*d) == def && args.len() == 1 => Some(args[0]),
+            _ => None,
+        }
+    }
+
+    fn vec_elem_unsupported(&self, id: TyId) -> bool {
+        self.intrinsic_arg(id, self.vec_def).is_some_and(|elem| !self.is_unknown(elem) && !self.is_array_elem_supported(elem))
+    }
+
     pub fn vec_def(&self) -> Option<DefId> {
         self.vec_def
     }
@@ -168,7 +180,7 @@ impl TyCtx {
 
     /// Whether `id` is `Vec<_>` or `Range<_>`.
     pub fn is_intrinsic_class(&self, id: TyId) -> bool {
-        matches!(self.data(id), TyData::Class(def, args) if self.is_intrinsic_def(*def) && args.len() == 1)
+        self.intrinsic_arg(id, self.vec_def).is_some() || self.intrinsic_arg(id, self.range_def).is_some()
     }
 
     pub fn class_def(&self, id: TyId) -> Option<DefId> {
@@ -201,22 +213,19 @@ impl TyCtx {
 
     /// through borrows and `?`.
     pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
-        match self.data(self.base(id)) {
-            TyData::Class(def, args) if Some(*def) == self.vec_def && args.len() == 1 => Some(args[0]),
+        let base = self.base(id);
+        match self.data(base) {
             TyData::Ref(inner, _) => self.vec_elem(*inner),
-            _ => None,
+            _ => self.intrinsic_arg(base, self.vec_def),
         }
     }
 
     pub fn is_vec(&self, id: TyId) -> bool {
-        matches!(self.data(id), TyData::Class(def, args) if Some(*def) == self.vec_def && args.len() == 1)
+        self.intrinsic_arg(id, self.vec_def).is_some()
     }
 
     pub fn range_elem(&self, id: TyId) -> Option<TyId> {
-        match self.data(self.base(id)) {
-            TyData::Class(def, args) if Some(*def) == self.range_def && args.len() == 1 => Some(args[0]),
-            _ => None,
-        }
+        self.intrinsic_arg(self.base(id), self.range_def)
     }
 
     /// `(params, ret)` of a non-nullable function type.
@@ -325,9 +334,7 @@ impl TyCtx {
             TyData::ManagedRef(inner) if !self.is_unknown(*inner) && !self.managed_ref_target_ok(*inner) => {
                 Some(self.managed_ref_target_message(*inner))
             }
-            TyData::Class(def, args) if Some(*def) == self.vec_def && args.len() == 1 && !self.is_unknown(args[0]) && !self.is_array_elem_supported(args[0]) => {
-                Some(self.vec_elem_message(args[0]))
-            }
+            TyData::Class(..) if self.vec_elem_unsupported(id) => self.vec_elem(id).map(|elem| self.vec_elem_message(elem)),
             data => self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.ill_formed(child))),
         }
     }

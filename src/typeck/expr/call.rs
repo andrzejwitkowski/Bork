@@ -125,7 +125,7 @@ pub(super) fn check_call(
 ) -> Checked {
     // `Vec::<T>()` / `Vec::<T>(capacity)`: the prelude's `Vec` has no fields to construct.
     if let (Expr::Ident { name, span, .. }, [elem], None) = (callee, type_args, trailing) {
-        if env.tcx.vec_def().is_some() && env.defs.lookup_class(name) == env.tcx.vec_def() && args.len() <= 1 {
+        if env.tcx.vec_def().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) && args.len() <= 1 {
             return super::vec::check_vec_new(elem, args.first(), *span, return_ty, env);
         }
     }
