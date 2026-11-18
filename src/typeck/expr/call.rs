@@ -1,6 +1,6 @@
 use crate::ast::UnaryOp;
 use crate::ast::{BindingKind, Closure, Expr, Type};
-use crate::hir::{HirExpr, HirExprKind, Prim, UseKind};
+use crate::hir::{HirExpr, HirExprKind, HirParam, Prim, UseKind};
 use crate::span::Span;
 use crate::infer::VarKind;
 use crate::ty::{FnSig, TyCtx, TyId};
@@ -214,7 +214,7 @@ pub(super) fn check_call(
             HirExprKind::Call {
                 callee: Box::new(checked_callee.hir),
                 args,
-                has_trailing_closure: trailing.is_some(),
+                trailing: None,
             },
             unknown,
         );
@@ -292,9 +292,12 @@ pub(super) fn finish_call(
     // The arguments may have fixed the type a returned `T::Item` was waiting for.
     super::super::solve::select_where_possible(env);
 
-    if let (Some(closure), Some((closure_params, closure_ret))) = (trailing, trailing_signature) {
-        check_trailing_closure(closure, &closure_params, closure_ret, env);
-    }
+    let trailing_hir = match (trailing, trailing_signature) {
+        (Some(closure), Some((closure_params, closure_ret))) => {
+            Some(Box::new(check_trailing_closure(closure, &closure_params, closure_ret, env)))
+        }
+        _ => None,
+    };
 
     let callee_params = if crate::builtins::is_print(&name) && checked_args.len() == 1 {
         vec![checked_args[0].ty]
@@ -315,7 +318,7 @@ pub(super) fn finish_call(
         callee_ty,
         checked_args,
         call_return_ty,
-        trailing.is_some(),
+        trailing_hir,
     )
 }
 
@@ -381,7 +384,7 @@ pub(super) fn build_call(
     callee_ty: TyId,
     args: Vec<HirExpr>,
     return_ty: TyId,
-    has_trailing_closure: bool,
+    trailing: Option<Box<HirExpr>>,
 ) -> Checked {
     let callee = env.expr_at(
         HirExprKind::Ident {
@@ -395,7 +398,7 @@ pub(super) fn build_call(
         HirExprKind::Call {
             callee: Box::new(callee.hir),
             args,
-            has_trailing_closure,
+            trailing,
         },
         return_ty,
     )
@@ -435,7 +438,7 @@ fn check_trailing_closure(
     param_tys: &[TyId],
     closure_ret: TyId,
     env: &mut Env<'_>,
-) {
+) -> HirExpr {
     if closure.params.len() != param_tys.len() {
         env.error(
             format!(
@@ -451,15 +454,19 @@ fn check_trailing_closure(
         env.reject_field_captures(captures);
     }
     env.enter_scope();
+    let mut params = Vec::new();
     for (param, &ty) in closure.params.iter().zip(param_tys) {
         let is_ref = env.tcx.is_ref(ty);
         env.bind(param.name.clone(), BindingKind::Val, ty, is_ref);
+        params.push(HirParam { kind: BindingKind::Val, name: param.name.clone(), ty });
     }
-    let (_, body_ty) =
+    let (body, body_ty) =
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
     env.exit_scope();
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
+    let ty = env.tcx.func(param_tys.to_vec(), closure_ret);
+    HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move }, ty)
 }
 
 fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {
@@ -505,7 +512,7 @@ fn check_builtin_call(
     validate(&checked, env);
     let callee_ty = env.tcx.func(checked.iter().map(|arg| arg.ty).collect(), result);
     let args = checked.into_iter().map(|arg| arg.hir).collect();
-    build_call(env, name.to_string(), span, callee_ty, args, result, trailing.is_some())
+    build_call(env, name.to_string(), span, callee_ty, args, result, None)
 }
 
 /// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`.

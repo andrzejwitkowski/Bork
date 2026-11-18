@@ -106,9 +106,14 @@ fn expr(e: &mut HirExpr, f: &mut impl FnMut(TyId) -> TyId, g: &mut impl FnMut(&m
             expr(rhs, f, g);
         }
         HirExprKind::Unary { expr: inner, .. } => expr(inner, f, g),
-        HirExprKind::Call { callee, args, .. } => {
+        HirExprKind::Call { callee, args, trailing } => {
             expr(callee, f, g);
             args.iter_mut().for_each(|x| expr(x, f, g));
+            trailing.iter_mut().for_each(|x| expr(x, f, g));
+        }
+        HirExprKind::Closure { params, body, .. } => {
+            params.iter_mut().for_each(|p| p.ty = f(p.ty));
+            block(body, f, g);
         }
         HirExprKind::If { cond, then_block, else_block } => {
             expr(cond, f, g);

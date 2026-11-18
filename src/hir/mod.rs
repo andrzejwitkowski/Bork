@@ -414,7 +414,14 @@ pub enum HirExprKind {
     Call {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
-        has_trailing_closure: bool,
+        /// The trailing closure, a `Closure` node typed as the function it is passed as.
+        trailing: Option<Box<HirExpr>>,
+    },
+    /// A closure body kept from source (RFC 0007). Captures are computed later (step F5).
+    Closure {
+        params: Vec<HirParam>,
+        body: HirBlock,
+        is_move: bool,
     },
     If {
         cond: Box<HirExpr>,
