@@ -62,6 +62,17 @@ pub enum TyData {
     Error,
 }
 
+/// How a closure uses what it captures (RFC 0007); each kind satisfies the ones after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ClosureKind {
+    /// Only reads its captures: callable any number of times, also while shared.
+    Fn,
+    /// Assigns to a capture.
+    FnMut,
+    /// Moves a capture out, so it can run once.
+    FnOnce,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ParamIdx(pub u32);
 
@@ -92,11 +103,11 @@ pub struct TyCtx {
     vec_def: Option<DefId>,
     /// The prelude's `intrinsic class Range<T>`: the type of a literal `a..b`.
     range_def: Option<DefId>,
-    /// Next `TyData::Closure` id.
-    closures: u32,
+    /// The kind of each `TyData::Closure`, by its id.
+    closure_kinds: Vec<ClosureKind>,
     /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by name.
     // shortcut: matched by name, so a program's own trait called `Fn` would get the built-in rules; the prelude chunk is skipped then, so give it a prelude-origin check if that ever happens.
-    fn_traits: Vec<DefId>,
+    fn_traits: [Option<DefId>; 3],
 }
 
 impl TyCtx {
@@ -110,7 +121,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closures: 0, fn_traits: ["Fn", "FnMut", "FnOnce"].iter().filter_map(|n| defs.lookup_trait(n)).collect() };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closure_kinds: Vec::new(), fn_traits: ["Fn", "FnMut", "FnOnce"].map(|n| defs.lookup_trait(n)) };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

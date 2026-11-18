@@ -1,3 +1,4 @@
+mod captures;
 mod coherence;
 mod env;
 mod exhaustive;

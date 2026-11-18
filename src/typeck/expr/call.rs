@@ -1,6 +1,6 @@
 use crate::ast::UnaryOp;
 use crate::ast::{BindingKind, Closure, Expr, Type};
-use crate::hir::{HirExpr, HirExprKind, HirParam, Prim, UseKind};
+use crate::hir::{HirCapture, HirExpr, HirExprKind, HirParam, Prim, UseKind};
 use crate::span::Span;
 use crate::infer::VarKind;
 use crate::ty::{FnSig, TyCtx, TyId};
@@ -305,7 +305,7 @@ pub(super) fn finish_call(
             let mut hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
             // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
             if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
-                hir.ty = env.tcx.closure(closure_params, closure_ret);
+                hir.ty = env.tcx.closure(closure_params, closure_ret, closure_kind(&hir));
                 let _ = env.infcx.unify(env.tcx, last, hir.ty);
                 super::super::solve::select_where_possible(env);
             }
@@ -464,6 +464,13 @@ fn split_trailing_param<'a>(
 /// A closure written as a value (RFC 0007). Parameter and result types come from an expected
 /// function type, else from fresh variables the body then fixes. Its type is its own `Closure`,
 /// which unifies with the `Func` of the same signature.
+fn closure_kind(hir: &HirExpr) -> crate::hir::ClosureKind {
+    match &hir.kind {
+        HirExprKind::Closure { kind, .. } => *kind,
+        _ => unreachable!("a checked closure is a closure node"),
+    }
+}
+
 pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
     let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))) {
         Some(sig) => sig,
@@ -473,7 +480,7 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
         }
     };
     let mut hir = check_trailing_closure(closure, &params, ret, env);
-    hir.ty = env.tcx.closure(params, ret);
+    hir.ty = env.tcx.closure(params, ret, closure_kind(&hir));
     Checked { ty: hir.ty, hir }
 }
 
@@ -509,8 +516,10 @@ pub(super) fn check_trailing_closure(
     env.exit_scope();
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
+    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty));
+    let captures = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
     let ty = env.tcx.func(param_tys.to_vec(), closure_ret);
-    HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move }, ty)
+    HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move, captures, kind }, ty)
 }
 
 fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {

@@ -123,6 +123,14 @@ fn solve_one(env: &mut Env<'_>, obligation: &Obligation) -> Outcome {
         TyData::Closure { .. } | TyData::Func { .. } if env.tcx.is_fn_trait(predicate.trait_ref.trait_id) => {
             let (params, ret) = env.tcx.func_sig(predicate.self_ty).expect("a callable type");
             let sig = env.tcx.func(params, ret);
+            let (has, needs) = (env.tcx.closure_kind(predicate.self_ty), env.tcx.fn_trait_kind(predicate.trait_ref.trait_id));
+            if let Some((has, needs)) = has.zip(needs).filter(|(h, n)| h > n) {
+                let why = format!("the closure is `{has:?}` (it {}), which the bound `{needs:?}` does not allow", match has {
+                    crate::ty::ClosureKind::FnOnce => "moves a captured value out",
+                    _ => "assigns to a captured value",
+                });
+                return Outcome::Failed(unsatisfied(env, &predicate, &why));
+            }
             match predicate.trait_ref.args.first() {
                 Some(&want) if env.infcx.unify(env.tcx, want, sig).is_ok() => Outcome::Solved(Vec::new()),
                 _ => Outcome::Failed(unsatisfied(env, &predicate, "the function signature differs from the bound")),

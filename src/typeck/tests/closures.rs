@@ -110,3 +110,27 @@ fun main(): i32 {
 "#;
     hir_of(src);
 }
+
+#[test]
+fn closure_kind_follows_how_the_body_uses_a_capture() {
+    // Reads only: satisfies Fn. Assigns: FnMut but not Fn. Moves out: FnOnce only.
+    let reads = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return apply({ -> n })\n}";
+    hir_of(reads);
+    let writes = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return apply({ -> n = 2\n 0 })\n}";
+    assert!(diags_of(writes).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(writes));
+    let writes_ok = "fun apply<F: FnMut() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return apply({ -> n = 2\n 0 })\n}";
+    hir_of(writes_ok);
+}
+
+#[test]
+fn closure_expression_records_its_captures() {
+    use crate::hir::HirExprKind;
+    let src = "fun main(): i32 {\n    val a = 1\n    val b = 2\n    val f: () -> i32 = { -> a + 1 }\n    return f()\n}";
+    let hir = hir_of(src);
+    let found = hir.functions[0].body.stmts.iter().find_map(|s| match s {
+        crate::hir::HirStmt::VarDecl { value, name, .. } if name == "f" => Some(value),
+        _ => None,
+    });
+    let HirExprKind::Closure { captures, .. } = &found.expect("val f").kind else { panic!("closure") };
+    assert_eq!(captures.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["a"]);
+}

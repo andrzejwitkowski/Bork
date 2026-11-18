@@ -1,7 +1,7 @@
 //! Queries and constructors over `TyId`. The "kind" queries (`is_ref`, `array_elem`, ...) look
 //! through `T?`; the strict ones (`is_copy`, `is_array`, `is_text`, ...) do not.
 
-use super::{DefId, Prim, TyCtx, TyData, TyId};
+use super::{ClosureKind, DefId, Prim, TyCtx, TyData, TyId};
 
 impl TyCtx {
     /// A class or enum value, nullable or not: a handle into some arena.
@@ -443,13 +443,28 @@ impl TyCtx {
 
     /// Whether `def` is `Fn`, `FnMut` or `FnOnce`.
     pub fn is_fn_trait(&self, def: DefId) -> bool {
-        self.fn_traits.contains(&def)
+        self.fn_traits.contains(&Some(def))
+    }
+
+    /// The weakest kind of closure that satisfies the `Fn*` trait `def`.
+    pub fn fn_trait_kind(&self, def: DefId) -> Option<ClosureKind> {
+        let at = self.fn_traits.iter().position(|t| *t == Some(def))?;
+        Some([ClosureKind::Fn, ClosureKind::FnMut, ClosureKind::FnOnce][at])
+    }
+
+    /// The kind of a closure type; a plain function type is `Fn`.
+    pub fn closure_kind(&self, ty: TyId) -> Option<ClosureKind> {
+        match self.data(ty) {
+            TyData::Closure { id, .. } => Some(self.closure_kinds[*id as usize]),
+            TyData::Func { .. } => Some(ClosureKind::Fn),
+            _ => None,
+        }
     }
 
     /// A fresh closure type: each call is a new closure expression (RFC 0007).
-    pub fn closure(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {
-        let id = self.closures;
-        self.closures += 1;
+    pub fn closure(&mut self, params: Vec<TyId>, ret: TyId, kind: ClosureKind) -> TyId {
+        let id = self.closure_kinds.len() as u32;
+        self.closure_kinds.push(kind);
         self.add(TyData::Closure { id, params, ret })
     }
 

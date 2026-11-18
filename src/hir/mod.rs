@@ -163,6 +163,15 @@ pub struct HirFunction {
     pub body: HirBlock,
 }
 
+/// An outer binding a closure uses; `ty` is the binding's type.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirCapture {
+    pub name: String,
+    pub ty: TyId,
+}
+
+pub use crate::ty::ClosureKind;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirParam {
     pub kind: ast::BindingKind,
@@ -422,6 +431,9 @@ pub enum HirExprKind {
         params: Vec<HirParam>,
         body: HirBlock,
         is_move: bool,
+        /// Outer bindings the body uses, in name order.
+        captures: Vec<HirCapture>,
+        kind: ClosureKind,
     },
     If {
         cond: Box<HirExpr>,
