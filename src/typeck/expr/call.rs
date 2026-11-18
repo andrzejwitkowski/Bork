@@ -489,7 +489,7 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
     Checked { ty: hir.ty, hir }
 }
 
-pub(super) fn check_trailing_closure(
+fn check_trailing_closure(
     closure: &Closure,
     param_tys: &[TyId],
     closure_ret: TyId,

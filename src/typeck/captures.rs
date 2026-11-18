@@ -25,12 +25,16 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
     let mut scan = Scan::default();
     scan.declared.extend(params.iter().map(|p| p.name.clone()));
     scan.block(body);
-    let outer = |name: &String| !scan.declared.contains(name) && outer_ty(name).is_some();
-    let captures: Vec<(String, TyId)> =
-        scan.used.iter().filter(|name| outer(name)).filter_map(|n| Some((n.clone(), outer_ty(n)?))).collect();
-    let kind = if scan.moved.iter().any(outer) {
+    let captures: Vec<(String, TyId)> = scan
+        .used
+        .iter()
+        .filter(|name| !scan.declared.contains(*name))
+        .filter_map(|name| Some((name.clone(), outer_ty(name)?)))
+        .collect();
+    let captured = |name: &String| captures.iter().any(|(c, _)| c == name);
+    let kind = if scan.moved.iter().any(captured) {
         ClosureKind::FnOnce
-    } else if scan.assigned.iter().any(outer) {
+    } else if scan.assigned.iter().any(captured) {
         ClosureKind::FnMut
     } else {
         ClosureKind::Fn
@@ -168,11 +172,10 @@ impl Scan {
             }
             // A nested closure's captures are uses of this one as well; its own locals stay its own.
             K::MakeClosure { captures, .. } => captures.iter().for_each(|x| self.expr(x)),
-            K::Closure { captures, body, params, .. } => {
+            K::Closure { captures, .. } => {
                 for c in captures {
                     self.used.insert(c.name.clone());
                 }
-                let _ = (body, params);
             }
         }
     }

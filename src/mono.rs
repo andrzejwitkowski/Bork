@@ -111,10 +111,7 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
         (TyData::Array { elem: e1, len: l1 }, TyData::Array { elem: e2, len: l2 }) => {
             l1 == l2 && bind(tcx, *e1, *e2, out)
         }
-        (TyData::Func { params: p1, ret: r1 }, TyData::Func { params: p2, ret: r2 }) => {
-            p1.len() == p2.len() && p1.iter().zip(p2).all(|(&p, &a)| bind(tcx, p, a, out)) && bind(tcx, *r1, *r2, out)
-        }
-        (TyData::Func { params: p1, ret: r1 }, TyData::Closure { params: p2, ret: r2, .. }) => {
+        (TyData::Func { params: p1, ret: r1 }, TyData::Func { params: p2, ret: r2 } | TyData::Closure { params: p2, ret: r2, .. }) => {
             p1.len() == p2.len() && p1.iter().zip(p2).all(|(&p, &a)| bind(tcx, p, a, out)) && bind(tcx, *r1, *r2, out)
         }
         (TyData::Ref(p, rp), TyData::Ref(a, ra)) if rp == ra => bind(tcx, *p, *a, out),

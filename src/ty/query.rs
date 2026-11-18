@@ -451,6 +451,11 @@ impl TyCtx {
         self.add(TyData::Func { params, ret })
     }
 
+    /// A closure or function value: one pointer to an environment (RFC 0007).
+    pub fn is_callable(&self, id: TyId) -> bool {
+        matches!(self.data(id), TyData::Func { .. } | TyData::Closure { .. })
+    }
+
     /// Whether `def` is `Fn`, `FnMut` or `FnOnce`.
     pub fn is_fn_trait(&self, def: DefId) -> bool {
         self.fn_traits.contains(&Some(def))

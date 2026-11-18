@@ -196,7 +196,7 @@ impl<'ctx> Codegen<'ctx> {
             return Some(self.object_handle_type().into());
         }
         // A closure value is a pointer to its environment `{ code pointer, captures... }` (RFC 0007).
-        if matches!(self.tcx.data(ty), TyData::Func { .. } | TyData::Closure { .. }) {
+        if self.tcx.is_callable(ty) {
             return Some(self.context.ptr_type(AddressSpace::default()).into());
         }
         if let TyData::Prim(prim) = *self.tcx.data(ty) {

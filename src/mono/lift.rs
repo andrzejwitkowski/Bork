@@ -15,11 +15,11 @@ use crate::ty::TyCtx;
 
 /// Lifts every closure of `functions`, appending the new functions and their report roots.
 pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut ArenaReport, tcx: &TyCtx) -> Result<(), Vec<Diagnostic>> {
-    let mut at = 0;
-    while at < functions.len() {
+    // Lifted closures are appended and already hold no closures, so only the original functions are scanned.
+    for at in 0..functions.len() {
         let mut nodes: VecDeque<ArenaNode> = take_closure_nodes(&mut report.roots[at]).into();
         let mut body = std::mem::take(&mut functions[at].body);
-        let outer = functions[at].clone();
+        let (outer_name, outer_span, outer_source) = (functions[at].name.clone(), functions[at].name_span, functions[at].source);
         let mut lifted: Vec<(HirFunction, ArenaNode)> = Vec::new();
         let mut missing = false;
         hir::rewrite(&mut body, &mut |t| t, &mut |e| match &mut e.kind {
@@ -28,9 +28,9 @@ pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut Arena
                     missing = true;
                     return;
                 };
-                let name = format!("{}$closure{}", outer.name, lifted.len());
+                let name = format!("{}$closure{}", outer_name, lifted.len());
                 node.label = format!("fun {name}");
-                let (function, make) = lift_one(&outer, name, std::mem::replace(e, HirExpr::new(HirExprKind::None, e.ty)), tcx);
+                let (function, make) = lift_one(outer_span, outer_source, name, std::mem::replace(e, HirExpr::new(HirExprKind::None, e.ty)), tcx);
                 *e = make;
                 lifted.push((function, node));
             }
@@ -39,14 +39,13 @@ pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut Arena
         });
         functions[at].body = body;
         if missing || !nodes.is_empty() {
-            let message = format!("internal error: `{}` has closures that its report regions do not match", outer.name);
+            let message = format!("internal error: `{}` has closures that its report regions do not match", outer_name);
             return Err(vec![super::error(message, None)]);
         }
         for (function, node) in lifted {
             functions.push(function);
             report.roots.push(node);
         }
-        at += 1;
     }
     Ok(())
 }
@@ -55,8 +54,7 @@ pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut Arena
 /// order matches the post-order the HIR rewrite visits closures in.
 fn take_closure_nodes(root: &mut ArenaNode) -> Vec<ArenaNode> {
     let mut out = Vec::new();
-    for child in std::mem::take(&mut root.children) {
-        let mut child = child;
+    for mut child in std::mem::take(&mut root.children) {
         out.extend(take_closure_nodes(&mut child));
         if child.label.starts_with("Closure") {
             out.push(child);
@@ -67,7 +65,7 @@ fn take_closure_nodes(root: &mut ArenaNode) -> Vec<ArenaNode> {
     out
 }
 
-fn lift_one(outer: &HirFunction, name: String, closure: HirExpr, tcx: &TyCtx) -> (HirFunction, HirExpr) {
+fn lift_one(outer_span: crate::span::Span, outer_source: Option<&'static str>, name: String, closure: HirExpr, tcx: &TyCtx) -> (HirFunction, HirExpr) {
     let ty = closure.ty;
     let span = closure.span;
     let HirExprKind::Closure { params, body, captures, is_move, kind } = closure.kind else { unreachable!("lift_one gets a closure") };
@@ -85,8 +83,8 @@ fn lift_one(outer: &HirFunction, name: String, closure: HirExpr, tcx: &TyCtx) ->
     let function = HirFunction {
         name: name.clone(),
         generics: Vec::new(),
-        name_span: span.unwrap_or(outer.name_span),
-        source: outer.source,
+        name_span: span.unwrap_or(outer_span),
+        source: outer_source,
         env_params: Some(captures.len()),
         env_mode: match (kind, is_move) {
             (crate::hir::ClosureKind::FnMut, false) => crate::hir::CaptureMode::ByAddress,

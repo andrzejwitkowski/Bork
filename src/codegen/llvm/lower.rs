@@ -63,7 +63,7 @@ fn buffer_elem(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
 
 /// A closure value (RFC 0007): a pointer to its environment.
 fn callable(cx: &Codegen<'_>, ty: TyId) -> bool {
-    matches!(cx.tcx.data(cx.tcx.ref_inner(ty).unwrap_or(ty)), TyData::Func { .. } | TyData::Closure { .. })
+    cx.tcx.is_callable(cx.tcx.ref_inner(ty).unwrap_or(ty))
 }
 
 /// A value this lowering handles: scalars, `Ref`s, text, plain arrays and `Vec`s, and classes,
@@ -211,10 +211,6 @@ fn pushed_regions(body: &Body) -> HashSet<RegionId> {
 
 fn op_place_ty(cx: &Codegen<'_>, body: &Body, op: &Operand) -> Option<TyId> {
     place_ty(cx, body, op.place()?)
-}
-
-fn returns_into_sink_ty(cx: &Codegen<'_>, ty: TyId) -> bool {
-    cx.tcx.owns_result(ty) || cx.tcx.uses_arena_storage(ty)
 }
 
 pub(super) fn supported(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, body: &Body) -> bool {
@@ -580,8 +576,8 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
             }
             TermKind::CallClosure { callee, args, hidden, dest, .. } => {
                 let sig = cx.tcx.func_sig(cx.tcx.base(op_place_ty(cx, body, callee)?))?;
-                let abi = if returns_into_sink_ty(cx, sig.1) { 2 } else { 1 };
-                if hidden.len() != abi || !hidden.iter().all(&arena_ok) || args.len() != sig.0.len() || !dest.is_bare() {
+                let abi = crate::mir::build::abi_for_return(&cx.tcx, sig.1);
+                if hidden.len() != abi.caller_parent as usize + abi.result_sink as usize || !hidden.iter().all(&arena_ok) || args.len() != sig.0.len() || !dest.is_bare() {
                     return None;
                 }
                 general(callee)?;
@@ -851,6 +847,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         // A lifted closure's captures arrive in its environment: `{ code pointer, captures... }`.
         let env = self.function.env_params.map(|_| params.next().expect("closure environment parameter").into_pointer_value());
         let mut captured = 0usize;
+        let env_type = self.function.env_params.map(|_| self.closure_env_type());
         let observations: HashSet<Local> = self.body.blocks.iter().flat_map(|b| &b.stmts).filter_map(|s| if let StmtKind::Observe { obs, .. } = s.kind { Some(obs) } else { None }).collect();
         for (i, decl) in self.body.locals.iter().enumerate() {
             let local = Local(i as u32);
@@ -875,7 +872,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             // A by-reference capture is the outer variable itself: its slot is the stored address.
             if decl.kind == LocalKind::Arg && self.function.env_mode != crate::hir::CaptureMode::ByValue && captured < self.function.env_params.unwrap_or(0) {
                 let env = env.expect("closure environment");
-                let field = cx.builder.build_struct_gep(self.closure_env_type(), env, captured as u32 + 1, "capture.ref")?;
+                let field = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env, captured as u32 + 1, "capture.ref")?;
                 captured += 1;
                 let slot = if self.function.env_mode == crate::hir::CaptureMode::InPlace {
                     // The environment owns the value: the body updates it where it lives.
@@ -891,7 +888,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let from_env = env.filter(|_| captured < self.function.env_params.unwrap_or(0));
                 let value = match from_env {
                     Some(env) => {
-                        let ptr = cx.builder.build_struct_gep(self.closure_env_type(), env, captured as u32 + 1, "capture.ptr")?;
+                        let ptr = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env, captured as u32 + 1, "capture.ptr")?;
                         captured += 1;
                         cx.builder.build_load(ty, ptr, "capture")?
                     }
