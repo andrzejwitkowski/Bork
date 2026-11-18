@@ -156,7 +156,8 @@ pub enum Rvalue {
     Slice { base: Operand, lo: Operand, hi: Operand },
     /// A closure value (RFC 0007): the environment `{ code pointer of `function`, captures... }`,
     /// allocated in the current region (none for a closure without captures).
-    Closure { function: String, captures: Vec<Operand> },
+    /// `by_ref`: each capture operand names a variable whose address is stored (an `FnMut` closure).
+    Closure { function: String, captures: Vec<Operand>, by_ref: bool },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

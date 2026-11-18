@@ -512,6 +512,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         source: None,
         params,
         env_params: None,
+        env_by_ref: false,
         return_ty,
         body,
     }

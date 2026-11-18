@@ -162,6 +162,8 @@ pub struct HirFunction {
     /// `Some(n)` for a lifted closure: its first `n` `params` are captures, which codegen passes as the one
     /// environment pointer every closure takes (also with `n == 0`). `None` for every ordinary function.
     pub env_params: Option<usize>,
+    /// The environment holds the address of each captured variable, not a copy (an `FnMut` closure).
+    pub env_by_ref: bool,
     pub return_ty: TyId,
     pub body: HirBlock,
 }

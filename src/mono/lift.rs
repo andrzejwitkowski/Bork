@@ -88,6 +88,7 @@ fn lift_one(outer: &HirFunction, name: String, closure: HirExpr, tcx: &TyCtx) ->
         name_span: span.unwrap_or(outer.name_span),
         source: outer.source,
         env_params: Some(captures.len()),
+        env_by_ref: kind == crate::hir::ClosureKind::FnMut,
         params: capture_params.chain(params).collect(),
         return_ty: ret,
         body,

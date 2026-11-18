@@ -535,8 +535,8 @@ fun main(): i32 {
     }
 
     #[test]
-    fn a_closure_that_assigns_a_capture_reports_a_codegen_error() {
-        let diagnostics = analyze_source("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return apply() { -> n = 2\n        0 }\n}").diagnostics;
+    fn a_move_closure_with_captures_reports_a_codegen_error() {
+        let diagnostics = analyze_source("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return apply() move (n) { -> n }\n}").diagnostics;
         assert!(
             diagnostics
                 .iter()
@@ -574,7 +574,7 @@ fun main(): i32 {
 
     #[test]
     fn chained_header_gate_checks_later_rhs() {
-        let source = "class Node { next: Ref<Node> }\nfun apply(f: () -> Ref<Node>): Ref<Node> { return f() }\nfun use(r: Ref<Node>) { var n = 0\n if val (a = r, b = apply() { -> n = 1\n r }) {} }";
+        let source = "class Node { next: Ref<Node> }\nfun apply(f: () -> Ref<Node>): Ref<Node> { return f() }\nfun use(r: Ref<Node>) { val n = 0\n if val (a = r, b = apply() move (n) { -> r }) {} }";
         let diagnostics = analyze_source(source).diagnostics;
         assert!(
             diagnostics

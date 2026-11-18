@@ -4,7 +4,6 @@ fun apply(f: () -> i32): i32 {
 }
 
 fun main(): i32 {
-    var n = 1
-    return apply() { -> n = 2
-        0 }
+    val n = 1
+    return apply() move (n) { -> n }
 }

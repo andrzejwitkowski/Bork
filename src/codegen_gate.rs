@@ -64,8 +64,8 @@ mod tests {
     use crate::diag::Phase;
 
     #[test]
-    fn gate_rejects_a_closure_that_assigns_a_capture() {
-        let result = crate::frontend::check("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return apply() { -> n = 2\n        0 }\n}");
+    fn gate_rejects_a_move_closure_with_captures() {
+        let result = crate::frontend::check("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return apply() move (n) { -> n }\n}");
         assert!(result.is_ok(), "{:?}", result.diagnostics);
 
         let diagnostics = super::gate(result.hir.as_ref().unwrap(), result.report.as_ref().unwrap(), &result.tcx);

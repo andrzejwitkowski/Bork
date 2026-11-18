@@ -62,7 +62,7 @@ impl Capability {
     /// The user-facing diagnostic (what `bork check` and `bork build` report for the construct).
     pub fn message(self) -> &'static str {
         match self {
-            Capability::Closure => "closures that assign to or move a capture are not supported by codegen yet",
+            Capability::Closure => "closures that own or move out their captures (`move` closures, `FnOnce`) are not supported by codegen yet",
             Capability::MatchRef => "`when` over a `Ref` is not supported by codegen yet; use `if val`",
             Capability::PatPresence => "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`",
             Capability::MoveEscapesArena => "this `move` would leave the object in an arena that is freed before its new owner; build it where it ends up (the next statement, or the `return`)",

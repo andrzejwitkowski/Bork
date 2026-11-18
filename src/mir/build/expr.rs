@@ -254,11 +254,25 @@ impl<'a> FnBuilder<'a> {
     /// so far: a capture is copied into the environment, so one that is assigned or moved needs the
     /// `&rw` / drop-glue steps first.
     fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
-        if kind != crate::hir::ClosureKind::Fn || (is_move && !captures.is_empty()) {
+        use crate::hir::ClosureKind;
+        if kind == ClosureKind::FnOnce || (is_move && !captures.is_empty()) {
             return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
         }
-        let captures = self.with_sink(ArenaRef::Current, |b| b.exprs(captures))?;
-        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures }))
+        let by_ref = kind == ClosureKind::FnMut;
+        let captures = if by_ref {
+            // The environment keeps each variable's address, so the closure updates the variable itself.
+            let mut places = Vec::new();
+            for c in captures {
+                let HirExprKind::Ident { name, .. } = &c.kind else {
+                    return Err(BuildError::Internal("a closure capture is a name".into()));
+                };
+                places.push(Operand::Copy(Place::local(self.lookup(name, span_of(c))?)));
+            }
+            places
+        } else {
+            self.with_sink(ArenaRef::Current, |b| b.exprs(captures))?
+        };
+        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures, by_ref }))
     }
 
     fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {

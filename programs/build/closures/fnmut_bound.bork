@@ -1,0 +1,14 @@
+// exit: 0
+// stdout: 12\n
+fun run<F: FnMut() -> i32>(f: F): i32 {
+    f()
+    f()
+    return f()
+}
+
+fun main(): i32 {
+    var total = 0
+    println(run({ -> total = total + 4
+        total }))
+    return 0
+}

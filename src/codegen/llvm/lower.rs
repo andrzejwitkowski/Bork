@@ -341,12 +341,15 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                                 return None;
                             }
                         }
-                        Rvalue::Closure { function: target, captures } => {
+                        Rvalue::Closure { function: target, captures, by_ref } => {
                             let (_, f) = callees.get(target.as_str())?;
-                            if !callable(cx, dty) || f.env_params != Some(captures.len()) {
+                            if !callable(cx, dty) || f.env_params != Some(captures.len()) || f.env_by_ref != *by_ref {
                                 return None;
                             }
                             captures.iter().try_for_each(|c| general(c))?;
+                            if *by_ref && !captures.iter().all(|c| matches!(c, Operand::Copy(p) if p.is_bare())) {
+                                return None;
+                            }
                         }
                         Rvalue::Slice { base, lo, hi } => {
                             let t = place_ty(cx, body, base.place()?)?;
@@ -836,7 +839,9 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         let n = self.function.env_params.unwrap_or(0);
         let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![cx.context.ptr_type(inkwell::AddressSpace::default()).into()];
         let args = self.body.locals.iter().filter(|l| l.kind == LocalKind::Arg).take(n);
-        fields.extend(args.map(|l| cx.basic_type(l.ty).expect("checked capture type")));
+        let by_ref = self.function.env_by_ref;
+        let address = fields[0];
+        fields.extend(args.map(|l| if by_ref { address } else { cx.basic_type(l.ty).expect("checked capture type") }));
         cx.context.struct_type(&fields, false)
     }
 
@@ -867,6 +872,15 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 continue;
             }
             let ty = cx.basic_type(decl.ty).ok_or_else(|| not_yet_supported("local type", None))?;
+            // A by-reference capture is the outer variable itself: its slot is the stored address.
+            if decl.kind == LocalKind::Arg && self.function.env_by_ref && captured < self.function.env_params.unwrap_or(0) {
+                let env = env.expect("closure environment");
+                let field = cx.builder.build_struct_gep(self.closure_env_type(), env, captured as u32 + 1, "capture.ref")?;
+                captured += 1;
+                let address = cx.builder.build_load(cx.context.ptr_type(inkwell::AddressSpace::default()), field, "capture.slot")?;
+                self.slots.insert(local, address.into_pointer_value());
+                continue;
+            }
             let slot = cx.builder.build_alloca(ty, "local")?;
             if decl.kind == LocalKind::Arg {
                 let from_env = env.filter(|_| captured < self.function.env_params.unwrap_or(0));
@@ -1200,15 +1214,21 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 }
                 self.alloc_handle(dst, arena, size, record.get_alignment(), None, class)?;
             }
-            StmtKind::Assign(dst, Rvalue::Closure { function, captures }) => {
+            StmtKind::Assign(dst, Rvalue::Closure { function, captures, by_ref }) => {
                 let (callee_fn, _) = self.callees[function.as_str()];
                 let code = callee_fn.as_global_value().as_pointer_value();
                 let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![code.get_type().into()];
                 let mut values: Vec<BasicValueEnum<'ctx>> = vec![code.into()];
                 for c in captures {
                     let ty = self.op_ty(c).expect("checked capture");
-                    fields.push(cx.basic_type(ty).expect("checked capture type"));
-                    values.push(self.operand(c, ty)?);
+                    if *by_ref {
+                        let (address, _) = self.place_ptr(c.place().expect("checked capture place"))?;
+                        fields.push(address.get_type().into());
+                        values.push(address.into());
+                    } else {
+                        fields.push(cx.basic_type(ty).expect("checked capture type"));
+                        values.push(self.operand(c, ty)?);
+                    }
                 }
                 let env_ty = cx.context.struct_type(&fields, false);
                 let env = if captures.is_empty() {

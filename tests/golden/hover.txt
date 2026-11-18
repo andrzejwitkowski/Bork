@@ -30,6 +30,8 @@ programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
 programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
+programs/build/closures/fnmut_bound.bork: hits=22 hash=0379ac93bdffa027
+programs/build/closures/fnmut_counter.bork: hits=22 hash=060365c9a261716a
 programs/build/closures/generic_fn_bound.bork: hits=15 hash=a99614085a455147
 programs/build/closures/trailing_with_capture.bork: hits=26 hash=6e595dff0d820f8e
 programs/build/conditionals/else_if.bork: hits=3 hash=6c2fc00716667e73
@@ -238,9 +240,9 @@ programs/build/vec/with_capacity.bork: hits=279 hash=fb4761a22c58c53e
 programs/build_fail/borrow/store_ref_into_borrowed_array.bork: hits=8 hash=0dbca6980761e4f2
 programs/build_fail/borrow/store_string_into_borrowed_array.bork: hits=15 hash=689b38856acb49d8
 programs/build_fail/borrow/store_string_through_borrow_alias.bork: hits=25 hash=8e3e77681cfb0019
-programs/build_fail/closure_assigns_capture.bork: hits=3 hash=606a80027ddc05b8
 programs/build_fail/escape_inner_return_string.bork: hits=12 hash=4d4ea200eed3fa21
 programs/build_fail/main_returns_i64.bork: hits=0 hash=cbf29ce484222325
+programs/build_fail/move_closure_with_captures.bork: hits=5 hash=9636a3b36db67950
 programs/build_fail/nullable_object_equality.bork: hits=4 hash=b4e5cc943fc50229
 programs/build_fail/nullable_unit_equality.bork: hits=4 hash=b6fd62a419e6d6bf
 programs/build_fail/option/safe_field_of_enum.bork: hits=5 hash=9c43688f90b639ca
