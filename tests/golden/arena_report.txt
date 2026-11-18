@@ -278,6 +278,27 @@ Arenas
 └── fun main
     ├── add3 [Local]
     └── add8 [Local]
+== programs/build/closures/move_string_capture.bork
+Arenas
+├── fun greeter
+│   ├── name [Local]
+│   └── Closure (move)
+│       └── name [Moved ← fun greeter]
+└── fun main
+    ├── a [Local]
+    └── b [Local]
+== programs/build/closures/move_string_outlives_frame.bork
+Arenas
+├── fun make
+│   ├── n [Local]
+│   ├── s [Local]
+│   └── Closure (move)
+│       └── s [Moved ← fun make]
+├── fun churn
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    └── f [Local]
 == programs/build/closures/trailing_with_capture.bork
 Arenas
 ├── fun apply
@@ -3742,9 +3763,9 @@ Arenas
 ├── fun apply
 │   └── f [Local]
 └── fun main
-    ├── s [Local]
+    ├── v [Local]
     └── Closure (move)
-        └── s [Moved ← fun main]
+        └── v [Moved ← fun main]
 == programs/build_fail/nullable_object_equality.bork
 Arenas
 └── fun main

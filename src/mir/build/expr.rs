@@ -255,8 +255,14 @@ impl<'a> FnBuilder<'a> {
     /// `&rw` / drop-glue steps first.
     fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
         use crate::hir::ClosureKind;
-        // A `move` closure owns its captures: only values that are copied (no drop glue yet) lower.
-        let owns = is_move && captures.iter().any(|c| self.tcx.is_move_only(c.ty));
+        // A `move` closure owns its captures. A `String` or an array of copies is copied into the environment's
+        // arena, which frees it. Objects (the escape check rejects a returned closure holding one), `Ref`s, `Vec`s and
+        // nullables would need drop registration (RFC 0007).
+        let copied = |ty| {
+            let t = self.tcx;
+            !t.is_nullable(ty) && (t.is_string(ty) || t.array_elem(ty).is_some_and(|e| t.is_trivially_copy(e)))
+        };
+        let owns = is_move && captures.iter().any(|c| !self.tcx.is_trivially_copy(c.ty) && !copied(c.ty));
         if kind == ClosureKind::FnOnce || owns {
             return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
         }
@@ -277,7 +283,8 @@ impl<'a> FnBuilder<'a> {
             }
             places
         } else {
-            self.with_sink(ArenaRef::Current, |b| b.exprs(captures))?
+            // Owned captures are copied into the environment's arena.
+            self.with_sink(arena.clone(), |b| b.exprs(captures))?
         };
         Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures, by_ref, arena }))
     }

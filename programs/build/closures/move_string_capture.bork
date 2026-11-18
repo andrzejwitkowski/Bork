@@ -1,0 +1,13 @@
+// exit: 0
+// stdout: hello, bork\nhello, world\n
+fun greeter(name: String): () -> String {
+    return move (name) { -> name }
+}
+
+fun main(): i32 {
+    val a = greeter("bork")
+    val b = greeter("world")
+    println(concat("hello, ", a()))
+    println(concat("hello, ", b()))
+    return 0
+}

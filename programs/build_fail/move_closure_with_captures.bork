@@ -4,7 +4,6 @@ fun apply(f: () -> i32): i32 {
 }
 
 fun main(): i32 {
-    val s = "hi"
-    return apply() move (s) { -> println(s)
-        0 }
+    val v = Vec::<i32>()
+    return apply() move (v) { -> v.len() }
 }
