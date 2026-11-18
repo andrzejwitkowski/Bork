@@ -44,6 +44,9 @@ pub enum TyData {
     Enum(DefId, Vec<TyId>),
     Array { elem: TyId, len: u32 },
     Func { params: Vec<TyId>, ret: TyId },
+    /// The type of one closure expression (RFC 0007), never written in source. `id` makes each
+    /// expression's type its own; it unifies with the `Func` of the same signature.
+    Closure { id: u32, params: Vec<TyId>, ret: TyId },
     /// `&T`, or `&rw T` (the editable borrow, RFC 0003) when the flag is set.
     Ref(TyId, bool),
     ManagedRef(TyId),
@@ -89,6 +92,8 @@ pub struct TyCtx {
     vec_def: Option<DefId>,
     /// The prelude's `intrinsic class Range<T>`: the type of a literal `a..b`.
     range_def: Option<DefId>,
+    /// Next `TyData::Closure` id.
+    closures: u32,
 }
 
 impl TyCtx {
@@ -102,7 +107,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range() };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closures: 0 };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

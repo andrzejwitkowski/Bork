@@ -8,7 +8,7 @@ impl TyData {
     pub fn children(&self) -> Vec<TyId> {
         match self {
             TyData::Array { elem, .. } => vec![*elem],
-            TyData::Func { params, ret } => params.iter().copied().chain([*ret]).collect(),
+            TyData::Func { params, ret } | TyData::Closure { params, ret, .. } => params.iter().copied().chain([*ret]).collect(),
             TyData::Ref(t, _) | TyData::ManagedRef(t) => vec![*t],
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
             TyData::Projection(self_ty, _, _) => vec![*self_ty],
@@ -48,6 +48,11 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
             let params = params.into_iter().map(|p| folder.fold(ctx, p)).collect::<Result<_, _>>()?;
             let ret = folder.fold(ctx, ret)?;
             ctx.add(TyData::Func { params, ret })
+        }
+        TyData::Closure { id, params, ret } => {
+            let params = params.into_iter().map(|p| folder.fold(ctx, p)).collect::<Result<_, _>>()?;
+            let ret = folder.fold(ctx, ret)?;
+            ctx.add(TyData::Closure { id, params, ret })
         }
         TyData::Ref(t, rw) => {
             let t = folder.fold(ctx, t)?;

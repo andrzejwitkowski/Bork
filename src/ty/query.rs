@@ -243,7 +243,7 @@ impl TyCtx {
     /// `(params, ret)` of a non-nullable function type.
     pub fn func_sig(&self, id: TyId) -> Option<(Vec<TyId>, TyId)> {
         match self.data(id) {
-            TyData::Func { params, ret } => Some((params.clone(), *ret)),
+            TyData::Func { params, ret } | TyData::Closure { params, ret, .. } => Some((params.clone(), *ret)),
             _ => None,
         }
     }
@@ -311,7 +311,8 @@ impl TyCtx {
     fn stores_borrow(&self, id: TyId) -> bool {
         match self.data(id) {
             TyData::Ref(..) => true,
-            TyData::Func { .. } => false,
+            // shortcut: no captures modelled yet, so a closure stores no borrow; RFC 0007 step F5.
+            TyData::Func { .. } | TyData::Closure { .. } => false,
             data => data.children().into_iter().any(|child| self.stores_borrow(child)),
         }
     }
@@ -438,6 +439,13 @@ impl TyCtx {
 
     pub fn func(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {
         self.add(TyData::Func { params, ret })
+    }
+
+    /// A fresh closure type: each call is a new closure expression (RFC 0007).
+    pub fn closure(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {
+        let id = self.closures;
+        self.closures += 1;
+        self.add(TyData::Closure { id, params, ret })
     }
 
     /// The name of a class definition, for messages and the legacy view.

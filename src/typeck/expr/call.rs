@@ -433,7 +433,23 @@ fn split_trailing_param<'a>(
     }
 }
 
-fn check_trailing_closure(
+/// A closure written as a value (RFC 0007). Parameter and result types come from an expected
+/// function type, else from fresh variables the body then fixes. Its type is its own `Closure`,
+/// which unifies with the `Func` of the same signature.
+pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+    let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))) {
+        Some(sig) => sig,
+        None => {
+            let params = closure.params.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
+            (params, env.infcx.new_var(env.tcx, VarKind::General))
+        }
+    };
+    let mut hir = check_trailing_closure(closure, &params, ret, env);
+    hir.ty = env.tcx.closure(params, ret);
+    Checked { ty: hir.ty, hir }
+}
+
+pub(super) fn check_trailing_closure(
     closure: &Closure,
     param_tys: &[TyId],
     closure_ret: TyId,

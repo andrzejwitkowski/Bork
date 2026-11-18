@@ -878,6 +878,7 @@ fn id_to_ast(tcx: &crate::ty::TyCtx, id: crate::ty::TyId) -> Option<Type> {
             inner: Box::new(id_to_ast(tcx, *inner)?),
         },
         TyData::Func { .. }
+        | TyData::Closure { .. }
         | TyData::Param(_)
         | TyData::Projection(..)
         | TyData::Infer(_)

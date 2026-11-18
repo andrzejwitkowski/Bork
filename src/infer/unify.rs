@@ -36,14 +36,14 @@ impl InferCtxt {
                 }
                 self.unify_inner(tcx, ea, eb)
             }
-            (TyData::Func { params: pa, ret: ra }, TyData::Func { params: pb, ret: rb }) => {
-                if pa.len() != pb.len() {
-                    return Err(TypeError::Arity { expected: pa.len(), found: pb.len() });
-                }
-                for (x, y) in pa.into_iter().zip(pb) {
-                    self.unify_inner(tcx, x, y)?;
-                }
-                self.unify_inner(tcx, ra, rb)
+            (TyData::Func { params: pa, ret: ra }, TyData::Func { params: pb, ret: rb })
+            | (TyData::Closure { params: pa, ret: ra, .. }, TyData::Func { params: pb, ret: rb })
+            | (TyData::Func { params: pa, ret: ra }, TyData::Closure { params: pb, ret: rb, .. }) => {
+                self.unify_sig(tcx, pa, ra, pb, rb)
+            }
+            // The same closure seen through two variables; another closure is a different type.
+            (TyData::Closure { id: ia, params: pa, ret: ra }, TyData::Closure { id: ib, params: pb, ret: rb }) if ia == ib => {
+                self.unify_sig(tcx, pa, ra, pb, rb)
             }
             (TyData::Class(da, xa), TyData::Class(db, xb)) | (TyData::Enum(da, xa), TyData::Enum(db, xb)) => {
                 if da != db || xa.len() != xb.len() {
@@ -58,6 +58,16 @@ impl InferCtxt {
             (TyData::ManagedRef(x), TyData::ManagedRef(y)) => self.unify_inner(tcx, x, y),
             _ => Err(mismatch),
         }
+    }
+
+    fn unify_sig(&mut self, tcx: &mut TyCtx, pa: Vec<TyId>, ra: TyId, pb: Vec<TyId>, rb: TyId) -> Result<(), TypeError> {
+        if pa.len() != pb.len() {
+            return Err(TypeError::Arity { expected: pa.len(), found: pb.len() });
+        }
+        for (x, y) in pa.into_iter().zip(pb) {
+            self.unify_inner(tcx, x, y)?;
+        }
+        self.unify_inner(tcx, ra, rb)
     }
 
     /// Joins two unbound variables into one class.

@@ -43,7 +43,10 @@ impl fmt::Display for TyPrinter<'_> {
                 write!(f, "<{}>", shown.join(", "))
             }
             TyData::Array { elem, len } => write!(f, "[{}; {len}]", show(*elem)),
-            TyData::Func { params, ret } => {
+            TyData::Func { params, ret } | TyData::Closure { params, ret, .. } => {
+                if let TyData::Closure { id, .. } = self.ctx.data(self.id) {
+                    write!(f, "closure#{id}")?;
+                }
                 f.write_str("(")?;
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {
