@@ -712,7 +712,7 @@ fn main (parent=false, sink=false) {
     _12 = copy _11  // label "w0": i32 decl
     _13 = 0  // label "code": i32 decl
     _14 = alloc Vec { cap: None } in current
-    register_drop current _14 Vec(TyId(19))
+    register_drop current _14 Vec(TyId(20))
     _15 = copy _14  // label "older": Vec<Ref<Node>> decl
     _16 = 0  // label "i": i32 decl
     storage_live _18
@@ -757,7 +757,7 @@ fn main (parent=false, sink=false) {
     region_enter r4
     storage_live _32
     _33 = alloc Vec { cap: None } in current
-    register_drop current _33 Vec(TyId(19))
+    register_drop current _33 Vec(TyId(20))
     _34 = copy _33  // label "newer": Vec<Ref<Node>> decl
     _35 = 0  // label "j": i32 decl
     storage_live _37
@@ -935,7 +935,7 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = alloc Vec { cap: None } in current
-    register_drop current _2 Vec(TyId(19))
+    register_drop current _2 Vec(TyId(20))
     _3 = copy _2  // label "v": Vec<Ref<Node>> decl
     _4 = 0  // label "i": i32 decl
     region_enter r1
@@ -1063,12 +1063,12 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = alloc Vec { cap: None } in current
-    register_drop current _2 Vec(TyId(19))
+    register_drop current _2 Vec(TyId(20))
     _3 = copy _2  // label "outer": Vec<Ref<Node>> decl
     region_enter r1
     storage_live _4
     _5 = alloc Vec { cap: None } in current
-    register_drop current _5 Vec(TyId(19))
+    register_drop current _5 Vec(TyId(20))
     _6 = copy _5  // label "inner": Vec<Ref<Node>> decl
     _7 = 0  // label "i": i32 decl
     region_enter r2
@@ -1219,7 +1219,7 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = alloc Vec { cap: None } in current
-    register_drop current _2 Vec(TyId(19))
+    register_drop current _2 Vec(TyId(20))
     _3 = copy _2  // label "saved": Vec<Ref<Node>> decl
     region_enter r1
     storage_live _4
@@ -1256,7 +1256,7 @@ fn main (parent=false, sink=false) {
     region_enter r2
     storage_live _23
     _24 = alloc Vec { cap: None } in current
-    register_drop current _24 Vec(TyId(19))
+    register_drop current _24 Vec(TyId(20))
     _25 = copy _24  // label "tmp": Vec<Ref<Node>> decl
     _26 = borrow _25
     _27 = ref_create source=current target=object_arena(_7) copy _7
@@ -1427,7 +1427,7 @@ fn main (parent=false, sink=false) {
     storage_live _1
     region_enter r0
     _2 = alloc Vec { cap: None } in current
-    register_drop current _2 Vec(TyId(19))
+    register_drop current _2 Vec(TyId(20))
     _3 = copy _2  // label "holder": Vec<Ref<Node>> decl
     region_enter r1
     storage_live _4
@@ -1485,7 +1485,7 @@ fn main (parent=false, sink=false) {
     region_enter r2
     storage_live _36
     _37 = alloc Vec { cap: None } in current
-    register_drop current _37 Vec(TyId(19))
+    register_drop current _37 Vec(TyId(20))
     _38 = copy _37  // label "late": Vec<Ref<Node>> decl
     _39 = 0  // label "i": i32 decl
     storage_live _43
@@ -2205,7 +2205,7 @@ fn main (parent=false, sink=false) {
     goto bb28
   bb28:
     _73 = alloc Vec { cap: Some(Const(Int(2))) } in current
-    register_drop current _73 Vec(TyId(25))
+    register_drop current _73 Vec(TyId(26))
     _74 = copy _73  // label "nodes": Vec<Ref<Node>> decl
     _75 = borrow _74
     _76 = arena_create_dynamic parent=root scoped=false

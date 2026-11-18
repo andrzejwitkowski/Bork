@@ -30,7 +30,7 @@ impl TyCtx {
     /// Whether `payload` could have been written `payload?`. An `Option<Ref<T>>` is only an enum:
     /// the kind queries do not look through it.
     fn supports_nullable_payload(&self, payload: TyId) -> bool {
-        !self.is_vec(payload) && !matches!(self.data(payload), TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
+        !self.is_intrinsic_class(payload) && !matches!(self.data(payload), TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
     }
 
     /// a type that cannot be nullable (`Error`) is unchanged.
@@ -45,7 +45,7 @@ impl TyCtx {
 
     pub fn supports_nullable(&self, id: TyId) -> bool {
         let base = self.base(id);
-        !self.is_vec(base) && !matches!(self.data(base), TyData::Range(_) | TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
+        !self.is_intrinsic_class(base) && !matches!(self.data(base), TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
     }
 
     /// Whether `id` mentions an opaque type parameter anywhere (`Ref<T>`, `Vec<T>`, `T?`, ...).
@@ -122,7 +122,7 @@ impl TyCtx {
     pub fn record_def(&self, id: TyId) -> Option<DefId> {
         match self.data(self.base(id)) {
             // `Vec<T>` is a class only in name: it has no fields and is not an object.
-            TyData::Class(def, _) if Some(*def) != self.vec_def => Some(*def),
+            TyData::Class(def, _) if !self.is_intrinsic_def(*def) => Some(*def),
             TyData::Ref(inner, _) => self.record_def(*inner),
             _ => None,
         }
@@ -161,9 +161,19 @@ impl TyCtx {
         self.vec_def
     }
 
+    /// `Vec` and `Range` are classes in name only: one type argument, no fields, no object layout.
+    fn is_intrinsic_def(&self, def: DefId) -> bool {
+        Some(def) == self.vec_def || Some(def) == self.range_def
+    }
+
+    /// Whether `id` is `Vec<_>` or `Range<_>`.
+    pub fn is_intrinsic_class(&self, id: TyId) -> bool {
+        matches!(self.data(id), TyData::Class(def, args) if self.is_intrinsic_def(*def) && args.len() == 1)
+    }
+
     pub fn class_def(&self, id: TyId) -> Option<DefId> {
         match self.data(id) {
-            TyData::Class(def, _) if Some(*def) != self.vec_def => Some(*def),
+            TyData::Class(def, _) if !self.is_intrinsic_def(*def) => Some(*def),
             _ => None,
         }
     }
@@ -204,7 +214,7 @@ impl TyCtx {
 
     pub fn range_elem(&self, id: TyId) -> Option<TyId> {
         match self.data(self.base(id)) {
-            TyData::Range(elem) => Some(*elem),
+            TyData::Class(def, args) if Some(*def) == self.range_def && args.len() == 1 => Some(args[0]),
             _ => None,
         }
     }
@@ -403,7 +413,8 @@ impl TyCtx {
     }
 
     pub fn range(&mut self, elem: TyId) -> TyId {
-        self.add(TyData::Range(elem))
+        let Some(def) = self.range_def else { return self.error() };
+        self.add(TyData::Class(def, vec![elem]))
     }
 
     pub fn func(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {

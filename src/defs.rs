@@ -79,6 +79,8 @@ pub struct DefTable {
     option: Option<DefId>,
     /// The `intrinsic class Vec<T>` of the prelude: the type `Vec<T>` is an instance of it.
     vec: Option<DefId>,
+    /// The `intrinsic class Range<T>` of the prelude.
+    range: Option<DefId>,
     variants: HashMap<(DefId, String), DefId>,
     fns: HashMap<String, DefId>,
     consts: HashMap<String, DefId>,
@@ -159,8 +161,12 @@ impl DefTable {
                 clashes.push(Clash::ClassDuplicate);
             } else {
                 self.classes.insert(class.name.clone(), id);
-                if class.intrinsic && class.name == "Vec" {
-                    self.vec = Some(id);
+                if class.intrinsic {
+                    match class.name.as_str() {
+                        "Vec" => self.vec = Some(id),
+                        "Range" => self.range = Some(id),
+                        _ => {}
+                    }
                 }
             }
             if fn_names.contains(&class.name) {
@@ -306,6 +312,10 @@ impl DefTable {
 
     pub fn lookup_vec(&self) -> Option<DefId> {
         self.vec
+    }
+
+    pub fn lookup_range(&self) -> Option<DefId> {
+        self.range
     }
 
     pub fn lookup_enum(&self, name: &str) -> Option<DefId> {

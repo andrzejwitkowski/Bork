@@ -55,7 +55,6 @@ impl fmt::Display for TyPrinter<'_> {
             }
             TyData::Ref(t, rw) => write!(f, "&{}{}", if *rw { "rw " } else { "" }, show(*t)),
             TyData::ManagedRef(t) => write!(f, "Ref<{}>", show(*t)),
-            TyData::Range(t) => write!(f, "Range<{}>", show(*t)),
             // No source syntax yet; chosen so they cannot be mistaken for a written type.
             TyData::Param(idx) => match self.names.unwrap_or(&self.ctx.param_names).get(idx.0 as usize) {
                 Some(name) => f.write_str(name),

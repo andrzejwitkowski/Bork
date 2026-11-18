@@ -9,7 +9,7 @@ impl TyData {
         match self {
             TyData::Array { elem, .. } => vec![*elem],
             TyData::Func { params, ret } => params.iter().copied().chain([*ret]).collect(),
-            TyData::Ref(t, _) | TyData::ManagedRef(t) | TyData::Range(t) => {
+            TyData::Ref(t, _) | TyData::ManagedRef(t) => {
                 vec![*t]
             }
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
@@ -58,10 +58,6 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
         TyData::ManagedRef(t) => {
             let t = folder.fold(ctx, t)?;
             ctx.add(TyData::ManagedRef(t))
-        }
-        TyData::Range(t) => {
-            let t = folder.fold(ctx, t)?;
-            ctx.add(TyData::Range(t))
         }
         TyData::Class(def, args) => {
             let args = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;

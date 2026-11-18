@@ -66,9 +66,9 @@ impl<'a> TyCaps<'a> {
             TyData::ManagedRef(_) => true,
             // Unresolved: assume the worst (RFC 0002 section 4).
             TyData::Param(_) | TyData::Projection(..) | TyData::Infer(_) => true,
-            TyData::Array { elem: e, .. } | TyData::Range(e) => self.drop_rec(*e, path),
-            // A `Vec` has no fields: what it holds is its element.
-            TyData::Class(def, args) if Some(*def) == tcx.vec_def() && args.len() == 1 => self.drop_rec(args[0], path),
+            TyData::Array { elem: e, .. } => self.drop_rec(*e, path),
+            // `Vec` and `Range` have no fields: what they hold is their element.
+            TyData::Class(_, args) if tcx.is_intrinsic_class(id) => self.drop_rec(args[0], path),
             TyData::Class(..) | TyData::Enum(..) => {
                 // Revisiting a type on the current path is a cycle and adds nothing new. The path
                 // is popped on exit, so a sibling never sees a half-evaluated answer.
