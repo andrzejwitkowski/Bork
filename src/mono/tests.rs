@@ -298,3 +298,24 @@ fn an_instance_of_a_generic_impls_projection_substitutes_the_impls_parameters() 
     let first = m.hir.functions.iter().find(|f| f.name == "first<Box<String>>").expect("instantiated");
     assert_eq!(tcx.display(first.return_ty).to_string(), "String");
 }
+
+#[test]
+fn a_trailing_closure_becomes_a_function_with_its_own_root() {
+    let m = mono("fun apply(v: i32, f: (i32) -> i32): i32 {\n    return f(v)\n}\nfun main(): i32 {\n    val k = 3\n    return apply(2) { x -> x + k }\n}\n");
+    assert_eq!(function_names(&m), ["main", "apply", "main$closure0"]);
+    assert_eq!(m.report.roots.len(), 3);
+    assert_eq!(m.report.roots[2].label, "fun main$closure0");
+    // The closure's leading parameter is its capture `k`, then its own `x`.
+    let lifted = &m.hir.functions[2];
+    assert_eq!(lifted.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["k", "x"]);
+    // The call now passes it as a plain last argument.
+    let main = &m.hir.functions[0];
+    let found = format!("{:?}", main.body);
+    assert!(found.contains("MakeClosure") && !found.contains("trailing: Some"), "{found}");
+}
+
+#[test]
+fn nested_closures_are_lifted_inner_first() {
+    let m = mono("fun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}\nfun main(): i32 {\n    return apply() { a -> apply() { b -> a + b } }\n}\n");
+    assert_eq!(function_names(&m), ["main", "apply", "main$closure0", "main$closure1"]);
+}

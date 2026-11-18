@@ -16,6 +16,8 @@ use crate::sema::ArenaReport;
 use crate::span::Span;
 use crate::ty::{subst, TyCtx, TyData, TyId};
 
+mod lift;
+
 /// Deepest type argument an instance may have. A polymorphic recursion such as
 /// `f<T>` calling `f<Vec<T>>` grows without bound, so it hits this instead of looping.
 const MAX_TYPE_DEPTH: usize = 32;
@@ -414,8 +416,9 @@ pub(crate) fn specialise_for_analysis(hir: &HirProgram, tcx: &mut TyCtx, report:
 fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool, escape: bool, mir: bool) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
-    let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
-    let report = collector.report_per_instance(report);
+    let (collector, mut functions, classes, enums) = collect_from(hir, tcx, every_function)?;
+    let mut report = collector.report_per_instance(report);
+    lift::lift_closures(&mut functions, &mut report, tcx)?;
     let mut program = HirProgram { classes, enums, functions, traits: Vec::new(), impls: Vec::new() };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter or projection survived monomorphization");
     hir::number_nodes(&mut program);

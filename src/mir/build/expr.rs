@@ -36,7 +36,7 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Binary { op, lhs, rhs } => self.binary(e, op, lhs, rhs),
             HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
             HirExprKind::Call { callee, args, trailing } => self.call(e, callee, args, trailing.is_some()),
-            HirExprKind::Closure { .. } => Err(BuildError::unsupported(Capability::Closure, span_of(e))),
+            HirExprKind::Closure { .. } | HirExprKind::MakeClosure { .. } => Err(BuildError::unsupported(Capability::Closure, span_of(e))),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
             HirExprKind::Index { receiver, index, .. } => self.index(e, receiver, index),
             HirExprKind::Slice { receiver, lo, hi } => self.slice(e, receiver, lo, hi),

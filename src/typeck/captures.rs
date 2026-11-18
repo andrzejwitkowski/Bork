@@ -167,6 +167,7 @@ impl Scan {
                 else_block.iter().for_each(|b| self.block(b));
             }
             // A nested closure's captures are uses of this one as well; its own locals stay its own.
+            K::MakeClosure { captures, .. } => captures.iter().for_each(|x| self.expr(x)),
             K::Closure { captures, body, params, .. } => {
                 for c in captures {
                     self.used.insert(c.name.clone());

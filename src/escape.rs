@@ -355,7 +355,7 @@ impl<'h> Escape<'h, '_> {
             // Not lowered yet (#53); the gate rejects it before codegen.
             HirExprKind::Match { .. } => sink.unwrap_or(self.depth),
             // Not lowered yet (RFC 0007 B-steps): the gate rejects it before codegen.
-            HirExprKind::Closure { .. } => sink.unwrap_or(self.depth),
+            HirExprKind::Closure { .. } | HirExprKind::MakeClosure { .. } => sink.unwrap_or(self.depth),
         }
     }
 

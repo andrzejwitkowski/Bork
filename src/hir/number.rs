@@ -86,6 +86,7 @@ fn expr(e: &mut HirExpr, next: &mut u32) {
             trailing.iter_mut().for_each(|x| expr(x, next));
         }
         HirExprKind::Closure { body, .. } => block(body, next),
+        HirExprKind::MakeClosure { captures, .. } => captures.iter_mut().for_each(|x| expr(x, next)),
         HirExprKind::If { cond, then_block, else_block } => {
             expr(cond, next);
             block(then_block, next);
