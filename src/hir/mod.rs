@@ -450,7 +450,7 @@ pub enum HirExprKind {
         kind: ClosureKind,
         is_move: bool,
     },
-    /// A closure body kept from source (RFC 0007). Captures are computed later (step F5).
+    /// A closure body kept from source (RFC 0007); monomorphization lifts it into a function.
     Closure {
         params: Vec<HirParam>,
         body: HirBlock,

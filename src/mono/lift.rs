@@ -2,9 +2,6 @@
 //! function `outer$closureN(captures..., params...)`, and its place in the caller is a
 //! `MakeClosure` value. A trailing closure becomes the call's last argument. MIR and codegen then
 //! see only plain functions, and the 1:1 function/report-root invariant holds.
-//!
-//! shortcut: a capture is passed by value, so a closure that assigns to a plain capture changes its
-//! own copy; MIR lowering must pass such captures by `&rw` (RFC 0007 step B4) before it accepts them.
 
 use std::collections::VecDeque;
 

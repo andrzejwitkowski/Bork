@@ -250,9 +250,7 @@ impl<'a> FnBuilder<'a> {
         Err(BuildError::unsupported(Capability::IndirectCall, span))
     }
 
-    /// A closure value (RFC 0007). Only a closure that reads its captures and does not own them lowers
-    /// so far: a capture is copied into the environment, so one that is assigned or moved needs the
-    /// `&rw` / drop-glue steps first.
+    /// A closure value (RFC 0007): its environment holds the captures by value, or by address for a plain `FnMut`.
     fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
         use crate::hir::ClosureKind;
         // A `move` closure owns its captures. A `String` or an array of copies is copied into the environment's
@@ -268,7 +266,6 @@ impl<'a> FnBuilder<'a> {
         }
         let by_ref = kind == ClosureKind::FnMut && !is_move;
         // A returned `move` closure must outlive this call, so its environment goes to the caller's arena
-        // (any `move` closure in a function that returns a closure: a closure not returned just lives longer).
         // shortcut: a `move` closure is also allocated there when it is not the returned value.
         let returns_closure = matches!(self.tcx.data(self.function.return_ty), crate::ty::TyData::Func { .. });
         let arena = if is_move && !captures.is_empty() && returns_closure && self.abi.result_sink { ArenaRef::ResultSink } else { ArenaRef::Current };
