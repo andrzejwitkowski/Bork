@@ -23,7 +23,7 @@ This RFC fixes the model so the pieces can be built in order: closure body kept 
 - No change to the existing spelling of capture lists: `move (a, b) { ... }`, and an omitted list means "free variables" (`resolve_move_captures`).
 - No new arrow-lambda syntax.
 
-**Syntax.** The braces form of the trailing closure also works as an expression: `{ a, b -> body }` and `move (n) { a -> body }`. The parser tells a closure from a plain block by the `->` after the parameter list. The trailing form `f(x) { a -> ... }` stays as sugar for passing the closure as the last argument.
+**Syntax.** The braces form of the trailing closure also works as an expression: `{ a, b -> body }` and `move (n) { a -> body }`. The parser tells a closure from a plain block by the `->` after the parameter list; the standalone form always has the `->` (`{ -> 1 }` for no parameters), because a bare `move { ... }` is already a `move` block statement. The trailing form `f(x) { a -> ... }` stays as sugar for passing the closure as the last argument.
 
 First-class is split by ownership, as everywhere else in Bork (section 5): a `move` closure owns its captures and can go anywhere a value can. A plain closure borrows its captures, so it is a view (RFC 0004) and stays where views stay.
 
@@ -33,7 +33,7 @@ First-class is split by ownership, as everywhere else in Bork (section 5): a `mo
 
 **3.2 Coercion.** `Closure(id)` coerces to `TyData::Func { params, ret }` when the signatures match; that is how `check_trailing_closure` accepts a closure for a `(i32) -> i32` parameter today. `Func` is the written type of any callable value: a parameter, `val`, field, `Vec<(i32) -> i32>` element or return type. It is a fat value `{ fn ptr, env ptr }` at the ABI (section 6.3), so closures of different bodies share one type once coerced.
 
-**3.3 `Fn`, `FnMut`, `FnOnce`.** Intrinsic prelude traits, declared in `src/prelude/fn.bork` the way `Vec` and `Range` are (#276): a new `DefTable` field per trait, recorded in `defs.rs` from the `intrinsic` flag. The bound syntax is `F: Fn(i32) -> i32`; it desugars to the trait with an argument tuple and an associated `Output`, exactly like `Iterator`'s `Item`. There are no user impls: the solver (`typeck/solve.rs`) has built-in rules.
+**3.3 `Fn`, `FnMut`, `FnOnce`.** Prelude traits declared in `src/prelude/fn.bork` as ordinary `trait Fn<Args> { type Output }` (the grammar has no `intrinsic trait`; `intrinsic` only precedes `class` and `fun`). Like `Vec` and `Range` (#276) each gets a `DefTable` field, recorded in `defs.rs` by name from the prelude chunk. The bound syntax is `F: Fn(i32) -> i32`; the parser desugars it to `Fn<(i32) -> i32>`: one argument that is a `Func` type (Bork has no tuple type) and the `Output` taken from its return type. There are no user impls: the solver (`typeck/solve.rs`) has built-in rules.
 - `Closure(id)` implements the strongest trait its body allows. **Kind inference:** the body only reads its captures → `Fn`; it assigns to or `&rw`-borrows a capture → `FnMut`; it moves a capture out → `FnOnce`. `Fn ⊂ FnMut ⊂ FnOnce`, so a stronger kind satisfies a weaker bound.
 - `Func { params, ret }` implements `Fn` (a non-capturing callable).
 - A bound is checked at the call: passing a closure whose kind is `FnMut` to an `Fn` bound is a type error that names the capture that forces the kind.
@@ -62,7 +62,7 @@ The closure body stays in HIR as a node holding the parameters, the body block, 
 
 **6.1 Aggregate.** `Rvalue::Closure { body: FnId, captures: Vec<Operand> }`. Captured places are operands: by-move captures are moves/copies, by-view captures are `&`/`&rw` references. (RFC 0006 section 3.10 asked for exactly this; the earlier `Rvalue::Aggregate` was removed in #237 because nothing used it.)
 
-**6.2 Body.** The closure body is lowered to its own MIR function whose first parameter is the environment (a pointer to the capture record). It follows the hidden-arena ABI of `codegen/llvm/call_abi.rs`: the closure receives the caller's arena like any callee. The body function is named after its enclosing function and the closure index.
+**6.2 Body.** The closure body is lowered to its own MIR function whose first parameter is the environment (a pointer to the capture record). It follows the hidden-arena ABI of `codegen/llvm/call_abi.rs`: the closure receives the caller's arena like any callee. The body function is named after its enclosing function and the closure index (`outer$closureN`). It is not a `HirFunction`: the function/root 1:1 invariant of mono and MIR build (`mono.rs`, `mir/build/mod.rs`) stays, and closure bodies are extra MIR bodies built from the enclosing function's builder.
 
 **6.3 Calls.** A call through a `Func` value, or a `F: Fn*` generic parameter, becomes a new terminator `CallClosure { callee: Operand, args, hidden, dest, target }`. It replaces the `IndirectCall` capability. Generic bounds are monomorphized (`mono.rs`), so `F: Fn` becomes a direct call when the argument is a known closure and the indirect form only when it is a `Func` parameter.
 
@@ -96,7 +96,7 @@ Trailing closure; `move` closure; omitted capture list; `Func` parameter called;
 
 - The `"Closure"` label is the only tie between HIR sites and sema arena nodes. Changing it changes the arena-report goldens; step 1 keeps it.
 - A fat `Func` value is a new ABI shape in `call_abi.rs`; debug info (`debug/types.rs`) needs a type for it.
-- Kind inference needs the "moves a capture out" fact; sema already tracks moves per binding, but typeck runs first. If the inference cannot be done in typeck, kind is computed by a small HIR pass after type resolution and the bound is checked there. This is the main open point.
+- Kind inference needs the "moves a capture out" fact; sema already tracks moves per binding, but typeck runs first. If the inference cannot be done in typeck, kind is computed by a small HIR pass after type resolution and the bound is checked there. This is the main open point. Until the HIR pass lands, every closure is accepted for all three bounds; the implementation plan marks this as a known gap.
 - Owned closures put drop glue behind a pointer in the environment. Every `Func` value pays one indirection to drop; if it matters, a closure with no owning captures can set the glue pointer to null.
 - Environments allocated in a destination arena depend on the result-sink ABI handling a value whose size is not known to the caller. `Func` is a fixed-size fat value and the environment is out of line, so this should hold, but it is the first thing step 5 must prove.
 - Distinguishing a closure from a block by `->` must not change how existing blocks parse (`parses_trailing_move_closure` and the golden corpus pin this).
