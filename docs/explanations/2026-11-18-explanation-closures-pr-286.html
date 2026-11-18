@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Domknięcia w Borku — wyjaśnienie PR #286 (RFC 0007)</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --fg: #1d1d1f; --muted: #5b5b63; --line: #dcd8cf;
+    --accent: #2f5d8a; --accent-soft: #e6eef6;
+    --ok: #1f7a4d; --ok-soft: #e3f3ea; --bad: #a3322b; --bad-soft: #f8e4e2;
+    --warn: #8a6a1f; --warn-soft: #f7efd9; --code-bg: #f1eee6;
+    --env: #fff3d6; --fn: #e6eef6; --heap: #ece6f5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.65 Georgia, "Iowan Old Style", "Times New Roman", serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 20px 120px; }
+  header h1 { font-size: 2.1rem; line-height: 1.2; margin: 24px 0 6px; }
+  header p.sub { color: var(--muted); margin: 0 0 18px; font-style: italic; }
+  h2 { font-size: 1.6rem; margin: 56px 0 8px; padding-top: 14px; border-top: 2px solid var(--line); }
+  h3 { font-size: 1.2rem; margin: 30px 0 6px; }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  code, pre { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 0.86em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; white-space: pre; line-height: 1.5; margin: 14px 0; }
+  pre code { background: none; padding: 0; }
+  nav.toc { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 20px; margin: 18px 0 8px; }
+  nav.toc ol { margin: 6px 0 0; padding-left: 22px; }
+  nav.toc li { margin: 3px 0; }
+  .callout { border-left: 5px solid var(--accent); background: var(--accent-soft);
+    padding: 10px 16px; border-radius: 0 8px 8px 0; margin: 18px 0; }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout.ok { border-color: var(--ok); background: var(--ok-soft); }
+  .callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+  .callout .t { font-weight: bold; display: block; margin-bottom: 2px; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.8rem;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  details.skip { background: #fff; border: 1px dashed var(--line); border-radius: 10px; padding: 8px 16px; margin: 16px 0; }
+  details.skip summary { cursor: pointer; font-weight: bold; }
+
+  /* diagram family 1: pipeline of boxes */
+  .pipe { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; margin: 18px 0; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.84rem; }
+  .stage { flex: 1 1 110px; background: #fff; border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px; text-align: center; position: relative; }
+  .stage b { display: block; font-size: 0.92rem; }
+  .stage small { color: var(--muted); }
+  .stage.hit { border-color: var(--accent); background: var(--accent-soft); }
+  .stage.new { border-color: var(--ok); background: var(--ok-soft); }
+  .arrow { align-self: center; color: var(--muted); font-size: 1.1rem; }
+
+  /* diagram family 2: memory boxes */
+  .mem { display: flex; flex-wrap: wrap; gap: 14px; margin: 18px 0; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.85rem; }
+  .arena { flex: 1 1 250px; border: 2px solid #7a6aa6; background: var(--heap); border-radius: 10px; padding: 8px 10px 10px; }
+  .arena > .label { font-weight: bold; color: #4b3f78; margin-bottom: 6px; display: block; }
+  .arena.caller { border-color: var(--accent); background: var(--accent-soft); }
+  .arena.caller > .label { color: var(--accent); }
+  .arena.dead { border-style: dashed; opacity: .75; }
+  .cell { background: #fff; border: 1px solid #b9b2a3; border-radius: 6px; padding: 4px 8px; margin: 4px 0; font-family: Menlo, Consolas, monospace; font-size: 0.82rem; }
+  .env { background: var(--env); border: 1.5px solid #c9a84a; border-radius: 8px; padding: 6px 8px; margin: 6px 0; }
+  .env .h { font-weight: bold; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.78rem; color: var(--warn); }
+  .ptr { color: var(--accent); font-weight: bold; }
+  .gone { color: var(--bad); font-weight: bold; }
+
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.94rem; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f1eee6; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.8rem; text-transform: uppercase; letter-spacing: .04em; }
+  td.k { font-family: Menlo, Consolas, monospace; font-size: 0.84rem; white-space: nowrap; }
+  .tag { display: inline-block; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 0.72rem; padding: 1px 7px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); margin-left: 4px; }
+  .tag.ok { background: var(--ok-soft); color: var(--ok); }
+  .tag.no { background: var(--bad-soft); color: var(--bad); }
+  .step { display: flex; gap: 12px; margin: 14px 0; }
+  .step .n { flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--accent); color: #fff; text-align: center; line-height: 30px; font-family: sans-serif; font-weight: bold; }
+  .step .b { flex: 1; }
+
+  /* quiz */
+  .q { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin: 20px 0; }
+  .q h4 { margin: 0 0 8px; font-size: 1.04rem; }
+  .q button.opt { display: block; width: 100%; text-align: left; margin: 7px 0; padding: 9px 12px; background: var(--bg);
+    border: 1.5px solid var(--line); border-radius: 8px; cursor: pointer; font: inherit; font-size: 0.95rem; color: var(--fg); }
+  .q button.opt:hover:not(:disabled) { border-color: var(--accent); }
+  .q button.opt.right { border-color: var(--ok); background: var(--ok-soft); }
+  .q button.opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+  .q .fb { display: none; margin-top: 8px; padding: 9px 12px; border-radius: 8px; font-size: 0.94rem; }
+  .q .fb.show { display: block; }
+  .q .fb.good { background: var(--ok-soft); }
+  .q .fb.bad { background: var(--bad-soft); }
+  #score { position: sticky; bottom: 10px; background: #fff; border: 1.5px solid var(--accent); border-radius: 99px;
+    padding: 6px 16px; width: max-content; margin: 18px auto 0; font-family: -apple-system, sans-serif; font-size: 0.9rem; }
+  footer { margin-top: 60px; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 12px; }
+  @media (max-width: 560px) { body { font-size: 16px; } header h1 { font-size: 1.6rem; } .arrow { display: none; } td.k { white-space: normal; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Domknięcia w Borku</h1>
+  <p class="sub">Co właściwie zmienia PR #286 (RFC 0007, issue #277) — od składni po instrukcje maszynowe</p>
+  <nav class="toc" aria-label="Spis treści">
+    <b>Spis treści</b>
+    <ol>
+      <li><a href="#tlo">Tło</a> — jak działa kompilator Borka i jego areny
+        <ol type="a">
+          <li><a href="#tlo-ogolne">Tło ogólne</a> (można pominąć)</li>
+          <li><a href="#tlo-pr">Co było przed tym PR</a></li>
+        </ol></li>
+      <li><a href="#intuicja">Intuicja</a> — domknięcie to funkcja plus środowisko</li>
+      <li><a href="#kod">Kod</a> — przegląd zmian, od parsera do LLVM</li>
+      <li><a href="#quiz">Quiz</a> — pięć pytań</li>
+    </ol>
+  </nav>
+</header>
+
+<h2 id="tlo">1. Tło</h2>
+
+<p>Zanim przejdziemy do samej zmiany, przypomnijmy, na jakim gruncie ona stoi. Jeśli znasz już pipeline kompilatora Borka i jego model pamięci, przeskocz od razu do <a href="#tlo-pr">części „Co było przed tym PR”</a>.</p>
+
+<h3 id="tlo-ogolne">1a. Tło ogólne: potok kompilatora i areny</h3>
+
+<details class="skip" open>
+<summary>Dla początkujących: jak Bork zamienia tekst w program (kliknij, by zwinąć)</summary>
+
+<p>Kompilator Borka to potok kolejnych przekształceń. Każdy etap bierze reprezentację programu z poprzedniego i produkuje bardziej „skonkretyzowaną”:</p>
+
+<div class="pipe">
+  <div class="stage"><b>Parser</b><small>tekst → AST</small></div><div class="arrow">→</div>
+  <div class="stage"><b>Typeck</b><small>AST → HIR z typami</small></div><div class="arrow">→</div>
+  <div class="stage"><b>Sema</b><small>własność, regiony, raport aren</small></div><div class="arrow">→</div>
+  <div class="stage"><b>Mono</b><small>generyki → konkretne funkcje</small></div><div class="arrow">→</div>
+  <div class="stage"><b>MIR</b><small>bloki, skoki, wywołania</small></div><div class="arrow">→</div>
+  <div class="stage"><b>LLVM</b><small>kod natywny</small></div>
+</div>
+
+<p><b>AST</b> to drzewo składniowe — dokładnie to, co napisał programista. <b>HIR</b> to to samo drzewo, ale każde wyrażenie ma już typ. <b>Mono</b> (monomorfizacja) zamienia funkcje generyczne w konkretne kopie: <code>id&lt;T&gt;</code> użyte z <code>i32</code> i z <code>String</code> staje się dwiema osobnymi funkcjami. <b>MIR</b> to prosty, płaski język pośredni: lokalne zmienne, bloki podstawowe, skoki i wywołania — łatwy do analizy i do przełożenia na LLVM.</p>
+
+<p>Najbardziej nietypowa jest pamięć. Bork nie ma odśmiecacza ani ręcznego <code>free</code>. Zamiast tego każdy <b>region</b> (ciało funkcji, gałąź <code>if</code>, pętla) ma swoją <b>arenę</b> — kawałek pamięci zwalniany w całości, gdy region się kończy. Wartość „mieszka” w arenie, w której powstała. Problem pojawia się, gdy wartość ma przeżyć funkcję, która ją stworzyła: np. zwracany <code>String</code>. Wtedy wołająca funkcja przekazuje ukryty argument zwany <b>result sink</b> (zlew wyniku) — wskaźnik na <i>własną</i> arenę — i wołana alokuje wynik właśnie tam.</p>
+
+<div class="mem">
+  <div class="arena caller"><span class="label">arena wywołującego (main)</span>
+    <div class="cell">imie = "bork" &nbsp;<span class="ptr">← wynik trafił tu przez result sink</span></div>
+  </div>
+  <div class="arena dead"><span class="label">arena wołanej funkcji <span class="gone">(zwolniona po powrocie)</span></span>
+    <div class="cell">pomocnicza = "…"</div>
+  </div>
+</div>
+
+<div class="callout"><span class="t">Zapamiętaj</span>
+Wartość, która ma przeżyć funkcję, musi leżeć w arenie wywołującego (przez <b>result sink</b>). Wszystko inne ginie razem z regionem. To jedyna rzecz, którą trzeba wynieść z tej sekcji — cała reszta PR jest odpowiedzią na pytanie „gdzie mieszka środowisko domknięcia?”.</div>
+
+<p>Do tego dochodzi pojęcie <b>widoku</b> (<i>view</i>): wartość, która tylko <i>pożycza</i> coś z zewnątrz (<code>&amp;T</code>), a nie jest właścicielem. Widok nie może przeżyć tego, co pożycza, więc Bork nie pozwala go zwrócić ani schować w polu czy zmiennej <code>var</code>.</p>
+</details>
+
+<h3 id="tlo-pr">1b. Co było przed tym PR</h3>
+
+<p>Przed zmianą domknięcie istniało tylko jako <b>trailing closure</b> — blok doklejony po wywołaniu:</p>
+
+<pre><code>fun apply(v: i32, f: (i32) -&gt; i32): i32 { return f(v) }
+
+fun main(): i32 {
+    val k = 3
+    return apply(2) { x -&gt; x + k }   // trailing closure
+}</code></pre>
+
+<p>Typeck sprawdzał ciało takiego bloku „w locie”, porównując je z typem funkcyjnym ostatniego parametru, a potem <i>wyrzucał</i> — w HIR zostawała tylko flaga <code>has_trailing_closure: bool</code>. Sema liczyła zmienne wolne na AST. A kiedy MIR dochodził do takiego wywołania, odpowiadał błędem <code>Capability::Closure</code>, a wywołanie przez wartość funkcyjną — <code>Capability::IndirectCall</code>. Skutek: <b>żaden program z domknięciem nie kompilował się do pliku wykonywalnego</b>, a funkcja generyczna nie mogła powiedzieć „daj mi coś wywoływalnego”.</p>
+
+<div class="callout warn"><span class="t">Luka, którą ten PR zamyka</span>
+Domknięcie nie było <i>wartością</i>: nie miało typu, nie dało się go zapisać w <code>val</code>, zwrócić z funkcji, ani ograniczyć w generyku (<code>F: Fn(i32) -&gt; i32</code>). RFC 0006 §3.10 zostawiło to „późniejszemu RFC” — to jest ten RFC.</div>
+
+<h2 id="intuicja">2. Intuicja</h2>
+
+<p>Całą zmianę da się streścić jednym zdaniem: <b>domknięcie to funkcja plus środowisko</b>. Funkcja to kod ciała; środowisko to zapamiętane wartości (albo adresy) zmiennych z zewnątrz, których ciało używa. Weźmy klasyczny przykład:</p>
+
+<pre><code>fun makeAdder(n: i32): (i32) -&gt; i32 {
+    return move (n) { x -&gt; x + n }
+}
+
+val add3 = makeAdder(3)
+val add8 = makeAdder(8)
+println(add3(4))   // 7
+println(add8(4))   // 12</code></pre>
+
+<p>Dwa wywołania <code>makeAdder</code> produkują domknięcia z <i>tym samym kodem</i>, ale <i>innym środowiskiem</i>. W czasie wykonania wartość domknięcia to po prostu jeden wskaźnik — na środowisko, którego pierwszym polem jest wskaźnik na kod:</p>
+
+<div class="mem">
+  <div class="arena caller"><span class="label">arena main (przez result sink)</span>
+    <div class="env"><span class="h">add3 → środowisko</span>
+      <div class="cell">kod = <span class="ptr">&amp;makeAdder$closure0</span></div>
+      <div class="cell">n = 3</div></div>
+    <div class="env"><span class="h">add8 → środowisko</span>
+      <div class="cell">kod = <span class="ptr">&amp;makeAdder$closure0</span></div>
+      <div class="cell">n = 8</div></div>
+  </div>
+  <div class="arena dead"><span class="label">ramka makeAdder <span class="gone">(już nie istnieje)</span></span>
+    <div class="cell">n = 3 &nbsp;<span class="gone">martwe</span></div>
+  </div>
+</div>
+
+<p>Zwróć uwagę na to, co się tu dzieje z pamięcią. Gdyby środowisko leżało w arenie <code>makeAdder</code>, zginęłoby przy powrocie, a <code>add3(4)</code> czytałoby śmieci. Dlatego środowisko domknięcia <code>move</code>, które jest <i>zwracane</i>, jest alokowane w arenie wywołującego — dokładnie tak jak zwracany <code>String</code>.</p>
+
+<h3>Trzy rodzaje: Fn, FnMut, FnOnce</h3>
+
+<p>To, co domknięcie robi ze zmiennymi z zewnątrz, decyduje o jego <b>rodzaju</b>. Kompilator liczy go sam, skanując ciało:</p>
+
+<table>
+  <tr><th>Rodzaj</th><th>Co robi ciało</th><th>Przykład</th><th>Gdzie leży capture</th></tr>
+  <tr><td class="k">Fn</td><td>tylko czyta</td><td class="k">{ x -&gt; x + k }</td><td>kopia w środowisku</td></tr>
+  <tr><td class="k">FnMut</td><td>przypisuje do capture'a (albo woła na nim mutujące metody <code>Vec</code>)</td><td class="k">{ -&gt; n = n + 1 ; n }</td><td>zwykłe: <b>adres</b> zmiennej zewn.; <code>move</code>: własna wartość w środowisku</td></tr>
+  <tr><td class="k">FnOnce</td><td>wynosi capture'a (<code>move x</code>)</td><td class="k">{ -&gt; move s }</td><td>— (jeszcze nie ma codegenu)</td></tr>
+</table>
+
+<p>Rodzaje tworzą drabinkę: <code>Fn ⊂ FnMut ⊂ FnOnce</code>. Domknięcie <code>Fn</code> spełnia każde ograniczenie; domknięcie <code>FnMut</code> spełnia <code>FnMut</code> i <code>FnOnce</code>, ale <i>nie</i> <code>Fn</code>. Dlatego poniższy kod jest błędem typu, z komunikatem, który mówi, dlaczego:</p>
+
+<pre><code>fun apply&lt;F: Fn() -&gt; i32&gt;(f: F): i32 { return f() }
+
+var n = 1
+apply({ -&gt; n = 2 ; 0 })     // błąd: domknięcie jest FnMut (przypisuje do przechwyconej wartości)</code></pre>
+
+<h3>Własność: zwykłe kontra move</h3>
+
+<p>Tu wchodzi model pamięci z części 1. <b>Zwykłe</b> domknięcie tylko <i>pożycza</i> to, co przechwytuje, więc jest <b>widokiem</b> — jak <code>&amp;T</code>. <b>Domknięcie <code>move</code></b> jest właścicielem swoich capture'ów, więc zachowuje się jak zwykła wartość.</p>
+
+<div class="mem">
+  <div class="arena"><span class="label">zwykłe: { -&gt; n }</span>
+    <div class="env"><span class="h">środowisko (w bieżącym regionie)</span>
+      <div class="cell">kod</div><div class="cell">n → <span class="ptr">adres zmiennej n</span></div></div>
+    <span class="gone">nie wolno: return, var, pole, element tablicy</span></div>
+  <div class="arena caller"><span class="label">move: move (n) { -&gt; n }</span>
+    <div class="env"><span class="h">środowisko (w arenie przeznaczenia)</span>
+      <div class="cell">kod</div><div class="cell">n = 3 &nbsp;(własna kopia)</div></div>
+    <span style="color:var(--ok);font-weight:bold">wolno: return, var, pole</span></div>
+</div>
+
+<div class="callout ok"><span class="t">Intuicja do zapamiętania</span>
+Zwykłe domknięcie = „oto kod, a zmienne weź stamtąd, gdzie leżą”. Domknięcie <code>move</code> = „oto kod i własne dane”. Pierwsze nie może opuścić zakresu zmiennych, które pożycza; drugie może pójść wszędzie.</div>
+
+<h3>Sztuczka implementacyjna: lambda lifting</h3>
+
+<p>Zamiast uczyć MIR i LLVM nowego rodzaju „ciała domknięcia”, PR robi coś prostszego. Po monomorfizacji każde domknięcie jest <b>wynoszone do zwykłej funkcji</b>, której pierwsze parametry to jego capture'y:</p>
+
+<pre><code>// źródło
+fun makeAdder(n: i32) { return move (n) { x -&gt; x + n } }
+
+// po wyniesieniu (mono)
+fun makeAdder$closure0(n: i32, x: i32): i32 { return x + n }
+fun makeAdder(n: i32)  { return MakeClosure(makeAdder$closure0, [n]) }</code></pre>
+
+<p>Dzięki temu MIR i kodgen widzą wyłącznie zwykłe funkcje; jedyna nowość to wartość <code>MakeClosure</code> (zbuduj środowisko) i wywołanie <code>call_closure</code> (załaduj kod ze środowiska i skocz). Ważny skutek uboczny: zachowany zostaje niezmiennik „jedna funkcja = jeden korzeń w raporcie aren”, na którym opiera się reszta kompilatora.</p>
+
+<h2 id="kod">3. Kod</h2>
+
+<p>PR to 33 commity, ok. 84 plików i +2900 linii (z czego sporą część stanowią testy, goldeny i programy w <code>programs/</code>). Warto je czytać w kolejności, w jakiej dane płyną przez kompilator — tak jak były pisane.</p>
+
+<div class="pipe">
+  <div class="stage hit"><b>1 Parser</b><small>wyrażenie domknięcia</small></div><div class="arrow">→</div>
+  <div class="stage hit"><b>2 HIR + typy</b><small>ciało zostaje, <code>Closure</code></small></div><div class="arrow">→</div>
+  <div class="stage hit"><b>3 Fn*</b><small>cechy, solver, rodzaj</small></div><div class="arrow">→</div>
+  <div class="stage hit"><b>4 Własność</b><small>widok vs move</small></div><div class="arrow">→</div>
+  <div class="stage new"><b>5 Mono</b><small>lifting</small></div><div class="arrow">→</div>
+  <div class="stage new"><b>6 MIR + LLVM</b><small>środowisko, call_closure</small></div>
+</div>
+
+<div class="step"><div class="n">1</div><div class="b">
+<h3>Parser: domknięcie jako wyrażenie</h3>
+<p><code>src/parser.lalrpop</code>, <code>src/ast.rs</code>. Nowy wariant <code>Expr::Closure</code> i reguła <code>ClosureExpr</code> w <code>Atom</code>: <code>{ a, b -&gt; ciało }</code> oraz <code>move (n) { a -&gt; ciało }</code>. Strzałka <code>-&gt;</code> jest <b>obowiązkowa</b> — to ona odróżnia domknięcie od zwykłego bloku i pozwala uniknąć konfliktu w gramatyce LR(1) (domknięcie bez parametrów to <code>{ -&gt; 1 }</code>). Testy w <code>tests/parser.rs</code> pilnują też, że <code>{ x }</code> i <code>{ val y = 1 }</code> nadal są blokami.</p>
+</div></div>
+
+<div class="step"><div class="n">2</div><div class="b">
+<h3>HIR zachowuje ciało; nowy typ <code>Closure</code></h3>
+<p><code>src/hir/mod.rs</code>, <code>src/ty/</code>, <code>src/infer/unify.rs</code>. <code>Call.has_trailing_closure</code> zamieniło się w <code>Call.trailing: Option&lt;Box&lt;HirExpr&gt;&gt;</code>, a ciało trafia do nowego węzła <code>HirExprKind::Closure { params, body, is_move, captures, kind }</code>. W systemie typów pojawił się <code>TyData::Closure { id, params, ret, captures }</code> — każde wyrażenie domknięcia ma <i>własny</i> typ (przez <code>id</code>). Typy capture'ów siedzą w samym typie, więc podstawienie w generykach (<code>T → i32</code>) dociera do nich bez dodatkowej tablicy. Unifikacja traktuje <code>Closure</code> i <code>Func</code> o tej samej sygnaturze jako zgodne w obie strony; dzięki temu domknięcie można podać tam, gdzie oczekiwany jest zapisany w kodzie typ <code>(i32) -&gt; i32</code>.</p>
+</div></div>
+
+<div class="step"><div class="n">3</div><div class="b">
+<h3>Cechy <code>Fn</code>, <code>FnMut</code>, <code>FnOnce</code> i rodzaj domknięcia</h3>
+<p><code>src/prelude/fn.bork</code>, <code>src/typeck/solve.rs</code>, <code>src/typeck/captures.rs</code> (nowy, ok. 200 linii). Cechy są zwykłymi cechami prelude (<code>trait Fn&lt;A&gt; {}</code>) znajdowanymi po nazwie. Parser zamienia <code>F: Fn(i32) -&gt; i32</code> na <code>Fn&lt;(i32) -&gt; i32&gt;</code> — jeden argument typu funkcyjnego, bo Bork nie ma krotek. Solver ma wbudowaną regułę: typ <code>Closure</code> albo <code>Func</code> implementuje cechę <code>Fn*</code> dla własnej sygnatury — o ile jego rodzaj na to pozwala. Rodzaj liczy <code>captures.rs</code>, skanując HIR ciała: odczyt → <code>Fn</code>, przypisanie lub mutujące <code>Vec</code> → <code>FnMut</code>, <code>move x</code> → <code>FnOnce</code>; zagnieżdżone domknięcie przenosi swój rodzaj na zewnętrzne. Parametr <code>f: F</code> z ograniczeniem jest wywoływalny (<code>f(v)</code>), a sygnaturę bierze z ograniczenia.</p>
+</div></div>
+
+<div class="step"><div class="n">4</div><div class="b">
+<h3>Własność: zwykłe domknięcie jest widokiem</h3>
+<p><code>src/ty/query.rs</code> (<code>stores_borrow</code>, <code>is_view_closure</code>), <code>src/typeck/env.rs</code>, <code>stmt/assign.rs</code>, <code>stmt/mod.rs</code>. Zwykłe domknięcie z choć jednym capture'em „przechowuje pożyczkę”, więc działają dla niego istniejące reguły widoków: nie wolno go zwrócić, ani zapisać w <code>var</code>, polu, elemencie tablicy czy argumencie konstruktora (<code>reject_stored_view_closure</code>). Adnotacja typu zamienia <code>Closure</code> w zwykłe <code>Func</code> i gubiłaby tę informację, więc binding dostaje flagę <code>view_closure</code>, która towarzyszy nazwie przez <code>val g = h</code> i <code>move h</code>. Lista <code>move (a, b)</code> musi wymieniać dokładnie te zmienne, których używa ciało.</p>
+</div></div>
+
+<div class="step"><div class="n">5</div><div class="b">
+<h3>Mono: wyniesienie domknięć</h3>
+<p><code>src/mono/lift.rs</code> (nowy). Po specjalizacji generyków przechodzi po każdej funkcji, zastępuje każde <code>Closure</code> węzłem <code>MakeClosure { function, captures, kind, is_move }</code> i dodaje funkcję <code>outer$closureN(captures…, params…)</code>. Każda wyniesiona funkcja dostaje własny korzeń w raporcie aren (odczepiony od rodzica węzeł „Closure” z sema), więc niezmiennik 1:1 zostaje. Trailing closure staje się ostatnim argumentem wywołania. Funkcja ma pole <code>env_params</code> (ile początkowych parametrów to capture'y) i <code>env_mode</code>: <code>ByValue</code> (kopia, <code>Fn</code>), <code>ByAddress</code> (adres zmiennej, zwykłe <code>FnMut</code>) albo <code>InPlace</code> (własna wartość w środowisku, <code>move FnMut</code>).</p>
+</div></div>
+
+<div class="step"><div class="n">6</div><div class="b">
+<h3>MIR i LLVM</h3>
+<p><code>src/mir/body.rs</code>, <code>src/mir/build/expr.rs</code>, <code>src/codegen/llvm/lower.rs</code>, <code>declare.rs</code>. W MIR są dwie nowości: <code>Rvalue::Closure { function, captures, by_ref, arena }</code> (zbuduj środowisko w danej arenie) i terminator <code>CallClosure</code> (wołanie przez wartość). W LLVM wartość domknięcia to pojedynczy wskaźnik na <code>{ wskaźnik kodu, capture'y… }</code>. Domknięcie bez capture'ów to stała globalna, więc może przeżyć każdy region. Wyniesiona funkcja przyjmuje <i>jeden</i> wskaźnik środowiska zamiast capture'ów i ładuje je w prologu (albo, dla <code>ByAddress</code>/<code>InPlace</code>, używa adresu pola jako slotu zmiennej). Środowisko <code>move</code> domknięcia idzie do result sinku, gdy to ono jest zwracane, a w pozostałych przypadkach do bieżącej areny. Funkcje zwracające typ funkcyjny dostają ABI z result sinkiem.</p>
+</div></div>
+
+<h3>Całość na jednym przykładzie: MIR dla <code>makeAdder</code></h3>
+
+<p>Tak wygląda wynik <code>bork build --emit-mir</code> — to jest dokładnie to, co zamrażają goldeny w <code>tests/golden/mir/closures.txt</code>:</p>
+
+<pre><code>fn makeAdder (parent=true, sink=true) {
+  let _1: i32 [Arg] n
+  let _3: closure#0(i32)-&gt;i32 [Temp]
+  bb0:
+    _3 = closure makeAdder$closure0(copy _1) in result_sink   // środowisko w arenie wywołującego
+    _0 = copy _3
+    return
+}
+fn makeAdder$closure0 (parent=true, sink=false) {
+  let _1: i32 [Arg] n          // capture, ładowany ze środowiska
+  let _2: i32 [Arg] x
+  bb0:
+    _4 = add(copy _2, copy _1)
+    _0 = copy _4
+    return
+}</code></pre>
+
+<h3>Czego ten PR celowo nie robi</h3>
+
+<table>
+  <tr><th>Rzecz</th><th>Stan</th><th>Dlaczego</th></tr>
+  <tr><td>Capture'y będące obiektami, <code>Ref</code>, <code>Vec</code>, nullable</td><td><span class="tag no">odrzucane</span></td><td>Potrzebują zarejestrowanego dropu w arenie środowiska. Nadal <code>Capability::Closure</code>.</td></tr>
+  <tr><td><code>FnOnce</code></td><td><span class="tag no">odrzucane</span></td><td>Wywołanie wynosi wartość ze środowiska; środowisko nie może jej potem zdropować drugi raz.</td></tr>
+  <tr><td><code>String</code>, tablice kopiowalnych elementów w <code>move</code></td><td><span class="tag ok">działa</span></td><td>Kopiowane do areny środowiska, która je zwalnia razem ze sobą.</td></tr>
+  <tr><td>Domknięcie w polu klasy albo w <code>Vec</code></td><td><span class="tag">niesprawdzone</span></td><td>Wartość jest wskaźnikiem, ale polem nie da się jej jeszcze wywołać.</td></tr>
+  <tr><td>Widok podany jako parametr <code>Func</code></td><td><span class="tag">luka</span></td><td>Callee widzi tylko <code>Func</code> i może go zapisać; opisane w RFC.</td></tr>
+</table>
+
+<h2 id="quiz">4. Quiz</h2>
+
+<p>Pięć pytań o to, co przed chwilą przeszliśmy. Kliknij odpowiedź, a dostaniesz informację zwrotną.</p>
+
+<div id="quiz-root"></div>
+<div id="score">Wynik: <b id="score-n">0</b> / 5</div>
+
+<footer>
+  Wygenerowano dla PR #286 (<code>feat/277-closures-fn-traits</code>), RFC 0007: <code>docs/rfcs/0007-closures.md</code>.
+  Stan opisany: commit <code>1c8dcbb</code>. Strona jest statyczna i niczego nie wysyła.
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var QUESTIONS = [
+    {
+      q: "Jak w czasie wykonania wygląda wartość domknięcia w skompilowanym programie?",
+      opts: [
+        "Gruba wartość z dwóch słów: wskaźnik na kod i osobny wskaźnik na dane, przekazywana przez wartość.",
+        "Jeden wskaźnik na środowisko, którego pierwszym polem jest wskaźnik na kod, a po nim idą capture'y.",
+        "Wskaźnik na funkcję; capture'y są przekazywane jako dodatkowe argumenty przy każdym wywołaniu.",
+        "Obiekt klasy wygenerowany przez kompilator, z metodą <code>invoke</code>."
+      ],
+      ok: 1,
+      good: "Dokładnie. Wartość to jeden wskaźnik, a <code>call_closure</code> ładuje z niego wskaźnik kodu i przekazuje całe środowisko jako pierwszy argument. Wcześniejsza wersja RFC mówiła o „grubym” 16-bajtowym wskaźniku; zbudowana wersja jest prostsza.",
+      bad: "Nie do końca. Zbudowana wersja używa jednego wskaźnika na środowisko <code>{ kod, capture'y… }</code>; wyniesiona funkcja sama ładuje capture'y z tego wskaźnika, więc wołający nie musi ich znać."
+    },
+    {
+      q: "Dlaczego <code>return move (n) { x -&gt; x + n }</code> się kompiluje, a <code>return { x -&gt; x + n }</code> (bez <code>move</code>) jest odrzucane?",
+      opts: [
+        "Bo w drugim wypadku kompilator nie potrafi wywnioskować typu parametru <code>x</code>.",
+        "Bo zwykłe domknięcie z capture'em jest widokiem (pożycza <code>n</code>) i nie może przeżyć zmiennej, którą pożycza; <code>move</code> daje mu własną kopię.",
+        "Bo słowo <code>move</code> wymusza alokację na stercie, a bez niego domknięcie leży na stosie.",
+        "Bo drugie domknięcie jest rodzaju <code>FnMut</code>, a funkcja zwraca <code>Fn</code>."
+      ],
+      ok: 1,
+      good: "Tak. To ta sama zasada, co dla <code>&amp;T</code>: widok nie może opuścić zakresu tego, co pożycza. Domknięcie <code>move</code> jest właścicielem swoich capture'ów, więc jego środowisko może trafić do areny wywołującego.",
+      bad: "Nie. Rodzaj i typ parametrów nie mają tu znaczenia — oba domknięcia czytają tylko <code>n</code>. Chodzi o to, że zwykłe domknięcie <i>pożycza</i> <code>n</code> (jest widokiem), więc zwrócenie go zostawiłoby wskaźnik w zwolnioną ramkę."
+    },
+    {
+      q: "Funkcja ma ograniczenie <code>F: Fn() -&gt; i32</code>. Podajesz domknięcie <code>{ -&gt; n = 2 ; 0 }</code>, gdzie <code>n</code> to zmienna zewnętrzna. Co się dzieje?",
+      opts: [
+        "Kompiluje się; <code>Fn</code> pozwala na mutowanie, jeśli zmienna jest <code>var</code>.",
+        "Błąd typu: domknięcie przypisuje do przechwyconej wartości, więc jest <code>FnMut</code>, którego ograniczenie <code>Fn</code> nie dopuszcza.",
+        "Błąd własności: zmienna <code>n</code> została przeniesiona.",
+        "Kompiluje się, ale <code>n</code> wewnątrz domknięcia jest kopią."
+      ],
+      ok: 1,
+      good: "Zgadza się. Kompilator skanuje ciało i widzi przypisanie do capture'a, więc rodzaj to <code>FnMut</code>. Solver porównuje rodzaj z wymaganym i odrzuca z komunikatem wskazującym powód.",
+      bad: "Nie. Rodzaj domknięcia wynika z tego, co robi ciało — przypisanie do capture'a daje <code>FnMut</code>, a <code>FnMut</code> nie spełnia ograniczenia <code>Fn</code>. Dlatego jest błąd typu, nie przeniesienie ani cicha kopia."
+    },
+    {
+      q: "Dlaczego mono wynosi domknięcia do zwykłych funkcji, zamiast dodać do MIR nowy rodzaj „ciała domknięcia”?",
+      opts: [
+        "Bo LLVM nie obsługuje funkcji zagnieżdżonych.",
+        "Bo dzięki temu MIR i kodgen widzą tylko zwykłe funkcje, a niezmiennik „jedna funkcja = jeden korzeń raportu aren” zostaje nienaruszony.",
+        "Bo wyniesione funkcje są szybsze od osobnych ciał.",
+        "Bo typeck nie zna ciała domknięcia i dopiero mono je odtwarza."
+      ],
+      ok: 1,
+      good: "Tak. Wiele miejsc (mono, budowa MIR, plan pamięci, goldeny) zakłada parę „funkcja ↔ korzeń raportu”. Wyniesienie z własnym korzeniem zostawia tę parę w spokoju i zmniejsza nowość w MIR do jednej wartości i jednego wywołania.",
+      bad: "Nie. Powód jest strukturalny: kilka warstw kompilatora zakłada parę „funkcja ↔ korzeń raportu aren”. Wyniesienie domknięcia do zwykłej funkcji z własnym korzeniem utrzymuje ten niezmiennik, a MIR zyskuje tylko <code>Closure</code> i <code>CallClosure</code>."
+    },
+    {
+      q: "Licznik: <code>makeCounter</code> zwraca <code>move (count) { -&gt; count = count + 1 ; count }</code>. Trzy wywołania <code>next()</code> wypisują 1, 2, 3. Dlaczego stan się zachowuje między wywołaniami?",
+      opts: [
+        "Bo środowisko trzyma adres zmiennej <code>count</code> z ramki <code>makeCounter</code>.",
+        "Bo każde wywołanie ładuje kopię <code>count</code> ze środowiska i zapisuje ją z powrotem po zakończeniu.",
+        "Bo to domknięcie jest rodzaju <code>FnMut</code> i <code>move</code>, więc ma tryb <code>InPlace</code>: środowisko jest właścicielem wartości, a ciało aktualizuje ją w miejscu.",
+        "Bo kompilator zamienia <code>count</code> w zmienną globalną."
+      ],
+      ok: 2,
+      good: "Właśnie tak. Zwykłe <code>FnMut</code> trzyma <i>adres</i> zmiennej zewnętrznej (<code>ByAddress</code>), ale ramka <code>makeCounter</code> już nie istnieje, więc <code>move FnMut</code> trzyma wartość we własnym środowisku i modyfikuje ją tam (<code>InPlace</code>). Zewnętrzna kopia zmiennej pozostaje nietknięta.",
+      bad: "Nie. Adres zmiennej z ramki <code>makeCounter</code> byłby wiszący po powrocie. Dlatego <code>move FnMut</code> ma tryb <code>InPlace</code>: środowisko (leżące w arenie wywołującego) jest właścicielem wartości i ciało zapisuje do niej bezpośrednio, a nie do kopii ładowanej na początku każdego wywołania."
+    }
+  ];
+
+  var root = document.getElementById("quiz-root");
+  var scoreEl = document.getElementById("score-n");
+  var score = 0;
+
+  // Rotate each question's options so the right answer is not always in the same slot.
+  var ROTATE = [1, 3, 2, 0, 1];
+  QUESTIONS.forEach(function (item, qi) {
+    var k = ROTATE[qi], n = item.opts.length;
+    item.opts = item.opts.map(function (_, i) { return item.opts[(i - k + n) % n]; });
+    item.ok = (item.ok + k) % n;
+  });
+
+  QUESTIONS.forEach(function (item, qi) {
+    var box = document.createElement("div");
+    box.className = "q";
+    var h = document.createElement("h4");
+    h.innerHTML = (qi + 1) + ". " + item.q;
+    box.appendChild(h);
+    var fb = document.createElement("div");
+    fb.className = "fb";
+    var answered = false;
+    var buttons = [];
+    item.opts.forEach(function (text, oi) {
+      var b = document.createElement("button");
+      b.className = "opt";
+      b.type = "button";
+      b.innerHTML = text;
+      b.addEventListener("click", function () {
+        if (answered) return;
+        answered = true;
+        var correct = oi === item.ok;
+        if (correct) score++;
+        scoreEl.textContent = score;
+        buttons.forEach(function (x, xi) {
+          x.disabled = true;
+          if (xi === item.ok) x.classList.add("right");
+        });
+        if (!correct) b.classList.add("wrong");
+        fb.className = "fb show " + (correct ? "good" : "bad");
+        fb.innerHTML = (correct ? "<b>Dobrze.</b> " : "<b>Niezupełnie.</b> ") + (correct ? item.good : item.bad);
+      });
+      buttons.push(b);
+      box.appendChild(b);
+    });
+    box.appendChild(fb);
+    root.appendChild(box);
+  });
+})();
+</script>
+</body>
+</html>
