@@ -145,3 +145,17 @@ fn plain_closure_that_captures_is_a_view_and_cannot_be_returned() {
 fn plain_closure_without_captures_may_be_returned() {
     hir_of("fun make(): () -> i32 {\n    return { -> 1 }\n}");
 }
+
+#[test]
+fn a_view_closure_cannot_be_stored_in_a_var_or_assigned_to_an_outer_one() {
+    let init = "fun main() {\n    val n = 1\n    var keep = { -> n }\n}";
+    assert!(diags_of(init).iter().any(|d| d.message.contains("borrows its captures")));
+    let assign = "fun main() {\n    var keep: () -> i32 = { -> 0 }\n    var n = 5\n    keep = { -> n }\n}";
+    assert!(diags_of(assign).iter().any(|d| d.message.contains("borrows its captures")));
+}
+
+#[test]
+fn closures_without_borrowed_captures_may_be_stored_in_a_var() {
+    hir_of("fun main() {\n    var keep: () -> i32 = { -> 0 }\n    keep = { -> 1 }\n}");
+    hir_of("fun main() {\n    val n = 3\n    var keep = move (n) { -> n }\n}");
+}

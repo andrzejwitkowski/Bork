@@ -185,6 +185,19 @@ action(1, 2) move { x, y ->
 
 Ordinary (non-`move`) nested `{ … }` and non-`move` closures do **not** transfer ownership. A child reading a parent **`var`** of a non-Copy type is an error unless you `move` it or borrow it with `&`. A child reading a parent **`val`** non-Copy is **Shared** (no `&` required).
 
+### Closure environments
+
+A closure is a pointer to an **environment** `{ code pointer, captures… }` (RFC 0007). Where the environment lives follows the closure's kind:
+
+| Closure | Environment | Captures |
+|---------|-------------|----------|
+| No captures | a constant (no arena) | none |
+| Plain, reads only (`Fn`) | the current region's arena | copies of the values |
+| Plain, assigns (`FnMut`) | the current region's arena | the **addresses** of the outer variables |
+| `move` | the current region, or the **result sink** when the function returns a closure | owned: numbers copied, a `String` or array copied into that arena (so it outlives the callee) |
+
+A plain closure that captures anything holds borrows, so it cannot leave the region of what it captures (no `var`, field, array element or return). A `move` closure can: its environment goes to the caller's arena through the same result-sink convention as a returned `String`. Captures that need a registered drop (objects, `Ref`, `Vec`, nullables) and `FnOnce` closures are not lowered yet.
+
 ### Borrow (`&`)
 
 Two related ideas:
@@ -340,7 +353,7 @@ With the `codegen` feature, LLVM lowering uses per-region bump arenas (`bork_run
 
 **Object file:** `bork build` runs the LLVM `default<O3>` pipeline (plus `mergefunc`, `function-attrs`, `globaldce`) before writing the object. Set `BORK_DUMP_IR=/path/to/file.ll` to write unoptimized module text before that pass (useful for counting `bork_arena_push` / `pop` per block).
 
-**Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After monomorphization, `mir::plan::stamp_push` sets `ArenaNode.codegen_push` from the MIR of each instance: codegen calls `bork_arena_push` only when that flag is true (function roots always push; trailing closures never push). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
+**Sema vs codegen push:** the arena dump tree still has a child node for every region site (blocks, loops, `if` branches, …). After monomorphization, `mir::plan::stamp_push` sets `ArenaNode.codegen_push` from the MIR of each instance: codegen calls `bork_arena_push` only when that flag is true (function roots always push; closure regions never push — a closure is its own function after monomorphization, with its own root). A `{ … }` that only holds scalars and no sink allocation therefore has a report node but no extra runtime arena — matching the “no alloc in this region” optimization.
 
 The sections below describe behavior that is **implemented today** for avoiding redundant cross-region copies while keeping the **no-GC, region-scoped borrow** model (not a full Rust-style borrow checker; see **Borrow** above and **Not planned**).
 

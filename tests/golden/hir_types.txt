@@ -53,6 +53,8 @@ programs/build/classes/string_field.bork::main() -> i32
 programs/build/classes/walkthrough_point.bork::sum(p: &Point) -> i32
 programs/build/classes/walkthrough_point.bork::main() -> i32
 programs/build/closures/closure_in_val.bork::main() -> i32
+programs/build/closures/doc_example.bork::apply(v: i32, f: T0) -> i32
+programs/build/closures/doc_example.bork::main() -> i32
 programs/build/closures/fnmut_bound.bork::run(f: T0) -> i32
 programs/build/closures/fnmut_bound.bork::main() -> i32
 programs/build/closures/fnmut_counter.bork::twice(f: ()->i32) -> i32

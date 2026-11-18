@@ -1,0 +1,5 @@
+// diag: returning a reference is not supported
+fun make(): () -> i32 {
+    val n = 1
+    return { -> n }
+}

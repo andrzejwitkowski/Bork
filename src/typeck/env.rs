@@ -218,6 +218,14 @@ impl<'a> Env<'a> {
         Some(ty)
     }
 
+    /// A closure that borrows its captures is a view (RFC 0007 section 5): it cannot be stored where it
+    /// would outlive them, i.e. in a `var`, a field or an array element.
+    pub(super) fn reject_stored_view_closure(&mut self, ty: TyId, what: &str, span: Option<Span>) {
+        if self.tcx.is_view_closure(ty) {
+            self.error(format!("cannot store a closure that borrows its captures in {what}; use `val`, or `move`"), span);
+        }
+    }
+
     /// Explicit `move(..)` capture lists name bindings; a bare field there is an error.
     pub(super) fn reject_field_captures(&mut self, captures: &[crate::span::SpannedName]) {
         for capture in captures {

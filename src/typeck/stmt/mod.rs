@@ -143,6 +143,9 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
         );
     }
     env.mismatch(&format!("initializer for `{name}`"), value.ty, declared_ty, Some(name_span));
+    if kind == BindingKind::Var {
+        env.reject_stored_view_closure(value.ty, &format!("`var` `{name}`"), Some(name_span));
+    }
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);

@@ -274,6 +274,31 @@ count = count + 1
 - `: Type` is optional when the initializer determines the type.
 - A name shadows an outer name for the rest of the block.
 
+## Closures
+
+A closure is a value: `val add = { x -> x + n }`. Its type is the function type `(i32) -> i32` (or a generic parameter bounded by `Fn`, `FnMut` or `FnOnce`):
+
+```
+fun apply<F: Fn(i32) -> i32>(v: i32, f: F): i32 {
+    return f(v)
+}
+fun main(): i32 {
+    val n = 3
+    println(apply(4, { x -> x + n }))      // 7
+    println(apply(5) { x -> x * 2 })       // a trailing closure is the last argument
+    return 0
+}
+```
+
+What a closure uses from the outside decides its kind: it only reads captures (`Fn`), it assigns to one or calls a mutating `Vec` method on it (`FnMut`), or it moves one out (`FnOnce`). A closure satisfies a bound of its own kind or a weaker one (`FnMut` does not satisfy `Fn`).
+
+- A plain closure **borrows** what it captures, so it is a view like `&T`: it can be a `val`, a parameter or an argument, but not a `var` initializer or assignment, a field, an array element, or a return value. A plain closure that captures nothing has no such limit.
+- A `move (a, b) { ... }` closure **owns** its captures: it may be returned (`return move (n) { x -> x + n }`) and keeps its own state (a `move` closure that assigns to a capture updates its own copy).
+- A closure is not Copy. Calling one is `f(args)` on a name; a closure in a field is stored but cannot be called (`only named functions can be called`).
+- A closure cannot call itself.
+
+[RFC 0007](rfcs/0007-closures.md) has the design.
+
 ## Reserved words
 
 These are lexer tokens, so they cannot name a binding, parameter, field, function, class or constant:
@@ -350,6 +375,8 @@ Precedence, tightest last: calls and suffixes, `*` `/`, `+` `-`, comparisons, `.
 | `f(a, b)` | call |
 | `f(a) { x -> ... }` | call with a trailing closure |
 | `f(a) move (s) { ... }` | trailing move-closure |
+| `{ x, y -> x + y }` | closure value (always has the `->`; `{ -> 1 }` takes no parameters) |
+| `move (n) { x -> x + n }` | closure value that owns `n` |
 | `.name` `?.name` | field, optional field |
 | `!!` | assert non-null |
 | `?:` | if the left is null, use the right |
@@ -621,11 +648,13 @@ Intrinsics are not user functions. Redefining them is a type error.
 
 `bork build` lowers a checked program to a native executable only for a subset of the frontend. Linked objects are optimized with LLVM **`-O3`** by default. Runtime arenas use a **per-thread** slab pool (no global lock on push/pop).
 
-Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions without trailing closures, nullable `T?` (`None`, `Some`, `?:`, `!!`, `?.length`, `==` / `!=` with `None`), records, `Ref<T>`, `if val`, `when`, `?.` on record fields, and `?:` on `Ref`.
+Supported: integer and float arithmetic and comparisons, `for` over `..`, `while`, `if`/`else`, `String` literals, `[T; N]` literals with index and slice, `.length`, `move` / `promote` of strings and whole arrays, `concat`, `print` / `println`, reference parameters with index read/write, recursive calls that re-borrow `&param` from inside control flow, calls to user functions, closures (below), nullable `T?` (`None`, `Some`, `?:`, `!!`, `?.length`, `==` / `!=` with `None`), records, `Ref<T>`, `if val`, `when`, `?.` on record fields, and `?:` on `Ref`.
 
 A `T?` is an `Option<T>` enum slot `{ i32 tag, payload }` in the sink arena (`None` too); `!!` on `None` aborts.
 
-Rejected by codegen (the frontend still accepts them): trailing closures. Safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
+Closures: a closure compiles to a function and a pointer to its environment (`{ code pointer, captures }`). Supported: reading closures (`Fn`), `FnMut` closures (a plain one updates the outer variable in place, a `move` one its own copy), `move` closures that own numbers, `bool`, `String` and arrays of copyable elements, and `F: Fn(..)` bounds. Rejected by codegen (the frontend still accepts them): closures that own an object, a `Ref`, a `Vec` or a nullable, and `FnOnce` closures (`closures that own a captured value ... are not supported by codegen yet`).
+
+Also rejected by codegen: safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
 
 For debugging LLVM output, set `BORK_DUMP_IR` to a file path before `bork build` (writes the module before the O3 pipeline). See [memory-model.md](memory-model.md) (**Native codegen**).
 
