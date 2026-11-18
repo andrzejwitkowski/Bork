@@ -178,6 +178,15 @@ impl TyCtx {
         Some(def) == self.vec_def || Some(def) == self.range_def
     }
 
+    /// A user class or an enum: the types that can implement traits. `Vec` and `Range` are not.
+    pub fn is_object_type(&self, id: TyId) -> bool {
+        match self.data(id) {
+            TyData::Class(def, _) => !self.is_intrinsic_def(*def),
+            TyData::Enum(..) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_intrinsic_class(&self, id: TyId) -> bool {
         self.intrinsic_arg(id, self.vec_def).is_some() || self.intrinsic_arg(id, self.range_def).is_some()
     }

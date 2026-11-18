@@ -122,6 +122,10 @@ impl LowerCx<'_> {
         }
         // A program that defines its own `Vec` has no prelude one; its class is an ordinary class.
         if name == "Vec" && self.tcx.vec_def().is_some() {
+            if nullable {
+                self.error("`Vec` cannot be nullable");
+                return self.tcx.error();
+            }
             return match args {
                 [elem] => self.lower_vec(elem),
                 _ => {

@@ -31,6 +31,7 @@ const CHUNKS: [Chunk; 9] = [
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
     Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
     Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec"], needs: &[], source: include_str!("prelude/vec.bork") },
+    // Always added (index >= ALWAYS_FROM): a literal `a..b` has the type `Range<i32>` without naming it.
     Chunk { path: "<bork-prelude>/range.bork", names: &["Range"], needs: &[], source: include_str!("prelude/range.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
     Chunk { path: "<bork-prelude>/ord.bork", names: &["Ord"], needs: &[], source: include_str!("prelude/ord.bork") },

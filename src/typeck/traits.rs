@@ -350,7 +350,7 @@ fn check_impl(
         tcx.set_param_names(Vec::new());
         return None;
     }
-    if !matches!(tcx.data(self_ty), TyData::Class(..) | TyData::Enum(..)) {
+    if !tcx.is_object_type(self_ty) {
         let message = format!("`impl {trait_name} for {}`: only classes and enums can implement a trait yet", tcx.display(self_ty));
         diagnostics.push(type_error(message, Some(i.self_span)));
         tcx.set_param_names(Vec::new());

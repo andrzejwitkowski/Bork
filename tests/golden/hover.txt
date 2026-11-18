@@ -485,6 +485,9 @@ programs/check_fail/vec/borrow_element_by_ampersand.bork: hits=17 hash=b3143f6fe
 programs/check_fail/vec/borrow_element_in_binding.bork: hits=17 hash=4dff4e088b55dafb
 programs/check_fail/vec/class_element.bork: hits=5 hash=6b9808d9766039a4
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
+programs/check_fail/vec/impl_trait.bork: hits=0 hash=cbf29ce484222325
+programs/check_fail/vec/nullable.bork: hits=1 hash=bb6180a2a25568ea
 programs/check_fail/vec/push_on_val.bork: hits=10 hash=667092e735ec2ae8
 programs/check_fail/vec/push_through_val_field.bork: hits=10 hash=0ac596befa076723
+programs/check_fail/vec/two_arguments.bork: hits=1 hash=f7e923a2fcc241f6
 programs/check_fail/vec/user_defined_vec.bork: hits=1 hash=feeb54b223aa4563

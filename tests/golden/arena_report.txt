@@ -5801,6 +5801,17 @@ Type Error [97..98] `strongCount` expects a `Ref<T>`, got i32
 Arenas
 └── fun main
     └── n [Local]
+== programs/check_fail/vec/impl_trait.bork
+Type Error [107..115] `impl Show for Vec<i32>`: only classes and enums can implement a trait yet
+Arenas
+├── fun main
+└── fun Show@0.show
+    └── this [Borrow ← call site]
+== programs/check_fail/vec/nullable.bork
+Type Error [55..56] `Vec` cannot be nullable
+Arenas
+└── fun main
+    └── v [Local]
 == programs/check_fail/vec/push_on_val.bork
 Type Error [98..104] cannot mutate immutable `val` binding `v`
 Arenas
@@ -5811,6 +5822,11 @@ Type Error [152..164] cannot mutate immutable `val` binding `h` (through a field
 Arenas
 └── fun main
     └── h [Local]
+== programs/check_fail/vec/two_arguments.bork
+Type Error [81..84] `Vec` takes at most one argument, the capacity
+Arenas
+└── fun main
+    └── v [Local]
 == programs/check_fail/vec/user_defined_vec.bork
 Type Error [46..47] missing constructor argument for field `x`
 Type Error [80..83] `Vec` is not generic; it takes no explicit type arguments

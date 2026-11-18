@@ -4,7 +4,7 @@ use crate::ast::{Expr, UnaryOp};
 use crate::hir::{HirExpr, HirExprKind, UseKind};
 use crate::span::{AstId, Span};
 use crate::defs::DefId;
-use crate::ty::{FnSig, Predicate, TraitRef, TyData, TyId};
+use crate::ty::{FnSig, Predicate, TraitRef, TyId};
 
 use super::super::env::{Checked, Env};
 use super::super::MemberRef;
@@ -155,7 +155,7 @@ fn trait_candidates(self_ty: TyId, method: &str, env: &mut Env<'_>) -> Vec<Trait
         }
         return candidates;
     }
-    if !matches!(env.tcx.data(self_ty), TyData::Class(..) | TyData::Enum(..)) {
+    if !env.tcx.is_object_type(self_ty) {
         return candidates;
     }
     let mut trait_ids: Vec<DefId> = env.traits.keys().copied().collect();
