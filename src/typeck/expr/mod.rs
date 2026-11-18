@@ -152,6 +152,13 @@ pub(super) fn dispatch(
             return_ty,
             env,
         ),
+        Expr::Closure(closure) => {
+            // RFC 0007 step F1: parsed and walked by sema, not yet typed.
+            let span = closure.body.span;
+            env.error("closure expressions are not supported yet", span);
+            let unknown = env.tcx.error();
+            env.expr(HirExprKind::None, unknown)
+        }
         Expr::Match { scrutinee, arms, span } => check_match(scrutinee, arms, *span, expected, return_ty, env),
         Expr::IfVal {
             bindings,

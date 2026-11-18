@@ -689,6 +689,21 @@ TrailingClosure: Closure = {
     },
 };
 
+ClosureExpr: Closure = {
+    "move" <captures:("(" <Comma<SpannedIdent>?> ")")?> <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
+        params: params.unwrap_or_default(),
+        body: Block::from_spanned(Span::new(start, end), stmts),
+        is_move: true,
+        captures: captures.map(|c| c.unwrap_or_default()),
+    },
+    <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
+        params: params.unwrap_or_default(),
+        body: Block::from_spanned(Span::new(start, end), stmts),
+        is_move: false,
+        captures: None,
+    },
+};
+
 MoveClosureBody: (Vec<SpannedName>, Block) = {
     <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => (
         params.unwrap_or_default(),
@@ -698,6 +713,7 @@ MoveClosureBody: (Vec<SpannedName>, Block) = {
 };
 
 Atom: Expr = {
+    <c:ClosureExpr> => Expr::Closure(c),
     <n:Num> => Expr::Int(n),
     <f:FloatLit> => Expr::Float(f),
     "true" => Expr::Bool(true),

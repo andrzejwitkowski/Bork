@@ -1025,3 +1025,47 @@ fn postfix_question_desugars_to_a_match_on_result() {
     let dump = format!("{:?}", program.functions[0].body);
     assert!(dump.contains("Match") && dump.contains("?e"), "{dump}");
 }
+
+fn first_val_init(src: &str) -> Expr {
+    let prog = parse(src).expect("should parse");
+    match prog.functions[0].body.stmts.last().expect("a statement") {
+        Stmt::VarDecl { value, .. } => value.clone(),
+        other => panic!("expected val, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_closure_expression() {
+    let Expr::Closure(c) = first_val_init("fun main() {\n    val f = { a, b -> a + b }\n}") else {
+        panic!("expected closure expression");
+    };
+    assert!(!c.is_move);
+    assert_eq!(c.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), vec!["a", "b"]);
+}
+
+#[test]
+fn parses_move_closure_expression_without_params() {
+    let Expr::Closure(c) = first_val_init("fun main() {\n    val n = 1\n    val f = move (n) { -> n }\n}")
+    else {
+        panic!("expected closure expression");
+    };
+    assert!(c.is_move && c.params.is_empty());
+    assert_eq!(c.captures.as_ref().map(Vec::len), Some(1));
+}
+
+#[test]
+fn parses_empty_closure_expression() {
+    assert!(matches!(first_val_init("fun main() {\n    val f = { -> 1 }\n}"), Expr::Closure(_)));
+}
+
+#[test]
+fn braces_without_arrow_stay_blocks() {
+    for body in ["{ 1 }", "{ val y = 1 }"] {
+        let src = format!("fun main() {{\n    {body}\n}}");
+        let prog = parse(&src).expect("block should parse");
+        assert!(
+            !matches!(&prog.functions[0].body.stmts[0], Stmt::Expr(Expr::Closure(_))),
+            "{body} must not parse as a closure"
+        );
+    }
+}

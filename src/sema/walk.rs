@@ -383,6 +383,7 @@ fn walk(
             else_block,
         } => walk_if_val(az, bindings, then_block, else_block.as_ref(), node, transfer, record_borrow),
         Expr::Match { scrutinee, arms, .. } => walk_match(az, scrutinee, arms, node, transfer, record_borrow),
+        Expr::Closure(c) => walk_closure(az, c, node),
         Expr::Float(_) | Expr::Int(_) | Expr::Bool(_) | Expr::Str(_) | Expr::None { .. } => {}
     }
 }
@@ -509,29 +510,27 @@ fn walk_call(
         );
     }
     if let Some(c) = trailing {
-        let params: Vec<RegionParam> = c
-            .params
-            .iter()
-            .map(|p| RegionParam {
-                name: p.name.clone(),
-                ty: Ty::Unknown,
-                kind: BindingKind::Val,
-                span: Some(p.span),
-                borrow_from: super::region::REF_PARAM_BORROW_FROM,
-            })
-            .collect();
-        if c.is_move {
-            node.children.push(open_move(
-                az,
-                "Closure",
-                &c.body,
-                c.captures.as_deref(),
-                &params,
-            ));
-        } else {
-            node.children
-                .push(open_ordinary(az, "Closure", &c.body, &params, None));
-        }
+        walk_closure(az, c, node);
+    }
+}
+
+/// A closure's region: a child of `node`, labelled `"Closure"` (`region_walk.rs` matches the label).
+fn walk_closure(az: &mut Analyzer, c: &crate::ast::Closure, node: &mut ArenaNode) {
+    let params: Vec<RegionParam> = c
+        .params
+        .iter()
+        .map(|p| RegionParam {
+            name: p.name.clone(),
+            ty: Ty::Unknown,
+            kind: BindingKind::Val,
+            span: Some(p.span),
+            borrow_from: super::region::REF_PARAM_BORROW_FROM,
+        })
+        .collect();
+    if c.is_move {
+        node.children.push(open_move(az, "Closure", &c.body, c.captures.as_deref(), &params));
+    } else {
+        node.children.push(open_ordinary(az, "Closure", &c.body, &params, None));
     }
 }
 

@@ -586,6 +586,9 @@ pub enum Expr {
         arms: Vec<MatchArm>,
         span: crate::span::Span,
     },
+    /// A closure written as a value: `{ a, b -> body }` or `move (n) { a -> body }` (RFC 0007).
+    /// The `->` is required, so it never reads as a block.
+    Closure(Closure),
 }
 
 impl Expr {
