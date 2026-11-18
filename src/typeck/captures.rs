@@ -1,9 +1,8 @@
 //! What a closure body captures and how it uses it (RFC 0007): the capture list and the kind
 //! (`Fn` reads, `FnMut` also assigns, `FnOnce` also moves a capture out).
 //!
-//! shortcut: a name declared anywhere inside the closure shadows an outer one for the whole body
-//! (flow-insensitive); an outer name used before such a declaration is missed. Tighten with real
-//! scopes if a program needs it.
+//! shortcut: a name declared inside the closure shadows an outer one from its declaration to the end of the
+//! closure (not to the end of its block); tighten with real scopes if a program needs it.
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -28,7 +27,6 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
     let captures: Vec<(String, TyId)> = scan
         .used
         .iter()
-        .filter(|name| !scan.declared.contains(*name))
         .filter_map(|name| Some((name.clone(), outer_ty(name)?)))
         .collect();
     let captured = |name: &String| captures.iter().any(|(c, _)| c == name);
@@ -52,8 +50,8 @@ impl Scan {
             HirStmt::Return { value } => value.iter().for_each(|v| self.expr(v)),
             HirStmt::Block(inner) | HirStmt::MoveBlock { body: inner, .. } => self.block(inner),
             HirStmt::VarDecl { name, value, .. } => {
-                self.declared.insert(name.clone());
                 self.expr(value);
+                self.declared.insert(name.clone());
             }
             HirStmt::Expr(value) => self.expr(value),
             HirStmt::Assign { target, value } => {
@@ -72,8 +70,8 @@ impl Scan {
                 self.expr(value);
             }
             HirStmt::For { name, iter, body } => {
-                self.declared.insert(name.clone());
                 self.expr(iter);
+                self.declared.insert(name.clone());
                 self.block(body);
             }
             HirStmt::While { cond, body } => {
@@ -84,16 +82,24 @@ impl Scan {
         }
     }
 
+    /// A use of `name` counts only while no declaration inside the closure shadows it.
+    fn note(&mut self, name: &str) -> bool {
+        let outer = !self.declared.contains(name);
+        if outer {
+            self.used.insert(name.to_string());
+        }
+        outer
+    }
+
     fn write(&mut self, name: &str) {
-        self.assigned.insert(name.to_string());
-        self.used.insert(name.to_string());
+        if self.note(name) {
+            self.assigned.insert(name.to_string());
+        }
     }
 
     fn write_root(&mut self, e: &HirExpr) {
         match &e.kind {
-            HirExprKind::Ident { name, .. } => {
-                self.assigned.insert(name.clone());
-            }
+            HirExprKind::Ident { name, .. } => self.write(name),
             HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. } => self.write_root(receiver),
             _ => {}
         }
@@ -115,8 +121,7 @@ impl Scan {
         match &e.kind {
             K::Int { .. } | K::Float { .. } | K::Str { .. } | K::Bool { .. } | K::None => {}
             K::Ident { name, use_kind } => {
-                self.used.insert(name.clone());
-                if matches!(use_kind, UseKind::Move | UseKind::Promote) {
+                if self.note(name) && matches!(use_kind, UseKind::Move | UseKind::Promote) {
                     self.moved.insert(name.clone());
                 }
             }
@@ -172,9 +177,21 @@ impl Scan {
             }
             // A nested closure's captures are uses of this one as well; its own locals stay its own.
             K::MakeClosure { captures, .. } => captures.iter().for_each(|x| self.expr(x)),
-            K::Closure { captures, .. } => {
+            // What a nested closure does to a capture it does to ours: it makes this closure at least as strong.
+            // shortcut: the nested kind applies to all its captures, not just the one it assigns or moves.
+            K::Closure { captures, kind, .. } => {
                 for c in captures {
-                    self.used.insert(c.name.clone());
+                    if self.note(&c.name) {
+                        match kind {
+                            ClosureKind::Fn => {}
+                            ClosureKind::FnMut => {
+                                self.assigned.insert(c.name.clone());
+                            }
+                            ClosureKind::FnOnce => {
+                                self.moved.insert(c.name.clone());
+                            }
+                        }
+                    }
                 }
             }
         }

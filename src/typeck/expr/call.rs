@@ -510,6 +510,8 @@ fn check_trailing_closure(
         env.reject_field_captures(captures);
     }
     env.enter_scope();
+    // A closure is its own function: `break` and `continue` do not reach a loop outside it.
+    let outer_loops = std::mem::take(&mut env.loop_depth);
     let mut params = Vec::new();
     for (param, &ty) in closure.params.iter().zip(param_tys) {
         let is_ref = env.tcx.is_ref(ty);
@@ -519,6 +521,7 @@ fn check_trailing_closure(
     let (body, body_ty) =
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
     env.exit_scope();
+    env.loop_depth = outer_loops;
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
     let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty));

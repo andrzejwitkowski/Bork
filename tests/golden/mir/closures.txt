@@ -637,6 +637,116 @@ fn make$closure0 (parent=true, sink=true) {
     return
 }
 
+== closures/nested_fnmut_updates_outer.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] n
+  let _3: closure#1()->i32 [Temp]
+  let _4: closure#1()->i32 [Val] outer
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 1  // label "n": i32 decl
+    _3 = closure main$closure1(copy _2) by_ref in current
+    _4 = copy _3  // label "outer": closure#1()->i32 decl
+    _5 = call_closure copy _4() +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _5)
+    intrinsic PrintlnInt(copy _2)
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 1)
+    _1 = copy _3
+    _0 = copy _1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure1 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: unit [Hidden(DebugScope)]
+  let _3: closure#0()->i32 [Temp]
+  let _4: closure#0()->i32 [Val] inner
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = closure main$closure0(copy _1) by_ref in current
+    _4 = copy _3  // label "inner": closure#0()->i32 decl
+    _5 = call_closure copy _4() +current -> bb1
+  bb1:
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== closures/outer_name_before_shadowing_decl.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Val] x
+  let _3: closure#0(i32)->i32 [Temp]
+  let _4: closure#0(i32)->i32 [Val] s
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 3  // label "x": i32 decl
+    _3 = closure main$closure0(copy _2) in current
+    _4 = copy _3  // label "s": closure#0(i32)->i32 decl
+    _5 = call_closure copy _4(4) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _5)
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] x
+  let _2: i32 [Arg] y
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Temp]
+  let _5: i32 [Val] z
+  let _6: i32 [Val] x
+  let _7: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = add(copy _1, copy _2)
+    _5 = copy _4  // label "z": i32 decl
+    _6 = 10  // label "x": i32 decl
+    _7 = add(copy _6, copy _5)
+    _0 = copy _7
+    storage_dead _3
+    region_exit r0
+    return
+}
+
 == closures/trailing_with_capture.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

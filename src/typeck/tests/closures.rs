@@ -159,3 +159,28 @@ fn closures_without_borrowed_captures_may_be_stored_in_a_var() {
     hir_of("fun main() {\n    var keep: () -> i32 = { -> 0 }\n    keep = { -> 1 }\n}");
     hir_of("fun main() {\n    val n = 3\n    var keep = move (n) { -> n }\n}");
 }
+
+#[test]
+fn a_nested_closure_that_assigns_makes_the_outer_one_fn_mut() {
+    let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return apply({ -> val inner = { -> n = n + 1\n n }\n inner() })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn break_inside_a_closure_does_not_reach_a_loop_outside_it() {
+    let src = "fun run(f: () -> i32): i32 {\n    return f()\n}\nfun main() {\n    var i = 0\n    while (i < 3) {\n        run() { -> break\n 1 }\n        i = i + 1\n    }\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("break")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn an_outer_name_used_before_a_same_named_declaration_is_still_captured() {
+    use crate::hir::HirExprKind;
+    let src = "fun main(): i32 {\n    val x = 3\n    val s: (i32) -> i32 = { y -> val z = x + y\n val x = 10\n x + z }\n    return s(1)\n}";
+    let hir = hir_of(src);
+    let value = hir.functions[0].body.stmts.iter().find_map(|s| match s {
+        crate::hir::HirStmt::VarDecl { value, name, .. } if name == "s" => Some(value),
+        _ => None,
+    });
+    let HirExprKind::Closure { captures, .. } = &value.expect("val s").kind else { panic!("closure") };
+    assert_eq!(captures.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["x"]);
+}

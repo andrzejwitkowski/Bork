@@ -311,6 +311,25 @@ Arenas
 │   └── b [Local]
 └── fun main
     └── f [Local]
+== programs/build/closures/nested_fnmut_updates_outer.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── outer [Local]
+    └── Closure
+        ├── inner [Local]
+        └── Closure
+            └── n [Copy]
+== programs/build/closures/outer_name_before_shadowing_decl.bork
+Arenas
+└── fun main
+    ├── x [Local]
+    ├── s [Local]
+    └── Closure
+        ├── y [Local]
+        ├── z [Local]
+        ├── x [Local]
+        └── x [Copy]
 == programs/build/closures/trailing_with_capture.bork
 Arenas
 ├── fun apply
@@ -4584,6 +4603,17 @@ Type Error [126..129] field access on managed Ref `Ref<Point>` requires `if val`
 Arenas
 └── fun main
     └── p [Local]
+== programs/check_fail/closures/break_in_closure.bork
+Type Error [160..165] `break` outside of a loop
+Arenas
+├── fun run
+│   └── f [Local]
+└── fun main
+    ├── i [Local]
+    └── WhileLoop
+        ├── r [Local]
+        ├── i [Copy]
+        └── Closure
 == programs/check_fail/closures/fnmut_to_fn_bound.bork
 Type Error [115..120] the trait bound `closure#0()->i32: Fn<()->i32>` is not satisfied; the closure is `FnMut` (it assigns to a captured value), which the bound `Fn` does not allow
 Arenas
