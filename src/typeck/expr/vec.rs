@@ -139,6 +139,6 @@ fn prelude_signature(method: &str, elem: TyId, span: Span, env: &mut Env<'_>) ->
         .expect("the prelude's `Vec` declares every `VecOp`");
     let name = format!("Vec.{method}");
     let (mut params, result) = super::call::subst_sig(&name, span, &sig, &[elem], env).expect("a `Vec` signature substitutes");
-    params.remove(0); // `this`
+    params.remove(0); // the receiver
     (params, result)
 }

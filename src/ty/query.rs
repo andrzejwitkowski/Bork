@@ -178,7 +178,6 @@ impl TyCtx {
         Some(def) == self.vec_def || Some(def) == self.range_def
     }
 
-    /// Whether `id` is `Vec<_>` or `Range<_>`.
     pub fn is_intrinsic_class(&self, id: TyId) -> bool {
         self.intrinsic_arg(id, self.vec_def).is_some() || self.intrinsic_arg(id, self.range_def).is_some()
     }
