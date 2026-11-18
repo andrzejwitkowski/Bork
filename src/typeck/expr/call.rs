@@ -311,7 +311,7 @@ pub(super) fn finish_call(
             // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
             if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
                 hir.ty = closure_type(&hir, closure_params, closure_ret, env);
-                let _ = env.infcx.unify(env.tcx, last, hir.ty);
+                env.mismatch("trailing closure", hir.ty, last, Some(span));
                 super::super::solve::select_where_possible(env);
             }
             Some(Box::new(hir))

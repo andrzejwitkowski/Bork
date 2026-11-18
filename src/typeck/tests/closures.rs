@@ -237,3 +237,15 @@ fn a_view_closure_cannot_be_stored_in_an_enum_payload_or_returned_through_a_call
     let forwarded = "fun forward(f: () -> i32): () -> i32 {\n    return f\n}\nfun make(): () -> i32 {\n    val n = 5\n    return forward({ -> n })\n}";
     assert!(diags_of(forwarded).iter().any(|d| d.message.contains("cannot return a closure that borrows")), "{:?}", diags_of(forwarded));
 }
+
+#[test]
+fn an_editable_borrow_of_a_capture_makes_the_closure_fn_mut() {
+    let src = "fun bump(a: &rw [i32; 1]) {\n    a[0] = a[0] + 1\n}\nfun apply<F: Fn() -> unit>(f: F) {\n    f()\n}\nfun main() {\n    var a = [1]\n    apply({ -> bump(&rw a) })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn a_trailing_closure_must_match_the_type_an_earlier_argument_fixed() {
+    let src = "fun both<F: Fn() -> i32>(a: F, b: F): i32 {\n    return a() + b()\n}\nfun main(): i32 {\n    return both({ -> 1 }) { -> 2 }\n}";
+    assert!(!diags_of(src).is_empty());
+}

@@ -145,6 +145,11 @@ impl Scan {
                 }
                 args.iter().for_each(|x| self.expr(x));
             }
+            // `&rw x` hands out an editable borrow: the callee may write through it, so this is a write of `x`.
+            K::Unary { op: crate::ast::UnaryOp::Borrow { rw: true }, expr: inner } => {
+                self.expr(inner);
+                self.write_root(inner);
+            }
             K::Some(inner) | K::RefCreate(inner) | K::Unary { expr: inner, .. } => self.expr(inner),
             K::ObjectConstruct { fields, .. } | K::EnumConstruct { fields, .. } => fields.iter().for_each(|x| self.expr(x)),
             K::ObjectField { receiver, .. } | K::Field { receiver, .. } => self.expr(receiver),
