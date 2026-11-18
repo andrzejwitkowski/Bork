@@ -202,3 +202,38 @@ fn a_view_closure_stays_a_view_when_annotated_as_a_function_type() {
     assert!(diags_of(returned).iter().any(|d| d.message.contains("cannot return a closure that borrows")), "{:?}", diags_of(returned));
     hir_of("fun main() {\n    val n = 5\n    val h: () -> i32 = { -> n }\n    val g = h\n}");
 }
+
+#[test]
+fn a_local_closure_parameter_shadows_a_global_function_of_the_same_name() {
+    use crate::hir::{HirExprKind, UseKind};
+    let src = "fun f(x: i32): i32 {\n    return x + 100\n}\nfun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}";
+    let hir = hir_of(src);
+    let apply = hir.functions.iter().find(|f| f.name == "apply").expect("apply");
+    let crate::hir::HirStmt::Return { value: Some(call) } = &apply.body.stmts[0] else { panic!("return") };
+    let HirExprKind::Call { callee, .. } = &call.kind else { panic!("call") };
+    assert!(matches!(&callee.kind, HirExprKind::Ident { use_kind: UseKind::Copy, .. }), "{:?}", callee.kind);
+}
+
+#[test]
+fn an_unconstrained_closure_parameter_is_a_diagnostic_not_a_panic() {
+    let src = "fun main() {\n    val f = { unused -> 1 }\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("closure parameter `unused`")));
+}
+
+#[test]
+fn an_fn_bound_satisfies_a_weaker_fn_mut_bound() {
+    hir_of("fun run<G: FnMut() -> i32>(g: G): i32 {\n    return g()\n}\nfun forward<F: Fn() -> i32>(f: F): i32 {\n    return run(f)\n}");
+}
+
+#[test]
+fn moving_a_copy_capture_is_only_a_read() {
+    hir_of("fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n: i32 = 1\n    return apply({ -> move n })\n}");
+}
+
+#[test]
+fn a_view_closure_cannot_be_stored_in_an_enum_payload_or_returned_through_a_call() {
+    let some = "fun main() {\n    val n = 3\n    val slot = Some({ -> n })\n}";
+    assert!(diags_of(some).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(some));
+    let forwarded = "fun forward(f: () -> i32): () -> i32 {\n    return f\n}\nfun make(): () -> i32 {\n    val n = 5\n    return forward({ -> n })\n}";
+    assert!(diags_of(forwarded).iter().any(|d| d.message.contains("cannot return a closure that borrows")), "{:?}", diags_of(forwarded));
+}

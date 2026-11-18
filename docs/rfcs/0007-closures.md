@@ -45,7 +45,7 @@ The closure body stays in HIR as `HirExprKind::Closure { params, body, is_move, 
 
 Sema still computes free variables and the loop-move ban on the AST (`sema/free_vars.rs`, `loop_move_ban`): that code needs sema's own binding state (moved, Copy), which HIR does not carry. The HIR scan is a second, independent computation used for the type's captures and the kind. Moving sema onto HIR is not part of this RFC.
 
-shortcut: the HIR scan is flow-insensitive. A name declared anywhere inside the closure shadows an outer one for the whole body.
+shortcut: the HIR scan applies shadowing in declaration order but not block scope. A name declared inside the closure shadows the outer one from its declaration to the end of the closure (not to the end of its block).
 
 After monomorphization the node is gone: `mono/lift.rs` turns each closure into a function (6.2) and the expression into `HirExprKind::MakeClosure { function, captures, kind, is_move }`. Typeck never produces `MakeClosure`.
 

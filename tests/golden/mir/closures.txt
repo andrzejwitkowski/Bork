@@ -314,6 +314,59 @@ fn main$closure0 (parent=true, sink=false) {
     return
 }
 
+== closures/local_closure_shadows_global_fn.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: closure#0(i32)->i32 [Temp]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = closure main$closure0() in current
+    _3 = call apply(copy _2) +current -> bb1
+  bb1:
+    intrinsic PrintlnInt(copy _3)
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn apply (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: (i32)->i32 [Arg] f
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = call_closure copy _1(1) +current -> bb1
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] x
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = mul(copy _1, 2)
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == closures/move_counter.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

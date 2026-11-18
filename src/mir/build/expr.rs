@@ -177,14 +177,15 @@ impl<'a> FnBuilder<'a> {
         if trailing_closure {
             return Err(BuildError::unsupported(Capability::Closure, span));
         }
-        let HirExprKind::Ident { name, .. } = &callee.kind else {
+        let HirExprKind::Ident { name, use_kind } = &callee.kind else {
             return Err(BuildError::unsupported(Capability::IndirectCall, span));
         };
+        let through_value = *use_kind == UseKind::Copy;
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested
         // temporaries do not land in the destination's arena (`call_gathers_without_sink`).
         let arg_sink = if builtins::is_print(name) { self.sink.clone() } else { ArenaRef::Current };
         let ops = self.with_sink(arg_sink, |b| b.exprs(args))?;
-        if let Some(abi) = self.abi_of(name) {
+        if let Some(abi) = self.abi_of(name).filter(|_| !through_value) {
             let mut hidden = Vec::new();
             if abi.caller_parent {
                 hidden.push(ArenaRef::Current);
@@ -202,7 +203,7 @@ impl<'a> FnBuilder<'a> {
             self.cur = target;
             return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
         }
-        if builtins::is_print(name) {
+        if !through_value && builtins::is_print(name) {
             let newline = name == "println";
             let text = args.first().is_some_and(|a| self.tcx.is_text(a.ty));
             let op = match (newline, text) {
@@ -214,10 +215,10 @@ impl<'a> FnBuilder<'a> {
             self.stmt(StmtKind::Intrinsic { dst: None, op, args: ops, arena: None }, span, Some(e.id));
             return Ok(Operand::Const(Const::Unit));
         }
-        if builtins::is_ref_count(name) {
+        if !through_value && builtins::is_ref_count(name) {
             return Ok(self.ref_count(e, name == "weakCount", &ops));
         }
-        if builtins::is_string_alloc(name) {
+        if !through_value && builtins::is_string_alloc(name) {
             let op = if builtins::is_concat(name) { IntrinsicOp::Concat } else { IntrinsicOp::StringFromUtf8 };
             let dst = self.temp(e.ty);
             let arena = Some(self.sink.clone());
@@ -262,6 +263,10 @@ impl<'a> FnBuilder<'a> {
         };
         let owns = is_move && captures.iter().any(|c| !self.tcx.is_trivially_copy(c.ty) && !copied(c.ty));
         if kind == ClosureKind::FnOnce || owns {
+            return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
+        }
+        // A closure assigned to an existing `var` would live in that variable's arena, which a closure value does not name.
+        if matches!(self.sink, ArenaRef::Home(_)) && is_move && !captures.is_empty() {
             return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
         }
         let by_ref = kind == ClosureKind::FnMut && !is_move;

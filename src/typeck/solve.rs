@@ -139,12 +139,17 @@ fn solve_one(env: &mut Env<'_>, obligation: &Obligation) -> Outcome {
     }
 }
 
+/// `Fn` implies `FnMut` implies `FnOnce`: a parameter bounded by the stronger trait meets the weaker bound.
+fn bound_implies(env: &Env<'_>, have: crate::defs::DefId, need: crate::defs::DefId) -> bool {
+    have == need || matches!((env.tcx.fn_trait_kind(have), env.tcx.fn_trait_kind(need)), (Some(h), Some(n)) if h <= n)
+}
+
 /// The function's own bound `T: Trait<..>` whose arguments unify with the requirement's.
 fn solve_from_bounds(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome {
     let candidates: Vec<Predicate<TyId>> = env
         .param_env
         .iter()
-        .filter(|p| p.self_ty == predicate.self_ty && p.trait_ref.trait_id == predicate.trait_ref.trait_id)
+        .filter(|p| p.self_ty == predicate.self_ty && bound_implies(env, p.trait_ref.trait_id, predicate.trait_ref.trait_id))
         .cloned()
         .collect();
     for candidate in candidates {

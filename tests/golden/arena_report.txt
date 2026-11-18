@@ -267,6 +267,15 @@ Arenas
 └── fun main
     └── Closure
         └── x [Local]
+== programs/build/closures/local_closure_shadows_global_fn.bork
+Arenas
+├── fun f
+│   └── x [Local]
+├── fun apply
+│   └── f [Local]
+└── fun main
+    └── Closure
+        └── x [Local]
 == programs/build/closures/move_counter.bork
 Arenas
 ├── fun makeCounter
@@ -4673,6 +4682,15 @@ Arenas
 == programs/check_fail/closures/view_returned.bork
 Type Error [] cannot return a closure that borrows its captures; make it `move`
 Arenas
+└── fun make
+    ├── n [Local]
+    └── Closure
+        └── n [Copy]
+== programs/check_fail/closures/view_returned_through_call.bork
+Type Error [] cannot return a closure that borrows its captures; make it `move`
+Arenas
+├── fun forward
+│   └── f [Local]
 └── fun make
     ├── n [Local]
     └── Closure

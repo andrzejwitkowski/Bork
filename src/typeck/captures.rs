@@ -15,12 +15,13 @@ struct Scan {
     /// Every name read or written.
     used: BTreeSet<String>,
     assigned: HashSet<String>,
-    moved: HashSet<String>,
+    /// Names moved out, with the moved value's type.
+    moved: Vec<(String, TyId)>,
 }
 
 /// Names the closure uses from outside (`outer_ty` gives the type of a binding outside it, `None`
 /// for any other name), in name order, and the strongest kind its body needs.
-pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&str) -> Option<TyId>) -> (Vec<(String, TyId)>, ClosureKind) {
+pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&str) -> Option<TyId>, is_copy: impl Fn(TyId) -> bool) -> (Vec<(String, TyId)>, ClosureKind) {
     let mut scan = Scan::default();
     scan.declared.extend(params.iter().map(|p| p.name.clone()));
     scan.block(body);
@@ -30,7 +31,8 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
         .filter_map(|name| Some((name.clone(), outer_ty(name)?)))
         .collect();
     let captured = |name: &String| captures.iter().any(|(c, _)| c == name);
-    let kind = if scan.moved.iter().any(captured) {
+    // Moving a Copy value out of its binding only copies it, which is a read.
+    let kind = if scan.moved.iter().any(|(n, t)| captured(n) && !is_copy(*t)) {
         ClosureKind::FnOnce
     } else if scan.assigned.iter().any(captured) {
         ClosureKind::FnMut
@@ -122,7 +124,7 @@ impl Scan {
             K::Int { .. } | K::Float { .. } | K::Str { .. } | K::Bool { .. } | K::None => {}
             K::Ident { name, use_kind } => {
                 if self.note(name) && matches!(use_kind, UseKind::Move | UseKind::Promote) {
-                    self.moved.insert(name.clone());
+                    self.moved.push((name.clone(), e.ty));
                 }
             }
             K::ArrayLit { elements } => elements.iter().for_each(|x| self.expr(x)),
@@ -188,7 +190,7 @@ impl Scan {
                                 self.assigned.insert(c.name.clone());
                             }
                             ClosureKind::FnOnce => {
-                                self.moved.insert(c.name.clone());
+                                self.moved.push((c.name.clone(), c.ty));
                             }
                         }
                     }

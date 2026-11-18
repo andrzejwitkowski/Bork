@@ -221,13 +221,24 @@ impl<'a> Env<'a> {
         Some(ty)
     }
 
-    /// A closure that borrows its captures: its own type says so, or it is a name bound to one
-    /// (an annotation such as `val h: () -> i32 = { -> n }` types it as a plain `Func`).
+    /// A closure that borrows its captures: its own type says so, it is a name bound to one (an annotation
+    /// such as `val h: () -> i32 = { -> n }` types it as a plain `Func`), or it is the result of a call that was
+    /// handed one (`forward({ -> n })` may return its argument).
     pub(super) fn is_view_closure_value(&self, value: &Checked) -> bool {
-        if self.tcx.is_view_closure(value.ty) {
+        self.hir_is_view_closure(&value.hir)
+    }
+
+    fn hir_is_view_closure(&self, e: &HirExpr) -> bool {
+        if self.tcx.is_view_closure(e.ty) {
             return true;
         }
-        matches!(&value.hir.kind, HirExprKind::Ident { name, .. } if self.binding(name).is_some_and(|b| b.view_closure))
+        match &e.kind {
+            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| b.view_closure),
+            HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
+                args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
+            }
+            _ => false,
+        }
     }
 
     /// Remembers that the binding just made holds a view closure.

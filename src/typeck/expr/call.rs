@@ -20,23 +20,16 @@ fn callee_signature(
         env.error("only named functions can be called", None);
         return None;
     };
+    // A local callable (a closure parameter or `val`) shadows a global function of the same name.
+    if let Some((params, ret)) = local_callable_sig(name, env) {
+        return Some((name.clone(), *span, params, ret));
+    }
     if let Some(signature) = env.fun_sig(name).cloned() {
         let (params, ret) = instantiate(name, *span, &signature, type_args, env)?;
         return Some((name.clone(), *span, params, ret));
     }
     match env.binding(name).map(|binding| binding.ty) {
         Some(ty) => {
-            if let Some((params, ret)) = env.tcx.func_sig(ty) {
-                return Some((name.clone(), *span, params, ret));
-            }
-            // `f: F` where `F: Fn(A) -> R`: the bound is the signature.
-            let bound = env.param_env.iter().find_map(|p| {
-                let callable = p.self_ty == ty && env.tcx.is_fn_trait(p.trait_ref.trait_id);
-                callable.then(|| p.trait_ref.args.first().and_then(|&a| env.tcx.func_sig(a))).flatten()
-            });
-            if let Some((params, ret)) = bound {
-                return Some((name.clone(), *span, params, ret));
-            }
             if !env.tcx.is_unknown(ty) {
                 env.error(
                     format!("binding `{name}` is not callable (has type {})", env.show(ty)),
@@ -50,6 +43,18 @@ fn callee_signature(
             None
         }
     }
+}
+
+/// The signature of the local binding `name` when it is callable: a function or closure type, or a
+/// type parameter bounded by `Fn*`.
+fn local_callable_sig(name: &str, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
+    let ty = env.binding(name)?.ty;
+    env.tcx.func_sig(ty).or_else(|| {
+        env.param_env.iter().find_map(|p| {
+            let callable = p.self_ty == ty && env.tcx.is_fn_trait(p.trait_ref.trait_id);
+            callable.then(|| p.trait_ref.args.first().and_then(|&a| env.tcx.func_sig(a))).flatten()
+        })
+    })
 }
 
 /// A fresh variable per type parameter `names` of `callee`; reported if nothing fixes it.
@@ -401,10 +406,12 @@ pub(super) fn build_call(
     return_ty: TyId,
     trailing: Option<Box<HirExpr>>,
 ) -> Checked {
+    // `Copy` marks a call through a local closure value: it is not the global function of that name.
+    let use_kind = if local_callable_sig(&name, env).is_some() { UseKind::Copy } else { UseKind::Local };
     let callee = env.expr_at(
         HirExprKind::Ident {
             name,
-            use_kind: UseKind::Local,
+            use_kind,
         },
         callee_ty,
         span,
@@ -480,7 +487,11 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
     let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))).or(from_bound) {
         Some(sig) => sig,
         None => {
-            let params = closure.params.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
+            let params: Vec<TyId> = closure.params.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
+            // A parameter the body never constrains is reported at the end of the body, not left unresolved.
+            for (param, &var) in closure.params.iter().zip(&params) {
+                env.pending.push(PendingParam { var, span: param.span, callee: String::new(), param: param.name.clone() });
+            }
             (params, env.infcx.new_var(env.tcx, VarKind::General))
         }
     };
@@ -541,7 +552,7 @@ fn check_trailing_closure(
     env.loop_depth = outer_loops;
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
-    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty));
+    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty));
     if let Some(listed) = &closure.captures {
         check_capture_list(listed, &used, env);
     }

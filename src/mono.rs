@@ -306,7 +306,11 @@ impl<'a> Collector<'a> {
         match &mut e.kind {
             HirExprKind::Call { callee, .. } => {
                 let (callee_ty, span) = (callee.ty, callee.span);
-                let HirExprKind::Ident { name, .. } = &mut callee.kind else { return };
+                let HirExprKind::Ident { name, use_kind } = &mut callee.kind else { return };
+                // A call through a local closure value is not a call of the global function of that name.
+                if *use_kind == hir::UseKind::Copy {
+                    return;
+                }
                 let Some(&origin) = self.by_name.get(name.as_str()) else {
                     if let Some(instance) = self.resolve_trait_call(tcx, name, callee_ty, span) {
                         *name = instance;

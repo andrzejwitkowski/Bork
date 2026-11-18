@@ -1064,8 +1064,9 @@ fn braces_without_arrow_stay_blocks() {
         let src = format!("fun main() {{\n    {body}\n}}");
         let prog = parse(&src).expect("block should parse");
         assert!(
-            !matches!(&prog.functions[0].body.stmts[0], Stmt::Expr(Expr::Closure(_))),
-            "{body} must not parse as a closure"
+            matches!(&prog.functions[0].body.stmts[0], Stmt::Block(_)),
+            "{body} must parse as a block, got {:?}",
+            prog.functions[0].body.stmts[0]
         );
     }
 }

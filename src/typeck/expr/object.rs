@@ -162,6 +162,7 @@ fn check_payload(
         let value = check(arg, field_ty, site.return_ty, env);
         let what = format!("field `{}` of variant `{}.{variant}`", field.name, e.name);
         env.mismatch(&what, value.ty, field_ty, value.span.or(Some(field.span)));
+        env.reject_stored_view_closure(&value, "an enum payload", value.span.or(Some(field.span)));
         values.push(value.hir);
     }
     values

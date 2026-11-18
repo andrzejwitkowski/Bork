@@ -70,7 +70,7 @@ fn gate_rejection_exits_one_without_binary() {
          }\n",
     );
     assert_eq!(build.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&build.stderr).contains("codegen"));
+    assert!(String::from_utf8_lossy(&build.stderr).contains("closures that own a captured value"), "{}", String::from_utf8_lossy(&build.stderr));
     assert!(!binary.exists());
 }
 

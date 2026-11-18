@@ -292,7 +292,7 @@ fun main(): i32 {
 
 What a closure uses from the outside decides its kind: it only reads captures (`Fn`), it assigns to one or calls a mutating `Vec` method on it (`FnMut`), or it moves one out (`FnOnce`). A closure satisfies a bound of its own kind or a weaker one (`FnMut` does not satisfy `Fn`).
 
-- A plain closure **borrows** what it captures, so it is a view like `&T`: it can be a `val`, a parameter or an argument, but not a `var` initializer or assignment, a field, an array element, or a return value. A plain closure that captures nothing has no such limit.
+- A plain closure **borrows** what it captures, so it is a view like `&T`: it can be a `val`, a parameter or an argument, but not a `var` initializer or assignment, a field, an enum payload, an array element, or a return value. The compiler follows a view through names, annotations and calls that are handed one (`forward({ -> n })` is still a view). It cannot follow it through a function parameter whose body stores or returns it (`fun forward(f: () -> i32): () -> i32 { return f }` compiles); that gap is listed in RFC 0007. A plain closure that captures nothing has no such limit.
 - A `move (a, b) { ... }` closure **owns** its captures: it may be returned (`return move (n) { x -> x + n }`) and keeps its own state (a `move` closure that assigns to a capture updates its own copy).
 - A closure is not Copy. Calling one is `f(args)` on a name; a closure in a field is stored but cannot be called (`only named functions can be called`).
 - A closure cannot call itself.

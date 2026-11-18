@@ -627,10 +627,18 @@ fn report_uninferred(env: &mut Env<'_>) {
     for pending in std::mem::take(&mut env.pending) {
         let ty = env.infcx.resolve_shallow(env.tcx, pending.var);
         if !matches!(env.tcx.data(ty), crate::ty::TyData::Infer(_)) {
-            report_borrow_type_arg(env, ty, &pending);
+            if !pending.callee.is_empty() {
+                report_borrow_type_arg(env, ty, &pending);
+            }
             continue;
         }
         let PendingParam { span, callee, param, .. } = pending;
+        if callee.is_empty() {
+            env.error(format!("cannot infer the type of closure parameter `{param}`; annotate the binding with a function type"), Some(span));
+            let unknown = env.tcx.error();
+            let _ = env.infcx.unify(env.tcx, ty, unknown);
+            continue;
+        }
         // Only functions take explicit type arguments; constructors and methods are fixed by annotation.
         let hint = if env.fun_sig(&callee).is_some() {
             format!("specify it explicitly, e.g. `{callee}::<..>(..)`")
