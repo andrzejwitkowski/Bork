@@ -1,0 +1,4 @@
+// diag: `Vec` is a built-in type and cannot be constructed like a class
+fun main() {
+    var v: Vec<i32> = Vec()
+}

@@ -348,7 +348,7 @@ mod tests {
         hover(&analysis, source, byte_offset_to_position(source, offset)).expect("hover")
     }
 
-    const BUILTIN_SRC: &str = "class Node {\n    id: i32\n}\nfun main(): i32 {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    var v = Vec<Ref<Node>>()\n    v.push(r)\n    return strongCount(r) + weakCount(r) + v.len()\n}\n";
+    const BUILTIN_SRC: &str = "class Node {\n    id: i32\n}\nfun main(): i32 {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    var v = Vec::<Ref<Node>>()\n    v.push(r)\n    return strongCount(r) + weakCount(r) + v.len()\n}\n";
 
     #[test]
     fn hover_on_ref_count_builtins_shows_signature() {

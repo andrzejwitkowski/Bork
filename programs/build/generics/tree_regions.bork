@@ -13,24 +13,24 @@ class Node<T> {
 
 fun main(): i32 {
     var code = 0
-    val leaf = Node(2, Vec<Ref<Node<i32>>>())
+    val leaf = Node(2, Vec::<Ref<Node<i32>>>())
     val leaf_ref: Ref<Node<i32>> = leaf
     val s0 = strongCount(leaf_ref)
     val w0 = weakCount(leaf_ref)
 
     // Parent in the same arena as `leaf`'s arena or newer: the child edge is classified by arena age.
-    var parent = Node(1, Vec<Ref<Node<i32>>>())
+    var parent = Node(1, Vec::<Ref<Node<i32>>>())
     parent.kids.push(leaf_ref)
     // Check 1: exactly one slot was added, either strong or weak, never both.
     if (strongCount(leaf_ref) + weakCount(leaf_ref) != s0 + w0 + 1) { code = 1 }
 
-    var held = Vec<Ref<Node<i32>>>()
+    var held = Vec::<Ref<Node<i32>>>()
     {
-        val inner = Node(3, Vec<Ref<Node<i32>>>())
+        val inner = Node(3, Vec::<Ref<Node<i32>>>())
         val inner_ref: Ref<Node<i32>> = inner
         val is0 = strongCount(inner_ref)
         val iw0 = weakCount(inner_ref)
-        var staging = Vec<Ref<Node<i32>>>()
+        var staging = Vec::<Ref<Node<i32>>>()
         staging.push(inner_ref)
         // Check 2: a slot in the SAME arena as its target adds one strong count and no weak one.
         if (strongCount(inner_ref) != is0 + 1) { code = 2 }

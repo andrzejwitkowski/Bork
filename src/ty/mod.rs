@@ -47,8 +47,6 @@ pub enum TyData {
     /// `&T`, or `&rw T` (the editable borrow, RFC 0003) when the flag is set.
     Ref(TyId, bool),
     ManagedRef(TyId),
-    Vec(TyId),
-    Range(TyId),
     /// A generic parameter, opaque inside its own item; reaches HIR only in generic items.
     Param(ParamIdx),
     /// `T::Item`: the associated type `name` of `self_ty`, declared by the trait `trait_name`.
@@ -87,6 +85,10 @@ pub struct TyCtx {
     param_names: Vec<String>,
     /// The prelude's `Option`: `T?` is `Option<T>` (#54), so this is the enum every nullable type is.
     option_def: Option<DefId>,
+    /// The prelude's `intrinsic class Vec<T>`: `Class(vec_def, [T])` is the type `Vec<T>`.
+    vec_def: Option<DefId>,
+    /// The prelude's `intrinsic class Range<T>`: the type of a literal `a..b`.
+    range_def: Option<DefId>,
 }
 
 impl TyCtx {
@@ -100,7 +102,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));
@@ -178,7 +180,7 @@ mod tests {
     use super::*;
 
     pub(super) fn ctx() -> TyCtx {
-        let program = crate::parse("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nfun main() {}\n").unwrap();
+        let program = crate::parse_unnumbered("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nintrinsic class Vec<T> {}\nintrinsic class Range<T> {}\nfun main() {}\n").unwrap();
         TyCtx::new(&DefTable::build(&program))
     }
 

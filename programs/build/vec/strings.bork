@@ -1,7 +1,7 @@
 // exit: 5
 // Strings pushed into a vector are copied into the vector's arena.
 fun main(): i32 {
-    var v = Vec<String>()
+    var v = Vec::<String>()
     v.push("a")
     v.push("hello")
     v.push("xyz")

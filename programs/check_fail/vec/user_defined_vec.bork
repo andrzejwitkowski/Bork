@@ -1,0 +1,7 @@
+// diag: `Vec` is not generic
+class Vec {
+    x: i32
+}
+fun main() {
+    var v = Vec::<i32>()
+}

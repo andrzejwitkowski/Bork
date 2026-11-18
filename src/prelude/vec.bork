@@ -1,0 +1,9 @@
+intrinsic class Vec<T> {
+    intrinsic fun push(value: T)
+    intrinsic fun pop(): T?
+    intrinsic fun get(index: i32): T
+    intrinsic fun set(index: i32, value: T)
+    intrinsic fun len(): i32
+    intrinsic fun capacity(): i32
+    intrinsic fun clear()
+}

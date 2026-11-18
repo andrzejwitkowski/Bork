@@ -123,6 +123,15 @@ pub(super) fn check_call(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    // `Vec::<T>()` / `Vec::<T>(capacity)`: the prelude's `Vec` has no fields to construct.
+    if let (Expr::Ident { name, span, .. }, [elem], None) = (callee, type_args, trailing) {
+        if env.tcx.vec_def().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
+            if args.len() > 1 {
+                env.error("`Vec` takes at most one argument, the capacity", Some(*span));
+            }
+            return super::vec::check_vec_new(elem, args.first(), *span, return_ty, env);
+        }
+    }
     let is_variant = matches!(callee, Expr::Field { receiver, safe, .. } if super::object::variant_path(receiver, *safe, env).is_some());
     if !type_args.is_empty() && !is_generic_fn(callee, env) && !is_variant {
         match callee {

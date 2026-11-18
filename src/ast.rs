@@ -18,6 +18,8 @@ pub struct Class {
     pub generics: Vec<TypeParam>,
     pub fields: Vec<ClassField>,
     pub methods: Vec<Function>,
+    /// `intrinsic class Vec<T> {}`: a compiler-known type (prelude only).
+    pub intrinsic: bool,
 }
 
 /// `enum Shape { Circle(r: f64), Empty }`. Payload fields are named like class fields.
@@ -56,6 +58,7 @@ impl Class {
             generics,
             fields,
             methods,
+            intrinsic: false,
         }
     }
 }
@@ -167,6 +170,8 @@ pub struct Function {
     pub params: Vec<Param>,
     pub return_type: Type,
     pub body: Block,
+    /// `intrinsic fun f(...)`: no body, the compiler supplies it (prelude only).
+    pub intrinsic: bool,
 }
 
 /// `T` in `fun f<T>` / `class Box<T>`, with the bounds of `T: A + B<i32>` and `where T: C`.
@@ -242,9 +247,6 @@ pub enum Type {
     ManagedRef {
         inner: Box<Type>,
     },
-    Vec {
-        elem: Box<Type>,
-    },
     /// `T::Item` / `Self::Item`.
     Assoc {
         base: Box<Type>,
@@ -273,7 +275,6 @@ impl Type {
             }
             Type::Ref { inner, rw, nullable } => Type::Ref { inner: sub(inner), rw: *rw, nullable: *nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner: sub(inner) },
-            Type::Vec { elem } => Type::Vec { elem: sub(elem) },
             Type::Assoc { base, name } => Type::Assoc { base: sub(base), name: name.clone() },
         }
     }
@@ -334,7 +335,6 @@ impl Type {
             },
             Type::Ref { inner, rw, .. } => Type::Ref { inner, rw, nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner },
-            Type::Vec { elem } => Type::Vec { elem },
             assoc @ Type::Assoc { .. } => assoc,
         }
     }
@@ -364,7 +364,7 @@ impl Type {
             | Type::Array { nullable, .. }
             | Type::Func { nullable, .. }
             | Type::Ref { nullable, .. } => *nullable,
-            Type::ManagedRef { .. } | Type::Vec { .. } | Type::Assoc { .. } => false,
+            Type::ManagedRef { .. } | Type::Assoc { .. } => false,
         }
     }
 }
@@ -400,7 +400,6 @@ impl fmt::Display for Type {
             }
             Type::Ref { inner, rw, .. } => write!(f, "&{}{inner}", if *rw { "rw " } else { "" })?,
             Type::ManagedRef { inner } => write!(f, "Ref<{inner}>")?,
-            Type::Vec { elem } => write!(f, "Vec<{elem}>")?,
         }
         if self.is_nullable() {
             f.write_str("?")?;
@@ -517,12 +516,6 @@ pub enum Expr {
         receiver: Box<Expr>,
         lo: Box<Expr>,
         hi: Box<Expr>,
-        span: crate::span::Span,
-    },
-    /// `Vec<T>()` or `Vec<T>(capacity)`.
-    VecNew {
-        elem: Type,
-        cap: Option<Box<Expr>>,
         span: crate::span::Span,
     },
     Ident {

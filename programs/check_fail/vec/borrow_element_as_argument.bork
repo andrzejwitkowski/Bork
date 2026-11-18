@@ -1,0 +1,11 @@
+// diag: expects borrow `&…`, got String
+// `v[i]` is an owned value, not a view into the buffer.
+fun grow(s: &String, v: &rw Vec<String>) {
+    v.push("x")
+}
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    grow(v[0], &rw v)
+    return v.len()
+}

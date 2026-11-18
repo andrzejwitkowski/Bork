@@ -1,0 +1,8 @@
+// diag: only classes and enums can implement a trait yet
+trait Show {
+    fun show(): i32
+}
+impl Show for Vec<i32> {
+    fun show(): i32 { return 1 }
+}
+fun main() {}

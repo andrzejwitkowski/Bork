@@ -1,0 +1,4 @@
+// diag: `Vec` takes at most one argument, the capacity
+fun main() {
+    val v = Vec::<i32>(1, 2)
+}

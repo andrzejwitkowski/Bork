@@ -55,9 +55,7 @@ impl InferCtxt {
                 Ok(())
             }
             (TyData::Ref(x, rx), TyData::Ref(y, ry)) if rx == ry => self.unify_inner(tcx, x, y),
-            (TyData::ManagedRef(x), TyData::ManagedRef(y))
-            | (TyData::Vec(x), TyData::Vec(y))
-            | (TyData::Range(x), TyData::Range(y)) => self.unify_inner(tcx, x, y),
+            (TyData::ManagedRef(x), TyData::ManagedRef(y)) => self.unify_inner(tcx, x, y),
             _ => Err(mismatch),
         }
     }

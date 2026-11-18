@@ -3,6 +3,6 @@ fun f(v: &Vec<i32>) {
     v.push(1)
 }
 fun main() {
-    var v = Vec<i32>()
+    var v = Vec::<i32>()
     f(&v)
 }

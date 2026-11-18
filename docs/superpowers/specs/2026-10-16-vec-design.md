@@ -6,7 +6,7 @@ policy, the borrow rule and the header drop to this document.
 
 ## Goals / non-goals
 
-- Goals: `Vec<T>` with `Vec<T>()` / `Vec<T>(capacity)`, `push`, `pop`, `get`, `set`, `len`, `capacity`, `clear`, `v[i]`;
+- Goals: `Vec<T>` with `Vec::<T>()` / `Vec::<T>(capacity)`, `push`, `pop`, `get`, `set`, `len`, `capacity`, `clear`, `v[i]`;
   amortised O(1) push by doubling; correct `move` / `promote` across arenas.
 - Non-goals (v1): user generics, `Vec<Vec<T>>`, `Vec<T?>`, plain class elements (`Vec<Node>`),
   shrinking, iteration helpers, `return` of a Vec (rejected like arrays until a return arena exists).
@@ -16,7 +16,7 @@ policy, the borrow rule and the header drop to this document.
 - Header `{ ptr, len, cap }` is allocated once with `bork_arena_alloc` in the owner arena and never
   moves. Only the element buffer moves, through `bork_arena_grow`.
 - Capacity: first push allocates `cap = 4` (at least 16 bytes, smaller blocks are not recycled by the
-  arena), then `cap * 2`. `Vec<T>(n)` allocates `n` up front, growth then doubles from `n`; a negative `n` aborts. `capacity()` exposes the value. A buffer past the 2048-byte
+  arena), then `cap * 2`. `Vec::<T>(n)` allocates `n` up front, growth then doubles from `n`; a negative `n` aborts. `capacity()` exposes the value. A buffer past the 2048-byte
   large threshold is grown with `realloc` by the arena; otherwise the last block on a page grows in
   place and any other block is copied, its old block going to the free list.
 
@@ -46,15 +46,17 @@ One drop per `Vec<Ref<T>>`, registered on the header with `bork_arena_register_d
 
 ## Borrows
 
-Intended rule (not enforced yet, see "Not done yet"): a borrowed element (`get`, `v[i]`) blocks `push`, `pop`, `clear`, `move` and `promote` of that Vec for
-the borrow's lifetime. Index reads follow the array rules (runtime `i32`, out of range aborts).
+A borrowed element (`get`, `v[i]`) would block `push`, `pop`, `clear`, `move` and `promote` of that Vec for
+the borrow's lifetime. The rule has nothing to enforce today: `v[i]` and `get` yield an owned value (a `String`/array descriptor copy, a `Ref` clone or a scalar), `&v[i]` is rejected
+("`&` borrows a name") and `v[i]` does not coerce to `&T`, so no borrow of an element exists and a `push` that moves the buffer cannot leave one dangling.
+`programs/check_fail/vec/borrow_element_*.bork` pin this. Borrowing an element (`&v[i]`) is a separate feature with its own lock on the Vec (RFC 0004 section 3.6). Index reads follow the array rules (runtime `i32`, out of range aborts).
 
 ## Constructors
 
-`Vec<T>()` and `Vec<T>(capacity)` are expressions (`Vec` is a keyword, so `Vec.new()` does not parse).
+`Vec::<T>()` and `Vec::<T>(capacity)` are expressions (the turbofish form, since `Vec<T>(n)` would read as two comparisons).
 
 ## Not done yet
 
-- Element borrows do not block `push` / `pop` / `clear` / `move`; index reads and methods only
+- Borrowing an element (`&v[i]`) does not exist, so there is no element-borrow lock; index reads and methods only
   borrow the receiver for the call.
 - `bork-debug` does not know the `Vec` header layout.

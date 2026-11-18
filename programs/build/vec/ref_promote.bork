@@ -6,9 +6,9 @@ class Node {
 }
 
 fun main(): i32 {
-    var outer = Vec<Ref<Node>>()
+    var outer = Vec::<Ref<Node>>()
     {
-        var inner = Vec<Ref<Node>>()
+        var inner = Vec::<Ref<Node>>()
         var i = 0
         while (i < 6) {
             inner.push(Node(i + 1))

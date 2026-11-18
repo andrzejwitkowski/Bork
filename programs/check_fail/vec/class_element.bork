@@ -4,6 +4,6 @@ class Node {
 }
 
 fun main(): i32 {
-    val v = Vec<Node>()
+    val v = Vec::<Node>()
     return v.len()
 }

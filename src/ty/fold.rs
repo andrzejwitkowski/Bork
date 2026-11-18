@@ -9,9 +9,7 @@ impl TyData {
         match self {
             TyData::Array { elem, .. } => vec![*elem],
             TyData::Func { params, ret } => params.iter().copied().chain([*ret]).collect(),
-            TyData::Ref(t, _) | TyData::ManagedRef(t) | TyData::Vec(t) | TyData::Range(t) => {
-                vec![*t]
-            }
+            TyData::Ref(t, _) | TyData::ManagedRef(t) => vec![*t],
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
             TyData::Projection(self_ty, _, _) => vec![*self_ty],
             _ => Vec::new(),
@@ -58,14 +56,6 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
         TyData::ManagedRef(t) => {
             let t = folder.fold(ctx, t)?;
             ctx.add(TyData::ManagedRef(t))
-        }
-        TyData::Vec(t) => {
-            let t = folder.fold(ctx, t)?;
-            ctx.add(TyData::Vec(t))
-        }
-        TyData::Range(t) => {
-            let t = folder.fold(ctx, t)?;
-            ctx.add(TyData::Range(t))
         }
         TyData::Class(def, args) => {
             let args = args.into_iter().map(|a| folder.fold(ctx, a)).collect::<Result<_, _>>()?;
@@ -158,7 +148,7 @@ mod tests {
         let r = c.add(TyData::Ref(t, false));
         let m = c.add(TyData::ManagedRef(t));
         let opt = c.nullable(t).unwrap();
-        let vec_opt = c.add(TyData::Vec(opt));
+        let vec_opt = c.vec_of(opt);
         let text = |c: &TyCtx, id| c.display(id).to_string();
         for (ty, want) in [
             (arr, "[i32; 3]"),

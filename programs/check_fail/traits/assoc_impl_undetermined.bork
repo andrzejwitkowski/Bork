@@ -8,7 +8,7 @@ class Foo {
 }
 impl<U> Container for Foo {
     type Item = Vec<U>
-    fun get(): Vec<U> { return Vec<U>() }
+    fun get(): Vec<U> { return Vec::<U>() }
 }
 fun first<T: Container>(c: &T): T::Item { return c.get() }
 fun main() {

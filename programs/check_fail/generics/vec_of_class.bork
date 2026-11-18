@@ -6,7 +6,7 @@ class P {
     n: i32
 }
 fun f<T>(x: T) {
-    var v = Vec<T>()
+    var v = Vec::<T>()
 }
 fun main() {
     f(P(1))

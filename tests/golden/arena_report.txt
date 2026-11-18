@@ -4991,7 +4991,7 @@ Arenas
 │   └── z [Local]
 └── fun main
 == programs/check_fail/generics/vec_of_class.bork
-Type Error [210..211] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
+Type Error [212..213] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
 Arenas
 ├── fun f
 │   ├── x [Local]
@@ -5548,7 +5548,7 @@ Arenas
 └── fun Show@0.show
     └── this [Borrow ← call site]
 == programs/check_fail/traits/assoc_impl_undetermined.bork
-Type Error [337..342] cannot normalize `Foo::Item`: a type parameter of the impl is not determined by its type
+Type Error [339..344] cannot normalize `Foo::Item`: a type parameter of the impl is not determined by its type
 Arenas
 ├── fun first
 │   └── c [Borrow ← call site]
@@ -5769,8 +5769,35 @@ Arenas
 Type Error [58..62] unknown trait `Nope`
 Arenas
 └── fun main
+== programs/check_fail/vec/borrow_element_as_argument.bork
+Type Error [232..236] argument 1 to `grow` expects borrow `&…`, got String
+Type Error [232..236] argument 1 to `grow` has type String, expected &String
+Arenas
+├── fun grow
+│   ├── s [Borrow ← call site]
+│   └── v [Borrow ← call site]
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/borrow_element_by_ampersand.bork
+Ownership Error [203..208] `&` borrows a name
+Type Error [203..208] `&` borrows a name
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/borrow_element_in_binding.bork
+Type Error [133..134] initializer for `e` has type String, expected &String
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
 == programs/check_fail/vec/class_element.bork
-Type Error [89..100] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
+Type Error [89..92] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
+Arenas
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/construct_like_class.bork
+Type Error [108..111] `Vec` is a built-in type and cannot be constructed like a class; write `Vec::<T>()` or `Vec::<T>(capacity)`
 Arenas
 └── fun main
     └── v [Local]
@@ -5779,13 +5806,41 @@ Type Error [97..98] `strongCount` expects a `Ref<T>`, got i32
 Arenas
 └── fun main
     └── n [Local]
+== programs/check_fail/vec/impl_trait.bork
+Type Error [107..115] `impl Show for Vec<i32>`: only classes and enums can implement a trait yet
+Arenas
+├── fun main
+└── fun Show@0.show
+    └── this [Borrow ← call site]
+== programs/check_fail/vec/nullable.bork
+Type Error [55..56] `Vec` cannot be nullable
+Arenas
+└── fun main
+    └── v [Local]
 == programs/check_fail/vec/push_on_val.bork
-Type Error [96..102] cannot mutate immutable `val` binding `v`
+Type Error [98..104] cannot mutate immutable `val` binding `v`
 Arenas
 └── fun main
     └── v [Local]
 == programs/check_fail/vec/push_through_val_field.bork
-Type Error [150..162] cannot mutate immutable `val` binding `h` (through a field)
+Type Error [152..164] cannot mutate immutable `val` binding `h` (through a field)
 Arenas
 └── fun main
     └── h [Local]
+== programs/check_fail/vec/two_arguments.bork
+Type Error [81..84] `Vec` takes at most one argument, the capacity
+Arenas
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/user_defined_range.bork
+Type Error [] a range `a..b` needs the prelude `Range`, but this program defines its own `Range`
+Arenas
+└── fun main
+    └── ForLoop (i)
+        └── i [Local]
+== programs/check_fail/vec/user_defined_vec.bork
+Type Error [46..47] missing constructor argument for field `x`
+Type Error [80..83] `Vec` is not generic; it takes no explicit type arguments
+Arenas
+└── fun main
+    └── v [Local]

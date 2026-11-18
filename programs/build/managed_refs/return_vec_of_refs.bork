@@ -25,7 +25,7 @@ fun show(r: &RA) {
 }
 
 fun make(): Bag {
-    var v = Vec<Ref<P>>()
+    var v = Vec::<Ref<P>>()
     var i = 0
     while (i < 4) {
         v.push(P(i + 50))

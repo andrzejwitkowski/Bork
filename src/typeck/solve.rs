@@ -117,7 +117,7 @@ fn solve_one(env: &mut Env<'_>, obligation: &Obligation) -> Outcome {
     match env.tcx.data(predicate.self_ty).clone() {
         TyData::Infer(_) => Outcome::Stalled,
         TyData::Param(_) => solve_from_bounds(env, &predicate),
-        TyData::Class(..) | TyData::Enum(..) => solve_from_impls(env, &predicate, obligation),
+        TyData::Class(..) | TyData::Enum(..) if env.tcx.is_object_type(predicate.self_ty) => solve_from_impls(env, &predicate, obligation),
         _ => Outcome::Failed(unsatisfied(env, &predicate, "only classes and enums implement traits yet")),
     }
 }
@@ -375,7 +375,7 @@ fn project(env: &mut Env<'_>, projection: TyId, base: TyId, trait_name: Option<&
         TyData::Param(_) => project_param(env, projection, base, trait_name, name),
         // A projection of a projection (`T::A::B`) has no bounds to look in.
         TyData::Projection(..) => Projected::Rigid,
-        TyData::Class(..) | TyData::Enum(..) => project_from_impls(env, base, trait_name, name),
+        TyData::Class(..) | TyData::Enum(..) if env.tcx.is_object_type(base) => project_from_impls(env, base, trait_name, name),
         _ => Projected::Failed(format!(
             "cannot normalize `{}::{name}`: only classes and enums implement traits yet",
             env.show(base)

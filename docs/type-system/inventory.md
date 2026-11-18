@@ -69,7 +69,7 @@ negative test: `Unknown`, `Func` (only via closures/calls), `MoveBlock`: **UNVER
 From `docs/superpowers/specs/2026-10-16-vec-design.md`:
 - `Vec<T>` is **built-in**; there are **no general generics**.
 - Non-goals: `Vec<Vec<T>>`, `Vec<T?>`, `Vec<Node>`.
-- Element-borrow rule: **not enforced yet**.
+- Element-borrow rule: vacuous, since an element cannot be borrowed (`&v[i]` is rejected); a lock is needed once it can.
 
 Superseded in part by [RFC 0001](../rfcs/0001-type-system-core.md): "no general generics" holds only until the generics phase (#45, #68); generics will be monomorphized.
 

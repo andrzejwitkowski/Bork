@@ -22,6 +22,7 @@ match {
     "this" => "this",
     "when" => "when",
     "fun" => "fun",
+    "intrinsic" => "intrinsic",
     "val" => "val",
     "var" => "var",
     "for" => "for",
@@ -202,6 +203,9 @@ ClassDecl: Class = {
     "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
         Class::from_members(name, generics.unwrap_or_default(), members)
     },
+    "intrinsic" "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
+        Class { intrinsic: true, ..Class::from_members(name, generics.unwrap_or_default(), members) }
+    },
 };
 
 EnumDecl: Enum = {
@@ -342,7 +346,18 @@ Function: Function = {
             params: params.unwrap_or_default(),
             return_type: ret,
             body,
+            intrinsic: false,
         })
+    },
+    "intrinsic" "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> => Function {
+        name: name.name,
+        name_span: name.span,
+        id: AstId::DUMMY,
+        generics: generics.unwrap_or_default(),
+        params: params.unwrap_or_default(),
+        return_type: ret,
+        body: Block { stmts: Vec::new(), span: None, statement_spans: Vec::new() },
+        intrinsic: true,
     },
 };
 
@@ -359,9 +374,6 @@ Param: Param = {
 Type: Type = {
     "Ref" "<" <inner:Type> ">" => Type::ManagedRef {
         inner: Box::new(inner),
-    },
-    "Vec" "<" <elem:Type> ">" => Type::Vec {
-        elem: Box::new(elem),
     },
     "&" <inner:Type> => Type::Ref {
         inner: Box::new(inner),
@@ -417,7 +429,6 @@ ParenType: Type = {
                 | Type::Array { .. }
                 | Type::Ref { .. }
                 | Type::ManagedRef { .. }
-                | Type::Vec { .. }
                 | Type::Assoc { .. } => Err(ParseError::User {
                     error: "only function types may be parenthesized for nullability",
                 }),
@@ -694,11 +705,6 @@ Atom: Expr = {
     <s:StrLit> => Expr::Str(s),
     <start:@L> "[" <elems:Comma<Expr>?> "]" <end:@R> => Expr::ArrayLit {
         elements: elems.unwrap_or_default(),
-        span: Span::new(start, end),
-    },
-    <start:@L> "Vec" "<" <elem:Type> ">" "(" <cap:Expr?> ")" <end:@R> => Expr::VecNew {
-        elem,
-        cap: cap.map(Box::new),
         span: Span::new(start, end),
     },
     "move" <id:SpannedIdent> => Expr::Move {

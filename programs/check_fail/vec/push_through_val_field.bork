@@ -4,7 +4,7 @@ class H {
 }
 
 fun main(): i32 {
-    val h = H(Vec<i32>())
+    val h = H(Vec::<i32>())
     h.items.push(1)
     return h.items.len()
 }

@@ -1,7 +1,7 @@
 use crate::ast::{BinOp, Expr, UnaryOp};
 use crate::hir::HirExprKind;
 use crate::span::Span;
-use crate::ty::{Predicate, TraitRef, TyData, TyId};
+use crate::ty::{Predicate, TraitRef, TyId};
 
 use super::super::env::{Checked, Env};
 use super::super::solve;
@@ -59,7 +59,7 @@ fn trait_operator(
     // `a == b` on `&T` operands compares the targets.
     let settled = env.settle(lhs.ty);
     let self_ty = env.tcx.ref_inner(settled).unwrap_or(settled);
-    let object = matches!(env.tcx.data(self_ty), TyData::Class(..) | TyData::Enum(..)) && !env.tcx.is_nullable(self_ty);
+    let object = env.tcx.is_object_type(self_ty) && !env.tcx.is_nullable(self_ty);
     if !(object || env.is_param(self_ty)) || !env.same(lhs.ty, rhs.ty) {
         return Err((lhs, rhs));
     }
@@ -223,6 +223,9 @@ fn binary_result_ty(op: &BinOp, lhs_ty: TyId, rhs_ty: TyId, span: Option<Span>, 
                     ),
                     span,
                 );
+            }
+            if env.tcx.range_def().is_none() {
+                env.error("a range `a..b` needs the prelude `Range`, but this program defines its own `Range`", span);
             }
             env.tcx.range(i32_ty)
         }

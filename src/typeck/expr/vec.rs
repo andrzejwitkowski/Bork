@@ -9,7 +9,7 @@ use super::super::env::{Checked, Env};
 use super::super::MemberRef;
 use super::check;
 
-/// `Vec<T>()` and `Vec<T>(capacity)`.
+/// `Vec::<T>()` and `Vec::<T>(capacity)`.
 pub(super) fn check_vec_new(
     elem: &Type,
     cap: Option<&Expr>,
@@ -19,9 +19,7 @@ pub(super) fn check_vec_new(
 ) -> Checked {
     // Lower the whole `Vec<T>` type so the element rule is enforced in one place.
     let lowered = env.lower(
-        &Type::Vec {
-            elem: Box::new(elem.clone()),
-        },
+        &Type::Named { name: "Vec".to_string(), args: vec![elem.clone()], nullable: false },
         Some(span),
     );
     let elem_ty = match env.tcx.vec_elem(lowered) {
@@ -69,16 +67,12 @@ pub(super) fn check_vec_method(
             signature: format!("Vec<{}>.{method}", env.show(elem)),
         },
     );
-    let (i32_ty, unit) = (env.tcx.i32(), env.tcx.unit());
-    let (params, result): (Vec<TyId>, TyId) = match op {
-        VecOp::Push => (vec![elem], unit),
-        VecOp::Pop if env.tcx.is_managed_ref(elem) => (vec![], elem),
-        VecOp::Pop => (vec![], env.tcx.with_nullable(elem, true)),
-        VecOp::Get => (vec![i32_ty], elem),
-        VecOp::Set => (vec![i32_ty, elem], unit),
-        VecOp::Len | VecOp::Capacity => (vec![], i32_ty),
-        VecOp::Clear => (vec![], unit),
-    };
+    // The signature is the prelude's `intrinsic fun`, with `T` replaced by the element type.
+    let (params, mut result) = prelude_signature(method, elem, span, env);
+    // A `Vec<Ref<T>>` pops the `Ref` itself, not an `Option` of it.
+    if op == VecOp::Pop && env.tcx.is_managed_ref(elem) {
+        result = elem;
+    }
     if args.len() != params.len() {
         env.error(
             format!("`Vec.{method}` takes {} argument(s), got {}", params.len(), args.len()),
@@ -132,4 +126,19 @@ fn reject_immutable(receiver: &Expr, env: &mut Env<'_>, span: Span) {
         let via = if direct { "" } else { " (through a field)" };
         env.error(format!("cannot mutate through the read-only borrow `{name}`{via}; take it as `&rw` (RFC 0003)"), Some(span));
     }
+}
+
+/// Parameters and result of `Vec<elem>.method`, from the prelude's `intrinsic class Vec<T>`.
+fn prelude_signature(method: &str, elem: TyId, span: Span, env: &mut Env<'_>) -> (Vec<TyId>, TyId) {
+    let sig = env
+        .tcx
+        .vec_def()
+        .and_then(|class| env.defs.lookup_method(class, method))
+        .and_then(|def| env.fun_sigs.get(&def))
+        .cloned()
+        .expect("the prelude's `Vec` declares every `VecOp`");
+    let name = format!("Vec.{method}");
+    let (mut params, result) = super::call::subst_sig(&name, span, &sig, &[elem], env).expect("a `Vec` signature substitutes");
+    params.remove(0); // the receiver
+    (params, result)
 }

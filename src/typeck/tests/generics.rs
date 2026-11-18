@@ -91,7 +91,11 @@ fn generic_function_signature_uses_param_types() {
 
 #[test]
 fn param_works_under_ref_vec_array_and_nullable() {
-    clean("enum Option<T> {\n    Some(value: T)\n    None\n}\nfun f<T>(a: &T, b: Vec<T>, c: [T; 2], d: T?) {}\nfun main() {}\n");
+    let src = "enum Option<T> {\n    Some(value: T)\n    None\n}\nfun f<T>(a: &T, b: Vec<T>, c: [T; 2], d: T?) {}\nfun main() {}\n";
+    let (mut program, index) = crate::parse_indexed(src).expect("parses");
+    crate::prelude::add_prelude(&mut program, src, index.len() as u32);
+    let messages: Vec<_> = crate::typeck::check_with_members(&program).diagnostics.iter().map(|d| d.message.clone()).collect();
+    assert!(messages.is_empty(), "{messages:?}");
 }
 
 #[test]

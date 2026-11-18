@@ -36,7 +36,7 @@ fun main(): i32 {
     var code = 0
 
     // Step 1: ten pushes into `older` (grows 4 -> 8 -> 16). Ten strong slots, no weak ones.
-    var older = Vec<Ref<Node>>()
+    var older = Vec::<Ref<Node>>()
     var i = 0
     while (i < 10) {
         older.push(r)
@@ -50,7 +50,7 @@ fun main(): i32 {
     {
         // Step 2: ten pushes into `newer`, which lives in a NEWER arena than the node, so these
         // ten slots are weak back-edges. The strong count must not move.
-        var newer = Vec<Ref<Node>>()
+        var newer = Vec::<Ref<Node>>()
         var j = 0
         while (j < 10) {
             newer.push(r)

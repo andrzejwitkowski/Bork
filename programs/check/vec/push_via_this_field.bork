@@ -8,6 +8,6 @@ class H {
 }
 
 fun main(): i32 {
-    var h = H(Vec<i32>())
+    var h = H(Vec::<i32>())
     return h.add(1)
 }

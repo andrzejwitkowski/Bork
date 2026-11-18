@@ -352,7 +352,7 @@ pub enum HirExprKind {
         lo: Box<HirExpr>,
         hi: Box<HirExpr>,
     },
-    /// `Vec<elem>()` / `Vec<elem>(cap)`; the expression type is `Vec<elem>`.
+    /// `Vec::<elem>()` / `Vec::<elem>(cap)`; the expression type is `Vec<elem>`.
     VecNew {
         elem: TyId,
         cap: Option<Box<HirExpr>>,
