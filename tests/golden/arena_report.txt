@@ -4671,7 +4671,7 @@ Arenas
         ├── n [Moved ← fun main]
         └── m [Copy]
 == programs/check_fail/closures/view_returned.bork
-Type Error [] returning a reference is not supported: the closure borrows its captures
+Type Error [] cannot return a closure that borrows its captures; make it `move`
 Arenas
 └── fun make
     ├── n [Local]

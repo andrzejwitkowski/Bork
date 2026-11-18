@@ -346,7 +346,7 @@ programs/check_fail/closures/break_in_closure.bork: hits=6 hash=8041edeea34d2536
 programs/check_fail/closures/fnmut_to_fn_bound.bork: hits=3 hash=8a6ecd6bfbfccf09
 programs/check_fail/closures/move_in_loop.bork: hits=13 hash=43adea5b603d904f
 programs/check_fail/closures/move_list_misses_a_capture.bork: hits=15 hash=c7e6ae8dcc435822
-programs/check_fail/closures/view_returned.bork: hits=2 hash=529562d0ffc6ce75
+programs/check_fail/closures/view_returned.bork: hits=2 hash=850bdccb70b29015
 programs/check_fail/closures/view_stored_in_var.bork: hits=18 hash=9303ecab71d8eb03
 programs/check_fail/conditionals/assign_to_val.bork: hits=3 hash=28acaca210a801f8
 programs/check_fail/conditionals/if_both_paths_move_then_use.bork: hits=35 hash=be9877dcb938d54f

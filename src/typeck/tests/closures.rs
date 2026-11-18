@@ -138,7 +138,7 @@ fn closure_expression_records_its_captures() {
 #[test]
 fn plain_closure_that_captures_is_a_view_and_cannot_be_returned() {
     let src = "fun make(): () -> i32 {\n    val n = 1\n    return { -> n }\n}";
-    assert!(diags_of(src).iter().any(|d| d.message.contains("returning a reference")), "{:?}", diags_of(src));
+    assert!(diags_of(src).iter().any(|d| d.message.contains("cannot return a closure that borrows")), "{:?}", diags_of(src));
 }
 
 #[test]
@@ -199,6 +199,6 @@ fn a_view_closure_stays_a_view_when_annotated_as_a_function_type() {
     let moved = "fun main() {\n    var keep: () -> i32 = { -> 0 }\n    var n = 5\n    val h: () -> i32 = { -> n }\n    keep = move h\n}";
     assert!(diags_of(moved).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(moved));
     let returned = "fun make(): () -> i32 {\n    val n = 1\n    val h: () -> i32 = { -> n }\n    return h\n}";
-    assert!(diags_of(returned).iter().any(|d| d.message.contains("returning a reference")), "{:?}", diags_of(returned));
+    assert!(diags_of(returned).iter().any(|d| d.message.contains("cannot return a closure that borrows")), "{:?}", diags_of(returned));
     hir_of("fun main() {\n    val n = 5\n    val h: () -> i32 = { -> n }\n    val g = h\n}");
 }

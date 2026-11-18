@@ -189,7 +189,7 @@ fn check_return(
             let value = expr::check(value, return_ty, return_ty, env);
             env.mismatch("return value", value.ty, return_ty, value.span);
             if env.is_view_closure_value(&value) {
-                env.error("returning a reference is not supported: the closure borrows its captures", value.span);
+                env.error("cannot return a closure that borrows its captures; make it `move`", value.span);
             }
             Some(value.hir)
         }
