@@ -118,6 +118,16 @@ fn solve_one(env: &mut Env<'_>, obligation: &Obligation) -> Outcome {
         TyData::Infer(_) => Outcome::Stalled,
         TyData::Param(_) => solve_from_bounds(env, &predicate),
         TyData::Class(..) | TyData::Enum(..) if env.tcx.is_object_type(predicate.self_ty) => solve_from_impls(env, &predicate, obligation),
+        // A closure or function type implements `Fn`, `FnMut` and `FnOnce` for its own signature.
+        // shortcut: every closure satisfies all three until its kind is inferred (RFC 0007 step F5).
+        TyData::Closure { .. } | TyData::Func { .. } if env.tcx.is_fn_trait(predicate.trait_ref.trait_id) => {
+            let (params, ret) = env.tcx.func_sig(predicate.self_ty).expect("a callable type");
+            let sig = env.tcx.func(params, ret);
+            match predicate.trait_ref.args.first() {
+                Some(&want) if env.infcx.unify(env.tcx, want, sig).is_ok() => Outcome::Solved(Vec::new()),
+                _ => Outcome::Failed(unsatisfied(env, &predicate, "the function signature differs from the bound")),
+            }
+        }
         _ => Outcome::Failed(unsatisfied(env, &predicate, "only classes and enums implement traits yet")),
     }
 }

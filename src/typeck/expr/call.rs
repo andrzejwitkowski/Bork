@@ -29,6 +29,14 @@ fn callee_signature(
             if let Some((params, ret)) = env.tcx.func_sig(ty) {
                 return Some((name.clone(), *span, params, ret));
             }
+            // `f: F` where `F: Fn(A) -> R`: the bound is the signature.
+            let bound = env.param_env.iter().find_map(|p| {
+                let callable = p.self_ty == ty && env.tcx.is_fn_trait(p.trait_ref.trait_id);
+                callable.then(|| p.trait_ref.args.first().and_then(|&a| env.tcx.func_sig(a))).flatten()
+            });
+            if let Some((params, ret)) = bound {
+                return Some((name.clone(), *span, params, ret));
+            }
             if !env.tcx.is_unknown(ty) {
                 env.error(
                     format!("binding `{name}` is not callable (has type {})", env.show(ty)),
@@ -294,7 +302,14 @@ pub(super) fn finish_call(
 
     let trailing_hir = match (trailing, trailing_signature) {
         (Some(closure), Some((closure_params, closure_ret))) => {
-            Some(Box::new(check_trailing_closure(closure, &closure_params, closure_ret, env)))
+            let mut hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
+            // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
+            if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
+                hir.ty = env.tcx.closure(closure_params, closure_ret);
+                let _ = env.infcx.unify(env.tcx, last, hir.ty);
+                super::super::solve::select_where_possible(env);
+            }
+            Some(Box::new(hir))
         }
         _ => None,
     };
@@ -415,9 +430,22 @@ fn split_trailing_param<'a>(
         return (params, None);
     }
     // The last parameter may be a nullable function type; the closure still binds against it.
-    let last = params
-        .split_last()
-        .and_then(|(last, regular)| Some((env.tcx.func_sig(env.tcx.base(*last))?, regular)));
+    // A parameter of a bounded generic type (`f: F`, `F: Fn(A) -> R`) takes its signature from the bound.
+    let last = params.split_last().and_then(|(last, regular)| {
+        let ty = env.settle(*last);
+        if let Some(sig) = env.tcx.func_sig(env.tcx.base(ty)) {
+            return Some((sig, regular));
+        }
+        let fn_bounds: Vec<(TyId, TyId)> = env
+            .infcx
+            .obligations()
+            .iter()
+            .filter(|o| env.tcx.is_fn_trait(o.predicate.trait_ref.trait_id))
+            .filter_map(|o| Some((o.predicate.self_ty, *o.predicate.trait_ref.args.first()?)))
+            .collect();
+        let sig = fn_bounds.into_iter().find_map(|(self_ty, arg)| (env.settle(self_ty) == ty).then(|| env.tcx.func_sig(arg)).flatten());
+        Some((sig?, regular))
+    });
     match last {
         Some((signature, regular)) => (regular, Some(signature)),
         None => {

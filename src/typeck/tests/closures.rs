@@ -58,3 +58,55 @@ fun main() {
 "#;
     assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
 }
+
+#[test]
+fn fn_bound_lets_a_generic_function_call_its_parameter() {
+    let src = r#"
+fun apply<F: Fn(i32) -> i32>(f: F, v: i32): i32 {
+    return f(v)
+}
+fun main(): i32 {
+    return apply({ x -> x + 1 }, 2)
+}
+"#;
+    hir_of(src);
+}
+
+#[test]
+fn fn_bound_accepts_a_function_typed_argument() {
+    let src = r#"
+fun apply<F: Fn(i32) -> i32>(f: F, v: i32): i32 {
+    return f(v)
+}
+fun twice(g: (i32) -> i32): i32 {
+    return apply(g, 1)
+}
+"#;
+    hir_of(src);
+}
+
+#[test]
+fn fn_bound_rejects_a_closure_with_another_signature() {
+    let src = r#"
+fun apply<F: Fn(i32) -> i32>(f: F, v: i32): i32 {
+    return f(v)
+}
+fun main(): i32 {
+    return apply({ x -> true }, 2)
+}
+"#;
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type));
+}
+
+#[test]
+fn fn_bound_works_with_a_trailing_closure() {
+    let src = r#"
+fun apply<F: FnMut(i32) -> i32>(v: i32, f: F): i32 {
+    return f(v)
+}
+fun main(): i32 {
+    return apply(2) { x -> x * 3 }
+}
+"#;
+    hir_of(src);
+}

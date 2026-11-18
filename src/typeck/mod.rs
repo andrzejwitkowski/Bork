@@ -595,7 +595,8 @@ fn settle_body(env: &mut Env<'_>, mut body: crate::hir::HirBlock) -> crate::hir:
     let (infcx, tcx, errors) = (&env.infcx, &mut *env.tcx, &mut env.diagnostics);
     let mut settle = |ty: TyId| match infcx.resolve(tcx, ty) {
         Ok(ty) => {
-            debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
+            // After an error a variable may stay free (a failed unify binds nothing).
+            debug_assert!(!errors.is_empty() || !has_infer(tcx, ty), "unresolved inference variable reached HIR");
             ty
         }
         Err(_) => {

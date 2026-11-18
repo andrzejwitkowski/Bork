@@ -94,6 +94,9 @@ pub struct TyCtx {
     range_def: Option<DefId>,
     /// Next `TyData::Closure` id.
     closures: u32,
+    /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by name.
+    // shortcut: matched by name, so a program's own trait called `Fn` would get the built-in rules; the prelude chunk is skipped then, so give it a prelude-origin check if that ever happens.
+    fn_traits: Vec<DefId>,
 }
 
 impl TyCtx {
@@ -107,7 +110,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closures: 0 };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closures: 0, fn_traits: ["Fn", "FnMut", "FnOnce"].iter().filter_map(|n| defs.lookup_trait(n)).collect() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

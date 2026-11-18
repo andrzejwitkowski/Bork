@@ -441,6 +441,11 @@ impl TyCtx {
         self.add(TyData::Func { params, ret })
     }
 
+    /// Whether `def` is `Fn`, `FnMut` or `FnOnce`.
+    pub fn is_fn_trait(&self, def: DefId) -> bool {
+        self.fn_traits.contains(&def)
+    }
+
     /// A fresh closure type: each call is a new closure expression (RFC 0007).
     pub fn closure(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {
         let id = self.closures;
