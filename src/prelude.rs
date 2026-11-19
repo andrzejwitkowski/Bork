@@ -23,14 +23,16 @@ struct Chunk {
 const OPTION: usize = 0;
 /// Chunks from here on are always added: `==` and `<` on objects resolve `Eq` / `Ord` without the
 /// program naming them. Each trait is its own chunk, so a program's own `Display` leaves `Eq` alone.
-const ALWAYS_FROM: usize = 5;
+const ALWAYS_FROM: usize = 6;
 
-const CHUNKS: [Chunk; 9] = [
+const CHUNKS: [Chunk; 10] = [
     Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
     Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
     Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec"], needs: &[], source: include_str!("prelude/vec.bork") },
+    // `F: Fn(A) -> R` bounds (RFC 0007); the solver gives closures and functions their impls.
+    Chunk { path: "<bork-prelude>/fn.bork", names: &["Fn", "FnMut", "FnOnce"], needs: &[], source: include_str!("prelude/fn.bork") },
     // Always added (index >= ALWAYS_FROM): a literal `a..b` has the type `Range<i32>` without naming it.
     Chunk { path: "<bork-prelude>/range.bork", names: &["Range"], needs: &[], source: include_str!("prelude/range.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },

@@ -762,3 +762,67 @@ fn A.size (parent=true, sink=false) {
     return
 }
 
+== methods/trailing_closure.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: P [Temp]
+  let _4: P [Val] p
+  let _5: &P [Temp]
+  let _6: closure#0(i32)->i32 [Temp]
+  let _7: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "P" } in fresh2  // label "P": P
+    _3.0 = 1  // label "P.x": i32 decl owner=fresh2
+    _4 = copy _3  // label "p": P decl
+    _5 = borrow _4
+    _6 = closure main$closure0() in current
+    _7 = call P.apply(copy _5, 2, copy _6) +current -> bb1
+  bb1:
+    _0 = copy _7
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn P.apply (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &P [Arg] this
+  let _2: i32 [Arg] k
+  let _3: (i32)->i32 [Arg] f
+  let _4: unit [Hidden(DebugScope)]
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _4
+    region_enter r0
+    _5 = call_closure copy _3(copy _2) +current -> bb1
+  bb1:
+    _0 = copy _5
+    storage_dead _4
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] v
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 1)
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+

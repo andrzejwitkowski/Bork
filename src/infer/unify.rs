@@ -36,14 +36,24 @@ impl InferCtxt {
                 }
                 self.unify_inner(tcx, ea, eb)
             }
-            (TyData::Func { params: pa, ret: ra }, TyData::Func { params: pb, ret: rb }) => {
-                if pa.len() != pb.len() {
-                    return Err(TypeError::Arity { expected: pa.len(), found: pb.len() });
+            (TyData::Func { params: pa, ret: ra, kind: ka }, TyData::Func { params: pb, ret: rb, kind: kb }) if ka == kb => {
+                self.unify_sig(tcx, pa, ra, pb, rb)
+            }
+            // A closure fits a function type whose kind is at least as permissive as its own.
+            (TyData::Closure { params: pa, ret: ra, .. }, TyData::Func { params: pb, ret: rb, kind })
+            | (TyData::Func { params: pb, ret: rb, kind }, TyData::Closure { params: pa, ret: ra, .. }) => {
+                let closure = if matches!(tcx.data(a), TyData::Closure { .. }) { a } else { b };
+                if tcx.closure_kind(closure).is_some_and(|k| k > kind) {
+                    return Err(mismatch);
                 }
-                for (x, y) in pa.into_iter().zip(pb) {
+                self.unify_sig(tcx, pa, ra, pb, rb)
+            }
+            // The same closure seen through two variables; another closure is a different type.
+            (TyData::Closure { id: ia, params: pa, ret: ra, captures: ca }, TyData::Closure { id: ib, params: pb, ret: rb, captures: cb }) if ia == ib => {
+                for (x, y) in ca.into_iter().zip(cb) {
                     self.unify_inner(tcx, x, y)?;
                 }
-                self.unify_inner(tcx, ra, rb)
+                self.unify_sig(tcx, pa, ra, pb, rb)
             }
             (TyData::Class(da, xa), TyData::Class(db, xb)) | (TyData::Enum(da, xa), TyData::Enum(db, xb)) => {
                 if da != db || xa.len() != xb.len() {
@@ -58,6 +68,16 @@ impl InferCtxt {
             (TyData::ManagedRef(x), TyData::ManagedRef(y)) => self.unify_inner(tcx, x, y),
             _ => Err(mismatch),
         }
+    }
+
+    fn unify_sig(&mut self, tcx: &mut TyCtx, pa: Vec<TyId>, ra: TyId, pb: Vec<TyId>, rb: TyId) -> Result<(), TypeError> {
+        if pa.len() != pb.len() {
+            return Err(TypeError::Arity { expected: pa.len(), found: pb.len() });
+        }
+        for (x, y) in pa.into_iter().zip(pb) {
+            self.unify_inner(tcx, x, y)?;
+        }
+        self.unify_inner(tcx, ra, rb)
     }
 
     /// Joins two unbound variables into one class.

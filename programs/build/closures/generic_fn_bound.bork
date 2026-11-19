@@ -1,0 +1,10 @@
+// exit: 0
+// stdout: 9\n
+fun apply<F: Fn(i32) -> i32>(f: F, v: i32): i32 {
+    return f(v)
+}
+
+fun main(): i32 {
+    println(apply({ x -> x * x }, 3))
+    return 0
+}

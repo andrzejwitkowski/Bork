@@ -47,11 +47,14 @@ impl BuildError {
 pub fn call_abi(function: &HirFunction, tcx: &TyCtx) -> CallAbi {
     if function.name == "main" {
         CallAbi::default()
-    } else if tcx.owns_result(function.return_ty) || tcx.uses_arena_storage(function.return_ty) {
-        CallAbi { caller_parent: true, result_sink: true }
     } else {
-        CallAbi { caller_parent: true, result_sink: false }
+        abi_for_return(tcx, function.return_ty)
     }
+}
+
+/// The hidden parameters of any callee that returns `ret`, also one reached through a closure value.
+pub fn abi_for_return(tcx: &TyCtx, ret: TyId) -> CallAbi {
+    CallAbi { caller_parent: true, result_sink: tcx.owns_result(ret) || tcx.uses_arena_storage(ret) }
 }
 
 pub fn build_program(mono: &Mono, tcx: &TyCtx) -> Res<Vec<Body>> {

@@ -1,0 +1,8 @@
+// diag: used by the closure but not listed
+fun main(): i32 {
+    val n = 1
+    val m = 2
+    val f = move (n) { -> n + m }
+    println(f())
+    return 0
+}

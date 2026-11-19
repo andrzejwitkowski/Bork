@@ -1,0 +1,11 @@
+// exit: 0
+// stdout: 7\n10\n
+fun apply<F: Fn(i32) -> i32>(v: i32, f: F): i32 {
+    return f(v)
+}
+fun main(): i32 {
+    val n = 3
+    println(apply(4, { x -> x + n }))
+    println(apply(5) { x -> x * 2 })
+    return 0
+}

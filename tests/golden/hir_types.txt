@@ -52,6 +52,35 @@ programs/build/classes/safe_ref_field.bork::main() -> i32
 programs/build/classes/string_field.bork::main() -> i32
 programs/build/classes/walkthrough_point.bork::sum(p: &Point) -> i32
 programs/build/classes/walkthrough_point.bork::main() -> i32
+programs/build/closures/closure_in_val.bork::main() -> i32
+programs/build/closures/doc_example.bork::apply(v: i32, f: T0) -> i32
+programs/build/closures/doc_example.bork::main() -> i32
+programs/build/closures/fnmut_bound.bork::run(f: T0) -> i32
+programs/build/closures/fnmut_bound.bork::main() -> i32
+programs/build/closures/fnmut_counter.bork::twice(f: ()->i32) -> i32
+programs/build/closures/fnmut_counter.bork::main() -> i32
+programs/build/closures/generic_fn_bound.bork::apply(f: T0, v: i32) -> i32
+programs/build/closures/generic_fn_bound.bork::main() -> i32
+programs/build/closures/local_closure_shadows_global_fn.bork::f(x: i32) -> i32
+programs/build/closures/local_closure_shadows_global_fn.bork::apply(f: (i32)->i32) -> i32
+programs/build/closures/local_closure_shadows_global_fn.bork::main() -> i32
+programs/build/closures/move_counter.bork::makeCounter(start: i32) -> FnMut()->i32
+programs/build/closures/move_counter.bork::main() -> i32
+programs/build/closures/move_returned_adder.bork::makeAdder(n: i32) -> (i32)->i32
+programs/build/closures/move_returned_adder.bork::main() -> i32
+programs/build/closures/move_string_capture.bork::greeter(name: String) -> ()->String
+programs/build/closures/move_string_capture.bork::main() -> i32
+programs/build/closures/move_string_outlives_frame.bork::make(n: i32) -> ()->String
+programs/build/closures/move_string_outlives_frame.bork::churn() -> i32
+programs/build/closures/move_string_outlives_frame.bork::main() -> i32
+programs/build/closures/move_temp_in_loop.bork::make(n: i32) -> ()->i32
+programs/build/closures/move_temp_in_loop.bork::main() -> i32
+programs/build/closures/nested_fnmut_updates_outer.bork::main() -> i32
+programs/build/closures/outer_name_before_shadowing_decl.bork::main() -> i32
+programs/build/closures/trailing_with_capture.bork::apply(v: i32, f: (i32)->i32) -> i32
+programs/build/closures/trailing_with_capture.bork::main() -> i32
+programs/build/closures/view_passed_to_generic_callback.bork::call(f: T0) -> i32
+programs/build/closures/view_passed_to_generic_callback.bork::main() -> i32
 programs/build/conditionals/else_if.bork::pick(n: i32) -> i32
 programs/build/conditionals/else_if.bork::main() -> i32
 programs/build/conditionals/if_else_return.bork::add(a: i32, b: i32) -> i32
@@ -339,6 +368,8 @@ programs/build/methods/same_name.bork::main() -> i32
 programs/build/methods/same_name.bork::A.size(this: &A) -> i32
 programs/build/methods/same_name.bork::A.total(this: &A) -> i32
 programs/build/methods/same_name.bork::B.size(this: &B) -> i32
+programs/build/methods/trailing_closure.bork::main() -> i32
+programs/build/methods/trailing_closure.bork::P.apply(this: &P, k: i32, f: (i32)->i32) -> i32
 programs/build/move_and_promote/array_string_move_index.bork::main() -> unit
 programs/build/move_and_promote/assign_up_move.bork::main() -> unit
 programs/build/move_and_promote/both_branches_return_move.bork::run(flag: bool) -> i32
@@ -687,8 +718,6 @@ programs/check/managed_refs/chained_val_both_return_move.bork::take(var n: Node)
 programs/check/managed_refs/chained_val_both_return_move.bork::run(r: Ref<Node>) -> i32
 programs/check/managed_refs/chained_val_else_moves_owner.bork::take(var n: Node) -> Ref<Node>
 programs/check/managed_refs/chained_val_else_moves_owner.bork::run(r: Ref<Node>) -> unit
-programs/check/methods/trailing_closure.bork::main() -> i32
-programs/check/methods/trailing_closure.bork::P.apply(this: &P, k: i32, f: (i32)->i32) -> i32
 programs/check/move_and_promote/move_block.bork::main() -> i32
 programs/check/option/nullable_is_option.bork::f(x: i32?) -> i32?
 programs/check/option/nullable_is_option.bork::g(o: String?) -> String?

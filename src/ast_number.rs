@@ -245,6 +245,7 @@ impl Numberer {
                 self.block(then_block);
                 else_block.iter_mut().for_each(|b| self.block(b));
             }
+            Expr::Closure(closure) => self.closure(closure),
             Expr::Match { scrutinee, arms, .. } => {
                 self.expr(scrutinee);
                 for arm in arms {

@@ -159,9 +159,34 @@ pub struct HirFunction {
     /// None denotes the user's input; prelude spans need their separate source file.
     pub source: Option<&'static str>,
     pub params: Vec<HirParam>,
+    /// `Some(n)` for a lifted closure: its first `n` `params` are captures, which codegen passes as the one
+    /// environment pointer every closure takes (also with `n == 0`). `None` for every ordinary function.
+    pub env_params: Option<usize>,
+    /// How a lifted closure reaches its captures.
+    pub env_mode: CaptureMode,
     pub return_ty: TyId,
     pub body: HirBlock,
 }
+
+/// Where a lifted closure's captured variables live (RFC 0007).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureMode {
+    /// A copy made when the closure is built, reloaded on each call (an `Fn` closure).
+    ByValue,
+    /// The environment holds the outer variable's address (a plain `FnMut` closure).
+    ByAddress,
+    /// The environment owns the value and the body updates it there (a `move` `FnMut` closure).
+    InPlace,
+}
+
+/// An outer binding a closure uses; `ty` is the binding's type.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HirCapture {
+    pub name: String,
+    pub ty: TyId,
+}
+
+pub use crate::ty::ClosureKind;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HirParam {
@@ -414,7 +439,25 @@ pub enum HirExprKind {
     Call {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
-        has_trailing_closure: bool,
+        /// The trailing closure, a `Closure` node typed as the function it is passed as.
+        trailing: Option<Box<HirExpr>>,
+    },
+    /// A closure value: the lifted function `function` (monomorphization, RFC 0007) plus the captured
+    /// values, in the order of the function's leading parameters. Never produced by typeck.
+    MakeClosure {
+        function: String,
+        captures: Vec<HirExpr>,
+        kind: ClosureKind,
+        is_move: bool,
+    },
+    /// A closure body kept from source (RFC 0007); monomorphization lifts it into a function.
+    Closure {
+        params: Vec<HirParam>,
+        body: HirBlock,
+        is_move: bool,
+        /// Outer bindings the body uses, in name order.
+        captures: Vec<HirCapture>,
+        kind: ClosureKind,
     },
     If {
         cond: Box<HirExpr>,

@@ -1,0 +1,15 @@
+// exit: 0
+// stdout: 500501\n
+fun make(n: i32): () -> i32 {
+    var total = 0
+    for (i in 0..1000) {
+        val tmp = move (i) { -> i + 1 }
+        total = total + tmp()
+    }
+    return move (n, total) { -> n + total }
+}
+fun main(): i32 {
+    val f = make(1)
+    println(f())
+    return 0
+}

@@ -1,0 +1,13 @@
+// diag: cannot move `s` inside a loop
+fun run(f: () -> i32): i32 {
+    return f()
+}
+
+fun main(): i32 {
+    val s = "x"
+    for (i in 0..3) {
+        run() move (s) { -> println(s)
+            0 }
+    }
+    return 0
+}

@@ -20,7 +20,12 @@ pub fn declare_function<'ctx>(
     function: &HirFunction,
 ) -> Result<FunctionValue<'ctx>, Diagnostic> {
     let mut params = CallAbi::of(cx, function).hidden_types(cx);
-    for param in &function.params {
+    // A lifted closure takes one environment pointer in place of its captures.
+    let skip = function.env_params.unwrap_or(0);
+    if function.env_params.is_some() {
+        params.push(cx.context.ptr_type(inkwell::AddressSpace::default()).into());
+    }
+    for param in &function.params[skip..] {
         params.push(
             cx.basic_type(param.ty)
                 .map(BasicMetadataTypeEnum::from)

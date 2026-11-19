@@ -24,7 +24,9 @@ impl<'a> FnBuilder<'a> {
                 // returned construct, which is where the language puts it.
                 let v = match value.as_ref() {
                     Some(v) => {
-                        let to_result = self.abi.result_sink && self.moves_handle(v.ty) && (self.lifetimes() || matches!(v.kind, HirExprKind::Ident { .. }));
+                        // A returned closure's environment must outlive the call too.
+                    let to_result = self.abi.result_sink
+                        && (self.tcx.is_callable(v.ty) || (self.moves_handle(v.ty) && (self.lifetimes() || matches!(v.kind, HirExprKind::Ident { .. }))));
                         Some(if to_result { self.with_sink(ArenaRef::ResultSink, |b| b.expr(v))? } else { self.expr(v)? })
                     }
                     None => None,

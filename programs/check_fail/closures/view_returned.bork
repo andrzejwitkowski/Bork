@@ -1,0 +1,5 @@
+// diag: cannot return a closure that borrows its captures
+fun make(): () -> i32 {
+    val n = 1
+    return { -> n }
+}

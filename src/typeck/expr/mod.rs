@@ -152,6 +152,7 @@ pub(super) fn dispatch(
             return_ty,
             env,
         ),
+        Expr::Closure(closure) => call::check_closure_expr(closure, expected, env),
         Expr::Match { scrutinee, arms, span } => check_match(scrutinee, arms, *span, expected, return_ty, env),
         Expr::IfVal {
             bindings,

@@ -118,8 +118,32 @@ fn solve_one(env: &mut Env<'_>, obligation: &Obligation) -> Outcome {
         TyData::Infer(_) => Outcome::Stalled,
         TyData::Param(_) => solve_from_bounds(env, &predicate),
         TyData::Class(..) | TyData::Enum(..) if env.tcx.is_object_type(predicate.self_ty) => solve_from_impls(env, &predicate, obligation),
+        TyData::Closure { .. } | TyData::Func { .. } if env.tcx.is_fn_trait(predicate.trait_ref.trait_id) => solve_callable(env, &predicate),
         _ => Outcome::Failed(unsatisfied(env, &predicate, "only classes and enums implement traits yet")),
     }
+}
+
+/// A closure or function type implements `Fn`, `FnMut` and `FnOnce` for its own signature.
+fn solve_callable(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome {
+    let (params, ret) = env.tcx.func_sig(predicate.self_ty).expect("a callable type");
+    let sig = env.tcx.func(params, ret);
+    let (has, needs) = (env.tcx.closure_kind(predicate.self_ty), env.tcx.fn_trait_kind(predicate.trait_ref.trait_id));
+    if let Some((has, needs)) = has.zip(needs).filter(|(h, n)| h > n) {
+        let why = format!("the closure is `{has:?}` (it {}), which the bound `{needs:?}` does not allow", match has {
+            crate::ty::ClosureKind::FnOnce => "moves a captured value out",
+            _ => "assigns to a captured value",
+        });
+        return Outcome::Failed(unsatisfied(env, predicate, &why));
+    }
+    match predicate.trait_ref.args.first() {
+        Some(&want) if env.infcx.unify(env.tcx, want, sig).is_ok() => Outcome::Solved(Vec::new()),
+        _ => Outcome::Failed(unsatisfied(env, predicate, "the function signature differs from the bound")),
+    }
+}
+
+/// `Fn` implies `FnMut` implies `FnOnce`: a parameter bounded by the stronger trait meets the weaker bound.
+fn bound_implies(env: &Env<'_>, have: crate::defs::DefId, need: crate::defs::DefId) -> bool {
+    have == need || matches!((env.tcx.fn_trait_kind(have), env.tcx.fn_trait_kind(need)), (Some(h), Some(n)) if h <= n)
 }
 
 /// The function's own bound `T: Trait<..>` whose arguments unify with the requirement's.
@@ -127,7 +151,7 @@ fn solve_from_bounds(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome 
     let candidates: Vec<Predicate<TyId>> = env
         .param_env
         .iter()
-        .filter(|p| p.self_ty == predicate.self_ty && p.trait_ref.trait_id == predicate.trait_ref.trait_id)
+        .filter(|p| p.self_ty == predicate.self_ty && bound_implies(env, p.trait_ref.trait_id, predicate.trait_ref.trait_id))
         .cloned()
         .collect();
     for candidate in candidates {

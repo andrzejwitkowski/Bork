@@ -531,6 +531,7 @@ programs/build/methods/owning_return.bork: 172..177 Point Lexical LexicalScope(2
 programs/build/methods/owning_return.bork: 230..235 Point Dynamic Program
 programs/build/methods/same_name.bork: 242..243 A Dynamic Program
 programs/build/methods/same_name.bork: 258..259 B Dynamic Program
+programs/build/methods/trailing_closure.bork: 138..139 P Dynamic Program
 programs/build/move_and_promote/enum_out_of_block.bork: 144..145 P Lexical LexicalScope(0)
 programs/build/move_and_promote/enum_out_of_block.bork: 161..162 P Lexical LexicalScope(0)
 programs/build/move_and_promote/enum_out_of_block.bork: 319..322 E Dynamic Program

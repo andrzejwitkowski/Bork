@@ -295,6 +295,12 @@ BoundList: Vec<TraitRef> = {
 };
 
 TraitRefDecl: TraitRef = {
+    // `Fn(A, B) -> R` is `Fn<(A, B) -> R>`: Bork has no tuple type, so the one argument is the function type.
+    <name:SpannedIdent> "(" <params:Comma<Type>?> ")" "->" <ret:Type> => TraitRef {
+        name,
+        args: vec![Type::Func { kind: crate::ty::ClosureKind::Fn, params: params.unwrap_or_default(), ret: Box::new(ret), nullable: false }],
+        bindings: vec![],
+    },
     <name:SpannedIdent> <args:TraitArgs?> => {
         let (args, bindings) = args.unwrap_or_default();
         TraitRef { name, args, bindings }
@@ -394,10 +400,20 @@ Type: Type = {
     <name:Ident> <args:TypeArgs> <q:"?"?> => Type::Named { name, args, nullable: q.is_some() },
     <base:Ident> "::" <name:Ident> => Type::Assoc { base: Box::new(Type::from_ident(&base, false)), name },
     "(" <ty:ParenType> => ty,
+    // `FnMut(A) -> R` / `FnOnce(A) -> R`: a function type that may assign to or move out of its captures.
+    <name:Ident> "(" <params:Comma<Type>?> ")" "->" <ret:Type> =>? {
+        let kind = match name.as_str() {
+            "FnMut" => crate::ty::ClosureKind::FnMut,
+            "FnOnce" => crate::ty::ClosureKind::FnOnce,
+            _ => return Err(ParseError::User { error: "only `FnMut(..) -> R` and `FnOnce(..) -> R` can be written as a type; a plain function type is `(..) -> R`" }),
+        };
+        Ok(Type::Func { kind, params: params.unwrap_or_default(), ret: Box::new(ret), nullable: false })
+    },
 };
 
 ParenType: Type = {
     ")" "->" <ret:Type> => Type::Func {
+        kind: crate::ty::ClosureKind::Fn,
         params: vec![],
         ret: Box::new(ret),
         nullable: false,
@@ -405,6 +421,7 @@ ParenType: Type = {
     ")" <q:"?"?> => Type::unit(q.is_some()),
     <mut types:Comma<Type>> ")" <ret:ParenTypeSuffix> =>? match ret {
         Some(ret) => Ok(Type::Func {
+            kind: crate::ty::ClosureKind::Fn,
             params: types,
             ret: Box::new(ret),
             nullable: false,
@@ -419,7 +436,8 @@ ParenType: Type = {
                 });
             }
             match inner {
-                Type::Func { params, ret, .. } => Ok(Type::Func {
+                Type::Func { kind, params, ret, .. } => Ok(Type::Func {
+                    kind,
                     params,
                     ret,
                     nullable: true,
@@ -689,6 +707,21 @@ TrailingClosure: Closure = {
     },
 };
 
+ClosureExpr: Closure = {
+    "move" <captures:("(" <Comma<SpannedIdent>?> ")")?> <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
+        params: params.unwrap_or_default(),
+        body: Block::from_spanned(Span::new(start, end), stmts),
+        is_move: true,
+        captures: captures.map(|c| c.unwrap_or_default()),
+    },
+    <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
+        params: params.unwrap_or_default(),
+        body: Block::from_spanned(Span::new(start, end), stmts),
+        is_move: false,
+        captures: None,
+    },
+};
+
 MoveClosureBody: (Vec<SpannedName>, Block) = {
     <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => (
         params.unwrap_or_default(),
@@ -698,6 +731,7 @@ MoveClosureBody: (Vec<SpannedName>, Block) = {
 };
 
 Atom: Expr = {
+    <c:ClosureExpr> => Expr::Closure(c),
     <n:Num> => Expr::Int(n),
     <f:FloatLit> => Expr::Float(f),
     "true" => Expr::Bool(true),

@@ -1,0 +1,3 @@
+trait Fn<A> {}
+trait FnMut<A> {}
+trait FnOnce<A> {}

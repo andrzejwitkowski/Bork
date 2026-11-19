@@ -1,0 +1,10 @@
+// exit: 0
+// stdout: 17\n
+fun main(): i32 {
+    val x = 3
+    val s = { y -> val z = x + y
+        val x = 10
+        x + z }
+    println(s(4))
+    return 0
+}

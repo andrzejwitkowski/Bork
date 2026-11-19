@@ -1,7 +1,7 @@
 //! Queries and constructors over `TyId`. The "kind" queries (`is_ref`, `array_elem`, ...) look
 //! through `T?`; the strict ones (`is_copy`, `is_array`, `is_text`, ...) do not.
 
-use super::{DefId, Prim, TyCtx, TyData, TyId};
+use super::{ClosureKind, DefId, Prim, TyCtx, TyData, TyId};
 
 impl TyCtx {
     /// A class or enum value, nullable or not: a handle into some arena.
@@ -243,7 +243,7 @@ impl TyCtx {
     /// `(params, ret)` of a non-nullable function type.
     pub fn func_sig(&self, id: TyId) -> Option<(Vec<TyId>, TyId)> {
         match self.data(id) {
-            TyData::Func { params, ret } => Some((params.clone(), *ret)),
+            TyData::Func { params, ret, .. } | TyData::Closure { params, ret, .. } => Some((params.clone(), *ret)),
             _ => None,
         }
     }
@@ -276,6 +276,8 @@ impl TyCtx {
         match self.data(self.base(id)) {
             TyData::Ref(inner, _) => self.uses_arena_storage(*inner),
             TyData::String | TyData::Class(..) | TyData::Enum(..) | TyData::Array { .. } => true,
+            // A closure value points at an environment that may live in the caller's arena (RFC 0007).
+            TyData::Func { .. } | TyData::Closure { .. } => true,
             _ => false,
         }
     }
@@ -312,19 +314,30 @@ impl TyCtx {
         match self.data(id) {
             TyData::Ref(..) => true,
             TyData::Func { .. } => false,
+            // A plain closure views what it captures; a `move` one stores what its captures store.
+            TyData::Closure { id, captures, .. } => {
+                if self.closure_kinds[*id as usize].1 {
+                    captures.iter().any(|&c| self.stores_borrow(c))
+                } else {
+                    !captures.is_empty()
+                }
+            }
             data => data.children().into_iter().any(|child| self.stores_borrow(child)),
         }
     }
 
     /// The first of `args` that stores a borrow (RFC 0003 section 2). `args` must be fully resolved.
     pub fn first_borrow_arg(&self, args: &[TyId]) -> Option<TyId> {
-        args.iter().copied().find(|&arg| self.stores_borrow(arg))
+        // A closure passed for a function's type parameter (`F: Fn`) lives for the call; a class or enum holding one is
+        // checked separately (`borrow_arg_at`).
+        args.iter().copied().find(|&arg| !matches!(self.data(arg), TyData::Closure { .. }) && self.stores_borrow(arg))
     }
 
     /// The borrow-type-argument error for this node alone (not its children).
     fn borrow_arg_at(&self, data: &TyData) -> Option<String> {
         let (TyData::Class(def, args) | TyData::Enum(def, args)) = data else { return None };
-        self.first_borrow_arg(args).map(|arg| self.borrow_type_arg_message(arg, self.class_name(*def)))
+        // Strict: a class or enum that holds a view closure stores it, unlike a call's `F: Fn` argument.
+        args.iter().copied().find(|&arg| self.stores_borrow(arg)).map(|arg| self.borrow_type_arg_message(arg, self.class_name(*def)))
     }
 
     /// The first class or enum anywhere in `id` that takes a borrow as a type argument.
@@ -437,7 +450,52 @@ impl TyCtx {
     }
 
     pub fn func(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {
-        self.add(TyData::Func { params, ret })
+        self.func_of(ClosureKind::Fn, params, ret)
+    }
+
+    pub fn func_of(&mut self, kind: ClosureKind, params: Vec<TyId>, ret: TyId) -> TyId {
+        self.add(TyData::Func { params, ret, kind })
+    }
+
+    /// A closure or function value: one pointer to an environment (RFC 0007).
+    pub fn is_callable(&self, id: TyId) -> bool {
+        matches!(self.data(id), TyData::Func { .. } | TyData::Closure { .. })
+    }
+
+    /// Whether `def` is `Fn`, `FnMut` or `FnOnce`.
+    pub fn is_fn_trait(&self, def: DefId) -> bool {
+        self.fn_traits.contains(&Some(def))
+    }
+
+    /// The weakest kind of closure that satisfies the `Fn*` trait `def`.
+    pub fn fn_trait_kind(&self, def: DefId) -> Option<ClosureKind> {
+        let at = self.fn_traits.iter().position(|t| *t == Some(def))?;
+        Some([ClosureKind::Fn, ClosureKind::FnMut, ClosureKind::FnOnce][at])
+    }
+
+    /// A plain closure that captures something: it views its captures, so it cannot leave them.
+    pub fn is_view_closure(&self, ty: TyId) -> bool {
+        matches!(self.data(ty), TyData::Closure { .. }) && self.stores_borrow(ty)
+    }
+
+    pub fn closure_is_move(&self, id: u32) -> bool {
+        self.closure_kinds[id as usize].1
+    }
+
+    /// The kind of a closure type; a plain function type is `Fn`.
+    pub fn closure_kind(&self, ty: TyId) -> Option<ClosureKind> {
+        match self.data(ty) {
+            TyData::Closure { id, .. } => Some(self.closure_kinds[*id as usize].0),
+            TyData::Func { kind, .. } => Some(*kind),
+            _ => None,
+        }
+    }
+
+    /// A fresh closure type: each call is a new closure expression (RFC 0007).
+    pub fn closure(&mut self, params: Vec<TyId>, ret: TyId, kind: ClosureKind, is_move: bool, captures: Vec<TyId>) -> TyId {
+        let id = self.closure_kinds.len() as u32;
+        self.closure_kinds.push((kind, is_move));
+        self.add(TyData::Closure { id, params, ret, captures })
     }
 
     /// The name of a class definition, for messages and the legacy view.

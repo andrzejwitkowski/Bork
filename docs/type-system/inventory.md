@@ -27,7 +27,7 @@ Test locations: parser `tests/parser.rs`; typeck `src/typeck/tests/*.rs`; corpus
 | classes / records | V:tests/parser.rs `parses_class_decl_and_constructor` | V:programs/check_fail/classes | UNVERIFIED | UNVERIFIED | V:src/codegen_gate.rs rejects an owned nested `?.` field; a class object `move` passes its handle (`programs/build/move_and_promote/object_out_of_block`) | V:programs/build/classes (NOT RUN) |
 | methods | V:tests/parser.rs `parses_class_with_interleaved_fields_and_methods` | V:src/typeck/tests/methods.rs | V:programs/check_fail/methods | UNVERIFIED | UNVERIFIED | V:programs/build/methods (NOT RUN) |
 | consts | V:tests/parser.rs `parses_global_constants_among_items` | V:src/typeck/tests/constants.rs | UNVERIFIED | UNVERIFIED | UNVERIFIED | V:programs/build/constants (NOT RUN) |
-| closures (trailing, `move (s) {}`) | V:tests/parser.rs `parses_trailing_move_closure` | V:src/typeck/tests/closures.rs (arg count only) | UNVERIFIED | UNVERIFIED | V:`gate_rejects_trailing_closure` (rejected: "trailing closures are not supported by codegen") | none: gated off |
+| closures (trailing, standalone, `move (s) {}`) | V:tests/parser.rs `parses_closure_expression`, `parses_trailing_move_closure` | V:src/typeck/tests/closures.rs (signature, `Fn*` bounds, kind, captures, view rules) | V:programs/check_fail/closures | V:src/mono/tests.rs (lifting) | V:`gate_rejects_a_move_closure_with_captures` (owned `Vec`/object/`Ref` captures and `FnOnce` rejected) | V:programs/build/closures (run) |
 | `move` / `promote` | V:tests/parser.rs `parses_move_expression_in_var_decl` | V:programs/check_fail/move_and_promote | V:programs/check/move_and_promote | UNVERIFIED | V:src/codegen_gate.rs (array-of-Ref move rejected) | V:programs/build/move_and_promote (NOT RUN) |
 
 ## Variant tables
@@ -47,7 +47,7 @@ Every variant must appear below in backticks (enforced by `inventory_mentions_ev
 
 Per-variant verification is by the corpus as a whole (`tests/programs.rs` parses and checks every
 sample; HIR output is frozen by `tests/golden/hir_types.txt`). Variants without a dedicated
-negative test: `Unknown`, `Func` (only via closures/calls), `MoveBlock`: **UNVERIFIED** individually.
+negative test: `Unknown`, `Func` (via closures/calls; `Closure` has its own tests), `MoveBlock`: **UNVERIFIED** individually.
 
 ## Compatibility matrix
 
@@ -61,7 +61,7 @@ negative test: `Unknown`, `Func` (only via closures/calls), `MoveBlock`: **UNVER
 | `Ref<T>`, `&T` | representation/borrow phases | golden `&[T; N]` / `Ref<..>` param lines; check_fail/borrow, managed_refs diags |
 | `[T; N]`, `Vec<T>` | generics phases | `Vec<T>` stays built-in, no general generics (see below) |
 | `String`, classes, methods, consts | ADT/representation phases | corpus exit codes and stdout |
-| closures | closure phase | gate rejection of trailing closures |
+| closures | closure phase | programs/build/closures output, check_fail/closures diags, gate rejection of owned captures |
 | `move` / `promote` | ownership phases | check_fail/move_and_promote diags |
 
 ## Decisions already made (do not reopen silently)
@@ -77,13 +77,12 @@ Superseded in part by [RFC 0001](../rfcs/0001-type-system-core.md): "no general 
 
 - `TODO.md`: no test asserts that every `check()`-ok sample either passes the codegen gate or is listed as intentionally rejected.
 - `TODO.md`: `tests/build.rs` quicksort/smoke binaries are not committed fixtures; the repo root holds untracked `quicksort*.bork`, `repro_*.bork` that no suite runs.
-- `programs/build_fail/` has 7 files; `build_fail` is only run under `--features codegen` (`tests/programs.rs`), never in default `cargo test`.
-- `src/typeck/tests/closures.rs` has a single test (argument count).
+- `programs/build_fail/` has 13 files; `build_fail` is only run under `--features codegen` (`tests/programs.rs`), never in default `cargo test`.
+- Closures in a field or a `Vec`, `FnOnce`, and storing a plain closure through a `Func`-typed parameter are not tested (RFC 0007 section 8).
 
 ## Known stale spots in `docs/language.md` (not fixed here)
 
 - `Vec<T>` is implemented (`src/typeck/expr/vec.rs`, `TyKind::Vec`) but mentioned only briefly (line ~104).
-- Trailing closures (`f(a) { x -> ... }`) are documented as syntax but rejected by codegen (`src/codegen_gate.rs`); the "Rejected by codegen" paragraph lists only that and nested-record `?.`.
 - The gate rejects "this binary operator", "field access" and nullable types in forms `language.md` does not describe.
 
 ## Running the suites

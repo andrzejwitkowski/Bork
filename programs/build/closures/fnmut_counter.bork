@@ -1,0 +1,14 @@
+// exit: 0
+// stdout: 3\n6\n
+fun twice(f: () -> i32): i32 {
+    f()
+    return f()
+}
+
+fun main(): i32 {
+    var n = 1
+    println(twice() { -> n = n + 1
+        n })
+    println(n * 2)
+    return 0
+}

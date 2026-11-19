@@ -16,6 +16,8 @@ use crate::sema::ArenaReport;
 use crate::span::Span;
 use crate::ty::{subst, TyCtx, TyData, TyId};
 
+mod lift;
+
 /// Deepest type argument an instance may have. A polymorphic recursion such as
 /// `f<T>` calling `f<Vec<T>>` grows without bound, so it hits this instead of looping.
 const MAX_TYPE_DEPTH: usize = 32;
@@ -109,7 +111,7 @@ fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> b
         (TyData::Array { elem: e1, len: l1 }, TyData::Array { elem: e2, len: l2 }) => {
             l1 == l2 && bind(tcx, *e1, *e2, out)
         }
-        (TyData::Func { params: p1, ret: r1 }, TyData::Func { params: p2, ret: r2 }) => {
+        (TyData::Func { params: p1, ret: r1, .. }, TyData::Func { params: p2, ret: r2, .. } | TyData::Closure { params: p2, ret: r2, .. }) => {
             p1.len() == p2.len() && p1.iter().zip(p2).all(|(&p, &a)| bind(tcx, p, a, out)) && bind(tcx, *r1, *r2, out)
         }
         (TyData::Ref(p, rp), TyData::Ref(a, ra)) if rp == ra => bind(tcx, *p, *a, out),
@@ -233,7 +235,7 @@ impl<'a> Collector<'a> {
         }
         let mut out = vec![None; sig.generics.len()];
         let matched = match tcx.data(callee_ty) {
-            TyData::Func { params: actual, ret: actual_ret } => {
+            TyData::Func { params: actual, ret: actual_ret, .. } => {
                 sig.params.len() == actual.len()
                     && sig.params.iter().zip(actual).all(|(&p, &a)| bind(tcx, p, a, &mut out))
                     && bind(tcx, sig.ret, *actual_ret, &mut out)
@@ -304,7 +306,11 @@ impl<'a> Collector<'a> {
         match &mut e.kind {
             HirExprKind::Call { callee, .. } => {
                 let (callee_ty, span) = (callee.ty, callee.span);
-                let HirExprKind::Ident { name, .. } = &mut callee.kind else { return };
+                let HirExprKind::Ident { name, use_kind } = &mut callee.kind else { return };
+                // A call through a local closure value is not a call of the global function of that name.
+                if *use_kind == hir::UseKind::Copy {
+                    return;
+                }
                 let Some(&origin) = self.by_name.get(name.as_str()) else {
                     if let Some(instance) = self.resolve_trait_call(tcx, name, callee_ty, span) {
                         *name = instance;
@@ -411,8 +417,9 @@ pub(crate) fn specialise_for_analysis(hir: &HirProgram, tcx: &mut TyCtx, report:
 fn monomorphize_from(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport, every_function: bool, escape: bool, mir: bool) -> Result<Mono, Vec<Diagnostic>> {
     ensure_one_root_per_function(hir, report)?;
 
-    let (collector, functions, classes, enums) = collect_from(hir, tcx, every_function)?;
-    let report = collector.report_per_instance(report);
+    let (collector, mut functions, classes, enums) = collect_from(hir, tcx, every_function)?;
+    let mut report = collector.report_per_instance(report);
+    lift::lift_closures(&mut functions, &mut report, tcx)?;
     let mut program = HirProgram { classes, enums, functions, traits: Vec::new(), impls: Vec::new() };
     debug_assert!(no_params_left(&mut program, tcx), "a type parameter or projection survived monomorphization");
     hir::number_nodes(&mut program);

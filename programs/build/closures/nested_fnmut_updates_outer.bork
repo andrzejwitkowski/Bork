@@ -1,0 +1,11 @@
+// exit: 0
+// stdout: 2\n2\n
+fun main(): i32 {
+    var n = 1
+    val outer = { -> val inner = { -> n = n + 1
+            n }
+        inner() }
+    println(outer())
+    println(n)
+    return 0
+}

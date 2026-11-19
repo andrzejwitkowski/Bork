@@ -1,0 +1,8 @@
+// diag: cannot return a closure that borrows its captures
+fun forward(f: () -> i32): () -> i32 {
+    return f
+}
+fun make(): () -> i32 {
+    val n = 5
+    return forward({ -> n })
+}

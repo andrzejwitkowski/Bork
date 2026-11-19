@@ -43,7 +43,12 @@ pub enum TyData {
     /// An enum with its type arguments (empty for a non-generic enum).
     Enum(DefId, Vec<TyId>),
     Array { elem: TyId, len: u32 },
-    Func { params: Vec<TyId>, ret: TyId },
+    /// A function type; `kind` is what calling it may do to its captures (`Fn` for a plain `(A) -> R`).
+    Func { params: Vec<TyId>, ret: TyId, kind: ClosureKind },
+    /// The type of one closure expression (RFC 0007), never written in source. `id` makes each
+    /// expression's type its own; it unifies with the `Func` of the same signature.
+    /// `captures` are the types of the bindings the body uses, so substitution reaches them.
+    Closure { id: u32, params: Vec<TyId>, ret: TyId, captures: Vec<TyId> },
     /// `&T`, or `&rw T` (the editable borrow, RFC 0003) when the flag is set.
     Ref(TyId, bool),
     ManagedRef(TyId),
@@ -57,6 +62,17 @@ pub enum TyData {
     Infer(InferVar),
     /// A type that already has a diagnostic; checks against it stay silent.
     Error,
+}
+
+/// How a closure uses what it captures (RFC 0007); each kind satisfies the ones after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ClosureKind {
+    /// Only reads its captures: callable any number of times, also while shared.
+    Fn,
+    /// Assigns to a capture.
+    FnMut,
+    /// Moves a capture out, so it can run once.
+    FnOnce,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,6 +105,11 @@ pub struct TyCtx {
     vec_def: Option<DefId>,
     /// The prelude's `intrinsic class Range<T>`: the type of a literal `a..b`.
     range_def: Option<DefId>,
+    /// The kind and `move`-ness of each `TyData::Closure`, by its id.
+    closure_kinds: Vec<(ClosureKind, bool)>,
+    /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by name.
+    // shortcut: matched by name, so a program's own trait called `Fn` would get the built-in rules; the prelude chunk is skipped then, so give it a prelude-origin check if that ever happens.
+    fn_traits: [Option<DefId>; 3],
 }
 
 impl TyCtx {
@@ -102,7 +123,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range() };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closure_kinds: Vec::new(), fn_traits: ["Fn", "FnMut", "FnOnce"].map(|n| defs.lookup_trait(n)) };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

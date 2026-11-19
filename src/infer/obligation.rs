@@ -21,6 +21,10 @@ impl InferCtxt {
         self.obligations.push(obligation);
     }
 
+    pub fn obligations(&self) -> &[Obligation] {
+        &self.obligations
+    }
+
     /// Removes and returns every pending obligation.
     pub fn take_obligations(&mut self) -> Vec<Obligation> {
         std::mem::take(&mut self.obligations)

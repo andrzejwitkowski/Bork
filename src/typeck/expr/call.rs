@@ -1,6 +1,6 @@
 use crate::ast::UnaryOp;
 use crate::ast::{BindingKind, Closure, Expr, Type};
-use crate::hir::{HirExpr, HirExprKind, Prim, UseKind};
+use crate::hir::{HirCapture, HirExpr, HirExprKind, HirParam, Prim, UseKind};
 use crate::span::Span;
 use crate::infer::VarKind;
 use crate::ty::{FnSig, TyCtx, TyId};
@@ -20,15 +20,16 @@ fn callee_signature(
         env.error("only named functions can be called", None);
         return None;
     };
+    // A local callable (a closure parameter or `val`) shadows a global function of the same name.
+    if let Some((params, ret)) = local_callable_sig(name, env) {
+        return Some((name.clone(), *span, params, ret));
+    }
     if let Some(signature) = env.fun_sig(name).cloned() {
         let (params, ret) = instantiate(name, *span, &signature, type_args, env)?;
         return Some((name.clone(), *span, params, ret));
     }
     match env.binding(name).map(|binding| binding.ty) {
         Some(ty) => {
-            if let Some((params, ret)) = env.tcx.func_sig(ty) {
-                return Some((name.clone(), *span, params, ret));
-            }
             if !env.tcx.is_unknown(ty) {
                 env.error(
                     format!("binding `{name}` is not callable (has type {})", env.show(ty)),
@@ -42,6 +43,18 @@ fn callee_signature(
             None
         }
     }
+}
+
+/// The signature of the local binding `name` when it is callable: a function or closure type, or a
+/// type parameter bounded by `Fn*`.
+fn local_callable_sig(name: &str, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
+    let ty = env.binding(name)?.ty;
+    env.tcx.func_sig(ty).or_else(|| {
+        env.param_env.iter().find_map(|p| {
+            let callable = p.self_ty == ty && env.tcx.is_fn_trait(p.trait_ref.trait_id);
+            callable.then(|| p.trait_ref.args.first().and_then(|&a| env.tcx.func_sig(a))).flatten()
+        })
+    })
 }
 
 /// A fresh variable per type parameter `names` of `callee`; reported if nothing fixes it.
@@ -214,7 +227,7 @@ pub(super) fn check_call(
             HirExprKind::Call {
                 callee: Box::new(checked_callee.hir),
                 args,
-                has_trailing_closure: trailing.is_some(),
+                trailing: None,
             },
             unknown,
         );
@@ -292,9 +305,18 @@ pub(super) fn finish_call(
     // The arguments may have fixed the type a returned `T::Item` was waiting for.
     super::super::solve::select_where_possible(env);
 
-    if let (Some(closure), Some((closure_params, closure_ret))) = (trailing, trailing_signature) {
-        check_trailing_closure(closure, &closure_params, closure_ret, env);
-    }
+    let trailing_hir = match (trailing, trailing_signature) {
+        (Some(closure), Some((closure_params, closure_ret))) => {
+            let hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
+            // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
+            if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
+                env.mismatch("trailing closure", hir.ty, last, Some(span));
+                super::super::solve::select_where_possible(env);
+            }
+            Some(Box::new(hir))
+        }
+        _ => None,
+    };
 
     let callee_params = if crate::builtins::is_print(&name) && checked_args.len() == 1 {
         vec![checked_args[0].ty]
@@ -315,7 +337,7 @@ pub(super) fn finish_call(
         callee_ty,
         checked_args,
         call_return_ty,
-        trailing.is_some(),
+        trailing_hir,
     )
 }
 
@@ -381,12 +403,14 @@ pub(super) fn build_call(
     callee_ty: TyId,
     args: Vec<HirExpr>,
     return_ty: TyId,
-    has_trailing_closure: bool,
+    trailing: Option<Box<HirExpr>>,
 ) -> Checked {
+    // `Copy` marks a call through a local closure value: it is not the global function of that name.
+    let use_kind = if local_callable_sig(&name, env).is_some() { UseKind::Copy } else { UseKind::Local };
     let callee = env.expr_at(
         HirExprKind::Ident {
             name,
-            use_kind: UseKind::Local,
+            use_kind,
         },
         callee_ty,
         span,
@@ -395,7 +419,7 @@ pub(super) fn build_call(
         HirExprKind::Call {
             callee: Box::new(callee.hir),
             args,
-            has_trailing_closure,
+            trailing,
         },
         return_ty,
     )
@@ -412,9 +436,14 @@ fn split_trailing_param<'a>(
         return (params, None);
     }
     // The last parameter may be a nullable function type; the closure still binds against it.
-    let last = params
-        .split_last()
-        .and_then(|(last, regular)| Some((env.tcx.func_sig(env.tcx.base(*last))?, regular)));
+    // A parameter of a bounded generic type (`f: F`, `F: Fn(A) -> R`) takes its signature from the bound.
+    let last = params.split_last().and_then(|(last, regular)| {
+        let ty = env.settle(*last);
+        if let Some(sig) = env.tcx.func_sig(env.tcx.base(ty)) {
+            return Some((sig, regular));
+        }
+        Some((fn_bound_sig(ty, env)?, regular))
+    });
     match last {
         Some((signature, regular)) => (regular, Some(signature)),
         None => {
@@ -430,12 +459,58 @@ fn split_trailing_param<'a>(
     }
 }
 
+/// The signature a pending `Fn*` bound gives the (inference-variable) type `ty`.
+fn fn_bound_sig(ty: TyId, env: &mut Env<'_>) -> Option<(Vec<TyId>, TyId)> {
+    let fn_bounds: Vec<(TyId, TyId)> = env
+        .infcx
+        .obligations()
+        .iter()
+        .filter(|o| env.tcx.is_fn_trait(o.predicate.trait_ref.trait_id))
+        .filter_map(|o| Some((o.predicate.self_ty, *o.predicate.trait_ref.args.first()?)))
+        .collect();
+    fn_bounds.into_iter().find_map(|(self_ty, arg)| (env.settle(self_ty) == ty).then(|| env.tcx.func_sig(arg)).flatten())
+}
+
+pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+    let from_bound = expected.and_then(|ty| fn_bound_sig(env.settle(ty), env));
+    let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))).or(from_bound) {
+        Some(sig) => sig,
+        None => {
+            let params: Vec<TyId> = closure.params.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
+            // A parameter the body never constrains is reported at the end of the body, not left unresolved.
+            for (param, &var) in closure.params.iter().zip(&params) {
+                env.pending.push(PendingParam { var, span: param.span, callee: String::new(), param: param.name.clone() });
+            }
+            (params, env.infcx.new_var(env.tcx, VarKind::General))
+        }
+    };
+    let hir = check_trailing_closure(closure, &params, ret, env);
+    Checked { ty: hir.ty, hir }
+}
+
+/// An explicit `move (a, b)` list names exactly the outer bindings the body uses. (`this` is how a bare field
+/// is reached and fields are reported elsewhere, so neither is compared.)
+fn check_capture_list(listed: &[crate::span::SpannedName], used: &[(String, TyId)], env: &mut Env<'_>) {
+    for (name, _) in used.iter().filter(|(n, _)| n != "this") {
+        if !listed.iter().any(|l| &l.name == name) {
+            let span = listed.first().map(|l| l.span);
+            env.error(format!("`{name}` is used by the closure but not listed in its `move (..)` capture list"), span);
+        }
+    }
+    for item in listed {
+        let bound = env.binding(&item.name).is_some();
+        if bound && item.name != "this" && !used.iter().any(|(n, _)| n == &item.name) {
+            env.error(format!("`{}` is listed in the `move (..)` capture list but the closure does not use it", item.name), Some(item.span));
+        }
+    }
+}
+
 fn check_trailing_closure(
     closure: &Closure,
     param_tys: &[TyId],
     closure_ret: TyId,
     env: &mut Env<'_>,
-) {
+) -> HirExpr {
     if closure.params.len() != param_tys.len() {
         env.error(
             format!(
@@ -451,15 +526,28 @@ fn check_trailing_closure(
         env.reject_field_captures(captures);
     }
     env.enter_scope();
+    // A closure is its own function: `break` and `continue` do not reach a loop outside it.
+    let outer_loops = std::mem::take(&mut env.loop_depth);
+    let mut params = Vec::new();
     for (param, &ty) in closure.params.iter().zip(param_tys) {
         let is_ref = env.tcx.is_ref(ty);
         env.bind(param.name.clone(), BindingKind::Val, ty, is_ref);
+        params.push(HirParam { kind: BindingKind::Val, name: param.name.clone(), ty });
     }
-    let (_, body_ty) =
+    let (body, body_ty) =
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
     env.exit_scope();
+    env.loop_depth = outer_loops;
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
+    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty) || env.is_literal_var(ty, crate::infer::VarKind::Int) || env.is_literal_var(ty, crate::infer::VarKind::Float), |ty| env.callable_kind(ty));
+    if let Some(listed) = &closure.captures {
+        check_capture_list(listed, &used, env);
+    }
+    let captures: Vec<HirCapture> = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
+    // Its own closure type, like a positional closure, so a view stays a view and its kind is kept.
+    let ty = env.tcx.closure(param_tys.to_vec(), closure_ret, kind, closure.is_move, captures.iter().map(|c| c.ty).collect());
+    HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move, captures, kind }, ty)
 }
 
 fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {
@@ -505,7 +593,7 @@ fn check_builtin_call(
     validate(&checked, env);
     let callee_ty = env.tcx.func(checked.iter().map(|arg| arg.ty).collect(), result);
     let args = checked.into_iter().map(|arg| arg.hir).collect();
-    build_call(env, name.to_string(), span, callee_ty, args, result, trailing.is_some())
+    build_call(env, name.to_string(), span, callee_ty, args, result, None)
 }
 
 /// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`.

@@ -8,7 +8,8 @@ impl TyData {
     pub fn children(&self) -> Vec<TyId> {
         match self {
             TyData::Array { elem, .. } => vec![*elem],
-            TyData::Func { params, ret } => params.iter().copied().chain([*ret]).collect(),
+            TyData::Func { params, ret, .. } => params.iter().copied().chain([*ret]).collect(),
+            TyData::Closure { params, ret, captures, .. } => params.iter().copied().chain([*ret]).chain(captures.iter().copied()).collect(),
             TyData::Ref(t, _) | TyData::ManagedRef(t) => vec![*t],
             TyData::Class(_, args) | TyData::Enum(_, args) => args.clone(),
             TyData::Projection(self_ty, _, _) => vec![*self_ty],
@@ -44,10 +45,16 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
             let elem = folder.fold(ctx, elem)?;
             ctx.add(TyData::Array { elem, len })
         }
-        TyData::Func { params, ret } => {
+        TyData::Func { params, ret, kind } => {
             let params = params.into_iter().map(|p| folder.fold(ctx, p)).collect::<Result<_, _>>()?;
             let ret = folder.fold(ctx, ret)?;
-            ctx.add(TyData::Func { params, ret })
+            ctx.add(TyData::Func { params, ret, kind })
+        }
+        TyData::Closure { id, params, ret, captures } => {
+            let params = params.into_iter().map(|p| folder.fold(ctx, p)).collect::<Result<_, _>>()?;
+            let ret = folder.fold(ctx, ret)?;
+            let captures = captures.into_iter().map(|p| folder.fold(ctx, p)).collect::<Result<_, _>>()?;
+            ctx.add(TyData::Closure { id, params, ret, captures })
         }
         TyData::Ref(t, rw) => {
             let t = folder.fold(ctx, t)?;
@@ -144,7 +151,7 @@ mod tests {
         let (t, u, i) = (p(&mut c, 0), p(&mut c, 1), int(&mut c));
         let b = c.prim(Prim::Bool);
         let arr = c.add(TyData::Array { elem: t, len: 3 });
-        let func = c.add(TyData::Func { params: vec![t, u], ret: t });
+        let func = c.add(TyData::Func { params: vec![t, u], ret: t, kind: crate::ty::ClosureKind::Fn });
         let r = c.add(TyData::Ref(t, false));
         let m = c.add(TyData::ManagedRef(t));
         let opt = c.nullable(t).unwrap();
@@ -167,10 +174,10 @@ mod tests {
     fn subst_is_simultaneous_and_leaves_closed_types_alone() {
         let mut c = ctx();
         let (t, u, i) = (p(&mut c, 0), p(&mut c, 1), int(&mut c));
-        let func = c.add(TyData::Func { params: vec![t], ret: u });
+        let func = c.add(TyData::Func { params: vec![t], ret: u, kind: crate::ty::ClosureKind::Fn });
         // T := U, U := i32 must not chain: T becomes U (param 1), not i32
         let got = subst(&mut c, func, &[u, i]).unwrap();
-        assert_eq!(got, c.add(TyData::Func { params: vec![u], ret: i }));
+        assert_eq!(got, c.add(TyData::Func { params: vec![u], ret: i, kind: crate::ty::ClosureKind::Fn }));
         assert_eq!(subst(&mut c, i, &[]).unwrap(), i);
     }
 

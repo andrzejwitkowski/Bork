@@ -35,7 +35,9 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Ident { name, use_kind } => self.ident(e, name, *use_kind),
             HirExprKind::Binary { op, lhs, rhs } => self.binary(e, op, lhs, rhs),
             HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
-            HirExprKind::Call { callee, args, has_trailing_closure } => self.call(e, callee, args, *has_trailing_closure),
+            HirExprKind::Call { callee, args, trailing } => self.call(e, callee, args, trailing.is_some()),
+            HirExprKind::MakeClosure { function, captures, kind, is_move } => self.make_closure(e, function, captures, *kind, *is_move),
+            HirExprKind::Closure { .. } => Err(BuildError::unsupported(Capability::Closure, span_of(e))),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
             HirExprKind::Index { receiver, index, .. } => self.index(e, receiver, index),
             HirExprKind::Slice { receiver, lo, hi } => self.slice(e, receiver, lo, hi),
@@ -175,14 +177,15 @@ impl<'a> FnBuilder<'a> {
         if trailing_closure {
             return Err(BuildError::unsupported(Capability::Closure, span));
         }
-        let HirExprKind::Ident { name, .. } = &callee.kind else {
+        let HirExprKind::Ident { name, use_kind } = &callee.kind else {
             return Err(BuildError::unsupported(Capability::IndirectCall, span));
         };
+        let through_value = *use_kind == UseKind::Copy;
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested
         // temporaries do not land in the destination's arena (`call_gathers_without_sink`).
         let arg_sink = if builtins::is_print(name) { self.sink.clone() } else { ArenaRef::Current };
         let ops = self.with_sink(arg_sink, |b| b.exprs(args))?;
-        if let Some(abi) = self.abi_of(name) {
+        if let Some(abi) = self.abi_of(name).filter(|_| !through_value) {
             let mut hidden = Vec::new();
             if abi.caller_parent {
                 hidden.push(ArenaRef::Current);
@@ -200,7 +203,7 @@ impl<'a> FnBuilder<'a> {
             self.cur = target;
             return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
         }
-        if builtins::is_print(name) {
+        if !through_value && builtins::is_print(name) {
             let newline = name == "println";
             let text = args.first().is_some_and(|a| self.tcx.is_text(a.ty));
             let op = match (newline, text) {
@@ -212,18 +215,79 @@ impl<'a> FnBuilder<'a> {
             self.stmt(StmtKind::Intrinsic { dst: None, op, args: ops, arena: None }, span, Some(e.id));
             return Ok(Operand::Const(Const::Unit));
         }
-        if builtins::is_ref_count(name) {
+        if !through_value && builtins::is_ref_count(name) {
             return Ok(self.ref_count(e, name == "weakCount", &ops));
         }
-        if builtins::is_string_alloc(name) {
+        if !through_value && builtins::is_string_alloc(name) {
             let op = if builtins::is_concat(name) { IntrinsicOp::Concat } else { IntrinsicOp::StringFromUtf8 };
             let dst = self.temp(e.ty);
             let arena = Some(self.sink.clone());
             self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(dst)), op, args: ops, arena }, span, Some(e.id));
             return Ok(Operand::Copy(Place::local(dst)));
         }
-        // Not a user function and not a builtin: a call through a value.
+        // Not a user function and not a builtin: a call through a closure value.
+        if self.tcx.func_sig(self.tcx.base(callee.ty)).is_some() {
+            if let Ok(local) = self.lookup(name, span) {
+                let abi = super::abi_for_return(self.tcx, e.ty);
+                let mut hidden = Vec::new();
+                if abi.caller_parent {
+                    hidden.push(ArenaRef::Current);
+                }
+                if abi.result_sink {
+                    hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
+                }
+                let dest = self.temp(e.ty);
+                let target = self.new_block();
+                let callee = Operand::Copy(Place::local(local));
+                self.terminate(
+                    TermKind::CallClosure { callee, args: ops, hidden, dest: Place::local(dest), target: Some(target) },
+                    span,
+                    Some(e.id),
+                );
+                self.cur = target;
+                return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
+            }
+        }
         Err(BuildError::unsupported(Capability::IndirectCall, span))
+    }
+
+    /// A closure value (RFC 0007): its environment holds the captures by value, or by address for a plain `FnMut`.
+    fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
+        use crate::hir::ClosureKind;
+        // A `move` closure owns its captures. A `String` or an array of copies is copied into the environment's
+        // arena, which frees it. Objects (the escape check rejects a returned closure holding one), `Ref`s, `Vec`s and
+        // nullables would need drop registration (RFC 0007).
+        let copied = |ty| {
+            let t = self.tcx;
+            !t.is_nullable(ty) && (t.is_string(ty) || t.array_elem(ty).is_some_and(|e| t.is_trivially_copy(e)))
+        };
+        let owns = is_move && captures.iter().any(|c| !self.tcx.is_trivially_copy(c.ty) && !copied(c.ty));
+        if kind == ClosureKind::FnOnce || owns {
+            return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
+        }
+        // A closure assigned to an existing `var` would live in that variable's arena, which a closure value does not name.
+        if matches!(self.sink, ArenaRef::Home(_)) && is_move && !captures.is_empty() {
+            return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
+        }
+        let by_ref = kind == ClosureKind::FnMut && !is_move;
+        // The environment goes where the surrounding expression allocates: the result sink for a returned closure
+        // (`return`, or a `val` that is returned: `sinks::result_hoists`), the current region otherwise.
+        let arena = if is_move && !captures.is_empty() { self.sink.clone() } else { ArenaRef::Current };
+        let captures = if by_ref {
+            // The environment keeps each variable's address, so the closure updates the variable itself.
+            let mut places = Vec::new();
+            for c in captures {
+                let HirExprKind::Ident { name, .. } = &c.kind else {
+                    return Err(BuildError::Internal("a closure capture is a name".into()));
+                };
+                places.push(Operand::Copy(Place::local(self.lookup(name, span_of(c))?)));
+            }
+            places
+        } else {
+            // Owned captures are copied into the environment's arena.
+            self.with_sink(arena.clone(), |b| b.exprs(captures))?
+        };
+        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures, by_ref, arena }))
     }
 
     fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {

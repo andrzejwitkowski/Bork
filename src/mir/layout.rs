@@ -87,7 +87,7 @@ impl<'a> Layouts<'a> {
     }
 
     /// Layout of a value of `ty` as held in a local, field or array slot; `None` for `unit` and for
-    /// types with no runtime value (functions, ranges, generics).
+    /// types with no runtime value (ranges, generics). A function or closure value is one pointer to its environment.
     pub fn value(&self, ty: TyId) -> Option<Layout> {
         let (tcx, ptr) = (self.tcx, self.data.pointer_size);
         // Same order as `Codegen::basic_type`: `T?` is an enum slot whatever `T` is.
@@ -113,6 +113,7 @@ impl<'a> Layouts<'a> {
             return Some(Layout { size: 2 * ptr, align: self.data.pointer_align, fields: vec![0, ptr], repr: Repr::ObjectHandle });
         }
         match tcx.data(ty) {
+            _ if tcx.is_callable(ty) => Some(Layout { size: ptr, align: self.data.pointer_align, fields: Vec::new(), repr: Repr::Scalar }),
             TyData::Prim(Prim::Unit) => None,
             TyData::Prim(p) => Some(scalar(prim_size(*p), Repr::Scalar)),
             _ => None,

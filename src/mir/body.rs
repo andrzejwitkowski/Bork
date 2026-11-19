@@ -154,6 +154,11 @@ pub enum Rvalue {
     Cast(Operand, TyId),
     Len(Place),
     Slice { base: Operand, lo: Operand, hi: Operand },
+    /// A closure value (RFC 0007): the environment `{ code pointer of `function`, captures... }`,
+    /// allocated in the current region (none for a closure without captures).
+    /// `by_ref`: each capture operand names a variable whose address is stored (an `FnMut` closure).
+    /// `arena` holds the environment: the current region, or the result sink when the closure is returned.
+    Closure { function: String, captures: Vec<Operand>, by_ref: bool, arena: ArenaRef },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -267,6 +272,14 @@ pub enum TermKind {
         /// Indexes of `args` the result borrows from (#202 forward compatibility).
         ret_borrows: Vec<u32>,
     },
+    /// A call through a closure value (RFC 0007); `hidden` as for `Call`.
+    CallClosure {
+        callee: Operand,
+        args: Vec<Operand>,
+        hidden: Vec<ArenaRef>,
+        dest: Place,
+        target: Option<BlockId>,
+    },
     Return,
     Unreachable,
     Abort(AbortReason),
@@ -348,6 +361,10 @@ fn rvalue_uses<'a>(r: &'a Rvalue, f: &mut dyn FnMut(Use<'a>)) {
             f(Use::Op(base));
             f(Use::Op(lo));
             f(Use::Op(hi));
+        }
+        Rvalue::Closure { captures, arena, .. } => {
+            captures.iter().for_each(|c| f(Use::Op(c)));
+            f(Use::Arena(arena));
         }
     }
 }
@@ -487,6 +504,12 @@ impl TermKind {
                 hidden.iter().for_each(|a| f(Use::Arena(a)));
                 f(Use::Def(dest));
             }
+            TermKind::CallClosure { callee, args, hidden, dest, .. } => {
+                f(Use::Op(callee));
+                args.iter().for_each(|a| f(Use::Op(a)));
+                hidden.iter().for_each(|a| f(Use::Arena(a)));
+                f(Use::Def(dest));
+            }
             TermKind::Goto(_) | TermKind::Return | TermKind::Unreachable | TermKind::Abort(_) => {}
         }
     }
@@ -498,7 +521,7 @@ impl TermKind {
                 cases.iter().map(|(_, b)| *b).chain([*otherwise]).collect()
             }
             TermKind::Match { arms, .. } => arms.iter().map(|a| a.target).collect(),
-            TermKind::Call { target, .. } => target.iter().copied().collect(),
+            TermKind::Call { target, .. } | TermKind::CallClosure { target, .. } => target.iter().copied().collect(),
             TermKind::Return | TermKind::Unreachable | TermKind::Abort(_) => Vec::new(),
         }
     }

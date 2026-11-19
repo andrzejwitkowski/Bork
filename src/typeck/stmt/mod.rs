@@ -143,9 +143,16 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
         );
     }
     env.mismatch(&format!("initializer for `{name}`"), value.ty, declared_ty, Some(name_span));
+    if kind == BindingKind::Var {
+        env.reject_stored_view_closure(&value, &format!("`var` `{name}`"), Some(name_span));
+    }
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
+    let view_closure = env.is_view_closure_value(&value);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
+    if view_closure {
+        env.mark_view_closure(name);
+    }
     if name == "?it" {
         require_iterator(declared_ty, name_span, env);
     }
@@ -181,6 +188,9 @@ fn check_return(
         Some(value) => {
             let value = expr::check(value, return_ty, return_ty, env);
             env.mismatch("return value", value.ty, return_ty, value.span);
+            if env.is_view_closure_value(&value) {
+                env.error("cannot return a closure that borrows its captures; make it `move`", value.span);
+            }
             Some(value.hir)
         }
         None => {

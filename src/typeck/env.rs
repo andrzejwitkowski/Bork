@@ -32,6 +32,8 @@ pub(super) struct Binding {
     pub(super) ty: TyId,
     /// Written `&T` in a type annotation or a `&T` parameter (not inferred `val b = &a`).
     pub(super) explicit_ref: bool,
+    /// Holds a closure that borrows its captures, whatever type it was annotated with (`Func` erases it).
+    pub(super) view_closure: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -176,6 +178,7 @@ impl<'a> Env<'a> {
                     kind,
                     ty,
                     explicit_ref,
+                    view_closure: false,
                 },
             );
     }
@@ -216,6 +219,50 @@ impl<'a> Env<'a> {
         let ty = self.resolve_bare_field(name, id)?;
         self.error(message, Some(span));
         Some(ty)
+    }
+
+    /// A closure that borrows its captures: its own type says so, it is a name bound to one (an annotation
+    /// such as `val h: () -> i32 = { -> n }` types it as a plain `Func`), or it is the result of a call that was
+    /// handed one (`forward({ -> n })` may return its argument).
+    pub(super) fn is_view_closure_value(&self, value: &Checked) -> bool {
+        self.hir_is_view_closure(&value.hir)
+    }
+
+    fn hir_is_view_closure(&self, e: &HirExpr) -> bool {
+        if self.tcx.is_view_closure(e.ty) {
+            return true;
+        }
+        match &e.kind {
+            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| b.view_closure),
+            HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
+                args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
+            }
+            _ => false,
+        }
+    }
+
+    /// What calling a value of type `ty` requires of its owner: a closure's own kind, or the weakest `Fn*`
+    /// bound of a type parameter. Anything else counts as `Fn`.
+    pub(super) fn callable_kind(&self, ty: TyId) -> crate::ty::ClosureKind {
+        self.tcx.closure_kind(ty).unwrap_or_else(|| {
+            let bound = |p: &&crate::ty::Predicate<TyId>| p.self_ty == ty;
+            self.param_env.iter().filter(bound).filter_map(|p| self.tcx.fn_trait_kind(p.trait_ref.trait_id)).min().unwrap_or(crate::ty::ClosureKind::Fn)
+        })
+    }
+
+    /// Remembers that the binding just made holds a view closure.
+    pub(super) fn mark_view_closure(&mut self, name: &str) {
+        if let Some(binding) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+            binding.view_closure = true;
+        }
+    }
+
+    /// A closure that borrows its captures is a view (RFC 0007 section 5): it cannot be stored where it
+    /// would outlive them, i.e. in a `var`, a field, an array element or a return value.
+    pub(super) fn reject_stored_view_closure(&mut self, value: &Checked, what: &str, span: Option<Span>) {
+        if self.is_view_closure_value(value) {
+            self.error(format!("cannot store a closure that borrows its captures in {what}; use `val`, or `move`"), span);
+        }
     }
 
     /// Explicit `move(..)` capture lists name bindings; a bare field there is an error.

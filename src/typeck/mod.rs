@@ -1,3 +1,4 @@
+mod captures;
 mod coherence;
 mod env;
 mod exhaustive;
@@ -510,6 +511,8 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         name_span: function.name_span,
         source: None,
         params,
+        env_params: None,
+        env_mode: crate::hir::CaptureMode::ByValue,
         return_ty,
         body,
     }
@@ -595,7 +598,8 @@ fn settle_body(env: &mut Env<'_>, mut body: crate::hir::HirBlock) -> crate::hir:
     let (infcx, tcx, errors) = (&env.infcx, &mut *env.tcx, &mut env.diagnostics);
     let mut settle = |ty: TyId| match infcx.resolve(tcx, ty) {
         Ok(ty) => {
-            debug_assert!(!has_infer(tcx, ty), "unresolved inference variable reached HIR");
+            // After an error a variable may stay free (a failed unify binds nothing).
+            debug_assert!(!errors.is_empty() || !has_infer(tcx, ty), "unresolved inference variable reached HIR");
             ty
         }
         Err(_) => {
@@ -623,10 +627,18 @@ fn report_uninferred(env: &mut Env<'_>) {
     for pending in std::mem::take(&mut env.pending) {
         let ty = env.infcx.resolve_shallow(env.tcx, pending.var);
         if !matches!(env.tcx.data(ty), crate::ty::TyData::Infer(_)) {
-            report_borrow_type_arg(env, ty, &pending);
+            if !pending.callee.is_empty() {
+                report_borrow_type_arg(env, ty, &pending);
+            }
             continue;
         }
         let PendingParam { span, callee, param, .. } = pending;
+        if callee.is_empty() {
+            env.error(format!("cannot infer the type of closure parameter `{param}`; annotate the binding with a function type"), Some(span));
+            let unknown = env.tcx.error();
+            let _ = env.infcx.unify(env.tcx, ty, unknown);
+            continue;
+        }
         // Only functions take explicit type arguments; constructors and methods are fixed by annotation.
         let hint = if env.fun_sig(&callee).is_some() {
             format!("specify it explicitly, e.g. `{callee}::<..>(..)`")

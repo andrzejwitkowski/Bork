@@ -1,0 +1,20 @@
+// exit: 0
+// stdout: dynamic-string\n
+fun make(n: i32): () -> String {
+    val s = concat("dynamic-", "string")
+    return move (s) { -> s }
+}
+
+fun churn(): i32 {
+    val a = concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy")
+    val b = concat(a, a)
+    return 0
+}
+
+fun main(): i32 {
+    val f = make(1)
+    churn()
+    churn()
+    println(f())
+    return 0
+}

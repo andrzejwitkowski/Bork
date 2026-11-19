@@ -109,6 +109,26 @@ fn pattern_names(pat: &crate::ast::Pattern, bound: &mut HashSet<String>) {
     }
 }
 
+fn collect_closure(
+    c: &crate::ast::Closure,
+    free: &mut BTreeMap<String, (Span, AstId)>,
+    bound: &mut HashSet<String>,
+) {
+    let mut inner = bound.clone();
+    for p in &c.params {
+        inner.insert(p.name.clone());
+    }
+    if let Some(caps) = &c.captures {
+        for cap in caps {
+            if !bound.contains(&cap.name) {
+                free.entry(cap.name.clone()).or_insert((cap.span, cap.id));
+            }
+            inner.insert(cap.name.clone());
+        }
+    }
+    collect_block(&c.body, free, &mut inner);
+}
+
 fn collect_expr(
     expr: &Expr,
     free: &mut BTreeMap<String, (Span, AstId)>,
@@ -143,21 +163,10 @@ fn collect_expr(
                 collect_expr(a, free, bound);
             }
             if let Some(c) = trailing {
-                let mut inner = bound.clone();
-                for p in &c.params {
-                    inner.insert(p.name.clone());
-                }
-                if let Some(caps) = &c.captures {
-                    for cap in caps {
-                        if !bound.contains(&cap.name) {
-                            free.entry(cap.name.clone()).or_insert((cap.span, cap.id));
-                        }
-                        inner.insert(cap.name.clone());
-                    }
-                }
-                collect_block(&c.body, free, &mut inner);
+                collect_closure(c, free, bound);
             }
         }
+        Expr::Closure(c) => collect_closure(c, free, bound),
         Expr::If {
             cond,
             then_block,

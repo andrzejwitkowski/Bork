@@ -109,6 +109,7 @@ fn rvalue(r: &Rvalue, tcx: &TyCtx) -> String {
         Rvalue::Cast(a, t) => format!("cast({}, {})", op(a), tcx.display(*t)),
         Rvalue::Len(p) => format!("len({})", place(p)),
         Rvalue::Slice { base, lo, hi } => format!("slice({}, {}, {})", op(base), op(lo), op(hi)),
+        Rvalue::Closure { function, captures, by_ref, arena: a } => format!("closure {function}({}){} in {}", ops(captures), if *by_ref { " by_ref" } else { "" }, arena(a)),
     }
 }
 
@@ -189,6 +190,11 @@ fn term(k: &TermKind) -> String {
             let t = target.map(|b| format!(" -> bb{}", b.0)).unwrap_or_default();
             let rb = if ret_borrows.is_empty() { String::new() } else { format!(" borrows={ret_borrows:?}") };
             format!("{} = call {callee}({}){h}{t}{rb}", place(dest), ops(args))
+        }
+        TermKind::CallClosure { callee, args, hidden, dest, target } => {
+            let h: String = hidden.iter().map(|a| format!(" +{}", arena(a))).collect();
+            let t = target.map(|b| format!(" -> bb{}", b.0)).unwrap_or_default();
+            format!("{} = call_closure {}({}){h}{t}", place(dest), op(callee), ops(args))
         }
         TermKind::Return => "return".into(),
         TermKind::Unreachable => "unreachable".into(),

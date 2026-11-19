@@ -63,11 +63,14 @@ fn gate_rejection_exits_one_without_binary() {
     let dir = scratch_dir("gate_rejection_exits_one_without_binary");
     let (build, binary) = bork_build(
         &dir,
-        "fun apply(block: (i32) -> i32): i32 { return block(1) }\n\
-         fun main(): i32 { return apply() { x -> x } }\n",
+        "fun apply(block: () -> i32): i32 { return block() }\n\
+         fun main(): i32 {\n\
+             val v = Vec::<i32>()\n\
+             return apply() move (v) { -> v.len() }\n\
+         }\n",
     );
     assert_eq!(build.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&build.stderr).contains("codegen"));
+    assert!(String::from_utf8_lossy(&build.stderr).contains("closures that own a captured value"), "{}", String::from_utf8_lossy(&build.stderr));
     assert!(!binary.exists());
 }
 
@@ -597,14 +600,12 @@ fn builds_trailing_print_without_newline_is_flushed() {
 }
 
 #[test]
-fn build_rejects_mvp_sample_at_codegen_gate() {
-    let dir = scratch_dir("build_rejects_mvp_sample_at_codegen_gate");
+fn build_accepts_mvp_sample_with_a_trailing_closure() {
+    let dir = scratch_dir("build_accepts_mvp_sample_with_a_trailing_closure");
     let (build, binary) = bork_build(&dir, bork::MVP_SAMPLE);
     let stderr = String::from_utf8_lossy(&build.stderr);
-    assert_eq!(build.status.code(), Some(1), "stderr: {stderr}");
-    assert!(stderr.contains("codegen"), "stderr: {stderr}");
-    assert!(stderr.contains("not supported"), "stderr: {stderr}");
-    assert!(!binary.exists());
+    assert_eq!(build.status.code(), Some(0), "stderr: {stderr}");
+    assert!(binary.exists());
 }
 
 /// Requires `cargo test --features codegen` and LLVM 23 (see CI `bundle-llvm` smoke).

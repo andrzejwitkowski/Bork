@@ -1,0 +1,10 @@
+// diag: FnMut
+fun apply<F: Fn() -> i32>(f: F): i32 {
+    return f()
+}
+
+fun main(): i32 {
+    var n = 1
+    return apply({ -> n = 2
+        0 })
+}

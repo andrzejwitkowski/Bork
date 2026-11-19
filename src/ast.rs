@@ -234,6 +234,7 @@ pub enum Type {
         nullable: bool,
     },
     Func {
+        kind: crate::ty::ClosureKind,
         params: Vec<Type>,
         ret: Box<Type>,
         nullable: bool,
@@ -270,8 +271,8 @@ impl Type {
             }
             Type::Primitive { .. } => self.clone(),
             Type::Array { elem, len, nullable } => Type::Array { elem: sub(elem), len: *len, nullable: *nullable },
-            Type::Func { params, ret, nullable } => {
-                Type::Func { params: params.iter().map(|p| p.with_self(self_ty)).collect(), ret: sub(ret), nullable: *nullable }
+            Type::Func { kind, params, ret, nullable } => {
+                Type::Func { kind: *kind, params: params.iter().map(|p| p.with_self(self_ty)).collect(), ret: sub(ret), nullable: *nullable }
             }
             Type::Ref { inner, rw, nullable } => Type::Ref { inner: sub(inner), rw: *rw, nullable: *nullable },
             Type::ManagedRef { inner } => Type::ManagedRef { inner: sub(inner) },
@@ -328,7 +329,8 @@ impl Type {
                 len,
                 nullable,
             },
-            Type::Func { params, ret, .. } => Type::Func {
+            Type::Func { kind, params, ret, .. } => Type::Func {
+                kind,
                 params,
                 ret,
                 nullable,
@@ -388,7 +390,10 @@ impl fmt::Display for Type {
             }
             Type::Assoc { base, name } => write!(f, "{base}::{name}")?,
             Type::Array { elem, len, .. } => write!(f, "[{elem}; {len}]")?,
-            Type::Func { params, ret, .. } => {
+            Type::Func { kind, params, ret, .. } => {
+                if *kind != crate::ty::ClosureKind::Fn {
+                    write!(f, "{kind:?}")?;
+                }
                 f.write_str("(")?;
                 for (index, param) in params.iter().enumerate() {
                     if index > 0 {
@@ -586,6 +591,9 @@ pub enum Expr {
         arms: Vec<MatchArm>,
         span: crate::span::Span,
     },
+    /// A closure written as a value: `{ a, b -> body }` or `move (n) { a -> body }` (RFC 0007).
+    /// The `->` is required, so it never reads as a block.
+    Closure(Closure),
 }
 
 impl Expr {

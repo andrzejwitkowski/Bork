@@ -81,6 +81,8 @@ impl<'a> TyCaps<'a> {
                 any
             }
             TyData::String | TyData::Prim(_) | TyData::Ref(..) | TyData::Func { .. } | TyData::Error => false,
+            // A `move` closure owns its captures; a plain one only views them.
+            TyData::Closure { id, captures, .. } => tcx.closure_is_move(*id) && captures.iter().any(|&c| self.drop_rec(c, path)),
         }
     }
 }
