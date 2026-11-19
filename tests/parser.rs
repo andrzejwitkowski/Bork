@@ -337,6 +337,7 @@ fn nullable_function_return_belongs_to_return_type() {
     assert_eq!(
         prog.functions[0].return_type,
         Type::Func {
+            kind: bork::ty::ClosureKind::Fn,
             params: vec![],
             ret: Box::new(Type::Primitive {
                 name: "i32".into(),
@@ -355,6 +356,7 @@ fn nullable_function_type_as_param() {
     assert_eq!(
         prog.functions[0].params[0].ty,
         Type::Func {
+            kind: bork::ty::ClosureKind::Fn,
             params: vec![Type::Primitive {
                 name: "i32".into(),
                 nullable: false,

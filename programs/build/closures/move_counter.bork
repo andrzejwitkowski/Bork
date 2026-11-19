@@ -1,6 +1,6 @@
 // exit: 0
 // stdout: 1\n2\n3\n12\n
-fun makeCounter(start: i32): () -> i32 {
+fun makeCounter(start: i32): FnMut() -> i32 {
     var count = start
     return move (count) { -> count = count + 1
         count }

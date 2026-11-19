@@ -35,7 +35,7 @@ programs/build/closures/fnmut_bound.bork: hits=22 hash=0379ac93bdffa027
 programs/build/closures/fnmut_counter.bork: hits=22 hash=060365c9a261716a
 programs/build/closures/generic_fn_bound.bork: hits=15 hash=a99614085a455147
 programs/build/closures/local_closure_shadows_global_fn.bork: hits=14 hash=2ace153f1783a3df
-programs/build/closures/move_counter.bork: hits=117 hash=4287f70b0c25af55
+programs/build/closures/move_counter.bork: hits=117 hash=d8046b9e6fcab36d
 programs/build/closures/move_returned_adder.bork: hits=37 hash=4986b6d59993c6c0
 programs/build/closures/move_string_capture.bork: hits=46 hash=6ce12b9099dc934e
 programs/build/closures/move_string_outlives_frame.bork: hits=39 hash=4395ad13bde3cd61

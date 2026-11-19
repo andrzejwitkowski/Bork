@@ -43,7 +43,8 @@ pub enum TyData {
     /// An enum with its type arguments (empty for a non-generic enum).
     Enum(DefId, Vec<TyId>),
     Array { elem: TyId, len: u32 },
-    Func { params: Vec<TyId>, ret: TyId },
+    /// A function type; `kind` is what calling it may do to its captures (`Fn` for a plain `(A) -> R`).
+    Func { params: Vec<TyId>, ret: TyId, kind: ClosureKind },
     /// The type of one closure expression (RFC 0007), never written in source. `id` makes each
     /// expression's type its own; it unifies with the `Func` of the same signature.
     /// `captures` are the types of the bindings the body uses, so substitution reaches them.

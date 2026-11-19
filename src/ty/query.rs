@@ -243,7 +243,7 @@ impl TyCtx {
     /// `(params, ret)` of a non-nullable function type.
     pub fn func_sig(&self, id: TyId) -> Option<(Vec<TyId>, TyId)> {
         match self.data(id) {
-            TyData::Func { params, ret } | TyData::Closure { params, ret, .. } => Some((params.clone(), *ret)),
+            TyData::Func { params, ret, .. } | TyData::Closure { params, ret, .. } => Some((params.clone(), *ret)),
             _ => None,
         }
     }
@@ -450,7 +450,11 @@ impl TyCtx {
     }
 
     pub fn func(&mut self, params: Vec<TyId>, ret: TyId) -> TyId {
-        self.add(TyData::Func { params, ret })
+        self.func_of(ClosureKind::Fn, params, ret)
+    }
+
+    pub fn func_of(&mut self, kind: ClosureKind, params: Vec<TyId>, ret: TyId) -> TyId {
+        self.add(TyData::Func { params, ret, kind })
     }
 
     /// A closure or function value: one pointer to an environment (RFC 0007).
@@ -482,7 +486,7 @@ impl TyCtx {
     pub fn closure_kind(&self, ty: TyId) -> Option<ClosureKind> {
         match self.data(ty) {
             TyData::Closure { id, .. } => Some(self.closure_kinds[*id as usize].0),
-            TyData::Func { .. } => Some(ClosureKind::Fn),
+            TyData::Func { kind, .. } => Some(*kind),
             _ => None,
         }
     }

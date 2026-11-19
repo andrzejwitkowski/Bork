@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use super::{TyCtx, TyData, TyId};
+use super::{ClosureKind, TyCtx, TyData, TyId};
 
 pub struct TyPrinter<'a> {
     ctx: &'a TyCtx,
@@ -43,7 +43,10 @@ impl fmt::Display for TyPrinter<'_> {
                 write!(f, "<{}>", shown.join(", "))
             }
             TyData::Array { elem, len } => write!(f, "[{}; {len}]", show(*elem)),
-            TyData::Func { params, ret } | TyData::Closure { params, ret, .. } => {
+            TyData::Func { params, ret, .. } | TyData::Closure { params, ret, .. } => {
+                if let TyData::Func { kind: kind @ (ClosureKind::FnMut | ClosureKind::FnOnce), .. } = self.ctx.data(self.id) {
+                    write!(f, "{kind:?}")?;
+                }
                 if let TyData::Closure { id, .. } = self.ctx.data(self.id) {
                     write!(f, "closure#{id}")?;
                 }

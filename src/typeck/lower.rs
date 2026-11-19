@@ -53,10 +53,10 @@ impl LowerCx<'_> {
             }
             Type::Named { name, args, nullable } => self.lower_named(name, args, *nullable),
             Type::ManagedRef { inner } => self.lower_managed_ref(inner),
-            Type::Func { params, ret, nullable } => {
+            Type::Func { kind, params, ret, nullable } => {
                 let params = params.iter().map(|param| self.lower(param)).collect();
                 let ret = self.lower(ret);
-                let func = self.tcx.func(params, ret);
+                let func = self.tcx.func_of(*kind, params, ret);
                 self.nullable_if(func, *nullable)
             }
             Type::Ref { inner, rw, nullable } => self.lower_ref(inner, *rw, *nullable),

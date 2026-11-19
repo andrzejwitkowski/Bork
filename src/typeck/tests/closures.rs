@@ -267,3 +267,21 @@ fn a_trailing_closure_that_borrows_is_a_view_when_returned() {
     let src = "fun forward(f: () -> i32): () -> i32 {\n    return f\n}\nfun make(): () -> i32 {\n    val n = 5\n    return forward() { -> n }\n}";
     assert!(!diags_of(src).is_empty());
 }
+
+#[test]
+fn calling_an_alias_of_a_captured_fn_mut_is_fn_mut() {
+    let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val inner = { -> n = n + 1\n n }\n    return apply({ -> val alias = inner\n alias() })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn an_annotated_callable_keeps_its_kind() {
+    let hdr = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n";
+    // `() -> i32` means `Fn`: a closure that assigns to a capture does not fit it, `FnMut() -> i32` does.
+    let plain = format!("{hdr}    val inner: () -> i32 = {{ -> n = n + 1\n n }}\n    return apply({{ -> inner() }})\n}}");
+    assert!(!diags_of(&plain).is_empty());
+    let mutable = format!("{hdr}    val inner: FnMut() -> i32 = {{ -> n = n + 1\n n }}\n    return apply({{ -> inner() }})\n}}");
+    assert!(diags_of(&mutable).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(&mutable));
+    let reads = "fun main(): i32 {\n    val n = 1\n    val f: () -> i32 = { -> n }\n    val g: FnMut() -> i32 = { -> n }\n    return f() + g()\n}";
+    hir_of(reads);
+}

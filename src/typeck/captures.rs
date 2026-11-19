@@ -19,6 +19,8 @@ struct Scan {
     moved: Vec<(String, TyId)>,
     /// Names called as a local callable value, calling it is as strong as its kind.
     called: Vec<String>,
+    /// `val alias = captured`: calling the alias calls the captured value.
+    aliases: std::collections::HashMap<String, String>,
 }
 
 /// Names the closure uses from outside (`outer_ty` gives the type of a binding outside it, `None`
@@ -66,7 +68,15 @@ impl Scan {
             HirStmt::Block(inner) | HirStmt::MoveBlock { body: inner, .. } => self.block(inner),
             HirStmt::VarDecl { name, value, .. } => {
                 self.expr(value);
+                let alias = match &value.kind {
+                    HirExprKind::Ident { name: from, .. } if !self.declared.contains(from) => Some(from.clone()),
+                    _ => None,
+                };
                 self.declared.insert(name.clone());
+                match alias {
+                    Some(from) => self.aliases.insert(name.clone(), from),
+                    None => self.aliases.remove(name),
+                };
             }
             HirStmt::Expr(value) => self.expr(value),
             HirStmt::Assign { target, value } => {
@@ -188,8 +198,10 @@ impl Scan {
             K::Call { callee, args, trailing } => {
                 self.expr(callee);
                 if let K::Ident { name, use_kind: UseKind::Copy } = &callee.kind {
-                    if !self.declared.contains(name) {
-                        self.called.push(name.clone());
+                    match self.aliases.get(name) {
+                        Some(from) => self.called.push(from.clone()),
+                        None if !self.declared.contains(name) => self.called.push(name.clone()),
+                        None => {}
                     }
                 }
                 args.iter().for_each(|x| self.expr(x));

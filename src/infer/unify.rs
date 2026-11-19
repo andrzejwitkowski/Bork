@@ -36,9 +36,16 @@ impl InferCtxt {
                 }
                 self.unify_inner(tcx, ea, eb)
             }
-            (TyData::Func { params: pa, ret: ra }, TyData::Func { params: pb, ret: rb })
-            | (TyData::Closure { params: pa, ret: ra, .. }, TyData::Func { params: pb, ret: rb })
-            | (TyData::Func { params: pa, ret: ra }, TyData::Closure { params: pb, ret: rb, .. }) => {
+            (TyData::Func { params: pa, ret: ra, kind: ka }, TyData::Func { params: pb, ret: rb, kind: kb }) if ka == kb => {
+                self.unify_sig(tcx, pa, ra, pb, rb)
+            }
+            // A closure fits a function type whose kind is at least as permissive as its own.
+            (TyData::Closure { params: pa, ret: ra, .. }, TyData::Func { params: pb, ret: rb, kind })
+            | (TyData::Func { params: pb, ret: rb, kind }, TyData::Closure { params: pa, ret: ra, .. }) => {
+                let closure = if matches!(tcx.data(a), TyData::Closure { .. }) { a } else { b };
+                if tcx.closure_kind(closure).is_some_and(|k| k > kind) {
+                    return Err(mismatch);
+                }
                 self.unify_sig(tcx, pa, ra, pb, rb)
             }
             // The same closure seen through two variables; another closure is a different type.
