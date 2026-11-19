@@ -303,3 +303,9 @@ fn a_func_parameter_may_hold_a_view_so_the_callee_cannot_return_or_branch_to_it(
     // Calling the parameter is fine.
     hir_of("fun run(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return run({ -> n })\n}");
 }
+
+#[test]
+fn an_owned_branch_alias_is_not_mistaken_for_an_outer_view_parameter_of_the_same_name() {
+    let src = "fun pick(c: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val f: () -> i32 = move { -> 1 }\n        val g = f\n        g\n    } else {\n        move { -> 2 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(!diags_of(src).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(src));
+}

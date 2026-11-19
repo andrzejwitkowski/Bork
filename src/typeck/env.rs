@@ -247,19 +247,22 @@ impl<'a> Env<'a> {
     }
 
     /// Whether the block's result is a view. A tail that names a `val` declared in the block is judged by that
-    /// `val`'s initializer: the block's bindings are gone by the time the enclosing `return` is checked.
+    /// `val`'s initializer, resolved against the declarations before it: the block's bindings are gone by the time
+    /// the enclosing `return` is checked, and an outer binding of the same name must not be mistaken for them.
     pub(super) fn block_tail_is_view(&self, block: &crate::hir::HirBlock) -> bool {
-        let Some(crate::hir::HirStmt::Expr(tail)) = block.stmts.last() else { return false };
-        if let HirExprKind::Ident { name, .. } = &tail.kind {
-            let local = block.stmts.iter().rev().find_map(|s| match s {
-                crate::hir::HirStmt::VarDecl { name: n, value, .. } if n == name => Some(value),
-                _ => None,
-            });
-            if let Some(value) = local {
-                return self.hir_is_view_closure(value);
+        let Some((crate::hir::HirStmt::Expr(tail), before)) = block.stmts.split_last() else { return false };
+        self.is_view_before(tail, before)
+    }
+
+    fn is_view_before(&self, e: &HirExpr, before: &[crate::hir::HirStmt]) -> bool {
+        if let HirExprKind::Ident { name, .. } = &e.kind {
+            let local = before.iter().rposition(|s| matches!(s, crate::hir::HirStmt::VarDecl { name: n, .. } if n == name));
+            if let Some(at) = local {
+                let crate::hir::HirStmt::VarDecl { value, .. } = &before[at] else { unreachable!() };
+                return self.is_view_before(value, &before[..at]);
             }
         }
-        self.hir_is_view_closure(tail)
+        self.hir_is_view_closure(e)
     }
 
     /// What calling a value of type `ty` requires of its owner: a closure's own kind, or the weakest `Fn*`
