@@ -1,0 +1,16 @@
+// exit: 6
+// WHAT THIS TESTS
+// A `move` closure owns a captured nullable: returned from its builder, it keeps the payload alive (copied into the
+// environment's arena).
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+fun make(): () -> i32 {
+    val s: String? = Some("abc")
+    return move (s) { -> if val a = s { a.length } else { 0 } }
+}
+fun main(): i32 {
+    val o: i32? = Some(3)
+    val f = make()
+    return f() + apply() move (o) { -> if val b = o { b } else { 0 } }
+}

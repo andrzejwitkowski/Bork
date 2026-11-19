@@ -109,7 +109,7 @@ fn rvalue(r: &Rvalue, tcx: &TyCtx) -> String {
         Rvalue::Cast(a, t) => format!("cast({}, {})", op(a), tcx.display(*t)),
         Rvalue::Len(p) => format!("len({})", place(p)),
         Rvalue::Slice { base, lo, hi } => format!("slice({}, {}, {})", op(base), op(lo), op(hi)),
-        Rvalue::Closure { function, captures, by_ref, arena: a } => format!("closure {function}({}){} in {}", ops(captures), if *by_ref { " by_ref" } else { "" }, arena(a)),
+        Rvalue::Closure { function, captures, by_ref, arena: a, .. } => format!("closure {function}({}){} in {}", ops(captures), if *by_ref { " by_ref" } else { "" }, arena(a)),
     }
 }
 

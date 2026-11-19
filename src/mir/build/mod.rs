@@ -261,7 +261,9 @@ impl<'a> FnBuilder<'a> {
         self.scope_enter(span, None);
         self.open.push(Open { id: RegionId(0), pushed: true });
         self.stmt(StmtKind::RegionEnter(RegionId(0)), span, None);
-        for (local, param) in (1u32..).map(Local).zip(&function.params) {
+        // A closure's captures belong to its environment, which registered their release when it was built.
+        let captures = function.env_params.unwrap_or(0);
+        for (local, param) in (1u32..).map(Local).zip(&function.params).skip(captures) {
             self.register_ref_local(local, param.ty, span);
         }
         let (body, _) = peel_blocks(&function.body);

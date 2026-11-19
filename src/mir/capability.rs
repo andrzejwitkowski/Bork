@@ -6,7 +6,6 @@ use crate::span::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Capability {
-    Closure,
     MatchRef,
     PatPresence,
     MoveEscapesArena,
@@ -23,8 +22,7 @@ pub enum Capability {
 }
 
 impl Capability {
-    pub const ALL: [Capability; 14] = [
-        Capability::Closure,
+    pub const ALL: [Capability; 13] = [
         Capability::MatchRef,
         Capability::PatPresence,
         Capability::MoveEscapesArena,
@@ -42,7 +40,6 @@ impl Capability {
 
     pub fn id(self) -> &'static str {
         match self {
-            Capability::Closure => "closure",
             Capability::MatchRef => "match-ref",
             Capability::PatPresence => "pat-presence",
             Capability::MoveEscapesArena => "move-escapes-arena",
@@ -62,7 +59,6 @@ impl Capability {
     /// The user-facing diagnostic (what `bork check` and `bork build` report for the construct).
     pub fn message(self) -> &'static str {
         match self {
-            Capability::Closure => "closures that own a captured value (a `move` capture that is not copied) or move one out (`FnOnce`) are not supported by codegen yet",
             Capability::MatchRef => "`when` over a `Ref` is not supported by codegen yet; use `if val`",
             Capability::PatPresence => "`Some`/`None` patterns in `when` are not supported by codegen yet; use `if val`",
             Capability::MoveEscapesArena => "this `move` would leave the object in an arena that is freed before its new owner; build it where it ends up (the next statement, or the `return`)",

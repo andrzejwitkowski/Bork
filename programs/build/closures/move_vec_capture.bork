@@ -1,0 +1,37 @@
+// exit: 7
+// WHAT THIS TESTS
+// A `move` closure owns a captured `Vec`: it is copied into the environment's arena, so a returned closure
+// outlives the function that built the `Vec`. A `Vec<Ref<Node>>` capture releases its elements with the
+// environment (the counts are back at the baseline after the inner block).
+class Node {
+    id: i32
+}
+
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+
+fun make(): () -> i32 {
+    var v = Vec::<i32>()
+    v.push(4)
+    v.push(5)
+    return move (v) { -> v.len() + v[0] }
+}
+
+fun main(): i32 {
+    val f = make()
+    val a = f()
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    var got = 0
+    {
+        var w2 = Vec::<Ref<Node>>()
+        w2.push(r)
+        got = apply() move (w2) { -> w2.len() }
+    }
+    if (weakCount(r) != w0) { return 90 }
+    if (strongCount(r) != s0) { return 91 }
+    return a + got
+}

@@ -535,12 +535,12 @@ fun main(): i32 {
     }
 
     #[test]
-    fn a_move_closure_with_captures_reports_a_codegen_error() {
-        let diagnostics = analyze_source("fun apply(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val v = Vec::<i32>()\n    return apply() move (v) { -> v.len() }\n}").diagnostics;
+    fn a_unit_vec_element_reports_a_codegen_error() {
+        let diagnostics = analyze_source("fun main(): i32 {\n    var v = Vec::<()>()\n    return v.len()\n}").diagnostics;
         assert!(
             diagnostics
                 .iter()
-                .any(|d| d.message.contains("codegen:") && d.message.contains("closures")),
+                .any(|d| d.message.contains("codegen:") && d.message.contains("unit")),
             "{diagnostics:?}"
         );
     }
@@ -574,12 +574,12 @@ fun main(): i32 {
 
     #[test]
     fn chained_header_gate_checks_later_rhs() {
-        let source = "class Node { next: Ref<Node> }\nfun apply(f: () -> Ref<Node>): Ref<Node> { return f() }\nfun use(r: Ref<Node>) { val v = Vec::<i32>()\n if val (a = r, b = apply() move (v, r) { -> v.len()\n r }) {} }";
+        let source = "class Node { next: Ref<Node> }\nfun pick(c: bool, r: Ref<Node>): Ref<Node> { return r }\nfun use(r: Ref<Node>, p: Node?, q: Node?) {\n if val (a = r, b = pick(p == q, r)) {} }";
         let diagnostics = analyze_source(source).diagnostics;
         assert!(
             diagnostics
                 .iter()
-                .any(|d| d.message.contains("codegen:") && d.message.contains("closures")),
+                .any(|d| d.message.contains("codegen:") && d.message.contains("==")),
             "{diagnostics:?}"
         );
     }

@@ -63,14 +63,12 @@ fn gate_rejection_exits_one_without_binary() {
     let dir = scratch_dir("gate_rejection_exits_one_without_binary");
     let (build, binary) = bork_build(
         &dir,
-        "fun apply(block: () -> i32): i32 { return block() }\n\
-         fun main(): i32 {\n\
-             val v = Vec::<i32>()\n\
-             return apply() move (v) { -> v.len() }\n\
+        "fun main(): i64 {\n\
+             return 0\n\
          }\n",
     );
     assert_eq!(build.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&build.stderr).contains("closures that own a captured value"), "{}", String::from_utf8_lossy(&build.stderr));
+    assert!(String::from_utf8_lossy(&build.stderr).contains("`main` must take no parameters"), "{}", String::from_utf8_lossy(&build.stderr));
     assert!(!binary.exists());
 }
 

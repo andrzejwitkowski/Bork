@@ -1,0 +1,58 @@
+// exit: 4
+// WHAT THIS TESTS
+// An enum, a class and a Vec<Ref> that hold a Ref are captured by a move closure or moved out by an FnOnce
+// closure. The value stays owned by its original arena (the call passes a handle), so the counts are back at the
+// baseline after the block: nothing is released twice.
+class Node {
+    id: i32
+}
+enum Link {
+    Nothing,
+    One(a: Ref<Node>),
+}
+class Holder {
+    items: Vec<Ref<Node>>
+}
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+fun once<F: FnOnce() -> i32>(f: F): i32 {
+    return f()
+}
+fun eatv(v: Vec<Ref<Node>>): i32 {
+    return v.len()
+}
+fun eath(h: Holder): i32 {
+    return h.items.len()
+}
+fun eatl(l: Link): i32 {
+    var t = 0
+    when (l) {
+        Nothing => { t = 0 }
+        One(a) => { t = 1 }
+    }
+    return t
+}
+fun main(): i32 {
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    var got = 0
+    {
+        val link = Link.One(r)
+        got = got + apply() move (link) { -> eatl(link) }
+        var items = Vec::<Ref<Node>>()
+        items.push(r)
+        got = got + once() { -> eatv(move items) }
+        var i2 = Vec::<Ref<Node>>()
+        i2.push(r)
+        val h = Holder(move i2)
+        got = got + once() { -> eath(move h) }
+        val l2 = Link.One(r)
+        got = got + once() { -> eatl(move l2) }
+    }
+    if (weakCount(r) != w0) { return 90 }
+    if (strongCount(r) != s0) { return 91 }
+    return got
+}

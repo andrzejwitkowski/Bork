@@ -1,0 +1,16 @@
+// exit: 7
+// WHAT THIS TESTS
+// An `FnOnce` closure (it moves an object out of its capture) satisfies an `FnOnce` bound and runs once.
+class Node {
+    id: i32
+}
+fun take(n: Node): i32 {
+    return n.id
+}
+fun once<F: FnOnce() -> i32>(f: F): i32 {
+    return f()
+}
+fun main(): i32 {
+    val n = Node(7)
+    return once() { -> take(move n) }
+}

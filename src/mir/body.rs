@@ -158,7 +158,8 @@ pub enum Rvalue {
     /// allocated in the current region (none for a closure without captures).
     /// `by_ref`: each capture operand names a variable whose address is stored (an `FnMut` closure).
     /// `arena` holds the environment: the current region, or the result sink when the closure is returned.
-    Closure { function: String, captures: Vec<Operand>, by_ref: bool, arena: ArenaRef },
+    /// `owned_refs[i]`: capture `i` is a `Ref` the environment owns: stored by the Ref protocol and registered for release.
+    Closure { function: String, captures: Vec<Operand>, by_ref: bool, owned_refs: Vec<bool>, arena: ArenaRef },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

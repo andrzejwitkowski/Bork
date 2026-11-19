@@ -259,6 +259,41 @@ Arenas
     ├── n [Local]
     └── Closure
         └── n [Copy]
+== programs/build/closures/fnonce_moves_object.bork
+Arenas
+├── fun take
+│   └── n [Local]
+├── fun once
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    └── Closure
+        └── n [Moved ← fun main]
+== programs/build/closures/fnonce_ref_released_once.bork
+Arenas
+├── fun eat
+│   └── r [Local]
+├── fun once
+│   └── f [Local]
+├── fun never
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── s0 [Local]
+    ├── w0 [Local]
+    ├── got [Local]
+    ├── Block
+    │   ├── a [Local]
+    │   ├── b [Local]
+    │   ├── n [Shared ← fun main]
+    │   ├── got [Copy]
+    │   ├── Closure
+    │   │   └── a [Moved ← Block]
+    │   └── Closure
+    │       └── b [Moved ← Block]
+    ├── IfThen
+    └── IfThen
 == programs/build/closures/generic_fn_bound.bork
 Arenas
 ├── fun apply
@@ -276,6 +311,19 @@ Arenas
 └── fun main
     └── Closure
         └── x [Local]
+== programs/build/closures/move_assigned_to_outer_var.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── f [Local]
+    ├── Closure (move)
+    │   └── a [Moved ← fun main]
+    └── Block
+        ├── s [Local]
+        ├── v [Local]
+        └── Closure (move)
+            ├── s [Moved ← Block]
+            └── v [Moved ← Block]
 == programs/build/closures/move_counter.bork
 Arenas
 ├── fun makeCounter
@@ -289,6 +337,51 @@ Arenas
     ├── own [Local]
     └── Closure (move)
         └── outer [Moved ← fun main]
+== programs/build/closures/move_nullable_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+├── fun make
+│   ├── s [Local]
+│   └── Closure (move)
+│       ├── s [Moved ← fun make]
+│       ├── MatchArm
+│       │   └── a [Borrow ← pattern binding]
+│       └── MatchArm
+└── fun main
+    ├── o [Local]
+    ├── f [Local]
+    └── Closure (move)
+        ├── o [Moved ← fun main]
+        ├── MatchArm
+        │   └── b [Local]
+        └── MatchArm
+== programs/build/closures/move_object_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    └── Closure (move)
+        └── n [Moved ← fun main]
+== programs/build/closures/move_ref_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── w0 [Local]
+    ├── s0 [Local]
+    ├── got [Local]
+    ├── Block
+    │   ├── c [Local]
+    │   ├── n [Shared ← fun main]
+    │   └── Closure (move)
+    │       └── c [Moved ← Block]
+    ├── IfThen
+    ├── IfThen
+    └── IfThen
 == programs/build/closures/move_returned_adder.bork
 Arenas
 ├── fun makeAdder
@@ -336,6 +429,29 @@ Arenas
 │       └── total [Moved ← fun make]
 └── fun main
     └── f [Local]
+== programs/build/closures/move_vec_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+├── fun make
+│   ├── v [Local]
+│   └── Closure (move)
+│       └── v [Moved ← fun make]
+└── fun main
+    ├── f [Local]
+    ├── a [Local]
+    ├── n [Local]
+    ├── r [Local]
+    ├── s0 [Local]
+    ├── w0 [Local]
+    ├── got [Local]
+    ├── Block
+    │   ├── w2 [Local]
+    │   ├── r [Shared ← fun main]
+    │   └── Closure (move)
+    │       └── w2 [Moved ← Block]
+    ├── IfThen
+    └── IfThen
 == programs/build/closures/nested_fnmut_updates_outer.bork
 Arenas
 └── fun main
@@ -355,6 +471,46 @@ Arenas
         ├── z [Local]
         ├── x [Local]
         └── x [Copy]
+== programs/build/closures/owned_values_with_refs.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+├── fun once
+│   └── f [Local]
+├── fun eatv
+│   └── v [Local]
+├── fun eath
+│   └── h [Local]
+├── fun eatl
+│   ├── l [Local]
+│   ├── t [Local]
+│   ├── MatchArm
+│   └── MatchArm
+│       └── a [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── s0 [Local]
+    ├── w0 [Local]
+    ├── got [Local]
+    ├── Block
+    │   ├── link [Local]
+    │   ├── items [Local]
+    │   ├── i2 [Moved ← Block]
+    │   ├── h [Local]
+    │   ├── l2 [Local]
+    │   ├── r [Shared ← fun main]
+    │   ├── got [Copy]
+    │   ├── Closure (move)
+    │   │   └── link [Moved ← Block]
+    │   ├── Closure
+    │   │   └── items [Moved ← Block]
+    │   ├── Closure
+    │   │   └── h [Moved ← Block]
+    │   └── Closure
+    │       └── l2 [Moved ← Block]
+    ├── IfThen
+    └── IfThen
 == programs/build/closures/trailing_with_capture.bork
 Arenas
 ├── fun apply
@@ -3822,14 +3978,6 @@ Arenas
 == programs/build_fail/main_returns_i64.bork
 Arenas
 └── fun main
-== programs/build_fail/move_closure_with_captures.bork
-Arenas
-├── fun apply
-│   └── f [Local]
-└── fun main
-    ├── v [Local]
-    └── Closure (move)
-        └── v [Moved ← fun main]
 == programs/build_fail/nullable_object_equality.bork
 Arenas
 └── fun main
