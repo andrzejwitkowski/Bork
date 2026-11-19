@@ -279,7 +279,7 @@ fn an_annotated_callable_keeps_its_kind() {
     let hdr = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n";
     // `() -> i32` means `Fn`: a closure that assigns to a capture does not fit it, `FnMut() -> i32` does.
     let plain = format!("{hdr}    val inner: () -> i32 = {{ -> n = n + 1\n n }}\n    return apply({{ -> inner() }})\n}}");
-    assert!(!diags_of(&plain).is_empty());
+    assert!(diags_of(&plain).iter().any(|d| d.message.contains("initializer for `inner`")), "{:?}", diags_of(&plain));
     let mutable = format!("{hdr}    val inner: FnMut() -> i32 = {{ -> n = n + 1\n n }}\n    return apply({{ -> inner() }})\n}}");
     assert!(diags_of(&mutable).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(&mutable));
     let reads = "fun main(): i32 {\n    val n = 1\n    val f: () -> i32 = { -> n }\n    val g: FnMut() -> i32 = { -> n }\n    return f() + g()\n}";
@@ -290,4 +290,34 @@ fn an_annotated_callable_keeps_its_kind() {
 fn an_alias_shadowed_in_a_nested_block_is_back_after_it() {
     let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val inner = { -> n = n + 1\n n }\n    return apply({ -> val alias = inner\n if (true) {\n val alias = 0\n }\n alias() })\n}";
     assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn a_func_parameter_may_hold_a_view_so_the_callee_cannot_return_or_branch_to_it() {
+    let forward = "fun forward(f: () -> i32): () -> i32 {\n    return f\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(diags_of(forward).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(forward));
+    let branch = "fun pick(c: bool, a: () -> i32, b: () -> i32): () -> i32 {\n    return if (c) { a } else { b }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(diags_of(branch).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(branch));
+    let tail = "fun main(): i32 {\n    val n = 1\n    val outer = { -> { -> n } }\n    return 0\n}";
+    assert!(diags_of(tail).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(tail));
+    // Calling the parameter is fine.
+    hir_of("fun run(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return run({ -> n })\n}");
+}
+
+#[test]
+fn an_owned_branch_alias_is_not_mistaken_for_an_outer_view_parameter_of_the_same_name() {
+    let src = "fun pick(c: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val f: () -> i32 = move { -> 1 }\n        val g = f\n        g\n    } else {\n        move { -> 2 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(!diags_of(src).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn a_view_alias_is_rejected_through_nested_branch_tails() {
+    let src = "fun pick(c: bool, d: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val g = f\n        if (d) { g } else { g }\n    } else {\n        move { -> 0 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn a_long_chain_of_owned_branch_aliases_is_checked_in_linear_time() {
+    let src = "fun pick(c: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val g0: () -> i32 = move { -> 1 }\n        val g1 = if (c) { g0 } else { g0 }\n        val g2 = if (c) { g1 } else { g1 }\n        val g3 = if (c) { g2 } else { g2 }\n        val g4 = if (c) { g3 } else { g3 }\n        val g5 = if (c) { g4 } else { g4 }\n        val g6 = if (c) { g5 } else { g5 }\n        val g7 = if (c) { g6 } else { g6 }\n        val g8 = if (c) { g7 } else { g7 }\n        val g9 = if (c) { g8 } else { g8 }\n        val g10 = if (c) { g9 } else { g9 }\n        val g11 = if (c) { g10 } else { g10 }\n        val g12 = if (c) { g11 } else { g11 }\n        val g13 = if (c) { g12 } else { g12 }\n        val g14 = if (c) { g13 } else { g13 }\n        val g15 = if (c) { g14 } else { g14 }\n        val g16 = if (c) { g15 } else { g15 }\n        val g17 = if (c) { g16 } else { g16 }\n        val g18 = if (c) { g17 } else { g17 }\n        val g19 = if (c) { g18 } else { g18 }\n        val g20 = if (c) { g19 } else { g19 }\n        val g21 = if (c) { g20 } else { g20 }\n        val g22 = if (c) { g21 } else { g21 }\n        val g23 = if (c) { g22 } else { g22 }\n        val g24 = if (c) { g23 } else { g23 }\n        val g25 = if (c) { g24 } else { g24 }\n        g25\n    } else {\n        move { -> 2 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(!diags_of(src).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(src));
 }

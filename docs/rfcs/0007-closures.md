@@ -84,6 +84,7 @@ The environment parameter replaces the captures in the LLVM signature; the prolo
 ## 7. Invariants
 
 - INV-C1: a plain closure with a capture is a view (`stores_borrow`), and the view checks reject returning it. A `move` closure is a view only if a capture is.
+- INV-C1b: a `Func`-typed parameter may be handed a view closure, so the callee treats it as one: it cannot return it, store it, or pick it through `if`/`when`; the last expression of a closure body is checked like an explicit `return`. Calling it is fine.
 - INV-C2: a lifted function's capture parameters equal the closure's `captures` (same order), and the `MakeClosure` operand count equals `env_params`; codegen's `supported` check rejects a mismatch.
 - INV-C3 (changed): the closure type's captures equal what the HIR scan found; the old AST `free_vars` is independent and unchanged.
 - INV-C4: a lifted closure function has the same report root as its closure node (checked by mono: closures and report nodes must match in number).

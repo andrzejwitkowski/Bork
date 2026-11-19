@@ -1,0 +1,11 @@
+// diag: cannot return a closure that borrows its captures
+// A `move` closure that captures a `Func` parameter keeps a possible view alive, so it cannot be returned.
+fun wrap(f: () -> i32): () -> i32 {
+    return move (f) { -> f() }
+}
+
+fun main(): i32 {
+    val n = 1
+    val g = wrap({ -> n })
+    return g()
+}

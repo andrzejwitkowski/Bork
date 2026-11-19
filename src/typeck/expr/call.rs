@@ -532,10 +532,15 @@ fn check_trailing_closure(
     for (param, &ty) in closure.params.iter().zip(param_tys) {
         let is_ref = env.tcx.is_ref(ty);
         env.bind(param.name.clone(), BindingKind::Val, ty, is_ref);
+        env.mark_func_param_view(&param.name, ty);
         params.push(HirParam { kind: BindingKind::Val, name: param.name.clone(), ty });
     }
     let (body, body_ty) =
         check_value_block_in_current_scope(&closure.body, Some(closure_ret), closure_ret, env);
+    // The body's last expression is its result, like an explicit `return`.
+    if env.block_tail_is_view(&body) {
+        env.error("cannot return a closure that borrows its captures; make it `move`", closure.body.span);
+    }
     env.exit_scope();
     env.loop_depth = outer_loops;
 

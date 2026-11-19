@@ -237,7 +237,40 @@ impl<'a> Env<'a> {
             HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
                 args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
             }
+            // A `move` closure keeps a captured view alive: its type does not say so (`Func` erases it), the binding does.
+            HirExprKind::Closure { captures, .. } => captures.iter().any(|c| self.binding(&c.name).is_some_and(|b| b.view_closure)),
+            // A branch result is a view when any branch is.
+            HirExprKind::If { then_block, else_block, .. } => self.block_tail_is_view(then_block) || else_block.as_ref().is_some_and(|b| self.block_tail_is_view(b)),
+            HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.block_tail_is_view(&a.body)),
             _ => false,
+        }
+    }
+
+    /// Whether the block's result is a view. The block's own `val`s (and those of enclosing branch blocks) are gone
+    /// by the time the enclosing `return` is checked, so their provenance is computed once, in declaration order,
+    /// into `seen`; an outer binding of the same name must not be mistaken for them.
+    pub(super) fn block_tail_is_view(&self, block: &crate::hir::HirBlock) -> bool {
+        self.tail_is_view(block, &std::collections::HashMap::new())
+    }
+
+    fn tail_is_view(&self, block: &crate::hir::HirBlock, outer: &std::collections::HashMap<String, bool>) -> bool {
+        let Some((crate::hir::HirStmt::Expr(tail), decls)) = block.stmts.split_last() else { return false };
+        let mut seen = outer.clone();
+        for stmt in decls {
+            if let crate::hir::HirStmt::VarDecl { name, value, .. } = stmt {
+                let view = self.is_view_in(value, &seen);
+                seen.insert(name.clone(), view);
+            }
+        }
+        self.is_view_in(tail, &seen)
+    }
+
+    fn is_view_in(&self, e: &HirExpr, seen: &std::collections::HashMap<String, bool>) -> bool {
+        match &e.kind {
+            HirExprKind::Ident { name, .. } if seen.contains_key(name) => seen[name],
+            HirExprKind::If { then_block, else_block, .. } => self.tail_is_view(then_block, seen) || else_block.as_ref().is_some_and(|b| self.tail_is_view(b, seen)),
+            HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.tail_is_view(&a.body, seen)),
+            _ => self.hir_is_view_closure(e),
         }
     }
 
@@ -248,6 +281,14 @@ impl<'a> Env<'a> {
             let bound = |p: &&crate::ty::Predicate<TyId>| p.self_ty == ty;
             self.param_env.iter().filter(bound).filter_map(|p| self.tcx.fn_trait_kind(p.trait_ref.trait_id)).min().unwrap_or(crate::ty::ClosureKind::Fn)
         })
+    }
+
+    /// A `Func`-typed parameter may be handed a view closure (a plain closure borrowing its captures); its type does
+    /// not say so, so the callee treats it as one and cannot return or store it.
+    pub(super) fn mark_func_param_view(&mut self, name: &str, ty: TyId) {
+        if matches!(self.tcx.data(ty), crate::ty::TyData::Func { .. }) {
+            self.mark_view_closure(name);
+        }
     }
 
     /// Remembers that the binding just made holds a view closure.

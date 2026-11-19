@@ -664,6 +664,7 @@ fn bind_params(
             let is_ref = env.tcx.is_ref(ty);
             check_ref_param_kind(param, is_ref, &mut env.diagnostics);
             env.bind(param.name.name.clone(), param.kind, ty, is_ref);
+            env.mark_func_param_view(&param.name.name, ty);
             HirParam {
                 kind: param.kind,
                 name: param.name.name.clone(),
