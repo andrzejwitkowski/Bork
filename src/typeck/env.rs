@@ -237,8 +237,15 @@ impl<'a> Env<'a> {
             HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
                 args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
             }
+            // A branch result is a view when any branch is.
+            HirExprKind::If { then_block, else_block, .. } => self.block_tail_is_view(then_block) || else_block.as_ref().is_some_and(|b| self.block_tail_is_view(b)),
+            HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.block_tail_is_view(&a.body)),
             _ => false,
         }
+    }
+
+    pub(super) fn block_tail_is_view(&self, block: &crate::hir::HirBlock) -> bool {
+        matches!(block.stmts.last(), Some(crate::hir::HirStmt::Expr(e)) if self.hir_is_view_closure(e))
     }
 
     /// What calling a value of type `ty` requires of its owner: a closure's own kind, or the weakest `Fn*`
@@ -248,6 +255,14 @@ impl<'a> Env<'a> {
             let bound = |p: &&crate::ty::Predicate<TyId>| p.self_ty == ty;
             self.param_env.iter().filter(bound).filter_map(|p| self.tcx.fn_trait_kind(p.trait_ref.trait_id)).min().unwrap_or(crate::ty::ClosureKind::Fn)
         })
+    }
+
+    /// A `Func`-typed parameter may be handed a view closure (a plain closure borrowing its captures); its type does
+    /// not say so, so the callee treats it as one and cannot return or store it.
+    pub(super) fn mark_func_param_view(&mut self, name: &str, ty: TyId) {
+        if matches!(self.tcx.data(ty), crate::ty::TyData::Func { .. }) {
+            self.mark_view_closure(name);
+        }
     }
 
     /// Remembers that the binding just made holds a view closure.

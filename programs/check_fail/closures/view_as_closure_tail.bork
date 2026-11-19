@@ -1,0 +1,7 @@
+// diag: cannot return a closure that borrows its captures
+// The last expression of a closure body is its result, checked like an explicit `return`.
+fun main(): i32 {
+    val n = 1
+    val outer = { -> { -> n } }
+    return 0
+}

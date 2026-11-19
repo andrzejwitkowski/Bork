@@ -1,0 +1,9 @@
+// diag: cannot return a closure that borrows its captures
+// A branch result is a view when either branch is one.
+fun pick(c: bool, a: () -> i32, b: () -> i32): () -> i32 {
+    return if (c) { a } else { b }
+}
+
+fun main(): i32 {
+    return 0
+}

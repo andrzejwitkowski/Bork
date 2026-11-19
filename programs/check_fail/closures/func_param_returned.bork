@@ -1,0 +1,11 @@
+// diag: cannot return a closure that borrows its captures
+// A `Func` parameter may be handed a closure that borrows its captures, so the callee cannot return it.
+fun forward(f: () -> i32): () -> i32 {
+    return f
+}
+
+fun main(): i32 {
+    val n = 1
+    val g = forward({ -> n })
+    return g()
+}

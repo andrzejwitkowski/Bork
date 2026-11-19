@@ -279,7 +279,7 @@ fn an_annotated_callable_keeps_its_kind() {
     let hdr = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n";
     // `() -> i32` means `Fn`: a closure that assigns to a capture does not fit it, `FnMut() -> i32` does.
     let plain = format!("{hdr}    val inner: () -> i32 = {{ -> n = n + 1\n n }}\n    return apply({{ -> inner() }})\n}}");
-    assert!(!diags_of(&plain).is_empty());
+    assert!(diags_of(&plain).iter().any(|d| d.message.contains("initializer for `inner`")), "{:?}", diags_of(&plain));
     let mutable = format!("{hdr}    val inner: FnMut() -> i32 = {{ -> n = n + 1\n n }}\n    return apply({{ -> inner() }})\n}}");
     assert!(diags_of(&mutable).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(&mutable));
     let reads = "fun main(): i32 {\n    val n = 1\n    val f: () -> i32 = { -> n }\n    val g: FnMut() -> i32 = { -> n }\n    return f() + g()\n}";
@@ -290,4 +290,16 @@ fn an_annotated_callable_keeps_its_kind() {
 fn an_alias_shadowed_in_a_nested_block_is_back_after_it() {
     let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val inner = { -> n = n + 1\n n }\n    return apply({ -> val alias = inner\n if (true) {\n val alias = 0\n }\n alias() })\n}";
     assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn a_func_parameter_may_hold_a_view_so_the_callee_cannot_return_or_branch_to_it() {
+    let forward = "fun forward(f: () -> i32): () -> i32 {\n    return f\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(diags_of(forward).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(forward));
+    let branch = "fun pick(c: bool, a: () -> i32, b: () -> i32): () -> i32 {\n    return if (c) { a } else { b }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(diags_of(branch).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(branch));
+    let tail = "fun main(): i32 {\n    val n = 1\n    val outer = { -> { -> n } }\n    return 0\n}";
+    assert!(diags_of(tail).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(tail));
+    // Calling the parameter is fine.
+    hir_of("fun run(f: () -> i32): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return run({ -> n })\n}");
 }

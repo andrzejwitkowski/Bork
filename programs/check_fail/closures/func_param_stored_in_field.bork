@@ -1,0 +1,12 @@
+// diag: cannot store a closure that borrows its captures in a field
+class Box {
+    f: () -> i32
+}
+
+fun stash(b: &rw Box, f: () -> i32) {
+    b.f = move f
+}
+
+fun main(): i32 {
+    return 0
+}

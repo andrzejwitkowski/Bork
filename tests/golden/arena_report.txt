@@ -4814,6 +4814,23 @@ Arenas
 └── fun main
     ├── n [Local]
     └── Closure
+== programs/check_fail/closures/func_param_returned.bork
+Type Error [214..215] cannot return a closure that borrows its captures; make it `move`
+Arenas
+├── fun forward
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    ├── g [Local]
+    └── Closure
+        └── n [Copy]
+== programs/check_fail/closures/func_param_stored_in_field.bork
+Type Error [143..146] cannot store a closure that borrows its captures in a field; use `val`, or `move`
+Arenas
+├── fun stash
+│   ├── b [Borrow ← call site]
+│   └── f [Moved ← fun stash]
+└── fun main
 == programs/check_fail/closures/move_in_loop.bork
 Ownership Error [162..163] cannot move `s` inside a loop: it would already be moved on later iterations
 Arenas
@@ -4835,6 +4852,15 @@ Arenas
     └── Closure (move)
         ├── n [Moved ← fun main]
         └── m [Copy]
+== programs/check_fail/closures/view_as_closure_tail.bork
+Type Error [198..213] cannot return a closure that borrows its captures; make it `move`
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── outer [Local]
+    └── Closure
+        └── Closure
+            └── n [Copy]
 == programs/check_fail/closures/view_in_generic_wrapper.bork
 Type Error [205..209] `wrap<closure#0()->i32>`: `closure#0()->i32` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
 Arenas
@@ -4853,6 +4879,7 @@ Arenas
     └── Closure
         └── n [Copy]
 == programs/check_fail/closures/view_returned_through_call.bork
+Type Error [109..110] cannot return a closure that borrows its captures; make it `move`
 Type Error [] cannot return a closure that borrows its captures; make it `move`
 Arenas
 ├── fun forward
@@ -4871,6 +4898,18 @@ Arenas
         ├── n [Local]
         └── Closure
             └── n [Copy]
+== programs/check_fail/closures/view_through_if_returned.bork
+Type Error [] cannot return a closure that borrows its captures; make it `move`
+Arenas
+├── fun pick
+│   ├── c [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   ├── IfThen
+│   │   └── a [Shared ← fun pick]
+│   └── IfElse
+│       └── b [Shared ← fun pick]
+└── fun main
 == programs/check_fail/conditionals/assign_to_val.bork
 Type Error [77..78] cannot assign to immutable `val` binding `x`
 Arenas
