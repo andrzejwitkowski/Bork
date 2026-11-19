@@ -29,7 +29,7 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
     let mut scan = Scan::default();
     scan.declared.extend(params.iter().map(|p| p.name.clone()));
     scan.block(body);
-    // The call node carries a plain `Func`; the binding holds the real closure or bounded parameter.
+    // The call node carries a plain `Fn` function type; the binding holds the real kind: a closure type, a `Func` written with `FnMut`/`FnOnce`, or a bounded parameter.
     for name in std::mem::take(&mut scan.called) {
         let Some(ty) = outer_ty(&name) else { continue };
         match call_kind(ty) {
