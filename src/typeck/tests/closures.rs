@@ -285,3 +285,9 @@ fn an_annotated_callable_keeps_its_kind() {
     let reads = "fun main(): i32 {\n    val n = 1\n    val f: () -> i32 = { -> n }\n    val g: FnMut() -> i32 = { -> n }\n    return f() + g()\n}";
     hir_of(reads);
 }
+
+#[test]
+fn an_alias_shadowed_in_a_nested_block_is_back_after_it() {
+    let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val inner = { -> n = n + 1\n n }\n    return apply({ -> val alias = inner\n if (true) {\n val alias = 0\n }\n alias() })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}

@@ -1,8 +1,8 @@
 //! What a closure body captures and how it uses it (RFC 0007): the capture list and the kind
 //! (`Fn` reads, `FnMut` also assigns, `FnOnce` also moves a capture out).
 //!
-//! shortcut: a name declared inside the closure shadows an outer one from its declaration to the end of the
-//! closure (not to the end of its block); tighten with real scopes if a program needs it.
+//! shortcut: a name bound by a pattern, a `for` or a presence binding shadows the outer one to the end of the
+//! enclosing block, not just of its arm or loop body; tighten with real scopes if a program needs it.
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -59,7 +59,10 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
 
 impl Scan {
     fn block(&mut self, b: &HirBlock) {
+        // Names declared inside a block go out of scope with it, so an outer name or alias it shadowed is back.
+        let (declared, aliases) = (self.declared.clone(), self.aliases.clone());
         b.stmts.iter().for_each(|s| self.stmt(s));
+        (self.declared, self.aliases) = (declared, aliases);
     }
 
     fn stmt(&mut self, s: &HirStmt) {
