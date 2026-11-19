@@ -246,8 +246,20 @@ impl<'a> Env<'a> {
         }
     }
 
+    /// Whether the block's result is a view. A tail that names a `val` declared in the block is judged by that
+    /// `val`'s initializer: the block's bindings are gone by the time the enclosing `return` is checked.
     pub(super) fn block_tail_is_view(&self, block: &crate::hir::HirBlock) -> bool {
-        matches!(block.stmts.last(), Some(crate::hir::HirStmt::Expr(e)) if self.hir_is_view_closure(e))
+        let Some(crate::hir::HirStmt::Expr(tail)) = block.stmts.last() else { return false };
+        if let HirExprKind::Ident { name, .. } = &tail.kind {
+            let local = block.stmts.iter().rev().find_map(|s| match s {
+                crate::hir::HirStmt::VarDecl { name: n, value, .. } if n == name => Some(value),
+                _ => None,
+            });
+            if let Some(value) = local {
+                return self.hir_is_view_closure(value);
+            }
+        }
+        self.hir_is_view_closure(tail)
     }
 
     /// What calling a value of type `ty` requires of its owner: a closure's own kind, or the weakest `Fn*`

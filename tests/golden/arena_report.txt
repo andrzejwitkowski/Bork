@@ -4910,6 +4910,20 @@ Arenas
         ├── n [Local]
         └── Closure
             └── n [Copy]
+== programs/check_fail/closures/view_through_branch_local_alias.bork
+Type Error [] cannot return a closure that borrows its captures; make it `move`
+Arenas
+├── fun pick
+│   ├── c [Local]
+│   ├── f [Local]
+│   ├── h [Local]
+│   ├── IfThen
+│   │   ├── g [Local]
+│   │   └── f [Shared ← fun pick]
+│   └── IfElse
+│       ├── k [Local]
+│       └── h [Shared ← fun pick]
+└── fun main
 == programs/check_fail/closures/view_through_if_returned.bork
 Type Error [] cannot return a closure that borrows its captures; make it `move`
 Arenas

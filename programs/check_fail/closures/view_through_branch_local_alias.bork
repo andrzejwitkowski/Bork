@@ -1,0 +1,15 @@
+// diag: cannot return a closure that borrows its captures
+// A branch that yields a branch-local alias of a possible view is a view: the alias is out of scope at the `return`.
+fun pick(c: bool, f: () -> i32, h: () -> i32): () -> i32 {
+    return if (c) {
+        val g = f
+        g
+    } else {
+        val k = h
+        k
+    }
+}
+
+fun main(): i32 {
+    return 0
+}
