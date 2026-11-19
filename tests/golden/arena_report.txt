@@ -324,6 +324,19 @@ Arenas
         ├── i [Copy]
         └── Closure (move)
             └── s [Moved ← WhileLoop]
+== programs/build/closures/loop_scalar_closure_call.bork
+Arenas
+└── fun main
+    ├── k [Local]
+    ├── f [Local]
+    ├── total [Local]
+    ├── i [Local]
+    ├── Closure
+    │   └── k [Copy]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── f [Shared ← fun main]
+        └── i [Copy]
 == programs/build/closures/move_assigned_to_outer_var.bork
 Arenas
 └── fun main

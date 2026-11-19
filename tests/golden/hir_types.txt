@@ -73,6 +73,7 @@ programs/build/closures/local_closure_shadows_global_fn.bork::apply(f: (i32)->i3
 programs/build/closures/local_closure_shadows_global_fn.bork::main() -> i32
 programs/build/closures/loop_env_only_allocation.bork::apply(f: ()->i32) -> i32
 programs/build/closures/loop_env_only_allocation.bork::main() -> i32
+programs/build/closures/loop_scalar_closure_call.bork::main() -> i32
 programs/build/closures/move_assigned_to_outer_var.bork::main() -> i32
 programs/build/closures/move_counter.bork::makeCounter(start: i32) -> FnMut()->i32
 programs/build/closures/move_counter.bork::main() -> i32

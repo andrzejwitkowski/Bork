@@ -411,10 +411,10 @@ pub fn derive_push(body: &Body, bodies: &[Body]) -> HashSet<usize> {
         if matches!(&t.kind, TermKind::Call { args, .. } | TermKind::CallClosure { args, .. } if args.iter().any(is_str)) {
             mark(body, &mut out, t.region);
         }
-        // A closure that returns a value allocated in the caller's sink allocates here too: the callee is unknown,
-        // so any result-sink call through a closure value counts.
+        // A closure that returns a value allocated in the caller's sink allocates here too: the callee is unknown.
+        // `hidden` is the caller's parent arena, then the result sink only when the result needs one.
         if let TermKind::CallClosure { hidden, .. } = &t.kind {
-            if hidden.last().is_some_and(lands_here) {
+            if hidden.len() > 1 && hidden.last().is_some_and(lands_here) {
                 mark(body, &mut out, t.region);
             }
         }
