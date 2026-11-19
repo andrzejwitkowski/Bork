@@ -37,6 +37,7 @@ programs/build/closures/fnonce_moves_object.bork: hits=6 hash=fc666ff1e4995bff
 programs/build/closures/fnonce_ref_released_once.bork: hits=78 hash=79efb93f9c65f99c
 programs/build/closures/generic_fn_bound.bork: hits=15 hash=a99614085a455147
 programs/build/closures/local_closure_shadows_global_fn.bork: hits=14 hash=2ace153f1783a3df
+programs/build/closures/loop_env_only_allocation.bork: hits=23 hash=7ec5e067e39daadf
 programs/build/closures/move_assigned_to_outer_var.bork: hits=16 hash=0660126fbd60100f
 programs/build/closures/move_counter.bork: hits=117 hash=d8046b9e6fcab36d
 programs/build/closures/move_nullable_capture.bork: hits=14 hash=29f610c0c300a97f
@@ -333,6 +334,7 @@ programs/check_fail/borrow/pass_view_without_ampersand.bork: hits=5 hash=92de35c
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=de7dd57043178e2e
 programs/check_fail/borrow/rw_aliased.bork: hits=7 hash=18268769b994910b
 programs/check_fail/borrow/rw_aliased_receiver.bork: hits=10 hash=7fc2ef4abd656296
+programs/check_fail/borrow/rw_aliased_trailing_closure.bork: hits=22 hash=386ae2126261fc31
 programs/check_fail/borrow/rw_as_managed_ref_target.bork: hits=1 hash=2d77552a6fa27925
 programs/check_fail/borrow/rw_as_type_argument.bork: hits=1 hash=fc89457af01b9c92
 programs/check_fail/borrow/rw_bound_to_var.bork: hits=3 hash=e27b3c3d8209d5f0

@@ -1,0 +1,18 @@
+// exit: 40
+// WHAT THIS TESTS
+// A loop body whose only allocation is a closure environment (a `move` closure capturing a `String`) still gets
+// its own arena per iteration: the planner counts environments, so the region is pushed and freed each pass.
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+
+fun main(): i32 {
+    var total = 0
+    var i = 0
+    while (i < 10) {
+        val s = "abcd"
+        total = total + apply() move (s) { -> s.length }
+        i = i + 1
+    }
+    return total
+}

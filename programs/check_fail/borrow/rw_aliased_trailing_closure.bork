@@ -1,0 +1,10 @@
+// diag: the trailing closure of `visit` captures `v`
+fun visit(items: &rw Vec<i32>, f: () -> i32): i32 {
+    items.push(1)
+    return f()
+}
+
+fun main(): i32 {
+    var v = Vec::<i32>()
+    return visit(&rw v) { -> v.len() }
+}
