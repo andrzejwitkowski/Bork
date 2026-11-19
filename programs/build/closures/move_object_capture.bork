@@ -1,0 +1,13 @@
+// exit: 7
+// WHAT THIS TESTS
+// A `move` closure captures an object handle and reads a field through it.
+class Node {
+    id: i32
+}
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+fun main(): i32 {
+    val n = Node(7)
+    return apply() move (n) { -> n.id }
+}

@@ -1,0 +1,33 @@
+// exit: 8
+// WHAT THIS TESTS
+// An `FnOnce` closure that moves a `Ref` out of its environment releases it once: the call consumes the
+// handle (nulling the environment's slot); a closure that is never called releases it with its arena. Both
+// counts are back at the baseline after the block (a double drop underflows the weak count and aborts).
+class Node {
+    id: i32
+}
+fun eat(r: Ref<Node>): i32 {
+    return r?.id ?: 0
+}
+fun once<F: FnOnce() -> i32>(f: F): i32 {
+    return f()
+}
+fun never<F: FnOnce() -> i32>(f: F): i32 {
+    return 1
+}
+fun main(): i32 {
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    var got = 0
+    {
+        val a: Ref<Node> = n
+        got = once() { -> eat(move a) }
+        val b: Ref<Node> = n
+        got = got + never() { -> eat(move b) }
+    }
+    if (weakCount(r) != w0) { return 90 }
+    if (strongCount(r) != s0) { return 91 }
+    return got
+}

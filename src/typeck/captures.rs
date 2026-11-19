@@ -149,7 +149,7 @@ impl Scan {
         match &e.kind {
             K::Int { .. } | K::Float { .. } | K::Str { .. } | K::Bool { .. } | K::None => {}
             K::Ident { name, use_kind } => {
-                if self.note(name) && matches!(use_kind, UseKind::Move | UseKind::Promote) {
+                if self.note(name) && matches!(use_kind, UseKind::Move | UseKind::Promote | UseKind::RefMove) {
                     self.moved.push((name.clone(), e.ty));
                 }
             }

@@ -1,9 +1,0 @@
-// diag: closures
-fun apply(f: () -> i32): i32 {
-    return f()
-}
-
-fun main(): i32 {
-    val v = Vec::<i32>()
-    return apply() move (v) { -> v.len() }
-}

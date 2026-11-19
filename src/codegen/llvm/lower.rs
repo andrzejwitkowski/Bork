@@ -337,7 +337,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                                 return None;
                             }
                         }
-                        Rvalue::Closure { function: target, captures, by_ref, arena } => {
+                        Rvalue::Closure { function: target, captures, by_ref, arena, .. } => {
                             let (_, f) = callees.get(target.as_str())?;
                             if !callable(cx, dty) || f.env_params != Some(captures.len()) || (f.env_mode == crate::hir::CaptureMode::ByAddress) != *by_ref || !arena_ok(arena) {
                                 return None;
@@ -1216,7 +1216,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 }
                 self.alloc_handle(dst, arena, size, record.get_alignment(), None, class)?;
             }
-            StmtKind::Assign(dst, Rvalue::Closure { function, captures, by_ref, arena }) => {
+            StmtKind::Assign(dst, Rvalue::Closure { function, captures, by_ref, owned_refs, arena }) => {
                 let (callee_fn, _) = self.callees[function.as_str()];
                 let code = callee_fn.as_global_value().as_pointer_value();
                 let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![code.get_type().into()];
@@ -1249,7 +1249,14 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     let env = raw.try_as_basic_value().basic().expect("arena_alloc returns a pointer").into_pointer_value();
                     for (i, v) in values.iter().enumerate() {
                         let field = cx.builder.build_struct_gep(env_ty, env, i as u32, "env.field")?;
-                        cx.builder.build_store(field, *v)?;
+                        // Slot 0 is the code pointer; `owned_refs` indexes the captures.
+                        if i > 0 && owned_refs[i - 1] {
+                            cx.builder.build_store(field, cx.ref_handle_type().const_zero())?;
+                            cx.ref_store(self.llvm_fn, field, arena, *v)?;
+                            cx.ref_register_drop(arena, field)?;
+                        } else {
+                            cx.builder.build_store(field, *v)?;
+                        }
                     }
                     env
                 };

@@ -37,7 +37,7 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
             HirExprKind::Call { callee, args, trailing } => self.call(e, callee, args, trailing.is_some()),
             HirExprKind::MakeClosure { function, captures, kind, is_move } => self.make_closure(e, function, captures, *kind, *is_move),
-            HirExprKind::Closure { .. } => Err(BuildError::unsupported(Capability::Closure, span_of(e))),
+            HirExprKind::Closure { .. } => Err(BuildError::Internal("a closure expression survived mono lifting".into())),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
             HirExprKind::Index { receiver, index, .. } => self.index(e, receiver, index),
             HirExprKind::Slice { receiver, lo, hi } => self.slice(e, receiver, lo, hi),
@@ -175,7 +175,7 @@ impl<'a> FnBuilder<'a> {
     fn call(&mut self, e: &HirExpr, callee: &HirExpr, args: &[HirExpr], trailing_closure: bool) -> Res<Operand> {
         let span = span_of(e);
         if trailing_closure {
-            return Err(BuildError::unsupported(Capability::Closure, span));
+            return Err(BuildError::Internal("a trailing closure survived mono lifting".into()));
         }
         let HirExprKind::Ident { name, use_kind } = &callee.kind else {
             return Err(BuildError::unsupported(Capability::IndirectCall, span));
@@ -254,26 +254,22 @@ impl<'a> FnBuilder<'a> {
     /// A closure value (RFC 0007): its environment holds the captures by value, or by address for a plain `FnMut`.
     fn make_closure(&mut self, e: &HirExpr, function: &str, captures: &[HirExpr], kind: crate::hir::ClosureKind, is_move: bool) -> Res<Operand> {
         use crate::hir::ClosureKind;
-        // A `move` closure owns its captures. A `String` or an array of copies is copied into the environment's
-        // arena, which frees it. Objects (the escape check rejects a returned closure holding one), `Ref`s, `Vec`s and
-        // nullables would need drop registration (RFC 0007).
-        let copied = |ty| {
-            let t = self.tcx;
-            !t.is_nullable(ty) && (t.is_string(ty) || t.array_elem(ty).is_some_and(|e| t.is_trivially_copy(e)))
-        };
-        let owns = is_move && captures.iter().any(|c| !self.tcx.is_trivially_copy(c.ty) && !copied(c.ty));
-        if kind == ClosureKind::FnOnce || owns {
-            return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
-        }
-        // A closure assigned to an existing `var` would live in that variable's arena, which a closure value does not name.
-        if matches!(self.sink, ArenaRef::Home(_)) && is_move && !captures.is_empty() {
-            return Err(BuildError::unsupported(Capability::Closure, span_of(e)));
-        }
+        // A `move` closure owns its captures (RFC 0007 6.5): a `String`, array, `Vec` or nullable is copied into the
+        // environment's arena, a `Ref` is stored through the Ref protocol and registered for release, and an object
+        // or enum is a handle (a returned closure holding one is rejected by the escape check).
         let by_ref = kind == ClosureKind::FnMut && !is_move;
         // The environment goes where the surrounding expression allocates: the result sink for a returned closure
         // (`return`, or a `val` that is returned: `sinks::result_hoists`), the current region otherwise.
-        let arena = if is_move && !captures.is_empty() { self.sink.clone() } else { ArenaRef::Current };
-        let captures = if by_ref {
+        let arena = if is_move && !captures.is_empty() {
+            match &self.sink {
+                // A closure value does not name its variable's arena (as an object handle does): use the region the variable was declared in.
+                ArenaRef::Home(h) => ArenaRef::Region(self.locals[h.0 as usize].region),
+                other => other.clone(),
+            }
+        } else {
+            ArenaRef::Current
+        };
+        let mut operands = if by_ref {
             // The environment keeps each variable's address, so the closure updates the variable itself.
             let mut places = Vec::new();
             for c in captures {
@@ -287,7 +283,17 @@ impl<'a> FnBuilder<'a> {
             // Owned captures are copied into the environment's arena.
             self.with_sink(arena.clone(), |b| b.exprs(captures))?
         };
-        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures, by_ref, arena }))
+        let owns = (is_move || kind == ClosureKind::FnOnce) && !by_ref;
+        let owned_refs: Vec<bool> = captures.iter().map(|c| owns && self.tcx.is_managed_ref(c.ty) && !self.tcx.is_nullable(c.ty)).collect();
+        // The environment stores its own handle: the captured variable keeps (and later releases) the original.
+        for ((op, owned), hir) in operands.iter_mut().zip(&owned_refs).zip(captures) {
+            if *owned {
+                let dst = self.temp(hir.ty);
+                self.stmt(StmtKind::Ref(RefOp::Clone { dst: Place::local(dst), src: op.clone() }), span_of(e), Some(e.id));
+                *op = Operand::Move(Place::local(dst));
+            }
+        }
+        Ok(self.assign_temp(e, Rvalue::Closure { function: function.to_string(), captures: operands, by_ref, owned_refs, arena }))
     }
 
     fn if_expr(&mut self, e: &HirExpr, cond: &HirExpr, then_block: &HirBlock, else_block: Option<&HirBlock>) -> Res<Operand> {

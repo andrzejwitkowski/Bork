@@ -1,0 +1,15 @@
+// exit: 12
+// WHAT THIS TESTS
+// A `move` closure assigned to a `var` declared in an outer block keeps its environment in the variable's arena,
+// not the inner block's: the `String` and `Vec` it owns are still valid when it is called after the block.
+fun main(): i32 {
+    val a = 2
+    var f: () -> i32 = move (a) { -> a }
+    {
+        val s = "abcde"
+        var v = Vec::<i32>()
+        v.push(7)
+        f = move (s, v) { -> s.length + v[0] }
+    }
+    return f()
+}

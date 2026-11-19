@@ -74,12 +74,12 @@ The environment parameter replaces the captures in the LLVM signature; the prolo
 
 **6.4 Calls.** A call through a `Func` or closure value becomes `CallClosure`. A generic `F: Fn` is monomorphized per closure type (`apply<closure#0(i32)->i32>`), so it is a call through the environment, not a direct call.
 
-**6.5 What lowers.** `Capability::Closure` still exists, narrowed: MIR build rejects a closure that is `FnOnce` or whose `move` captures are not trivially copyable or a `String` or an array of copyable elements. Rejected today:
-- objects and `Ref`: a class value captured by a returned `move` closure fails the ownership check ("freed before the value that stores it"), before MIR; a `Ref` needs `RefOp::Store` and a registered drop;
-- `Vec`, nullables: need registration in the environment's arena;
-- `FnOnce`: running it moves a capture out of the environment, so the environment must not drop it again.
-
-All of these come down to registering drops for the captures in the environment's arena (`RegisterDrop`, as `store_owned` does for object fields).
+**6.5 Owned captures.** `Capability::Closure` is gone. A `move` (or `FnOnce`) closure owns its captures:
+- a `String`, array, `Vec` or nullable is copied into the environment's arena (`materialize`); a `Vec<Ref>` keeps its own drop glue;
+- a `Ref` is cloned into the environment by `RefOp::Store`'s protocol and its slot registered for release (`Rvalue::Closure.owned_refs`); the lifted body does not register its capture parameters;
+- an object or enum is a handle to memory its original arena frees; a returned closure holding one is rejected by the escape check;
+- `FnOnce` bodies use `CaptureMode::InPlace`: moving a `Ref` out nulls the environment's slot, so the registered release does not run twice, and a closure that is never called releases it with its arena;
+- a closure assigned to an existing `var` puts its environment in the region the variable was declared in (a closure value does not name an arena).
 
 ## 7. Invariants
 
@@ -100,8 +100,8 @@ All of these come down to registering drops for the captures in the environment'
 | Mono lifting | done |
 | MIR `Rvalue::Closure`, `CallClosure`; LLVM lowering | done |
 | `FnMut` (by address and in place), returned `move` closures, `String` and copy-array captures | done |
-| Objects, `Ref`, `Vec`, nullable captures; `FnOnce` | open (6.5) |
-| Delete `Capability::Closure` | open: needs the row above |
+| Objects, `Ref`, `Vec`, nullable captures; `FnOnce` | done (6.5) |
+| Delete `Capability::Closure` | done |
 | Plain closure stored in `var`/field/element/constructor rejected | done |
 | Closure in a `Vec`, `Func` parameter that stores its argument | open, untested |
 | Sema `free_vars` on HIR | dropped (section 4) |
@@ -109,7 +109,7 @@ All of these come down to registering drops for the captures in the environment'
 
 ## 9. Test matrix
 
-Programs under `programs/build/closures/`: trailing closure with a capture, closure in a `val`, `F: Fn` bound, `FnMut` counter and bound, `move` closure returned (adder), `move` counter (own state), `String` capture returned, a returned `String` capture that outlives its frame. `programs/build_fail/move_closure_with_captures.bork` is the closure that still hits `Capability::Closure`. Unit tests: `src/typeck/tests/closures.rs` (signature from annotation, argument, bound, kind mismatch, captures, view returned), `src/mono/tests.rs` (lifting, nesting), `tests/parser.rs`.
+Programs under `programs/build/closures/`: trailing closure with a capture, closure in a `val`, `F: Fn` bound, `FnMut` counter and bound, `move` closure returned (adder), `move` counter (own state), `String` capture returned, a returned `String` capture that outlives its frame. Owned captures: `move_ref_capture`, `move_vec_capture`, `move_nullable_capture`, `move_object_capture`, `move_assigned_to_outer_var`, `owned_values_with_refs`, `fnonce_moves_object`, `fnonce_ref_released_once`. Unit tests: `src/typeck/tests/closures.rs` (signature from annotation, argument, bound, kind mismatch, captures, view returned), `src/mono/tests.rs` (lifting, nesting), `tests/parser.rs`.
 
 `programs/check_fail/closures/`: move of an outer name inside a loop, view closure stored in a `var`, view closure returned, `FnMut` closure for an `Fn` bound.
 

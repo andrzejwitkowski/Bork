@@ -1,0 +1,28 @@
+// exit: 0
+// WHAT THIS TESTS
+// A `move` closure that captures a `Ref` owns it: the environment stores the handle through the Ref protocol
+// and releases it when the environment's arena ends. Built in an inner block (a NEWER arena than `n`), the
+// counts after the block must be back at the baseline taken before it (a leak or a double drop breaks it).
+class Node {
+    id: i32
+}
+
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+
+fun main(): i32 {
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val w0 = weakCount(r)
+    val s0 = strongCount(r)
+    var got = 0
+    {
+        val c: Ref<Node> = n
+        got = apply() move (c) { -> c?.id ?: 0 }
+    }
+    if (got != 7) { return 1 }
+    if (weakCount(r) != w0) { return 2 }
+    if (strongCount(r) != s0) { return 3 }
+    return 0
+}

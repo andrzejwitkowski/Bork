@@ -85,7 +85,8 @@ fn lift_one(outer_span: crate::span::Span, outer_source: Option<&'static str>, n
         env_params: Some(captures.len()),
         env_mode: match (kind, is_move) {
             (crate::hir::ClosureKind::FnMut, false) => crate::hir::CaptureMode::ByAddress,
-            (crate::hir::ClosureKind::FnMut, true) => crate::hir::CaptureMode::InPlace,
+            // `FnOnce` too: a capture moved out nulls the environment's slot, so its release does not run twice.
+            (crate::hir::ClosureKind::FnMut, true) | (crate::hir::ClosureKind::FnOnce, _) => crate::hir::CaptureMode::InPlace,
             _ => crate::hir::CaptureMode::ByValue,
         },
         params: capture_params.chain(params).collect(),

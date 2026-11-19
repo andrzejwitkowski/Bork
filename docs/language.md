@@ -652,7 +652,7 @@ Supported: integer and float arithmetic and comparisons, `for` over `..`, `while
 
 A `T?` is an `Option<T>` enum slot `{ i32 tag, payload }` in the sink arena (`None` too); `!!` on `None` aborts.
 
-Closures: a closure compiles to a function and a pointer to its environment (`{ code pointer, captures }`). Supported: reading closures (`Fn`), `FnMut` closures (a plain one updates the outer variable in place, a `move` one its own copy), `move` closures that own numbers, `bool`, `String` and arrays of copyable elements, and `F: Fn(..)` bounds. Rejected by codegen (the frontend still accepts them): closures that own an object, a `Ref`, a `Vec` or a nullable, and `FnOnce` closures (`closures that own a captured value ... are not supported by codegen yet`).
+Closures: a closure compiles to a function and a pointer to its environment (`{ code pointer, captures }`). Supported: reading closures (`Fn`), `FnMut` closures (a plain one updates the outer variable in place, a `move` one its own copy), `move` closures that own numbers, `bool`, `String`, arrays, `Vec`s, nullables, objects, enums and `Ref`s (also assigned to a `var` of an outer block), `FnOnce` closures that move a capture out, and `F: Fn(..)` bounds. There is no closure-specific codegen restriction left.
 
 Also rejected by codegen: safe navigation of an owned nested record (as opposed to a scalar, `String`, array, or `Ref` field) is also rejected.
 
