@@ -532,6 +532,7 @@ fn check_trailing_closure(
     for (param, &ty) in closure.params.iter().zip(param_tys) {
         let is_ref = env.tcx.is_ref(ty);
         env.bind(param.name.clone(), BindingKind::Val, ty, is_ref);
+        env.mark_func_param_view(&param.name, ty);
         params.push(HirParam { kind: BindingKind::Val, name: param.name.clone(), ty });
     }
     let (body, body_ty) =

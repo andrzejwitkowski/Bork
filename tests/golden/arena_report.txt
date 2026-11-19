@@ -4852,6 +4852,18 @@ Arenas
     └── Closure (move)
         ├── n [Moved ← fun main]
         └── m [Copy]
+== programs/check_fail/closures/move_wrapper_of_func_param_returned.bork
+Type Error [] cannot return a closure that borrows its captures; make it `move`
+Arenas
+├── fun wrap
+│   ├── f [Local]
+│   └── Closure (move)
+│       └── f [Moved ← fun wrap]
+└── fun main
+    ├── n [Local]
+    ├── g [Local]
+    └── Closure
+        └── n [Copy]
 == programs/check_fail/closures/view_as_closure_tail.bork
 Type Error [198..213] cannot return a closure that borrows its captures; make it `move`
 Arenas

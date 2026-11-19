@@ -357,6 +357,7 @@ programs/check_fail/closures/func_param_returned.bork: hits=6 hash=212067c0955e1
 programs/check_fail/closures/func_param_stored_in_field.bork: hits=3 hash=c556741c7e55731b
 programs/check_fail/closures/move_in_loop.bork: hits=13 hash=43adea5b603d904f
 programs/check_fail/closures/move_list_misses_a_capture.bork: hits=15 hash=c7e6ae8dcc435822
+programs/check_fail/closures/move_wrapper_of_func_param_returned.bork: hits=7 hash=f537db08d4598628
 programs/check_fail/closures/view_as_closure_tail.bork: hits=7 hash=92e392036435a6e3
 programs/check_fail/closures/view_in_generic_wrapper.bork: hits=8 hash=f611a91afdd8c7e9
 programs/check_fail/closures/view_returned.bork: hits=2 hash=850bdccb70b29015

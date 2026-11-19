@@ -237,6 +237,8 @@ impl<'a> Env<'a> {
             HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
                 args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
             }
+            // A `move` closure keeps a captured view alive: its type does not say so (`Func` erases it), the binding does.
+            HirExprKind::Closure { captures, .. } => captures.iter().any(|c| self.binding(&c.name).is_some_and(|b| b.view_closure)),
             // A branch result is a view when any branch is.
             HirExprKind::If { then_block, else_block, .. } => self.block_tail_is_view(then_block) || else_block.as_ref().is_some_and(|b| self.block_tail_is_view(b)),
             HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.block_tail_is_view(&a.body)),
