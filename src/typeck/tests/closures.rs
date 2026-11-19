@@ -309,3 +309,9 @@ fn an_owned_branch_alias_is_not_mistaken_for_an_outer_view_parameter_of_the_same
     let src = "fun pick(c: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val f: () -> i32 = move { -> 1 }\n        val g = f\n        g\n    } else {\n        move { -> 2 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
     assert!(!diags_of(src).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(src));
 }
+
+#[test]
+fn a_view_alias_is_rejected_through_nested_branch_tails() {
+    let src = "fun pick(c: bool, d: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val g = f\n        if (d) { g } else { g }\n    } else {\n        move { -> 0 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("cannot return")), "{:?}", diags_of(src));
+}
