@@ -17,6 +17,8 @@ struct Scan {
     assigned: HashSet<String>,
     /// Names moved out, with the moved value's type.
     moved: Vec<(String, TyId)>,
+    /// Names a `move (..)` block inside the body moves in on entry, which the scan of its body does not show.
+    block_moved: Vec<String>,
     /// Names called as a local callable value, calling it is as strong as its kind.
     called: Vec<String>,
     /// `val alias = captured`: calling the alias calls the captured value.
@@ -29,6 +31,11 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
     let mut scan = Scan::default();
     scan.declared.extend(params.iter().map(|p| p.name.clone()));
     scan.block(body);
+    for name in std::mem::take(&mut scan.block_moved) {
+        if let Some(ty) = outer_ty(&name) {
+            scan.moved.push((name, ty));
+        }
+    }
     // The call node carries a plain `Fn` function type; the binding holds the real kind: a closure type, a `Func` written with `FnMut`/`FnOnce`, or a bounded parameter.
     for name in std::mem::take(&mut scan.called) {
         let Some(ty) = outer_ty(&name) else { continue };
@@ -68,7 +75,15 @@ impl Scan {
     fn stmt(&mut self, s: &HirStmt) {
         match s {
             HirStmt::Return { value } => value.iter().for_each(|v| self.expr(v)),
-            HirStmt::Block(inner) | HirStmt::MoveBlock { body: inner, .. } => self.block(inner),
+            HirStmt::Block(inner) => self.block(inner),
+            HirStmt::MoveBlock { captures, body } => {
+                for name in captures.iter().flatten() {
+                    if self.note(name) {
+                        self.block_moved.push(name.clone());
+                    }
+                }
+                self.block(body);
+            }
             HirStmt::VarDecl { name, value, .. } => {
                 self.expr(value);
                 let alias = match &value.kind {
@@ -219,9 +234,13 @@ impl Scan {
             K::MakeClosure { captures, .. } => captures.iter().for_each(|x| self.expr(x)),
             // What a nested closure does to a capture it does to ours: it makes this closure at least as strong.
             // shortcut: the nested kind applies to all its captures, not just the one it assigns or moves.
-            K::Closure { captures, kind, .. } => {
+            K::Closure { captures, kind, is_move, .. } => {
                 for c in captures {
                     if self.note(&c.name) {
+                        // Building a `move` closure moves its captures out of ours, whatever it does with them.
+                        if *is_move {
+                            self.moved.push((c.name.clone(), c.ty));
+                        }
                         match kind {
                             ClosureKind::Fn => {}
                             ClosureKind::FnMut => {

@@ -294,6 +294,16 @@ Arenas
     │       └── b [Moved ← Block]
     ├── IfThen
     └── IfThen
+== programs/build/closures/generic_closure_instances_differ_by_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+├── fun outer
+│   ├── x [Local]
+│   └── Closure
+│       ├── k [Local]
+│       └── x [Shared ← fun outer]
+└── fun main
 == programs/build/closures/generic_fn_bound.bork
 Arenas
 ├── fun apply
@@ -4874,7 +4884,7 @@ Arenas
         └── Closure
             └── n [Copy]
 == programs/check_fail/closures/view_in_generic_wrapper.bork
-Type Error [205..209] `wrap<closure#0()->i32>`: `closure#0()->i32` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
+Type Error [205..209] `wrap<closure#0()->i32[i32]>`: `closure#0()->i32` cannot be a type argument of `Holder`: a borrow cannot be stored in a generic type
 Arenas
 ├── fun wrap
 │   └── f [Local]

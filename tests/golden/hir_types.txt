@@ -66,6 +66,9 @@ programs/build/closures/fnonce_ref_released_once.bork::eat(r: Ref<Node>) -> i32
 programs/build/closures/fnonce_ref_released_once.bork::once(f: T0) -> i32
 programs/build/closures/fnonce_ref_released_once.bork::never(f: T0) -> i32
 programs/build/closures/fnonce_ref_released_once.bork::main() -> i32
+programs/build/closures/generic_closure_instances_differ_by_capture.bork::apply(f: T0) -> i32
+programs/build/closures/generic_closure_instances_differ_by_capture.bork::outer(x: T0) -> i32
+programs/build/closures/generic_closure_instances_differ_by_capture.bork::main() -> i32
 programs/build/closures/generic_fn_bound.bork::apply(f: T0, v: i32) -> i32
 programs/build/closures/generic_fn_bound.bork::main() -> i32
 programs/build/closures/local_closure_shadows_global_fn.bork::f(x: i32) -> i32

@@ -1,0 +1,18 @@
+// exit: 2
+// WHAT THIS TESTS
+// The closure inside a generic function has one closure type id, but each instance captures a different type.
+// The bound function `apply<F>` must be instantiated once per instance, not once for both.
+fun apply<F: FnOnce() -> i32>(f: F): i32 {
+    return f()
+}
+
+fun outer<T>(x: T): i32 {
+    return apply({ ->
+        val k = x
+        1
+    })
+}
+
+fun main(): i32 {
+    return outer(5) + outer(true)
+}

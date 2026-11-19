@@ -54,7 +54,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = 3  // label "n": i32 decl
     _3 = closure main$closure0(copy _2) in current
-    _4 = call apply<closure#0(i32)->i32>(4, copy _3) +current -> bb1
+    _4 = call apply<closure#0(i32)->i32[i32]>(4, copy _3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _4)
     _5 = closure main$closure1() in current
@@ -67,7 +67,7 @@ fn main (parent=false, sink=false) {
     return
 }
 
-fn apply<closure#0(i32)->i32> (parent=true, sink=false) {
+fn apply<closure#0(i32)->i32[i32]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: i32 [Arg] v
   let _2: closure#0(i32)->i32 [Arg] f
@@ -149,7 +149,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = 0  // label "total": i32 decl
     _3 = closure main$closure0(copy _2) by_ref in current
-    _4 = call run<closure#0()->i32>(copy _3) +current -> bb1
+    _4 = call run<closure#0()->i32[i32]>(copy _3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _4)
     _0 = 0
@@ -158,7 +158,7 @@ fn main (parent=false, sink=false) {
     return
 }
 
-fn run<closure#0()->i32> (parent=true, sink=false) {
+fn run<closure#0()->i32[i32]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#0()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -276,7 +276,7 @@ fn main (parent=false, sink=false) {
     _2.0 = 7  // label "Node.id": i32 decl owner=current
     _3 = copy _2  // label "n": Node decl
     _4 = closure main$closure0(copy _3) in current
-    _5 = call once<closure#0()->i32>(copy _4) +current -> bb1
+    _5 = call once<closure#0()->i32[Node]>(copy _4) +current -> bb1
   bb1:
     _0 = copy _5
     storage_dead _1
@@ -298,7 +298,7 @@ fn take (parent=true, sink=false) {
     return
 }
 
-fn once<closure#0()->i32> (parent=true, sink=false) {
+fn once<closure#0()->i32[Node]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#0()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -397,7 +397,7 @@ fn main (parent=false, sink=false) {
     register_drop current _16 RefSlot
     _17 = ref_clone copy _16
     _18 = closure main$closure0(move _17) in current
-    _19 = call once<closure#0()->i32>(copy _18) +current -> bb1
+    _19 = call once<closure#0()->i32[Ref<Node>]>(copy _18) +current -> bb1
   bb1:
     _13 = copy _19
     _20 = ref_create source=current target=object_arena(_4) copy _4
@@ -405,7 +405,7 @@ fn main (parent=false, sink=false) {
     register_drop current _21 RefSlot
     _22 = ref_clone copy _21
     _23 = closure main$closure1(move _22) in current
-    _24 = call never<closure#1()->i32>(copy _23) +current -> bb2
+    _24 = call never<closure#1()->i32[Ref<Node>]>(copy _23) +current -> bb2
   bb2:
     _25 = add(copy _13, copy _24)
     _13 = copy _25
@@ -491,7 +491,7 @@ fn eat (parent=true, sink=false) {
     }
 }
 
-fn once<closure#0()->i32> (parent=true, sink=false) {
+fn once<closure#0()->i32[Ref<Node>]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#0()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -508,7 +508,7 @@ fn once<closure#0()->i32> (parent=true, sink=false) {
     return
 }
 
-fn never<closure#1()->i32> (parent=true, sink=false) {
+fn never<closure#1()->i32[Ref<Node>]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#1()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -555,6 +555,132 @@ fn main$closure1 (parent=true, sink=false) {
     _4 = call eat(move _3) +current -> bb1
   bb1:
     _0 = copy _4
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== closures/generic_closure_instances_differ_by_capture.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Temp]
+  let _3: i32 [Temp]
+  let _4: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = call outer<i32>(5) +current -> bb1
+  bb1:
+    _3 = call outer<bool>(true) +current -> bb2
+  bb2:
+    _4 = add(copy _2, copy _3)
+    _0 = copy _4
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn outer<i32> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] x
+  let _2: unit [Hidden(DebugScope)]
+  let _3: closure#0()->i32 [Temp]
+  let _4: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = closure outer<i32>$closure0(copy _1) in current
+    _4 = call apply<closure#0()->i32[i32]>(copy _3) +current -> bb1
+  bb1:
+    _0 = copy _4
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn outer<bool> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: bool [Arg] x
+  let _2: unit [Hidden(DebugScope)]
+  let _3: closure#0()->i32 [Temp]
+  let _4: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = closure outer<bool>$closure0(copy _1) in current
+    _4 = call apply<closure#0()->i32[bool]>(copy _3) +current -> bb1
+  bb1:
+    _0 = copy _4
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn apply<closure#0()->i32[i32]> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: closure#0()->i32 [Arg] f
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = call_closure copy _1() +current -> bb1
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn apply<closure#0()->i32[bool]> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: closure#0()->i32 [Arg] f
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = call_closure copy _1() +current -> bb1
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn outer<i32>$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] x
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Val] k
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = copy _1  // label "k": i32 decl
+    _0 = 1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn outer<bool>$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: bool [Arg] x
+  let _2: unit [Hidden(DebugScope)]
+  let _3: bool [Val] k
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = copy _1  // label "k": bool decl
+    _0 = 1
     storage_dead _2
     region_exit r0
     return
@@ -1969,7 +2095,7 @@ fn main (parent=false, sink=false) {
     _24 = ref_clone copy _6
     vec_Push(copy _23, move _24)
     _25 = closure main$closure1(copy _22) in current
-    _26 = call once<closure#1()->i32>(copy _25) +current -> bb2
+    _26 = call once<closure#1()->i32[Vec<Ref<Node>>]>(copy _25) +current -> bb2
   bb2:
     _27 = add(copy _13, copy _26)
     _13 = copy _27
@@ -1986,7 +2112,7 @@ fn main (parent=false, sink=false) {
     _34.0 = copy _35  // label "Holder.items": Vec<Ref<Node>> decl owner=current
     _36 = copy _34  // label "h": Holder decl
     _37 = closure main$closure2(copy _36) in current
-    _38 = call once<closure#2()->i32>(copy _37) +current -> bb3
+    _38 = call once<closure#2()->i32[Holder]>(copy _37) +current -> bb3
   bb3:
     _39 = add(copy _13, copy _38)
     _13 = copy _39
@@ -1996,7 +2122,7 @@ fn main (parent=false, sink=false) {
     register_drop current _41 Enum("Link")
     _42 = copy _41  // label "l2": Link decl
     _43 = closure main$closure3(copy _42) in current
-    _44 = call once<closure#3()->i32>(copy _43) +current -> bb4
+    _44 = call once<closure#3()->i32[Link]>(copy _43) +current -> bb4
   bb4:
     _45 = add(copy _13, copy _44)
     _13 = copy _45
@@ -2107,7 +2233,7 @@ fn eatv (parent=true, sink=false) {
     return
 }
 
-fn once<closure#1()->i32> (parent=true, sink=false) {
+fn once<closure#1()->i32[Vec<Ref<Node>>]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#1()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -2142,7 +2268,7 @@ fn eath (parent=true, sink=false) {
     return
 }
 
-fn once<closure#2()->i32> (parent=true, sink=false) {
+fn once<closure#2()->i32[Holder]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#2()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -2159,7 +2285,7 @@ fn once<closure#2()->i32> (parent=true, sink=false) {
     return
 }
 
-fn once<closure#3()->i32> (parent=true, sink=false) {
+fn once<closure#3()->i32[Link]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#3()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
@@ -2340,7 +2466,7 @@ fn main (parent=false, sink=false) {
     region_enter r0
     _2 = 3  // label "n": i32 decl
     _3 = closure main$closure0(copy _2) in current
-    _4 = call call<closure#0()->i32>(copy _3) +current -> bb1
+    _4 = call call<closure#0()->i32[i32]>(copy _3) +current -> bb1
   bb1:
     intrinsic PrintlnInt(copy _4)
     _0 = 0
@@ -2349,7 +2475,7 @@ fn main (parent=false, sink=false) {
     return
 }
 
-fn call<closure#0()->i32> (parent=true, sink=false) {
+fn call<closure#0()->i32[i32]> (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: closure#0()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]

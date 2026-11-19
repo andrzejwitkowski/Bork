@@ -321,3 +321,16 @@ fn a_long_chain_of_owned_branch_aliases_is_checked_in_linear_time() {
     let src = "fun pick(c: bool, f: () -> i32): () -> i32 {\n    return if (c) {\n        val g0: () -> i32 = move { -> 1 }\n        val g1 = if (c) { g0 } else { g0 }\n        val g2 = if (c) { g1 } else { g1 }\n        val g3 = if (c) { g2 } else { g2 }\n        val g4 = if (c) { g3 } else { g3 }\n        val g5 = if (c) { g4 } else { g4 }\n        val g6 = if (c) { g5 } else { g5 }\n        val g7 = if (c) { g6 } else { g6 }\n        val g8 = if (c) { g7 } else { g7 }\n        val g9 = if (c) { g8 } else { g8 }\n        val g10 = if (c) { g9 } else { g9 }\n        val g11 = if (c) { g10 } else { g10 }\n        val g12 = if (c) { g11 } else { g11 }\n        val g13 = if (c) { g12 } else { g12 }\n        val g14 = if (c) { g13 } else { g13 }\n        val g15 = if (c) { g14 } else { g14 }\n        val g16 = if (c) { g15 } else { g15 }\n        val g17 = if (c) { g16 } else { g16 }\n        val g18 = if (c) { g17 } else { g17 }\n        val g19 = if (c) { g18 } else { g18 }\n        val g20 = if (c) { g19 } else { g19 }\n        val g21 = if (c) { g20 } else { g20 }\n        val g22 = if (c) { g21 } else { g21 }\n        val g23 = if (c) { g22 } else { g22 }\n        val g24 = if (c) { g23 } else { g23 }\n        val g25 = if (c) { g24 } else { g24 }\n        g25\n    } else {\n        move { -> 2 }\n    }\n}\nfun main(): i32 {\n    return 0\n}";
     assert!(!diags_of(src).iter().any(|d| d.message.contains("borrows its captures")), "{:?}", diags_of(src));
 }
+
+#[test]
+fn a_move_block_inside_a_closure_moves_its_capture_so_the_closure_is_fn_once() {
+    let hdr = "class Node {\n    id: i32\n}\nfun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = Node(1)\n";
+    let moves = format!("{hdr}    return once({{ ->\n        move (n) {{ println(\"x\") }}\n        0\n    }})\n}}");
+    assert!(diags_of(&moves).iter().any(|d| d.message.contains("FnOnce")), "{:?}", diags_of(&moves));
+}
+
+#[test]
+fn building_a_nested_move_closure_moves_its_captures_so_the_outer_closure_is_fn_once() {
+    let src = "class Node {\n    id: i32\n}\nfun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = Node(1)\n    return once({ ->\n        val g = move (n) { -> n.id }\n        g()\n    })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnOnce")), "{:?}", diags_of(src));
+}
