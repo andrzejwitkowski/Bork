@@ -241,6 +241,15 @@ impl<'a> Env<'a> {
         }
     }
 
+    /// What calling a value of type `ty` requires of its owner: a closure's own kind, or the weakest `Fn*`
+    /// bound of a type parameter. Anything else counts as `Fn`.
+    pub(super) fn callable_kind(&self, ty: TyId) -> crate::ty::ClosureKind {
+        self.tcx.closure_kind(ty).unwrap_or_else(|| {
+            let bound = |p: &&crate::ty::Predicate<TyId>| p.self_ty == ty;
+            self.param_env.iter().filter(bound).filter_map(|p| self.tcx.fn_trait_kind(p.trait_ref.trait_id)).min().unwrap_or(crate::ty::ClosureKind::Fn)
+        })
+    }
+
     /// Remembers that the binding just made holds a view closure.
     pub(super) fn mark_view_closure(&mut self, name: &str) {
         if let Some(binding) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {

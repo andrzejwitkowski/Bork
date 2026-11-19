@@ -17,14 +17,27 @@ struct Scan {
     assigned: HashSet<String>,
     /// Names moved out, with the moved value's type.
     moved: Vec<(String, TyId)>,
+    /// Names called as a local callable value, calling it is as strong as its kind.
+    called: Vec<String>,
 }
 
 /// Names the closure uses from outside (`outer_ty` gives the type of a binding outside it, `None`
 /// for any other name), in name order, and the strongest kind its body needs.
-pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&str) -> Option<TyId>, is_copy: impl Fn(TyId) -> bool) -> (Vec<(String, TyId)>, ClosureKind) {
+pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&str) -> Option<TyId>, is_copy: impl Fn(TyId) -> bool, call_kind: impl Fn(TyId) -> ClosureKind) -> (Vec<(String, TyId)>, ClosureKind) {
     let mut scan = Scan::default();
     scan.declared.extend(params.iter().map(|p| p.name.clone()));
     scan.block(body);
+    // The call node carries a plain `Func`; the binding holds the real closure or bounded parameter.
+    for name in std::mem::take(&mut scan.called) {
+        let Some(ty) = outer_ty(&name) else { continue };
+        match call_kind(ty) {
+            ClosureKind::Fn => {}
+            ClosureKind::FnMut => {
+                scan.assigned.insert(name);
+            }
+            ClosureKind::FnOnce => scan.moved.push((name, ty)),
+        }
+    }
     let captures: Vec<(String, TyId)> = scan
         .used
         .iter()
@@ -174,6 +187,11 @@ impl Scan {
             }
             K::Call { callee, args, trailing } => {
                 self.expr(callee);
+                if let K::Ident { name, use_kind: UseKind::Copy } = &callee.kind {
+                    if !self.declared.contains(name) {
+                        self.called.push(name.clone());
+                    }
+                }
                 args.iter().for_each(|x| self.expr(x));
                 trailing.iter().for_each(|x| self.expr(x));
             }

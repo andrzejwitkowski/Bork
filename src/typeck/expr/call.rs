@@ -307,10 +307,9 @@ pub(super) fn finish_call(
 
     let trailing_hir = match (trailing, trailing_signature) {
         (Some(closure), Some((closure_params, closure_ret))) => {
-            let mut hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
+            let hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
             // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
             if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
-                hir.ty = closure_type(&hir, closure_params, closure_ret, env);
                 env.mismatch("trailing closure", hir.ty, last, Some(span));
                 super::super::solve::select_where_possible(env);
             }
@@ -460,16 +459,6 @@ fn split_trailing_param<'a>(
     }
 }
 
-/// A closure written as a value (RFC 0007). Parameter and result types come from an expected
-/// function type, else from fresh variables the body then fixes. Its type is its own `Closure`,
-/// which unifies with the `Func` of the same signature.
-fn closure_type(hir: &HirExpr, params: Vec<TyId>, ret: TyId, env: &mut Env<'_>) -> TyId {
-    let HirExprKind::Closure { kind, is_move, captures, .. } = &hir.kind else {
-        unreachable!("a checked closure is a closure node")
-    };
-    env.tcx.closure(params, ret, *kind, *is_move, captures.iter().map(|c| c.ty).collect())
-}
-
 /// The signature a pending `Fn*` bound gives the (inference-variable) type `ty`.
 fn fn_bound_sig(ty: TyId, env: &mut Env<'_>) -> Option<(Vec<TyId>, TyId)> {
     let fn_bounds: Vec<(TyId, TyId)> = env
@@ -495,8 +484,7 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
             (params, env.infcx.new_var(env.tcx, VarKind::General))
         }
     };
-    let mut hir = check_trailing_closure(closure, &params, ret, env);
-    hir.ty = closure_type(&hir, params, ret, env);
+    let hir = check_trailing_closure(closure, &params, ret, env);
     Checked { ty: hir.ty, hir }
 }
 
@@ -552,12 +540,13 @@ fn check_trailing_closure(
     env.loop_depth = outer_loops;
 
     env.mismatch("trailing closure body", body_ty, closure_ret, None);
-    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty));
+    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty) || env.is_literal_var(ty, crate::infer::VarKind::Int) || env.is_literal_var(ty, crate::infer::VarKind::Float), |ty| env.callable_kind(ty));
     if let Some(listed) = &closure.captures {
         check_capture_list(listed, &used, env);
     }
-    let captures = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
-    let ty = env.tcx.func(param_tys.to_vec(), closure_ret);
+    let captures: Vec<HirCapture> = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
+    // Its own closure type, like a positional closure, so a view stays a view and its kind is kept.
+    let ty = env.tcx.closure(param_tys.to_vec(), closure_ret, kind, closure.is_move, captures.iter().map(|c| c.ty).collect());
     HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move, captures, kind }, ty)
 }
 

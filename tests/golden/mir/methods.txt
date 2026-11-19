@@ -770,7 +770,7 @@ fn main (parent=false, sink=false) {
   let _3: P [Temp]
   let _4: P [Val] p
   let _5: &P [Temp]
-  let _6: (i32)->i32 [Temp]
+  let _6: closure#0(i32)->i32 [Temp]
   let _7: i32 [Temp]
   region r0 Block
   bb0:

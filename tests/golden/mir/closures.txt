@@ -203,7 +203,7 @@ fn main (parent=false, sink=false) {
   let _0: i32 [Return]
   let _1: unit [Hidden(DebugScope)]
   let _2: i32 [Var] n
-  let _3: ()->i32 [Temp]
+  let _3: closure#0()->i32 [Temp]
   let _4: i32 [Temp]
   let _5: i32 [Temp]
   region r0 Block
@@ -911,9 +911,9 @@ fn main (parent=false, sink=false) {
   let _0: i32 [Return]
   let _1: unit [Hidden(DebugScope)]
   let _2: i32 [Val] k
-  let _3: (i32)->i32 [Temp]
+  let _3: closure#0(i32)->i32 [Temp]
   let _4: i32 [Temp]
-  let _5: (i32)->i32 [Temp]
+  let _5: closure#1(i32)->i32 [Temp]
   let _6: i32 [Temp]
   region r0 Block
   bb0:

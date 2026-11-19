@@ -249,3 +249,21 @@ fn a_trailing_closure_must_match_the_type_an_earlier_argument_fixed() {
     let src = "fun both<F: Fn() -> i32>(a: F, b: F): i32 {\n    return a() + b()\n}\nfun main(): i32 {\n    return both({ -> 1 }) { -> 2 }\n}";
     assert!(!diags_of(src).is_empty());
 }
+
+#[test]
+fn a_closure_calling_a_captured_fn_mut_is_fn_mut() {
+    let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val inner = { -> n = n + 1\n n }\n    return apply({ -> inner() })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnMut")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn moving_an_unannotated_literal_capture_is_a_read() {
+    let src = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return apply({ -> move n })\n}";
+    hir_of(src);
+}
+
+#[test]
+fn a_trailing_closure_that_borrows_is_a_view_when_returned() {
+    let src = "fun forward(f: () -> i32): () -> i32 {\n    return f\n}\nfun make(): () -> i32 {\n    val n = 5\n    return forward() { -> n }\n}";
+    assert!(!diags_of(src).is_empty());
+}
