@@ -246,32 +246,30 @@ impl<'a> Env<'a> {
         }
     }
 
-    /// Whether the block's result is a view. A tail that names a `val` declared in the block (or an enclosing
-    /// branch block) is judged by that `val`'s initializer, resolved against the declarations before it: those
-    /// bindings are gone by the time the enclosing `return` is checked, and an outer binding of the same name must
-    /// not be mistaken for them.
+    /// Whether the block's result is a view. The block's own `val`s (and those of enclosing branch blocks) are gone
+    /// by the time the enclosing `return` is checked, so their provenance is computed once, in declaration order,
+    /// into `seen`; an outer binding of the same name must not be mistaken for them.
     pub(super) fn block_tail_is_view(&self, block: &crate::hir::HirBlock) -> bool {
-        self.tail_is_view(block, &[])
+        self.tail_is_view(block, &std::collections::HashMap::new())
     }
 
-    fn tail_is_view(&self, block: &crate::hir::HirBlock, outer: &[&crate::hir::HirStmt]) -> bool {
-        let Some((crate::hir::HirStmt::Expr(tail), _)) = block.stmts.split_last() else { return false };
-        let decls: Vec<&crate::hir::HirStmt> = outer.iter().copied().chain(&block.stmts[..block.stmts.len() - 1]).collect();
-        self.is_view_before(tail, &decls)
-    }
-
-    fn is_view_before(&self, e: &HirExpr, before: &[&crate::hir::HirStmt]) -> bool {
-        match &e.kind {
-            HirExprKind::Ident { name, .. } => {
-                let local = before.iter().rposition(|s| matches!(s, crate::hir::HirStmt::VarDecl { name: n, .. } if n == name));
-                if let Some(at) = local {
-                    let crate::hir::HirStmt::VarDecl { value, .. } = before[at] else { unreachable!() };
-                    return self.is_view_before(value, &before[..at]);
-                }
-                self.hir_is_view_closure(e)
+    fn tail_is_view(&self, block: &crate::hir::HirBlock, outer: &std::collections::HashMap<String, bool>) -> bool {
+        let Some((crate::hir::HirStmt::Expr(tail), decls)) = block.stmts.split_last() else { return false };
+        let mut seen = outer.clone();
+        for stmt in decls {
+            if let crate::hir::HirStmt::VarDecl { name, value, .. } = stmt {
+                let view = self.is_view_in(value, &seen);
+                seen.insert(name.clone(), view);
             }
-            HirExprKind::If { then_block, else_block, .. } => self.tail_is_view(then_block, before) || else_block.as_ref().is_some_and(|b| self.tail_is_view(b, before)),
-            HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.tail_is_view(&a.body, before)),
+        }
+        self.is_view_in(tail, &seen)
+    }
+
+    fn is_view_in(&self, e: &HirExpr, seen: &std::collections::HashMap<String, bool>) -> bool {
+        match &e.kind {
+            HirExprKind::Ident { name, .. } if seen.contains_key(name) => seen[name],
+            HirExprKind::If { then_block, else_block, .. } => self.tail_is_view(then_block, seen) || else_block.as_ref().is_some_and(|b| self.tail_is_view(b, seen)),
+            HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.tail_is_view(&a.body, seen)),
             _ => self.hir_is_view_closure(e),
         }
     }
