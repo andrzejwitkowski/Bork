@@ -105,3 +105,19 @@ fn inferred_move_capture_of_bare_field_captures_this() {
     assert!(via_this.iter().any(|m| m.contains("this")), "{via_this:?}");
     assert_eq!(bare, via_this);
 }
+
+#[test]
+fn closure_param_carries_typeck_inferred_type() {
+    let (report, errs) = analyze(&parse(
+        "fun apply(k: i32, f: (i32) -> i32): i32 {\n    return f(k)\n}\nfun main() {\n    val a = apply(1) { v -> v + 1 }\n}",
+    ).unwrap());
+    assert!(errs.is_empty(), "{errs:?}");
+    fn find<'a>(n: &'a ArenaNode, out: &mut Vec<&'a ArenaNode>) {
+        if n.label == "Closure" { out.push(n); }
+        n.children.iter().for_each(|c| find(c, out));
+    }
+    let mut closures = Vec::new();
+    report.roots.iter().for_each(|r| find(r, &mut closures));
+    let v = closures.iter().flat_map(|c| &c.bindings).find(|b| b.name == "v").expect("closure param v");
+    assert!(v.ty.is_some(), "param type should come from typeck, got {v:?}");
+}

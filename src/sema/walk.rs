@@ -516,7 +516,7 @@ fn walk_closure(az: &mut Analyzer, c: &crate::ast::Closure, node: &mut ArenaNode
         .iter()
         .map(|p| RegionParam {
             name: p.name.clone(),
-            ty: Ty::Unknown,
+            ty: az.node_tys.get(&p.id.numbered()).cloned().unwrap_or(Ty::Unknown),
             kind: BindingKind::Val,
             span: Some(p.span),
             borrow_from: super::region::REF_PARAM_BORROW_FROM,
