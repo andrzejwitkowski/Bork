@@ -278,6 +278,12 @@ fn builtin_overloads_see_through_a_bound_class_argument() {
 }
 
 #[test]
+fn a_generic_call_as_println_argument_is_not_pinned_to_i32() {
+    let id = "fun id<T>(x: T): T {\n    return x\n}\n";
+    clean(&format!("{id}fun main(): i32 {{\n    println(id(\"a\"))\n    println(id(1))\n    println(5000000000)\n    return 0\n}}\n"));
+}
+
+#[test]
 fn a_generic_object_is_accepted_where_a_ref_to_it_is_expected() {
     let node = "class Node<T> {\n    value: T\n    next: Ref<Node<T>>\n}\n";
     clean(&format!("{node}fun main() {{\n    val tail = Node(1, None)\n    val head = Node(2, tail)\n}}\n"));
