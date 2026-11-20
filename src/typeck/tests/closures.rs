@@ -334,3 +334,9 @@ fn building_a_nested_move_closure_moves_its_captures_so_the_outer_closure_is_fn_
     let src = "class Node {\n    id: i32\n}\nfun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = Node(1)\n    return once({ ->\n        val g = move (n) { -> n.id }\n        g()\n    })\n}";
     assert!(diags_of(src).iter().any(|d| d.message.contains("FnOnce")), "{:?}", diags_of(src));
 }
+
+#[test]
+fn a_move_block_without_a_capture_list_moves_what_it_uses_so_the_closure_is_fn_once() {
+    let src = "class Node {\n    id: i32\n}\nfun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = Node(1)\n    return once({ ->\n        move {\n            val id = n.id\n        }\n        0\n    })\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("FnOnce")), "{:?}", diags_of(src));
+}

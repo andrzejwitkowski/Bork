@@ -69,11 +69,16 @@ fn mangle(base: &str, tcx: &TyCtx, args: &[TyId]) -> String {
 /// A closure type's id is shared by every instance of its enclosing generic function, so its captures are part of the name.
 fn mangle_ty(tcx: &TyCtx, ty: TyId) -> String {
     let shown = tcx.display(ty).to_string().replace(' ', "");
+    let mut captures = Vec::new();
+    nested_captures(tcx, ty, &mut captures);
+    if captures.is_empty() { shown } else { format!("{shown}[{}]", captures.join(",")) }
+}
+
+/// The mangled capture types of every closure in `ty`, at any depth (`Holder<closure>` shows no captures).
+fn nested_captures(tcx: &TyCtx, ty: TyId, out: &mut Vec<String>) {
     match tcx.data(ty) {
-        TyData::Closure { captures, .. } if !captures.is_empty() => {
-            format!("{shown}[{}]", captures.iter().map(|&c| mangle_ty(tcx, c)).collect::<Vec<_>>().join(","))
-        }
-        _ => shown,
+        TyData::Closure { captures, .. } => out.extend(captures.iter().map(|&c| mangle_ty(tcx, c))),
+        data => data.children().into_iter().for_each(|child| nested_captures(tcx, child, out)),
     }
 }
 

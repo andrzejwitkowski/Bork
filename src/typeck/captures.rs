@@ -82,7 +82,13 @@ impl Scan {
                         self.block_moved.push(name.clone());
                     }
                 }
+                let outer = std::mem::take(&mut self.used);
                 self.block(body);
+                // An omitted list moves in every outer name the body uses (sema's `resolve_move_captures`).
+                if captures.is_none() {
+                    self.block_moved.extend(self.used.iter().cloned());
+                }
+                self.used.extend(outer);
             }
             HirStmt::VarDecl { name, value, .. } => {
                 self.expr(value);
