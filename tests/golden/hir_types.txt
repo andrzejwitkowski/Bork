@@ -52,6 +52,11 @@ programs/build/classes/safe_ref_field.bork::main() -> i32
 programs/build/classes/string_field.bork::main() -> i32
 programs/build/classes/walkthrough_point.bork::sum(p: &Point) -> i32
 programs/build/classes/walkthrough_point.bork::main() -> i32
+programs/build/closures/closure_in_class_field.bork::fire(b: &Btn) -> i32
+programs/build/closures/closure_in_class_field.bork::main() -> i32
+programs/build/closures/closure_in_class_field_generic_and_returned.bork::makeNumber() -> Btn
+programs/build/closures/closure_in_class_field_generic_and_returned.bork::makeText() -> Btn
+programs/build/closures/closure_in_class_field_generic_and_returned.bork::main() -> i32
 programs/build/closures/closure_in_val.bork::main() -> i32
 programs/build/closures/doc_example.bork::apply(v: i32, f: T0) -> i32
 programs/build/closures/doc_example.bork::main() -> i32

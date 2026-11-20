@@ -1,0 +1,26 @@
+// exit: 17
+// stdout: ok\n
+// WHAT THIS TESTS
+// `holder.on(..)` calls the closure stored in a function-typed field: a `move` closure owning a `String`, an `FnMut`
+// closure that updates its own copy, and a call through a `&` borrow of the holder.
+class Btn {
+    label: String
+    on: (i32) -> i32
+}
+class Counter {
+    next: FnMut() -> i32
+}
+fun fire(b: &Btn): i32 {
+    return b.on(10)
+}
+fun main(): i32 {
+    val s = "abcd"
+    val b = Btn("ok", move (s) { x -> s.length + x })
+    var c = 0
+    val k = Counter(move (c) { -> c = c + 1
+        c })
+    k.next()
+    k.next()
+    println(b.label)
+    return fire(&b) + k.next()
+}

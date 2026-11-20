@@ -223,6 +223,40 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── p [Local]
+== programs/build/closures/closure_in_class_field.bork
+Arenas
+├── fun fire
+│   └── b [Borrow ← call site]
+└── fun main
+    ├── s [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── k [Local]
+    ├── Closure (move)
+    │   ├── x [Local]
+    │   └── s [Moved ← fun main]
+    └── Closure (move)
+        └── c [Moved ← fun main]
+== programs/build/closures/closure_in_class_field_generic_and_returned.bork
+Arenas
+├── fun makeNumber
+│   ├── n [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── n [Moved ← fun makeNumber]
+├── fun makeText
+│   ├── s [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── s [Moved ← fun makeText]
+└── fun main
+    ├── g [Local]
+    ├── a [Local]
+    ├── b [Local]
+    ├── h [Local]
+    ├── Closure
+    │   └── x [Local]
+    └── Closure
 == programs/build/closures/closure_in_val.bork
 Arenas
 └── fun main
@@ -4886,6 +4920,18 @@ Arenas
         ├── r [Local]
         ├── i [Copy]
         └── Closure
+== programs/check_fail/closures/closure_field_call_arity.bork
+Type Error [146..150] function `Btn.on` expects 1 arguments, got 0
+Arenas
+└── fun main
+    ├── b [Local]
+    └── Closure
+        └── x [Local]
+== programs/check_fail/closures/closure_field_call_nullable.bork
+Type Error [159..163] field `on` is nullable; check it for presence before calling it
+Arenas
+└── fun main
+    └── b [Local]
 == programs/check_fail/closures/fnmut_to_fn_bound.bork
 Type Error [115..120] the trait bound `closure#0()->i32: Fn<()->i32>` is not satisfied; the closure is `FnMut` (it assigns to a captured value), which the bound `Fn` does not allow
 Arenas
