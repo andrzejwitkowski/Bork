@@ -111,6 +111,8 @@ programs/build/closures/move_vec_capture.bork::main() -> i32
 programs/build/closures/nested_fnmut_assigns_fresh_string.bork::clobber() -> i32
 programs/build/closures/nested_fnmut_assigns_fresh_string.bork::main() -> i32
 programs/build/closures/nested_fnmut_updates_outer.bork::main() -> i32
+programs/build/closures/non_move_ref_capture.bork::apply(f: ()->i32) -> i32
+programs/build/closures/non_move_ref_capture.bork::main() -> i32
 programs/build/closures/outer_name_before_shadowing_decl.bork::main() -> i32
 programs/build/closures/owned_values_with_refs.bork::apply(f: ()->i32) -> i32
 programs/build/closures/owned_values_with_refs.bork::once(f: T0) -> i32

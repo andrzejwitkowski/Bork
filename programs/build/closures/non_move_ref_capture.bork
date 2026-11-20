@@ -1,0 +1,31 @@
+// exit: 0
+// WHAT THIS TESTS
+// A plain (non-move) `Fn` closure captures a `Ref` by view (RFC 0007): the environment owns no handle, so
+// creating, calling and dropping the closure must leave the strong and weak counts at the baseline.
+class Node {
+    id: i32
+}
+
+fun apply(f: () -> i32): i32 {
+    return f()
+}
+
+fun main(): i32 {
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val w0 = weakCount(r)
+    val s0 = strongCount(r)
+    var got = 0
+    {
+        val c: Ref<Node> = n
+        val w1 = weakCount(r)
+        val s1 = strongCount(r)
+        got = apply() { -> c?.id ?: 0 }
+        if (weakCount(r) != w1) { return 4 }
+        if (strongCount(r) != s1) { return 5 }
+    }
+    if (got != 7) { return 1 }
+    if (weakCount(r) != w0) { return 2 }
+    if (strongCount(r) != s0) { return 3 }
+    return 0
+}

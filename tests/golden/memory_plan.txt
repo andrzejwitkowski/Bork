@@ -22,6 +22,7 @@ programs/build/closures/move_nullable_capture.bork: 379..386 Option<i32> Lexical
 programs/build/closures/move_object_capture.bork: 211..215 Node Lexical LexicalScope(1)
 programs/build/closures/move_ref_capture.bork: 463..467 Node Dynamic Program
 programs/build/closures/move_vec_capture.bork: 583..587 Node Dynamic Program
+programs/build/closures/non_move_ref_capture.bork: 345..349 Node Dynamic Program
 programs/build/closures/owned_values_with_refs.bork: 807..811 Node Dynamic Program
 programs/build/closures/owned_values_with_refs.bork: 935..943 Link Lexical LexicalScope(8)
 programs/build/closures/owned_values_with_refs.bork: 1188..1194 Holder Lexical LexicalScope(8)
