@@ -77,7 +77,10 @@ fn mangle_ty(tcx: &TyCtx, ty: TyId) -> String {
 /// The mangled capture types of every closure in `ty`, at any depth (`Holder<closure>` shows no captures).
 fn nested_captures(tcx: &TyCtx, ty: TyId, out: &mut Vec<String>) {
     match tcx.data(ty) {
-        TyData::Closure { captures, .. } => out.extend(captures.iter().map(|&c| mangle_ty(tcx, c))),
+        TyData::Closure { captures, params, ret, .. } => {
+            out.extend(captures.iter().map(|&c| mangle_ty(tcx, c)));
+            params.iter().chain([ret]).for_each(|&child| nested_captures(tcx, child, out));
+        }
         data => data.children().into_iter().for_each(|child| nested_captures(tcx, child, out)),
     }
 }
