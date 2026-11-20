@@ -319,3 +319,12 @@ fn nested_closures_are_lifted_inner_first() {
     let m = mono("fun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}\nfun main(): i32 {\n    return apply() { a -> apply() { b -> a + b } }\n}\n");
     assert_eq!(function_names(&m), ["main", "apply", "main$closure0", "main$closure1"]);
 }
+
+#[test]
+fn instances_whose_nested_closures_differ_only_in_captures_get_distinct_names() {
+    let src = "class Node {\n    id: i32\n}\nclass Other {\n    id: i32\n}\nclass Holder<T> {\n    v: T\n}\nfun outer<T>(h: T): i32 {\n    return 1\n}\nfun make<T>(t: T): i32 {\n    return outer(Holder(move (t) { -> val u = t\n        1 }))\n}\nfun main(): i32 {\n    return make(Node(1)) + make(Other(2))\n}\n";
+    let m = mono(src);
+    let outers: Vec<_> = names(&m).into_iter().filter(|n| n.starts_with("outer<")).collect();
+    assert_eq!(outers.len(), 2, "{outers:?}");
+    assert_ne!(outers[0], outers[1], "{outers:?}");
+}

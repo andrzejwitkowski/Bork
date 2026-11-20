@@ -62,8 +62,27 @@ fn mangle(base: &str, tcx: &TyCtx, args: &[TyId]) -> String {
     if args.is_empty() {
         return base.to_string();
     }
-    let args: Vec<String> = args.iter().map(|&arg| tcx.display(arg).to_string().replace(' ', "")).collect();
+    let args: Vec<String> = args.iter().map(|&arg| mangle_ty(tcx, arg)).collect();
     format!("{base}<{}>", args.join(","))
+}
+
+/// A closure type's id is shared by every instance of its enclosing generic function, so its captures are part of the name.
+fn mangle_ty(tcx: &TyCtx, ty: TyId) -> String {
+    let shown = tcx.display(ty).to_string().replace(' ', "");
+    let mut captures = Vec::new();
+    nested_captures(tcx, ty, &mut captures);
+    if captures.is_empty() { shown } else { format!("{shown}[{}]", captures.join(",")) }
+}
+
+/// The mangled capture types of every closure in `ty`, at any depth (`Holder<closure>` shows no captures).
+fn nested_captures(tcx: &TyCtx, ty: TyId, out: &mut Vec<String>) {
+    match tcx.data(ty) {
+        TyData::Closure { captures, params, ret, .. } => {
+            out.extend(captures.iter().map(|&c| mangle_ty(tcx, c)));
+            params.iter().chain([ret]).for_each(|&child| nested_captures(tcx, child, out));
+        }
+        data => data.children().into_iter().for_each(|child| nested_captures(tcx, child, out)),
+    }
 }
 
 /// Nesting depth of `ty`. Types are interned DAGs (`Pair<T, T>` shares a child), so it is memoised.

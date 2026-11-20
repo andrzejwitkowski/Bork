@@ -55,6 +55,9 @@ programs/build/classes/walkthrough_point.bork::main() -> i32
 programs/build/closures/closure_in_val.bork::main() -> i32
 programs/build/closures/doc_example.bork::apply(v: i32, f: T0) -> i32
 programs/build/closures/doc_example.bork::main() -> i32
+programs/build/closures/fnmut_assigns_fresh_string.bork::run(f: T0) -> i32
+programs/build/closures/fnmut_assigns_fresh_string.bork::clobber() -> i32
+programs/build/closures/fnmut_assigns_fresh_string.bork::main() -> i32
 programs/build/closures/fnmut_bound.bork::run(f: T0) -> i32
 programs/build/closures/fnmut_bound.bork::main() -> i32
 programs/build/closures/fnmut_counter.bork::twice(f: ()->i32) -> i32
@@ -66,6 +69,9 @@ programs/build/closures/fnonce_ref_released_once.bork::eat(r: Ref<Node>) -> i32
 programs/build/closures/fnonce_ref_released_once.bork::once(f: T0) -> i32
 programs/build/closures/fnonce_ref_released_once.bork::never(f: T0) -> i32
 programs/build/closures/fnonce_ref_released_once.bork::main() -> i32
+programs/build/closures/generic_closure_instances_differ_by_capture.bork::apply(f: T0) -> i32
+programs/build/closures/generic_closure_instances_differ_by_capture.bork::outer(x: T0) -> i32
+programs/build/closures/generic_closure_instances_differ_by_capture.bork::main() -> i32
 programs/build/closures/generic_fn_bound.bork::apply(f: T0, v: i32) -> i32
 programs/build/closures/generic_fn_bound.bork::main() -> i32
 programs/build/closures/local_closure_shadows_global_fn.bork::f(x: i32) -> i32
@@ -74,6 +80,7 @@ programs/build/closures/local_closure_shadows_global_fn.bork::main() -> i32
 programs/build/closures/loop_env_only_allocation.bork::apply(f: ()->i32) -> i32
 programs/build/closures/loop_env_only_allocation.bork::main() -> i32
 programs/build/closures/loop_scalar_closure_call.bork::main() -> i32
+programs/build/closures/loop_variable_shadows_capture_only_in_loop.bork::main() -> i32
 programs/build/closures/move_assigned_to_outer_var.bork::main() -> i32
 programs/build/closures/move_counter.bork::makeCounter(start: i32) -> FnMut()->i32
 programs/build/closures/move_counter.bork::main() -> i32
@@ -96,6 +103,8 @@ programs/build/closures/move_temp_in_loop.bork::main() -> i32
 programs/build/closures/move_vec_capture.bork::apply(f: ()->i32) -> i32
 programs/build/closures/move_vec_capture.bork::make() -> ()->i32
 programs/build/closures/move_vec_capture.bork::main() -> i32
+programs/build/closures/nested_fnmut_assigns_fresh_string.bork::clobber() -> i32
+programs/build/closures/nested_fnmut_assigns_fresh_string.bork::main() -> i32
 programs/build/closures/nested_fnmut_updates_outer.bork::main() -> i32
 programs/build/closures/outer_name_before_shadowing_decl.bork::main() -> i32
 programs/build/closures/owned_values_with_refs.bork::apply(f: ()->i32) -> i32
