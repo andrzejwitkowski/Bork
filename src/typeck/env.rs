@@ -235,13 +235,15 @@ impl<'a> Env<'a> {
         b.view_closure || (b.maybe_view && self.infcx.bound_shallow(self.tcx, b.ty).is_some_and(|t| self.tcx.is_callable(t)))
     }
 
-    /// An alias of a still-undecided parameter (`val g = f`) stays undecided too.
-    pub(super) fn inherit_maybe_view(&mut self, name: &str, value: &HirExpr) {
-        let HirExprKind::Ident { name: src, .. } = &value.kind else { return };
-        if self.binding(src).is_some_and(|b| b.maybe_view) {
-            if let Some(b) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
-                b.maybe_view = true;
-            }
+    /// Whether `value` is a plain name of a still-undecided parameter (`val g = f`): its alias stays undecided too.
+    /// Read before the alias is bound, since `val f = f` shadows the source.
+    pub(super) fn is_maybe_view_alias(&self, value: &HirExpr) -> bool {
+        matches!(&value.kind, HirExprKind::Ident { name, .. } if self.binding(name).is_some_and(|b| b.maybe_view))
+    }
+
+    pub(super) fn mark_maybe_view(&mut self, name: &str) {
+        if let Some(b) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+            b.maybe_view = true;
         }
     }
 
