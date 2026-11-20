@@ -92,7 +92,7 @@ TraitDecl: Trait = {
                 ast::TraitItem::Assoc(a) => assoc_types.push(a),
             }
         }
-        Trait { name, generics: generics.unwrap_or_default(), methods, assoc_types }
+        Trait { name, generics: generics.unwrap_or_default(), methods, assoc_types, prelude: false }
     },
 };
 

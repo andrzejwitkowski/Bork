@@ -126,6 +126,8 @@ pub struct Trait {
     pub methods: Vec<TraitMethod>,
     /// `type Item` declarations.
     pub assoc_types: Vec<crate::span::SpannedName>,
+    /// Set by `add_prelude` on traits it injects; a user declaration never has it.
+    pub prelude: bool,
 }
 
 /// One entry of a trait body, before the parser splits them into `methods` and `assoc_types`.
