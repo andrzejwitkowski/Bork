@@ -230,10 +230,9 @@ impl Numberer {
                 *id = self.fresh(*span);
                 self.expr(receiver);
             }
-            Expr::Call { callee, args, trailing, .. } => {
+            Expr::Call { callee, args, .. } => {
                 self.expr(callee);
                 args.iter_mut().for_each(|a| self.expr(a));
-                trailing.iter_mut().for_each(|c| self.closure(c));
             }
             Expr::If { cond, then_block, else_block } => {
                 self.expr(cond);

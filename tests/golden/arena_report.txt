@@ -4749,7 +4749,7 @@ Arenas
     ├── this [Borrow ← call site]
     └── other [Borrow ← call site]
 == programs/check_fail/borrow/rw_aliased_trailing_closure.bork
-Type Error [] the trailing closure of `visit` captures `v`, which an operand borrows (`&rw v`)
+Type Error [] the closure passed to `visit` captures `v`, which an operand borrows (`&rw v`)
 Arenas
 ├── fun visit
 │   ├── items [Borrow ← call site]

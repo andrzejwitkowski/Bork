@@ -105,7 +105,7 @@ fn string_from_utf8_rejects_trailing_closure() {
     );
     assert!(
         d.iter()
-            .any(|d| d.message.contains("does not accept trailing closures")),
+            .any(|d| d.message.contains("`stringFromUtf8` expects 3 arguments, got 4")),
         "{d:?}"
     );
 }
@@ -115,7 +115,7 @@ fn ref_count_builtins_check_arity_and_trailing_closures() {
     let d = diags_of("fun main() {\n val n = strongCount()\n}");
     assert!(d.iter().any(|d| d.message.contains("`strongCount` expects 1 argument, got 0")), "{d:?}");
     let d = diags_of("class N {\n x: i32\n}\nfun main() {\n val r: Ref<N> = N(1)\n val n = weakCount(r) { x -> x }\n}");
-    assert!(d.iter().any(|d| d.message.contains("`weakCount` does not accept trailing closures")), "{d:?}");
+    assert!(d.iter().any(|d| d.message.contains("`weakCount` expects 1 argument, got 2")), "{d:?}");
 }
 
 /// INV-1: builtin callee idents carry a real function type, not `Unknown`.

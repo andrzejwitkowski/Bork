@@ -1,4 +1,4 @@
-use crate::ast::{Closure, Expr};
+use crate::ast::Expr;
 use crate::hir::{HirExprKind, HirExpr};
 use crate::span::Span;
 use crate::ty::TyId;
@@ -22,7 +22,6 @@ pub(super) fn check_construct(
     class: ClassInfo,
     span: Span,
     args: &[Expr],
-    trailing: Option<&Closure>,
     expected: Option<TyId>,
     return_ty: TyId,
     env: &mut Env<'_>,
@@ -31,9 +30,6 @@ pub(super) fn check_construct(
         let hint = if Some(class.id) == env.tcx.vec_def() { "; write `Vec::<T>()` or `Vec::<T>(capacity)`" } else { "" };
         env.error(format!("`{}` is a built-in type and cannot be constructed like a class{hint}", class.name), Some(span));
         return super::method::poisoned(args, span, return_ty, env);
-    }
-    if trailing.is_some() {
-        env.error("record constructors do not accept trailing closures", Some(span));
     }
     if args.len() > class.fields.len() {
         env.error(
@@ -117,14 +113,11 @@ pub(super) fn check_variant(
     expected: Option<TyId>,
     env: &mut Env<'_>,
 ) -> Checked {
-    let CallSite { span, args, trailing, .. } = site;
+    let CallSite { span, args, .. } = site;
     let Some(info) = e.variants.iter().find(|v| v.name == variant) else {
         env.error(format!("enum `{}` has no variant `{variant}`", e.name), Some(span));
         return rejected_variant(site, env);
     };
-    if trailing.is_some() {
-        env.error("enum variants do not accept trailing closures", Some(span));
-    }
     if args.len() != info.fields.len() {
         let hint = if args.is_empty() && !info.fields.is_empty() { format!(" (write `{}.{variant}(..)`)", e.name) } else { String::new() };
         env.error(

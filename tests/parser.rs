@@ -582,10 +582,10 @@ fun main() {
 "#,
     )
     .expect("trailing move should parse");
-    let Stmt::Expr(Expr::Call {
-        trailing: Some(c), ..
-    }) = &prog.functions[1].body.stmts[1]
-    else {
+    let Stmt::Expr(Expr::Call { args, .. }) = &prog.functions[1].body.stmts[1] else {
+        panic!("expected call");
+    };
+    let Some(Expr::Closure(c)) = args.last() else {
         panic!("expected call with trailing");
     };
     assert!(c.is_move);
@@ -621,10 +621,10 @@ fun main() {
 "#,
     )
     .expect("move bare trailing should parse");
-    let Stmt::Expr(Expr::Call {
-        trailing: Some(c), ..
-    }) = &prog.functions[1].body.stmts[1]
-    else {
+    let Stmt::Expr(Expr::Call { args, .. }) = &prog.functions[1].body.stmts[1] else {
+        panic!("expected call");
+    };
+    let Some(Expr::Closure(c)) = args.last() else {
         panic!("expected call");
     };
     assert!(c.is_move);

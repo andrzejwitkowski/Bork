@@ -60,7 +60,7 @@ programs/build/closures/fnmut_assigns_fresh_string.bork::clobber() -> i32
 programs/build/closures/fnmut_assigns_fresh_string.bork::main() -> i32
 programs/build/closures/fnmut_bound.bork::run(f: T0) -> i32
 programs/build/closures/fnmut_bound.bork::main() -> i32
-programs/build/closures/fnmut_counter.bork::twice(f: ()->i32) -> i32
+programs/build/closures/fnmut_counter.bork::twice(f: FnMut()->i32) -> i32
 programs/build/closures/fnmut_counter.bork::main() -> i32
 programs/build/closures/fnonce_moves_object.bork::take(n: Node) -> i32
 programs/build/closures/fnonce_moves_object.bork::once(f: T0) -> i32

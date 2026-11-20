@@ -1,4 +1,4 @@
-// diag: the trailing closure of `visit` captures `v`
+// diag: the closure passed to `visit` captures `v`
 fun visit(items: &rw Vec<i32>, f: () -> i32): i32 {
     items.push(1)
     return f()

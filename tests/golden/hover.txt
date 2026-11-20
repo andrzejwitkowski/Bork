@@ -33,7 +33,7 @@ programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
 programs/build/closures/doc_example.bork: hits=26 hash=4181bba19cc57ac4
 programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e
 programs/build/closures/fnmut_bound.bork: hits=22 hash=0379ac93bdffa027
-programs/build/closures/fnmut_counter.bork: hits=22 hash=060365c9a261716a
+programs/build/closures/fnmut_counter.bork: hits=22 hash=db274aa2081ff40b
 programs/build/closures/fnonce_moves_object.bork: hits=6 hash=fc666ff1e4995bff
 programs/build/closures/fnonce_ref_released_once.bork: hits=78 hash=79efb93f9c65f99c
 programs/build/closures/generic_closure_instances_differ_by_capture.bork: hits=5 hash=9e554215461e34d8
@@ -339,7 +339,7 @@ programs/check_fail/borrow/pass_view_without_ampersand.bork: hits=5 hash=92de35c
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=de7dd57043178e2e
 programs/check_fail/borrow/rw_aliased.bork: hits=7 hash=18268769b994910b
 programs/check_fail/borrow/rw_aliased_receiver.bork: hits=10 hash=7fc2ef4abd656296
-programs/check_fail/borrow/rw_aliased_trailing_closure.bork: hits=22 hash=386ae2126261fc31
+programs/check_fail/borrow/rw_aliased_trailing_closure.bork: hits=22 hash=49dc8e08aec744d9
 programs/check_fail/borrow/rw_as_managed_ref_target.bork: hits=1 hash=2d77552a6fa27925
 programs/check_fail/borrow/rw_as_type_argument.bork: hits=1 hash=fc89457af01b9c92
 programs/check_fail/borrow/rw_bound_to_var.bork: hits=3 hash=e27b3c3d8209d5f0

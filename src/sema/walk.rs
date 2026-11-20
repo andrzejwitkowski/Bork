@@ -369,9 +369,8 @@ fn walk(
         Expr::Call {
             callee,
             args,
-            trailing,
             ..
-        } => walk_call(az, callee, args, trailing, node, record_borrow),
+        } => walk_call(az, callee, args, node, record_borrow),
         Expr::If {
             cond,
             then_block,
@@ -453,7 +452,6 @@ fn walk_call(
     az: &mut Analyzer,
     callee: &Expr,
     args: &[Expr],
-    trailing: &Option<crate::ast::Closure>,
     node: &mut ArenaNode,
     record_borrow: bool,
 ) {
@@ -508,9 +506,6 @@ fn walk_call(
             arg_record_borrow,
             expected,
         );
-    }
-    if let Some(c) = trailing {
-        walk_closure(az, c, node);
     }
 }
 

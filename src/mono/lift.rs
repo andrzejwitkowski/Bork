@@ -1,7 +1,7 @@
 //! Closure lifting (RFC 0007): after specialisation every closure body becomes an ordinary
 //! function `outer$closureN(captures..., params...)`, and its place in the caller is a
-//! `MakeClosure` value. A trailing closure becomes the call's last argument. MIR and codegen then
-//! see only plain functions, and the 1:1 function/report-root invariant holds.
+//! `MakeClosure` value. MIR and codegen then see
+//! only plain functions, and the 1:1 function/report-root invariant holds.
 
 use std::collections::VecDeque;
 
@@ -31,7 +31,6 @@ pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut Arena
                 *e = make;
                 lifted.push((function, node));
             }
-            HirExprKind::Call { args, trailing, .. } => args.extend(trailing.take().map(|t| *t)),
             _ => {}
         });
         functions[at].body = body;

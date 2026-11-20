@@ -311,7 +311,7 @@ fn a_trailing_closure_becomes_a_function_with_its_own_root() {
     // The call now passes it as a plain last argument.
     let main = &m.hir.functions[0];
     let found = format!("{:?}", main.body);
-    assert!(found.contains("MakeClosure") && !found.contains("trailing: Some"), "{found}");
+    assert!(found.contains("MakeClosure") && !found.replace("MakeClosure", "").contains("Closure"), "{found}");
 }
 
 #[test]

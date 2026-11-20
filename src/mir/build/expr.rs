@@ -35,7 +35,7 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Ident { name, use_kind } => self.ident(e, name, *use_kind),
             HirExprKind::Binary { op, lhs, rhs } => self.binary(e, op, lhs, rhs),
             HirExprKind::Unary { op, expr } => self.unary(e, op, expr),
-            HirExprKind::Call { callee, args, trailing } => self.call(e, callee, args, trailing.is_some()),
+            HirExprKind::Call { callee, args } => self.call(e, callee, args),
             HirExprKind::MakeClosure { function, captures, kind, is_move } => self.make_closure(e, function, captures, *kind, *is_move),
             HirExprKind::Closure { .. } => Err(BuildError::Internal("a closure expression survived mono lifting".into())),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
@@ -172,11 +172,8 @@ impl<'a> FnBuilder<'a> {
         }
     }
 
-    fn call(&mut self, e: &HirExpr, callee: &HirExpr, args: &[HirExpr], trailing_closure: bool) -> Res<Operand> {
+    fn call(&mut self, e: &HirExpr, callee: &HirExpr, args: &[HirExpr]) -> Res<Operand> {
         let span = span_of(e);
-        if trailing_closure {
-            return Err(BuildError::Internal("a trailing closure survived mono lifting".into()));
-        }
         let HirExprKind::Ident { name, use_kind } = &callee.kind else {
             return Err(BuildError::unsupported(Capability::IndirectCall, span));
         };

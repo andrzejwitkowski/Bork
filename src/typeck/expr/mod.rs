@@ -100,7 +100,7 @@ pub(super) fn dispatch(
         }
         Expr::Some { expr: inner, span, id } if env.fun_sig("Some").is_some() || env.binding("Some").is_some() => {
             let callee = Expr::Ident { name: "Some".into(), span: *span, id: *id };
-            check_call(&callee, &[], std::slice::from_ref(inner), None, expected, return_ty, env)
+            check_call(&callee, &[], std::slice::from_ref(inner), expected, return_ty, env)
         }
         Expr::None { span, .. } => check_none(*span, expected, return_ty, env),
         Expr::Some { expr: inner, span, .. } => check_some(inner, *span, expected, return_ty, env),
@@ -129,7 +129,7 @@ pub(super) fn dispatch(
             ..
         } => match object::variant_path(receiver, *safe, env) {
             Some(e) => {
-                let site = call::CallSite { span: *span, args: &[], trailing: None, return_ty };
+                let site = call::CallSite { span: *span, args: &[], return_ty };
                 object::check_variant(e, name, site, expected, env)
             }
             None => check_field(receiver, name, *safe, *span, return_ty, env),
@@ -138,8 +138,7 @@ pub(super) fn dispatch(
             callee,
             type_args,
             args,
-            trailing,
-        } => check_call(callee, type_args, args, trailing.as_ref(), expected, return_ty, env),
+        } => check_call(callee, type_args, args, expected, return_ty, env),
         Expr::If {
             cond,
             then_block,
@@ -214,7 +213,7 @@ fn expected_enum_variant(expected: Option<TyId>, variant: &str, env: &mut Env<'_
 /// `None` needs an expected presence-capable type to take its type from.
 fn check_none(span: Span, expected: Option<TyId>, return_ty: TyId, env: &mut Env<'_>) -> Checked {
     if let Some(e) = expected_enum_variant(expected, "None", env) {
-        let site = CallSite { span, args: &[], trailing: None, return_ty };
+        let site = CallSite { span, args: &[], return_ty };
         return object::check_variant(e, "None", site, expected, env);
     }
     let Some(ty) = expected.filter(|&ty| env.tcx.is_presence_capable(ty)) else {
@@ -247,7 +246,7 @@ fn check_some(inner: &Expr, span: Span, expected: Option<TyId>, return_ty: TyId,
         env.enums.get(&def).cloned().filter(|_| !wants_ref)
     });
     if let Some(e) = option {
-        let site = CallSite { span, args: std::slice::from_ref(inner), trailing: None, return_ty };
+        let site = CallSite { span, args: std::slice::from_ref(inner), return_ty };
         return object::check_variant(e, "Some", site, expected, env);
     }
     let expected_inner = expected

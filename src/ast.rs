@@ -572,7 +572,6 @@ pub enum Expr {
         /// Explicit `f::<T>(..)` arguments; empty when omitted.
         type_args: Vec<Type>,
         args: Vec<Expr>,
-        trailing: Option<Closure>,
     },
     If {
         cond: Box<Expr>,
@@ -612,7 +611,9 @@ impl Expr {
         if is_some && type_args.is_empty() && args.len() == 1 && trailing.is_none() {
             return Expr::Some { expr: Box::new(args.pop().expect("one argument")), span, id: crate::span::AstId::DUMMY };
         }
-        Expr::Call { callee: Box::new(callee), type_args, args, trailing }
+        // A trailing closure is just the last argument.
+        args.extend(trailing.map(Expr::Closure));
+        Expr::Call { callee: Box::new(callee), type_args, args }
     }
 
     /// `expr?` on a `Result` (#274): `when expr { Ok(v) => { v } Err(e) => { return Result.Err(e) } }`.

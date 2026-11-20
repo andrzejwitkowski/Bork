@@ -439,8 +439,6 @@ pub enum HirExprKind {
     Call {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
-        /// The trailing closure, a `Closure` node typed as the function it is passed as.
-        trailing: Option<Box<HirExpr>>,
     },
     /// A closure value: the lifted function `function` (monomorphization, RFC 0007) plus the captured
     /// values, in the order of the function's leading parameters. Never produced by typeck.
