@@ -112,6 +112,46 @@ fun main(): i32 {
 }
 
 #[test]
+fn a_trailing_closure_is_checked_as_the_calls_last_argument() {
+    use crate::hir::{HirExprKind, HirStmt};
+    let hir = hir_of("fun apply(v: i32, f: (i32) -> i32): i32 {\n    return f(v)\n}\nfun main(): i32 {\n    return apply(2) { x -> x + 1 }\n}");
+    let main = hir.functions.iter().find(|f| f.name == "main").expect("main");
+    let Some(HirStmt::Return { value: Some(call) }) = main.body.stmts.last() else { panic!("{:?}", main.body.stmts) };
+    let HirExprKind::Call { args, .. } = &call.kind else { panic!("{call:?}") };
+    assert_eq!(args.len(), 2);
+    assert!(matches!(args[1].kind, HirExprKind::Closure { .. }), "{:?}", args[1].kind);
+}
+
+#[test]
+fn a_trailing_closure_is_one_argument_too_many_for_a_call_without_a_function_parameter() {
+    let src = "fun add(a: i32, b: i32): i32 {\n    return a + b\n}\nfun main(): i32 {\n    return add(1, 2) { x -> x }\n}";
+    assert!(diags_of(src).iter().any(|d| d.message.contains("expects 2 arguments, got 3")), "{:?}", diags_of(src));
+}
+
+#[test]
+fn a_trailing_closure_is_checked_against_the_last_parameters_type() {
+    let src = "fun apply(v: i32, f: (i32) -> i32): i32 {\n    return f(v)\n}\nfun main(): i32 {\n    return apply(2) { x -> true }\n}";
+    assert!(diags_of(src).iter().any(|d| d.phase == Phase::Type), "{:?}", diags_of(src));
+}
+
+#[test]
+fn trailing_and_positional_closures_agree_on_kind_and_move_captures() {
+    let hdr = "fun run<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun runMut<F: FnMut() -> i32>(f: F): i32 {\n    return f()\n}\nfun runOnce<F: FnOnce() -> i32>(f: F): i32 {\n    return f()\n}\n";
+    let main = |body: &str| format!("{hdr}fun main(): i32 {{\n    var n = 1\n    {body}\n}}");
+    // A writing closure is FnMut by either syntax, and not Fn by either.
+    for call in ["return runMut({ -> n = 2\n 0 })", "return runMut() { -> n = 2\n 0 }"] {
+        hir_of(&main(call));
+    }
+    for call in ["return run({ -> n = 2\n 0 })", "return run() { -> n = 2\n 0 }"] {
+        assert!(diags_of(&main(call)).iter().any(|d| d.message.contains("FnMut")), "{call}");
+    }
+    // A reading closure satisfies all three, and a `move` one owns its capture.
+    for call in ["return runOnce({ -> n })", "return runOnce() { -> n }", "return run(move (n) { -> n })", "return run() move (n) { -> n }"] {
+        hir_of(&main(call));
+    }
+}
+
+#[test]
 fn closure_kind_follows_how_the_body_uses_a_capture() {
     // Reads only: satisfies Fn. Assigns: FnMut but not Fn. Moves out: FnOnce only.
     let reads = "fun apply<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = 1\n    return apply({ -> n })\n}";

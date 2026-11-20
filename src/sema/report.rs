@@ -51,6 +51,8 @@ pub struct ArenaNode {
     pub bindings: Vec<BindingInfo>,
     pub observations: Vec<BindingInfo>,
     pub children: Vec<ArenaNode>,
+    /// The AST closure this region is, if it is a closure body; closure lifting pairs regions by it.
+    pub closure: Option<crate::span::AstId>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

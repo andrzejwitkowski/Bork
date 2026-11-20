@@ -600,7 +600,7 @@ fn main (parent=false, sink=false) {
 
 fn twice (parent=true, sink=false) {
   let _0: i32 [Return]
-  let _1: ()->i32 [Arg] f
+  let _1: FnMut()->i32 [Arg] f
   let _2: unit [Hidden(DebugScope)]
   let _3: i32 [Temp]
   let _4: i32 [Temp]

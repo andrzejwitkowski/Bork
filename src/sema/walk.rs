@@ -369,9 +369,8 @@ fn walk(
         Expr::Call {
             callee,
             args,
-            trailing,
             ..
-        } => walk_call(az, callee, args, trailing, node, record_borrow),
+        } => walk_call(az, callee, args, node, record_borrow),
         Expr::If {
             cond,
             then_block,
@@ -453,7 +452,6 @@ fn walk_call(
     az: &mut Analyzer,
     callee: &Expr,
     args: &[Expr],
-    trailing: &Option<crate::ast::Closure>,
     node: &mut ArenaNode,
     record_borrow: bool,
 ) {
@@ -509,9 +507,6 @@ fn walk_call(
             expected,
         );
     }
-    if let Some(c) = trailing {
-        walk_closure(az, c, node);
-    }
 }
 
 /// A closure's region: a child of `node`, labelled `"Closure"` (`region_walk.rs` matches the label).
@@ -527,11 +522,13 @@ fn walk_closure(az: &mut Analyzer, c: &crate::ast::Closure, node: &mut ArenaNode
             borrow_from: super::region::REF_PARAM_BORROW_FROM,
         })
         .collect();
-    if c.is_move {
-        node.children.push(open_move(az, "Closure", &c.body, c.captures.as_deref(), &params));
+    let mut region = if c.is_move {
+        open_move(az, "Closure", &c.body, c.captures.as_deref(), &params)
     } else {
-        node.children.push(open_ordinary(az, "Closure", &c.body, &params, None));
-    }
+        open_ordinary(az, "Closure", &c.body, &params, None)
+    };
+    region.closure = Some(c.id.numbered());
+    node.children.push(region);
 }
 
 fn apply_expr_promote(

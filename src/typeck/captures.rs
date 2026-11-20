@@ -222,7 +222,7 @@ impl Scan {
                 self.expr(lhs);
                 self.expr(rhs);
             }
-            K::Call { callee, args, trailing } => {
+            K::Call { callee, args } => {
                 self.expr(callee);
                 if let K::Ident { name, use_kind: UseKind::Copy } = &callee.kind {
                     match self.aliases.get(name) {
@@ -232,7 +232,6 @@ impl Scan {
                     }
                 }
                 args.iter().for_each(|x| self.expr(x));
-                trailing.iter().for_each(|x| self.expr(x));
             }
             K::If { cond, then_block, else_block } => {
                 self.expr(cond);

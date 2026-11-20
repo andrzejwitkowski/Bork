@@ -50,7 +50,7 @@ impl HirExpr {
             }
             HirExprKind::Match { scrutinee, arms } => std::iter::once(Expr(scrutinee)).chain(arms.iter_mut().map(|arm| Block(&mut arm.body))).collect(),
             HirExprKind::Binary { lhs, rhs, .. } => vec![Expr(lhs), Expr(rhs)],
-            HirExprKind::Call { callee, args, trailing } => std::iter::once(Expr(callee)).chain(args.iter_mut().map(Expr)).chain(trailing.iter_mut().map(|t| Expr(t))).collect(),
+            HirExprKind::Call { callee, args } => std::iter::once(Expr(callee)).chain(args.iter_mut().map(Expr)).collect(),
             HirExprKind::Closure { body, .. } => vec![Block(body)],
             HirExprKind::MakeClosure { captures, .. } => captures.iter_mut().map(Expr).collect(),
             HirExprKind::If { cond, then_block, else_block } => std::iter::once(Expr(cond)).chain(std::iter::once(Block(then_block))).chain(else_block.iter_mut().map(Block)).collect(),

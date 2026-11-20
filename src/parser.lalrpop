@@ -654,12 +654,7 @@ MulOp: BinOp = {
 ExprSuffix: Expr = {
     <start:@L> <callee:ExprSuffix> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> <end:@R> =>
         Expr::call(callee, Vec::new(), args.unwrap_or_default(), trailing, Span::new(start, end)),
-    <callee:ExprSuffix> "::" <type_args:TypeArgs> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::Call {
-        callee: Box::new(callee),
-        type_args,
-        args: args.unwrap_or_default(),
-        trailing,
-    },
+    <callee:ExprSuffix> "::" <type_args:TypeArgs> "(" <args:Comma<Expr>?> ")" <trailing:TrailingClosure?> => Expr::call(callee, type_args, args.unwrap_or_default(), trailing, Span::default()),
     <start:@L> <receiver:ExprSuffix> "[" <lo:ExprCompare> ".." <hi:ExprCompare> "]" <end:@R> => Expr::Slice {
         receiver: Box::new(receiver),
         lo: Box::new(lo),
@@ -698,12 +693,14 @@ TrailingClosure: Closure = {
         body: c.1,
         is_move: true,
         captures: captures.map(|c| c.unwrap_or_default()),
+        id: AstId::DUMMY,
     },
     <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
         params: params.unwrap_or_default(),
         body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: false,
         captures: None,
+        id: AstId::DUMMY,
     },
 };
 
@@ -713,12 +710,14 @@ ClosureExpr: Closure = {
         body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: true,
         captures: captures.map(|c| c.unwrap_or_default()),
+        id: AstId::DUMMY,
     },
     <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
         params: params.unwrap_or_default(),
         body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: false,
         captures: None,
+        id: AstId::DUMMY,
     },
 };
 

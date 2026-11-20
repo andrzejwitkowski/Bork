@@ -131,13 +131,12 @@ pub(super) fn check_call(
     callee: &Expr,
     type_args: &[Type],
     args: &[Expr],
-    trailing: Option<&Closure>,
     expected: Option<TyId>,
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
     // `Vec::<T>()` / `Vec::<T>(capacity)`: the prelude's `Vec` has no fields to construct.
-    if let (Expr::Ident { name, span, .. }, [elem], None) = (callee, type_args, trailing) {
+    if let (Expr::Ident { name, span, .. }, [elem]) = (callee, type_args) {
         if env.tcx.vec_def().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
             if args.len() > 1 {
                 env.error("`Vec` takes at most one argument, the capacity", Some(*span));
@@ -165,7 +164,7 @@ pub(super) fn check_call(
             if !type_args.is_empty() {
                 env.error("explicit type arguments on enum variants are not supported yet; annotate the binding instead", Some(*span));
             }
-            let site = CallSite { span: *span, args, trailing, return_ty };
+            let site = CallSite { span: *span, args, return_ty };
             return super::object::check_variant(e, name, site, expected, env);
         }
     }
@@ -177,7 +176,7 @@ pub(super) fn check_call(
         id,
     } = callee
     {
-        let site = CallSite { span: *span, args, trailing, return_ty };
+        let site = CallSite { span: *span, args, return_ty };
         return super::method::check_method_call(receiver, name, *safe, *id, site, env);
     }
     if let Expr::Ident { name, span, id } = callee {
@@ -187,23 +186,23 @@ pub(super) fn check_call(
                 span: *span,
                 id: *id,
             };
-            let site = CallSite { span: *span, args, trailing, return_ty };
+            let site = CallSite { span: *span, args, return_ty };
             return super::method::check_method_call(&this, name, false, *id, site, env);
         }
     }
     if let Expr::Ident { name, span, .. } = callee {
         if let Some(class) = env.class_named(name).cloned() {
-            return check_construct(class, *span, args, trailing, expected, return_ty, env);
+            return check_construct(class, *span, args, expected, return_ty, env);
         }
     }
     if let Expr::Ident { name, span, .. } = callee {
         if crate::builtins::is_ref_count(name) {
-            return check_ref_count(name, CallSite { span: *span, args, trailing, return_ty }, env);
+            return check_ref_count(name, CallSite { span: *span, args, return_ty }, env);
         }
     }
     if let Expr::Ident { name, span, .. } = callee {
         if crate::builtins::resolve(name) == Some(crate::builtins::Builtin::StringFromUtf8) {
-            return check_string_from_utf8(name, CallSite { span: *span, args, trailing, return_ty }, env);
+            return check_string_from_utf8(name, CallSite { span: *span, args, return_ty }, env);
         }
     }
     let Some((name, span, params, call_return_ty)) = callee_signature(callee, type_args, env) else {
@@ -227,7 +226,6 @@ pub(super) fn check_call(
             HirExprKind::Call {
                 callee: Box::new(checked_callee.hir),
                 args,
-                trailing: None,
             },
             unknown,
         );
@@ -240,7 +238,7 @@ pub(super) fn check_call(
     if let Some(expected) = expected.filter(|_| is_generic_fn(callee, env) && !pending_projection) {
         env.same(call_return_ty, expected);
     }
-    finish_call(name, params, call_return_ty, None, CallSite { span, args, trailing, return_ty }, env)
+    finish_call(name, params, call_return_ty, None, CallSite { span, args, return_ty }, env)
 }
 
 /// Whether `callee` names a user function with type parameters (not shadowed by a method or class).
@@ -253,13 +251,12 @@ fn is_generic_fn(callee: &Expr, env: &Env<'_>) -> bool {
         && env.fun_sig(name).is_some_and(|sig| !sig.generics.is_empty())
 }
 
-/// What every call form is checked against: where it is written, its explicit arguments and
-/// trailing closure, and the return type of the function it appears in (for `return` inside).
+/// What every call form is checked against: where it is written, its explicit arguments (a trailing
+/// closure is the last one), and the return type of the function it appears in (for `return` inside).
 #[derive(Clone, Copy)]
 pub(super) struct CallSite<'a> {
     pub(super) span: Span,
     pub(super) args: &'a [Expr],
-    pub(super) trailing: Option<&'a Closure>,
     pub(super) return_ty: TyId,
 }
 
@@ -272,32 +269,32 @@ pub(super) fn finish_call(
     site: CallSite<'_>,
     env: &mut Env<'_>,
 ) -> Checked {
-    let CallSite { span, args, trailing, return_ty } = site;
+    let CallSite { span, args, return_ty } = site;
     let errors_before = env.diagnostics.len();
     let explicit = if receiver.is_some() { &params[1..] } else { &params[..] };
-    let (regular_params, trailing_signature) =
-        split_trailing_param(&name, span, explicit, trailing, env);
 
-    let checked_args: Vec<_> = args
-        .iter()
-        .enumerate()
-        .map(|(index, arg)| dispatch(arg, regular_params.get(index).copied(), return_ty, env))
-        .collect();
+    // Each argument is checked before the next is read, so an earlier one can fix the type a later closure is checked against.
+    let mut checked_args = Vec::with_capacity(args.len());
+    for (index, arg) in args.iter().enumerate() {
+        let expected = explicit.get(index).copied();
+        let checked = dispatch(arg, expected, return_ty, env);
+        if let Some(expected) = expected {
+            check_argument(&name, index, &checked, expected, env);
+        }
+        checked_args.push(checked);
+    }
 
-    if checked_args.len() != regular_params.len() {
+    if checked_args.len() != explicit.len() {
         env.error(
             format!(
                 "function `{name}` expects {} arguments, got {}",
-                regular_params.len(),
+                explicit.len(),
                 checked_args.len()
             ),
             Some(span),
         );
     }
 
-    for (index, (argument, &expected)) in checked_args.iter().zip(regular_params).enumerate() {
-        check_argument(&name, index, argument, expected, env);
-    }
     // Only for an otherwise clean call, so an arity or type error is not followed by a second one.
     if env.diagnostics.len() == errors_before {
         check_aliased_borrows(&name, receiver.as_ref(), &checked_args, env);
@@ -305,21 +302,10 @@ pub(super) fn finish_call(
     // The arguments may have fixed the type a returned `T::Item` was waiting for.
     super::super::solve::select_where_possible(env);
 
-    let trailing_hir = match (trailing, trailing_signature) {
-        (Some(closure), Some((closure_params, closure_ret))) => {
-            let hir = check_trailing_closure(closure, &closure_params, closure_ret, env);
-            // A parameter of a bounded generic type (`f: F`) is fixed by the closure passed for it.
-            if let Some(&last) = explicit.last().filter(|&&p| env.tcx.func_sig(env.tcx.base(p)).is_none()) {
-                env.mismatch("trailing closure", hir.ty, last, Some(span));
-                super::super::solve::select_where_possible(env);
-            }
-            Some(Box::new(hir))
+    for arg in &checked_args {
+        if let HirExprKind::Closure { captures, kind, is_move: false, .. } = &arg.kind {
+            check_closure_borrows(&name, receiver.as_ref(), &checked_args, captures, *kind, env, arg.span);
         }
-        _ => None,
-    };
-
-    if let Some(HirExprKind::Closure { captures, kind, is_move: false, .. }) = trailing_hir.as_deref().map(|h| &h.kind) {
-        check_closure_borrows(&name, receiver.as_ref(), &checked_args, captures, *kind, env, trailing_hir.as_ref().and_then(|h| h.span));
     }
 
     let callee_params = if crate::builtins::is_print(&name) && checked_args.len() == 1 {
@@ -341,7 +327,6 @@ pub(super) fn finish_call(
         callee_ty,
         checked_args,
         call_return_ty,
-        trailing_hir,
     )
 }
 
@@ -407,7 +392,6 @@ pub(super) fn build_call(
     callee_ty: TyId,
     args: Vec<HirExpr>,
     return_ty: TyId,
-    trailing: Option<Box<HirExpr>>,
 ) -> Checked {
     // `Copy` marks a call through a local closure value: it is not the global function of that name.
     let use_kind = if local_callable_sig(&name, env).is_some() { UseKind::Copy } else { UseKind::Local };
@@ -423,44 +407,9 @@ pub(super) fn build_call(
         HirExprKind::Call {
             callee: Box::new(callee.hir),
             args,
-            trailing,
         },
         return_ty,
     )
-}
-
-fn split_trailing_param<'a>(
-    name: &str,
-    span: Span,
-    params: &'a [TyId],
-    trailing: Option<&Closure>,
-    env: &mut Env<'_>,
-) -> (&'a [TyId], Option<(Vec<TyId>, TyId)>) {
-    if trailing.is_none() {
-        return (params, None);
-    }
-    // The last parameter may be a nullable function type; the closure still binds against it.
-    // A parameter of a bounded generic type (`f: F`, `F: Fn(A) -> R`) takes its signature from the bound.
-    let last = params.split_last().and_then(|(last, regular)| {
-        let ty = env.settle(*last);
-        if let Some(sig) = env.tcx.func_sig(env.tcx.base(ty)) {
-            return Some((sig, regular));
-        }
-        Some((fn_bound_sig(ty, env)?, regular))
-    });
-    match last {
-        Some((signature, regular)) => (regular, Some(signature)),
-        None => {
-            env.error(
-                format!(
-                    "function `{name}` requires a function type as its last parameter \
-                     when called with a trailing closure"
-                ),
-                Some(span),
-            );
-            (params, None)
-        }
-    }
 }
 
 /// The signature a pending `Fn*` bound gives the (inference-variable) type `ty`.
@@ -488,7 +437,7 @@ pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env:
             (params, env.infcx.new_var(env.tcx, VarKind::General))
         }
     };
-    let hir = check_trailing_closure(closure, &params, ret, env);
+    let hir = check_closure_body(closure, &params, ret, env);
     Checked { ty: hir.ty, hir }
 }
 
@@ -509,7 +458,7 @@ fn check_capture_list(listed: &[crate::span::SpannedName], used: &[(String, TyId
     }
 }
 
-fn check_trailing_closure(
+fn check_closure_body(
     closure: &Closure,
     param_tys: &[TyId],
     closure_ret: TyId,
@@ -518,7 +467,7 @@ fn check_trailing_closure(
     if closure.params.len() != param_tys.len() {
         env.error(
             format!(
-                "trailing closure expects {} parameters, got {}",
+                "closure expects {} parameters, got {}",
                 param_tys.len(),
                 closure.params.len()
             ),
@@ -548,7 +497,7 @@ fn check_trailing_closure(
     env.exit_scope();
     env.loop_depth = outer_loops;
 
-    env.mismatch("trailing closure body", body_ty, closure_ret, None);
+    env.mismatch("closure body", body_ty, closure_ret, None);
     let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty) || env.is_literal_var(ty, crate::infer::VarKind::Int) || env.is_literal_var(ty, crate::infer::VarKind::Float), |ty| env.callable_kind(ty));
     if let Some(listed) = &closure.captures {
         check_capture_list(listed, &used, env);
@@ -556,7 +505,7 @@ fn check_trailing_closure(
     let captures: Vec<HirCapture> = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
     // Its own closure type, like a positional closure, so a view stays a view and its kind is kept.
     let ty = env.tcx.closure(param_tys.to_vec(), closure_ret, kind, closure.is_move, captures.iter().map(|c| c.ty).collect());
-    HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move, captures, kind }, ty)
+    HirExpr::new(HirExprKind::Closure { id: closure.id, params, body, is_move: closure.is_move, captures, kind }, ty)
 }
 
 fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {
@@ -581,10 +530,7 @@ fn check_builtin_call(
     result: TyId,
     validate: impl FnOnce(&[Checked], &mut Env<'_>),
 ) -> Checked {
-    let CallSite { span, args, trailing, return_ty } = site;
-    if trailing.is_some() {
-        env.error(format!("`{name}` does not accept trailing closures"), Some(span));
-    }
+    let CallSite { span, args, return_ty } = site;
     let checked: Vec<_> = args
         .iter()
         .enumerate()
@@ -602,7 +548,7 @@ fn check_builtin_call(
     validate(&checked, env);
     let callee_ty = env.tcx.func(checked.iter().map(|arg| arg.ty).collect(), result);
     let args = checked.into_iter().map(|arg| arg.hir).collect();
-    build_call(env, name.to_string(), span, callee_ty, args, result, None)
+    build_call(env, name.to_string(), span, callee_ty, args, result)
 }
 
 /// `strongCount(ref): i32` / `weakCount(ref): i32`: the argument is any `Ref<T>`.
@@ -676,7 +622,7 @@ fn borrowed_root(hir: &HirExpr) -> Option<(&str, bool)> {
     }
 }
 
-/// A plain trailing closure views what it captures (and writes it when it is `FnMut`), so a capture of a name
+/// A plain closure argument views what it captures (and writes it when it is `FnMut`), so a capture of a name
 /// that another operand of the same call borrows `&rw` (or `&` while the closure writes) is aliased (#288).
 fn check_closure_borrows(name: &str, receiver: Option<&Checked>, args: &[Checked], captures: &[HirCapture], kind: crate::ty::ClosureKind, env: &mut Env<'_>, span: Option<Span>) {
     let writes = kind != crate::ty::ClosureKind::Fn;
@@ -684,7 +630,7 @@ fn check_closure_borrows(name: &str, receiver: Option<&Checked>, args: &[Checked
         let Some((root, rw)) = borrowed_root(&checked.hir) else { continue };
         if (rw || writes) && captures.iter().any(|c| c.name == root) {
             let mode = if rw { format!("`&rw {root}`") } else { format!("`&{root}`") };
-            env.error(format!("the trailing closure of `{name}` captures `{root}`, which an operand borrows ({mode})"), span);
+            env.error(format!("the closure passed to `{name}` captures `{root}`, which an operand borrows ({mode})"), span);
             return;
         }
     }

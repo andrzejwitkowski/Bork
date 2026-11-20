@@ -82,7 +82,7 @@ fn trait_operator(
     let by_ref = |side: Checked, env: &mut Env<'_>| if env.tcx.is_ref(side.ty) { side.hir } else { borrow(side, env).hir };
     let args = vec![by_ref(lhs, env), by_ref(rhs, env)];
     let callee_ty = env.tcx.func(params, ret);
-    let call = build_call(env, name, expr_span, callee_ty, args, ret, None);
+    let call = build_call(env, name, expr_span, callee_ty, args, ret);
     let kind = match op {
         BinOp::Eq => return Ok(call),
         BinOp::Ne => HirExprKind::Unary { op: UnaryOp::Not, expr: Box::new(call.hir) },
