@@ -243,6 +243,18 @@ Arenas
     │   └── n [Copy]
     └── Closure
         └── x [Local]
+== programs/build/closures/fnmut_assigns_fresh_string.bork
+Arenas
+├── fun run
+│   └── f [Local]
+├── fun clobber
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── s [Local]
+    ├── r [Local]
+    ├── c [Local]
+    └── Closure
 == programs/build/closures/fnmut_bound.bork
 Arenas
 ├── fun run
@@ -321,6 +333,15 @@ Arenas
 └── fun main
     └── Closure
         └── x [Local]
+== programs/build/closures/loop_variable_shadows_capture_only_in_loop.bork
+Arenas
+└── fun main
+    ├── n [Local]
+    ├── f [Local]
+    └── Closure
+        ├── n [Copy]
+        └── ForLoop (n)
+            └── n [Local]
 == programs/build/closures/move_assigned_to_outer_var.bork
 Arenas
 └── fun main
@@ -462,6 +483,19 @@ Arenas
     │       └── w2 [Moved ← Block]
     ├── IfThen
     └── IfThen
+== programs/build/closures/nested_fnmut_assigns_fresh_string.bork
+Arenas
+├── fun clobber
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── s [Local]
+    ├── outer [Local]
+    ├── r [Local]
+    ├── c [Local]
+    └── Closure
+        ├── inner [Local]
+        └── Closure
 == programs/build/closures/nested_fnmut_updates_outer.bork
 Arenas
 └── fun main

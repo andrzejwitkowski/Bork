@@ -6,6 +6,10 @@ fun inner<String>
 fun main
 fun apply<closure#0(i32)->i32[i32]>
 fun apply<closure#1(i32)->i32>
+== programs/build/closures/fnmut_assigns_fresh_string.bork
+fun main
+fun run<closure#0()->i32[String]>
+fun clobber
 == programs/build/closures/fnmut_bound.bork
 fun main
 fun run<closure#0()->i32[i32]>

@@ -31,6 +31,7 @@ programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
 programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
 programs/build/closures/doc_example.bork: hits=26 hash=4181bba19cc57ac4
+programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e
 programs/build/closures/fnmut_bound.bork: hits=22 hash=0379ac93bdffa027
 programs/build/closures/fnmut_counter.bork: hits=22 hash=060365c9a261716a
 programs/build/closures/fnonce_moves_object.bork: hits=6 hash=fc666ff1e4995bff
@@ -38,6 +39,7 @@ programs/build/closures/fnonce_ref_released_once.bork: hits=78 hash=79efb93f9c65
 programs/build/closures/generic_closure_instances_differ_by_capture.bork: hits=5 hash=9e554215461e34d8
 programs/build/closures/generic_fn_bound.bork: hits=15 hash=a99614085a455147
 programs/build/closures/local_closure_shadows_global_fn.bork: hits=14 hash=2ace153f1783a3df
+programs/build/closures/loop_variable_shadows_capture_only_in_loop.bork: hits=14 hash=cefaf6c9e576c532
 programs/build/closures/move_assigned_to_outer_var.bork: hits=16 hash=0660126fbd60100f
 programs/build/closures/move_counter.bork: hits=117 hash=d8046b9e6fcab36d
 programs/build/closures/move_nullable_capture.bork: hits=14 hash=29f610c0c300a97f
@@ -48,6 +50,7 @@ programs/build/closures/move_string_capture.bork: hits=46 hash=6ce12b9099dc934e
 programs/build/closures/move_string_outlives_frame.bork: hits=39 hash=4395ad13bde3cd61
 programs/build/closures/move_temp_in_loop.bork: hits=42 hash=882e1050c01fe29a
 programs/build/closures/move_vec_capture.bork: hits=104 hash=a3c00e1e83a39fa3
+programs/build/closures/nested_fnmut_assigns_fresh_string.bork: hits=59 hash=c2c2db9ab11d57d3
 programs/build/closures/nested_fnmut_updates_outer.bork: hits=39 hash=1bbf6b0413abf5a7
 programs/build/closures/outer_name_before_shadowing_decl.bork: hits=18 hash=6ae2ecc8d682b816
 programs/build/closures/owned_values_with_refs.bork: hits=133 hash=72002caf37efa971
