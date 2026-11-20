@@ -395,3 +395,21 @@ fn a_shared_and_an_editable_borrow_do_not_unify() {
     f.unify(v, editable).unwrap();
     assert_eq!(f.show(v), "&rw Point");
 }
+
+#[test]
+fn resolve_shares_work_across_a_deep_closure_dag() {
+    let mut f = Fx::new();
+    let v = f.var();
+    let i32_ = f.t.i32();
+    // each closure captures the previous one twice: 2^60 paths, 60 distinct types
+    let mut ty = v;
+    for id in 0..60 {
+        ty = f.t.add(TyData::Closure { id, params: vec![], ret: i32_, captures: vec![ty, ty] });
+    }
+    f.unify(v, i32_).unwrap();
+    let resolved = f.i.resolve(&mut f.t, ty).unwrap();
+    let TyData::Closure { id, captures, .. } = f.t.data(resolved).clone() else { panic!("closure expected") };
+    assert_eq!(id, 59);
+    assert_eq!(captures[0], captures[1]);
+    assert_ne!(resolved, ty);
+}

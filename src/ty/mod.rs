@@ -137,7 +137,7 @@ impl TyCtx {
         self.add(TyData::Projection(self_ty, trait_name.map(str::to_string), name.to_string()))
     }
 
-    fn add(&mut self, data: TyData) -> TyId {
+    pub(crate) fn add(&mut self, data: TyData) -> TyId {
         if let Some(&id) = self.ids.get(&data) {
             return id;
         }

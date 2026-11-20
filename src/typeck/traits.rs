@@ -284,7 +284,7 @@ fn lower_trait(t: &Trait, defs: &DefTable, tcx: &mut TyCtx, diagnostics: &mut Ve
             if base == this && assoc_types.iter().any(|n| n == name) { vec![t.name.name.clone()] } else { Vec::new() }
         };
         let names: Vec<String> = ["Self".to_string()].into_iter().chain(t.generics.iter().map(|g| g.name.name.clone())).chain(m.generic_names.clone()).collect();
-        let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new() };
+        let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new(), memo: Default::default() };
         m.params = m.params.iter().map(|&p| qualify.apply(tcx, p)).collect();
         m.ret = qualify.apply(tcx, m.ret);
         errors.append(&mut qualify.errors);
@@ -539,6 +539,8 @@ pub(super) struct Qualify<'a> {
     /// Names of the type parameters, for messages.
     pub names: &'a [String],
     pub errors: Vec<String>,
+    /// Shared (DAG) nodes are qualified once; a hit does not re-report the same error.
+    memo: HashMap<TyId, TyId>,
 }
 
 impl Qualify<'_> {
@@ -546,10 +548,8 @@ impl Qualify<'_> {
         use crate::ty::TypeFolder;
         self.fold(tcx, ty).unwrap_or(ty)
     }
-}
 
-impl crate::ty::TypeFolder for Qualify<'_> {
-    fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, crate::ty::NestedNullable> {
+    fn qualify_node(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, crate::ty::NestedNullable> {
         let id = crate::ty::super_fold(self, ctx, id)?;
         let TyData::Projection(base, None, name) = ctx.data(id).clone() else { return Ok(id) };
         if !matches!(ctx.data(base), TyData::Param(_)) {
@@ -573,6 +573,17 @@ impl crate::ty::TypeFolder for Qualify<'_> {
                 Ok(ctx.error())
             }
         }
+    }
+}
+
+impl crate::ty::TypeFolder for Qualify<'_> {
+    fn fold(&mut self, ctx: &mut TyCtx, input: TyId) -> Result<TyId, crate::ty::NestedNullable> {
+        if let Some(&done) = self.memo.get(&input) {
+            return Ok(done);
+        }
+        let out = self.qualify_node(ctx, input)?;
+        self.memo.insert(input, out);
+        Ok(out)
     }
 }
 
@@ -604,7 +615,7 @@ pub(super) fn qualify_sig(
             .collect()
     };
     let names = sig.generic_names.clone();
-    let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new() };
+    let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new(), memo: Default::default() };
     let params: Vec<TyId> = sig.params.iter().map(|&p| qualify.apply(tcx, p)).collect();
     let ret = qualify.apply(tcx, sig.ret);
     for predicate in &mut sig.proj_predicates {
@@ -620,19 +631,34 @@ struct ImplNormalizer<'a> {
     self_ty: TyId,
     assoc: &'a HashMap<String, TyId>,
     depth: u32,
+    /// Expansions cut off at `MAX_NORMALIZE_DEPTH`; a result with a cut inside is not cached.
+    truncated: u32,
+    memo: HashMap<TyId, TyId>,
 }
 
 impl crate::ty::TypeFolder for ImplNormalizer<'_> {
-    fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, crate::ty::NestedNullable> {
-        let id = crate::ty::super_fold(self, ctx, id)?;
+    fn fold(&mut self, ctx: &mut TyCtx, input: TyId) -> Result<TyId, crate::ty::NestedNullable> {
+        if let Some(&done) = self.memo.get(&input) {
+            return Ok(done);
+        }
+        let truncated_before = self.truncated;
+        let id = crate::ty::super_fold(self, ctx, input)?;
         if let TyData::Projection(base, trait_name, name) = ctx.data(id).clone() {
             let ours = trait_name.as_deref().is_none_or(|t| t == self.trait_name);
             if let (true, true, Some(&value)) = (ours, base == self.self_ty, self.assoc.get(&name)) {
                 self.depth += 1;
                 if self.depth <= MAX_NORMALIZE_DEPTH {
-                    return self.fold(ctx, value);
+                    let out = self.fold(ctx, value)?;
+                    if self.truncated == truncated_before {
+                        self.memo.insert(input, out);
+                    }
+                    return Ok(out);
                 }
+                self.truncated += 1;
             }
+        }
+        if self.truncated == truncated_before {
+            self.memo.insert(input, id);
         }
         Ok(id)
     }
@@ -642,5 +668,55 @@ impl crate::ty::TypeFolder for ImplNormalizer<'_> {
 /// cycle stops at the depth limit and leaves a projection behind.
 fn normalize_in_impl(tcx: &mut TyCtx, ty: TyId, trait_name: &str, self_ty: TyId, assoc: &HashMap<String, TyId>) -> TyId {
     use crate::ty::TypeFolder;
-    ImplNormalizer { trait_name, self_ty, assoc, depth: 0 }.fold(tcx, ty).unwrap_or(ty)
+    ImplNormalizer { trait_name, self_ty, assoc, depth: 0, truncated: 0, memo: Default::default() }.fold(tcx, ty).unwrap_or(ty)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `depth` closures, each capturing the previous type twice: 2^depth paths, `depth` types.
+    fn dag(tcx: &mut TyCtx, leaf: TyId, depth: u32) -> TyId {
+        let ret = tcx.i32();
+        (0..depth).fold(leaf, |ty, id| tcx.add(TyData::Closure { id, params: vec![], ret, captures: vec![ty, ty] }))
+    }
+
+    fn tcx() -> TyCtx {
+        let program = crate::parse_unnumbered("fun main() {}\n").unwrap();
+        TyCtx::new(&DefTable::build(&program))
+    }
+
+    #[test]
+    fn qualify_visits_a_shared_projection_once() {
+        let mut tcx = tcx();
+        let t = tcx.param(ParamIdx(0));
+        let item = tcx.projection(t, None, "Item");
+        let top = dag(&mut tcx, item, 60);
+        let declares = |_: TyId, _: &str| Vec::new();
+        let names = ["T".to_string()];
+        let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new(), memo: Default::default() };
+        let out = qualify.apply(&mut tcx, top);
+        assert_ne!(out, top);
+        assert_eq!(qualify.errors.len(), 1, "{:?}", qualify.errors);
+    }
+
+    #[test]
+    fn impl_normalizer_expands_a_shared_projection_in_a_dag() {
+        let mut tcx = tcx();
+        let this = tcx.param(ParamIdx(0));
+        let item = tcx.projection(this, Some("Tr"), "Item");
+        let (top, i32_) = (dag(&mut tcx, item, 60), tcx.i32());
+        let assoc = HashMap::from([("Item".to_string(), i32_)]);
+        let out = normalize_in_impl(&mut tcx, top, "Tr", this, &assoc);
+        assert_eq!(out, dag(&mut tcx, i32_, 60));
+    }
+
+    #[test]
+    fn impl_normalizer_stops_a_cycle_at_the_depth_limit() {
+        let mut tcx = tcx();
+        let this = tcx.param(ParamIdx(0));
+        let item = tcx.projection(this, Some("Tr"), "Item");
+        let assoc = HashMap::from([("Item".to_string(), item)]);
+        assert_eq!(normalize_in_impl(&mut tcx, item, "Tr", this, &assoc), item);
+    }
 }
