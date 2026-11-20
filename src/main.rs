@@ -51,6 +51,7 @@ fn main() {
     let source = read_source(&path);
     let result = frontend::check(&source);
     print_diagnostics(&path, &source, &result.diagnostics);
+    print_diagnostics(&path, &source, &result.warnings);
 
     if dump {
         if let Some(report) = &result.report {
@@ -114,6 +115,7 @@ fn build_command(args: Vec<String>) -> ! {
 fn run_emit_mir(path: &str, output: Option<&std::path::Path>) -> ! {
     let source = read_source(path);
     let result = frontend::check(&source);
+    print_diagnostics(path, &source, &result.warnings);
     match bork::mir::emit::emit_mir(&result) {
         Ok(text) => {
             match output {
@@ -144,6 +146,7 @@ fn run_build(path: &str, output: &std::path::Path, debug: bool) -> ! {
 
     let source = read_source(path);
     let result = frontend::check(&source);
+    print_diagnostics(path, &source, &result.warnings);
     match build_with_options(
         &result,
         output,
@@ -208,7 +211,11 @@ fn print_diagnostics(path: &str, source: &str, diagnostics: &[Diagnostic]) {
         None => path.to_string(),
     };
     for diag in diagnostics {
-        eprintln!("{}: error: {}: {}", at(diag.span), diag.phase, diag.message);
+        let severity = match diag.severity {
+            bork::diag::Severity::Error => "error",
+            bork::diag::Severity::Warning => "warning",
+        };
+        eprintln!("{}: {severity}: {}: {}", at(diag.span), diag.phase, diag.message);
         for note in &diag.notes {
             eprintln!("{}: note: {}", at(note.span), note.message);
         }

@@ -368,6 +368,10 @@ programs/build/managed_refs/presence_int_result.bork: 300..304 Node Dynamic Prog
 programs/build/managed_refs/program_dynamic_across_blocks.bork: 214..217 Box Dynamic Program
 programs/build/managed_refs/program_dynamic_across_blocks.bork: 319..322 Box Dynamic Program
 programs/build/managed_refs/program_dynamic_across_blocks.bork: 684..687 Box Dynamic Program
+programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork: 447..451 Node Dynamic Program
+programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork: 467..468 P Dynamic Program
+programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork: 506..510 Node Dynamic Program
+programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork: 526..527 P Dynamic Program
 programs/build/managed_refs/return_chain_local_ref.bork: 244..245 A Lexical LexicalScope(0)
 programs/build/managed_refs/return_chain_local_ref.bork: 246..247 P Lexical LexicalScope(0)
 programs/build/managed_refs/return_chain_local_ref.bork: 264..265 A Lexical LexicalScope(0)

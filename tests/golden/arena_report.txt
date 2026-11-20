@@ -289,6 +289,23 @@ Arenas
     ├── r [Local]
     ├── c [Local]
     └── Closure
+== programs/build/closures/fnmut_assigns_fresh_string_churn.bork
+Arenas
+├── fun run
+│   └── f [Local]
+├── fun churn
+│   ├── n [Local]
+│   ├── t [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── junk [Local]
+│       ├── t [Copy]
+│       └── i [Copy]
+└── fun main
+    ├── s [Local]
+    ├── r [Local]
+    ├── c [Local]
+    └── Closure
 == programs/build/closures/fnmut_bound.bork
 Arenas
 ├── fun run
@@ -1830,6 +1847,16 @@ Arenas
     └── IfValSome
         ├── live [Borrow ← presence guard]
         └── total [Copy]
+== programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork
+Arenas
+└── fun main
+    ├── r0 [Local]
+    ├── p [Local]
+    ├── x [Local]
+    ├── Block
+    │   └── r [Local]
+    └── IfValSome
+        └── n [Borrow ← presence guard]
 == programs/build/managed_refs/return_chain_local_ref.bork
 Arenas
 ├── fun churn

@@ -511,6 +511,122 @@ fn main$closure0 (parent=true, sink=false) {
     return
 }
 
+== closures/fnmut_assigns_fresh_string_churn.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: String [Var] s
+  let _3: closure#0()->i32 [Temp]
+  let _4: i32 [Temp]
+  let _5: i32 [Val] r
+  let _6: i32 [Temp]
+  let _7: i32 [Val] c
+  let _8: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = "a"  // label "s": String decl
+    _3 = closure main$closure0(copy _2) by_ref in current
+    _4 = call run(copy _3) +current -> bb1
+  bb1:
+    _5 = copy _4  // label "r": i32 decl
+    _6 = call churn(2000) +current -> bb2
+  bb2:
+    _7 = copy _6  // label "c": i32 decl
+    intrinsic PrintlnStr(copy _2)
+    _8 = len(_2)
+    _0 = copy _8
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn run (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: FnMut()->i32 [Arg] f
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = call_closure copy _1() +current -> bb1
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Var] t
+  let _4: i32 [Var] i
+  let _5: bool [Temp]
+  let _6: unit [Hidden(DebugScope)]
+  let _7: unit [Hidden(RegionArena)]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: String [Temp]
+  let _10: String [Val] junk
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  region r0 Block
+  region r1 While in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = 0  // label "t": i32 decl
+    _4 = 0  // label "i": i32 decl
+    region_enter r1
+    storage_live _6
+    goto bb1
+  bb1:
+    _5 = lt(copy _4, copy _1)
+    switch copy _5 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _8
+    _9 = intrinsic Concat("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ", "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY") in current
+    _10 = copy _9  // label "junk": String decl
+    _11 = len(_10)
+    _12 = add(copy _3, copy _11)
+    _3 = copy _12
+    _13 = add(copy _4, 1)
+    _4 = copy _13
+    storage_dead _8
+    goto bb3
+  bb3:
+    _7 = region_reset r1
+    goto bb1
+  bb4:
+    storage_dead _6
+    region_exit r1
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: String [Arg] s
+  let _2: unit [Hidden(DebugScope)]
+  let _3: String [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic Concat("hello", " world") in home(_1)
+    _1 = copy _3
+    _0 = 0
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == closures/fnmut_bound.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

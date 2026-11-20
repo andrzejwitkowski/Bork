@@ -1,0 +1,18 @@
+// exit: 0
+// WHAT THIS TESTS
+// #308: a `Ref` stored in an object field, where the object is built in an inner block and assigned to an
+// outer `var`, is a weak back-edge (newer arena -> older one): `Node(5)` dies with the block, so `p.r` reads none.
+// That is the language rule (docs/references.md, "Wygasły weak"); `bork` warns at `p = P(r)` instead.
+class Node { id: i32 }
+class P { r: Ref<Node> }
+fun main(): i32 {
+    val r0: Ref<Node> = Node(1)
+    var p = P(r0)
+    {
+        val r: Ref<Node> = Node(5)
+        p = P(r)
+    }
+    val x = p.r
+    if val n = x { return n.id }
+    return 0
+}

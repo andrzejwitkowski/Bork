@@ -63,6 +63,9 @@ programs/build/closures/doc_example.bork::main() -> i32
 programs/build/closures/fnmut_assigns_fresh_string.bork::run(f: T0) -> i32
 programs/build/closures/fnmut_assigns_fresh_string.bork::clobber() -> i32
 programs/build/closures/fnmut_assigns_fresh_string.bork::main() -> i32
+programs/build/closures/fnmut_assigns_fresh_string_churn.bork::run(f: FnMut()->i32) -> i32
+programs/build/closures/fnmut_assigns_fresh_string_churn.bork::churn(n: i32) -> i32
+programs/build/closures/fnmut_assigns_fresh_string_churn.bork::main() -> i32
 programs/build/closures/fnmut_bound.bork::run(f: T0) -> i32
 programs/build/closures/fnmut_bound.bork::main() -> i32
 programs/build/closures/fnmut_counter.bork::twice(f: FnMut()->i32) -> i32
@@ -294,6 +297,7 @@ programs/build/managed_refs/presence_int_result.bork::pick(r: Ref<Node>) -> i32
 programs/build/managed_refs/presence_int_result.bork::main() -> i32
 programs/build/managed_refs/program_dynamic_across_blocks.bork::make_shared() -> Ref<Box>
 programs/build/managed_refs/program_dynamic_across_blocks.bork::main() -> i32
+programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork::main() -> i32
 programs/build/managed_refs/return_chain_local_ref.bork::churn(k: i32) -> i32
 programs/build/managed_refs/return_chain_local_ref.bork::spin() -> unit
 programs/build/managed_refs/return_chain_local_ref.bork::show(r: &RA) -> unit
