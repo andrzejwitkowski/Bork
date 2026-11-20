@@ -159,6 +159,14 @@ impl InferCtxt {
         }
     }
 
+    /// The type `ty` is bound to, without interning anything; `None` while its variable is unbound.
+    pub fn bound_shallow(&self, tcx: &TyCtx, mut ty: TyId) -> Option<TyId> {
+        while let TyData::Infer(var) = *tcx.data(ty) {
+            ty = self.vars[self.root(var.0) as usize].value?;
+        }
+        Some(ty)
+    }
+
     /// Replaces every bound variable inside `ty`. Unbound variables stay (as their class
     /// representative). Fails only if a substitution would nest nullables (`T??`).
     pub fn resolve(&self, tcx: &mut TyCtx, ty: TyId) -> Result<TyId, TypeError> {
