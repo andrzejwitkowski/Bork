@@ -1,0 +1,14 @@
+// exit: 20
+// WHAT THIS TESTS
+// A loop that only calls an existing scalar-returning closure allocates nothing, so its body needs no arena of its own.
+fun main(): i32 {
+    val k = 2
+    val f = { -> k }
+    var total = 0
+    var i = 0
+    while (i < 10) {
+        total = total + f()
+        i = i + 1
+    }
+    return total
+}
