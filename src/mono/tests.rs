@@ -382,9 +382,16 @@ fn a_closure_region_with_a_missing_or_duplicated_id_is_an_internal_error() {
 }
 
 #[test]
-fn closures_in_each_generic_instance_get_their_own_regions() {
-    let src = "fun twice<T>(x: T, f: (T) -> T): T {\n    return f(f(x))\n}\nfun main(): i32 {\n    val k = 2\n    val a = twice(1) { n -> n + k }\n    val b = twice(1.5) { n -> n * 2.0 }\n    return a\n}\n";
+fn a_closure_inside_a_generic_function_gets_its_own_region_per_instance() {
+    let src = "fun twice<T>(x: T): T {\n    val f = { -> x }\n    return f()\n}\nfun main(): i32 {\n    val a = twice(1)\n    val b = twice(1.5)\n    return a\n}\n";
     let m = mono(src);
     assert_eq!(m.report.roots.len(), m.hir.functions.len());
-    assert!(function_names(&m).iter().filter(|n| n.contains("$closure")).count() == 2, "{:?}", function_names(&m));
+    let lifted: Vec<_> = m.hir.functions.iter().filter(|f| f.name.contains("$closure")).collect();
+    assert_eq!(lifted.len(), 2, "{:?}", function_names(&m));
+    // Each instance's closure captures `x` at that instance's type, and has a region of its own.
+    assert_ne!(lifted[0].params[0].ty, lifted[1].params[0].ty);
+    for f in lifted {
+        let root = m.report.roots.iter().find(|r| r.label == format!("fun {}", f.name));
+        assert!(root.is_some(), "no region for {}", f.name);
+    }
 }
