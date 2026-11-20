@@ -269,6 +269,8 @@ impl<'a> FnBuilder<'a> {
         let arena = if is_move && !captures.is_empty() {
             match &self.sink {
                 // A closure value does not name its variable's arena (as an object handle does): use the region the variable was declared in.
+                // A `Vec` header names its arena at run time (it may be a `&rw` parameter).
+                ArenaRef::Home(h) if self.is_vec_ty(self.locals[h.0 as usize].ty) => ArenaRef::Home(*h),
                 ArenaRef::Home(h) => ArenaRef::Region(self.locals[h.0 as usize].region),
                 other => other.clone(),
             }

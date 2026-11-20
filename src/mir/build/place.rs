@@ -148,7 +148,20 @@ impl<'a> FnBuilder<'a> {
         let mut ops = Vec::with_capacity(args.len());
         for (i, a) in args.iter().enumerate() {
             let is_index = i == 0 && matches!(op, VecOp::Get | VecOp::Set);
-            ops.push(if is_index { self.bare_operand(a)? } else { self.expr(a)? });
+            // A closure stored in a `Vec` has its environment allocated in the vector's arena, so it outlives the pushing scope.
+            let target = match &receiver.kind {
+                HirExprKind::Unary { expr, .. } => expr,
+                _ => receiver,
+            };
+            let home = match &target.kind {
+                HirExprKind::Ident { name, .. } if !is_index && self.tcx.is_callable(a.ty) => Some(ArenaRef::Home(self.lookup(name, span_of(target))?)),
+                _ => None,
+            };
+            ops.push(match home {
+                Some(home) => self.with_sink(home, |b| b.expr(a))?,
+                None if is_index => self.bare_operand(a)?,
+                None => self.expr(a)?,
+            });
         }
         Ok(self.vec_op(e, op, recv, ops))
     }
@@ -226,6 +239,10 @@ impl<'a> FnBuilder<'a> {
         }
         if !(t.is_nullable(ty) || t.is_string(ty) || t.is_array(ty) || t.is_vec(ty)) {
             return Ok(op);
+        }
+        // shortcut: the environments stay in the old arena, so copying the pointers would dangle (#307).
+        if t.vec_elem(ty).is_some_and(|e| t.is_callable(e)) {
+            return Err(BuildError::unsupported(Capability::VecOfClosuresCopy, span));
         }
         let src = self.operand_place(op, ty, span);
         let dst = self.temp(ty);

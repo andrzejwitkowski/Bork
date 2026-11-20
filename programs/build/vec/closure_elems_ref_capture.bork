@@ -1,0 +1,12 @@
+// exit: 4
+// A move closure capturing a Ref stays callable after being stored in a vector.
+class Node { id: i32 }
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    val r: Ref<Node> = Node(4)
+    if (true) {
+        v.push(move (r) { -> if val n = r { n.id } else { 0 } })
+    }
+    val f = v.get(0)
+    return f()
+}

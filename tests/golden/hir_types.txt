@@ -644,6 +644,12 @@ programs/build/traits/iterator_for.bork::Iterator@0.next(this: &Counter) -> i32?
 programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
 programs/build/vec/assign_concat_through_borrowed_vec.bork::set(v: &rw Vec<String>) -> unit
 programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
+programs/build/vec/closure_elems_grow.bork::main() -> i32
+programs/build/vec/closure_elems_inner_ref_capture.bork::main() -> i32
+programs/build/vec/closure_elems_loop.bork::main() -> i32
+programs/build/vec/closure_elems_ref_capture.bork::main() -> i32
+programs/build/vec/closure_elems_via_param.bork::fill(v: &rw Vec<()->i32>) -> unit
+programs/build/vec/closure_elems_via_param.bork::main() -> i32
 programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/index_from_element.bork::main() -> i32
 programs/build/vec/index_through_field.bork::main() -> i32

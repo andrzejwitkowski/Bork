@@ -19,10 +19,11 @@ pub enum Capability {
     UnitParam,
     UnitField,
     MainSignature,
+    VecOfClosuresCopy,
 }
 
 impl Capability {
-    pub const ALL: [Capability; 13] = [
+    pub const ALL: [Capability; 14] = [
         Capability::MatchRef,
         Capability::PatPresence,
         Capability::MoveEscapesArena,
@@ -36,6 +37,7 @@ impl Capability {
         Capability::UnitParam,
         Capability::UnitField,
         Capability::MainSignature,
+        Capability::VecOfClosuresCopy,
     ];
 
     pub fn id(self) -> &'static str {
@@ -53,6 +55,7 @@ impl Capability {
             Capability::UnitParam => "unit-param",
             Capability::UnitField => "unit-field",
             Capability::MainSignature => "main-signature",
+            Capability::VecOfClosuresCopy => "vec-of-closures-copy",
         }
     }
 
@@ -71,6 +74,7 @@ impl Capability {
             Capability::ObjectEquality => "comparing objects with `==` is not supported by codegen yet",
             Capability::UnitParam => "a `unit` parameter is not supported by codegen yet",
             Capability::UnitField => "a `unit` class field is not supported by codegen yet",
+            Capability::VecOfClosuresCopy => "moving a `Vec` of closures into another arena is not supported by codegen yet",
             Capability::MainSignature => "`main` must take no parameters and return `i32` or `unit` for codegen",
         }
     }

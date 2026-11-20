@@ -1,0 +1,14 @@
+// exit: 14
+// Non-capturing and capturing closures in one vector; growth past the first buffer; read back with get.
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    val k = 7
+    v.push({ -> 1 })
+    v.push(move (k) { -> k + 2 })
+    v.push({ -> 3 })
+    v.push({ -> 4 })
+    v.push({ -> 5 })
+    val f = v.get(1)
+    val g = v.get(4)
+    return f() + g()
+}
