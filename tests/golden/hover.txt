@@ -30,6 +30,7 @@ programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
 programs/build/closures/closure_in_class_field.bork: hits=27 hash=a615e08f22a606f0
+programs/build/closures/closure_in_class_field_generic_and_returned.bork: hits=18 hash=11daea9700b5e683
 programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
 programs/build/closures/doc_example.bork: hits=26 hash=4181bba19cc57ac4
 programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e

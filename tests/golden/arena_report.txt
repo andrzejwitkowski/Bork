@@ -237,6 +237,24 @@ Arenas
     │   └── s [Moved ← fun main]
     └── Closure (move)
         └── c [Moved ← fun main]
+== programs/build/closures/closure_in_class_field_generic_and_returned.bork
+Arenas
+├── fun makeNumber
+│   ├── n [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── n [Moved ← fun makeNumber]
+├── fun makeText
+│   ├── s [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── s [Moved ← fun makeText]
+└── fun main
+    ├── g [Local]
+    ├── a [Local]
+    ├── b [Local]
+    └── Closure
+        └── x [Local]
 == programs/build/closures/closure_in_val.bork
 Arenas
 └── fun main
