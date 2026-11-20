@@ -242,7 +242,8 @@ impl Scan {
             // A nested closure's captures are uses of this one as well; its own locals stay its own.
             K::MakeClosure { captures, .. } => captures.iter().for_each(|x| self.expr(x)),
             // What a nested closure does to a capture it does to ours: it makes this closure at least as strong.
-            // shortcut: the nested kind applies to all its captures, not just the one it assigns or moves.
+            // The nested kind is applied to every capture, but only the strongest use decides this closure's kind,
+            // and the nested closure's kind is exactly its strongest use, so the result is the same.
             K::Closure { captures, kind, is_move, .. } => {
                 for c in captures {
                     if self.note(&c.name) {

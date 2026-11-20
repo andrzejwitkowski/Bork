@@ -1,6 +1,6 @@
 //! Assigns every `HirExpr` a unique `NodeId`, in a deterministic pre-order walk.
 
-use super::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirProgram, HirStmt, NodeId};
+use super::{ChildMut, HirBlock, HirExpr, HirProgram, NodeId};
 
 /// Run after the last pass that rewrites the HIR, so ids cover every node.
 pub fn number_nodes(program: &mut HirProgram) {
@@ -12,92 +12,27 @@ pub fn number_nodes(program: &mut HirProgram) {
 
 fn block(b: &mut HirBlock, next: &mut u32) {
     for stmt in &mut b.stmts {
-        match stmt {
-            HirStmt::Return { value } => value.iter_mut().for_each(|v| expr(v, next)),
-            HirStmt::Block(inner) | HirStmt::MoveBlock { body: inner, .. } => block(inner, next),
-            HirStmt::VarDecl { value, .. } | HirStmt::Expr(value) => expr(value, next),
-            HirStmt::Assign { target, value } => {
-                match target {
-                    HirAssignTarget::Name { .. } => {}
-                    HirAssignTarget::Index { index, .. } => expr(index, next),
-                    HirAssignTarget::Field { receiver, .. } => expr(receiver, next),
-                }
-                expr(value, next);
-            }
-            HirStmt::For { iter, body, .. } => {
-                expr(iter, next);
-                block(body, next);
-            }
-            HirStmt::While { cond, body } => {
-                expr(cond, next);
-                block(body, next);
-            }
-            HirStmt::Break { .. } | HirStmt::Continue { .. } => {}
-        }
+        stmt.children_mut().into_iter().for_each(|c| child(c, next));
+    }
+}
+
+fn child(c: ChildMut<'_>, next: &mut u32) {
+    match c {
+        ChildMut::Expr(e) => expr(e, next),
+        ChildMut::Block(b) => block(b, next),
     }
 }
 
 fn expr(e: &mut HirExpr, next: &mut u32) {
     e.id = NodeId(*next);
     *next += 1;
-    match &mut e.kind {
-        HirExprKind::Int { .. }
-        | HirExprKind::Float { .. }
-        | HirExprKind::Str { .. }
-        | HirExprKind::Bool { .. }
-        | HirExprKind::Ident { .. }
-        | HirExprKind::None => {}
-        HirExprKind::ArrayLit { elements } => elements.iter_mut().for_each(|x| expr(x, next)),
-        HirExprKind::Index { receiver, index, .. } => {
-            expr(receiver, next);
-            expr(index, next);
-        }
-        HirExprKind::Slice { receiver, lo, hi } => {
-            expr(receiver, next);
-            expr(lo, next);
-            expr(hi, next);
-        }
-        HirExprKind::VecNew { cap, .. } => cap.iter_mut().for_each(|x| expr(x, next)),
-        HirExprKind::VecOp { receiver, args, .. } => {
-            expr(receiver, next);
-            args.iter_mut().for_each(|x| expr(x, next));
-        }
-        HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) => expr(inner, next),
-        HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => fields.iter_mut().for_each(|x| expr(x, next)),
-        HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. } => expr(receiver, next),
-        HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
-            expr(&mut bindings.head.value, next);
-            bindings.tail.iter_mut().for_each(|b| expr(&mut b.value, next));
-            block(some_block, next);
-            none_block.iter_mut().for_each(|b| block(b, next));
-        }
-        HirExprKind::Match { scrutinee, arms } => {
-            expr(scrutinee, next);
-            arms.iter_mut().for_each(|arm| block(&mut arm.body, next));
-        }
-        HirExprKind::Binary { lhs, rhs, .. } => {
-            expr(lhs, next);
-            expr(rhs, next);
-        }
-        HirExprKind::Unary { expr: inner, .. } => expr(inner, next),
-        HirExprKind::Call { callee, args, trailing } => {
-            expr(callee, next);
-            args.iter_mut().for_each(|x| expr(x, next));
-            trailing.iter_mut().for_each(|x| expr(x, next));
-        }
-        HirExprKind::Closure { body, .. } => block(body, next),
-        HirExprKind::MakeClosure { captures, .. } => captures.iter_mut().for_each(|x| expr(x, next)),
-        HirExprKind::If { cond, then_block, else_block } => {
-            expr(cond, next);
-            block(then_block, next);
-            else_block.iter_mut().for_each(|b| block(b, next));
-        }
-    }
+    e.children_mut().into_iter().for_each(|c| child(c, next));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hir::HirStmt;
     use std::collections::HashSet;
 
     fn collect(e: &HirExpr, out: &mut Vec<NodeId>) {
