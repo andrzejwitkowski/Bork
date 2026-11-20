@@ -53,7 +53,7 @@ fn take_closure_nodes(root: &mut ArenaNode) -> Vec<ArenaNode> {
     let mut out = Vec::new();
     for mut child in std::mem::take(&mut root.children) {
         out.extend(take_closure_nodes(&mut child));
-        if crate::RegionSite::Closure.matches(&child.label) {
+        if crate::region_walk::RegionSite::Closure.matches(&child.label) {
             out.push(child);
         } else {
             root.children.push(child);
