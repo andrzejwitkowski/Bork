@@ -184,19 +184,7 @@ impl<'a> FnBuilder<'a> {
             }
             let ops = self.with_sink(ArenaRef::Current, |b| b.exprs(args))?;
             let callee_op = self.with_sink(ArenaRef::Current, |b| b.expr(callee))?;
-            let abi = super::abi_for_return(self.tcx, e.ty);
-            let mut hidden = Vec::new();
-            if abi.caller_parent {
-                hidden.push(ArenaRef::Current);
-            }
-            if abi.result_sink {
-                hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
-            }
-            let dest = self.temp(e.ty);
-            let target = self.new_block();
-            self.terminate(TermKind::CallClosure { callee: callee_op, args: ops, hidden, dest: Place::local(dest), target: Some(target) }, span, Some(e.id));
-            self.cur = target;
-            return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
+            return Ok(self.call_closure(e, callee_op, ops));
         };
         let through_value = *use_kind == UseKind::Copy;
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested
@@ -246,27 +234,27 @@ impl<'a> FnBuilder<'a> {
         // Not a user function and not a builtin: a call through a closure value.
         if self.tcx.func_sig(self.tcx.base(callee.ty)).is_some() {
             if let Ok(local) = self.lookup(name, span) {
-                let abi = super::abi_for_return(self.tcx, e.ty);
-                let mut hidden = Vec::new();
-                if abi.caller_parent {
-                    hidden.push(ArenaRef::Current);
-                }
-                if abi.result_sink {
-                    hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
-                }
-                let dest = self.temp(e.ty);
-                let target = self.new_block();
-                let callee = Operand::Copy(Place::local(local));
-                self.terminate(
-                    TermKind::CallClosure { callee, args: ops, hidden, dest: Place::local(dest), target: Some(target) },
-                    span,
-                    Some(e.id),
-                );
-                self.cur = target;
-                return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
+                return Ok(self.call_closure(e, Operand::Copy(Place::local(local)), ops));
             }
         }
         Err(BuildError::unsupported(Capability::IndirectCall, span))
+    }
+
+    /// A call through the closure value `callee`; the result goes where the surrounding expression allocates.
+    fn call_closure(&mut self, e: &HirExpr, callee: Operand, args: Vec<Operand>) -> Operand {
+        let abi = super::abi_for_return(self.tcx, e.ty);
+        let mut hidden = Vec::new();
+        if abi.caller_parent {
+            hidden.push(ArenaRef::Current);
+        }
+        if abi.result_sink {
+            hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
+        }
+        let dest = self.temp(e.ty);
+        let target = self.new_block();
+        self.terminate(TermKind::CallClosure { callee, args, hidden, dest: Place::local(dest), target: Some(target) }, span_of(e), Some(e.id));
+        self.cur = target;
+        if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) }
     }
 
     /// A closure value (RFC 0007): its environment holds the captures by value, or by address for a plain `FnMut`.

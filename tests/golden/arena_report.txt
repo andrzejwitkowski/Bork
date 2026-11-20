@@ -4925,6 +4925,11 @@ Arenas
     ├── b [Local]
     └── Closure
         └── x [Local]
+== programs/check_fail/closures/closure_field_call_nullable.bork
+Type Error [159..163] field `on` is nullable; check it for presence before calling it
+Arenas
+└── fun main
+    └── b [Local]
 == programs/check_fail/closures/fnmut_to_fn_bound.bork
 Type Error [115..120] the trait bound `closure#0()->i32: Fn<()->i32>` is not satisfied; the closure is `FnMut` (it assigns to a captured value), which the bound `Fn` does not allow
 Arenas

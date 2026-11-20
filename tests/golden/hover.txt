@@ -362,6 +362,7 @@ programs/check_fail/classes/ref_dot.bork: hits=2 hash=0631e700de510247
 programs/check_fail/closures/annotated_view_moved_into_var.bork: hits=19 hash=8b00913ed3477a52
 programs/check_fail/closures/break_in_closure.bork: hits=6 hash=8041edeea34d2536
 programs/check_fail/closures/closure_field_call_arity.bork: hits=4 hash=f9fedeff707ae4a1
+programs/check_fail/closures/closure_field_call_nullable.bork: hits=2 hash=9a2cba042da60a18
 programs/check_fail/closures/fnmut_to_fn_bound.bork: hits=3 hash=8a6ecd6bfbfccf09
 programs/check_fail/closures/func_param_returned.bork: hits=6 hash=212067c0955e168b
 programs/check_fail/closures/func_param_stored_in_field.bork: hits=3 hash=c556741c7e55731b

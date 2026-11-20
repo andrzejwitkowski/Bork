@@ -47,9 +47,11 @@ pub(super) fn check_method_call(
     // An inherent method shadows a trait method of the same name.
     let inherent = env.tcx.record_def(checked.ty).filter(|&class| env.defs.lookup_method(class, method).is_some());
     let Some(class) = inherent else {
-        // `holder.on()` calls the closure stored in a function-typed field `on` (there is no such method).
-        let callable_field = env.tcx.record_def(checked.ty).and_then(|c| env.class(c)).is_some_and(|c| c.fields.iter().any(|f| f.name == method && env.tcx.func_sig(env.tcx.base(f.ty)).is_some()));
-        if callable_field && trait_candidates(env.tcx.ref_inner(checked.ty).unwrap_or(checked.ty), method, env).is_empty() {
+        if let Some(field_ty) = callable_field(checked.ty, method, env).filter(|_| trait_candidates(env.tcx.ref_inner(checked.ty).unwrap_or(checked.ty), method, env).is_empty()) {
+            if env.tcx.is_nullable(field_ty) {
+                env.error(format!("field `{method}` is nullable; check it for presence before calling it"), Some(span));
+                return poisoned(args, span, return_ty, env);
+            }
             return check_field_call(receiver, checked.ty, method, id, site, env);
         }
         return check_trait_method_call(checked, method, id, site, env);
@@ -77,6 +79,13 @@ pub(super) fn check_method_call(
     };
     let receiver = borrow(checked, env);
     finish_call(name, params, ret, Some(receiver), site, env)
+}
+
+/// The type of the function-typed (possibly nullable) field `name` of the class `receiver_ty`, if there is one.
+fn callable_field(receiver_ty: TyId, name: &str, env: &Env<'_>) -> Option<TyId> {
+    let class = env.class(env.tcx.record_def(receiver_ty)?)?;
+    let field = class.fields.iter().find(|f| f.name == name)?;
+    env.tcx.func_sig(env.tcx.base(field.ty)).map(|_| field.ty)
 }
 
 /// `recv.field(args)` where `field` holds a closure: the call goes through the field's value.
