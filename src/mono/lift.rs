@@ -15,9 +15,10 @@ use crate::ty::TyCtx;
 pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut ArenaReport, tcx: &TyCtx) -> Result<(), Vec<Diagnostic>> {
     // Lifted closures are appended and already hold no closures, so only the original functions are scanned.
     for at in 0..functions.len() {
-        let Some(mut nodes) = take_closure_nodes(&mut report.roots[at]) else {
+        let mut nodes = HashMap::new();
+        if !take_closure_nodes(&mut report.roots[at], &mut nodes) {
             return Err(vec![super::error(format!("internal error: `{}` has two closure regions with the same id", functions[at].name), None)]);
-        };
+        }
         let mut body = std::mem::take(&mut functions[at].body);
         let (outer_name, outer_span, outer_source) = (functions[at].name.clone(), functions[at].name_span, functions[at].source);
         let mut lifted: Vec<(HirFunction, ArenaNode)> = Vec::new();
@@ -49,19 +50,21 @@ pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut Arena
     Ok(())
 }
 
-/// Removes the closure regions below `root`, keyed by the closure they belong to. `None` when two share an id.
-fn take_closure_nodes(root: &mut ArenaNode) -> Option<HashMap<AstId, ArenaNode>> {
-    let mut out = HashMap::new();
+/// Moves the closure regions below `root` into `out`, keyed by their closure. `false` when two share an id.
+fn take_closure_nodes(root: &mut ArenaNode, out: &mut HashMap<AstId, ArenaNode>) -> bool {
     for mut child in std::mem::take(&mut root.children) {
-        for (id, node) in take_closure_nodes(&mut child)? {
-            out.insert(id, node).is_none().then_some(())?;
+        if !take_closure_nodes(&mut child, out) {
+            return false;
         }
-        match child.closure {
-            Some(id) => out.insert(id, child).is_none().then_some(())?,
-            None => root.children.push(child),
+        let Some(id) = child.closure else {
+            root.children.push(child);
+            continue;
+        };
+        if out.insert(id, child).is_some() {
+            return false;
         }
     }
-    Some(out)
+    true
 }
 
 fn lift_one(outer_span: crate::span::Span, outer_source: Option<&'static str>, name: String, closure: HirExpr, tcx: &TyCtx) -> (HirFunction, HirExpr) {
