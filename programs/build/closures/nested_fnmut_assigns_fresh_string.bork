@@ -1,0 +1,20 @@
+// exit: 0
+// stdout: ZZZZZZZZZ\n
+// WHAT THIS TESTS
+// A plain `FnMut` closure nested in another plain closure assigns a freshly built `String` to the outer `var`:
+// the bytes live in the variable's arena (carried by both environments), so `clobber` cannot overwrite them.
+fun clobber(): i32 {
+    val a = concat("QQQQQQ", "QQQ")
+    val b = concat("RRRRRR", "RRR")
+    return a.length + b.length
+}
+fun main(): i32 {
+    var s = "a"
+    val outer = { -> val inner = { -> s = concat("ZZZZZZ", "ZZZ")
+            0 }
+        inner() }
+    val r = outer()
+    val c = clobber()
+    println(s)
+    return r + c - 18
+}

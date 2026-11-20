@@ -1,0 +1,23 @@
+// exit: 0
+// stdout: ZZZZZZZZZ\n
+// WHAT THIS TESTS
+// A plain `FnMut` closure that assigns a freshly built `String` to a captured outer `var` allocates the bytes
+// in the variable's arena, not the call's: `clobber` reuses freed memory and the value is still intact.
+fun run<F: FnMut() -> i32>(f: F): i32 {
+    return f()
+}
+
+fun clobber(): i32 {
+    val a = concat("QQQQQQ", "QQQ")
+    val b = concat("RRRRRR", "RRR")
+    return a.length + b.length
+}
+
+fun main(): i32 {
+    var s = "a"
+    val r = run({ -> s = concat("ZZZZZZ", "ZZZ")
+        0 })
+    val c = clobber()
+    println(s)
+    return r + c - 18
+}

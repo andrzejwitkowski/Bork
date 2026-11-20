@@ -176,11 +176,16 @@ fn place_ty(cx: &Codegen<'_>, body: &Body, p: &Place) -> Option<TyId> {
     Some(ty)
 }
 
+/// A `Ref`, text or array value: it carries no arena of its own.
+fn is_homed(cx: &Codegen<'_>, ty: TyId) -> bool {
+    cx.tcx.is_managed_ref(ty) || cx.tcx.is_text(ty) || plain_array(cx, ty).is_some()
+}
+
 /// Region each `Ref`, text or array local was declared in; its home arena is that region's (as `declare_local`).
 /// These values carry no arena of their own, unlike objects, enums and `Vec` headers.
 fn ref_homes(cx: &Codegen<'_>, body: &Body) -> HashMap<Local, RegionId> {
     let mut homes: HashMap<Local, RegionId> = HashMap::new();
-    let homed = |ty: TyId| cx.tcx.is_managed_ref(ty) || cx.tcx.is_text(ty) || plain_array(cx, ty).is_some();
+    let homed = |ty: TyId| is_homed(cx, ty);
     for (i, l) in body.locals.iter().enumerate() {
         if l.kind == LocalKind::Arg && homed(l.ty) {
             homes.insert(Local(i as u32), RegionId(0));
@@ -660,6 +665,8 @@ struct Lower<'a, 'ctx> {
     caller_parent: Option<PointerValue<'ctx>>,
     result_sink: Option<PointerValue<'ctx>>,
     ref_homes: HashMap<Local, RegionId>,
+    /// Arena of the creator's variable behind each by-reference capture of a text, array or `Ref` (the environment carries it).
+    capture_homes: HashMap<Local, PointerValue<'ctx>>,
     /// `-g`: the DISubprogram, lexical blocks per region and the i64 token slot per `DebugScope` local.
     subprogram: Option<inkwell::debug_info::DIScope<'ctx>>,
     di_scopes: HashMap<RegionId, inkwell::debug_info::DIScope<'ctx>>,
@@ -690,6 +697,7 @@ pub(super) fn lower_function<'ctx>(
         blocks: Vec::new(),
         caller_parent: (abi.hidden_len() > 0).then(|| llvm_fn.get_nth_param(0).expect("callee has a parent arena parameter").into_pointer_value()),
         ref_homes: ref_homes(cx, body),
+        capture_homes: HashMap::new(),
         subprogram: cx.debug.as_ref().map(|d| d.function(cx, function, llvm_fn)),
         di_scopes: HashMap::new(),
         scope_slots: HashMap::new(),
@@ -837,7 +845,12 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         let args = self.body.locals.iter().filter(|l| l.kind == LocalKind::Arg).take(n);
         let by_ref = self.function.env_mode == crate::hir::CaptureMode::ByAddress;
         let address = fields[0];
-        fields.extend(args.map(|l| if by_ref { address } else { cx.basic_type(l.ty).expect("checked capture type") }));
+        let args: Vec<_> = args.collect();
+        fields.extend(args.iter().map(|l| if by_ref { address } else { cx.basic_type(l.ty).expect("checked capture type") }));
+        // A by-reference capture that carries no arena of its own is followed by the arena of the variable it names.
+        if by_ref {
+            fields.extend(args.iter().filter(|l| is_homed(cx, l.ty)).map(|_| address));
+        }
         cx.context.struct_type(&fields, false)
     }
 
@@ -899,6 +912,15 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             self.slots.insert(local, slot);
         }
         let ptr = cx.context.ptr_type(inkwell::AddressSpace::default());
+        if self.function.env_mode == crate::hir::CaptureMode::ByAddress {
+            let n = self.function.env_params.unwrap_or(0);
+            let args = self.body.locals.iter().enumerate().filter(|(_, l)| l.kind == LocalKind::Arg).take(n);
+            for (k, (i, _)) in args.filter(|(_, l)| is_homed(cx, l.ty)).enumerate() {
+                let field = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env.expect("closure environment"), (n + 1 + k) as u32, "capture.home")?;
+                let arena = cx.builder.build_load(ptr, field, "capture.arena")?.into_pointer_value();
+                self.capture_homes.insert(Local(i as u32), arena);
+            }
+        }
         for r in pushed_regions(self.body) {
             self.region_slots.insert(r, cx.builder.build_alloca(ptr, "arena")?);
         }
@@ -969,6 +991,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             ArenaRef::ResultSink => Ok(self.result_sink.expect("checked result sink")),
             ArenaRef::CallerParent => Ok(self.caller_parent.expect("checked caller parent")),
             // The arena inside the handle (`{arena, object}`) or the `Vec` header the binding holds.
+            ArenaRef::Home(l) if self.capture_homes.contains_key(l) => Ok(self.capture_homes[l]),
             ArenaRef::Home(l) if self.ref_homes.contains_key(l) => self.arena_of(self.ref_homes[l]),
             ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => {
                 let ty = self.body.local(*l).expect("checked local").ty;
@@ -1221,17 +1244,24 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let code = callee_fn.as_global_value().as_pointer_value();
                 let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![code.get_type().into()];
                 let mut values: Vec<BasicValueEnum<'ctx>> = vec![code.into()];
+                let mut homes = Vec::new();
                 for c in captures {
                     let ty = self.op_ty(c).expect("checked capture");
                     if *by_ref {
                         let (address, _) = self.place_ptr(c.place().expect("checked capture place"))?;
                         fields.push(address.get_type().into());
                         values.push(address.into());
+                        if is_homed(cx, ty) {
+                            homes.push(self.arena_ref(&ArenaRef::Home(c.place().expect("checked capture place").local), stmt.region)?);
+                        }
                     } else {
                         fields.push(cx.basic_type(ty).expect("checked capture type"));
                         values.push(self.operand(c, ty)?);
                     }
                 }
+                // The variables' arenas follow the capture addresses, in the order `closure_env_type` expects.
+                fields.extend(homes.iter().map(|h| h.get_type()).map(inkwell::types::BasicTypeEnum::from));
+                values.extend(homes.iter().map(|&h| BasicValueEnum::from(h)));
                 let env_ty = cx.context.struct_type(&fields, false);
                 let env = if captures.is_empty() {
                     // Nothing to keep alive: a constant, so the closure may outlive the region.
@@ -1250,7 +1280,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     for (i, v) in values.iter().enumerate() {
                         let field = cx.builder.build_struct_gep(env_ty, env, i as u32, "env.field")?;
                         // Slot 0 is the code pointer; `owned_refs` indexes the captures.
-                        if i > 0 && owned_refs[i - 1] {
+                        if i > 0 && owned_refs.get(i - 1).copied().unwrap_or(false) {
                             cx.builder.build_store(field, cx.ref_handle_type().const_zero())?;
                             cx.ref_store(self.llvm_fn, field, arena, *v)?;
                             cx.ref_register_drop(arena, field)?;
