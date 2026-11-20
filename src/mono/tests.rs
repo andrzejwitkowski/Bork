@@ -324,6 +324,22 @@ fn nested_closures_are_lifted_inner_first() {
 }
 
 #[test]
+fn nested_sibling_closures_each_lift_with_their_own_captures_and_region() {
+    let src = "fun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}\nfun main(): i32 {\n    val a = 1\n    val b = 2\n    val c = 3\n    return apply() { x -> apply({ y -> y + a }) + apply() { z -> z + b + x } } + c\n}\n";
+    let m = mono(src);
+    assert_eq!(function_names(&m), ["main", "apply", "main$closure0", "main$closure1", "main$closure2"]);
+    assert_eq!(m.report.roots.len(), m.hir.functions.len());
+    let params = |i: usize| m.hir.functions[i].params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>();
+    // Inner closures first, in source order, then the closure that contains them.
+    assert_eq!(params(2), ["a", "y"]);
+    assert_eq!(params(3), ["b", "x", "z"]);
+    assert_eq!(params(4).last(), Some(&"x"));
+    for (i, f) in m.hir.functions.iter().enumerate() {
+        assert_eq!(m.report.roots[i].label, format!("fun {}", f.name));
+    }
+}
+
+#[test]
 fn instances_whose_nested_closures_differ_only_in_captures_get_distinct_names() {
     let src = "class Node {\n    id: i32\n}\nclass Other {\n    id: i32\n}\nclass Holder<T> {\n    v: T\n}\nfun outer<T>(h: T): i32 {\n    return 1\n}\nfun make<T>(t: T): i32 {\n    return outer(Holder(move (t) { -> val u = t\n        1 }))\n}\nfun main(): i32 {\n    return make(Node(1)) + make(Other(2))\n}\n";
     let m = mono(src);
