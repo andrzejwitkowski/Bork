@@ -277,7 +277,9 @@ pub(super) fn finish_call(
     let mut checked_args = Vec::with_capacity(args.len());
     for (index, arg) in args.iter().enumerate() {
         let expected = explicit.get(index).copied();
-        let checked = dispatch(arg, expected, return_ty, env);
+        // print is overloaded (i32 | i64 | String); its declared `i32` must not leak into a generic argument.
+        let hint = if crate::builtins::is_print(&name) { None } else { expected };
+        let checked = dispatch(arg, hint, return_ty, env);
         if let Some(expected) = expected {
             check_argument(&name, index, &checked, expected, env);
         }
