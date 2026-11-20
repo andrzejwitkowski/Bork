@@ -1,0 +1,15 @@
+// exit: 0
+// stdout: 0\n1\n2\n
+// WHAT THIS TESTS
+// A `for` variable named like a captured `var` shadows it only inside the loop: the use after the loop still
+// captures the outer `n` (capture analysis used to keep the name shadowed to the end of the block).
+fun main(): i32 {
+    var n = 1
+    val f = { ->
+        for (n in 0..3) {
+            println(n)
+        }
+        n = n + 5
+        n }
+    return f() - 6
+}

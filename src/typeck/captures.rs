@@ -1,8 +1,5 @@
 //! What a closure body captures and how it uses it (RFC 0007): the capture list and the kind
 //! (`Fn` reads, `FnMut` also assigns, `FnOnce` also moves a capture out).
-//!
-//! shortcut: a name bound by a pattern, a `for` or a presence binding shadows the outer one to the end of the
-//! enclosing block, not just of its arm or loop body; tighten with real scopes if a program needs it.
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -120,8 +117,10 @@ impl Scan {
             }
             HirStmt::For { name, iter, body } => {
                 self.expr(iter);
+                let declared = self.declared.clone();
                 self.declared.insert(name.clone());
                 self.block(body);
+                self.declared = declared;
             }
             HirStmt::While { cond, body } => {
                 self.expr(cond);
@@ -201,18 +200,22 @@ impl Scan {
             K::ObjectConstruct { fields, .. } | K::EnumConstruct { fields, .. } => fields.iter().for_each(|x| self.expr(x)),
             K::ObjectField { receiver, .. } | K::Field { receiver, .. } => self.expr(receiver),
             K::PresenceMatch { bindings, some_block, none_block } => {
+                let declared = self.declared.clone();
                 for b in bindings.iter() {
                     self.expr(&b.value);
                     self.declared.insert(b.name.name.clone());
                 }
                 self.block(some_block);
+                self.declared = declared;
                 none_block.iter().for_each(|b| self.block(b));
             }
             K::Match { scrutinee, arms } => {
                 self.expr(scrutinee);
                 for arm in arms {
+                    let declared = self.declared.clone();
                     self.pat(&arm.pat);
                     self.block(&arm.body);
+                    self.declared = declared;
                 }
             }
             K::Binary { lhs, rhs, .. } => {
