@@ -340,3 +340,15 @@ fn a_move_block_without_a_capture_list_moves_what_it_uses_so_the_closure_is_fn_o
     let src = "class Node {\n    id: i32\n}\nfun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val n = Node(1)\n    return once({ ->\n        move {\n            val id = n.id\n        }\n        0\n    })\n}";
     assert!(diags_of(src).iter().any(|d| d.message.contains("FnOnce")), "{:?}", diags_of(src));
 }
+
+#[test]
+fn a_nested_closure_that_writes_only_its_own_local_leaves_the_outer_closure_fn() {
+    let src = "fun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val y = 1\n    return once({ ->\n        var x = 0\n        val g = { -> x = x + 1\n            y }\n        g() })\n}";
+    hir_of(src);
+}
+
+#[test]
+fn a_nested_move_closure_that_writes_its_copy_leaves_the_outer_closure_fn() {
+    let src = "fun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return once({ ->\n        var g = move (n) { -> n = n + 1\n            n }\n        g() })\n}";
+    hir_of(src);
+}

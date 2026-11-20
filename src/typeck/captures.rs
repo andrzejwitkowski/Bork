@@ -241,27 +241,20 @@ impl Scan {
             }
             // A nested closure's captures are uses of this one as well; its own locals stay its own.
             K::MakeClosure { captures, .. } => captures.iter().for_each(|x| self.expr(x)),
-            // What a nested closure does to a capture it does to ours: it makes this closure at least as strong.
-            // The nested kind is applied to every capture, but only the strongest use decides this closure's kind,
-            // and the nested closure's kind is exactly its strongest use, so the result is the same.
-            K::Closure { captures, kind, is_move, .. } => {
+            // Building a `move` closure moves its captures out of ours; what its body does then happens to its own copies.
+            K::Closure { captures, is_move: true, .. } => {
                 for c in captures {
                     if self.note(&c.name) {
-                        // Building a `move` closure moves its captures out of ours, whatever it does with them.
-                        if *is_move {
-                            self.moved.push((c.name.clone(), c.ty));
-                        }
-                        match kind {
-                            ClosureKind::Fn => {}
-                            ClosureKind::FnMut => {
-                                self.assigned.insert(c.name.clone());
-                            }
-                            ClosureKind::FnOnce => {
-                                self.moved.push((c.name.clone(), c.ty));
-                            }
-                        }
+                        self.moved.push((c.name.clone(), c.ty));
                     }
                 }
+            }
+            // A plain closure works on our bindings: what its body does to one it does to ours. Its parameters and locals stay its own.
+            K::Closure { params, body, .. } => {
+                let declared = self.declared.clone();
+                self.declared.extend(params.iter().map(|p| p.name.clone()));
+                self.block(body);
+                self.declared = declared;
             }
         }
     }
