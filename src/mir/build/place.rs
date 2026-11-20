@@ -240,6 +240,10 @@ impl<'a> FnBuilder<'a> {
         if !(t.is_nullable(ty) || t.is_string(ty) || t.is_array(ty) || t.is_vec(ty)) {
             return Ok(op);
         }
+        // shortcut: the environments stay in the old arena, so copying the pointers would dangle (#307).
+        if t.vec_elem(ty).is_some_and(|e| t.is_callable(e)) {
+            return Err(BuildError::unsupported(Capability::VecOfClosuresCopy, span));
+        }
         let src = self.operand_place(op, ty, span);
         let dst = self.temp(ty);
         self.stmt(StmtKind::CopyInto { dst: Place::local(dst), src, arena: arena.clone() }, span, None);

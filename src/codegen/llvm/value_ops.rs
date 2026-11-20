@@ -329,7 +329,7 @@ impl<'ctx> Codegen<'ctx> {
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }
         if let Some(elem) = self.tcx.vec_elem(ty) {
-            // shortcut: the environments stay in the old arena, so copying the pointers would dangle; re-home them when this is needed.
+            // shortcut (#307): the environments stay in the old arena; MIR build rejects this first as `VecOfClosuresCopy`.
             if self.tcx.is_callable(elem) {
                 return Err(not_yet_supported("moving a `Vec` of closures into another arena", None));
             }
