@@ -16,6 +16,9 @@ enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 class Label size=16 align=8 fields=[0]
 == programs/build/classes/walkthrough_point.bork
 class Point size=24 align=8 fields=[0, 16, 20]
+== programs/build/closures/closure_in_class_field.bork
+class Btn size=24 align=8 fields=[0, 16]
+class Counter size=8 align=8 fields=[0]
 == programs/build/closures/fnonce_moves_object.bork
 class Node size=4 align=4 fields=[0]
 == programs/build/closures/fnonce_ref_released_once.bork

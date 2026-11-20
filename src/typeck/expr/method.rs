@@ -47,6 +47,11 @@ pub(super) fn check_method_call(
     // An inherent method shadows a trait method of the same name.
     let inherent = env.tcx.record_def(checked.ty).filter(|&class| env.defs.lookup_method(class, method).is_some());
     let Some(class) = inherent else {
+        // `holder.on()` calls the closure stored in a function-typed field `on` (there is no such method).
+        let callable_field = env.tcx.record_def(checked.ty).and_then(|c| env.class(c)).is_some_and(|c| c.fields.iter().any(|f| f.name == method && env.tcx.func_sig(env.tcx.base(f.ty)).is_some()));
+        if callable_field && trait_candidates(env.tcx.ref_inner(checked.ty).unwrap_or(checked.ty), method, env).is_empty() {
+            return check_field_call(receiver, checked.ty, method, id, site, env);
+        }
         return check_trait_method_call(checked, method, id, site, env);
     };
     let class_name = env.tcx.class_name(class).to_string();
@@ -72,6 +77,20 @@ pub(super) fn check_method_call(
     };
     let receiver = borrow(checked, env);
     finish_call(name, params, ret, Some(receiver), site, env)
+}
+
+/// `recv.field(args)` where `field` holds a closure: the call goes through the field's value.
+fn check_field_call(receiver: &Expr, receiver_ty: TyId, field: &str, id: AstId, site: CallSite<'_>, env: &mut Env<'_>) -> Checked {
+    let CallSite { span, return_ty, .. } = site;
+    let access = Expr::Field { receiver: Box::new(receiver.clone()), name: field.to_string(), safe: false, span, id };
+    let callee = synthesize(&access, return_ty, env);
+    let Some((params, ret)) = env.tcx.func_sig(env.tcx.base(callee.ty)) else { unreachable!("the field was checked to be callable") };
+    let class = env.tcx.record_def(env.tcx.ref_inner(receiver_ty).unwrap_or(receiver_ty)).map(|c| env.tcx.class_name(c).to_string()).unwrap_or_default();
+    let mut call = finish_call(format!("{class}.{field}"), params, ret, None, site, env);
+    if let HirExprKind::Call { callee: slot, .. } = &mut call.hir.kind {
+        **slot = callee.hir;
+    }
+    call
 }
 
 /// A trait that provides the method being called, with the trait arguments of the bound or impl.

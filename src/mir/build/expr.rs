@@ -178,7 +178,25 @@ impl<'a> FnBuilder<'a> {
             return Err(BuildError::Internal("a trailing closure survived mono lifting".into()));
         }
         let HirExprKind::Ident { name, use_kind } = &callee.kind else {
-            return Err(BuildError::unsupported(Capability::IndirectCall, span));
+            // A closure stored in a field (`holder.on()`): the callee is a value.
+            if self.tcx.func_sig(self.tcx.base(callee.ty)).is_none() {
+                return Err(BuildError::unsupported(Capability::IndirectCall, span));
+            }
+            let ops = self.with_sink(ArenaRef::Current, |b| b.exprs(args))?;
+            let callee_op = self.with_sink(ArenaRef::Current, |b| b.expr(callee))?;
+            let abi = super::abi_for_return(self.tcx, e.ty);
+            let mut hidden = Vec::new();
+            if abi.caller_parent {
+                hidden.push(ArenaRef::Current);
+            }
+            if abi.result_sink {
+                hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
+            }
+            let dest = self.temp(e.ty);
+            let target = self.new_block();
+            self.terminate(TermKind::CallClosure { callee: callee_op, args: ops, hidden, dest: Place::local(dest), target: Some(target) }, span, Some(e.id));
+            self.cur = target;
+            return Ok(if self.is_unit(e.ty) { Operand::Const(Const::Unit) } else { Operand::Copy(Place::local(dest)) });
         };
         let through_value = *use_kind == UseKind::Copy;
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested

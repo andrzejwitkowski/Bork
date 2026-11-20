@@ -29,6 +29,7 @@ programs/build/classes/nullable_field_assign.bork: hits=3 hash=cf496e48c59ad0d1
 programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
+programs/build/closures/closure_in_class_field.bork: hits=27 hash=a615e08f22a606f0
 programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
 programs/build/closures/doc_example.bork: hits=26 hash=4181bba19cc57ac4
 programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e
@@ -359,6 +360,7 @@ programs/check_fail/classes/owned_layout_cycle.bork: hits=0 hash=cbf29ce48422232
 programs/check_fail/classes/ref_dot.bork: hits=2 hash=0631e700de510247
 programs/check_fail/closures/annotated_view_moved_into_var.bork: hits=19 hash=8b00913ed3477a52
 programs/check_fail/closures/break_in_closure.bork: hits=6 hash=8041edeea34d2536
+programs/check_fail/closures/closure_field_call_arity.bork: hits=4 hash=f9fedeff707ae4a1
 programs/check_fail/closures/fnmut_to_fn_bound.bork: hits=3 hash=8a6ecd6bfbfccf09
 programs/check_fail/closures/func_param_returned.bork: hits=6 hash=212067c0955e168b
 programs/check_fail/closures/func_param_stored_in_field.bork: hits=3 hash=c556741c7e55731b
