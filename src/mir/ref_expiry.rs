@@ -47,10 +47,8 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                     alias.insert(dst.local, src);
                     let Some(targets) = held.get(&src).cloned() else { continue };
                     let Some(owner) = body.local(dst.local) else { continue };
-                    let Some(owner_name) = owner.name.clone() else {
-                        held.entry(dst.local).or_default().extend(targets);
-                        continue;
-                    };
+                    held.entry(dst.local).or_default().extend(targets.iter().copied());
+                    let Some(owner_name) = owner.name.clone() else { continue };
                     for t in &targets {
                         let Some(target) = body.local(*t) else { continue };
                         let Some(name) = target.name.clone() else { continue };

@@ -115,6 +115,7 @@ fn build_command(args: Vec<String>) -> ! {
 fn run_emit_mir(path: &str, output: Option<&std::path::Path>) -> ! {
     let source = read_source(path);
     let result = frontend::check(&source);
+    print_diagnostics(path, &source, &result.warnings);
     match bork::mir::emit::emit_mir(&result) {
         Ok(text) => {
             match output {

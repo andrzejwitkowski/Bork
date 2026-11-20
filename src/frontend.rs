@@ -321,5 +321,7 @@ fun add(val a: Int, var b: Int): Int {
         // Same block, or a Ref made outside the block: nothing expires early.
         assert!(held("val q = P(r0)\n p = q").warnings.is_empty());
         assert!(held("p = P(r0)").warnings.is_empty());
+        // Through a named local the Ref still expires.
+        assert_eq!(held("val r: Ref<Node> = Node(5)\n val q = P(r)\n p = move q").warnings.len(), 1);
     }
 }
