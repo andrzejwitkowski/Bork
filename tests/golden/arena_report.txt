@@ -565,6 +565,34 @@ Arenas
         ├── inner [Local]
         └── Closure
             └── n [Copy]
+== programs/build/closures/non_move_ref_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── w0 [Local]
+    ├── s0 [Local]
+    ├── got [Local]
+    ├── Block
+    │   ├── c [Local]
+    │   ├── w1 [Local]
+    │   ├── s1 [Local]
+    │   ├── n [Shared ← fun main]
+    │   ├── r [Shared ← fun main]
+    │   ├── Closure
+    │   │   ├── dw [Local]
+    │   │   ├── ds [Local]
+    │   │   ├── r [Shared ← fun main]
+    │   │   ├── w1 [Copy]
+    │   │   ├── s1 [Copy]
+    │   │   └── c [Shared ← Block]
+    │   ├── IfThen
+    │   └── IfThen
+    ├── IfThen
+    ├── IfThen
+    └── IfThen
 == programs/build/closures/outer_name_before_shadowing_decl.bork
 Arenas
 └── fun main

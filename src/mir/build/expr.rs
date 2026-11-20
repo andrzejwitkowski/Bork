@@ -290,7 +290,7 @@ impl<'a> FnBuilder<'a> {
             self.with_sink(arena.clone(), |b| b.exprs(captures))?
         };
         let owns = (is_move || kind == ClosureKind::FnOnce) && !by_ref;
-        let owned_refs: Vec<bool> = captures.iter().map(|c| owns && self.tcx.is_managed_ref(c.ty) && !self.tcx.is_nullable(c.ty)).collect();
+        let owned_refs: Vec<bool> = captures.iter().map(|c| owns && self.tcx.is_managed_ref(c.ty)).collect();
         // The environment stores its own handle: the captured variable keeps (and later releases) the original.
         for ((op, owned), hir) in operands.iter_mut().zip(&owned_refs).zip(captures) {
             if *owned {
