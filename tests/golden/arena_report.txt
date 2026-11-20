@@ -223,6 +223,40 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── p [Local]
+== programs/build/closures/closure_in_class_field.bork
+Arenas
+├── fun fire
+│   └── b [Borrow ← call site]
+└── fun main
+    ├── s [Local]
+    ├── b [Local]
+    ├── c [Local]
+    ├── k [Local]
+    ├── Closure (move)
+    │   ├── x [Local]
+    │   └── s [Moved ← fun main]
+    └── Closure (move)
+        └── c [Moved ← fun main]
+== programs/build/closures/closure_in_class_field_generic_and_returned.bork
+Arenas
+├── fun makeNumber
+│   ├── n [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── n [Moved ← fun makeNumber]
+├── fun makeText
+│   ├── s [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── s [Moved ← fun makeText]
+└── fun main
+    ├── g [Local]
+    ├── a [Local]
+    ├── b [Local]
+    ├── h [Local]
+    ├── Closure
+    │   └── x [Local]
+    └── Closure
 == programs/build/closures/closure_in_val.bork
 Arenas
 └── fun main
@@ -531,6 +565,34 @@ Arenas
         ├── inner [Local]
         └── Closure
             └── n [Copy]
+== programs/build/closures/non_move_ref_capture.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+└── fun main
+    ├── n [Local]
+    ├── r [Local]
+    ├── w0 [Local]
+    ├── s0 [Local]
+    ├── got [Local]
+    ├── Block
+    │   ├── c [Local]
+    │   ├── w1 [Local]
+    │   ├── s1 [Local]
+    │   ├── n [Shared ← fun main]
+    │   ├── r [Shared ← fun main]
+    │   ├── Closure
+    │   │   ├── dw [Local]
+    │   │   ├── ds [Local]
+    │   │   ├── r [Shared ← fun main]
+    │   │   ├── w1 [Copy]
+    │   │   ├── s1 [Copy]
+    │   │   └── c [Shared ← Block]
+    │   ├── IfThen
+    │   └── IfThen
+    ├── IfThen
+    ├── IfThen
+    └── IfThen
 == programs/build/closures/outer_name_before_shadowing_decl.bork
 Arenas
 └── fun main
@@ -3740,6 +3802,77 @@ Arenas
 └── fun main
     ├── v [Local]
     └── c [Local]
+== programs/build/vec/closure_elems_grow.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── k [Local]
+    ├── f [Local]
+    ├── g [Local]
+    ├── Closure
+    ├── Closure (move)
+    │   └── k [Moved ← fun main]
+    ├── Closure
+    ├── Closure
+    └── Closure
+== programs/build/vec/closure_elems_inner_ref_capture.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── i [Local]
+    ├── f [Local]
+    ├── g [Local]
+    └── WhileLoop
+        ├── k [Local]
+        ├── s [Local]
+        ├── r [Local]
+        ├── i [Copy]
+        ├── v [Borrow ← fun main]
+        └── Closure (move)
+            ├── k [Moved ← WhileLoop]
+            ├── s [Moved ← WhileLoop]
+            ├── r [Moved ← WhileLoop]
+            ├── IfValSome
+            │   └── n [Borrow ← presence guard]
+            └── IfValNone
+== programs/build/vec/closure_elems_loop.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── i [Local]
+    ├── f [Local]
+    ├── g [Local]
+    └── WhileLoop
+        ├── k [Local]
+        ├── s [Local]
+        ├── i [Copy]
+        ├── v [Borrow ← fun main]
+        └── Closure (move)
+            ├── k [Moved ← WhileLoop]
+            └── s [Moved ← WhileLoop]
+== programs/build/vec/closure_elems_ref_capture.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── r [Local]
+    ├── f [Local]
+    └── IfThen
+        ├── v [Borrow ← fun main]
+        └── Closure (move)
+            ├── r [Moved ← fun main]
+            ├── IfValSome
+            │   └── n [Borrow ← presence guard]
+            └── IfValNone
+== programs/build/vec/closure_elems_via_param.bork
+Arenas
+├── fun fill
+│   ├── v [Borrow ← call site]
+│   ├── k [Local]
+│   └── Closure (move)
+│       └── k [Moved ← fun fill]
+└── fun main
+    ├── v [Local]
+    └── f [Local]
 == programs/build/vec/grow_past_page.bork
 Arenas
 └── fun main
@@ -4119,6 +4252,16 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── IfThen
+== programs/build_fail/vec_of_closures_promote.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    └── Block
+        ├── inner [Local]
+        ├── k [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            └── k [Moved ← Block]
 == programs/check/borrow/array_slice_length.bork
 Arenas
 └── fun main
@@ -4785,7 +4928,7 @@ Type Error [101..102] borrowed references cannot be stored in enum payloads
 Arenas
 └── fun main
 == programs/check_fail/borrow/rw_in_vec.bork
-Type Error [60..61] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `&rw P`
+Type Error [60..61] `Vec` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `&rw P`
 Arenas
 ├── fun f
 │   └── v [Local]
@@ -4886,6 +5029,18 @@ Arenas
         ├── r [Local]
         ├── i [Copy]
         └── Closure
+== programs/check_fail/closures/closure_field_call_arity.bork
+Type Error [146..150] function `Btn.on` expects 1 arguments, got 0
+Arenas
+└── fun main
+    ├── b [Local]
+    └── Closure
+        └── x [Local]
+== programs/check_fail/closures/closure_field_call_nullable.bork
+Type Error [159..163] field `on` is nullable; check it for presence before calling it
+Arenas
+└── fun main
+    └── b [Local]
 == programs/check_fail/closures/fnmut_to_fn_bound.bork
 Type Error [115..120] the trait bound `closure#0()->i32: Fn<()->i32>` is not satisfied; the closure is `FnMut` (it assigns to a captured value), which the bound `Fn` does not allow
 Arenas
@@ -5521,7 +5676,7 @@ Arenas
 │   └── z [Local]
 └── fun main
 == programs/check_fail/generics/vec_of_class.bork
-Type Error [212..213] `f<P>`: `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `P`
+Type Error [212..213] `f<P>`: `Vec` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `P`
 Arenas
 ├── fun f
 │   ├── x [Local]
@@ -6322,10 +6477,55 @@ Arenas
     ├── v [Local]
     └── e [Local]
 == programs/check_fail/vec/class_element.bork
-Type Error [89..92] `Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `Node`
+Type Error [89..92] `Vec` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `Node`
 Arenas
 └── fun main
     └── v [Local]
+== programs/check_fail/vec/closure_bound_push.bork
+Type Error [175..176] a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector; its environment must live in the vector's arena
+Arenas
+├── fun fill
+│   ├── v [Borrow ← call site]
+│   ├── k [Local]
+│   ├── f [Local]
+│   └── Closure (move)
+│       └── k [Moved ← fun fill]
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/closure_field_vec_push.bork
+Type Error [180..192] a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector; its environment must live in the vector's arena
+Arenas
+├── fun add
+│   ├── b [Borrow ← call site]
+│   ├── k [Local]
+│   └── Closure (move)
+│       └── k [Moved ← fun add]
+└── fun main
+    └── b [Local]
+== programs/check_fail/vec/closure_fnonce_element.bork
+Type Error [56..59] `Vec` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `FnOnce()->i32`
+Arenas
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/closure_func_typed_push.bork
+Type Error [186..187] a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector; its environment must live in the vector's arena
+Arenas
+├── fun fill
+│   ├── v [Borrow ← call site]
+│   ├── n [Local]
+│   ├── f [Local]
+│   └── Closure (move)
+│       └── n [Moved ← fun fill]
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/closure_plain_capture_push.bork
+Type Error [136..142] cannot store a closure that borrows its captures in a `Vec`; use `val`, or `move`
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── k [Local]
+    └── Closure
+        └── k [Copy]
 == programs/check_fail/vec/construct_like_class.bork
 Type Error [108..111] `Vec` is a built-in type and cannot be constructed like a class; write `Vec::<T>()` or `Vec::<T>(capacity)`
 Arenas

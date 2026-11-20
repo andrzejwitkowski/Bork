@@ -1,0 +1,11 @@
+// diag: a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector
+class Bag { items: Vec<() -> i32> }
+fun add(b: &rw Bag) {
+    val k = 4
+    b.items.push(move (k) { -> k })
+}
+fun main(): i32 {
+    var b = Bag(Vec::<() -> i32>())
+    add(&rw b)
+    return b.items.len()
+}

@@ -149,9 +149,12 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
     let explicit_ref = ty.is_some() && env.tcx.is_ref(declared_ty);
     env.node_tys.insert(id.numbered(), declared_ty);
     let view_closure = env.is_view_closure_value(&value);
+    let maybe_view = env.is_maybe_view_alias(&value.hir);
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
     if view_closure {
         env.mark_view_closure(name);
+    } else if maybe_view {
+        env.mark_maybe_view(name);
     }
     if name == "?it" {
         require_iterator(declared_ty, name_span, env);

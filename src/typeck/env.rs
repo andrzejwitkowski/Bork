@@ -34,6 +34,8 @@ pub(super) struct Binding {
     pub(super) explicit_ref: bool,
     /// Holds a closure that borrows its captures, whatever type it was annotated with (`Func` erases it).
     pub(super) view_closure: bool,
+    /// A `Func`-to-be parameter: its type is still an inference variable, so it is a view only once it resolves to a callable.
+    pub(super) maybe_view: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -179,6 +181,7 @@ impl<'a> Env<'a> {
                     ty,
                     explicit_ref,
                     view_closure: false,
+                    maybe_view: false,
                 },
             );
     }
@@ -228,17 +231,33 @@ impl<'a> Env<'a> {
         self.hir_is_view_closure(&value.hir)
     }
 
+    fn binding_is_view(&self, b: &Binding) -> bool {
+        b.view_closure || (b.maybe_view && self.infcx.bound_shallow(self.tcx, b.ty).is_some_and(|t| self.tcx.is_callable(t)))
+    }
+
+    /// Whether `value` is a plain name of a still-undecided parameter (`val g = f`): its alias stays undecided too.
+    /// Read before the alias is bound, since `val f = f` shadows the source.
+    pub(super) fn is_maybe_view_alias(&self, value: &HirExpr) -> bool {
+        matches!(&value.kind, HirExprKind::Ident { name, .. } if self.binding(name).is_some_and(|b| b.maybe_view))
+    }
+
+    pub(super) fn mark_maybe_view(&mut self, name: &str) {
+        if let Some(b) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+            b.maybe_view = true;
+        }
+    }
+
     fn hir_is_view_closure(&self, e: &HirExpr) -> bool {
         if self.tcx.is_view_closure(e.ty) {
             return true;
         }
         match &e.kind {
-            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| b.view_closure),
+            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| self.binding_is_view(b)),
             HirExprKind::Call { args, .. } if self.tcx.is_callable(e.ty) => {
                 args.iter().any(|a| self.hir_is_view_closure(a))
             }
             // A `move` closure keeps a captured view alive: its type does not say so (`Func` erases it), the binding does.
-            HirExprKind::Closure { captures, .. } => captures.iter().any(|c| self.binding(&c.name).is_some_and(|b| b.view_closure)),
+            HirExprKind::Closure { captures, .. } => captures.iter().any(|c| self.binding(&c.name).is_some_and(|b| self.binding_is_view(b))),
             // A branch result is a view when any branch is.
             HirExprKind::If { then_block, else_block, .. } => self.block_tail_is_view(then_block) || else_block.as_ref().is_some_and(|b| self.block_tail_is_view(b)),
             HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.block_tail_is_view(&a.body)),
@@ -286,8 +305,15 @@ impl<'a> Env<'a> {
     /// A `Func`-typed parameter may be handed a view closure (a plain closure borrowing its captures); its type does
     /// not say so, so the callee treats it as one and cannot return or store it.
     pub(super) fn mark_func_param_view(&mut self, name: &str, ty: TyId) {
-        if matches!(self.tcx.data(ty), crate::ty::TyData::Func { .. }) {
-            self.mark_view_closure(name);
+        match self.tcx.data(ty) {
+            crate::ty::TyData::Func { .. } => self.mark_view_closure(name),
+            // Typed only by the body (`val g: () -> i32 = f`): decided when the name is read, not here.
+            crate::ty::TyData::Infer(_) => {
+                if let Some(b) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+                    b.maybe_view = true;
+                }
+            }
+            _ => {}
         }
     }
 

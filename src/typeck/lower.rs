@@ -109,7 +109,7 @@ impl LowerCx<'_> {
     fn lower_vec(&mut self, elem: &Type) -> TyId {
         let elem_ty = self.lower(elem);
         let is_param = matches!(self.tcx.data(elem_ty), TyData::Param(_));
-        if !self.tcx.is_unknown(elem_ty) && !is_param && !self.tcx.is_array_elem_supported(elem_ty) {
+        if !self.tcx.is_unknown(elem_ty) && !is_param && !self.tcx.is_vec_elem_supported(elem_ty) {
             let message = self.tcx.vec_elem_message(elem_ty);
             self.error(message);
         }

@@ -1,0 +1,12 @@
+// exit: 9
+// A closure pushed through a `&rw Vec` parameter lives in the vector's arena, not the callee's.
+fun fill(v: &rw Vec<() -> i32>) {
+    val k = 9
+    v.push(move (k) { -> k })
+}
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    fill(&rw v)
+    val f = v.get(0)
+    return f()
+}

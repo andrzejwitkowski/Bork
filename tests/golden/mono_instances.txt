@@ -2,6 +2,13 @@
 fun main
 fun outer<String>
 fun inner<String>
+== programs/build/closures/closure_in_class_field_generic_and_returned.bork
+fun main
+fun makeNumber
+fun makeText
+class Btn
+class Holder<closure#3()->i32>
+class Box<i32>
 == programs/build/closures/doc_example.bork
 fun main
 fun apply<closure#0(i32)->i32[i32]>

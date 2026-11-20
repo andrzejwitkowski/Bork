@@ -607,12 +607,12 @@ impl Expr {
 
     /// A call. `Some(e)` is not a keyword either: a plain one-argument call of the name `Some`.
     pub fn call(callee: Expr, type_args: Vec<Type>, mut args: Vec<Expr>, trailing: Option<Closure>, span: crate::span::Span) -> Expr {
+        // A trailing closure is just the last argument, so `Some() { .. }` reads like `Some({ .. })`.
+        args.extend(trailing.map(Expr::Closure));
         let is_some = matches!(&callee, Expr::Ident { name, .. } if name == "Some");
-        if is_some && type_args.is_empty() && args.len() == 1 && trailing.is_none() {
+        if is_some && type_args.is_empty() && args.len() == 1 {
             return Expr::Some { expr: Box::new(args.pop().expect("one argument")), span, id: crate::span::AstId::DUMMY };
         }
-        // A trailing closure is just the last argument.
-        args.extend(trailing.map(Expr::Closure));
         Expr::Call { callee: Box::new(callee), type_args, args }
     }
 

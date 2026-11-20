@@ -311,7 +311,10 @@ fn a_trailing_closure_becomes_a_function_with_its_own_root() {
     // The call now passes it as a plain last argument.
     let main = &m.hir.functions[0];
     let found = format!("{:?}", main.body);
-    assert!(found.contains("MakeClosure") && !found.replace("MakeClosure", "").contains("Closure"), "{found}");
+    assert!(!found.replace("MakeClosure", "").contains("Closure"), "{found}");
+    let value = main.body.stmts.iter().find_map(|s| match s { crate::hir::HirStmt::Return { value: Some(e) } => Some(e), _ => None }).expect("return");
+    let crate::hir::HirExprKind::Call { args, .. } = &value.kind else { panic!("{found}") };
+    assert!(matches!(args.last().map(|a| &a.kind), Some(crate::hir::HirExprKind::MakeClosure { .. })), "{found}");
 }
 
 #[test]

@@ -1,0 +1,15 @@
+// exit: 27
+// Closures pushed into a vector from a loop body keep their environments (captured String and scalars) in the vector's arena.
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    var i = 0
+    while (i < 3) {
+        val k = i + 10
+        val s = "ab"
+        v.push(move (k, s) { -> k + s.length })
+        i = i + 1
+    }
+    val f = v.get(2)
+    val g = v.get(1)
+    return f() + g()
+}

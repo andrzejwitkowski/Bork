@@ -52,6 +52,11 @@ programs/build/classes/safe_ref_field.bork::main() -> i32
 programs/build/classes/string_field.bork::main() -> i32
 programs/build/classes/walkthrough_point.bork::sum(p: &Point) -> i32
 programs/build/classes/walkthrough_point.bork::main() -> i32
+programs/build/closures/closure_in_class_field.bork::fire(b: &Btn) -> i32
+programs/build/closures/closure_in_class_field.bork::main() -> i32
+programs/build/closures/closure_in_class_field_generic_and_returned.bork::makeNumber() -> Btn
+programs/build/closures/closure_in_class_field_generic_and_returned.bork::makeText() -> Btn
+programs/build/closures/closure_in_class_field_generic_and_returned.bork::main() -> i32
 programs/build/closures/closure_in_val.bork::main() -> i32
 programs/build/closures/doc_example.bork::apply(v: i32, f: T0) -> i32
 programs/build/closures/doc_example.bork::main() -> i32
@@ -106,6 +111,8 @@ programs/build/closures/move_vec_capture.bork::main() -> i32
 programs/build/closures/nested_fnmut_assigns_fresh_string.bork::clobber() -> i32
 programs/build/closures/nested_fnmut_assigns_fresh_string.bork::main() -> i32
 programs/build/closures/nested_fnmut_updates_outer.bork::main() -> i32
+programs/build/closures/non_move_ref_capture.bork::apply(f: ()->i32) -> i32
+programs/build/closures/non_move_ref_capture.bork::main() -> i32
 programs/build/closures/outer_name_before_shadowing_decl.bork::main() -> i32
 programs/build/closures/owned_values_with_refs.bork::apply(f: ()->i32) -> i32
 programs/build/closures/owned_values_with_refs.bork::once(f: T0) -> i32
@@ -637,6 +644,12 @@ programs/build/traits/iterator_for.bork::Iterator@0.next(this: &Counter) -> i32?
 programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
 programs/build/vec/assign_concat_through_borrowed_vec.bork::set(v: &rw Vec<String>) -> unit
 programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
+programs/build/vec/closure_elems_grow.bork::main() -> i32
+programs/build/vec/closure_elems_inner_ref_capture.bork::main() -> i32
+programs/build/vec/closure_elems_loop.bork::main() -> i32
+programs/build/vec/closure_elems_ref_capture.bork::main() -> i32
+programs/build/vec/closure_elems_via_param.bork::fill(v: &rw Vec<()->i32>) -> unit
+programs/build/vec/closure_elems_via_param.bork::main() -> i32
 programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/index_from_element.bork::main() -> i32
 programs/build/vec/index_through_field.bork::main() -> i32

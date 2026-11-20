@@ -9,6 +9,12 @@ programs/build/classes/nullable_field_assign.bork: 84..91 Option<i32> Lexical Le
 programs/build/classes/safe_ref_field.bork: 92..97 Point Dynamic LexicalScope(0)
 programs/build/classes/string_field.bork: 65..70 Label Lexical LexicalScope(0)
 programs/build/classes/walkthrough_point.bork: 147..152 Point Dynamic Program
+programs/build/closures/closure_in_class_field.bork: 442..445 Btn Dynamic Program
+programs/build/closures/closure_in_class_field.bork: 510..517 Counter Lexical LexicalScope(1)
+programs/build/closures/closure_in_class_field_generic_and_returned.bork: 486..489 Btn Lexical LexicalScope(0)
+programs/build/closures/closure_in_class_field_generic_and_returned.bork: 569..572 Btn Lexical LexicalScope(2)
+programs/build/closures/closure_in_class_field_generic_and_returned.bork: 647..650 Box<i32> Lexical LexicalScope(4)
+programs/build/closures/closure_in_class_field_generic_and_returned.bork: 727..733 Holder<closure#3()->i32> Lexical LexicalScope(4)
 programs/build/closures/fnonce_moves_object.bork: 295..299 Node Lexical LexicalScope(2)
 programs/build/closures/fnonce_ref_released_once.bork: 575..579 Node Dynamic Program
 programs/build/closures/move_nullable_capture.bork: 265..276 Option<String> Lexical LexicalScope(1)
@@ -16,6 +22,7 @@ programs/build/closures/move_nullable_capture.bork: 379..386 Option<i32> Lexical
 programs/build/closures/move_object_capture.bork: 211..215 Node Lexical LexicalScope(1)
 programs/build/closures/move_ref_capture.bork: 463..467 Node Dynamic Program
 programs/build/closures/move_vec_capture.bork: 583..587 Node Dynamic Program
+programs/build/closures/non_move_ref_capture.bork: 345..349 Node Dynamic Program
 programs/build/closures/owned_values_with_refs.bork: 807..811 Node Dynamic Program
 programs/build/closures/owned_values_with_refs.bork: 935..943 Link Lexical LexicalScope(8)
 programs/build/closures/owned_values_with_refs.bork: 1188..1194 Holder Lexical LexicalScope(8)
@@ -858,6 +865,8 @@ programs/build/traits/eq_ord_operators.bork: 546..549 E Lexical LexicalScope(1)
 programs/build/traits/iterator_for.bork: 177..181 Option<i32> Lexical LexicalScope(8)
 programs/build/traits/iterator_for.bork: 235..247 Option<i32> Lexical LexicalScope(7)
 programs/build/traits/iterator_for.bork: 286..293 Counter Dynamic Program
+programs/build/vec/closure_elems_inner_ref_capture.bork: 311..315 Node Dynamic Program
+programs/build/vec/closure_elems_ref_capture.bork: 187..191 Node Dynamic Program
 programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
 programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program

@@ -3,9 +3,11 @@
 //! HIR carries no region identity. Arenas and nesting live in
 //! `sema::ArenaReport`; codegen should read region identity from there.
 
+mod children;
 mod number;
 mod resolve;
 mod ty;
+pub use children::ChildMut;
 pub use number::number_nodes;
 pub use resolve::{resolve_types, rewrite};
 pub use ty::Prim;

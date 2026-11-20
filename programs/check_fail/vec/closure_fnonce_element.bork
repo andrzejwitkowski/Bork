@@ -1,0 +1,4 @@
+// diag: `Vec` element must be
+fun main() {
+    var v = Vec::<FnOnce() -> i32>()
+}

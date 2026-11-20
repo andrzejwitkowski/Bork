@@ -273,11 +273,16 @@ pub(super) fn finish_call(
     let errors_before = env.diagnostics.len();
     let explicit = if receiver.is_some() { &params[1..] } else { &params[..] };
 
-    let checked_args: Vec<_> = args
-        .iter()
-        .enumerate()
-        .map(|(index, arg)| dispatch(arg, explicit.get(index).copied(), return_ty, env))
-        .collect();
+    // Each argument is checked before the next is read, so an earlier one can fix the type a later closure is checked against.
+    let mut checked_args = Vec::with_capacity(args.len());
+    for (index, arg) in args.iter().enumerate() {
+        let expected = explicit.get(index).copied();
+        let checked = dispatch(arg, expected, return_ty, env);
+        if let Some(expected) = expected {
+            check_argument(&name, index, &checked, expected, env);
+        }
+        checked_args.push(checked);
+    }
 
     if checked_args.len() != explicit.len() {
         env.error(
@@ -290,9 +295,6 @@ pub(super) fn finish_call(
         );
     }
 
-    for (index, (argument, &expected)) in checked_args.iter().zip(explicit).enumerate() {
-        check_argument(&name, index, argument, expected, env);
-    }
     // Only for an otherwise clean call, so an arity or type error is not followed by a second one.
     if env.diagnostics.len() == errors_before {
         check_aliased_borrows(&name, receiver.as_ref(), &checked_args, env);
