@@ -231,19 +231,31 @@ impl<'a> Env<'a> {
         self.hir_is_view_closure(&value.hir)
     }
 
+    fn binding_is_view(&self, b: &Binding) -> bool {
+        b.view_closure || (b.maybe_view && self.infcx.bound_shallow(self.tcx, b.ty).is_some_and(|t| self.tcx.is_callable(t)))
+    }
+
+    /// An alias of a still-undecided parameter (`val g = f`) stays undecided too.
+    pub(super) fn inherit_maybe_view(&mut self, name: &str, value: &HirExpr) {
+        let HirExprKind::Ident { name: src, .. } = &value.kind else { return };
+        if self.binding(src).is_some_and(|b| b.maybe_view) {
+            if let Some(b) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+                b.maybe_view = true;
+            }
+        }
+    }
+
     fn hir_is_view_closure(&self, e: &HirExpr) -> bool {
         if self.tcx.is_view_closure(e.ty) {
             return true;
         }
         match &e.kind {
-            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| {
-                b.view_closure || (b.maybe_view && self.infcx.bound_shallow(self.tcx, b.ty).is_some_and(|t| self.tcx.is_callable(t)))
-            }),
+            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| self.binding_is_view(b)),
             HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
                 args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
             }
             // A `move` closure keeps a captured view alive: its type does not say so (`Func` erases it), the binding does.
-            HirExprKind::Closure { captures, .. } => captures.iter().any(|c| self.binding(&c.name).is_some_and(|b| b.view_closure)),
+            HirExprKind::Closure { captures, .. } => captures.iter().any(|c| self.binding(&c.name).is_some_and(|b| self.binding_is_view(b))),
             // A branch result is a view when any branch is.
             HirExprKind::If { then_block, else_block, .. } => self.block_tail_is_view(then_block) || else_block.as_ref().is_some_and(|b| self.block_tail_is_view(b)),
             HirExprKind::Match { arms, .. } => arms.iter().any(|a| self.block_tail_is_view(&a.body)),

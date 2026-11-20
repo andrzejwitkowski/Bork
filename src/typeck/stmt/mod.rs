@@ -152,6 +152,8 @@ fn check_var_decl(decl: VarDecl<'_>, return_ty: TyId, env: &mut Env<'_>) -> HirS
     env.bind(name.to_string(), kind, declared_ty, explicit_ref);
     if view_closure {
         env.mark_view_closure(name);
+    } else {
+        env.inherit_maybe_view(name, &value.hir);
     }
     if name == "?it" {
         require_iterator(declared_ty, name_span, env);
