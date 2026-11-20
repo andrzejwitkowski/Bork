@@ -148,7 +148,20 @@ impl<'a> FnBuilder<'a> {
         let mut ops = Vec::with_capacity(args.len());
         for (i, a) in args.iter().enumerate() {
             let is_index = i == 0 && matches!(op, VecOp::Get | VecOp::Set);
-            ops.push(if is_index { self.bare_operand(a)? } else { self.expr(a)? });
+            // A closure stored in a `Vec` has its environment allocated in the vector's arena, so it outlives the pushing scope.
+            let target = match &receiver.kind {
+                HirExprKind::Unary { expr, .. } => expr,
+                _ => receiver,
+            };
+            let home = match &target.kind {
+                HirExprKind::Ident { name, .. } if !is_index && self.tcx.is_callable(a.ty) => Some(ArenaRef::Home(self.lookup(name, span_of(target))?)),
+                _ => None,
+            };
+            ops.push(match home {
+                Some(home) => self.with_sink(home, |b| b.expr(a))?,
+                None if is_index => self.bare_operand(a)?,
+                None => self.expr(a)?,
+            });
         }
         Ok(self.vec_op(e, op, recv, ops))
     }

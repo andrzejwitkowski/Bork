@@ -1,0 +1,11 @@
+// diag: moving a `Vec` of closures into another arena is not supported
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    {
+        var inner = Vec::<() -> i32>()
+        val k = 3
+        inner.push(move (k) { -> k })
+        outer = promote inner
+    }
+    return outer.len()
+}

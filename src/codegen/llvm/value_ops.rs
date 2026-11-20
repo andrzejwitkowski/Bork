@@ -329,6 +329,10 @@ impl<'ctx> Codegen<'ctx> {
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }
         if let Some(elem) = self.tcx.vec_elem(ty) {
+            // shortcut: the environments stay in the old arena, so copying the pointers would dangle; re-home them when this is needed.
+            if self.tcx.is_callable(elem) {
+                return Err(not_yet_supported("moving a `Vec` of closures into another arena", None));
+            }
             if self.tcx.is_managed_ref(elem) || self.tcx.is_text(elem) {
                 return Ok(self.copy_owning_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
             }

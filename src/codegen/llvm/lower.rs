@@ -47,7 +47,7 @@ fn is_float(cx: &Codegen<'_>, ty: TyId) -> bool {
 fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
     let elem = cx.tcx.vec_elem(ty)?;
-    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem)).then_some(elem)
+    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem) || cx.tcx.is_callable(elem)).then_some(elem)
 }
 
 /// Element type of an array (or `&array`) of non-unit scalars, text or `Ref`s.
@@ -477,6 +477,8 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             }
                         } else if cx.tcx.is_text(elem) {
                             text(op)
+                        } else if cx.tcx.is_callable(elem) {
+                            general(op).and(place_ty(cx, body, op.place()?).filter(|t| cx.tcx.is_callable(*t)).map(|_| ()))
                         } else {
                             operand(op)
                         }

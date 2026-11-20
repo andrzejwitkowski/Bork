@@ -17,6 +17,10 @@ fn array_elem_layout(
     if cx.tcx.is_managed_ref(elem_ty) {
         return Ok(cx.ref_handle_layout());
     }
+    // A closure value is a single environment pointer.
+    if cx.tcx.is_callable(elem_ty) {
+        return Ok((8, 8));
+    }
     use crate::hir::Prim;
     use crate::ty::TyData;
     match cx.tcx.data(elem_ty) {
