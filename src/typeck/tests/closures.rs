@@ -352,3 +352,9 @@ fn a_nested_move_closure_that_writes_its_copy_leaves_the_outer_closure_fn() {
     let src = "fun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 1\n    return once({ ->\n        var g = move (n) { -> n = n + 1\n            n }\n        g() })\n}";
     hir_of(src);
 }
+
+#[test]
+fn a_nested_closure_parameter_shadows_an_outer_alias() {
+    let src = "fun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val f = { -> n = n + 1\n        n }\n    return once({ ->\n        val h = f\n        val g: (() -> i32) -> i32 = { h -> h() }\n        0 })\n}";
+    hir_of(src);
+}

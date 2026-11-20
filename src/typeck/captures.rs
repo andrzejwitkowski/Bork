@@ -251,10 +251,11 @@ impl Scan {
             }
             // A plain closure works on our bindings: what its body does to one it does to ours. Its parameters and locals stay its own.
             K::Closure { params, body, .. } => {
-                let declared = self.declared.clone();
+                let (declared, aliases) = (self.declared.clone(), self.aliases.clone());
                 self.declared.extend(params.iter().map(|p| p.name.clone()));
+                params.iter().for_each(|p| drop(self.aliases.remove(&p.name)));
                 self.block(body);
-                self.declared = declared;
+                (self.declared, self.aliases) = (declared, aliases);
             }
         }
     }
