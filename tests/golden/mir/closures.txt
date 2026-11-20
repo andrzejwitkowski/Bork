@@ -123,12 +123,17 @@ fn main (parent=false, sink=false) {
   let _6: Btn [Val] a
   let _7: Btn [Temp]
   let _8: Btn [Val] b
-  let _9: i32 [Temp]
-  let _10: i32 [Temp]
-  let _11: i32 [Temp]
+  let _9: closure#3()->i32 [Temp]
+  let _10: Holder<closure#3()->i32> [Temp]
+  let _11: Holder<closure#3()->i32> [Val] h
   let _12: i32 [Temp]
   let _13: i32 [Temp]
   let _14: i32 [Temp]
+  let _15: i32 [Temp]
+  let _16: i32 [Temp]
+  let _17: i32 [Temp]
+  let _18: i32 [Temp]
+  let _19: i32 [Temp]
   region r0 Block
   bb0:
     storage_live _1
@@ -143,16 +148,23 @@ fn main (parent=false, sink=false) {
     _7 = call makeText() +current +current -> bb2
   bb2:
     _8 = copy _7  // label "b": Btn decl
-    _9 = call_closure copy _4.0(5) +current -> bb3
+    _9 = closure main$closure1() in current
+    _10 = alloc Object { class: "Holder<closure#3()->i32>" } in current  // label "Holder<closure#3()->i32>": Holder<closure#3()->i32>
+    _10.0 = copy _9  // label "Holder<closure#3()->i32>.on": closure#3()->i32 decl owner=current
+    _11 = copy _10  // label "h": Holder<closure#3()->i32> decl
+    _12 = call_closure copy _4.0(5) +current -> bb3
   bb3:
-    _10 = call_closure copy _6.0(4) +current -> bb4
+    _13 = call_closure copy _6.0(4) +current -> bb4
   bb4:
-    _11 = add(copy _9, copy _10)
-    _12 = call_closure copy _8.0(4) +current -> bb5
+    _14 = add(copy _12, copy _13)
+    _15 = call_closure copy _8.0(4) +current -> bb5
   bb5:
-    _13 = add(copy _11, copy _12)
-    _14 = sub(copy _13, 7)
-    _0 = copy _14
+    _16 = add(copy _14, copy _15)
+    _17 = call_closure copy _11.0() +current -> bb6
+  bb6:
+    _18 = add(copy _16, copy _17)
+    _19 = sub(copy _18, 7)
+    _0 = copy _19
     storage_dead _1
     region_exit r0
     return
@@ -214,6 +226,19 @@ fn main$closure0 (parent=true, sink=false) {
     _3 = add(copy _1, 1)
     _0 = copy _3
     storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure1 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _0 = 5
+    storage_dead _1
     region_exit r0
     return
 }

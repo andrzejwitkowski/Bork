@@ -1,9 +1,13 @@
-// exit: 14
+// exit: 19
 // WHAT THIS TESTS
-// A closure stored in a field is called by `holder.on(..)` when the class is generic (`Box<i32>`), and when the
+// A closure stored in a field is called by `holder.on(..)` when the class is generic (`Box<i32>`), when the field's
+// type is a class type parameter fixed to a closure (`Holder<F>`), and when the
 // holder (with a `move` closure owning a `String` or a number) is returned from the function that built it.
 class Box<T> {
     on: (T) -> T
+}
+class Holder<F> {
+    on: F
 }
 class Btn {
     on: (i32) -> i32
@@ -20,5 +24,6 @@ fun main(): i32 {
     val g: Box<i32> = Box({ x -> x + 1 })
     val a = makeNumber()
     val b = makeText()
-    return g.on(5) + a.on(4) + b.on(4) - 7
+    val h = Holder({ -> 5 })
+    return g.on(5) + a.on(4) + b.on(4) + h.on() - 7
 }

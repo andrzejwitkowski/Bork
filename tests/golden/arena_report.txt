@@ -253,8 +253,10 @@ Arenas
     ├── g [Local]
     ├── a [Local]
     ├── b [Local]
+    ├── h [Local]
+    ├── Closure
+    │   └── x [Local]
     └── Closure
-        └── x [Local]
 == programs/build/closures/closure_in_val.bork
 Arenas
 └── fun main
