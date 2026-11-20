@@ -86,6 +86,14 @@ pub(super) fn check_vec_method(
         .map(|(arg, &param)| {
             let arg = check(arg, param, return_ty, env);
             env.mismatch(&format!("`Vec.{method}` argument"), arg.ty, param, arg.span.or(Some(span)));
+            if matches!(op, VecOp::Push | VecOp::Set) && env.tcx.is_callable(param) {
+                env.reject_stored_view_closure(&arg, "a `Vec`", arg.span.or(Some(span)));
+                // The environment is allocated in the vector's arena only for a closure written at the push, on a named vector.
+                let owned = matches!(arg.hir.kind, HirExprKind::Closure { .. }) && is_named(receiver);
+                if !owned && matches!(env.tcx.data(arg.ty), crate::ty::TyData::Closure { captures, .. } if !captures.is_empty()) {
+                    env.error("a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector; its environment must live in the vector's arena", arg.span.or(Some(span)));
+                }
+            }
             arg.hir
         })
         .collect();
@@ -98,6 +106,15 @@ pub(super) fn check_vec_method(
         result,
         span,
     )
+}
+
+/// A plain variable (`v`, `&rw v`), whose arena the vector header names at run time; a field has no local.
+fn is_named(receiver: &Expr) -> bool {
+    match receiver {
+        Expr::Ident { .. } => true,
+        Expr::Unary { expr, .. } => is_named(expr),
+        _ => false,
+    }
 }
 
 /// A `val` vector cannot be mutated, whether it is the binding itself or reached through fields

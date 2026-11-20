@@ -534,7 +534,10 @@ programs/check_fail/vec/borrow_element_as_argument.bork: hits=19 hash=cd9a405b3e
 programs/check_fail/vec/borrow_element_by_ampersand.bork: hits=17 hash=b3143f6fe542d19c
 programs/check_fail/vec/borrow_element_in_binding.bork: hits=17 hash=4dff4e088b55dafb
 programs/check_fail/vec/class_element.bork: hits=5 hash=6b9808d9766039a4
+programs/check_fail/vec/closure_bound_push.bork: hits=17 hash=962b98a70a2f3c45
+programs/check_fail/vec/closure_field_vec_push.bork: hits=15 hash=75c713b269427a66
 programs/check_fail/vec/closure_fnonce_element.bork: hits=1 hash=fbbad0d7894d4dad
+programs/check_fail/vec/closure_plain_capture_push.bork: hits=12 hash=12e10a7c1091af85
 programs/check_fail/vec/construct_like_class.bork: hits=1 hash=1651e93845325527
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
 programs/check_fail/vec/impl_trait.bork: hits=0 hash=cbf29ce484222325
