@@ -170,23 +170,31 @@ impl InferCtxt {
     /// Replaces every bound variable inside `ty`. Unbound variables stay (as their class
     /// representative). Fails only if a substitution would nest nullables (`T??`).
     pub fn resolve(&self, tcx: &mut TyCtx, ty: TyId) -> Result<TyId, TypeError> {
-        Resolver { infcx: self }.fold(tcx, ty).map_err(|NestedNullable| TypeError::NestedNullable)
+        Resolver { infcx: self, memo: Default::default() }.fold(tcx, ty).map_err(|NestedNullable| TypeError::NestedNullable)
     }
 }
 
 struct Resolver<'a> {
     infcx: &'a InferCtxt,
+    /// Interned types form a DAG (closure captures); fold each shared node once per `resolve`.
+    memo: std::collections::HashMap<TyId, TyId>,
 }
 
 impl TypeFolder for Resolver<'_> {
     fn fold(&mut self, tcx: &mut TyCtx, ty: TyId) -> Result<TyId, NestedNullable> {
-        if matches!(tcx.data(ty), TyData::Infer(_)) {
+        if let Some(&done) = self.memo.get(&ty) {
+            return Ok(done);
+        }
+        let folded = if matches!(tcx.data(ty), TyData::Infer(_)) {
             let shallow = self.infcx.resolve_shallow(tcx, ty);
             if matches!(tcx.data(shallow), TyData::Infer(_)) {
                 return Ok(shallow);
             }
-            return self.fold(tcx, shallow);
-        }
-        crate::ty::super_fold(self, tcx, ty)
+            self.fold(tcx, shallow)?
+        } else {
+            crate::ty::super_fold(self, tcx, ty)?
+        };
+        self.memo.insert(ty, folded);
+        Ok(folded)
     }
 }
