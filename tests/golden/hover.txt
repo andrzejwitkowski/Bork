@@ -56,7 +56,7 @@ programs/build/closures/move_temp_in_loop.bork: hits=42 hash=882e1050c01fe29a
 programs/build/closures/move_vec_capture.bork: hits=104 hash=a3c00e1e83a39fa3
 programs/build/closures/nested_fnmut_assigns_fresh_string.bork: hits=59 hash=c2c2db9ab11d57d3
 programs/build/closures/nested_fnmut_updates_outer.bork: hits=39 hash=1bbf6b0413abf5a7
-programs/build/closures/non_move_ref_capture.bork: hits=160 hash=f89a8f6dd00aed69
+programs/build/closures/non_move_ref_capture.bork: hits=162 hash=8a6ef0b71546f2c7
 programs/build/closures/outer_name_before_shadowing_decl.bork: hits=18 hash=6ae2ecc8d682b816
 programs/build/closures/owned_values_with_refs.bork: hits=133 hash=72002caf37efa971
 programs/build/closures/trailing_with_capture.bork: hits=26 hash=6e595dff0d820f8e

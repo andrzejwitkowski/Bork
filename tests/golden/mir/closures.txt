@@ -2830,11 +2830,11 @@ fn main$closure0 (parent=true, sink=false) {
   let _6: Ref<Node> [Temp]
   let _7: i32 [Temp]
   let _8: i32 [Temp]
-  let _9: Ref<Node> [Temp]
-  let _10: i32 [Temp]
+  let _9: i32 [Val] dw
+  let _10: Ref<Node> [Temp]
   let _11: i32 [Temp]
   let _12: i32 [Temp]
-  let _13: i32 [Val] drift
+  let _13: i32 [Val] ds
   let _14: i32 [Temp]
   let _15: Ref<Node> [Temp]
   let _16: unit [Temp]
@@ -2846,6 +2846,10 @@ fn main$closure0 (parent=true, sink=false) {
   let _22: i32 [Temp]
   let _23: i32 [Temp]
   let _24: i32 [Temp]
+  let _25: i32 [Temp]
+  let _26: i32 [Temp]
+  let _27: i32 [Temp]
+  let _28: i32 [Temp]
   region r0 Block
   bb0:
     storage_live _5
@@ -2853,11 +2857,11 @@ fn main$closure0 (parent=true, sink=false) {
     _6 = ref_clone copy _2
     _7 = ref_count_weak move _6
     _8 = sub(copy _7, copy _4)
-    _9 = ref_clone copy _2
-    _10 = ref_count move _9
-    _11 = sub(copy _10, copy _3)
-    _12 = add(copy _8, copy _11)
-    _13 = copy _12  // label "drift": i32 decl
+    _9 = copy _8  // label "dw": i32 decl
+    _10 = ref_clone copy _2
+    _11 = ref_count move _10
+    _12 = sub(copy _11, copy _3)
+    _13 = copy _12  // label "ds": i32 decl
     _15 = ref_clone copy _1
     (_16, _17, _18) = observe copy _15
     ref_drop move _15
@@ -2869,9 +2873,13 @@ fn main$closure0 (parent=true, sink=false) {
     _14 = 0
     goto bb3
   bb3:
-    _23 = mul(copy _13, 100)
-    _24 = add(copy _14, copy _23)
-    _0 = copy _24
+    _23 = mul(copy _9, copy _9)
+    _24 = mul(copy _23, 100)
+    _25 = add(copy _14, copy _24)
+    _26 = mul(copy _13, copy _13)
+    _27 = mul(copy _26, 1000)
+    _28 = add(copy _25, copy _27)
+    _0 = copy _28
     storage_dead _5
     region_exit r0
     return

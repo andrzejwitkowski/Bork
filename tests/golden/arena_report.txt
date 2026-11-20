@@ -582,7 +582,8 @@ Arenas
     │   ├── n [Shared ← fun main]
     │   ├── r [Shared ← fun main]
     │   ├── Closure
-    │   │   ├── drift [Local]
+    │   │   ├── dw [Local]
+    │   │   ├── ds [Local]
     │   │   ├── r [Shared ← fun main]
     │   │   ├── w1 [Copy]
     │   │   ├── s1 [Copy]
