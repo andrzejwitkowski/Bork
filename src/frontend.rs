@@ -14,6 +14,8 @@ pub struct CheckResult {
     /// Typed HIR, present exactly when `diagnostics` is empty.
     pub hir: Option<HirProgram>,
     pub diagnostics: Vec<Diagnostic>,
+    /// Warnings of a clean check: they never make it fail.
+    pub warnings: Vec<Diagnostic>,
     /// Member names resolved by typeck (bare fields, method calls, method declarations).
     pub members: crate::typeck::MemberResolutions,
     /// Owns the type ids carried by `hir`; empty when the source failed to parse.
@@ -58,6 +60,7 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
                 report: None,
                 hir: None,
                 diagnostics: vec![diag::from_parse(source, &err)],
+                warnings: Vec::new(),
                 members: Default::default(),
                 tcx: TyCtx::new(&Default::default()),
                 node_index: Vec::new(),
@@ -89,6 +92,7 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
     if diagnostics.is_empty() && has_generics(&hir) {
         diagnostics.extend(crate::mono::check_instances(&hir, &mut tcx.clone()));
     }
+    let mut warnings = Vec::new();
     let mut hir = diagnostics.is_empty().then_some(hir);
     if let Some(mut program) = hir {
         crate::hir::number_nodes(&mut program);
@@ -105,6 +109,9 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
         if diagnostics.is_empty() && has_generics(&program) {
             diagnostics.extend(crate::mono::check_instance_regions(&program, &mut tcx.clone(), &report, escape));
         }
+        if diagnostics.is_empty() && escape {
+            warnings = ref_expiry_warnings(&program, &report, &tcx);
+        }
         hir = diagnostics.is_empty().then_some(program);
     }
 
@@ -112,6 +119,7 @@ pub fn check_with(source: &str, escape: bool) -> CheckResult {
         report: Some(report),
         hir,
         diagnostics,
+        warnings,
         members,
         tcx,
         node_index,
@@ -126,6 +134,21 @@ pub fn object_lifetime_errors(source: &str) -> Vec<Diagnostic> {
         (Some(hir), Some(report)) => object_lifetimes(hir, report, &result.tcx, source),
         _ => Vec::new(),
     }
+}
+
+/// `mir::ref_expiry` over what `main` reaches, as warnings.
+fn ref_expiry_warnings(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> Vec<Diagnostic> {
+    use crate::mir::{build::build_function_results_neutral, ref_expiry};
+    let mut tcx = tcx.clone();
+    let Ok(mono) = crate::mono::specialise_for_analysis(hir, &mut tcx, report) else { return Vec::new() };
+    let Ok(results) = build_function_results_neutral(&mono, &tcx) else { return Vec::new() };
+    let mut found: Vec<_> = results.iter().flatten().flat_map(ref_expiry::check).collect();
+    found.sort_by_key(|(span, message)| (span.start, span.end, message.clone()));
+    found.dedup();
+    found
+        .into_iter()
+        .map(|(span, message)| Diagnostic { phase: diag::Phase::Ownership, severity: diag::Severity::Warning, message, span: Some(span), notes: Vec::new() })
+        .collect()
 }
 
 /// Object-lifetime errors from MIR (`mir::escape`): an object stored into a longer-lived owner, or returned, from a
@@ -279,5 +302,24 @@ fun add(val a: Int, var b: Int): Int {
             f.body.stmts.as_slice(),
             [crate::hir::HirStmt::Return { value: Some(_) }]
         ));
+    }
+
+    #[test]
+    fn warns_when_a_ref_stored_in_an_outer_object_dies_with_its_block() {
+        let held = |inner: &str| {
+            let src = format!(
+                "class Node {{ id: i32 }}\nclass P {{ r: Ref<Node> }}\nfun main(): i32 {{\n val r0: Ref<Node> = Node(1)\n var p = P(r0)\n {{\n {inner}\n }}\n return 0\n}}\n"
+            );
+            check(&src)
+        };
+        let result = held("val r: Ref<Node> = Node(5)\n p = P(r)");
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let messages: Vec<_> = result.warnings.iter().map(|d| d.message.as_str()).collect();
+        assert_eq!(messages.len(), 1, "{messages:?}");
+        assert!(messages[0].contains("`r`") && messages[0].contains("`p`"), "{messages:?}");
+        assert_eq!(result.warnings[0].severity, diag::Severity::Warning);
+        // Same block, or a Ref made outside the block: nothing expires early.
+        assert!(held("val q = P(r0)\n p = q").warnings.is_empty());
+        assert!(held("p = P(r0)").warnings.is_empty());
     }
 }

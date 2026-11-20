@@ -9,6 +9,7 @@ pub mod emit;
 pub mod escape;
 pub mod layout;
 pub mod plan;
+pub mod ref_expiry;
 pub mod print;
 pub mod verify;
 

@@ -32,6 +32,7 @@ programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
 programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
 programs/build/closures/doc_example.bork: hits=26 hash=4181bba19cc57ac4
 programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e
+programs/build/closures/fnmut_assigns_fresh_string_churn.bork: hits=45 hash=984b3bd2e316f9ce
 programs/build/closures/fnmut_bound.bork: hits=22 hash=0379ac93bdffa027
 programs/build/closures/fnmut_counter.bork: hits=22 hash=060365c9a261716a
 programs/build/closures/fnonce_moves_object.bork: hits=6 hash=fc666ff1e4995bff
@@ -133,6 +134,7 @@ programs/build/managed_refs/expired_weak_back_edge.bork: hits=74 hash=917c7b8028
 programs/build/managed_refs/none_arg_to_ref_param.bork: hits=4 hash=0fd5995ab49e99dc
 programs/build/managed_refs/presence_int_result.bork: hits=40 hash=6a90237e74bfbada
 programs/build/managed_refs/program_dynamic_across_blocks.bork: hits=93 hash=b505111b552f06df
+programs/build/managed_refs/ref_field_assigned_from_inner_scope.bork: hits=12 hash=0f5609e3b750ca66
 programs/build/managed_refs/return_chain_local_ref.bork: hits=35 hash=53c2e98cda695fd4
 programs/build/managed_refs/return_enum_payload_obj.bork: hits=37 hash=5fefb12494945026
 programs/build/managed_refs/return_generic_box.bork: hits=29 hash=792aeaa2793d7db3

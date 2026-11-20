@@ -1409,6 +1409,97 @@ fn make_shared (parent=true, sink=true) {
     return
 }
 
+== managed_refs/ref_field_assigned_from_inner_scope.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Node [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] r0
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: Ref<Node> [Temp]
+  let _8: P [Temp]
+  let _9: P [Var] p
+  let _10: unit [Hidden(DebugScope)]
+  let _11: unit [Hidden(DynamicArena)]
+  let _12: Node [Temp]
+  let _13: Ref<Node> [Temp]
+  let _14: Ref<Node> [Val] r
+  let _15: unit [Hidden(DynamicArena)]
+  let _16: Ref<Node> [Temp]
+  let _17: P [Temp]
+  let _18: Ref<Node> [Temp]
+  let _19: Ref<Node> [Val] x
+  let _20: Ref<Node> [Temp]
+  let _21: unit [Temp]
+  let _22: &Node [Val]
+  let _23: bool [Temp]
+  let _24: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 Block in r0
+  region r2 PresenceSome in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 1  // label "Node.id": i32 decl owner=fresh2
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r0": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _6
+    _7 = ref_clone copy _5
+    _8 = alloc Object { class: "P" } in fresh6  // label "P": P
+    ref_store_fresh _8.0 owner=fresh6 move _7  // label "P.r": Ref<Node> decl owner=fresh6
+    register_drop fresh6 _8.0 RefSlot
+    _9 = copy _8  // label "p": P decl
+    region_enter r1
+    storage_live _10
+    _11 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _11
+    _12 = alloc Object { class: "Node" } in fresh11  // label "Node": Node
+    _12.0 = 5  // label "Node.id": i32 decl owner=fresh11
+    _13 = ref_create source=current target=object_arena(_12) copy _12
+    _14 = move _13  // label "r": Ref<Node> decl
+    register_drop current _14 RefSlot
+    _15 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_9) <- _15
+    _16 = ref_clone copy _14
+    _17 = alloc Object { class: "P" } in fresh15  // label "P": P
+    ref_store_fresh _17.0 owner=fresh15 move _16  // label "P.r": Ref<Node> decl owner=fresh15
+    register_drop fresh15 _17.0 RefSlot
+    _9 = copy _17
+    storage_dead _10
+    region_exit r1
+    _18 = ref_clone copy _9.0
+    _19 = move _18  // label "x": Ref<Node> decl
+    register_drop current _19 RefSlot
+    _20 = ref_clone copy _19
+    (_21, _22, _23) = observe copy _20
+    ref_drop move _20
+    switch copy _23 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+  bb2:
+    goto bb1
+  bb3:
+    region_enter r2
+    storage_live _24
+    observation_register current _21
+    _0 = copy _22.0
+    storage_dead _24
+    storage_dead _1
+    region_exit r2
+    region_exit r0
+    return
+}
+
 == managed_refs/return_chain_local_ref.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
