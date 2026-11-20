@@ -90,7 +90,9 @@ pub(super) fn check_vec_method(
                 env.reject_stored_view_closure(&arg, "a `Vec`", arg.span.or(Some(span)));
                 // The environment is allocated in the vector's arena only for a closure written at the push, on a named vector.
                 let owned = matches!(arg.hir.kind, HirExprKind::Closure { .. }) && is_named(receiver);
-                if !owned && matches!(env.tcx.data(arg.ty), crate::ty::TyData::Closure { captures, .. } if !captures.is_empty()) {
+                // A `Func`-typed value hides its captures, so only a closure type known to capture nothing may be non-literal.
+                let captureless = matches!(env.tcx.data(arg.ty), crate::ty::TyData::Closure { captures, .. } if captures.is_empty());
+                if !owned && !captureless && !env.tcx.is_unknown(arg.ty) {
                     env.error("a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector; its environment must live in the vector's arena", arg.span.or(Some(span)));
                 }
             }

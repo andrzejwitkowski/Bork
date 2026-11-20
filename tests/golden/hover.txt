@@ -537,6 +537,7 @@ programs/check_fail/vec/class_element.bork: hits=5 hash=6b9808d9766039a4
 programs/check_fail/vec/closure_bound_push.bork: hits=17 hash=962b98a70a2f3c45
 programs/check_fail/vec/closure_field_vec_push.bork: hits=15 hash=75c713b269427a66
 programs/check_fail/vec/closure_fnonce_element.bork: hits=1 hash=fbbad0d7894d4dad
+programs/check_fail/vec/closure_func_typed_push.bork: hits=17 hash=1d2110d42d5ad8f4
 programs/check_fail/vec/closure_plain_capture_push.bork: hits=12 hash=12e10a7c1091af85
 programs/check_fail/vec/construct_like_class.bork: hits=1 hash=1651e93845325527
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54

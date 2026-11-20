@@ -6433,6 +6433,17 @@ Type Error [56..59] `Vec` element must be a Copy type, a non-null `String`, a `R
 Arenas
 └── fun main
     └── v [Local]
+== programs/check_fail/vec/closure_func_typed_push.bork
+Type Error [186..187] a closure that captures can only be pushed into a `Vec` as a closure literal on a named vector; its environment must live in the vector's arena
+Arenas
+├── fun fill
+│   ├── v [Borrow ← call site]
+│   ├── n [Local]
+│   ├── f [Local]
+│   └── Closure (move)
+│       └── n [Moved ← fun fill]
+└── fun main
+    └── v [Local]
 == programs/check_fail/vec/closure_plain_capture_push.bork
 Type Error [136..142] cannot store a closure that borrows its captures in a `Vec`; use `val`, or `move`
 Arenas
