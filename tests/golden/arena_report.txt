@@ -311,6 +311,32 @@ Arenas
 └── fun main
     └── Closure
         └── x [Local]
+== programs/build/closures/loop_env_only_allocation.bork
+Arenas
+├── fun apply
+│   └── f [Local]
+└── fun main
+    ├── total [Local]
+    ├── i [Local]
+    └── WhileLoop
+        ├── s [Local]
+        ├── total [Copy]
+        ├── i [Copy]
+        └── Closure (move)
+            └── s [Moved ← WhileLoop]
+== programs/build/closures/loop_scalar_closure_call.bork
+Arenas
+└── fun main
+    ├── k [Local]
+    ├── f [Local]
+    ├── total [Local]
+    ├── i [Local]
+    ├── Closure
+    │   └── k [Copy]
+    └── WhileLoop
+        ├── total [Copy]
+        ├── f [Shared ← fun main]
+        └── i [Copy]
 == programs/build/closures/move_assigned_to_outer_var.bork
 Arenas
 └── fun main
@@ -4678,6 +4704,16 @@ Arenas
 └── fun C.m
     ├── this [Borrow ← call site]
     └── other [Borrow ← call site]
+== programs/check_fail/borrow/rw_aliased_trailing_closure.bork
+Type Error [] the trailing closure of `visit` captures `v`, which an operand borrows (`&rw v`)
+Arenas
+├── fun visit
+│   ├── items [Borrow ← call site]
+│   └── f [Local]
+└── fun main
+    ├── v [Local]
+    └── Closure
+        └── v [Borrow ← fun main]
 == programs/check_fail/borrow/rw_as_managed_ref_target.bork
 Type Error [65..66] managed Ref target must be a non-nullable class or enum, got `&rw P`
 Arenas

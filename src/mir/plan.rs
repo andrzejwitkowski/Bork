@@ -118,7 +118,7 @@ fn analyse(body: &Body, id: usize, tcx: &TyCtx, st: &mut State, sites: &mut Hash
         for s in &block.stmts {
             pass.stmt(s);
         }
-        if let Some(Terminator { kind: TermKind::Call { args, .. }, .. }) = &block.term {
+        if let Some(Terminator { kind: TermKind::Call { args, .. } | TermKind::CallClosure { args, .. }, .. }) = &block.term {
             pass.escape_args(args);
         }
     }
@@ -208,6 +208,8 @@ impl Pass<'_> {
                 v
             }
             Rvalue::Unary(_, a) | Rvalue::Cast(a, _) | Rvalue::Slice { base: a, .. } => self.origins(a),
+            // The environment holds what it captures, so it carries their origins.
+            Rvalue::Closure { captures, .. } => captures.iter().flat_map(|c| self.origins(c)).collect(),
             _ => Origins::new(),
         };
         let src_ty = match rv {
@@ -396,6 +398,8 @@ pub fn derive_push(body: &Body, bodies: &[Body]) -> HashSet<usize> {
             | StmtKind::CopyInto { arena, .. }
             | StmtKind::Promote { arena, .. } => lands_here(arena),
             StmtKind::ArenaCreateDynamic { .. } => true,
+            // A closure with captures allocates its environment (none: a constant global).
+            StmtKind::Assign(_, Rvalue::Closure { captures, arena, .. }) => !captures.is_empty() && lands_here(arena),
             StmtKind::Intrinsic { arena, .. } | StmtKind::VecOp { arena, .. } => arena.as_ref().is_some_and(lands_here),
             _ => false,
         };
@@ -404,8 +408,15 @@ pub fn derive_push(body: &Body, bodies: &[Body]) -> HashSet<usize> {
         }
     }
     for t in body.blocks.iter().filter_map(|b| b.term.as_ref()) {
-        if matches!(&t.kind, TermKind::Call { args, .. } if args.iter().any(is_str)) {
+        if matches!(&t.kind, TermKind::Call { args, .. } | TermKind::CallClosure { args, .. } if args.iter().any(is_str)) {
             mark(body, &mut out, t.region);
+        }
+        // A closure that returns a value allocated in the caller's sink allocates here too: the callee is unknown.
+        // `hidden` is the caller's parent arena, then the result sink only when the result needs one.
+        if let TermKind::CallClosure { hidden, .. } = &t.kind {
+            if hidden.len() > 1 && hidden.last().is_some_and(lands_here) {
+                mark(body, &mut out, t.region);
+            }
         }
         // A callee that allocates its result into the caller's sink (last hidden argument) allocates here.
         if let TermKind::Call { callee, hidden, .. } = &t.kind {

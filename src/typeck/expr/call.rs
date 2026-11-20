@@ -318,6 +318,10 @@ pub(super) fn finish_call(
         _ => None,
     };
 
+    if let Some(HirExprKind::Closure { captures, kind, is_move: false, .. }) = trailing_hir.as_deref().map(|h| &h.kind) {
+        check_closure_borrows(&name, receiver.as_ref(), &checked_args, captures, *kind, env, trailing_hir.as_ref().and_then(|h| h.span));
+    }
+
     let callee_params = if crate::builtins::is_print(&name) && checked_args.len() == 1 {
         vec![checked_args[0].ty]
     } else {
@@ -669,6 +673,20 @@ fn borrowed_root(hir: &HirExpr) -> Option<(&str, bool)> {
     match &root.kind {
         HirExprKind::Ident { name, .. } => Some((name, *rw)),
         _ => None,
+    }
+}
+
+/// A plain trailing closure views what it captures (and writes it when it is `FnMut`), so a capture of a name
+/// that another operand of the same call borrows `&rw` (or `&` while the closure writes) is aliased (#288).
+fn check_closure_borrows(name: &str, receiver: Option<&Checked>, args: &[Checked], captures: &[HirCapture], kind: crate::ty::ClosureKind, env: &mut Env<'_>, span: Option<Span>) {
+    let writes = kind != crate::ty::ClosureKind::Fn;
+    for checked in receiver.into_iter().chain(args) {
+        let Some((root, rw)) = borrowed_root(&checked.hir) else { continue };
+        if (rw || writes) && captures.iter().any(|c| c.name == root) {
+            let mode = if rw { format!("`&rw {root}`") } else { format!("`&{root}`") };
+            env.error(format!("the trailing closure of `{name}` captures `{root}`, which an operand borrows ({mode})"), span);
+            return;
+        }
     }
 }
 
