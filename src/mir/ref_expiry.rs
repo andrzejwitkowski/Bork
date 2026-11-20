@@ -7,7 +7,7 @@
 //! shortcut: one pass over the statements in block order, no dataflow; a `Ref` local that points at an object living
 //! in an outer arena is warned about too. Refine when false warnings are reported.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::body::*;
 use crate::span::Span;
@@ -18,7 +18,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
     // A temp copy of a named `Ref` is the same handle.
     let mut alias: HashMap<Local, Local> = HashMap::new();
     // Named `Ref` locals an object (temp or variable) stores in its fields.
-    let mut held: HashMap<Local, Vec<Local>> = HashMap::new();
+    let mut held: HashMap<Local, HashSet<Local>> = HashMap::new();
     let origin = |alias: &HashMap<Local, Local>, mut l: Local| {
         while body.local(l).is_some_and(|d| d.kind == LocalKind::Temp) {
             match alias.get(&l) {
@@ -39,7 +39,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                 }
                 StmtKind::Ref(RefOp::Store { slot, value, .. }) => {
                     if let Some(v) = bare(value) {
-                        held.entry(slot.local).or_default().push(origin(&alias, v));
+                        held.entry(slot.local).or_default().insert(origin(&alias, v));
                     }
                 }
                 StmtKind::Assign(dst, Rvalue::Use(src)) if dst.is_bare() => {
