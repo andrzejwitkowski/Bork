@@ -114,7 +114,10 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         extra.classes.extend(parsed.classes);
         extra.enums.extend(parsed.enums);
         extra.functions.extend(parsed.functions);
-        extra.traits.extend(parsed.traits);
+        extra.traits.extend(parsed.traits.into_iter().map(|mut t| {
+            t.prelude = true;
+            t
+        }));
         extra.impls.extend(parsed.impls);
     }
     crate::ast_number::number_nodes_from(&mut extra, next_id);
@@ -199,5 +202,17 @@ mod tests {
     fn some_and_none_are_variants_where_an_option_is_expected_and_unchanged_for_nullables() {
         let ok = "fun f(n: i32): Option<i32> {\n    if (n > 0) {\n        return Some(n)\n    }\n    return None\n}\nfun g(): i32? {\n    return Some(1)\n}\nfun main() {}\n";
         assert_eq!(enum_names(ok), ["Option"]);
+    }
+
+    #[test]
+    fn a_user_trait_named_fn_gets_no_callable_identity() {
+        let messages = |code: &str| check(code).diagnostics.into_iter().map(|d| d.message).collect::<Vec<_>>();
+        // A closure must not satisfy a user `Fn`, even when its shape matches the bound.
+        let matching = messages("trait Fn<A> {}\nfun run<F: Fn(i32) -> i32>(f: F) {}\nfun main() {\n    run({ x -> x })\n}\n");
+        assert!(matching.iter().any(|m| m.contains("is not satisfied")), "{matching:?}");
+        // And it is reported as a missing impl, not as a signature mismatch.
+        let zero_arg = messages("trait Fn {}\nfun run<F: Fn>(f: F) {}\nfun main() {\n    run({ -> 1 })\n}\n");
+        assert_eq!(zero_arg.len(), 1, "{zero_arg:?}");
+        assert!(zero_arg[0].contains("only classes and enums implement traits"), "{zero_arg:?}");
     }
 }
