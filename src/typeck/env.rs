@@ -34,6 +34,8 @@ pub(super) struct Binding {
     pub(super) explicit_ref: bool,
     /// Holds a closure that borrows its captures, whatever type it was annotated with (`Func` erases it).
     pub(super) view_closure: bool,
+    /// A `Func`-to-be parameter: its type is still an inference variable, so it is a view only once it resolves to a callable.
+    pub(super) maybe_view: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -179,6 +181,7 @@ impl<'a> Env<'a> {
                     ty,
                     explicit_ref,
                     view_closure: false,
+                    maybe_view: false,
                 },
             );
     }
@@ -233,7 +236,9 @@ impl<'a> Env<'a> {
             return true;
         }
         match &e.kind {
-            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| b.view_closure),
+            HirExprKind::Ident { name, .. } => self.binding(name).is_some_and(|b| {
+                b.view_closure || (b.maybe_view && self.infcx.bound_shallow(self.tcx, b.ty).is_some_and(|t| self.tcx.is_callable(t)))
+            }),
             HirExprKind::Call { args, trailing, .. } if self.tcx.is_callable(e.ty) => {
                 args.iter().chain(trailing.as_deref()).any(|a| self.hir_is_view_closure(a))
             }
@@ -286,8 +291,15 @@ impl<'a> Env<'a> {
     /// A `Func`-typed parameter may be handed a view closure (a plain closure borrowing its captures); its type does
     /// not say so, so the callee treats it as one and cannot return or store it.
     pub(super) fn mark_func_param_view(&mut self, name: &str, ty: TyId) {
-        if matches!(self.tcx.data(ty), crate::ty::TyData::Func { .. }) {
-            self.mark_view_closure(name);
+        match self.tcx.data(ty) {
+            crate::ty::TyData::Func { .. } => self.mark_view_closure(name),
+            // Typed only by the body (`val g: () -> i32 = f`): decided when the name is read, not here.
+            crate::ty::TyData::Infer(_) => {
+                if let Some(b) = self.scopes.iter_mut().rev().find_map(|scope| scope.get_mut(name)) {
+                    b.maybe_view = true;
+                }
+            }
+            _ => {}
         }
     }
 
