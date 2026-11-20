@@ -486,6 +486,7 @@ fn check_closure_body(
     let mut params = Vec::new();
     for (param, &ty) in closure.params.iter().zip(param_tys) {
         let is_ref = env.tcx.is_ref(ty);
+        env.node_tys.insert(param.id.numbered(), ty);
         env.bind(param.name.clone(), BindingKind::Val, ty, is_ref);
         env.mark_func_param_view(&param.name, ty);
         params.push(HirParam { kind: BindingKind::Val, name: param.name.clone(), ty });

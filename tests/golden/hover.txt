@@ -29,10 +29,10 @@ programs/build/classes/nullable_field_assign.bork: hits=3 hash=cf496e48c59ad0d1
 programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
-programs/build/closures/closure_in_class_field.bork: hits=27 hash=a615e08f22a606f0
-programs/build/closures/closure_in_class_field_generic_and_returned.bork: hits=20 hash=9fece12b924786d1
-programs/build/closures/closure_in_val.bork: hits=18 hash=f10e229e3ef14a61
-programs/build/closures/doc_example.bork: hits=26 hash=4181bba19cc57ac4
+programs/build/closures/closure_in_class_field.bork: hits=27 hash=245c13240e8a0950
+programs/build/closures/closure_in_class_field_generic_and_returned.bork: hits=20 hash=5fb54fcd17cd9131
+programs/build/closures/closure_in_val.bork: hits=18 hash=15c3b9715de884ed
+programs/build/closures/doc_example.bork: hits=26 hash=a5ff3ad279ff8204
 programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e
 programs/build/closures/fnmut_assigns_fresh_string_churn.bork: hits=45 hash=984b3bd2e316f9ce
 programs/build/closures/fnmut_bound.bork: hits=22 hash=0379ac93bdffa027
@@ -40,8 +40,8 @@ programs/build/closures/fnmut_counter.bork: hits=22 hash=db274aa2081ff40b
 programs/build/closures/fnonce_moves_object.bork: hits=6 hash=fc666ff1e4995bff
 programs/build/closures/fnonce_ref_released_once.bork: hits=78 hash=79efb93f9c65f99c
 programs/build/closures/generic_closure_instances_differ_by_capture.bork: hits=5 hash=9e554215461e34d8
-programs/build/closures/generic_fn_bound.bork: hits=15 hash=a99614085a455147
-programs/build/closures/local_closure_shadows_global_fn.bork: hits=14 hash=2ace153f1783a3df
+programs/build/closures/generic_fn_bound.bork: hits=15 hash=a73e5603a7afbc81
+programs/build/closures/local_closure_shadows_global_fn.bork: hits=14 hash=39a4f9515a68cbdf
 programs/build/closures/loop_env_only_allocation.bork: hits=23 hash=7ec5e067e39daadf
 programs/build/closures/loop_scalar_closure_call.bork: hits=22 hash=1a7991a5b546245c
 programs/build/closures/loop_variable_shadows_capture_only_in_loop.bork: hits=14 hash=cefaf6c9e576c532
@@ -50,7 +50,7 @@ programs/build/closures/move_counter.bork: hits=117 hash=d8046b9e6fcab36d
 programs/build/closures/move_nullable_capture.bork: hits=14 hash=29f610c0c300a97f
 programs/build/closures/move_object_capture.bork: hits=5 hash=a12c426ecaf6c71c
 programs/build/closures/move_ref_capture.bork: hits=71 hash=99558964140e74c1
-programs/build/closures/move_returned_adder.bork: hits=37 hash=4986b6d59993c6c0
+programs/build/closures/move_returned_adder.bork: hits=37 hash=b18e5ab6acb3d818
 programs/build/closures/move_string_capture.bork: hits=46 hash=6ce12b9099dc934e
 programs/build/closures/move_string_outlives_frame.bork: hits=39 hash=4395ad13bde3cd61
 programs/build/closures/move_temp_in_loop.bork: hits=42 hash=882e1050c01fe29a
@@ -58,9 +58,9 @@ programs/build/closures/move_vec_capture.bork: hits=104 hash=a3c00e1e83a39fa3
 programs/build/closures/nested_fnmut_assigns_fresh_string.bork: hits=59 hash=c2c2db9ab11d57d3
 programs/build/closures/nested_fnmut_updates_outer.bork: hits=39 hash=1bbf6b0413abf5a7
 programs/build/closures/non_move_ref_capture.bork: hits=162 hash=8a6ef0b71546f2c7
-programs/build/closures/outer_name_before_shadowing_decl.bork: hits=18 hash=6ae2ecc8d682b816
+programs/build/closures/outer_name_before_shadowing_decl.bork: hits=18 hash=32de009bebc3569e
 programs/build/closures/owned_values_with_refs.bork: hits=133 hash=72002caf37efa971
-programs/build/closures/trailing_with_capture.bork: hits=26 hash=6e595dff0d820f8e
+programs/build/closures/trailing_with_capture.bork: hits=26 hash=8e762c9b32a32c8a
 programs/build/closures/view_passed_to_generic_callback.bork: hits=12 hash=c27a78ff7588bdc4
 programs/build/conditionals/else_if.bork: hits=3 hash=6c2fc00716667e73
 programs/build/conditionals/if_else_return.bork: hits=7 hash=24d78fb03c7163dd
@@ -168,7 +168,7 @@ programs/build/methods/mutate_field.bork: hits=23 hash=bb2c597d66a8698a
 programs/build/methods/nested_calls.bork: hits=24 hash=03dff4b6db0e6e31
 programs/build/methods/owning_return.bork: hits=49 hash=459369fbaaae9b8a
 programs/build/methods/same_name.bork: hits=30 hash=3e59da8cdc0e456c
-programs/build/methods/trailing_closure.bork: hits=18 hash=7da5cc95bce6398b
+programs/build/methods/trailing_closure.bork: hits=18 hash=6b965f18042d04f7
 programs/build/move_and_promote/array_string_move_index.bork: hits=12 hash=3622c8842bc32b8a
 programs/build/move_and_promote/assign_up_move.bork: hits=23 hash=d646425e04e25c83
 programs/build/move_and_promote/both_branches_return_move.bork: hits=11 hash=dbb8faf78a1f345e
@@ -370,7 +370,7 @@ programs/check_fail/classes/owned_layout_cycle.bork: hits=0 hash=cbf29ce48422232
 programs/check_fail/classes/ref_dot.bork: hits=2 hash=0631e700de510247
 programs/check_fail/closures/annotated_view_moved_into_var.bork: hits=19 hash=8b00913ed3477a52
 programs/check_fail/closures/break_in_closure.bork: hits=6 hash=8041edeea34d2536
-programs/check_fail/closures/closure_field_call_arity.bork: hits=4 hash=f9fedeff707ae4a1
+programs/check_fail/closures/closure_field_call_arity.bork: hits=4 hash=d5ff9f353d16a395
 programs/check_fail/closures/closure_field_call_nullable.bork: hits=2 hash=9a2cba042da60a18
 programs/check_fail/closures/fnmut_to_fn_bound.bork: hits=3 hash=8a6ecd6bfbfccf09
 programs/check_fail/closures/func_param_returned.bork: hits=6 hash=212067c0955e168b
