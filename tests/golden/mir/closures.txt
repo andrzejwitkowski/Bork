@@ -2729,7 +2729,7 @@ fn main (parent=false, sink=false) {
     _20 = ref_clone copy _6
     _21 = ref_count move _20
     _22 = copy _21  // label "s1": i32 decl
-    _23 = closure main$closure0(copy _16) in current
+    _23 = closure main$closure0(copy _16, copy _6, copy _22, copy _19) in current
     _24 = call apply(copy _23) +current -> bb1
   bb1:
     _13 = copy _24
@@ -2823,48 +2823,71 @@ fn apply (parent=true, sink=false) {
 fn main$closure0 (parent=true, sink=false) {
   let _0: i32 [Return]
   let _1: Ref<Node> [Arg] c
-  let _2: unit [Hidden(DebugScope)]
-  let _3: i32 [Temp]
-  let _4: Ref<Node> [Temp]
-  let _5: unit [Temp]
-  let _6: Node [Val]
-  let _7: bool [Temp]
-  let _8: i32? [Temp]
-  let _9: i32? [Temp]
-  let _10: i32? [Temp]
+  let _2: Ref<Node> [Arg] r
+  let _3: i32 [Arg] s1
+  let _4: i32 [Arg] w1
+  let _5: unit [Hidden(DebugScope)]
+  let _6: Ref<Node> [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Temp]
+  let _9: Ref<Node> [Temp]
+  let _10: i32 [Temp]
   let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Val] drift
+  let _14: i32 [Temp]
+  let _15: Ref<Node> [Temp]
+  let _16: unit [Temp]
+  let _17: Node [Val]
+  let _18: bool [Temp]
+  let _19: i32? [Temp]
+  let _20: i32? [Temp]
+  let _21: i32? [Temp]
+  let _22: i32 [Temp]
+  let _23: i32 [Temp]
+  let _24: i32 [Temp]
   region r0 Block
   bb0:
-    storage_live _2
+    storage_live _5
     region_enter r0
-    _4 = ref_clone copy _1
-    (_5, _6, _7) = observe copy _4
-    ref_drop move _4
-    switch copy _7 [ 1 -> bb5, else -> bb4]
+    _6 = ref_clone copy _2
+    _7 = ref_count_weak move _6
+    _8 = sub(copy _7, copy _4)
+    _9 = ref_clone copy _2
+    _10 = ref_count move _9
+    _11 = sub(copy _10, copy _3)
+    _12 = add(copy _8, copy _11)
+    _13 = copy _12  // label "drift": i32 decl
+    _15 = ref_clone copy _1
+    (_16, _17, _18) = observe copy _15
+    ref_drop move _15
+    switch copy _18 [ 1 -> bb5, else -> bb4]
   bb1:
-    _3 = copy _11
+    _14 = copy _22
     goto bb3
   bb2:
-    _3 = 0
+    _14 = 0
     goto bb3
   bb3:
-    _0 = copy _3
-    storage_dead _2
+    _23 = mul(copy _13, 100)
+    _24 = add(copy _14, copy _23)
+    _0 = copy _24
+    storage_dead _5
     region_exit r0
     return
   bb4:
-    _9 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
-    _9.some = copy _6.*.0
-    observation_release _5
-    _8 = copy _9
+    _20 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
+    _20.some = copy _17.*.0
+    observation_release _16
+    _19 = copy _20
     goto bb6
   bb5:
-    _10 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
-    _8 = copy _10
+    _21 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _19 = copy _21
     goto bb6
   bb6:
-    match _8 {
-      Some(bind) _11=_8.some -> bb1
+    match _19 {
+      Some(bind) _22=_19.some -> bb1
       None -> bb2
     }
 }

@@ -20,7 +20,11 @@ fun main(): i32 {
         val c: Ref<Node> = n
         val w1 = weakCount(r)
         val s1 = strongCount(r)
-        got = apply() { -> c?.id ?: 0 }
+        // A count that moved during the call shows up as a nonzero `drift` and breaks the result.
+        got = apply() { ->
+            val drift = (weakCount(r) - w1) + (strongCount(r) - s1)
+            (c?.id ?: 0) + drift * 100
+        }
         if (weakCount(r) != w1) { return 4 }
         if (strongCount(r) != s1) { return 5 }
     }
