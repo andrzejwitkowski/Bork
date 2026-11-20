@@ -693,12 +693,14 @@ TrailingClosure: Closure = {
         body: c.1,
         is_move: true,
         captures: captures.map(|c| c.unwrap_or_default()),
+        id: AstId::DUMMY,
     },
     <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
         params: params.unwrap_or_default(),
         body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: false,
         captures: None,
+        id: AstId::DUMMY,
     },
 };
 
@@ -708,12 +710,14 @@ ClosureExpr: Closure = {
         body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: true,
         captures: captures.map(|c| c.unwrap_or_default()),
+        id: AstId::DUMMY,
     },
     <start:@L> "{" <params:Comma<SpannedIdent>?> "->" <stmts:BlockBody> "}" <end:@R> => Closure {
         params: params.unwrap_or_default(),
         body: Block::from_spanned(Span::new(start, end), stmts),
         is_move: false,
         captures: None,
+        id: AstId::DUMMY,
     },
 };
 

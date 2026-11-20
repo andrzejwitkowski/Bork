@@ -193,6 +193,7 @@ impl Numberer {
     }
 
     fn closure(&mut self, closure: &mut Closure) {
+        closure.id = self.fresh(closure.body.span.unwrap_or_default());
         self.names(&mut closure.params);
         if let Some(caps) = &mut closure.captures {
             self.names(caps);

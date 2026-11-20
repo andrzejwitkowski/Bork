@@ -3,25 +3,28 @@
 //! `MakeClosure` value. MIR and codegen then see
 //! only plain functions, and the 1:1 function/report-root invariant holds.
 
-use std::collections::VecDeque;
+use std::collections::HashMap;
 
 use crate::diag::Diagnostic;
 use crate::hir::{self, HirExpr, HirExprKind, HirFunction, HirParam, HirStmt, UseKind};
 use crate::sema::{ArenaNode, ArenaReport};
+use crate::span::AstId;
 use crate::ty::TyCtx;
 
 /// Lifts every closure of `functions`, appending the new functions and their report roots.
 pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut ArenaReport, tcx: &TyCtx) -> Result<(), Vec<Diagnostic>> {
     // Lifted closures are appended and already hold no closures, so only the original functions are scanned.
     for at in 0..functions.len() {
-        let mut nodes: VecDeque<ArenaNode> = take_closure_nodes(&mut report.roots[at]).into();
+        let Some(mut nodes) = take_closure_nodes(&mut report.roots[at]) else {
+            return Err(vec![super::error(format!("internal error: `{}` has two closure regions with the same id", functions[at].name), None)]);
+        };
         let mut body = std::mem::take(&mut functions[at].body);
         let (outer_name, outer_span, outer_source) = (functions[at].name.clone(), functions[at].name_span, functions[at].source);
         let mut lifted: Vec<(HirFunction, ArenaNode)> = Vec::new();
         let mut missing = false;
         hir::rewrite(&mut body, &mut |t| t, &mut |e| match &mut e.kind {
-            HirExprKind::Closure { .. } => {
-                let Some(mut node) = nodes.pop_front() else {
+            HirExprKind::Closure { id, .. } => {
+                let Some(mut node) = nodes.remove(id) else {
                     missing = true;
                     return;
                 };
@@ -46,25 +49,25 @@ pub(super) fn lift_closures(functions: &mut Vec<HirFunction>, report: &mut Arena
     Ok(())
 }
 
-/// Removes the report nodes labelled `Closure` below `root`, children before their parent, so the
-/// order matches the post-order the HIR rewrite visits closures in.
-fn take_closure_nodes(root: &mut ArenaNode) -> Vec<ArenaNode> {
-    let mut out = Vec::new();
+/// Removes the closure regions below `root`, keyed by the closure they belong to. `None` when two share an id.
+fn take_closure_nodes(root: &mut ArenaNode) -> Option<HashMap<AstId, ArenaNode>> {
+    let mut out = HashMap::new();
     for mut child in std::mem::take(&mut root.children) {
-        out.extend(take_closure_nodes(&mut child));
-        if crate::region_walk::RegionSite::Closure.matches(&child.label) {
-            out.push(child);
-        } else {
-            root.children.push(child);
+        for (id, node) in take_closure_nodes(&mut child)? {
+            out.insert(id, node).is_none().then_some(())?;
+        }
+        match child.closure {
+            Some(id) => out.insert(id, child).is_none().then_some(())?,
+            None => root.children.push(child),
         }
     }
-    out
+    Some(out)
 }
 
 fn lift_one(outer_span: crate::span::Span, outer_source: Option<&'static str>, name: String, closure: HirExpr, tcx: &TyCtx) -> (HirFunction, HirExpr) {
     let ty = closure.ty;
     let span = closure.span;
-    let HirExprKind::Closure { params, body, captures, is_move, kind } = closure.kind else { unreachable!("lift_one gets a closure") };
+    let HirExprKind::Closure { params, body, captures, is_move, kind, .. } = closure.kind else { unreachable!("lift_one gets a closure") };
     let (_, ret) = tcx.func_sig(ty).expect("a closure has a signature");
     // A closure's value is its last expression; a function must `return` it.
     let mut body = body;

@@ -505,7 +505,7 @@ fn check_closure_body(
     let captures: Vec<HirCapture> = used.into_iter().map(|(name, ty)| HirCapture { name, ty }).collect();
     // Its own closure type, like a positional closure, so a view stays a view and its kind is kept.
     let ty = env.tcx.closure(param_tys.to_vec(), closure_ret, kind, closure.is_move, captures.iter().map(|c| c.ty).collect());
-    HirExpr::new(HirExprKind::Closure { params, body, is_move: closure.is_move, captures, kind }, ty)
+    HirExpr::new(HirExprKind::Closure { id: closure.id, params, body, is_move: closure.is_move, captures, kind }, ty)
 }
 
 fn arg_matches_param(tcx: &TyCtx, got: TyId, expected: TyId) -> bool {

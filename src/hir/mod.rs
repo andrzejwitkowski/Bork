@@ -452,6 +452,8 @@ pub enum HirExprKind {
     },
     /// A closure body kept from source (RFC 0007); monomorphization lifts it into a function.
     Closure {
+        /// The AST closure it was checked from; keys its region in the arena report.
+        id: crate::span::AstId,
         params: Vec<HirParam>,
         body: HirBlock,
         is_move: bool,

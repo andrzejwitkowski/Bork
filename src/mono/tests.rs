@@ -331,3 +331,60 @@ fn instances_whose_nested_closures_differ_only_in_captures_get_distinct_names() 
     assert_eq!(outers.len(), 2, "{outers:?}");
     assert_ne!(outers[0], outers[1], "{outers:?}");
 }
+
+/// Monomorphizes `src` after `edit` has changed its arena report.
+fn run_edited(src: &str, edit: impl FnOnce(&mut ArenaReport)) -> Result<Mono, Vec<Diagnostic>> {
+    let mut checked = check(src);
+    assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+    let hir = checked.hir.take().expect("clean check produces HIR");
+    let mut report = checked.report.take().expect("clean check produces a report");
+    edit(&mut report);
+    monomorphize(&hir, &mut checked.tcx, &report)
+}
+
+/// Calls `edit` on every closure region below `node`, children first, with its position.
+fn edit_closure_regions(node: &mut crate::sema::ArenaNode, seen: &mut usize, edit: &mut impl FnMut(usize, &mut crate::sema::ArenaNode)) {
+    for child in &mut node.children {
+        edit_closure_regions(child, seen, edit);
+        if child.closure.is_some() {
+            edit(*seen, child);
+            *seen += 1;
+        }
+    }
+}
+
+const SIBLINGS: &str = "fun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}\nfun main(): i32 {\n    val a = 3\n    val b = 4\n    val x = apply({ n -> n + a })\n    val y = apply() { n -> n + b }\n    return x + y\n}\n";
+
+#[test]
+fn closure_regions_are_matched_by_id_not_by_label() {
+    let m = run_edited(SIBLINGS, |r| {
+        edit_closure_regions(&mut r.roots[1], &mut 0, &mut |i, region| region.label = format!("renamed {i}"));
+    })
+    .expect("labels do not matter");
+    assert_eq!(function_names(&m), ["main", "apply", "main$closure0", "main$closure1"]);
+    // Each lifted function keeps the region of its own closure, in source order.
+    let params = |f: &HirFunction| f.params.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
+    assert_eq!(params(&m.hir.functions[2]), ["a", "n"]);
+    assert_eq!(params(&m.hir.functions[3]), ["b", "n"]);
+}
+
+#[test]
+fn a_closure_region_with_a_missing_or_duplicated_id_is_an_internal_error() {
+    let missing = run_edited(SIBLINGS, |r| {
+        edit_closure_regions(&mut r.roots[1], &mut 0, &mut |i, region| if i == 0 { region.closure = None });
+    });
+    assert!(missing.is_err());
+    let duplicated = run_edited(SIBLINGS, |r| {
+        let mut first = None;
+        edit_closure_regions(&mut r.roots[1], &mut 0, &mut |i, region| if i == 0 { first = region.closure } else { region.closure = first });
+    });
+    assert!(duplicated.is_err());
+}
+
+#[test]
+fn closures_in_each_generic_instance_get_their_own_regions() {
+    let src = "fun twice<T>(x: T, f: (T) -> T): T {\n    return f(f(x))\n}\nfun main(): i32 {\n    val k = 2\n    val a = twice(1) { n -> n + k }\n    val b = twice(1.5) { n -> n * 2.0 }\n    return a\n}\n";
+    let m = mono(src);
+    assert_eq!(m.report.roots.len(), m.hir.functions.len());
+    assert!(function_names(&m).iter().filter(|n| n.contains("$closure")).count() == 2, "{:?}", function_names(&m));
+}

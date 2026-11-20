@@ -759,6 +759,8 @@ pub struct Closure {
     pub is_move: bool,
     /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
     pub captures: Option<Vec<crate::span::SpannedName>>,
+    /// Names this closure through typeck, HIR and the arena report; set by [`crate::ast_number::number_nodes`].
+    pub id: crate::span::AstId,
 }
 
 #[derive(Debug, Clone, PartialEq)]

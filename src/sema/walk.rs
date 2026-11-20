@@ -522,11 +522,13 @@ fn walk_closure(az: &mut Analyzer, c: &crate::ast::Closure, node: &mut ArenaNode
             borrow_from: super::region::REF_PARAM_BORROW_FROM,
         })
         .collect();
-    if c.is_move {
-        node.children.push(open_move(az, "Closure", &c.body, c.captures.as_deref(), &params));
+    let mut region = if c.is_move {
+        open_move(az, "Closure", &c.body, c.captures.as_deref(), &params)
     } else {
-        node.children.push(open_ordinary(az, "Closure", &c.body, &params, None));
-    }
+        open_ordinary(az, "Closure", &c.body, &params, None)
+    };
+    region.closure = Some(c.id.numbered());
+    node.children.push(region);
 }
 
 fn apply_expr_promote(
