@@ -1,0 +1,15 @@
+reviews:
+  profile: assertive
+  path_instructions:
+    - path: "src/**/*.rs"
+      instructions: |
+        Focus on architecture and layer boundaries (typeck, HIR, MIR, codegen),
+        correctness, and long-term maintainability.
+    - path: "crates/bork_runtime/**"
+      instructions: |
+        Focus on memory safety, unsafe soundness, and arena lifetime invariants.
+    - path: "programs/**"
+      instructions: |
+        Check that samples exercise MIR/codegen paths, not only typeck.
+tone_instructions: |
+  Be concise, direct, and constructive.
