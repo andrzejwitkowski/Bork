@@ -1,0 +1,21 @@
+// exit: 21
+// set replaces a closure (plain and capturing), pop shrinks the vector, clear empties it (the popped closure itself is a &()->i32 binding, not callable).
+class Node { id: i32 }
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    val r: Ref<Node> = Node(5)
+    val k = 7
+    v.push({ -> 1 })
+    v.push(move (r) { -> if val n = r { n.id } else { 0 } })
+    v.push({ -> 3 })
+    v.set(0, move (k) { -> k + 10 })
+    v.set(1, { -> 2 })
+    var out = 0
+    val popped = v.pop()
+    out = out + v.len()
+    val g = v.get(0)
+    val h = v.get(1)
+    out = out + g() + h()
+    v.clear()
+    return out + v.len()
+}

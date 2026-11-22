@@ -553,6 +553,357 @@ fn main$closure0 (parent=true, sink=false) {
     goto bb1
 }
 
+== vec/closure_elems_ref_capture_replace.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<()->i32> [Temp]
+  let _3: Vec<()->i32> [Var] v
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Node [Temp]
+  let _6: Ref<Node> [Temp]
+  let _7: Ref<Node> [Val] a
+  let _8: unit [Hidden(DynamicArena)]
+  let _9: Node [Temp]
+  let _10: Ref<Node> [Temp]
+  let _11: Ref<Node> [Val] b
+  let _12: &Vec<()->i32> [Temp]
+  let _13: Ref<Node> [Temp]
+  let _14: closure#0()->i32 [Temp]
+  let _15: &Vec<()->i32> [Temp]
+  let _16: Ref<Node> [Temp]
+  let _17: closure#1()->i32 [Temp]
+  let _18: &Vec<()->i32> [Temp]
+  let _19: ()->i32 [Temp]
+  let _20: ()->i32 [Val] f
+  let _21: i32 [Temp]
+  let _22: i32 [Val] res
+  let _23: &Vec<()->i32> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<()->i32> decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "Node" } in fresh4  // label "Node": Node
+    _5.0 = 4  // label "Node.id": i32 decl owner=fresh4
+    _6 = ref_create source=current target=object_arena(_5) copy _5
+    _7 = move _6  // label "a": Ref<Node> decl
+    register_drop current _7 RefSlot
+    _8 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _8
+    _9 = alloc Object { class: "Node" } in fresh8  // label "Node": Node
+    _9.0 = 9  // label "Node.id": i32 decl owner=fresh8
+    _10 = ref_create source=current target=object_arena(_9) copy _9
+    _11 = move _10  // label "b": Ref<Node> decl
+    register_drop current _11 RefSlot
+    _12 = borrow _3
+    _13 = ref_clone copy _7
+    _14 = closure main$closure0(move _13) in home(_3)
+    vec_Push(copy _12, copy _14)
+    _15 = borrow _3
+    _16 = ref_clone copy _11
+    _17 = closure main$closure1(move _16) in home(_3)
+    vec_Set(copy _15, 0, copy _17)
+    _18 = borrow _3
+    _19 = vec_Get(copy _18, 0)
+    _20 = copy _19  // label "f": ()->i32 decl
+    _21 = call_closure copy _20() +current -> bb1
+  bb1:
+    _22 = copy _21  // label "res": i32 decl
+    _23 = borrow _3
+    vec_Clear(copy _23)
+    _0 = copy _22
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] a
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: unit [Temp]
+  let _6: &Node [Val]
+  let _7: bool [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 PresenceSome in r0
+  region r2 PresenceNone in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _4 = ref_clone copy _1
+    (_5, _6, _7) = observe copy _4
+    ref_drop move _4
+    switch copy _7 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    storage_live _9
+    _3 = 0
+    storage_dead _9
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _8
+    observation_register current _5
+    _3 = copy _6.0
+    storage_dead _8
+    region_exit r1
+    goto bb1
+}
+
+fn main$closure1 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] b
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: unit [Temp]
+  let _6: &Node [Val]
+  let _7: bool [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 PresenceSome in r0
+  region r2 PresenceNone in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _4 = ref_clone copy _1
+    (_5, _6, _7) = observe copy _4
+    ref_drop move _4
+    switch copy _7 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    storage_live _9
+    _3 = 0
+    storage_dead _9
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _8
+    observation_register current _5
+    _3 = copy _6.0
+    storage_dead _8
+    region_exit r1
+    goto bb1
+}
+
+== vec/closure_elems_set_pop_clear.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<()->i32> [Temp]
+  let _3: Vec<()->i32> [Var] v
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Node [Temp]
+  let _6: Ref<Node> [Temp]
+  let _7: Ref<Node> [Val] r
+  let _8: i32 [Val] k
+  let _9: &Vec<()->i32> [Temp]
+  let _10: closure#0()->i32 [Temp]
+  let _11: &Vec<()->i32> [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: closure#1()->i32 [Temp]
+  let _14: &Vec<()->i32> [Temp]
+  let _15: closure#2()->i32 [Temp]
+  let _16: &Vec<()->i32> [Temp]
+  let _17: closure#3()->i32 [Temp]
+  let _18: &Vec<()->i32> [Temp]
+  let _19: closure#4()->i32 [Temp]
+  let _20: i32 [Var] out
+  let _21: &Vec<()->i32> [Temp]
+  let _22: ()->i32? [Temp]
+  let _23: ()->i32? [Val] popped
+  let _24: &Vec<()->i32> [Temp]
+  let _25: i32 [Temp]
+  let _26: i32 [Temp]
+  let _27: &Vec<()->i32> [Temp]
+  let _28: ()->i32 [Temp]
+  let _29: ()->i32 [Val] g
+  let _30: &Vec<()->i32> [Temp]
+  let _31: ()->i32 [Temp]
+  let _32: ()->i32 [Val] h
+  let _33: i32 [Temp]
+  let _34: i32 [Temp]
+  let _35: i32 [Temp]
+  let _36: i32 [Temp]
+  let _37: &Vec<()->i32> [Temp]
+  let _38: &Vec<()->i32> [Temp]
+  let _39: i32 [Temp]
+  let _40: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<()->i32> decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "Node" } in fresh4  // label "Node": Node
+    _5.0 = 5  // label "Node.id": i32 decl owner=fresh4
+    _6 = ref_create source=current target=object_arena(_5) copy _5
+    _7 = move _6  // label "r": Ref<Node> decl
+    register_drop current _7 RefSlot
+    _8 = 7  // label "k": i32 decl
+    _9 = borrow _3
+    _10 = closure main$closure0() in current
+    vec_Push(copy _9, copy _10)
+    _11 = borrow _3
+    _12 = ref_clone copy _7
+    _13 = closure main$closure1(move _12) in home(_3)
+    vec_Push(copy _11, copy _13)
+    _14 = borrow _3
+    _15 = closure main$closure2() in current
+    vec_Push(copy _14, copy _15)
+    _16 = borrow _3
+    _17 = closure main$closure3(copy _8) in home(_3)
+    vec_Set(copy _16, 0, copy _17)
+    _18 = borrow _3
+    _19 = closure main$closure4() in current
+    vec_Set(copy _18, 1, copy _19)
+    _20 = 0  // label "out": i32 decl
+    _21 = borrow _3
+    _22 = vec_Pop(copy _21) in current
+    _23 = copy _22  // label "popped": ()->i32? decl
+    _24 = borrow _3
+    _25 = vec_Len(copy _24)
+    _26 = add(copy _20, copy _25)
+    _20 = copy _26
+    _27 = borrow _3
+    _28 = vec_Get(copy _27, 0)
+    _29 = copy _28  // label "g": ()->i32 decl
+    _30 = borrow _3
+    _31 = vec_Get(copy _30, 1)
+    _32 = copy _31  // label "h": ()->i32 decl
+    _33 = call_closure copy _29() +current -> bb1
+  bb1:
+    _34 = add(copy _20, copy _33)
+    _35 = call_closure copy _32() +current -> bb2
+  bb2:
+    _36 = add(copy _34, copy _35)
+    _20 = copy _36
+    _37 = borrow _3
+    vec_Clear(copy _37)
+    _38 = borrow _3
+    _39 = vec_Len(copy _38)
+    _40 = add(copy _20, copy _39)
+    _0 = copy _40
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _0 = 1
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure1 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] r
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: unit [Temp]
+  let _6: &Node [Val]
+  let _7: bool [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 PresenceSome in r0
+  region r2 PresenceNone in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _4 = ref_clone copy _1
+    (_5, _6, _7) = observe copy _4
+    ref_drop move _4
+    switch copy _7 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    storage_live _9
+    _3 = 0
+    storage_dead _9
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _8
+    observation_register current _5
+    _3 = copy _6.0
+    storage_dead _8
+    region_exit r1
+    goto bb1
+}
+
+fn main$closure2 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _0 = 3
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure3 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] k
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 10)
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure4 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _0 = 2
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == vec/closure_elems_via_param.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

@@ -3908,6 +3908,44 @@ Arenas
             ├── IfValSome
             │   └── n [Borrow ← presence guard]
             └── IfValNone
+== programs/build/vec/closure_elems_ref_capture_replace.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── a [Local]
+    ├── b [Local]
+    ├── f [Local]
+    ├── res [Local]
+    ├── Closure (move)
+    │   ├── a [Moved ← fun main]
+    │   ├── IfValSome
+    │   │   └── n [Borrow ← presence guard]
+    │   └── IfValNone
+    └── Closure (move)
+        ├── b [Moved ← fun main]
+        ├── IfValSome
+        │   └── n [Borrow ← presence guard]
+        └── IfValNone
+== programs/build/vec/closure_elems_set_pop_clear.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── r [Local]
+    ├── k [Local]
+    ├── out [Local]
+    ├── popped [Local]
+    ├── g [Local]
+    ├── h [Local]
+    ├── Closure
+    ├── Closure (move)
+    │   ├── r [Moved ← fun main]
+    │   ├── IfValSome
+    │   │   └── n [Borrow ← presence guard]
+    │   └── IfValNone
+    ├── Closure
+    ├── Closure (move)
+    │   └── k [Moved ← fun main]
+    └── Closure
 == programs/build/vec/closure_elems_via_param.bork
 Arenas
 ├── fun fill

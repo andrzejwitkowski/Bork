@@ -1,0 +1,14 @@
+// exit: 9
+// Replacing and clearing move closures that capture a Ref leaves later closures callable.
+class Node { id: i32 }
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    val a: Ref<Node> = Node(4)
+    val b: Ref<Node> = Node(9)
+    v.push(move (a) { -> if val n = a { n.id } else { 0 } })
+    v.set(0, move (b) { -> if val n = b { n.id } else { 0 } })
+    val f = v.get(0)
+    val res = f()
+    v.clear()
+    return res
+}
