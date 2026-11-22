@@ -648,12 +648,15 @@ impl crate::ty::TypeFolder for ImplNormalizer<'_> {
             if let (true, true, Some(&value)) = (ours, base == self.self_ty, self.assoc.get(&name)) {
                 self.depth += 1;
                 if self.depth <= MAX_NORMALIZE_DEPTH {
-                    let out = self.fold(ctx, value)?;
+                    let out = self.fold(ctx, value);
+                    self.depth -= 1; // nesting depth, not a running total: sibling order must not matter
+                    let out = out?;
                     if self.truncated == truncated_before {
                         self.memo.insert(input, out);
                     }
                     return Ok(out);
                 }
+                self.depth -= 1;
                 self.truncated += 1;
             }
         }
@@ -718,5 +721,18 @@ mod tests {
         let item = tcx.projection(this, Some("Tr"), "Item");
         let assoc = HashMap::from([("Item".to_string(), item)]);
         assert_eq!(normalize_in_impl(&mut tcx, item, "Tr", this, &assoc), item);
+    }
+
+    #[test]
+    fn impl_normalizer_budget_is_nesting_depth_not_a_running_total() {
+        let mut tcx = tcx();
+        let this = tcx.param(ParamIdx(0));
+        let i32_ = tcx.i32();
+        let names: Vec<String> = (0..40).map(|n| format!("A{n}")).collect();
+        let assoc: HashMap<String, TyId> = names.iter().map(|n| (n.clone(), i32_)).collect();
+        let params: Vec<TyId> = names.iter().map(|n| tcx.projection(this, Some("Tr"), n)).collect();
+        let sig = tcx.add(TyData::Func { params, ret: i32_, kind: crate::ty::ClosureKind::Fn });
+        let want = tcx.add(TyData::Func { params: vec![i32_; 40], ret: i32_, kind: crate::ty::ClosureKind::Fn });
+        assert_eq!(normalize_in_impl(&mut tcx, sig, "Tr", this, &assoc), want);
     }
 }
