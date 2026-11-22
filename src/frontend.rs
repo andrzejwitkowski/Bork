@@ -324,4 +324,25 @@ fun add(val a: Int, var b: Int): Int {
         // Through a named local the Ref still expires.
         assert_eq!(held("val r: Ref<Node> = Node(5)\n val q = P(r)\n p = move q").warnings.len(), 1);
     }
+
+    #[test]
+    fn warns_when_a_closure_capturing_a_ref_is_stored_in_an_outer_object() {
+        let held = |inner: &str| {
+            let src = format!(
+                "class Node {{ id: i32 }}\nclass H {{ f: () -> i32 }}\nfun main(): i32 {{\n val r0: Ref<Node> = Node(1)\n val r1: Ref<Node> = Node(2)\n var h = H(move (r0) {{ -> if val n = r0 {{ n.id }} else {{ 0 }} }})\n {{\n {inner}\n }}\n return 0\n}}\n"
+            );
+            check(&src)
+        };
+        let closure = "move (r) { -> if val n = r { n.id } else { 0 } }";
+        for assign in [format!("h = H({closure})"), format!("h.f = {closure}")] {
+            let result = held(&format!("val r: Ref<Node> = Node(5)\n {assign}"));
+            assert!(result.is_ok(), "{assign}: {:?}", result.diagnostics);
+            let messages: Vec<_> = result.warnings.iter().map(|d| d.message.as_str()).collect();
+            assert_eq!(messages.len(), 1, "{assign}: {messages:?}");
+            assert!(messages[0].contains("`r`") && messages[0].contains("`h`"), "{messages:?}");
+        }
+        let result = held("h = H(move (r1) { -> if val n = r1 { n.id } else { 0 } })");
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        assert!(result.warnings.is_empty());
+    }
 }

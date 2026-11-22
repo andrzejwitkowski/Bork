@@ -1,0 +1,16 @@
+// exit: 0
+// #308: a move closure capturing a Ref, stored in a field of an object assigned to an outer `var`,
+// holds a weak back-edge: `Node(5)` dies with the block, the Ref reads none. `bork` warns at `h = H(..)`.
+class Node { id: i32 }
+class H { f: () -> i32 }
+
+fun main(): i32 {
+    val r0: Ref<Node> = Node(1)
+    var h = H(move (r0) { -> if val n = r0 { n.id } else { 0 } })
+    {
+        val r: Ref<Node> = Node(5)
+        h = H(move (r) { -> if val n = r { n.id } else { 0 } })
+    }
+    val g = h.f
+    return g()
+}
