@@ -1,6 +1,6 @@
 // exit: 0
 // stdout: 3\n6\n
-fun twice(f: () -> i32): i32 {
+fun twice(f: FnMut() -> i32): i32 {
     f()
     return f()
 }

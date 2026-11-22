@@ -1,0 +1,8 @@
+// diag: function `Btn.on` expects 1 arguments, got 0
+class Btn {
+    on: (i32) -> i32
+}
+fun main(): i32 {
+    val b = Btn({ x -> x })
+    return b.on()
+}

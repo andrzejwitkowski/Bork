@@ -15,7 +15,6 @@ pub enum RegionSite {
     PresenceSome,
     PresenceNone,
     MatchArm,
-    Closure,
 }
 
 impl RegionSite {
@@ -31,7 +30,6 @@ impl RegionSite {
             RegionSite::PresenceNone => label == "IfValNone" || label == "WhenNone",
             // A `when` with `Some(x)` then `None` over an `Option` is checked as a `when` but ownership walks it as `if val`.
             RegionSite::MatchArm => matches!(label, "MatchArm" | "IfValSome" | "IfValNone"),
-            RegionSite::Closure => label.starts_with("Closure"),
         }
     }
 }

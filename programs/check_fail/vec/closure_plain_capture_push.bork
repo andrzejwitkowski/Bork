@@ -1,0 +1,7 @@
+// diag: cannot store a closure that borrows its captures in a `Vec`
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    val k = 3
+    v.push({ -> k })
+    return v.len()
+}

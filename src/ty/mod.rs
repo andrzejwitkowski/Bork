@@ -107,8 +107,7 @@ pub struct TyCtx {
     range_def: Option<DefId>,
     /// The kind and `move`-ness of each `TyData::Closure`, by its id.
     closure_kinds: Vec<(ClosureKind, bool)>,
-    /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by name.
-    // shortcut: matched by name, so a program's own trait called `Fn` would get the built-in rules; the prelude chunk is skipped then, so give it a prelude-origin check if that ever happens.
+    /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by origin, not name.
     fn_traits: [Option<DefId>; 3],
 }
 
@@ -123,7 +122,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closure_kinds: Vec::new(), fn_traits: ["Fn", "FnMut", "FnOnce"].map(|n| defs.lookup_trait(n)) };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closure_kinds: Vec::new(), fn_traits: defs.lookup_fn_traits() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));
@@ -138,7 +137,7 @@ impl TyCtx {
         self.add(TyData::Projection(self_ty, trait_name.map(str::to_string), name.to_string()))
     }
 
-    fn add(&mut self, data: TyData) -> TyId {
+    pub(crate) fn add(&mut self, data: TyData) -> TyId {
         if let Some(&id) = self.ids.get(&data) {
             return id;
         }

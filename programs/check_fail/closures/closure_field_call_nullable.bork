@@ -1,0 +1,8 @@
+// diag: field `on` is nullable; check it for presence before calling it
+class Btn {
+    on: (() -> i32)?
+}
+fun main(): i32 {
+    val b = Btn(None)
+    return b.on()
+}

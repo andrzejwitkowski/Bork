@@ -177,6 +177,7 @@ pub fn analyze_source(source: &str) -> Analysis {
     let mut diagnostics: Vec<LspDiagnostic> = result
         .diagnostics
         .iter()
+        .chain(&result.warnings)
         .map(|diagnostic| frontend_diagnostic_to_lsp(source, diagnostic))
         .collect();
     if let Some(hir) = &result.hir {

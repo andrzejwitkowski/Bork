@@ -1,0 +1,11 @@
+// diag: a closure that captures can only be pushed into a `Vec` as a closure literal
+fun fill(v: &rw Vec<() -> i32>) {
+    val n = 3
+    val f: () -> i32 = move (n) { -> n }
+    v.push(f)
+}
+fun main(): i32 {
+    var v = Vec::<() -> i32>()
+    fill(&rw v)
+    return v.len()
+}

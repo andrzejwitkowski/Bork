@@ -155,15 +155,11 @@ fn collect_expr(
         Expr::Call {
             callee,
             args,
-            trailing,
             ..
         } => {
             collect_expr(callee, free, bound);
             for a in args {
                 collect_expr(a, free, bound);
-            }
-            if let Some(c) = trailing {
-                collect_closure(c, free, bound);
             }
         }
         Expr::Closure(c) => collect_closure(c, free, bound),

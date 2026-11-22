@@ -166,7 +166,7 @@ impl TyCtx {
     }
 
     fn vec_elem_unsupported(&self, id: TyId) -> bool {
-        self.intrinsic_arg(id, self.vec_def).is_some_and(|elem| !self.is_unknown(elem) && !self.is_array_elem_supported(elem))
+        self.intrinsic_arg(id, self.vec_def).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
     }
 
     pub fn vec_def(&self) -> Option<DefId> {
@@ -286,6 +286,11 @@ impl TyCtx {
         self.is_trivially_copy(id) || self.is_managed_ref(id) || matches!(self.data(id), TyData::String)
     }
 
+    /// `Vec` elements: array elements, plus function values that can be called repeatedly (not `FnOnce`).
+    pub fn is_vec_elem_supported(&self, id: TyId) -> bool {
+        self.is_array_elem_supported(id) || matches!(self.data(id), TyData::Func { kind, .. } if *kind != ClosureKind::FnOnce)
+    }
+
     /// Whether `Ref<inner>` is a valid type (the parameter case is the caller's to exempt).
     pub fn managed_ref_target_ok(&self, inner: TyId) -> bool {
         !self.is_nullable(inner) && matches!(self.data(inner), TyData::Class(..) | TyData::Enum(..))
@@ -303,7 +308,7 @@ impl TyCtx {
 
     pub fn vec_elem_message(&self, elem: TyId) -> String {
         format!(
-            "`Vec` element must be a Copy type, a non-null `String` or a `Ref<T>`, got `{}`",
+            "`Vec` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `{}`",
             self.display(elem)
         )
     }

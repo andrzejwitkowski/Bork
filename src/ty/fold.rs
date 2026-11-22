@@ -84,33 +84,39 @@ pub fn super_fold<F: TypeFolder + ?Sized>(folder: &mut F, ctx: &mut TyCtx, id: T
     })
 }
 
-struct Replace<'a>(&'a std::collections::HashMap<TyId, TyId>);
+/// Types are interned DAGs (a shared capture type is reachable by several paths), so the pure folders remember
+/// what they already folded instead of visiting a shared node once per path.
+struct Replace<'a>(&'a std::collections::HashMap<TyId, TyId>, std::collections::HashMap<TyId, TyId>);
 
 impl TypeFolder for Replace<'_> {
     fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, NestedNullable> {
-        match self.0.get(&id) {
-            Some(&to) => Ok(to),
-            None => super_fold(self, ctx, id),
+        if let Some(&to) = self.0.get(&id).or_else(|| self.1.get(&id)) {
+            return Ok(to);
         }
+        let folded = super_fold(self, ctx, id)?;
+        self.1.insert(id, folded);
+        Ok(folded)
     }
 }
 
 /// `id` with each type in `map` replaced by its image.
 pub fn subst_with(ctx: &mut TyCtx, id: TyId, map: &std::collections::HashMap<TyId, TyId>) -> Result<TyId, NestedNullable> {
-    Replace(map).fold(ctx, id)
+    Replace(map, Default::default()).fold(ctx, id)
 }
 
-struct Subst<'a>(&'a [TyId]);
+struct Subst<'a>(&'a [TyId], std::collections::HashMap<TyId, TyId>);
 
 impl TypeFolder for Subst<'_> {
     fn fold(&mut self, ctx: &mut TyCtx, id: TyId) -> Result<TyId, NestedNullable> {
-        match ctx.data(id) {
-            TyData::Param(idx) => Ok(*self
-                .0
-                .get(idx.0 as usize)
-                .unwrap_or_else(|| panic!("no substitution for type parameter {}", idx.0))),
-            _ => super_fold(self, ctx, id),
+        if let TyData::Param(idx) = ctx.data(id) {
+            return Ok(*self.0.get(idx.0 as usize).unwrap_or_else(|| panic!("no substitution for type parameter {}", idx.0)));
         }
+        if let Some(&done) = self.1.get(&id) {
+            return Ok(done);
+        }
+        let folded = super_fold(self, ctx, id)?;
+        self.1.insert(id, folded);
+        Ok(folded)
     }
 }
 
@@ -118,7 +124,7 @@ impl TypeFolder for Subst<'_> {
 /// types, so nothing can be captured. `Err` when an instantiation would make `T??`.
 /// Panics if `id` mentions a parameter beyond `args` (a caller bug).
 pub fn subst(ctx: &mut TyCtx, id: TyId, args: &[TyId]) -> Result<TyId, NestedNullable> {
-    Subst(args).fold(ctx, id)
+    Subst(args, Default::default()).fold(ctx, id)
 }
 
 struct Normalize;

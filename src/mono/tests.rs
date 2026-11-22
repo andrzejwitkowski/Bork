@@ -311,7 +311,10 @@ fn a_trailing_closure_becomes_a_function_with_its_own_root() {
     // The call now passes it as a plain last argument.
     let main = &m.hir.functions[0];
     let found = format!("{:?}", main.body);
-    assert!(found.contains("MakeClosure") && !found.contains("trailing: Some"), "{found}");
+    assert!(!found.replace("MakeClosure", "").contains("Closure"), "{found}");
+    let value = main.body.stmts.iter().find_map(|s| match s { crate::hir::HirStmt::Return { value: Some(e) } => Some(e), _ => None }).expect("return");
+    let crate::hir::HirExprKind::Call { args, .. } = &value.kind else { panic!("{found}") };
+    assert!(matches!(args.last().map(|a| &a.kind), Some(crate::hir::HirExprKind::MakeClosure { .. })), "{found}");
 }
 
 #[test]
@@ -321,10 +324,90 @@ fn nested_closures_are_lifted_inner_first() {
 }
 
 #[test]
+fn nested_sibling_closures_each_lift_with_their_own_captures_and_region() {
+    let src = "fun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}\nfun main(): i32 {\n    val a = 1\n    val b = 2\n    val c = 3\n    return apply() { x -> apply({ y -> y + a }) + apply() { z -> z + b + x } } + c\n}\n";
+    let m = mono(src);
+    assert_eq!(function_names(&m), ["main", "apply", "main$closure0", "main$closure1", "main$closure2"]);
+    assert_eq!(m.report.roots.len(), m.hir.functions.len());
+    let params = |i: usize| m.hir.functions[i].params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>();
+    // Inner closures first, in source order, then the closure that contains them.
+    assert_eq!(params(2), ["a", "y"]);
+    assert_eq!(params(3), ["b", "x", "z"]);
+    assert_eq!(params(4).last(), Some(&"x"));
+    for (i, f) in m.hir.functions.iter().enumerate() {
+        assert_eq!(m.report.roots[i].label, format!("fun {}", f.name));
+    }
+}
+
+#[test]
 fn instances_whose_nested_closures_differ_only_in_captures_get_distinct_names() {
     let src = "class Node {\n    id: i32\n}\nclass Other {\n    id: i32\n}\nclass Holder<T> {\n    v: T\n}\nfun outer<T>(h: T): i32 {\n    return 1\n}\nfun make<T>(t: T): i32 {\n    return outer(Holder(move (t) { -> val u = t\n        1 }))\n}\nfun main(): i32 {\n    return make(Node(1)) + make(Other(2))\n}\n";
     let m = mono(src);
     let outers: Vec<_> = names(&m).into_iter().filter(|n| n.starts_with("outer<")).collect();
     assert_eq!(outers.len(), 2, "{outers:?}");
     assert_ne!(outers[0], outers[1], "{outers:?}");
+}
+
+/// Monomorphizes `src` after `edit` has changed its arena report.
+fn run_edited(src: &str, edit: impl FnOnce(&mut ArenaReport)) -> Result<Mono, Vec<Diagnostic>> {
+    let mut checked = check(src);
+    assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+    let hir = checked.hir.take().expect("clean check produces HIR");
+    let mut report = checked.report.take().expect("clean check produces a report");
+    edit(&mut report);
+    monomorphize(&hir, &mut checked.tcx, &report)
+}
+
+/// Calls `edit` on every closure region below `node`, children first, with its position.
+fn edit_closure_regions(node: &mut crate::sema::ArenaNode, seen: &mut usize, edit: &mut impl FnMut(usize, &mut crate::sema::ArenaNode)) {
+    for child in &mut node.children {
+        edit_closure_regions(child, seen, edit);
+        if child.closure.is_some() {
+            edit(*seen, child);
+            *seen += 1;
+        }
+    }
+}
+
+const SIBLINGS: &str = "fun apply(f: (i32) -> i32): i32 {\n    return f(1)\n}\nfun main(): i32 {\n    val a = 3\n    val b = 4\n    val x = apply({ n -> n + a })\n    val y = apply() { n -> n + b }\n    return x + y\n}\n";
+
+#[test]
+fn closure_regions_are_matched_by_id_not_by_label() {
+    let m = run_edited(SIBLINGS, |r| {
+        edit_closure_regions(&mut r.roots[1], &mut 0, &mut |i, region| region.label = format!("renamed {i}"));
+    })
+    .expect("labels do not matter");
+    assert_eq!(function_names(&m), ["main", "apply", "main$closure0", "main$closure1"]);
+    // Each lifted function keeps the region of its own closure, in source order.
+    let params = |f: &HirFunction| f.params.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
+    assert_eq!(params(&m.hir.functions[2]), ["a", "n"]);
+    assert_eq!(params(&m.hir.functions[3]), ["b", "n"]);
+}
+
+#[test]
+fn a_closure_region_with_a_missing_or_duplicated_id_is_an_internal_error() {
+    let missing = run_edited(SIBLINGS, |r| {
+        edit_closure_regions(&mut r.roots[1], &mut 0, &mut |i, region| if i == 0 { region.closure = None });
+    });
+    assert!(missing.is_err());
+    let duplicated = run_edited(SIBLINGS, |r| {
+        let mut first = None;
+        edit_closure_regions(&mut r.roots[1], &mut 0, &mut |i, region| if i == 0 { first = region.closure } else { region.closure = first });
+    });
+    assert!(duplicated.is_err());
+}
+
+#[test]
+fn a_closure_inside_a_generic_function_gets_its_own_region_per_instance() {
+    let src = "fun twice<T>(x: T): T {\n    val f = { -> x }\n    return f()\n}\nfun main(): i32 {\n    val a = twice(1)\n    val b = twice(1.5)\n    return a\n}\n";
+    let m = mono(src);
+    assert_eq!(m.report.roots.len(), m.hir.functions.len());
+    let lifted: Vec<_> = m.hir.functions.iter().filter(|f| f.name.contains("$closure")).collect();
+    assert_eq!(lifted.len(), 2, "{:?}", function_names(&m));
+    // Each instance's closure captures `x` at that instance's type, and has a region of its own.
+    assert_ne!(lifted[0].params[0].ty, lifted[1].params[0].ty);
+    for f in lifted {
+        let root = m.report.roots.iter().find(|r| r.label == format!("fun {}", f.name));
+        assert!(root.is_some(), "no region for {}", f.name);
+    }
 }

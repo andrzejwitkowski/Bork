@@ -37,6 +37,7 @@ impl RegionFrame {
                 bindings: Vec::new(),
                 observations: Vec::new(),
                 children: Vec::new(),
+                closure: None,
             },
         }
     }

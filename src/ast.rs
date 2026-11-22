@@ -126,6 +126,8 @@ pub struct Trait {
     pub methods: Vec<TraitMethod>,
     /// `type Item` declarations.
     pub assoc_types: Vec<crate::span::SpannedName>,
+    /// Set by `add_prelude` on traits it injects; a user declaration never has it.
+    pub prelude: bool,
 }
 
 /// One entry of a trait body, before the parser splits them into `methods` and `assoc_types`.
@@ -572,7 +574,6 @@ pub enum Expr {
         /// Explicit `f::<T>(..)` arguments; empty when omitted.
         type_args: Vec<Type>,
         args: Vec<Expr>,
-        trailing: Option<Closure>,
     },
     If {
         cond: Box<Expr>,
@@ -608,11 +609,13 @@ impl Expr {
 
     /// A call. `Some(e)` is not a keyword either: a plain one-argument call of the name `Some`.
     pub fn call(callee: Expr, type_args: Vec<Type>, mut args: Vec<Expr>, trailing: Option<Closure>, span: crate::span::Span) -> Expr {
+        // A trailing closure is just the last argument, so `Some() { .. }` reads like `Some({ .. })`.
+        args.extend(trailing.map(Expr::Closure));
         let is_some = matches!(&callee, Expr::Ident { name, .. } if name == "Some");
-        if is_some && type_args.is_empty() && args.len() == 1 && trailing.is_none() {
+        if is_some && type_args.is_empty() && args.len() == 1 {
             return Expr::Some { expr: Box::new(args.pop().expect("one argument")), span, id: crate::span::AstId::DUMMY };
         }
-        Expr::Call { callee: Box::new(callee), type_args, args, trailing }
+        Expr::Call { callee: Box::new(callee), type_args, args }
     }
 
     /// `expr?` on a `Result` (#274): `when expr { Ok(v) => { v } Err(e) => { return Result.Err(e) } }`.
@@ -758,6 +761,8 @@ pub struct Closure {
     pub is_move: bool,
     /// `None` = omitted list (infer free vars); `Some(vec![])` = explicit empty.
     pub captures: Option<Vec<crate::span::SpannedName>>,
+    /// Names this closure through typeck, HIR and the arena report; set by [`crate::ast_number::number_nodes`].
+    pub id: crate::span::AstId,
 }
 
 #[derive(Debug, Clone, PartialEq)]

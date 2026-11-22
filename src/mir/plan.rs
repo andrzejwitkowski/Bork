@@ -270,7 +270,8 @@ impl Pass<'_> {
     }
 
     fn vec_store(&mut self, args: &[Operand]) {
-        let pushes_ref = args.last().and_then(|a| self.operand_ty(a)).is_some_and(|t| self.tcx.is_managed_ref(t));
+        // A pushed closure holds the objects its `Ref` captures reach, so they outlive the pushing scope too.
+        let pushes_ref = args.last().and_then(|a| self.operand_ty(a)).is_some_and(|t| self.tcx.is_managed_ref(t) || self.tcx.is_callable(t));
         if pushes_ref {
             let all = args.iter().flat_map(|a| self.origins(a)).collect();
             self.st.mark_program(&all);

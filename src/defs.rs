@@ -81,6 +81,8 @@ pub struct DefTable {
     vec: Option<DefId>,
     /// The `intrinsic class Range<T>` of the prelude.
     range: Option<DefId>,
+    /// The prelude's `Fn`, `FnMut`, `FnOnce`, by origin; empty when the user's own trait suppressed the chunk.
+    fn_traits: [Option<DefId>; 3],
     variants: HashMap<(DefId, String), DefId>,
     fns: HashMap<String, DefId>,
     consts: HashMap<String, DefId>,
@@ -242,6 +244,11 @@ impl DefTable {
             if conflict {
                 self.defs[id.0 as usize].clashes.push(Clash::TraitConflict);
             } else {
+                if t.prelude {
+                    if let Some(slot) = ["Fn", "FnMut", "FnOnce"].iter().position(|n| n == name) {
+                        self.fn_traits[slot] = Some(id);
+                    }
+                }
                 self.traits.insert(name.clone(), id);
             }
             self.defs[id.0 as usize].arity = t.generics.len();
@@ -312,6 +319,10 @@ impl DefTable {
 
     pub fn lookup_vec(&self) -> Option<DefId> {
         self.vec
+    }
+
+    pub fn lookup_fn_traits(&self) -> [Option<DefId>; 3] {
+        self.fn_traits
     }
 
     pub fn lookup_range(&self) -> Option<DefId> {

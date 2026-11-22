@@ -1,0 +1,28 @@
+// exit: 11
+// stdout: hello world\n
+// WHAT THIS TESTS
+// #295: a plain `FnMut` closure that assigns a fresh `String` to a captured outer `var` allocates in the
+// variable's arena; heavy allocation churn after the call must not clobber the value.
+fun run(f: FnMut() -> i32): i32 {
+    return f()
+}
+
+fun churn(n: i32): i32 {
+    var t = 0
+    var i = 0
+    while (i < n) {
+        val junk = concat("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ", "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
+        t = t + junk.length
+        i = i + 1
+    }
+    return t
+}
+
+fun main(): i32 {
+    var s = "a"
+    val r = run({ -> s = concat("hello", " world")
+        0 })
+    val c = churn(2000)
+    println(s)
+    return s.length
+}

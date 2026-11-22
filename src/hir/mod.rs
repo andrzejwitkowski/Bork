@@ -3,9 +3,11 @@
 //! HIR carries no region identity. Arenas and nesting live in
 //! `sema::ArenaReport`; codegen should read region identity from there.
 
+mod children;
 mod number;
 mod resolve;
 mod ty;
+pub use children::ChildMut;
 pub use number::number_nodes;
 pub use resolve::{resolve_types, rewrite};
 pub use ty::Prim;
@@ -439,8 +441,6 @@ pub enum HirExprKind {
     Call {
         callee: Box<HirExpr>,
         args: Vec<HirExpr>,
-        /// The trailing closure, a `Closure` node typed as the function it is passed as.
-        trailing: Option<Box<HirExpr>>,
     },
     /// A closure value: the lifted function `function` (monomorphization, RFC 0007) plus the captured
     /// values, in the order of the function's leading parameters. Never produced by typeck.
@@ -452,6 +452,8 @@ pub enum HirExprKind {
     },
     /// A closure body kept from source (RFC 0007); monomorphization lifts it into a function.
     Closure {
+        /// The AST closure it was checked from; keys its region in the arena report.
+        id: crate::span::AstId,
         params: Vec<HirParam>,
         body: HirBlock,
         is_move: bool,
