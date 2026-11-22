@@ -1,3 +1,155 @@
+== closures/closure_field_ref_outer_block.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Node [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] r0
+  let _6: unit [Hidden(DynamicArena)]
+  let _7: Ref<Node> [Temp]
+  let _8: closure#0()->i32 [Temp]
+  let _9: H [Temp]
+  let _10: H [Var] h
+  let _11: unit [Hidden(DebugScope)]
+  let _12: unit [Hidden(DynamicArena)]
+  let _13: Node [Temp]
+  let _14: Ref<Node> [Temp]
+  let _15: Ref<Node> [Val] r
+  let _16: unit [Hidden(DynamicArena)]
+  let _17: Ref<Node> [Temp]
+  let _18: closure#1()->i32 [Temp]
+  let _19: H [Temp]
+  let _20: ()->i32 [Val] g
+  let _21: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 1  // label "Node.id": i32 decl owner=fresh2
+    _4 = ref_create source=current target=object_arena(_3) copy _3
+    _5 = move _4  // label "r0": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _6
+    _7 = ref_clone copy _5
+    _8 = closure main$closure0(move _7) in fresh6
+    _9 = alloc Object { class: "H" } in fresh6  // label "H": H
+    _9.0 = copy _8  // label "H.f": ()->i32 decl owner=fresh6
+    _10 = copy _9  // label "h": H decl
+    region_enter r1
+    storage_live _11
+    _12 = arena_create_dynamic parent=current scoped=true
+    register_strong_root current <- _12
+    _13 = alloc Object { class: "Node" } in fresh12  // label "Node": Node
+    _13.0 = 5  // label "Node.id": i32 decl owner=fresh12
+    _14 = ref_create source=current target=object_arena(_13) copy _13
+    _15 = move _14  // label "r": Ref<Node> decl
+    register_drop current _15 RefSlot
+    _16 = arena_create_dynamic parent=root scoped=false
+    register_strong_root home(_10) <- _16
+    _17 = ref_clone copy _15
+    _18 = closure main$closure1(move _17) in fresh16
+    _19 = alloc Object { class: "H" } in fresh16  // label "H": H
+    _19.0 = copy _18  // label "H.f": ()->i32 decl owner=fresh16
+    _10 = copy _19
+    storage_dead _11
+    region_exit r1
+    _20 = copy _10.0  // label "g": ()->i32 decl
+    _21 = call_closure copy _20() +current -> bb1
+  bb1:
+    _0 = copy _21
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] r0
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: unit [Temp]
+  let _6: &Node [Val]
+  let _7: bool [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 PresenceSome in r0
+  region r2 PresenceNone in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _4 = ref_clone copy _1
+    (_5, _6, _7) = observe copy _4
+    ref_drop move _4
+    switch copy _7 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    storage_live _9
+    _3 = 0
+    storage_dead _9
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _8
+    observation_register current _5
+    _3 = copy _6.0
+    storage_dead _8
+    region_exit r1
+    goto bb1
+}
+
+fn main$closure1 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Ref<Node> [Arg] r
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: unit [Temp]
+  let _6: &Node [Val]
+  let _7: bool [Temp]
+  let _8: unit [Hidden(DebugScope)]
+  let _9: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 PresenceSome in r0
+  region r2 PresenceNone in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _4 = ref_clone copy _1
+    (_5, _6, _7) = observe copy _4
+    ref_drop move _4
+    switch copy _7 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    storage_live _9
+    _3 = 0
+    storage_dead _9
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _8
+    observation_register current _5
+    _3 = copy _6.0
+    storage_dead _8
+    region_exit r1
+    goto bb1
+}
+
 == closures/closure_in_class_field.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

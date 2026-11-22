@@ -29,6 +29,7 @@ programs/build/classes/nullable_field_assign.bork: hits=3 hash=cf496e48c59ad0d1
 programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
+programs/build/closures/closure_field_ref_outer_block.bork: hits=17 hash=6bd06160009ee3f8
 programs/build/closures/closure_in_class_field.bork: hits=27 hash=245c13240e8a0950
 programs/build/closures/closure_in_class_field_generic_and_returned.bork: hits=20 hash=5fb54fcd17cd9131
 programs/build/closures/closure_in_val.bork: hits=18 hash=15c3b9715de884ed

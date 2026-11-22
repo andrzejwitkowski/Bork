@@ -223,6 +223,24 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── p [Local]
+== programs/build/closures/closure_field_ref_outer_block.bork
+Arenas
+└── fun main
+    ├── r0 [Local]
+    ├── h [Local]
+    ├── g [Local]
+    ├── Closure (move)
+    │   ├── r0 [Moved ← fun main]
+    │   ├── IfValSome
+    │   │   └── n [Borrow ← presence guard]
+    │   └── IfValNone
+    └── Block
+        ├── r [Local]
+        └── Closure (move)
+            ├── r [Moved ← Block]
+            ├── IfValSome
+            │   └── n [Borrow ← presence guard]
+            └── IfValNone
 == programs/build/closures/closure_in_class_field.bork
 Arenas
 ├── fun fire

@@ -42,6 +42,16 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                         held.entry(slot.local).or_default().insert(origin(&alias, v));
                     }
                 }
+                // A closure owns the `Ref`s it captures; storing it in a field makes the object hold them.
+                StmtKind::Assign(dst, Rvalue::Closure { captures, owned_refs, .. }) if dst.is_bare() => {
+                    let refs = captures.iter().zip(owned_refs).filter(|(_, owned)| **owned).filter_map(|(c, _)| bare(c));
+                    held.entry(dst.local).or_default().extend(refs.map(|r| origin(&alias, r)));
+                }
+                StmtKind::Assign(dst, Rvalue::Use(src)) if !dst.is_bare() => {
+                    if let Some(targets) = bare(src).and_then(|src| held.get(&src).cloned()) {
+                        held.entry(dst.local).or_default().extend(targets);
+                    }
+                }
                 StmtKind::Assign(dst, Rvalue::Use(src)) if dst.is_bare() => {
                     let Some(src) = bare(src) else { continue };
                     alias.insert(dst.local, src);
