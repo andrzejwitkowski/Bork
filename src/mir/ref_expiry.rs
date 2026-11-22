@@ -47,14 +47,12 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                     let refs = captures.iter().zip(owned_refs).filter(|(_, owned)| **owned).filter_map(|(c, _)| bare(c));
                     held.entry(dst.local).or_default().extend(refs.map(|r| origin(&alias, r)));
                 }
-                StmtKind::Assign(dst, Rvalue::Use(src)) if !dst.is_bare() => {
-                    if let Some(targets) = bare(src).and_then(|src| held.get(&src).cloned()) {
-                        held.entry(dst.local).or_default().extend(targets);
-                    }
-                }
-                StmtKind::Assign(dst, Rvalue::Use(src)) if dst.is_bare() => {
+                // `h = obj` and `h.f = obj` alike: the holder named `h` now stores the object's Refs.
+                StmtKind::Assign(dst, Rvalue::Use(src)) => {
                     let Some(src) = bare(src) else { continue };
-                    alias.insert(dst.local, src);
+                    if dst.is_bare() {
+                        alias.insert(dst.local, src);
+                    }
                     let Some(targets) = held.get(&src).cloned() else { continue };
                     let Some(owner) = body.local(dst.local) else { continue };
                     held.entry(dst.local).or_default().extend(targets.iter().copied());
