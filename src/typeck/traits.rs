@@ -633,6 +633,8 @@ struct ImplNormalizer<'a> {
     depth: u32,
     /// Expansions cut off at `MAX_NORMALIZE_DEPTH`; a result with a cut inside is not cached.
     truncated: u32,
+    /// Projections being expanded right now; meeting one again is a cycle, left unexpanded.
+    active: HashSet<TyId>,
     memo: HashMap<TyId, TyId>,
 }
 
@@ -647,8 +649,9 @@ impl crate::ty::TypeFolder for ImplNormalizer<'_> {
             let ours = trait_name.as_deref().is_none_or(|t| t == self.trait_name);
             if let (true, true, Some(&value)) = (ours, base == self.self_ty, self.assoc.get(&name)) {
                 self.depth += 1;
-                if self.depth <= MAX_NORMALIZE_DEPTH {
+                if self.depth <= MAX_NORMALIZE_DEPTH && self.active.insert(id) {
                     let out = self.fold(ctx, value);
+                    self.active.remove(&id);
                     self.depth -= 1; // nesting depth, not a running total: sibling order must not matter
                     let out = out?;
                     if self.truncated == truncated_before {
@@ -671,7 +674,7 @@ impl crate::ty::TypeFolder for ImplNormalizer<'_> {
 /// cycle stops at the depth limit and leaves a projection behind.
 fn normalize_in_impl(tcx: &mut TyCtx, ty: TyId, trait_name: &str, self_ty: TyId, assoc: &HashMap<String, TyId>) -> TyId {
     use crate::ty::TypeFolder;
-    ImplNormalizer { trait_name, self_ty, assoc, depth: 0, truncated: 0, memo: Default::default() }.fold(tcx, ty).unwrap_or(ty)
+    ImplNormalizer { trait_name, self_ty, assoc, depth: 0, truncated: 0, active: HashSet::new(), memo: Default::default() }.fold(tcx, ty).unwrap_or(ty)
 }
 
 #[cfg(test)]
@@ -734,5 +737,17 @@ mod tests {
         let sig = tcx.add(TyData::Func { params, ret: i32_, kind: crate::ty::ClosureKind::Fn });
         let want = tcx.add(TyData::Func { params: vec![i32_; 40], ret: i32_, kind: crate::ty::ClosureKind::Fn });
         assert_eq!(normalize_in_impl(&mut tcx, sig, "Tr", this, &assoc), want);
+    }
+
+    #[test]
+    fn impl_normalizer_stops_a_branching_cycle_without_blowing_up() {
+        let mut tcx = tcx();
+        let this = tcx.param(ParamIdx(0));
+        let item = tcx.projection(this, Some("Tr"), "Item");
+        let ret = tcx.i32();
+        let value = tcx.add(TyData::Func { params: vec![item, item], ret, kind: crate::ty::ClosureKind::Fn });
+        let assoc = HashMap::from([("Item".to_string(), value)]);
+        let out = normalize_in_impl(&mut tcx, item, "Tr", this, &assoc);
+        assert!(tcx.has_projection_of(out, this), "the cycle must stay visible to lower_assoc");
     }
 }
