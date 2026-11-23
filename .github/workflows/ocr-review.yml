@@ -44,7 +44,6 @@ jobs:
       statuses: write
     env:
       OCR_NO_UPDATE: '1'
-      NPM_CONFIG_PREFIX: ${{ runner.temp }}/ocr-${{ github.run_id }}-${{ github.run_attempt }}
       OCR_BACKGROUND: >-
         Bork is a compiler written in Rust with an unsafe arena/reference runtime.
         Review correctness across typeck, HIR, MIR, LLVM codegen and runtime boundaries.
@@ -114,8 +113,10 @@ jobs:
               exit 1
             fi
           done
-          mkdir -p "$NPM_CONFIG_PREFIX/bin"
-          echo "$NPM_CONFIG_PREFIX/bin" >> "$GITHUB_PATH"
+          ocr_prefix="$RUNNER_TEMP/ocr-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$ocr_prefix/bin"
+          echo "NPM_CONFIG_PREFIX=$ocr_prefix" >> "$GITHUB_ENV"
+          echo "$ocr_prefix/bin" >> "$GITHUB_PATH"
 
       - name: Review PR and publish comments
         if: steps.context.outputs.mode == 'pr'
