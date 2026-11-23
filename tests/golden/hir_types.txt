@@ -691,6 +691,15 @@ programs/build/traits/iterator_adapter_fn_return.bork::fold(it: T0, init: i32, f
 programs/build/traits/iterator_adapter_fn_return.bork::main() -> i32
 programs/build/traits/iterator_adapter_fn_return.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
 programs/build/traits/iterator_adapter_fn_return.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
+programs/build/traits/iterator_adapter_generic_helper.bork::countFirst(v: Vec<i32>, f: T0) -> i32
+programs/build/traits/iterator_adapter_generic_helper.bork::main() -> i32
+programs/build/traits/iterator_adapter_generic_helper.bork::iter(v: Vec<T0>) -> VecIter<T0>
+programs/build/traits/iterator_adapter_generic_helper.bork::map(it: T0, f: T1) -> Map<T0, T1>
+programs/build/traits/iterator_adapter_generic_helper.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
+programs/build/traits/iterator_adapter_generic_helper.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/build/traits/iterator_adapter_generic_helper.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
+programs/build/traits/iterator_adapter_generic_helper.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
+programs/build/traits/iterator_adapter_generic_helper.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
 programs/build/traits/iterator_for.bork::main() -> i32
 programs/build/traits/iterator_for.bork::Iterator@0.next(this: &Counter) -> i32?
 programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
