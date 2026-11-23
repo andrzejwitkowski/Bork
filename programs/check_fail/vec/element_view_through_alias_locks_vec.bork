@@ -1,0 +1,10 @@
+// diag: cannot call `push` on `v` while `e`, a view of one of its elements, is still in use
+// A view taken through a borrow of `v` locks `v` itself, exactly as `&v[0]` does.
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    val alias = &rw v
+    val e = &alias[0]
+    v.push("b")
+    return e.length
+}

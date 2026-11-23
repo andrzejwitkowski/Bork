@@ -131,11 +131,17 @@ fn check_with(body: &Body, general: bool) -> Vec<(Span, String)> {
             lock_conflicts(body, &s.kind, s.span, &st, after, &names, &mut found);
             match &s.kind {
                 StmtKind::VecOp { dst: Some(dst), op: op @ (VecOp::View | VecOp::ViewRw), receiver, .. } if dst.is_bare() => {
-                    let loans = receiver.place().filter(|p| p.is_bare()).map(|p| Loan { root: p.clone(), rw: *op == VecOp::ViewRw, elem: true });
-                    match loans {
-                        Some(l) => st.insert(dst.local, vec![l]),
-                        None => st.remove(&dst.local),
+                    // Through an alias (`val a = &rw v; &a[0]`) the Vec is the alias's own root.
+                    let rw = *op == VecOp::ViewRw;
+                    let roots: Vec<Place> = match receiver.place().filter(|p| p.is_bare()) {
+                        Some(p) => st.get(&p.local).map_or_else(|| vec![p.clone()], |ls| ls.iter().map(|l| l.root.clone()).collect()),
+                        None => Vec::new(),
                     };
+                    if roots.is_empty() {
+                        st.remove(&dst.local);
+                    } else {
+                        st.insert(dst.local, roots.into_iter().map(|root| Loan { root, rw, elem: true }).collect());
+                    }
                 }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();

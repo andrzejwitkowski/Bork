@@ -587,6 +587,7 @@ programs/check_fail/vec/element_view_cannot_be_returned.bork: hits=2 hash=49e5b4
 programs/check_fail/vec/element_view_of_ref.bork: hits=24 hash=03d6ea976ae3115c
 programs/check_fail/vec/element_view_of_scalar.bork: hits=8 hash=7022f3fd56e39036
 programs/check_fail/vec/element_view_of_val_as_rw.bork: hits=3 hash=1e1cff43f996da84
+programs/check_fail/vec/element_view_through_alias_locks_vec.bork: hits=24 hash=6af5e4913d3b650c
 programs/check_fail/vec/impl_trait.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/vec/nullable.bork: hits=1 hash=bb6180a2a25568ea
 programs/check_fail/vec/push_on_val.bork: hits=10 hash=667092e735ec2ae8

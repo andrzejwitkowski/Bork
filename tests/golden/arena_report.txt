@@ -7330,6 +7330,13 @@ Arenas
 └── fun main
     ├── v [Local]
     └── e [Local]
+== programs/check_fail/vec/element_view_through_alias_locks_vec.bork
+Ownership Error [286..292] cannot call `push` on `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── alias [Local]
+    └── e [Local]
 == programs/check_fail/vec/impl_trait.bork
 Type Error [107..115] `impl Show for Vec<i32>`: only classes and enums can implement a trait yet
 Arenas
