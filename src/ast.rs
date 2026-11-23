@@ -12,6 +12,13 @@ pub struct Program {
     pub impls: Vec<Impl>,
 }
 
+impl Program {
+    /// The classes with bodies and layout; the prelude's `intrinsic class`es (`Vec`, `Range`) are compiler-supplied.
+    pub fn user_classes(&self) -> impl Iterator<Item = &Class> {
+        self.classes.iter().filter(|class| !class.intrinsic)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Class {
     pub name: String,

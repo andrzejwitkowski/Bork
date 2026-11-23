@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::ast::{Function, Program, Type};
 use crate::diag::{Diagnostic, Phase, Severity};
+use crate::hir::VecOp;
 use crate::span::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,6 +71,26 @@ pub struct Def {
     span: Option<Span>,
 }
 
+/// A prelude `intrinsic class` the compiler knows by name: a class in name only (one type argument, no object layout).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LangItem {
+    Vec,
+    Range,
+}
+
+impl LangItem {
+    pub const ALL: [LangItem; 2] = [LangItem::Vec, LangItem::Range];
+    pub const COUNT: usize = Self::ALL.len();
+
+    fn from_name(name: &str) -> Option<LangItem> {
+        match name {
+            "Vec" => Some(LangItem::Vec),
+            "Range" => Some(LangItem::Range),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct DefTable {
     defs: Vec<Def>,
@@ -77,10 +98,10 @@ pub struct DefTable {
     enums: HashMap<String, DefId>,
     /// The enum that is `T?`: named `Option`, one parameter, `Some(value)` and a payload-free `None`.
     option: Option<DefId>,
-    /// The `intrinsic class Vec<T>` of the prelude: the type `Vec<T>` is an instance of it.
-    vec: Option<DefId>,
-    /// The `intrinsic class Range<T>` of the prelude.
-    range: Option<DefId>,
+    /// The prelude's `intrinsic class`es (`Vec`, `Range`), by `LangItem`.
+    lang: [Option<DefId>; LangItem::COUNT],
+    /// `Vec`'s prelude method for each `VecOp`, resolved once after `add_methods`.
+    vec_methods: [Option<DefId>; VecOp::ALL.len()],
     /// The prelude's `Fn`, `FnMut`, `FnOnce`, by origin; empty when the user's own trait suppressed the chunk.
     fn_traits: [Option<DefId>; 3],
     variants: HashMap<(DefId, String), DefId>,
@@ -126,6 +147,9 @@ impl DefTable {
         table.add_classes(program, &fn_names);
         table.add_enums(program, &fn_names);
         table.add_methods(program);
+        if let Some(vec) = table.lang_item(LangItem::Vec) {
+            table.vec_methods = VecOp::ALL.map(|op| table.lookup_method(vec, op.name()));
+        }
         table.add_traits(program, &fn_names);
         table.add_impls(program);
         table.add_constants(program);
@@ -163,12 +187,8 @@ impl DefTable {
                 clashes.push(Clash::ClassDuplicate);
             } else {
                 self.classes.insert(class.name.clone(), id);
-                if class.intrinsic {
-                    match class.name.as_str() {
-                        "Vec" => self.vec = Some(id),
-                        "Range" => self.range = Some(id),
-                        _ => {}
-                    }
+                if let (true, Some(item)) = (class.intrinsic, LangItem::from_name(&class.name)) {
+                    self.lang[item as usize] = Some(id);
                 }
             }
             if fn_names.contains(&class.name) {
@@ -317,16 +337,17 @@ impl DefTable {
         self.option
     }
 
-    pub fn lookup_vec(&self) -> Option<DefId> {
-        self.vec
+    /// The prelude `Vec` method implementing `op`; `None` when the program has no prelude `Vec`.
+    pub fn vec_method(&self, op: VecOp) -> Option<DefId> {
+        self.vec_methods[op as usize]
     }
 
     pub fn lookup_fn_traits(&self) -> [Option<DefId>; 3] {
         self.fn_traits
     }
 
-    pub fn lookup_range(&self) -> Option<DefId> {
-        self.range
+    pub fn lang_item(&self, item: LangItem) -> Option<DefId> {
+        self.lang[item as usize]
     }
 
     pub fn lookup_enum(&self, name: &str) -> Option<DefId> {
@@ -503,6 +524,23 @@ mod tests {
         let program = parse(source).expect("parses");
         let table = DefTable::build(&program);
         (program, table)
+    }
+
+    #[test]
+    fn lang_items_and_vec_methods_resolve_from_the_prelude() {
+        let source = "fun main() {\n var v = Vec::<i32>()\n}\n";
+        let mut program = parse(source).expect("parses");
+        crate::prelude::add_prelude(&mut program, source, 1_000_000);
+        let t = DefTable::build(&program);
+        assert!(t.lang_item(LangItem::Vec).is_some());
+        assert_eq!(t.lang_item(LangItem::Vec), t.lookup_class("Vec"));
+        assert_eq!(t.lang_item(LangItem::Range), t.lookup_class("Range"));
+        assert!(VecOp::ALL.iter().all(|&op| t.vec_method(op).is_some()));
+        // The tables are indexed by discriminant, so `ALL` must list the variants in order.
+        assert!(LangItem::ALL.iter().enumerate().all(|(i, &item)| item as usize == i));
+        assert!(VecOp::ALL.iter().enumerate().all(|(i, &op)| op as usize == i && VecOp::from_name(op.name()) == Some(op)));
+        let (_, plain) = table("fun main() {}");
+        assert_eq!(plain.lang_item(LangItem::Vec), None);
     }
 
     #[test]

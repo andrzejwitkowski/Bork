@@ -90,7 +90,7 @@ pub fn analyze_with_members(
         .iter()
         .map(|f| analyze_function(&mut az, f, None))
         .collect();
-    for class in program.classes.iter().filter(|c| !c.intrinsic) {
+    for class in program.user_classes() {
         for method in &class.methods {
             roots.push(analyze_function(&mut az, method, Some((&class.name, this_type(&class.name)))));
         }
