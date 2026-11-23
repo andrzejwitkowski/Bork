@@ -1,0 +1,13 @@
+// exit: 3
+// A promoted closure's captured String keeps its bytes (not just its length) after the inner arena ends.
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    {
+        var inner = Vec::<() -> i32>()
+        val s = "xyz"
+        inner.push(move (s) { -> if (s[0] == 120 && s[1] == 121 && s[2] == 122) { s.length } else { 0 } })
+        outer = promote inner
+    }
+    val f = outer.get(0)
+    return f()
+}

@@ -256,6 +256,7 @@ programs/build/vec/closure_elems_loop.bork: hits=27 hash=a69f98da37335ca6
 programs/build/vec/closure_elems_move.bork: hits=43 hash=689d8921b1767dc7
 programs/build/vec/closure_elems_promote.bork: hits=89 hash=f331af37a09dc975
 programs/build/vec/closure_elems_promote_ref_capture.bork: hits=58 hash=6c340ccff37fbd95
+programs/build/vec/closure_elems_promote_string_bytes.bork: hits=40 hash=8c75cc8d31bd20fe
 programs/build/vec/closure_elems_ref_capture.bork: hits=17 hash=f641abaace0eea84
 programs/build/vec/closure_elems_ref_capture_replace.bork: hits=38 hash=ea67aa24ec08f0bc
 programs/build/vec/closure_elems_set_pop_clear.bork: hits=86 hash=919d1fc6e5682f5e

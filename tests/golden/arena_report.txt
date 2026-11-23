@@ -3942,6 +3942,20 @@ Arenas
             ├── IfValSome
             │   └── n [Borrow ← presence guard]
             └── IfValNone
+== programs/build/vec/closure_elems_promote_string_bytes.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── s [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── s [Moved ← Block]
+            ├── IfThen
+            │   └── s [Shared ← Closure (move)]
+            └── IfElse
 == programs/build/vec/closure_elems_ref_capture.bork
 Arenas
 └── fun main
