@@ -18,6 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test strict review gate
+        run: python3 -m unittest discover -s scripts -p test_ocr_review.py -v
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
