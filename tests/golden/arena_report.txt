@@ -3895,6 +3895,53 @@ Arenas
         └── Closure (move)
             ├── k [Moved ← WhileLoop]
             └── s [Moved ← WhileLoop]
+== programs/build/vec/closure_elems_move.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── i [Local]
+    ├── f [Local]
+    └── WhileLoop
+        ├── inner [Moved ← WhileLoop]
+        ├── k [Local]
+        ├── i [Copy]
+        └── Closure (move)
+            └── k [Moved ← WhileLoop]
+== programs/build/vec/closure_elems_promote.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    └── Block
+        ├── inner [Local]
+        ├── k [Local]
+        ├── j [Local]
+        ├── s [Local]
+        ├── inner [Moved ← Block]
+        ├── Closure (move)
+        │   └── k [Moved ← Block]
+        ├── Closure (move)
+        │   ├── j [Moved ← Block]
+        │   └── s [Moved ← Block]
+        └── Closure
+== programs/build/vec/closure_elems_promote_ref_capture.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── rounds [Local]
+    ├── f [Local]
+    └── WhileLoop
+        ├── inner [Local]
+        ├── r [Local]
+        ├── rounds [Copy]
+        ├── inner [Moved ← WhileLoop]
+        └── Closure (move)
+            ├── r [Moved ← WhileLoop]
+            ├── IfValSome
+            │   └── n [Borrow ← presence guard]
+            └── IfValNone
 == programs/build/vec/closure_elems_ref_capture.bork
 Arenas
 └── fun main
@@ -4335,16 +4382,6 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── IfThen
-== programs/build_fail/vec_of_closures_promote.bork
-Arenas
-└── fun main
-    ├── outer [Local]
-    └── Block
-        ├── inner [Local]
-        ├── k [Local]
-        ├── inner [Moved ← Block]
-        └── Closure (move)
-            └── k [Moved ← Block]
 == programs/check/borrow/array_slice_length.bork
 Arenas
 └── fun main

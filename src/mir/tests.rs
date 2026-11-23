@@ -178,7 +178,7 @@ fn capability_ids_match_rfc_3_10() {
     let ids: Vec<_> = Capability::ALL.iter().map(|c| c.to_string()).collect();
     assert_eq!(
         ids,
-        ["match-ref", "pat-presence", "move-escapes-arena", "borrowed-store-escapes", "field-access", "safe-field-enum", "indirect-call", "unit-elem", "unit-payload-bind", "object-equality", "unit-param", "unit-field", "main-signature", "vec-of-closures-copy"]
+        ["match-ref", "pat-presence", "move-escapes-arena", "borrowed-store-escapes", "field-access", "safe-field-enum", "indirect-call", "unit-elem", "unit-payload-bind", "object-equality", "unit-param", "unit-field", "main-signature"]
     );
 }
 

@@ -1,0 +1,19 @@
+// exit: 14
+// A Vec of move closures promoted into an outer arena keeps working after the inner arena ends.
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    {
+        var inner = Vec::<() -> i32>()
+        val k = 3
+        val j = 2
+        val s = "abc"
+        inner.push(move (k) { -> k })
+        inner.push(move (j, s) { -> j + s.length })
+        inner.push({ -> 3 })
+        outer = promote inner
+    }
+    val a = outer.get(0)
+    val b = outer.get(1)
+    val c = outer.get(2)
+    return a() + b() + c() + outer.len()
+}

@@ -652,6 +652,9 @@ programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
 programs/build/vec/closure_elems_grow.bork::main() -> i32
 programs/build/vec/closure_elems_inner_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_loop.bork::main() -> i32
+programs/build/vec/closure_elems_move.bork::main() -> i32
+programs/build/vec/closure_elems_promote.bork::main() -> i32
+programs/build/vec/closure_elems_promote_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_ref_capture_replace.bork::main() -> i32
 programs/build/vec/closure_elems_set_pop_clear.bork::main() -> i32

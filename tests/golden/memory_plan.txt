@@ -874,6 +874,7 @@ programs/build/traits/iterator_for.bork: 177..181 Option<i32> Lexical LexicalSco
 programs/build/traits/iterator_for.bork: 235..247 Option<i32> Lexical LexicalScope(7)
 programs/build/traits/iterator_for.bork: 286..293 Counter Dynamic Program
 programs/build/vec/closure_elems_inner_ref_capture.bork: 311..315 Node Dynamic Program
+programs/build/vec/closure_elems_promote_ref_capture.bork: 314..318 Node Dynamic Program
 programs/build/vec/closure_elems_ref_capture.bork: 187..191 Node Dynamic Program
 programs/build/vec/closure_elems_ref_capture_replace.bork: 197..201 Node Dynamic Program
 programs/build/vec/closure_elems_ref_capture_replace.bork: 228..232 Node Dynamic Program
