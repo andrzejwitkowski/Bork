@@ -30,10 +30,12 @@ programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
 programs/build/closures/capture_unit_option.bork: hits=4 hash=f61f40fb71833f2b
+programs/build/closures/closure_field_bounded_param_in_impl.bork: hits=13 hash=a354780ab19b68d8
 programs/build/closures/closure_field_ref_outer_block.bork: hits=17 hash=6bd06160009ee3f8
 programs/build/closures/closure_in_class_field.bork: hits=27 hash=245c13240e8a0950
 programs/build/closures/closure_in_class_field_generic_and_returned.bork: hits=20 hash=5fb54fcd17cd9131
 programs/build/closures/closure_in_val.bork: hits=18 hash=15c3b9715de884ed
+programs/build/closures/closure_param_from_earlier_projection.bork: hits=49 hash=a5fb62f48133b40b
 programs/build/closures/doc_example.bork: hits=26 hash=a5ff3ad279ff8204
 programs/build/closures/fnmut_assigns_fresh_string.bork: hits=41 hash=d0b9ba70aa0cae5e
 programs/build/closures/fnmut_assigns_fresh_string_churn.bork: hits=45 hash=984b3bd2e316f9ce
@@ -123,7 +125,11 @@ programs/build/generics/list_node.bork: hits=183 hash=84200d48feaacbec
 programs/build/generics/pair.bork: hits=73 hash=06514e8abdb60be3
 programs/build/generics/promote_class_object.bork: hits=10 hash=e11a2ae59cd4477d
 programs/build/generics/ref_cleanup.bork: hits=21 hash=dcd51565feff87dc
+programs/build/generics/ref_local_wrapped_in_option.bork: hits=14 hash=85a537e203d78e47
 programs/build/generics/tree_regions.bork: hits=439 hash=6f2c86b03899d4b9
+programs/build/iter/vec_chain.bork: hits=131 hash=e88d13ab1d4a6654
+programs/build/iter/vec_ref_elems.bork: hits=65 hash=5f52bc0b91192d81
+programs/build/iter/vec_string_elems.bork: hits=25 hash=d8b0628c2f2e1d76
 programs/build/loops/for_nested.bork: hits=17 hash=88627a0b66c3c541
 programs/build/loops/for_sum.bork: hits=17 hash=8cd0d14cac15ce74
 programs/build/loops/while_accumulate.bork: hits=12 hash=59464f89826f5e7e
@@ -249,6 +255,7 @@ programs/build/traits/display_impl.bork: hits=20 hash=8af5b1da0b082e71
 programs/build/traits/eq_bound.bork: hits=32 hash=ec5de37db466a793
 programs/build/traits/eq_ord_generic.bork: hits=72 hash=ba68fcc71fd090f6
 programs/build/traits/eq_ord_operators.bork: hits=95 hash=dbb64698417248b5
+programs/build/traits/iterator_adapter_fn_return.bork: hits=95 hash=6670f8983e3ce7d8
 programs/build/traits/iterator_for.bork: hits=35 hash=a654cb71d2eda2bb
 programs/build/vec/assign_concat_through_borrowed_vec.bork: hits=52 hash=aa10f6b2f6b38459
 programs/build/vec/closure_elems_grow.bork: hits=41 hash=0982321e4f604731
@@ -332,6 +339,7 @@ programs/check/inference/fixed_through_assignment.bork: hits=8 hash=863a08d69662
 programs/check/inference/literal_fixed_by_use.bork: hits=8 hash=027909b1f0fb4b3e
 programs/check/inference/return_value_fixes_literal.bork: hits=6 hash=dc29da4fba7a7480
 programs/check/inference/two_literals_share_type.bork: hits=8 hash=253de0997bc3de2a
+programs/check/loops/fold_over_projection.bork: hits=25 hash=2bf6dce2fccae3d4
 programs/check/loops/for_iterator.bork: hits=61 hash=caf1af8cdcd103de
 programs/check/loops/for_sum.bork: hits=17 hash=c2d57bc83a3ab548
 programs/check/loops/while_break_continue.bork: hits=4 hash=db99b682a48e983e
@@ -475,6 +483,8 @@ programs/check_fail/inference/literal_conflicting_uses.bork: hits=5 hash=7f8de47
 programs/check_fail/inference/literal_vs_return_type.bork: hits=7 hash=26c492d6c5524493
 programs/check_fail/inference/none_without_annotation.bork: hits=1 hash=cd4e4748d3484768
 programs/check_fail/inference/u8_then_f32.bork: hits=7 hash=333e2743dbfa43c0
+programs/check_fail/iter/vec_used_after_iter.bork: hits=19 hash=366ce5bd50c6220d
+programs/check_fail/iter/wrong_closure_type.bork: hits=9 hash=ddf418bdcf302ce3
 programs/check_fail/loops/break_outside_loop.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/loops/for_inherent_next.bork: hits=5 hash=a783593e153ecda5
 programs/check_fail/loops/for_not_iterator.bork: hits=3 hash=8f45a4e83c20390c

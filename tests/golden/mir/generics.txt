@@ -728,6 +728,68 @@ fn main (parent=false, sink=false) {
     return
 }
 
+== generics/ref_local_wrapped_in_option.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<Ref<Node>> [Temp]
+  let _3: Vec<Ref<Node>> [Var] v
+  let _4: &Vec<Ref<Node>> [Temp]
+  let _5: unit [Hidden(DynamicArena)]
+  let _6: Node [Temp]
+  let _7: Ref<Node> [Temp]
+  let _8: &Vec<Ref<Node>> [Temp]
+  let _9: Option<Ref<Node>> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    register_drop current _2 Vec(TyId(22))
+    _3 = copy _2  // label "v": Vec<Ref<Node>> decl
+    _4 = borrow _3
+    _5 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _5
+    _6 = alloc Object { class: "Node" } in fresh5  // label "Node": Node
+    _6.0 = 1  // label "Node.n": i32 decl owner=fresh5
+    _7 = ref_create source=current target=object_arena(_6) copy _6
+    vec_Push(copy _4, move _7)
+    _8 = borrow _3
+    _9 = call first<Ref<Node>>(copy _8) +current +current -> bb1
+  bb1:
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn first<Ref<Node>> (parent=true, sink=true) {
+  let _0: Option<Ref<Node>> [Return]
+  let _1: &Vec<Ref<Node>> [Arg] v
+  let _2: unit [Hidden(DebugScope)]
+  let _3: &Vec<Ref<Node>> [Temp]
+  let _4: Ref<Node> [Temp]
+  let _5: Ref<Node> [Val] x
+  let _6: Ref<Node> [Temp]
+  let _7: Option<Ref<Node>> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = borrow _1
+    _4 = vec_Get(copy _3, 0)
+    _5 = move _4  // label "x": Ref<Node> decl
+    register_drop current _5 RefSlot
+    _6 = ref_clone copy _5
+    _7 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    ref_store_fresh _7@0.0 owner=result_sink move _6  // label "Option<Ref<Node>>.Some.value": Ref<Node> decl owner=result_sink
+    register_drop result_sink _7 Enum("Option<Ref<Node>>")
+    _0 = copy _7
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == generics/tree_regions.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

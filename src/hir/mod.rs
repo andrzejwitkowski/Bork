@@ -117,6 +117,8 @@ pub struct HirImpl {
     pub methods: Vec<(String, String)>,
     /// `type Item = X`, for normalizing projections of the impl's self type.
     pub assoc: Vec<(String, TyId)>,
+    /// `F: Fn(..) -> R` bounds as (`F`, `R`): a callable `F` fixes impl parameters only `R` mentions.
+    pub callable_rets: Vec<(TyId, TyId)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -167,6 +169,8 @@ pub struct HirFunction {
     /// How a lifted closure reaches its captures.
     pub env_mode: CaptureMode,
     pub return_ty: TyId,
+    /// `F: Fn(..) -> R` bounds as (`F`, `R`), as in `HirImpl`.
+    pub callable_rets: Vec<(TyId, TyId)>,
     pub body: HirBlock,
 }
 

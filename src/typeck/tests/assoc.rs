@@ -131,3 +131,11 @@ fn a_trait_method_projection_no_bound_declares_is_reported() {
     has(&format!("{other}trait B {{\n    fun f(): Self::Item\n}}\nfun main() {{}}\n"), "no bound on");
     has(&format!("{other}trait B {{\n    fun f<U>(u: U): U::Item\n}}\nfun main() {{}}\n"), "no bound on");
 }
+
+#[test]
+fn a_projection_in_an_fn_bounds_arguments_equals_the_one_next_returns() {
+    // `x` comes from `next()` (`Self::Item` with `Self = I`); the bound writes `I::Item` (#322).
+    clean(
+        "fun apply<I: Iterator, F: Fn(I::Item) -> i32>(it: I, f: F): i32 {\n    for (x in it) { return f(x) }\n    return 0\n}\nfun main() {}\n",
+    );
+}

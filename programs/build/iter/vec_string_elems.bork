@@ -1,0 +1,11 @@
+// exit: 0
+// stdout: 5\n
+// WHAT THIS TESTS
+// `map` over a Vec<String> to its lengths, folded with a closure.
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("ab")
+    v.push("cde")
+    println(fold(map(iter(move v), { s -> s.length }), 0, { a, n -> a + n }))
+    return 0
+}

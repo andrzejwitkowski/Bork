@@ -1,0 +1,31 @@
+// exit: 0
+// stdout: 18\n7\n10\n
+// WHAT THIS TESTS
+// The prelude's lazy chain over a Vec (#278): `iter` + `map` + `filter` + `fold`, a `for` over a chain, a closure
+// that captures an outer variable.
+fun main(): i32 {
+    var v = Vec::<i32>()
+    v.push(1)
+    v.push(2)
+    v.push(3)
+    v.push(4)
+    var w = Vec::<i32>()
+    w.push(1)
+    w.push(2)
+    w.push(3)
+    w.push(4)
+    var u = Vec::<i32>()
+    u.push(1)
+    u.push(2)
+    u.push(3)
+    u.push(4)
+    println(fold(filter(map(iter(move v), { x -> x * 2 }), { x -> x > 2 }), 0, { a, x -> a + x }))
+    var count = 0
+    for (x in filter(iter(move w), { x -> x > 2 })) {
+        count = count + x
+    }
+    println(count)
+    val base = 4
+    println(fold(iter(move u), base, { a, x -> a + x }) - base)
+    return 0
+}

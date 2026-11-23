@@ -1,0 +1,9 @@
+// diag: after move
+// WHAT THIS TESTS
+// `iter` takes the Vec by value, so it cannot be used afterwards.
+fun main() {
+    var v = Vec::<i32>()
+    v.push(1)
+    val it = iter(move v)
+    println(v.len())
+}

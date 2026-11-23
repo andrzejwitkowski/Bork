@@ -1,0 +1,8 @@
+// diag: same numeric type
+// WHAT THIS TESTS
+// The closure of `map` is checked against the Vec's element type.
+fun main() {
+    var v = Vec::<i32>()
+    v.push(1)
+    val m = map(iter(move v), { x -> x + "a" })
+}

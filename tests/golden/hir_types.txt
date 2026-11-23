@@ -53,6 +53,8 @@ programs/build/classes/string_field.bork::main() -> i32
 programs/build/classes/walkthrough_point.bork::sum(p: &Point) -> i32
 programs/build/classes/walkthrough_point.bork::main() -> i32
 programs/build/closures/capture_unit_option.bork::main() -> i32
+programs/build/closures/closure_field_bounded_param_in_impl.bork::main() -> i32
+programs/build/closures/closure_field_bounded_param_in_impl.bork::Runner@0.run(this: &Holder<T0>, x: i32) -> i32
 programs/build/closures/closure_field_ref_outer_block.bork::main() -> i32
 programs/build/closures/closure_in_class_field.bork::fire(b: &Btn) -> i32
 programs/build/closures/closure_in_class_field.bork::main() -> i32
@@ -60,6 +62,9 @@ programs/build/closures/closure_in_class_field_generic_and_returned.bork::makeNu
 programs/build/closures/closure_in_class_field_generic_and_returned.bork::makeText() -> Btn
 programs/build/closures/closure_in_class_field_generic_and_returned.bork::main() -> i32
 programs/build/closures/closure_in_val.bork::main() -> i32
+programs/build/closures/closure_param_from_earlier_projection.bork::sum(it: T0, f: T1) -> i32
+programs/build/closures/closure_param_from_earlier_projection.bork::main() -> i32
+programs/build/closures/closure_param_from_earlier_projection.bork::Iterator@0.next(this: &Counter) -> i32?
 programs/build/closures/doc_example.bork::apply(v: i32, f: T0) -> i32
 programs/build/closures/doc_example.bork::main() -> i32
 programs/build/closures/fnmut_assigns_fresh_string.bork::run(f: T0) -> i32
@@ -279,7 +284,33 @@ programs/build/generics/pair.bork::Pair.first(this: &Pair<T0, T1>) -> T0
 programs/build/generics/pair.bork::Pair.with(this: &Pair<T0, T1>, c: T2) -> T2
 programs/build/generics/promote_class_object.bork::main() -> unit
 programs/build/generics/ref_cleanup.bork::main() -> i32
+programs/build/generics/ref_local_wrapped_in_option.bork::first(v: &Vec<T0>) -> T0?
+programs/build/generics/ref_local_wrapped_in_option.bork::main() -> i32
 programs/build/generics/tree_regions.bork::main() -> i32
+programs/build/iter/vec_chain.bork::main() -> i32
+programs/build/iter/vec_chain.bork::iter(v: Vec<T0>) -> VecIter<T0>
+programs/build/iter/vec_chain.bork::map(it: T0, f: T1) -> Map<T0, T1>
+programs/build/iter/vec_chain.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
+programs/build/iter/vec_chain.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/build/iter/vec_chain.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
+programs/build/iter/vec_chain.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
+programs/build/iter/vec_chain.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
+programs/build/iter/vec_ref_elems.bork::main() -> i32
+programs/build/iter/vec_ref_elems.bork::iter(v: Vec<T0>) -> VecIter<T0>
+programs/build/iter/vec_ref_elems.bork::map(it: T0, f: T1) -> Map<T0, T1>
+programs/build/iter/vec_ref_elems.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
+programs/build/iter/vec_ref_elems.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/build/iter/vec_ref_elems.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
+programs/build/iter/vec_ref_elems.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
+programs/build/iter/vec_ref_elems.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
+programs/build/iter/vec_string_elems.bork::main() -> i32
+programs/build/iter/vec_string_elems.bork::iter(v: Vec<T0>) -> VecIter<T0>
+programs/build/iter/vec_string_elems.bork::map(it: T0, f: T1) -> Map<T0, T1>
+programs/build/iter/vec_string_elems.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
+programs/build/iter/vec_string_elems.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/build/iter/vec_string_elems.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
+programs/build/iter/vec_string_elems.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
+programs/build/iter/vec_string_elems.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
 programs/build/loops/for_nested.bork::main() -> i32
 programs/build/loops/for_sum.bork::main() -> i32
 programs/build/loops/while_accumulate.bork::main() -> i32
@@ -645,6 +676,10 @@ programs/build/traits/eq_ord_operators.bork::main() -> i32
 programs/build/traits/eq_ord_operators.bork::Eq@0.eq(this: &P, other: &P) -> bool
 programs/build/traits/eq_ord_operators.bork::Ord@1.cmp(this: &P, other: &P) -> i32
 programs/build/traits/eq_ord_operators.bork::Eq@2.eq(this: &E, other: &E) -> bool
+programs/build/traits/iterator_adapter_fn_return.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/build/traits/iterator_adapter_fn_return.bork::main() -> i32
+programs/build/traits/iterator_adapter_fn_return.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
+programs/build/traits/iterator_adapter_fn_return.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
 programs/build/traits/iterator_for.bork::main() -> i32
 programs/build/traits/iterator_for.bork::Iterator@0.next(this: &Counter) -> i32?
 programs/build/vec/assign_concat_through_borrowed_vec.bork::clobber() -> i32
@@ -773,6 +808,8 @@ programs/check/inference/two_literals_share_type.bork::takes_f32(a: f32) -> unit
 programs/check/inference/two_literals_share_type.bork::takes_f64(a: f64) -> unit
 programs/check/inference/two_literals_share_type.bork::ret_u8() -> u8
 programs/check/inference/two_literals_share_type.bork::main() -> unit
+programs/check/loops/fold_over_projection.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/check/loops/fold_over_projection.bork::main() -> unit
 programs/check/loops/for_iterator.bork::make() -> Counter
 programs/check/loops/for_iterator.bork::main() -> unit
 programs/check/loops/for_iterator.bork::Iterator@0.next(this: &Counter) -> i32?

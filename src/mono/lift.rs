@@ -96,6 +96,7 @@ fn lift_one(outer_span: crate::span::Span, outer_source: Option<&'static str>, n
         },
         params: capture_params.chain(params).collect(),
         return_ty: ret,
+        callable_rets: Vec::new(),
         body,
     };
     let use_kind = |ty| if is_move && tcx.is_move_only(ty) { UseKind::Move } else { UseKind::Local };
