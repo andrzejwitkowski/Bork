@@ -379,7 +379,8 @@ pub fn derive_memory_plan(bodies: &[Body], tcx: &TyCtx) -> MemoryPlan {
             a.lifetime_domain = LifetimeDomain::Program;
         }
     }
-    allocations.sort_by_key(|a| a.allocation_site.start);
+    // `sites` is a hash map: instances of one generic function share a span, so break the tie by name.
+    allocations.sort_by(|a, b| (a.allocation_site.start, &a.class_name).cmp(&(b.allocation_site.start, &b.class_name)));
     MemoryPlan { allocations }
 }
 

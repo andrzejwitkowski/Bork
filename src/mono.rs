@@ -113,13 +113,20 @@ fn too_big(tcx: &TyCtx, args: &[TyId]) -> bool {
 
 /// Impl parameters only a `F: Fn(..) -> R` bound's `R` mentions, read off the callable `F` was bound to.
 fn bind_callable_rets(tcx: &TyCtx, rets: &[(TyId, TyId)], out: &mut [Option<TyId>]) -> bool {
-    rets.iter().all(|&(callable, ret)| {
-        let TyData::Param(idx) = tcx.data(callable) else { return true };
-        match out.get(idx.0 as usize).copied().flatten().and_then(|c| tcx.func_sig(c)) {
-            Some((_, actual)) => bind(tcx, ret, actual, out),
-            None => true,
+    // A callable bound by an earlier entry's return type is only known on a later pass, so repeat until nothing new binds.
+    loop {
+        let before = out.iter().flatten().count();
+        let matched = rets.iter().all(|&(callable, ret)| {
+            let TyData::Param(idx) = tcx.data(callable) else { return true };
+            match out.get(idx.0 as usize).copied().flatten().and_then(|c| tcx.func_sig(c)) {
+                Some((_, actual)) => bind(tcx, ret, actual, out),
+                None => true,
+            }
+        });
+        if !matched || out.iter().flatten().count() == before {
+            return matched;
         }
-    })
+    }
 }
 
 /// One-way match of the generic `pattern` against the concrete `actual`, binding `Param(i)` to

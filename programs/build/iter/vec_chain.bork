@@ -1,5 +1,5 @@
 // exit: 0
-// stdout: 18\n7\n10\n
+// stdout: 18\n7\n26\n
 // WHAT THIS TESTS
 // The prelude's lazy chain over a Vec (#278): `iter` + `map` + `filter` + `fold`, a `for` over a chain, a closure
 // that captures an outer variable.
@@ -26,6 +26,6 @@ fun main(): i32 {
     }
     println(count)
     val base = 4
-    println(fold(iter(move u), base, { a, x -> a + x }) - base)
+    println(fold(iter(move u), 0, { a, x -> a + x + base }))
     return 0
 }

@@ -1737,7 +1737,8 @@ Arenas
 │   │       └── MatchArm
 │   └── Closure
 │       ├── a [Local]
-│       └── x [Local]
+│       ├── x [Local]
+│       └── base [Copy]
 ├── fun iter
 │   └── v [Moved ← fun iter]
 ├── fun map

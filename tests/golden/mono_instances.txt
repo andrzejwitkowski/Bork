@@ -117,7 +117,7 @@ fun filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>
 fun fold<Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>,closure#2(i32,i32)->i32>
 fun filter<VecIter<i32>,closure#3(i32)->bool>
 fun Iterator@2.next<VecIter<i32>,closure#3(i32)->bool>
-fun fold<VecIter<i32>,closure#4(i32,i32)->i32>
+fun fold<VecIter<i32>,closure#4(i32,i32)->i32[i32]>
 fun Iterator@2.next<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>
 fun Iterator@0.next<i32>
 fun Iterator@1.next<VecIter<i32>,closure#0(i32)->i32,i32>

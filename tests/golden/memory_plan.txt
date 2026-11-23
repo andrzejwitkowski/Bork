@@ -367,8 +367,8 @@ programs/build/iter/vec_chain.bork: 1384..1388 Option<i32> Lexical LexicalScope(
 programs/build/iter/vec_chain.bork: 1384..1388 Option<i32> Lexical LexicalScope(27)
 programs/build/iter/vec_chain.bork: 1430..1434 Option<i32> Lexical LexicalScope(23)
 programs/build/iter/vec_chain.bork: 1430..1434 Option<i32> Lexical LexicalScope(23)
-programs/build/iter/vec_chain.bork: 1531..1537 Filter<VecIter<i32>,closure#3(i32)->bool> Lexical LexicalScope(12)
 programs/build/iter/vec_chain.bork: 1531..1537 Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool> Lexical LexicalScope(12)
+programs/build/iter/vec_chain.bork: 1531..1537 Filter<VecIter<i32>,closure#3(i32)->bool> Lexical LexicalScope(12)
 programs/build/iter/vec_ref_elems.bork: 314..318 Node Dynamic Program
 programs/build/iter/vec_ref_elems.bork: 334..338 Node Dynamic Program
 programs/build/iter/vec_ref_elems.bork: 501..505 Option<Ref<Node>> Lexical LexicalScope(19)
