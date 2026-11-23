@@ -380,10 +380,15 @@ impl<'ctx> Codegen<'ctx> {
         let record = self.enum_layout(&name).expect("laid out with its enum").variants[some_tag as usize];
         let object = self.builder.build_extract_value(value, 1, "object.ptr")?.into_pointer_value();
         let slot = self.builder.build_struct_gep(record, object, 1, "opt.val.ptr")?;
-        let payload_llvm = self.basic_type(payload_ty).ok_or_else(|| not_yet_supported("nullable payload", None))?;
-        let payload = self.builder.build_load(payload_llvm, slot, "opt.val")?;
-        let payload = self.copy_value_into(llvm_fn, arena, payload_ty, payload)?;
-        let some = self.option_slot(arena, &name, some_tag, Some(payload))?;
+        // A `()?` payload has no LLVM type and no bytes: `Some` is just the tag.
+        let payload = match self.basic_type(payload_ty) {
+            Some(payload_llvm) => {
+                let payload = self.builder.build_load(payload_llvm, slot, "opt.val")?;
+                Some(self.copy_value_into(llvm_fn, arena, payload_ty, payload)?)
+            }
+            None => None,
+        };
+        let some = self.option_slot(arena, &name, some_tag, payload)?;
         let some_end = self.builder.get_insert_block().expect("positioned");
         self.builder.build_unconditional_branch(end_bb)?;
 

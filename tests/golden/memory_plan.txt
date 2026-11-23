@@ -9,6 +9,7 @@ programs/build/classes/nullable_field_assign.bork: 84..91 Option<i32> Lexical Le
 programs/build/classes/safe_ref_field.bork: 92..97 Point Dynamic LexicalScope(0)
 programs/build/classes/string_field.bork: 65..70 Label Lexical LexicalScope(0)
 programs/build/classes/walkthrough_point.bork: 147..152 Point Dynamic Program
+programs/build/closures/capture_unit_option.bork: 149..153 Option<unit> Lexical LexicalScope(0)
 programs/build/closures/closure_field_ref_outer_block.bork: 309..313 Node Dynamic LexicalScope(0)
 programs/build/closures/closure_field_ref_outer_block.bork: 329..330 H Dynamic Program
 programs/build/closures/closure_field_ref_outer_block.bork: 416..420 Node Dynamic LexicalScope(4)

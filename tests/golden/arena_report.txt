@@ -223,6 +223,15 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── p [Local]
+== programs/build/closures/capture_unit_option.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── f [Local]
+    └── Closure
+        ├── a [Shared ← fun main]
+        ├── MatchArm
+        └── MatchArm
 == programs/build/closures/closure_field_ref_outer_block.bork
 Arenas
 └── fun main
