@@ -75,21 +75,22 @@ pub(super) fn check_element_borrow(
     let element = super::array::check_index(receiver, index, index_span, return_ty, env);
     let unknown = env.tcx.is_unknown(element.ty);
     let is_vec = matches!(&element.hir.kind, HirExprKind::Index { receiver, .. } if env.tcx.vec_elem(receiver.ty).is_some());
-    if !is_vec && !unknown {
-        env.error(format!("`{}` borrows a name; only a `Vec` element can be borrowed by index", if rw { "&rw" } else { "&" }), Some(span));
-    } else if env.tcx.is_managed_ref(element.ty) {
+    let rejected = match (is_vec || unknown, env.tcx.is_managed_ref(element.ty), env.tcx.is_trivially_copy(element.ty)) {
+        (false, ..) => Some(format!("`{}` borrows a name; only a `Vec` element can be borrowed by index", if rw { "&rw" } else { "&" })),
         // shortcut: the MIR backend has no `&Ref<T>` local yet; lift once it does (#282 follow-up).
-        env.error("cannot borrow a `Ref` element; `v[i]` gives you a `Ref` of its own", Some(span));
-    } else if env.tcx.is_trivially_copy(element.ty) {
-        env.error(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty)), Some(span));
+        (_, true, _) => Some("cannot borrow a `Ref` element; `v[i]` gives you a `Ref` of its own".to_string()),
+        (_, _, true) => Some(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty))),
+        _ => None,
+    };
+    if let Some(message) = rejected {
+        env.error(message, Some(span));
     }
     if let (true, crate::ast::Expr::Ident { name, .. }) = (rw, receiver) {
         match env.binding(name).map(|b| b.ty) {
-            Some(ty) if env.tcx.is_ref(ty) => {
-                if !env.tcx.is_rw_ref(ty) && !env.tcx.is_unknown(ty) {
-                    env.error(format!("cannot take `&rw` of an element of the read-only borrow `{name}`"), Some(span));
-                }
+            Some(ty) if env.tcx.is_ref(ty) && !env.tcx.is_rw_ref(ty) && !env.tcx.is_unknown(ty) => {
+                env.error(format!("cannot take `&rw` of an element of the read-only borrow `{name}`"), Some(span));
             }
+            Some(ty) if env.tcx.is_ref(ty) => {}
             _ => require_var(name, span, env),
         }
     }
