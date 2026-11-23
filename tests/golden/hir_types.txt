@@ -287,6 +287,14 @@ programs/build/generics/ref_cleanup.bork::main() -> i32
 programs/build/generics/ref_local_wrapped_in_option.bork::first(v: &Vec<T0>) -> T0?
 programs/build/generics/ref_local_wrapped_in_option.bork::main() -> i32
 programs/build/generics/tree_regions.bork::main() -> i32
+programs/build/iter/filter_many_rejected.bork::main() -> i32
+programs/build/iter/filter_many_rejected.bork::iter(v: Vec<T0>) -> VecIter<T0>
+programs/build/iter/filter_many_rejected.bork::map(it: T0, f: T1) -> Map<T0, T1>
+programs/build/iter/filter_many_rejected.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
+programs/build/iter/filter_many_rejected.bork::fold(it: T0, init: i32, f: T1) -> i32
+programs/build/iter/filter_many_rejected.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
+programs/build/iter/filter_many_rejected.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
+programs/build/iter/filter_many_rejected.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
 programs/build/iter/vec_chain.bork::main() -> i32
 programs/build/iter/vec_chain.bork::iter(v: Vec<T0>) -> VecIter<T0>
 programs/build/iter/vec_chain.bork::map(it: T0, f: T1) -> Map<T0, T1>
@@ -311,6 +319,9 @@ programs/build/iter/vec_string_elems.bork::fold(it: T0, init: i32, f: T1) -> i32
 programs/build/iter/vec_string_elems.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
 programs/build/iter/vec_string_elems.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
 programs/build/iter/vec_string_elems.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
+programs/build/loops/call_in_loop_returns_option_ref.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_option_ref.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_option_ref.bork::main() -> i32
 programs/build/loops/for_nested.bork::main() -> i32
 programs/build/loops/for_sum.bork::main() -> i32
 programs/build/loops/while_accumulate.bork::main() -> i32

@@ -109,6 +109,14 @@ class Node
 == programs/build/generics/tree_regions.bork
 fun main
 class Node<i32>
+== programs/build/iter/filter_many_rejected.bork
+fun main
+fun iter<String>
+fun filter<VecIter<String>,closure#0(String)->bool>
+fun Iterator@2.next<VecIter<String>,closure#0(String)->bool>
+fun Iterator@0.next<String>
+class VecIter<String>
+class Filter<VecIter<String>,closure#0(String)->bool>
 == programs/build/iter/vec_chain.bork
 fun main
 fun iter<i32>

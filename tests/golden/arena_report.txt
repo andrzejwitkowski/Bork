@@ -1709,6 +1709,70 @@ Arenas
     │       └── total [Copy]
     ├── IfThen
     └── IfThen
+== programs/build/iter/filter_many_rejected.bork
+Arenas
+├── fun main
+│   ├── v [Local]
+│   ├── i [Local]
+│   ├── n [Local]
+│   ├── longest [Local]
+│   ├── WhileLoop
+│   │   ├── v [Borrow ← fun main]
+│   │   └── i [Copy]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── v [Moved ← fun main]
+│       ├── Closure
+│       │   └── s [Local]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── s [Local]
+│           │   └── n [Copy]
+│           └── MatchArm
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
 == programs/build/iter/vec_chain.bork
 Arenas
 ├── fun main
@@ -1904,6 +1968,34 @@ Arenas
         │   └── IfThen
         │       └── x [Shared ← MatchArm]
         └── MatchArm
+== programs/build/loops/call_in_loop_returns_option_ref.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun find
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── v [Borrow ← fun find]
+│       ├── i [Copy]
+│       ├── MatchArm
+│       │   ├── r [Local]
+│       │   └── IfValSome
+│       │       ├── x [Borrow ← presence guard]
+│       │       └── IfThen
+│       │           └── r [Shared ← MatchArm]
+│       └── MatchArm
+└── fun main
+    ├── v [Local]
+    ├── found [Local]
+    ├── MatchArm
+    │   ├── r [Local]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
 == programs/build/loops/for_nested.bork
 Arenas
 └── fun main

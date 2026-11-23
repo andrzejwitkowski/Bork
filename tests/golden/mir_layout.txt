@@ -226,6 +226,10 @@ class Node size=4 align=4 fields=[0]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/generics/tree_regions.bork
 class Node<i32> size=16 align=8 fields=[0, 8]
+== programs/build/iter/filter_many_rejected.bork
+class VecIter<String> size=16 align=8 fields=[0, 8]
+class Filter<VecIter<String>,closure#0(String)->bool> size=24 align=8 fields=[0, 16]
+enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/iter/vec_chain.bork
 class Filter<VecIter<i32>,closure#3(i32)->bool> size=24 align=8 fields=[0, 16]
 class VecIter<i32> size=16 align=8 fields=[0, 8]
@@ -242,6 +246,9 @@ class VecIter<String> size=16 align=8 fields=[0, 8]
 class Map<VecIter<String>,closure#0(String)->i32> size=24 align=8 fields=[0, 16]
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/loops/call_in_loop_returns_option_ref.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/managed_refs/cache_manager_graph.bork
 class Node size=56 align=8 fields=[0, 4, 8, 32]
 class CacheManager size=48 align=8 fields=[0, 24]

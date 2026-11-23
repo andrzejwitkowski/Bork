@@ -127,9 +127,11 @@ programs/build/generics/promote_class_object.bork: hits=10 hash=e11a2ae59cd4477d
 programs/build/generics/ref_cleanup.bork: hits=21 hash=dcd51565feff87dc
 programs/build/generics/ref_local_wrapped_in_option.bork: hits=14 hash=85a537e203d78e47
 programs/build/generics/tree_regions.bork: hits=439 hash=6f2c86b03899d4b9
+programs/build/iter/filter_many_rejected.bork: hits=52 hash=cbf4cf72fb8393be
 programs/build/iter/vec_chain.bork: hits=127 hash=bf565bab68d99876
 programs/build/iter/vec_ref_elems.bork: hits=65 hash=5f52bc0b91192d81
 programs/build/iter/vec_string_elems.bork: hits=25 hash=d8b0628c2f2e1d76
+programs/build/loops/call_in_loop_returns_option_ref.bork: hits=65 hash=e19f5c054330fe53
 programs/build/loops/for_nested.bork: hits=17 hash=88627a0b66c3c541
 programs/build/loops/for_sum.bork: hits=17 hash=8cd0d14cac15ce74
 programs/build/loops/while_accumulate.bork: hits=12 hash=59464f89826f5e7e
