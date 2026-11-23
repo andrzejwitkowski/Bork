@@ -91,7 +91,7 @@ pub(super) fn dispatch(
             op: UnaryOp::Borrow { rw },
             expr,
             span,
-        } => check_borrow_operand(expr, *span, *rw, expected, env),
+        } => check_borrow_operand(expr, *span, *rw, expected, return_ty, env),
         Expr::Move { name, span, id } => check_ident(name, *span, *id, UseKind::Move, env),
         Expr::Promote { name, span, id } => check_ident(name, *span, *id, UseKind::Promote, env),
         // A local, constant or function of the same name wins over the prelude's `None` / `Some`.
@@ -189,10 +189,14 @@ fn check_float(value: f64, expected: Option<TyId>, env: &mut Env<'_>) -> Checked
 }
 
 /// `&name`; anything else after `&` is an error.
-fn check_borrow_operand(operand: &Expr, span: Span, rw: bool, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
+fn check_borrow_operand(operand: &Expr, span: Span, rw: bool, expected: Option<TyId>, return_ty: TyId, env: &mut Env<'_>) -> Checked {
     match operand {
         Expr::Ident { name, span: name_span, id } => {
             borrow::check_borrow(name, *name_span, *id, span, rw, expected, env)
+        }
+        // `&v[i]`: a view of one Vec element; the Vec is locked while it is used (`mir::borrows`).
+        Expr::Index { receiver, index, span: index_span } if matches!(&**receiver, Expr::Ident { .. }) => {
+            borrow::check_element_borrow(receiver, index, *index_span, span, rw, return_ty, env)
         }
         _ => {
             env.error(if rw { "`&rw` borrows a name" } else { "`&` borrows a name" }, Some(span));

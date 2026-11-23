@@ -55,7 +55,7 @@ impl<'a> FnBuilder<'a> {
     /// `e` as an operand the lowering can read: a constant or a bare local. A projected place (`h.v`, `b[1]`) is copied
     /// to a temporary first; for a `Vec` receiver that copies the handle, and the header lives in its arena, so
     /// mutations stay visible.
-    fn bare_operand(&mut self, e: &HirExpr) -> Res<Operand> {
+    pub(super) fn bare_operand(&mut self, e: &HirExpr) -> Res<Operand> {
         let op = self.expr(e)?;
         match &op {
             Operand::Copy(p) | Operand::Move(p) | Operand::Reborrow(p) if !p.is_bare() => {

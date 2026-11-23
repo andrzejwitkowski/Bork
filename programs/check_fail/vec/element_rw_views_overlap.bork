@@ -1,0 +1,9 @@
+// diag: cannot borrow an element of `v` while `a`, a view of one of its elements, is still in use
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    v.push("b")
+    val a = &rw v[0]
+    val b = &v[1]
+    return a.length + b.length
+}

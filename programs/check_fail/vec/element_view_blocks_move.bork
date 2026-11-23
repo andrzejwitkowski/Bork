@@ -1,0 +1,8 @@
+// diag: cannot move `v` while `e`
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    val e = &v[0]
+    val w = move v
+    return e.length
+}

@@ -46,10 +46,13 @@ One drop per `Vec<Ref<T>>`, registered on the header with `bork_arena_register_d
 
 ## Borrows
 
-A borrowed element (`get`, `v[i]`) would block `push`, `pop`, `clear`, `move` and `promote` of that Vec for
-the borrow's lifetime. The rule has nothing to enforce today: `v[i]` and `get` yield an owned value (a `String`/array descriptor copy, a `Ref` clone or a scalar), `&v[i]` is rejected
-("`&` borrows a name") and `v[i]` does not coerce to `&T`, so no borrow of an element exists and a `push` that moves the buffer cannot leave one dangling.
-`programs/check_fail/vec/borrow_element_*.bork` pin this. Borrowing an element (`&v[i]`) is a separate feature with its own lock on the Vec (RFC 0004 section 3.6). Index reads follow the array rules (runtime `i32`, out of range aborts).
+`v[i]` and `get` yield an owned value (a `String`/array descriptor copy, a `Ref` clone or a scalar), and `v[i]` does not coerce to `&T`
+(`programs/check_fail/vec/borrow_element_in_binding.bork`, `borrow_element_as_argument.bork`).
+
+`&v[i]` / `&rw v[i]` (#282) is a view of the element's slot (MIR `vec_View` / `vec_ViewRw`, a load with no `Ref` clone). `v` must be a name.
+While the view is still used (MIR liveness, not scope end; `mir::borrows`), `v` is locked: `push`, `pop`, `clear`, `set`, `move`, assignment and `&rw v` are rejected, since `push` may move the buffer under the view.
+A shared view still allows reads (`len`, `get`, `v[i]`); an `&rw` view allows none. Scalars cannot be borrowed (read `v[i]`), and neither can `Ref` elements yet, because the MIR backend has no `&Ref<T>` local.
+Tests: `programs/check_fail/vec/element_*.bork`, `programs/build/vec/element_view_*.bork`. Index reads follow the array rules (runtime `i32`, out of range aborts).
 
 ## Constructors
 
@@ -57,6 +60,6 @@ the borrow's lifetime. The rule has nothing to enforce today: `v[i]` and `get` y
 
 ## Not done yet
 
-- Borrowing an element (`&v[i]`) does not exist, so there is no element-borrow lock; index reads and methods only
+- `&v[i]` of a `Ref` element (needs a `&Ref<T>` local in the MIR backend) and of a scalar; index reads and methods only
   borrow the receiver for the call.
 - `bork-debug` does not know the `Vec` header layout.

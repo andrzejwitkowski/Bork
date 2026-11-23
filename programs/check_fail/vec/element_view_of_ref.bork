@@ -1,0 +1,11 @@
+// diag: cannot borrow a `Ref` element
+// The MIR backend has no `&Ref<T>` local yet, so a view of a `Ref` slot is rejected rather than miscompiled.
+class Node { id: i32 }
+fun main(): i32 {
+    var nodes = Vec::<Ref<Node>>()
+    val n = Node(7)
+    val r: Ref<Node> = n
+    nodes.push(r)
+    val e = &nodes[0]
+    return 0
+}

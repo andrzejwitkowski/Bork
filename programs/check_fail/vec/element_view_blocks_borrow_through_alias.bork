@@ -1,0 +1,13 @@
+// diag: cannot borrow `v` while `e`, a view of one of its elements, is still in use
+// `&rw alias` reaches `v` through the alias, so it is blocked like `&rw v` while the view is live.
+fun grow(v: &rw Vec<String>) {
+    v.push("x")
+}
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    val alias = &rw v
+    val e = &alias[0]
+    grow(&rw alias)
+    return e.length
+}

@@ -155,7 +155,7 @@ fn ref_expiry_warnings(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx) -> V
 /// region that closes first. Only what `main` reaches is analysed, as `gate` does. A
 /// `move` that would leave an object in a dying arena is the same error: `source` names the moved binding.
 fn object_lifetimes(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx, source: &str) -> Vec<Diagnostic> {
-    use crate::mir::{build::{build_function_results_neutral, BuildError}, capability::Capability, escape};
+    use crate::mir::{borrows, build::{build_function_results_neutral, BuildError}, capability::Capability, escape};
     let mut tcx = tcx.clone();
     let Ok(mono) = crate::mono::specialise_for_analysis(hir, &mut tcx, report) else { return Vec::new() };
     let Ok(results) = build_function_results_neutral(&mono, &tcx) else { return Vec::new() };
@@ -163,7 +163,10 @@ fn object_lifetimes(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx, source:
     let mut found: Vec<(crate::span::Span, String)> = Vec::new();
     for result in &results {
         match result {
-            Ok(body) => found.extend(escape::check(body)),
+            Ok(body) => {
+                found.extend(escape::check(body));
+                found.extend(borrows::check_element_locks(body));
+            }
             Err(BuildError::Unsupported(u)) if u.capability == Capability::MoveEscapesArena => {
                 let name = source.get(u.span.start..u.span.end).unwrap_or("value");
                 found.push((u.span, stored(name)));

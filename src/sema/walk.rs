@@ -435,6 +435,10 @@ fn walk_unary(
                 Expr::Ident { name, span: name_span, .. } => {
                     note_borrow(az, name, Some(*name_span), node, transfer);
                 }
+                // `&v[i]`: reading the element borrows the Vec like `v.get(i)`; the lock is `mir::borrows`.
+                Expr::Index { receiver, .. } if matches!(&**receiver, Expr::Ident { .. }) => {
+                    walk(az, inner, node, None, true);
+                }
                 _ => {
                     az.error("`&` borrows a name", None, Some(*span));
                     walk(az, inner, node, None, true);

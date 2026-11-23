@@ -4452,6 +4452,40 @@ Arenas
 └── fun main
     ├── v [Local]
     └── f [Local]
+== programs/build/vec/element_rw_view_through_rw_param.bork
+Arenas
+├── fun width
+│   ├── v [Borrow ← call site]
+│   └── e [Local]
+└── fun main
+    ├── v [Local]
+    └── n [Local]
+== programs/build/vec/element_shared_views_coexist.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── a [Local]
+    └── b [Local]
+== programs/build/vec/element_view_in_loop.bork
+Arenas
+├── fun size
+│   └── s [Borrow ← call site]
+└── fun main
+    ├── v [Local]
+    ├── total [Local]
+    └── ForLoop (i)
+        ├── i [Local]
+        ├── e [Local]
+        ├── v [Borrow ← fun main]
+        └── total [Copy]
+== programs/build/vec/element_view_read.bork
+Arenas
+├── fun size
+│   └── s [Borrow ← call site]
+└── fun main
+    ├── v [Local]
+    ├── e [Local]
+    └── n [Local]
 == programs/build/vec/grow_past_page.bork
 Arenas
 └── fun main
@@ -7151,8 +7185,7 @@ Arenas
 └── fun main
     └── v [Local]
 == programs/check_fail/vec/borrow_element_by_ampersand.bork
-Ownership Error [203..208] `&` borrows a name
-Type Error [203..208] `&` borrows a name
+Ownership Error [280..286] cannot call `push` on `v` while `e`, a view of one of its elements, is still in use
 Arenas
 └── fun main
     ├── v [Local]
@@ -7223,6 +7256,104 @@ Type Error [97..98] `strongCount` expects a `Ref<T>`, got i32
 Arenas
 └── fun main
     └── n [Local]
+== programs/check_fail/vec/element_rw_view_blocks_len.bork
+Ownership Error [129..130] cannot borrow `v` while `e`, a view of one of its elements, is still in use
+Ownership Error [129..134] cannot call `len` on `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── e [Local]
+    └── n [Local]
+== programs/check_fail/vec/element_rw_view_through_read_only_borrow.bork
+Type Error [111..119] cannot take `&rw` of an element of the read-only borrow `v`
+Arenas
+├── fun f
+│   ├── v [Borrow ← call site]
+│   └── e [Local]
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/element_rw_views_overlap.bork
+Ownership Error [210..215] cannot borrow an element of `v` while `a`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── a [Local]
+    └── b [Local]
+== programs/check_fail/vec/element_view_blocks_borrow_through_alias.bork
+Ownership Error [349..358] cannot borrow `v` while `e`, a view of one of its elements, is still in use
+Arenas
+├── fun grow
+│   └── v [Borrow ← call site]
+└── fun main
+    ├── v [Local]
+    ├── alias [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_blocks_clear.bork
+Ownership Error [120..127] cannot call `clear` on `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_blocks_move.bork
+Ownership Error [132..133] cannot move `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Moved ← fun main]
+    ├── e [Local]
+    └── w [Local]
+== programs/check_fail/vec/element_view_blocks_pop.bork
+Ownership Error [118..123] cannot call `pop` on `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_blocks_rw_borrow.bork
+Ownership Error [223..228] cannot borrow `v` while `e`, a view of one of its elements, is still in use
+Arenas
+├── fun grow
+│   └── v [Borrow ← call site]
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_blocks_set.bork
+Ownership Error [118..123] cannot call `set` on `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_cannot_be_returned.bork
+Ownership Error [97..102] returning a reference is not supported
+Arenas
+├── fun first
+│   └── v [Borrow ← call site]
+└── fun main
+== programs/check_fail/vec/element_view_of_ref.bork
+Type Error [300..309] cannot borrow a `Ref` element; `v[i]` gives you a `Ref` of its own
+Arenas
+└── fun main
+    ├── nodes [Local]
+    ├── n [Local]
+    ├── r [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_of_scalar.bork
+Type Error [108..113] cannot borrow Copy type `i32`; read it with `v[i]`
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_of_val_as_rw.bork
+Type Error [100..108] cannot borrow `val` `v` as `&rw`; declare it `var`
+Arenas
+└── fun main
+    ├── v [Local]
+    └── e [Local]
+== programs/check_fail/vec/element_view_through_alias_locks_vec.bork
+Ownership Error [286..292] cannot call `push` on `v` while `e`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── alias [Local]
+    └── e [Local]
 == programs/check_fail/vec/impl_trait.bork
 Type Error [107..115] `impl Show for Vec<i32>`: only classes and enums can implement a trait yet
 Arenas

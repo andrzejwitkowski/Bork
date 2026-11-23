@@ -1,21 +1,24 @@
 //! Borrow conflicts on MIR (RFC 0006 M4c, #219): a new `Borrow` of a place conflicts with a
 //! borrow of an overlapping place that is still live (read later) when either side is `&rw`
 //! (RFC 0003 section 5, RFC 0004 borrow sets). Unlike `typeck::check_aliased_borrows` it follows
-//! borrows through locals, so `val b = &a; f(&rw a, &b)` is rejected. Not wired into `check`
-//! yet (needs MIR for every function, #243); tests compare it with the old pass.
+//! borrows through locals, so `val b = &a; f(&rw a, &b)` is rejected. Run from `check` (`frontend::object_lifetimes`)
+//! over what `main` reaches. A view of a `Vec` element (`&v[i]`, #282) also locks the Vec until its last use.
 // shortcut: only direct borrows and views copied through locals are tracked (not borrows stored
-// in aggregates or returned from calls beyond `ret_borrows`); writes/moves of a borrowed place and
-// Vec reallocation under a live view are RFC 0004 section 3.2 rules, left to a follow-up.
+// in aggregates or returned from calls beyond `ret_borrows`); writes and moves of a borrowed place are only
+// checked for a Vec under an element view (`lock_conflicts`), the rest of RFC 0004 section 3.6 is a follow-up.
 
 use std::collections::{HashMap, HashSet};
 
 use super::body::*;
+use crate::hir::VecOp;
 use crate::span::Span;
 
 #[derive(Clone, PartialEq)]
 struct Loan {
     root: Place,
     rw: bool,
+    /// A view of one `Vec` element (`&v[i]`): the Vec is also locked against mutation and moves while it is live.
+    elem: bool,
 }
 
 type Loans = HashMap<Local, Vec<Loan>>;
@@ -97,6 +100,16 @@ fn name(body: &Body, l: Local, names: &HashMap<Local, String>) -> String {
 /// `(span of the later borrow, message)`; wording of `check_aliased_borrows` when both borrows
 /// are arguments of one call, otherwise a general one naming the variable that holds the old borrow.
 pub fn check(body: &Body) -> Vec<(Span, String)> {
+    check_with(body, true)
+}
+
+/// Only the `Vec` element-view locks (`lock_conflicts`), which is what `check` (the frontend) enforces today: the general
+/// overlap rule above also rejects `h(&rw a, id(&a))`, which `typeck::check_aliased_borrows` accepts as a separate call.
+pub fn check_element_locks(body: &Body) -> Vec<(Span, String)> {
+    check_with(body, false)
+}
+
+fn check_with(body: &Body, general: bool) -> Vec<(Span, String)> {
     let live = liveness(body);
     let mut names: HashMap<Local, String> = HashMap::new();
     for b in &body.blocks {
@@ -115,14 +128,28 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
         let block = &body.blocks[i];
         for (k, s) in block.stmts.iter().enumerate() {
             let after = &live[i][k];
+            lock_conflicts(body, &s.kind, s.span, &st, after, &names, &mut found);
             match &s.kind {
+                StmtKind::VecOp { dst: Some(dst), op: op @ (VecOp::View | VecOp::ViewRw), receiver, .. } if dst.is_bare() => {
+                    // Through an alias (`val a = &rw v; &a[0]`) the Vec is the alias's own root.
+                    let rw = *op == VecOp::ViewRw;
+                    let roots: Vec<Place> = match receiver.place().filter(|p| p.is_bare()) {
+                        Some(p) => st.get(&p.local).map_or_else(|| vec![p.clone()], |ls| ls.iter().map(|l| l.root.clone()).collect()),
+                        None => Vec::new(),
+                    };
+                    if roots.is_empty() {
+                        st.remove(&dst.local);
+                    } else {
+                        st.insert(dst.local, roots.into_iter().map(|root| Loan { root, rw, elem: true }).collect());
+                    }
+                }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
                     let loans = match inherited {
                         Some(l) => l,
                         None => {
-                            let new = Loan { root: src.clone(), rw: *rw };
-                            for (holder, held) in &st {
+                            let new = Loan { root: src.clone(), rw: *rw, elem: false };
+                            for (holder, held) in st.iter().filter(|_| general) {
                                 if *holder == dst.local || !after.contains(holder) {
                                     continue;
                                 }
@@ -184,6 +211,47 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
         }
     }
     found
+}
+
+/// Mutating `Vec` operations, moves and overwrites of a `Vec` while a live view of one of its elements exists
+/// (`push` may reallocate the buffer the view points into). Reads are fine under a shared view; an `&rw` view
+/// is exclusive.
+/// Whether `local` is `root` or holds a loan on it (`val alias = &rw v` reaches `v`; `v.push(..)` passes `&v` in a temporary).
+fn reaches(st: &Loans, local: Local, root: Local) -> bool {
+    local == root || st.get(&local).is_some_and(|ls| ls.iter().any(|l| l.root.local == root))
+}
+
+fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &HashSet<Local>, names: &HashMap<Local, String>, found: &mut Vec<(Span, String)>) {
+    let mut loans = st.iter().filter(|(h, _)| after.contains(h)).flat_map(|(h, ls)| ls.iter().filter(|l| l.elem).map(move |l| (*h, l))).peekable();
+    if loans.peek().is_none() {
+        return;
+    }
+    let (_, kill) = uses(|f| kind.walk(f));
+    let mut moved = Vec::new();
+    kind.walk(&mut |u| match u {
+        Use::Op(Operand::Move(p)) | Use::Consume(p) => moved.push(p.local),
+        _ => {}
+    });
+    for (holder, loan) in loans {
+        let root = loan.root.local;
+        let what = match kind {
+            StmtKind::VecOp { op, receiver, .. }
+                if (op.mutates() || *op == VecOp::ViewRw || loan.rw)
+                    && receiver.place().is_some_and(|p| reaches(st, p.local, root)) =>
+            {
+                if matches!(op, VecOp::View | VecOp::ViewRw) { "borrow an element of".to_string() } else { format!("call `{}` on", op.name()) }
+            }
+            // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
+            StmtKind::Borrow { src, rw, .. } if reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
+            _ if kill.contains(&root) => "assign to".into(),
+            _ if moved.contains(&root) => "move".into(),
+            _ => continue,
+        };
+        let msg = format!("cannot {what} `{}` while `{}`, a view of one of its elements, is still in use", name(body, root, names), name(body, holder, names));
+        if !found.contains(&(span, msg.clone())) {
+            found.push((span, msg));
+        }
+    }
 }
 
 fn shown(root: &str, rw: bool) -> String {

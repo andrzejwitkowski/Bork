@@ -55,8 +55,52 @@ fn borrow_type(name: &str, operand: TyId, rw: bool, span: Span, env: &mut Env<'_
         }
         return env.tcx.ref_to_flag(target, rw);
     }
-    if rw && env.binding(name).is_some_and(|b| b.kind == BindingKind::Val) {
-        env.error(format!("cannot borrow `val` `{name}` as `&rw`; declare it `var`"), Some(span));
+    if rw {
+        require_var(name, span, env);
     }
     env.tcx.ref_to_flag(operand, rw)
+}
+
+/// `&v[i]` / `&rw v[i]` on a `Vec`: a view of one element, typed `&T` / `&rw T`. Only elements with a borrow form
+/// (not scalars, which `v[i]` already copies); `&rw` needs a mutable `v`. Locking `v` is `mir::borrows`' job.
+pub(super) fn check_element_borrow(
+    receiver: &crate::ast::Expr,
+    index: &crate::ast::Expr,
+    index_span: Span,
+    span: Span,
+    rw: bool,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> Checked {
+    let element = super::array::check_index(receiver, index, index_span, return_ty, env);
+    let unknown = env.tcx.is_unknown(element.ty);
+    let is_vec = matches!(&element.hir.kind, HirExprKind::Index { receiver, .. } if env.tcx.vec_elem(receiver.ty).is_some());
+    let rejected = match (is_vec || unknown, env.tcx.is_managed_ref(element.ty), env.tcx.is_trivially_copy(element.ty)) {
+        (false, ..) => Some(format!("`{}` borrows a name; only a `Vec` element can be borrowed by index", if rw { "&rw" } else { "&" })),
+        // shortcut: the MIR backend has no `&Ref<T>` local yet; lift once it does (#282 follow-up).
+        (_, true, _) => Some("cannot borrow a `Ref` element; `v[i]` gives you a `Ref` of its own".to_string()),
+        (_, _, true) => Some(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty))),
+        _ => None,
+    };
+    if let Some(message) = rejected {
+        env.error(message, Some(span));
+    }
+    if let (true, crate::ast::Expr::Ident { name, .. }) = (rw, receiver) {
+        match env.binding(name).map(|b| b.ty) {
+            Some(ty) if env.tcx.is_ref(ty) && !env.tcx.is_rw_ref(ty) && !env.tcx.is_unknown(ty) => {
+                env.error(format!("cannot take `&rw` of an element of the read-only borrow `{name}`"), Some(span));
+            }
+            Some(ty) if env.tcx.is_ref(ty) => {}
+            _ => require_var(name, span, env),
+        }
+    }
+    let ref_ty = if unknown { element.ty } else { env.tcx.ref_to_flag(element.ty, rw) };
+    env.expr_at(HirExprKind::Unary { op: UnaryOp::Borrow { rw }, expr: Box::new(element.hir) }, ref_ty, span)
+}
+
+/// `&rw name` needs a `var` (the one site of this rule).
+fn require_var(name: &str, span: Span, env: &mut Env<'_>) {
+    if env.binding(name).is_some_and(|b| b.kind == BindingKind::Val) {
+        env.error(format!("cannot borrow `val` `{name}` as `&rw`; declare it `var`"), Some(span));
+    }
 }

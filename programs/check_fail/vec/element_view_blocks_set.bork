@@ -1,0 +1,8 @@
+// diag: cannot call `set` on `v`
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    val e = &v[0]
+    v.set(0, "z")
+    return e.length
+}

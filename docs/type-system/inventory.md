@@ -69,7 +69,7 @@ negative test: `Unknown`, `Func` (via closures/calls; `Closure` has its own test
 From `docs/superpowers/specs/2026-10-16-vec-design.md`:
 - `Vec<T>` is **built-in**; there are **no general generics**.
 - Non-goals: `Vec<Vec<T>>`, `Vec<T?>`, `Vec<Node>`.
-- Element-borrow rule: vacuous, since an element cannot be borrowed (`&v[i]` is rejected); a lock is needed once it can.
+- Element-borrow rule (#282): `&v[i]` / `&rw v[i]` (String and array elements) locks `v` against mutation, move and `&rw` until the view's last use (`mir::borrows`). `Ref` and scalar elements cannot be borrowed.
 
 Superseded in part by [RFC 0001](../rfcs/0001-type-system-core.md): "no general generics" holds only until the generics phase (#45, #68); generics will be monomorphized.
 
