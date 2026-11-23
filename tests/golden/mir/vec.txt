@@ -1940,6 +1940,44 @@ fn fill$closure0 (parent=true, sink=false) {
     return
 }
 
+== vec/element_shared_views_coexist.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<String> [Temp]
+  let _3: Vec<String> [Var] v
+  let _4: &Vec<String> [Temp]
+  let _5: &Vec<String> [Temp]
+  let _6: &String [Temp]
+  let _7: &String [Val] a
+  let _8: &String [Temp]
+  let _9: &String [Val] b
+  let _10: i32 [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<String> decl
+    _4 = borrow _3
+    vec_Push(copy _4, "a")
+    _5 = borrow _3
+    vec_Push(copy _5, "b")
+    _6 = vec_View(copy _3, 0)
+    _7 = copy _6  // label "a": &String decl
+    _8 = vec_View(copy _3, 1)
+    _9 = copy _8  // label "b": &String decl
+    _10 = len(_7)
+    _11 = len(_9)
+    _12 = add(copy _10, copy _11)
+    _0 = copy _12
+    storage_dead _1
+    region_exit r0
+    return
+}
+
 == vec/element_view_in_loop.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

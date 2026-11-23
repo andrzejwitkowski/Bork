@@ -1,0 +1,10 @@
+// exit: 2
+// Two shared views of one Vec coexist.
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    v.push("b")
+    val a = &v[0]
+    val b = &v[1]
+    return a.length + b.length
+}

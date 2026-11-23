@@ -713,6 +713,7 @@ programs/build/vec/closure_elems_ref_capture_replace.bork::main() -> i32
 programs/build/vec/closure_elems_set_pop_clear.bork::main() -> i32
 programs/build/vec/closure_elems_via_param.bork::fill(v: &rw Vec<()->i32>) -> unit
 programs/build/vec/closure_elems_via_param.bork::main() -> i32
+programs/build/vec/element_shared_views_coexist.bork::main() -> i32
 programs/build/vec/element_view_in_loop.bork::size(s: &String) -> i32
 programs/build/vec/element_view_in_loop.bork::main() -> i32
 programs/build/vec/element_view_read.bork::size(s: &String) -> i32

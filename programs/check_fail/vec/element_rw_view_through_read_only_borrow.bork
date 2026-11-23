@@ -1,0 +1,10 @@
+// diag: cannot take `&rw` of an element of the read-only borrow `v`
+fun f(v: &Vec<String>): i32 {
+    val e = &rw v[0]
+    return e.length
+}
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    return f(&v)
+}

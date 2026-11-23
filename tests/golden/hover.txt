@@ -276,6 +276,7 @@ programs/build/vec/closure_elems_ref_capture.bork: hits=17 hash=f641abaace0eea84
 programs/build/vec/closure_elems_ref_capture_replace.bork: hits=38 hash=ea67aa24ec08f0bc
 programs/build/vec/closure_elems_set_pop_clear.bork: hits=86 hash=919d1fc6e5682f5e
 programs/build/vec/closure_elems_via_param.bork: hits=17 hash=1871f54bfa6cbf5f
+programs/build/vec/element_shared_views_coexist.bork: hits=17 hash=b969e0964f52dc78
 programs/build/vec/element_view_in_loop.bork: hits=51 hash=3c3f44bfc8fe8799
 programs/build/vec/element_view_read.bork: hits=35 hash=60a4a45168922f86
 programs/build/vec/grow_past_page.bork: hits=32 hash=73d0bd5055d70e56
@@ -575,6 +576,8 @@ programs/check_fail/vec/closure_plain_capture_push.bork: hits=12 hash=12e10a7c10
 programs/check_fail/vec/construct_like_class.bork: hits=1 hash=1651e93845325527
 programs/check_fail/vec/count_of_non_ref.bork: hits=26 hash=c44aa04c9726af54
 programs/check_fail/vec/element_rw_view_blocks_len.bork: hits=15 hash=510bd76a6a783490
+programs/check_fail/vec/element_rw_view_through_read_only_borrow.bork: hits=11 hash=651113ef34756e0f
+programs/check_fail/vec/element_rw_views_overlap.bork: hits=17 hash=b4f72f4dde058871
 programs/check_fail/vec/element_view_blocks_clear.bork: hits=15 hash=b2c44f7231543383
 programs/check_fail/vec/element_view_blocks_move.bork: hits=10 hash=7eae852900a05ecb
 programs/check_fail/vec/element_view_blocks_pop.bork: hits=13 hash=21bf63b916b7f326

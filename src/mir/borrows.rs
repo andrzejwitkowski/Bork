@@ -226,11 +226,10 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
         let what = match kind {
             // `v.push(..)` passes `&v` in a temporary, so follow the receiver's own loans back to `v`.
             StmtKind::VecOp { op, receiver, .. }
-                if !matches!(op, VecOp::View | VecOp::ViewRw)
-                    && (op.mutates() || loan.rw)
+                if (op.mutates() || *op == VecOp::ViewRw || loan.rw)
                     && receiver.place().is_some_and(|p| p.local == root || st.get(&p.local).is_some_and(|ls| ls.iter().any(|l| l.root.local == root))) =>
             {
-                format!("call `{}` on", op.name())
+                if matches!(op, VecOp::View | VecOp::ViewRw) { "borrow an element of".to_string() } else { format!("call `{}` on", op.name()) }
             }
             // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
             StmtKind::Borrow { src, rw, .. } if src.local == root && (*rw || loan.rw) => "borrow".into(),

@@ -84,8 +84,13 @@ pub(super) fn check_element_borrow(
         env.error(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty)), Some(span));
     }
     if let (true, crate::ast::Expr::Ident { name, .. }) = (rw, receiver) {
-        if env.binding(name).is_some_and(|b| !env.tcx.is_ref(b.ty)) {
-            require_var(name, span, env);
+        match env.binding(name).map(|b| b.ty) {
+            Some(ty) if env.tcx.is_ref(ty) => {
+                if !env.tcx.is_rw_ref(ty) && !env.tcx.is_unknown(ty) {
+                    env.error(format!("cannot take `&rw` of an element of the read-only borrow `{name}`"), Some(span));
+                }
+            }
+            _ => require_var(name, span, env),
         }
     }
     let ref_ty = if unknown { element.ty } else { env.tcx.ref_to_flag(element.ty, rw) };

@@ -4452,6 +4452,12 @@ Arenas
 └── fun main
     ├── v [Local]
     └── f [Local]
+== programs/build/vec/element_shared_views_coexist.bork
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── a [Local]
+    └── b [Local]
 == programs/build/vec/element_view_in_loop.bork
 Arenas
 ├── fun size
@@ -7250,6 +7256,21 @@ Arenas
     ├── v [Local]
     ├── e [Local]
     └── n [Local]
+== programs/check_fail/vec/element_rw_view_through_read_only_borrow.bork
+Type Error [111..119] cannot take `&rw` of an element of the read-only borrow `v`
+Arenas
+├── fun f
+│   ├── v [Borrow ← call site]
+│   └── e [Local]
+└── fun main
+    └── v [Local]
+== programs/check_fail/vec/element_rw_views_overlap.bork
+Ownership Error [210..215] cannot borrow an element of `v` while `a`, a view of one of its elements, is still in use
+Arenas
+└── fun main
+    ├── v [Local]
+    ├── a [Local]
+    └── b [Local]
 == programs/check_fail/vec/element_view_blocks_clear.bork
 Ownership Error [120..127] cannot call `clear` on `v` while `e`, a view of one of its elements, is still in use
 Arenas
