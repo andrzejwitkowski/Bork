@@ -1,0 +1,15 @@
+// exit: 5
+// A Vec of closures moved into an inner-scope holder and read back keeps working.
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    var i = 0
+    while (i < 2) {
+        var inner = Vec::<() -> i32>()
+        val k = i + 3
+        inner.push(move (k) { -> k })
+        outer = move inner
+        i = i + 1
+    }
+    val f = outer.get(0)
+    return f() + outer.len()
+}

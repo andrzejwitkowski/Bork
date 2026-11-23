@@ -455,6 +455,47 @@ mod tests {
     }
 
     #[test]
+    fn second_strong_root_keeps_a_dynamic_arena_alive_after_the_first_owner_pops() {
+        let (first, second) = (bork_arena_push(), bork_arena_push());
+        let child = unsafe { bork_arena_create_dynamic(first, 0) };
+        unsafe {
+            bork_arena_retain_weak(child);
+            bork_arena_register_strong_root(first, child);
+            bork_arena_root_strong_if_dynamic(second, child);
+            bork_arena_pop(first);
+        }
+        assert_eq!(unsafe { bork_arena_state(child) }, ArenaState::Alive);
+        unsafe { bork_arena_pop(second) };
+        assert_eq!(unsafe { bork_arena_state(child) }, ArenaState::Dead);
+        unsafe { bork_arena_release_weak(child) };
+    }
+
+    #[test]
+    fn root_strong_if_dynamic_ignores_a_self_root() {
+        let owner = bork_arena_push();
+        let child = unsafe { bork_arena_create_dynamic(owner, 1) };
+        unsafe {
+            bork_arena_retain_weak(child);
+            bork_arena_register_strong_root(owner, child);
+            bork_arena_root_strong_if_dynamic(child, child);
+            bork_arena_pop(owner);
+        }
+        assert_eq!(unsafe { bork_arena_state(child) }, ArenaState::Dead);
+        unsafe { bork_arena_release_weak(child) };
+    }
+
+    #[test]
+    fn root_strong_if_dynamic_ignores_a_lexical_arena() {
+        let (owner, lexical) = (bork_arena_push(), bork_arena_push());
+        unsafe {
+            bork_arena_root_strong_if_dynamic(owner, lexical);
+            bork_arena_pop(owner);
+        }
+        assert_eq!(unsafe { bork_arena_state(lexical) }, ArenaState::Alive);
+        unsafe { bork_arena_pop(lexical) };
+    }
+
+    #[test]
     fn scoped_child_registered_root_drops_before_parent_reset() {
         let parent = bork_arena_push();
         let child = unsafe { bork_arena_create_dynamic(parent, 1) };

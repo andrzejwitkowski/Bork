@@ -1,0 +1,19 @@
+// exit: 14
+// A promoted closure that captures an object with String, nested-object and Ref fields keeps all of them valid.
+class Inner { v: i32 }
+class Outer {
+    name: String
+    inner: Inner
+    r: Ref<Inner>
+}
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    {
+        var inner = Vec::<() -> i32>()
+        val o = Outer("abc", Inner(5), Inner(6))
+        inner.push(move (o) { -> o.name.length + o.inner.v + (if val x = o.r { x.v } else { 0 }) })
+        outer = promote inner
+    }
+    val f = outer.get(0)
+    return f()
+}

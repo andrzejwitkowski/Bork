@@ -22,6 +22,7 @@ use super::context::{is_unsigned, Codegen};
 use super::declare::Callees;
 use super::vec;
 use super::not_yet_supported;
+use super::value_ops::CLOSURE_ENV_HEAD;
 
 fn trace() -> bool {
     std::env::var_os("BORK_MIR_BACKEND_TRACE").is_some()
@@ -847,6 +848,8 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
         let args = self.body.locals.iter().filter(|l| l.kind == LocalKind::Arg).take(n);
         let by_ref = self.function.env_mode == crate::hir::CaptureMode::ByAddress;
         let address = fields[0];
+        // Slot 1: the copy glue (null when the environment cannot be re-homed).
+        fields.push(address);
         let args: Vec<_> = args.collect();
         fields.extend(args.iter().map(|l| if by_ref { address } else { cx.basic_type(l.ty).expect("checked capture type") }));
         // A by-reference capture that carries no arena of its own is followed by the arena of the variable it names.
@@ -887,7 +890,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             // A by-reference capture is the outer variable itself: its slot is the stored address.
             if decl.kind == LocalKind::Arg && self.function.env_mode != crate::hir::CaptureMode::ByValue && captured < self.function.env_params.unwrap_or(0) {
                 let env = env.expect("closure environment");
-                let field = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env, captured as u32 + 1, "capture.ref")?;
+                let field = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env, captured as u32 + CLOSURE_ENV_HEAD as u32, "capture.ref")?;
                 captured += 1;
                 let slot = if self.function.env_mode == crate::hir::CaptureMode::InPlace {
                     // The environment owns the value: the body updates it where it lives.
@@ -903,7 +906,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let from_env = env.filter(|_| captured < self.function.env_params.unwrap_or(0));
                 let value = match from_env {
                     Some(env) => {
-                        let ptr = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env, captured as u32 + 1, "capture.ptr")?;
+                        let ptr = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env, captured as u32 + CLOSURE_ENV_HEAD as u32, "capture.ptr")?;
                         captured += 1;
                         cx.builder.build_load(ty, ptr, "capture")?
                     }
@@ -918,7 +921,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             let n = self.function.env_params.unwrap_or(0);
             let args = self.body.locals.iter().enumerate().filter(|(_, l)| l.kind == LocalKind::Arg).take(n);
             for (k, (i, _)) in args.filter(|(_, l)| is_homed(cx, l.ty)).enumerate() {
-                let field = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env.expect("closure environment"), (n + 1 + k) as u32, "capture.home")?;
+                let field = cx.builder.build_struct_gep(env_type.expect("closure environment type"), env.expect("closure environment"), (n + CLOSURE_ENV_HEAD + k) as u32, "capture.home")?;
                 let arena = cx.builder.build_load(ptr, field, "capture.arena")?.into_pointer_value();
                 self.capture_homes.insert(Local(i as u32), arena);
             }
@@ -1244,8 +1247,9 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             StmtKind::Assign(dst, Rvalue::Closure { function, captures, by_ref, owned_refs, arena }) => {
                 let (callee_fn, _) = self.callees[function.as_str()];
                 let code = callee_fn.as_global_value().as_pointer_value();
-                let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![code.get_type().into()];
-                let mut values: Vec<BasicValueEnum<'ctx>> = vec![code.into()];
+                // Slot 1 is the copy glue, filled in below once the capture types are known.
+                let mut fields: Vec<inkwell::types::BasicTypeEnum<'ctx>> = vec![code.get_type().into(), code.get_type().into()];
+                let mut values: Vec<BasicValueEnum<'ctx>> = vec![code.into(), code.get_type().const_null().into()];
                 let mut homes = Vec::new();
                 for c in captures {
                     let ty = self.op_ty(c).expect("checked capture");
@@ -1265,6 +1269,11 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 fields.extend(homes.iter().map(|h| h.get_type()).map(inkwell::types::BasicTypeEnum::from));
                 values.extend(homes.iter().map(|&h| BasicValueEnum::from(h)));
                 let env_ty = cx.context.struct_type(&fields, false);
+                // A by-reference environment holds addresses into live scopes and is never stored, so it has no glue.
+                if !captures.is_empty() && !*by_ref {
+                    let tys: Vec<_> = captures.iter().map(|c| self.op_ty(c).expect("checked capture")).collect();
+                    values[1] = cx.closure_copy_glue(function, env_ty, &tys, owned_refs)?.as_global_value().as_pointer_value().into();
+                }
                 let env = if captures.is_empty() {
                     // Nothing to keep alive: a constant, so the closure may outlive the region.
                     let init = env_ty.const_named_struct(&values);
@@ -1281,8 +1290,8 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     let env = raw.try_as_basic_value().basic().expect("arena_alloc returns a pointer").into_pointer_value();
                     for (i, v) in values.iter().enumerate() {
                         let field = cx.builder.build_struct_gep(env_ty, env, i as u32, "env.field")?;
-                        // Slot 0 is the code pointer; `owned_refs` indexes the captures.
-                        if i > 0 && owned_refs.get(i - 1).copied().unwrap_or(false) {
+                        // Slots 0 and 1 are the code and glue pointers; `owned_refs` indexes the captures.
+                        if i >= CLOSURE_ENV_HEAD && owned_refs.get(i - CLOSURE_ENV_HEAD).copied().unwrap_or(false) {
                             cx.builder.build_store(field, cx.ref_handle_type().const_zero())?;
                             cx.ref_store(self.llvm_fn, field, arena, *v)?;
                             cx.ref_register_drop(arena, field)?;

@@ -1,0 +1,16 @@
+// exit: 13
+// Promoting a Vec of closures re-homes owned Ref captures too: the object outlives the inner arena, released once.
+class Node { id: i32 }
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    var rounds = 0
+    while (rounds < 2) {
+        var inner = Vec::<() -> i32>()
+        val r: Ref<Node> = Node(rounds + 5)
+        inner.push(move (r) { -> if val n = r { n.id } else { 0 } })
+        outer = promote inner
+        rounds = rounds + 1
+    }
+    val f = outer.get(0)
+    return f() + f() + 1
+}

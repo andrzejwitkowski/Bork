@@ -223,6 +223,15 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── p [Local]
+== programs/build/closures/capture_unit_option.bork
+Arenas
+└── fun main
+    ├── a [Local]
+    ├── f [Local]
+    └── Closure
+        ├── a [Shared ← fun main]
+        ├── MatchArm
+        └── MatchArm
 == programs/build/closures/closure_field_ref_outer_block.bork
 Arenas
 └── fun main
@@ -3895,6 +3904,133 @@ Arenas
         └── Closure (move)
             ├── k [Moved ← WhileLoop]
             └── s [Moved ← WhileLoop]
+== programs/build/vec/closure_elems_move.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── i [Local]
+    ├── f [Local]
+    └── WhileLoop
+        ├── inner [Moved ← WhileLoop]
+        ├── k [Local]
+        ├── i [Copy]
+        └── Closure (move)
+            └── k [Moved ← WhileLoop]
+== programs/build/vec/closure_elems_promote.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── a [Local]
+    ├── b [Local]
+    ├── c [Local]
+    └── Block
+        ├── inner [Local]
+        ├── k [Local]
+        ├── j [Local]
+        ├── s [Local]
+        ├── inner [Moved ← Block]
+        ├── Closure (move)
+        │   └── k [Moved ← Block]
+        ├── Closure (move)
+        │   ├── j [Moved ← Block]
+        │   └── s [Moved ← Block]
+        └── Closure
+== programs/build/vec/closure_elems_promote_nullable_none.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── n [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── n [Moved ← Block]
+            ├── MatchArm
+            │   └── x [Borrow ← pattern binding]
+            └── MatchArm
+== programs/build/vec/closure_elems_promote_nullable_object.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── n [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── n [Moved ← Block]
+            ├── MatchArm
+            │   └── x [Borrow ← pattern binding]
+            └── MatchArm
+== programs/build/vec/closure_elems_promote_object_capture.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── n [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            └── n [Moved ← Block]
+== programs/build/vec/closure_elems_promote_object_fields.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── o [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── o [Moved ← Block]
+            ├── IfValSome
+            │   └── x [Borrow ← presence guard]
+            └── IfValNone
+== programs/build/vec/closure_elems_promote_object_loop.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── i [Local]
+    ├── f [Local]
+    └── WhileLoop
+        ├── inner [Local]
+        ├── n [Local]
+        ├── i [Copy]
+        ├── inner [Moved ← WhileLoop]
+        └── Closure (move)
+            └── n [Moved ← WhileLoop]
+== programs/build/vec/closure_elems_promote_ref_capture.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── rounds [Local]
+    ├── f [Local]
+    └── WhileLoop
+        ├── inner [Local]
+        ├── r [Local]
+        ├── rounds [Copy]
+        ├── inner [Moved ← WhileLoop]
+        └── Closure (move)
+            ├── r [Moved ← WhileLoop]
+            ├── IfValSome
+            │   └── n [Borrow ← presence guard]
+            └── IfValNone
+== programs/build/vec/closure_elems_promote_string_bytes.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── s [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── s [Moved ← Block]
+            ├── IfThen
+            │   └── s [Shared ← Closure (move)]
+            └── IfElse
 == programs/build/vec/closure_elems_ref_capture.bork
 Arenas
 └── fun main
@@ -4335,16 +4471,6 @@ Arenas
     ├── a [Local]
     ├── b [Local]
     └── IfThen
-== programs/build_fail/vec_of_closures_promote.bork
-Arenas
-└── fun main
-    ├── outer [Local]
-    └── Block
-        ├── inner [Local]
-        ├── k [Local]
-        ├── inner [Moved ← Block]
-        └── Closure (move)
-            └── k [Moved ← Block]
 == programs/check/borrow/array_slice_length.bork
 Arenas
 └── fun main

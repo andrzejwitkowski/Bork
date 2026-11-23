@@ -29,6 +29,7 @@ programs/build/classes/nullable_field_assign.bork: hits=3 hash=cf496e48c59ad0d1
 programs/build/classes/safe_ref_field.bork: hits=8 hash=c08738b5b781e6de
 programs/build/classes/string_field.bork: hits=0 hash=cbf29ce484222325
 programs/build/classes/walkthrough_point.bork: hits=6 hash=f825b6ba5b4db203
+programs/build/closures/capture_unit_option.bork: hits=4 hash=f61f40fb71833f2b
 programs/build/closures/closure_field_ref_outer_block.bork: hits=17 hash=6bd06160009ee3f8
 programs/build/closures/closure_in_class_field.bork: hits=27 hash=245c13240e8a0950
 programs/build/closures/closure_in_class_field_generic_and_returned.bork: hits=20 hash=5fb54fcd17cd9131
@@ -253,6 +254,15 @@ programs/build/vec/assign_concat_through_borrowed_vec.bork: hits=52 hash=aa10f6b
 programs/build/vec/closure_elems_grow.bork: hits=41 hash=0982321e4f604731
 programs/build/vec/closure_elems_inner_ref_capture.bork: hits=32 hash=693123536d6fc48a
 programs/build/vec/closure_elems_loop.bork: hits=27 hash=a69f98da37335ca6
+programs/build/vec/closure_elems_move.bork: hits=43 hash=689d8921b1767dc7
+programs/build/vec/closure_elems_promote.bork: hits=89 hash=f331af37a09dc975
+programs/build/vec/closure_elems_promote_nullable_none.bork: hits=39 hash=7b09aa75943b3064
+programs/build/vec/closure_elems_promote_nullable_object.bork: hits=39 hash=30dc2604a5add3d2
+programs/build/vec/closure_elems_promote_object_capture.bork: hits=37 hash=14afb830910542da
+programs/build/vec/closure_elems_promote_object_fields.bork: hits=41 hash=47da011fa8d68f7f
+programs/build/vec/closure_elems_promote_object_loop.bork: hits=40 hash=464d29d390b72552
+programs/build/vec/closure_elems_promote_ref_capture.bork: hits=58 hash=6c340ccff37fbd95
+programs/build/vec/closure_elems_promote_string_bytes.bork: hits=40 hash=8c75cc8d31bd20fe
 programs/build/vec/closure_elems_ref_capture.bork: hits=17 hash=f641abaace0eea84
 programs/build/vec/closure_elems_ref_capture_replace.bork: hits=38 hash=ea67aa24ec08f0bc
 programs/build/vec/closure_elems_set_pop_clear.bork: hits=86 hash=919d1fc6e5682f5e
@@ -291,7 +301,6 @@ programs/build_fail/unit_field.bork: hits=1 hash=33a9e498806fea19
 programs/build_fail/unit_param.bork: hits=1 hash=9b6538f32aac8e2f
 programs/build_fail/unit_vec_element.bork: hits=5 hash=66d9d9a80acad351
 programs/build_fail/user_eq_without_eq_method.bork: hits=4 hash=61de472bcc54131d
-programs/build_fail/vec_of_closures_promote.bork: hits=35 hash=95773fc814c2c6e9
 programs/check/borrow/array_slice_length.bork: hits=4 hash=0ee8f1f1d1457067
 programs/check/borrow/reborrow_in_for.bork: hits=7 hash=f81d7f8fe3b05b7a
 programs/check/borrow/reborrow_in_if.bork: hits=14 hash=7c1318531e4538d6

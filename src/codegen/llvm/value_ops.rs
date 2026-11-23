@@ -12,6 +12,9 @@ use super::codegen_error;
 use super::context::Codegen;
 use super::not_yet_supported;
 
+/// Leading slots of a closure environment before its captures: the code pointer and the copy glue.
+pub(super) const CLOSURE_ENV_HEAD: usize = 2;
+
 impl<'ctx> Codegen<'ctx> {
     /// Literal bytes live in a private constant; the descriptor borrows them.
     pub(super) fn str_literal(&self, value: &str) -> StructValue<'ctx> {
@@ -178,6 +181,103 @@ impl<'ctx> Codegen<'ctx> {
         Ok(header)
     }
 
+    /// A `Vec` of closures copied into `arena`: each environment is re-homed through its copy glue.
+    pub(super) fn copy_closure_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
+        let len = self.vec_load_word(source, super::vec::LEN)?;
+        let header = self.vec_alloc(llvm_fn, arena, elem_ty, Some(len))?;
+        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
+        let from = self.vec_load_ptr(source, super::vec::BUF)?;
+        let to = self.vec_load_ptr(header, super::vec::BUF)?;
+        self.counted_loop(llvm_fn, len, |i| {
+            let env = self.builder.build_load(llvm_elem, self.vec_slot(from, i, stride)?, "elem.env")?.into_pointer_value();
+            let copied = self.copy_closure_into(llvm_fn, arena, env)?;
+            self.builder.build_store(self.vec_slot(to, i, stride)?, copied)?;
+            Ok(())
+        })?;
+        self.vec_store(header, super::vec::LEN, len)?;
+        self.debug_copy_origin(source, header)?;
+        self.debug_copy_origin(from, to)?;
+        Ok(header)
+    }
+
+    /// The closure environment `env` re-homed into `arena` by its glue (slot 1); no glue means a constant environment, shared as is.
+    pub(super) fn copy_closure_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, env: PointerValue<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
+        let ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+        let slot = self.builder.build_struct_gep(self.context.struct_type(&[ptr.into(), ptr.into()], false), env, 1, "env.glue.slot")?;
+        let glue = self.builder.build_load(ptr, slot, "env.glue")?.into_pointer_value();
+        let has_glue = self.builder.build_is_not_null(glue, "env.has_glue")?;
+        let (call_bb, end_bb) = (self.context.append_basic_block(llvm_fn, "closure.copy"), self.context.append_basic_block(llvm_fn, "closure.copy.end"));
+        let entry = self.builder.get_insert_block().expect("positioned");
+        self.builder.build_conditional_branch(has_glue, call_bb, end_bb)?;
+        self.position_at_end(call_bb);
+        let glue_ty = ptr.fn_type(&[ptr.into(), ptr.into()], false);
+        let copied = self.builder.build_indirect_call(glue_ty, glue, &[env.into(), arena.into()], "env.copy")?.try_as_basic_value().basic().expect("glue returns a pointer");
+        let call_end = self.builder.get_insert_block().expect("positioned");
+        self.builder.build_unconditional_branch(end_bb)?;
+        self.position_at_end(end_bb);
+        let phi = self.builder.build_phi(ptr, "env.copied")?;
+        phi.add_incoming(&[(&env, entry), (&copied, call_end)]);
+        Ok(phi.as_basic_value().into_pointer_value())
+    }
+
+    /// An object is not copied with its holder: keep its arena alive as long as `arena`. No-op for other types.
+    fn root_object_arena(&self, arena: PointerValue<'ctx>, ty: TyId, value: BasicValueEnum<'ctx>) -> Result<(), Diagnostic> {
+        if self.tcx.holds_object(ty) && !self.tcx.is_nullable(ty) {
+            let object_arena = self.builder.build_extract_value(value.into_struct_value(), 0, "object.arena")?;
+            self.builder.build_call(self.arena_root_strong_if_dynamic_fn(), &[arena.into(), object_arena.into()], "")?;
+        }
+        Ok(())
+    }
+
+    /// `bork.closure.copy.<function>`: `(env, arena) -> env'`, a copy of a by-value environment in `arena` whose
+    /// captures are re-homed like any other copied value (owned `Ref`s cloned and registered). Built once per closure function.
+    pub(super) fn closure_copy_glue(&self, function: &str, env_ty: inkwell::types::StructType<'ctx>, tys: &[TyId], owned: &[bool]) -> Result<FunctionValue<'ctx>, Diagnostic> {
+        let name = format!("bork.closure.copy.{function}");
+        if let Some(glue) = self.module.get_function(&name) {
+            return Ok(glue);
+        }
+        let ptr = self.context.ptr_type(inkwell::AddressSpace::default());
+        let glue = self.module.add_function(&name, ptr.fn_type(&[ptr.into(), ptr.into()], false), Some(inkwell::module::Linkage::Internal));
+        let resume = self.builder.get_insert_block();
+        // The glue has no scope of its own: it must not inherit the caller's DILocation.
+        let location = self.builder.get_current_debug_location();
+        self.builder.unset_current_debug_location();
+        self.position_at_end(self.context.append_basic_block(glue, "entry"));
+        let (src, arena) = (glue.get_nth_param(0).expect("env").into_pointer_value(), glue.get_nth_param(1).expect("arena").into_pointer_value());
+        let size = env_ty.size_of().ok_or_else(|| not_yet_supported("unsized closure environment", None))?;
+        let align = self.context.i64_type().const_int(8, false);
+        let raw = self.builder.build_call(self.arena_alloc_fn(), &[arena.into(), size.into(), align.into()], "closure.env")?;
+        let dst = raw.try_as_basic_value().basic().expect("arena_alloc returns a pointer").into_pointer_value();
+        for i in 0..env_ty.count_fields() {
+            let (from, to) = (self.builder.build_struct_gep(env_ty, src, i, "env.src")?, self.builder.build_struct_gep(env_ty, dst, i, "env.dst")?);
+            let field = env_ty.get_field_type_at_index(i).expect("field");
+            let value = self.builder.build_load(field, from, "env.field")?;
+            // The head slots (code, glue) are copied as they are.
+            let Some(k) = (i as usize).checked_sub(CLOSURE_ENV_HEAD) else {
+                self.builder.build_store(to, value)?;
+                continue;
+            };
+            if owned[k] {
+                let cloned = self.ref_clone(glue, value)?;
+                self.builder.build_store(to, self.ref_handle_type().const_zero())?;
+                self.ref_store(glue, to, arena, cloned)?;
+                self.ref_register_drop(arena, to)?;
+            } else {
+                let copied = self.copy_value_into(glue, arena, tys[k], value)?;
+                self.builder.build_store(to, copied)?;
+                self.root_object_arena(arena, tys[k], copied)?;
+            }
+        }
+        self.builder.build_return(Some(&dst))?;
+        if let Some(block) = resume {
+            self.position_at_end(block);
+        }
+        if let Some(location) = location {
+            self.builder.set_current_debug_location(location);
+        }
+        Ok(glue)
+    }
+
     /// The `Option` instance behind `T?` and its payload type.
     pub(super) fn option_parts(&self, ty: TyId) -> Result<(String, TyId), Diagnostic> {
         let name = crate::mono::enum_instance_name(&self.tcx, ty)
@@ -290,10 +390,17 @@ impl<'ctx> Codegen<'ctx> {
         let record = self.enum_layout(&name).expect("laid out with its enum").variants[some_tag as usize];
         let object = self.builder.build_extract_value(value, 1, "object.ptr")?.into_pointer_value();
         let slot = self.builder.build_struct_gep(record, object, 1, "opt.val.ptr")?;
-        let payload_llvm = self.basic_type(payload_ty).ok_or_else(|| not_yet_supported("nullable payload", None))?;
-        let payload = self.builder.build_load(payload_llvm, slot, "opt.val")?;
-        let payload = self.copy_value_into(llvm_fn, arena, payload_ty, payload)?;
-        let some = self.option_slot(arena, &name, some_tag, Some(payload))?;
+        // A `()?` payload has no LLVM type and no bytes: `Some` is just the tag.
+        let payload = match self.basic_type(payload_ty) {
+            Some(payload_llvm) => {
+                let payload = self.builder.build_load(payload_llvm, slot, "opt.val")?;
+                let copied = self.copy_value_into(llvm_fn, arena, payload_ty, payload)?;
+                self.root_object_arena(arena, payload_ty, copied)?;
+                Some(copied)
+            }
+            None => None,
+        };
+        let some = self.option_slot(arena, &name, some_tag, payload)?;
         let some_end = self.builder.get_insert_block().expect("positioned");
         self.builder.build_unconditional_branch(end_bb)?;
 
@@ -313,11 +420,14 @@ impl<'ctx> Codegen<'ctx> {
         Ok(phi.as_basic_value().into_struct_value())
     }
 
-    /// `value` of type `ty` copied into `arena`: text, plain arrays, plain `Vec`s and nullables of
+    /// `value` of type `ty` copied into `arena`: text, arrays, `Vec`s, closures and nullables of
     /// those; anything else (scalars) is returned as is.
     pub(super) fn copy_value_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, ty: TyId, value: BasicValueEnum<'ctx>) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
         if self.tcx.is_nullable(ty) {
             return Ok(self.copy_nullable_into(llvm_fn, arena, ty, value.into_struct_value())?.into());
+        }
+        if self.tcx.is_callable(ty) {
+            return Ok(self.copy_closure_into(llvm_fn, arena, value.into_pointer_value())?.into());
         }
         if self.tcx.is_text(ty) {
             return Ok(self.copy_string_into(arena, value.into_struct_value())?.into());
@@ -329,9 +439,8 @@ impl<'ctx> Codegen<'ctx> {
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }
         if let Some(elem) = self.tcx.vec_elem(ty) {
-            // shortcut (#307): the environments stay in the old arena; MIR build rejects this first as `VecOfClosuresCopy`.
             if self.tcx.is_callable(elem) {
-                return Err(not_yet_supported("moving a `Vec` of closures into another arena", None));
+                return Ok(self.copy_closure_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
             }
             if self.tcx.is_managed_ref(elem) || self.tcx.is_text(elem) {
                 return Ok(self.copy_owning_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());

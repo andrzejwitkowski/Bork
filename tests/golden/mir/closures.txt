@@ -1,3 +1,62 @@
+== closures/capture_unit_option.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit? [Temp]
+  let _3: unit? [Val] a
+  let _4: closure#0()->i32 [Temp]
+  let _5: closure#0()->i32 [Val] f
+  let _6: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc EnumSlot { enum_name: "Option<unit>", variant: 1 } in current  // label "Option<unit>": unit?
+    _3 = copy _2  // label "a": unit? decl
+    _4 = closure main$closure0(copy _3) in current
+    _5 = copy _4  // label "f": closure#0()->i32 decl
+    _6 = call_closure copy _5() +current -> bb1
+  bb1:
+    _0 = copy _6
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit? [Arg] a
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    match _1 {
+      Option#0(_) -> bb2
+      Option#1() -> bb3
+    }
+  bb1:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    storage_live _4
+    _3 = 1
+    storage_dead _4
+    goto bb1
+  bb3:
+    storage_live _5
+    _3 = 0
+    storage_dead _5
+    goto bb1
+}
+
 == closures/closure_field_ref_outer_block.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

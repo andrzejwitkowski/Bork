@@ -1,0 +1,12 @@
+// exit: 0
+// A closure that captures a `()?` by value builds: its copy glue handles a payload with no LLVM type.
+fun main(): i32 {
+    val a: ()? = None
+    val f = { ->
+        when a {
+            Some(_) => { 1 }
+            None => { 0 }
+        }
+    }
+    return f()
+}

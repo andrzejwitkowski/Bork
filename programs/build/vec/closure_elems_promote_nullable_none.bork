@@ -1,0 +1,14 @@
+// exit: 5
+// A promoted closure that captures a `Node?` holding None takes the None path.
+class Node { id: i32 }
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    {
+        var inner = Vec::<() -> i32>()
+        val n: Node? = None
+        inner.push(move (n) { -> if val x = n { x.id } else { 5 } })
+        outer = promote inner
+    }
+    val f = outer.get(0)
+    return f()
+}

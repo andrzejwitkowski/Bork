@@ -78,7 +78,6 @@ fn corpus_builds_and_verifies() {
         ("unit-elem", vec!["programs/build_fail/unit_vec_element.bork"]),
         ("unit-field", vec!["programs/build_fail/unit_field.bork"]),
         ("unit-param", vec!["programs/build_fail/unit_param.bork"]),
-        ("vec-of-closures-copy", vec!["programs/build_fail/vec_of_closures_promote.bork"]),
     ]);
     let actual: BTreeMap<&str, Vec<&str>> = unsupported.iter().map(|(k, v)| (k.as_str(), v.iter().map(String::as_str).collect())).collect();
     assert_eq!(actual, expected);
