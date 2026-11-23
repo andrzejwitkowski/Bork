@@ -13,7 +13,7 @@
 pub(super) mod array;
 mod binary;
 mod borrow;
-mod call;
+pub(super) mod call;
 mod control;
 mod field;
 mod method;

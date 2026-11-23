@@ -1,0 +1,15 @@
+// exit: 7
+// WHAT THIS TESTS
+// A generic helper (`F: Fn(i32) -> B`) builds `map(iter(v), f)` and reads `next()`: the impl's `B` is fixed through the bound on the type parameter `F` (#326).
+fun countFirst<F: Fn(i32) -> B, B>(v: Vec<i32>, f: F): i32 {
+    var m = map(iter(move v), f)
+    when (m.next()) {
+        Some(_) => { return 7 }
+        None => { return 0 }
+    }
+}
+fun main(): i32 {
+    var v = Vec::<i32>()
+    v.push(4)
+    return countFirst(move v, { x -> x + 1 })
+}

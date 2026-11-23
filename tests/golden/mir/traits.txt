@@ -1456,6 +1456,256 @@ fn main$closure1 (parent=true, sink=false) {
     return
 }
 
+== traits/iterator_adapter_generic_helper.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<i32> [Temp]
+  let _3: Vec<i32> [Var] v
+  let _4: &Vec<i32> [Temp]
+  let _5: Vec<i32> [Temp]
+  let _6: Vec<i32> [Temp]
+  let _7: closure#0(i32)->i32 [Temp]
+  let _8: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<i32> decl
+    _4 = borrow _3
+    vec_Push(copy _4, 4)
+    _5 = move _3
+    _6 = copy_into _5 in current
+    _7 = closure main$closure0() in current
+    _8 = call countFirst<closure#0(i32)->i32,i32>(copy _6, copy _7) +current -> bb1
+  bb1:
+    _0 = copy _8
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn countFirst<closure#0(i32)->i32,i32> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: Vec<i32> [Arg] v
+  let _2: closure#0(i32)->i32 [Arg] f
+  let _3: unit [Hidden(DebugScope)]
+  let _4: Vec<i32> [Temp]
+  let _5: Vec<i32> [Temp]
+  let _6: VecIter<i32> [Temp]
+  let _7: Map<VecIter<i32>, closure#0(i32)->i32> [Temp]
+  let _8: Map<VecIter<i32>, closure#0(i32)->i32> [Var] m
+  let _9: &Map<VecIter<i32>, closure#0(i32)->i32> [Temp]
+  let _10: i32? [Temp]
+  let _11: unit [Hidden(DebugScope)]
+  let _12: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = move _1
+    _5 = copy_into _4 in current
+    _6 = call iter<i32>(copy _5) +current +current -> bb1
+  bb1:
+    _7 = call map<VecIter<i32>,closure#0(i32)->i32,i32>(copy _6, copy _2) +current +current -> bb2
+  bb2:
+    _8 = copy _7  // label "m": Map<VecIter<i32>, closure#0(i32)->i32> decl
+    _9 = borrow _8
+    _10 = call Iterator@1.next<VecIter<i32>,closure#0(i32)->i32,i32>(copy _9) +current +current -> bb3
+  bb3:
+    match _10 {
+      Option#0(_) -> bb5
+      Option#1() -> bb6
+    }
+  bb4:
+    unreachable
+  bb5:
+    storage_live _11
+    _0 = 7
+    storage_dead _11
+    storage_dead _3
+    region_exit r0
+    return
+  bb6:
+    storage_live _12
+    _0 = 0
+    storage_dead _12
+    storage_dead _3
+    region_exit r0
+    return
+}
+
+fn iter<i32> (parent=true, sink=true) {
+  let _0: VecIter<i32> [Return]
+  let _1: Vec<i32> [Arg] v
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Vec<i32> [Temp]
+  let _4: Vec<i32> [Temp]
+  let _5: VecIter<i32> [Temp]
+  let _6: Vec<i32> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = move _1
+    _4 = copy_into _3 in result_sink
+    _5 = alloc Object { class: "VecIter<i32>" } in result_sink  // label "VecIter<i32>": VecIter<i32>
+    _6 = copy_into _4 in result_sink
+    _5.0 = copy _6  // label "VecIter<i32>.v": Vec<i32> decl owner=result_sink
+    _5.1 = 0  // label "VecIter<i32>.i": i32 decl owner=result_sink
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn map<VecIter<i32>,closure#0(i32)->i32,i32> (parent=true, sink=true) {
+  let _0: Map<VecIter<i32>, closure#0(i32)->i32> [Return]
+  let _1: VecIter<i32> [Arg] it
+  let _2: closure#0(i32)->i32 [Arg] f
+  let _3: unit [Hidden(DebugScope)]
+  let _4: Map<VecIter<i32>, closure#0(i32)->i32> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = alloc Object { class: "Map<VecIter<i32>,closure#0(i32)->i32>" } in result_sink  // label "Map<VecIter<i32>,closure#0(i32)->i32>": Map<VecIter<i32>, closure#0(i32)->i32>
+    _4.0 = move _1  // label "Map<VecIter<i32>,closure#0(i32)->i32>.it": VecIter<i32> decl owner=result_sink
+    _4.1 = move _2  // label "Map<VecIter<i32>,closure#0(i32)->i32>.f": closure#0(i32)->i32 decl owner=result_sink
+    _0 = copy _4
+    storage_dead _3
+    region_exit r0
+    return
+}
+
+fn Iterator@1.next<VecIter<i32>,closure#0(i32)->i32,i32> (parent=true, sink=true) {
+  let _0: i32? [Return]
+  let _1: &Map<VecIter<i32>, closure#0(i32)->i32> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: &VecIter<i32> [Temp]
+  let _4: i32? [Temp]
+  let _5: i32 [Val] x
+  let _6: unit [Hidden(DebugScope)]
+  let _7: i32 [Temp]
+  let _8: i32? [Temp]
+  let _9: i32? [Temp]
+  let _10: unit [Hidden(DebugScope)]
+  let _11: i32? [Temp]
+  let _12: i32? [Temp]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = borrow _1.0
+    _4 = call Iterator@0.next<i32>(copy _3) +current +result_sink -> bb1
+  bb1:
+    match _4 {
+      Option#0(bind) _5=_4@0.0 -> bb3
+      Option#1() -> bb4
+    }
+  bb2:
+    unreachable
+  bb3:
+    region_enter r1
+    storage_live _6
+    _7 = call_closure copy _1.1(copy _5) +current -> bb5
+  bb4:
+    region_enter r2
+    storage_live _10
+    _11 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in result_sink  // label "Option<i32>": i32?
+    _12 = copy_into _11 in result_sink
+    _0 = copy _12
+    storage_dead _10
+    storage_dead _2
+    region_exit r2
+    region_exit r0
+    return
+  bb5:
+    _8 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
+    _8@0.0 = copy _7  // label "Option<i32>.Some.value": i32 decl owner=result_sink
+    _9 = copy_into _8 in result_sink
+    _0 = copy _9
+    storage_dead _6
+    storage_dead _2
+    region_exit r1
+    region_exit r0
+    return
+}
+
+fn Iterator@0.next<i32> (parent=true, sink=true) {
+  let _0: i32? [Return]
+  let _1: &VecIter<i32> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: &Vec<i32> [Temp]
+  let _4: i32 [Temp]
+  let _5: bool [Temp]
+  let _6: unit [Hidden(DebugScope)]
+  let _7: i32? [Temp]
+  let _8: i32? [Temp]
+  let _9: &Vec<i32> [Temp]
+  let _10: i32 [Temp]
+  let _11: i32 [Temp]
+  let _12: i32 [Val] x
+  let _13: i32 [Temp]
+  let _14: i32? [Temp]
+  let _15: i32? [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = borrow _1.0
+    _4 = vec_Len(copy _3)
+    _5 = ge(copy _1.1, copy _4)
+    switch copy _5 [ 1 -> bb1, else -> bb2]
+  bb1:
+    region_enter r1
+    storage_live _6
+    _7 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in result_sink  // label "Option<i32>": i32?
+    _8 = copy_into _7 in result_sink
+    _0 = copy _8
+    storage_dead _6
+    storage_dead _2
+    region_exit r1
+    region_exit r0
+    return
+  bb2:
+    _9 = borrow _1.0
+    _10 = copy _1.1
+    _11 = vec_Get(copy _9, copy _10)
+    _12 = copy _11  // label "x": i32 decl
+    _13 = add(copy _1.1, 1)
+    _1.1 = copy _13  // label "VecIter<i32>.i": i32 decl owner=object_arena(_1)
+    _14 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
+    _14@0.0 = copy _12  // label "Option<i32>.Some.value": i32 decl owner=result_sink
+    _15 = copy_into _14 in result_sink
+    _0 = copy _15
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn main$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] x
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 1)
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == traits/iterator_for.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

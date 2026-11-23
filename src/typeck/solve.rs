@@ -150,12 +150,23 @@ fn bound_implies(env: &Env<'_>, have: crate::defs::DefId, need: crate::defs::Def
 
 /// The function's own bound `T: Trait<..>` whose arguments unify with the requirement's.
 fn solve_from_bounds(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome {
-    let candidates: Vec<Predicate<TyId>> = env
+    // `Fn(VecIter<i32>::Item)` meets `Fn(i32)` only once the projection is reduced; done once,
+    // outside the candidate snapshots, so a failed candidate leaves no pending projection behind.
+    let mut predicate = predicate.clone();
+    for arg in &mut predicate.trait_ref.args {
+        *arg = normalize(env, *arg, None);
+    }
+    let predicate = &predicate;
+    let mut candidates: Vec<Predicate<TyId>> = env
         .param_env
         .iter()
         .filter(|p| p.self_ty == predicate.self_ty && bound_implies(env, p.trait_ref.trait_id, predicate.trait_ref.trait_id))
         .cloned()
         .collect();
+    // Both sides are reduced, so a bound spelled `Fn(VecIter<i32>::Item)` still meets `Fn(i32)`.
+    for arg in candidates.iter_mut().flat_map(|c| c.trait_ref.args.iter_mut()) {
+        *arg = normalize(env, *arg, None);
+    }
     for candidate in candidates {
         let snap = env.infcx.snapshot();
         let unified = candidate
@@ -476,7 +487,7 @@ fn project_from_impls(env: &mut Env<'_>, base: TyId, trait_name: Option<&str>, n
                         let Some(&arg) = predicate.trait_ref.args.first().filter(|_| env.tcx.is_fn_trait(predicate.trait_ref.trait_id)) else { continue };
                         let Ok(callable) = crate::ty::subst(env.tcx, predicate.self_ty, &fresh) else { continue };
                         let callable = env.infcx.resolve(env.tcx, callable).unwrap_or(callable);
-                        let (Some((_, actual)), Ok(want)) = (env.tcx.func_sig(callable), crate::ty::subst(env.tcx, arg, &fresh)) else { continue };
+                        let (Some((_, actual)), Ok(want)) = (super::expr::call::callable_sig(callable, env), crate::ty::subst(env.tcx, arg, &fresh)) else { continue };
                         if let Some((_, ret)) = env.tcx.func_sig(want) {
                             let _ = env.infcx.unify(env.tcx, ret, actual);
                         }
