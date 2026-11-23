@@ -490,6 +490,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
     env.param_env = signature.predicates.clone();
     env.proj_env = signature.proj_predicates.clone();
     let mut signature = signature;
+    let callable_rets = traits::callable_rets(env.tcx, &signature.predicates);
     let span = Some(function.name_span);
     signature.params = signature.params.iter().map(|&p| solve::normalize(&mut env, p, span)).collect();
     signature.ret = solve::normalize(&mut env, signature.ret, span);
@@ -511,6 +512,7 @@ fn check_function(checker: &mut FunctionChecker<'_>, function: &Function, owner:
         env_params: None,
         env_mode: crate::hir::CaptureMode::ByValue,
         return_ty,
+        callable_rets,
         body,
     }
 }

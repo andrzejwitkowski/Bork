@@ -91,6 +91,7 @@ pub(super) fn hir_signatures(
             generics: info.generics.clone(),
             trait_args: info.trait_args.clone(),
             self_ty: info.self_ty,
+            callable_rets: callable_rets(tcx, &info.predicates),
             assoc: {
                 let mut assoc: Vec<_> = info.assoc.iter().map(|(name, &ty)| (name.clone(), ty)).collect();
                 assoc.sort_by(|a, b| a.0.cmp(&b.0));
@@ -336,7 +337,22 @@ fn check_impl(
     }
     let scope = generics::scope(&[], &i.generics);
     tcx.set_param_names(generics::names(&[], &i.generics));
-    let (predicates, proj_predicates) = lower_bounds(&i.generics, &scope, defs, traits, tcx, diagnostics);
+    let (mut predicates, proj_predicates) = lower_bounds(&i.generics, &scope, defs, traits, tcx, diagnostics);
+    // `F: Fn(I::Item) -> B` names `I::Item` in its arguments; give it its trait like the signatures do (#322).
+    let names = generics::names(&[], &i.generics);
+    let declares = |base: TyId, name: &str| -> Vec<String> {
+        predicates
+            .iter()
+            .filter(|p| p.self_ty == base && traits[&p.trait_ref.trait_id].assoc_types.iter().any(|n| n == name))
+            .map(|p| defs.get(p.trait_ref.trait_id).name.clone())
+            .collect()
+    };
+    let mut qualify = Qualify { declares: &declares, names: &names, errors: Vec::new(), memo: Default::default() };
+    let qualified = qualify_bound_args(&mut qualify, tcx, &predicates);
+    report_once(std::mem::take(&mut qualify.errors), head, diagnostics);
+    for (predicate, args) in predicates.iter_mut().zip(qualified) {
+        predicate.trait_ref.args = args;
+    }
     // shortcut: the impl is rejected rather than enforcing the bound on selection; add it to the nested obligations when needed.
     if !proj_predicates.is_empty() {
         diagnostics.push(type_error("equality bounds (`Item = X`) on an impl's parameters are not supported yet", head));
@@ -598,6 +614,20 @@ fn report_once(errors: Vec<String>, span: Option<Span>, diagnostics: &mut Vec<Di
     }
 }
 
+/// `F: Fn(..) -> R` bounds as (`F`, `R`): a callable `F` fixes parameters only `R` mentions.
+pub(super) fn callable_rets(tcx: &TyCtx, predicates: &[Predicate<TyId>]) -> Vec<(TyId, TyId)> {
+    predicates
+        .iter()
+        .filter(|p| tcx.is_fn_trait(p.trait_ref.trait_id))
+        .filter_map(|p| Some((p.self_ty, tcx.func_sig(*p.trait_ref.args.first()?)?.1)))
+        .collect()
+}
+
+/// Qualifies the projections in the trait arguments of `predicates` (`F: Fn(I::Item) -> R`, #322).
+fn qualify_bound_args(qualify: &mut Qualify<'_>, tcx: &mut TyCtx, predicates: &[Predicate<TyId>]) -> Vec<Vec<TyId>> {
+    predicates.iter().map(|p| p.trait_ref.args.iter().map(|&a| qualify.apply(tcx, a)).collect()).collect()
+}
+
 /// Qualifies the projections in the parameters and return type of `sig` against its own bounds.
 pub(super) fn qualify_sig(
     sig: &mut FnSig<TyId>,
@@ -621,7 +651,11 @@ pub(super) fn qualify_sig(
     for predicate in &mut sig.proj_predicates {
         predicate.ty = qualify.apply(tcx, predicate.ty);
     }
+    let bound_args = qualify_bound_args(&mut qualify, tcx, &sig.predicates);
     report_once(std::mem::take(&mut qualify.errors), span, diagnostics);
+    for (predicate, args) in sig.predicates.iter_mut().zip(bound_args) {
+        predicate.trait_ref.args = args;
+    }
     sig.params = params;
     sig.ret = ret;
 }

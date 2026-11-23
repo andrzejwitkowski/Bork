@@ -111,6 +111,24 @@ fn too_big(tcx: &TyCtx, args: &[TyId]) -> bool {
     args.iter().any(|&arg| depth(tcx, arg, &mut depths) > MAX_TYPE_DEPTH || size(tcx, arg, &mut sizes) > MAX_TYPE_SIZE)
 }
 
+/// Impl parameters only a `F: Fn(..) -> R` bound's `R` mentions, read off the callable `F` was bound to.
+fn bind_callable_rets(tcx: &TyCtx, rets: &[(TyId, TyId)], out: &mut [Option<TyId>]) -> bool {
+    // A callable bound by an earlier entry's return type is only known on a later pass, so repeat until nothing new binds.
+    loop {
+        let before = out.iter().flatten().count();
+        let matched = rets.iter().all(|&(callable, ret)| {
+            let TyData::Param(idx) = tcx.data(callable) else { return true };
+            match out.get(idx.0 as usize).copied().flatten().and_then(|c| tcx.func_sig(c)) {
+                Some((_, actual)) => bind(tcx, ret, actual, out),
+                None => true,
+            }
+        });
+        if !matched || out.iter().flatten().count() == before {
+            return matched;
+        }
+    }
+}
+
 /// One-way match of the generic `pattern` against the concrete `actual`, binding `Param(i)` to
 /// `out[i]`. False when the shapes differ or a parameter would get two different types.
 fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> bool {
@@ -156,7 +174,7 @@ fn normalize_projections(tcx: &mut TyCtx, hir: &HirProgram, ty: TyId) -> Result<
             let found = hir.impls.iter().filter(|i| trait_name.as_ref().is_none_or(|t| *t == i.trait_name)).find_map(|i| {
                 let (_, value) = i.assoc.iter().find(|(n, _)| *n == name)?;
                 let mut out = vec![None; i.generics.len()];
-                bind(tcx, i.self_ty, base, &mut out).then(|| (*value, out))
+                (bind(tcx, i.self_ty, base, &mut out) && bind_callable_rets(tcx, &i.callable_rets, &mut out)).then(|| (*value, out))
             });
             let Some((value, out)) = found else {
                 return Err(format!("cannot normalize `{}`: no impl defines the associated type `{name}`", tcx.display(leaf)));
@@ -242,7 +260,7 @@ impl<'a> Collector<'a> {
     /// Type arguments of a call to `callee` seen at type `callee_ty`, `None` once reported.
     fn infer_type_args(&mut self, tcx: &TyCtx, callee: &HirFunction, callee_ty: TyId, span: Option<Span>) -> Option<Vec<TyId>> {
         let params = callee.params.iter().map(|p| p.ty).collect();
-        let sig = GenericSig { name: &callee.name, generics: &callee.generics, params, ret: callee.return_ty };
+        let sig = GenericSig { name: &callee.name, generics: &callee.generics, params, ret: callee.return_ty, callable_rets: &callee.callable_rets };
         self.bind_signature(tcx, &sig, callee_ty, span)
     }
 
@@ -258,6 +276,7 @@ impl<'a> Collector<'a> {
                 sig.params.len() == actual.len()
                     && sig.params.iter().zip(actual).all(|(&p, &a)| bind(tcx, p, a, &mut out))
                     && bind(tcx, sig.ret, *actual_ret, &mut out)
+                    && bind_callable_rets(tcx, sig.callable_rets, &mut out)
             }
             _ => false,
         };
@@ -299,7 +318,7 @@ impl<'a> Collector<'a> {
 
     /// `Self`, the trait's arguments and the method's own arguments of a call of a trait method.
     fn bind_trait_call(&mut self, tcx: &TyCtx, name: &str, declared: &HirTraitMethod, callee_ty: TyId, span: Option<Span>) -> Option<TraitCall> {
-        let sig = GenericSig { name, generics: &declared.generics, params: declared.params.clone(), ret: declared.ret };
+        let sig = GenericSig { name, generics: &declared.generics, params: declared.params.clone(), ret: declared.ret, callable_rets: &[] };
         let bound = self.bind_signature(tcx, &sig, callee_ty, span)?;
         // `bound` lists `Self`, then the trait's parameters, then the method's own.
         let trait_arity = declared.generics.len() - declared.own_generics;
@@ -360,6 +379,7 @@ struct GenericSig<'s> {
     generics: &'s [String],
     params: Vec<TyId>,
     ret: TyId,
+    callable_rets: &'s [(TyId, TyId)],
 }
 
 /// The arguments of one call of a trait method, read off its concrete type.
@@ -379,7 +399,8 @@ fn select_impl<'h>(hir: &'h HirProgram, tcx: &TyCtx, trait_name: &str, call: &Tr
     hir.impls.iter().filter(|i| i.trait_name == trait_name).find_map(|i| {
         let mut out = vec![None; i.generics.len()];
         let fits = bind(tcx, i.self_ty, call.self_ty, &mut out)
-            && i.trait_args.iter().zip(&call.trait_args).all(|(&pattern, &actual)| bind(tcx, pattern, actual, &mut out));
+            && i.trait_args.iter().zip(&call.trait_args).all(|(&pattern, &actual)| bind(tcx, pattern, actual, &mut out))
+            && bind_callable_rets(tcx, &i.callable_rets, &mut out);
         fits.then_some((i, out))
     })
 }
@@ -549,6 +570,14 @@ impl<'a> Collector<'a> {
         let (mut nested_nullable, mut ill_formed) = (false, Vec::<String>::new());
         let mut checked = HashSet::new();
         let (hir, mut unnormalized) = (self.hir, Vec::<String>::new());
+        // A read of a `T` is a plain `Local`/`Shared` read (typeck cannot know `T` is a `Ref`); once `T` is a `Ref`
+        // it must clone the handle like every other `Ref` read (`RefCopy`).
+        let mut generic_reads = HashSet::new();
+        hir::rewrite(&mut function.body, &mut |ty| ty, &mut |e| {
+            if matches!(e.kind, HirExprKind::Ident { use_kind: hir::UseKind::Local | hir::UseKind::Shared, .. }) && tcx.has_param(e.ty) {
+                generic_reads.insert(e.id);
+            }
+        });
         let mut substitute = |ty: TyId| {
             let ty = subst(tcx, ty, args).unwrap_or_else(|_| {
                 nested_nullable = true;
@@ -566,6 +595,13 @@ impl<'a> Collector<'a> {
         function.params.iter_mut().for_each(|param| param.ty = substitute(param.ty));
         function.return_ty = substitute(function.return_ty);
         hir::resolve_types(&mut function.body, &mut substitute);
+        hir::rewrite(&mut function.body, &mut |ty| ty, &mut |e| {
+            if let HirExprKind::Ident { use_kind, .. } = &mut e.kind {
+                if generic_reads.contains(&e.id) && tcx.is_handle_clone(e.ty) {
+                    *use_kind = hir::UseKind::RefCopy;
+                }
+            }
+        });
         if nested_nullable {
             let message = format!("type arguments of `{}` would make a nullable of a nullable", function.name);
             self.diagnostics.push(error(message, Some(function.name_span)));

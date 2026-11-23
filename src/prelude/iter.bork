@@ -1,0 +1,59 @@
+// Lazy iterator chain over a Vec (#278): `fold(filter(map(iter(move v), f), p), init, g)`. Free functions,
+// because a trait cannot carry default methods yet. `iter` takes the Vec by value: an iterator cannot hold a borrow.
+// shortcut: `fold` accumulates an i32; a generic accumulator is move-only and cannot be reassigned in a loop.
+class VecIter<T> {
+    v: Vec<T>
+    i: i32
+}
+impl<T> Iterator for VecIter<T> {
+    type Item = T
+    fun next(): T? {
+        if (this.i >= this.v.len()) { return None }
+        val x = this.v.get(this.i)
+        this.i = this.i + 1
+        return Some(x)
+    }
+}
+fun iter<T>(v: Vec<T>): VecIter<T> {
+    return VecIter(move v, 0)
+}
+class Map<I, F> {
+    it: I
+    f: F
+}
+impl<I: Iterator, F: Fn(I::Item) -> B, B> Iterator for Map<I, F> {
+    type Item = B
+    fun next(): B? {
+        when (this.it.next()) {
+            Some(x) => { return Some(this.f(x)) }
+            None => { return None }
+        }
+    }
+}
+fun map<I: Iterator, F: Fn(I::Item) -> B, B>(it: I, f: F): Map<I, F> {
+    return Map(move it, move f)
+}
+class Filter<I, P> {
+    it: I
+    p: P
+}
+impl<I: Iterator, P: Fn(I::Item) -> bool> Iterator for Filter<I, P> {
+    type Item = I::Item
+    fun next(): Option<I::Item> {
+        while (true) {
+            when (this.it.next()) {
+                Some(x) => { if (this.p(x)) { return Some(x) } }
+                None => { return None }
+            }
+        }
+        return None
+    }
+}
+fun filter<I: Iterator, P: Fn(I::Item) -> bool>(it: I, p: P): Filter<I, P> {
+    return Filter(move it, move p)
+}
+fun fold<I: Iterator, F: Fn(i32, I::Item) -> i32>(it: I, init: i32, f: F): i32 {
+    var acc = init
+    for (x in it) { acc = f(acc, x) }
+    return acc
+}

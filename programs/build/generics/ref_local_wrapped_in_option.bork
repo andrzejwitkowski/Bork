@@ -1,0 +1,17 @@
+// exit: 0
+// WHAT THIS TESTS
+// In a generic function, `val x = v.get(0); return Some(x)` with `T = Ref<Node>` clones the handle: `x` keeps and
+// releases its own, the `Option` owns another (a plain copy released the arena's counter twice).
+class Node {
+    n: i32
+}
+fun first<T>(v: &Vec<T>): Option<T> {
+    val x = v.get(0)
+    return Some(x)
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    first(&v)
+    return 0
+}

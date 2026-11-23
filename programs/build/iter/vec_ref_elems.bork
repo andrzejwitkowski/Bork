@@ -1,0 +1,26 @@
+// exit: 0
+// stdout: 2\n1\n
+// WHAT THIS TESTS
+// A `Vec<Ref<Node>>` through `iter` and `filter`: each element read hands out its own handle; a plain copy released
+// the arena's counter twice and aborted when the scope ended.
+class Node {
+    n: i32
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    v.push(Node(5))
+    var count = 0
+    for (r in filter(iter(move v), { r -> true })) {
+        count = count + 1
+    }
+    println(count)
+    var w = Vec::<Ref<Node>>()
+    w.push(Node(7))
+    var seen = 0
+    for (r in iter(move w)) {
+        seen = seen + 1
+    }
+    println(seen)
+    return 0
+}

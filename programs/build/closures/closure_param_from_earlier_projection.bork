@@ -1,0 +1,27 @@
+// exit: 0
+// stdout: 6\n
+// WHAT THIS TESTS
+// A closure argument whose parameter type is `I::Item`, with `I` fixed by an earlier argument: the closure is
+// checked against `i32`, not against an unresolved projection.
+class Counter {
+    n: i32
+}
+impl Iterator for Counter {
+    type Item = i32
+    fun next(): i32? {
+        if (this.n >= 3) { return None }
+        this.n = this.n + 1
+        return Some(this.n)
+    }
+}
+fun sum<I: Iterator, F: Fn(I::Item) -> i32>(it: I, f: F): i32 {
+    var total = 0
+    for (x in it) {
+        total = total + f(x)
+    }
+    return total
+}
+fun main(): i32 {
+    println(sum(Counter(0), { x -> x }))
+    return 0
+}

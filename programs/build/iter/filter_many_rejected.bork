@@ -1,0 +1,23 @@
+// exit: 0
+// stdout: 1\n7\n
+// WHAT THIS TESTS
+// `filter` rejecting many `String` items before it yields one: each rejected `next` result is dropped with its loop
+// iteration, and the one accepted item still reaches the caller (`return` copies it into the result sink).
+fun main(): i32 {
+    var v = Vec::<String>()
+    var i = 0
+    while (i < 3000) {
+        v.push("aa")
+        i = i + 1
+    }
+    v.push("abcdefg")
+    var n = 0
+    var longest = 0
+    for (s in filter(iter(move v), { s -> s.length > 2 })) {
+        n = n + 1
+        longest = s.length
+    }
+    println(n)
+    println(longest)
+    return 0
+}

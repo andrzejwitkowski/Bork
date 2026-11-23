@@ -194,7 +194,7 @@ impl<'a> FnBuilder<'a> {
                 hidden.push(ArenaRef::Current);
             }
             if abi.result_sink {
-                hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
+                hidden.push(self.call_result_sink(e.ty));
             }
             let dest = self.temp(e.ty);
             let target = self.new_block();
@@ -237,6 +237,16 @@ impl<'a> FnBuilder<'a> {
         Err(BuildError::unsupported(Capability::IndirectCall, span))
     }
 
+    /// Where a call's result is allocated. A function with a result sink sends every call result there, so one made in a
+    /// loop body piled up per iteration (a `filter` rejecting many items). A plain value only reaches the caller through
+    /// `return`, which copies it into the result sink, so inside a loop it stays in the loop's own arena.
+    /// A result that moves a handle or is callable may escape the loop, so it keeps the result sink and piles up per
+    /// iteration (#327).
+    fn call_result_sink(&self, ty: crate::ty::TyId) -> ArenaRef {
+        let escapes = self.moves_handle(ty) || self.tcx.is_callable(ty) || self.loops.is_empty();
+        if self.abi.result_sink && escapes { ArenaRef::ResultSink } else { self.sink.clone() }
+    }
+
     /// A call through the closure value `callee`; the result goes where the surrounding expression allocates.
     fn call_closure(&mut self, e: &HirExpr, callee: Operand, args: Vec<Operand>) -> Operand {
         let abi = super::abi_for_return(self.tcx, e.ty);
@@ -245,7 +255,7 @@ impl<'a> FnBuilder<'a> {
             hidden.push(ArenaRef::Current);
         }
         if abi.result_sink {
-            hidden.push(if self.abi.result_sink { ArenaRef::ResultSink } else { self.sink.clone() });
+            hidden.push(self.call_result_sink(e.ty));
         }
         let dest = self.temp(e.ty);
         let target = self.new_block();

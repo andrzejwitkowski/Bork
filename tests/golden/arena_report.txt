@@ -232,6 +232,15 @@ Arenas
         ├── a [Shared ← fun main]
         ├── MatchArm
         └── MatchArm
+== programs/build/closures/closure_field_bounded_param_in_impl.bork
+Arenas
+├── fun main
+│   ├── h [Local]
+│   └── Closure
+│       └── x [Local]
+└── fun Runner@0.run
+    ├── this [Borrow ← call site]
+    └── x [Local]
 == programs/build/closures/closure_field_ref_outer_block.bork
 Arenas
 └── fun main
@@ -292,6 +301,28 @@ Arenas
     └── Closure
         ├── x [Local]
         └── n [Copy]
+== programs/build/closures/closure_param_from_earlier_projection.bork
+Arenas
+├── fun sum
+│   ├── it [Local]
+│   ├── f [Local]
+│   ├── total [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun sum]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── total [Copy]
+│           │   └── f [Shared ← fun sum]
+│           └── MatchArm
+├── fun main
+│   └── Closure
+│       └── x [Local]
+└── fun Iterator@0.next
+    ├── this [Borrow ← call site]
+    └── IfThen
 == programs/build/closures/doc_example.bork
 Arenas
 ├── fun apply
@@ -1639,6 +1670,13 @@ Arenas
     └── Block
         ├── n [Local]
         └── keep [Local]
+== programs/build/generics/ref_local_wrapped_in_option.bork
+Arenas
+├── fun first
+│   ├── v [Borrow ← call site]
+│   └── x [Local]
+└── fun main
+    └── v [Local]
 == programs/build/generics/tree_regions.bork
 Arenas
 └── fun main
@@ -1671,6 +1709,293 @@ Arenas
     │       └── total [Copy]
     ├── IfThen
     └── IfThen
+== programs/build/iter/filter_many_rejected.bork
+Arenas
+├── fun main
+│   ├── v [Local]
+│   ├── i [Local]
+│   ├── n [Local]
+│   ├── longest [Local]
+│   ├── WhileLoop
+│   │   ├── v [Borrow ← fun main]
+│   │   └── i [Copy]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── v [Moved ← fun main]
+│       ├── Closure
+│       │   └── s [Local]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── s [Local]
+│           │   └── n [Copy]
+│           └── MatchArm
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
+== programs/build/iter/vec_chain.bork
+Arenas
+├── fun main
+│   ├── v [Moved ← fun main]
+│   ├── w [Local]
+│   ├── u [Moved ← fun main]
+│   ├── count [Local]
+│   ├── base [Local]
+│   ├── Closure
+│   │   └── x [Local]
+│   ├── Closure
+│   │   └── x [Local]
+│   ├── Closure
+│   │   ├── a [Local]
+│   │   └── x [Local]
+│   ├── Block
+│   │   ├── ?it [Local]
+│   │   ├── w [Moved ← fun main]
+│   │   ├── Closure
+│   │   │   └── x [Local]
+│   │   └── WhileLoop
+│   │       ├── ?it [Borrow ← Block]
+│   │       ├── MatchArm
+│   │       │   ├── x [Local]
+│   │       │   └── count [Copy]
+│   │       └── MatchArm
+│   └── Closure
+│       ├── a [Local]
+│       ├── x [Local]
+│       └── base [Copy]
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
+== programs/build/iter/vec_ref_elems.bork
+Arenas
+├── fun main
+│   ├── v [Local]
+│   ├── count [Local]
+│   ├── w [Local]
+│   ├── seen [Local]
+│   ├── Block
+│   │   ├── ?it [Local]
+│   │   ├── v [Moved ← fun main]
+│   │   ├── Closure
+│   │   │   └── r [Local]
+│   │   └── WhileLoop
+│   │       ├── ?it [Borrow ← Block]
+│   │       ├── MatchArm
+│   │       │   ├── r [Local]
+│   │       │   └── count [Copy]
+│   │       └── MatchArm
+│   └── Block
+│       ├── ?it [Local]
+│       ├── w [Moved ← fun main]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── r [Local]
+│           │   └── seen [Copy]
+│           └── MatchArm
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
+== programs/build/iter/vec_string_elems.bork
+Arenas
+├── fun main
+│   ├── v [Moved ← fun main]
+│   ├── Closure
+│   │   └── s [Local]
+│   └── Closure
+│       ├── a [Local]
+│       └── n [Local]
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
+== programs/build/loops/call_in_loop_returns_option_ref.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun find
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── v [Borrow ← fun find]
+│       ├── i [Copy]
+│       ├── MatchArm
+│       │   ├── r [Local]
+│       │   └── IfValSome
+│       │       ├── x [Borrow ← presence guard]
+│       │       └── IfThen
+│       │           └── r [Shared ← MatchArm]
+│       └── MatchArm
+└── fun main
+    ├── v [Local]
+    ├── found [Local]
+    ├── MatchArm
+    │   ├── r [Local]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
 == programs/build/loops/for_nested.bork
 Arenas
 └── fun main
@@ -3827,6 +4152,41 @@ Arenas
 └── fun Eq@2.eq
     ├── this [Borrow ← call site]
     └── other [Borrow ← call site]
+== programs/build/traits/iterator_adapter_fn_return.bork
+Arenas
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun main
+│   ├── v [Moved ← fun main]
+│   ├── m [Local]
+│   ├── Closure
+│   │   └── x [Local]
+│   └── Closure
+│       ├── a [Local]
+│       └── x [Local]
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+└── fun Iterator@1.next
+    ├── this [Borrow ← call site]
+    ├── MatchArm
+    │   ├── x [Local]
+    │   └── this [Shared ← fun Iterator@1.next]
+    └── MatchArm
 == programs/build/traits/iterator_for.bork
 Arenas
 ├── fun main
@@ -4782,6 +5142,24 @@ Arenas
 └── fun main
     ├── a [Local]
     └── b [Local]
+== programs/check/loops/fold_over_projection.bork
+Arenas
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+└── fun main
 == programs/check/loops/for_iterator.bork
 Arenas
 ├── fun make
@@ -5988,6 +6366,106 @@ Arenas
 ├── fun ret_u8
 └── fun main
     └── x [Local]
+== programs/check_fail/iter/vec_used_after_iter.bork
+Ownership Error [196..197] use of `v` after move from fun main
+Arenas
+├── fun main
+│   ├── v [Moved ← fun main]
+│   └── it [Local]
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
+== programs/check_fail/iter/wrong_closure_type.bork
+Type Error [202..203] arithmetic operands must have the same numeric type, got i32 and String
+Arenas
+├── fun main
+│   ├── v [Moved ← fun main]
+│   ├── m [Local]
+│   └── Closure
+│       └── x [Local]
+├── fun iter
+│   └── v [Moved ← fun iter]
+├── fun map
+│   ├── it [Moved ← fun map]
+│   └── f [Moved ← fun map]
+├── fun filter
+│   ├── it [Moved ← fun filter]
+│   └── p [Moved ← fun filter]
+├── fun fold
+│   ├── it [Local]
+│   ├── init [Local]
+│   ├── f [Local]
+│   ├── acc [Local]
+│   └── Block
+│       ├── ?it [Local]
+│       ├── it [Moved ← fun fold]
+│       └── WhileLoop
+│           ├── ?it [Borrow ← Block]
+│           ├── MatchArm
+│           │   ├── x [Local]
+│           │   ├── f [Shared ← fun fold]
+│           │   └── acc [Copy]
+│           └── MatchArm
+├── fun Iterator@0.next
+│   ├── this [Borrow ← call site]
+│   ├── x [Local]
+│   └── IfThen
+├── fun Iterator@1.next
+│   ├── this [Borrow ← call site]
+│   ├── MatchArm
+│   │   ├── x [Local]
+│   │   └── this [Shared ← fun Iterator@1.next]
+│   └── MatchArm
+└── fun Iterator@2.next
+    ├── this [Borrow ← call site]
+    └── WhileLoop
+        ├── this [Borrow ← fun Iterator@2.next]
+        ├── MatchArm
+        │   ├── x [Local]
+        │   ├── this [Shared ← fun Iterator@2.next]
+        │   └── IfThen
+        │       └── x [Shared ← MatchArm]
+        └── MatchArm
 == programs/check_fail/loops/break_outside_loop.bork
 Type Error [37..42] `break` outside of a loop
 Arenas

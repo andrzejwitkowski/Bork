@@ -87,7 +87,7 @@ fn callable_field(receiver_ty: TyId, name: &str, env: &mut Env<'_>) -> Option<Ty
     // The class arguments are substituted first: `on: F` of a `Holder<closure>` is callable.
     let field_ty = env.member_ty(receiver_ty, field_ty);
     let field_ty = env.settle(field_ty);
-    env.tcx.func_sig(env.tcx.base(field_ty)).map(|_| field_ty)
+    super::call::callable_sig(env.tcx.base(field_ty), env).map(|_| field_ty)
 }
 
 /// `recv.field(args)` where `field` holds a closure: the call goes through the field's value.
@@ -96,7 +96,7 @@ fn check_field_call(receiver: &Expr, receiver_ty: TyId, field: &str, id: AstId, 
     let access = Expr::Field { receiver: Box::new(receiver.clone()), name: field.to_string(), safe: false, span, id };
     let callee = synthesize(&access, return_ty, env);
     let callee_ty = env.settle(callee.ty);
-    let Some((params, ret)) = env.tcx.func_sig(env.tcx.base(callee_ty)) else { unreachable!("the field was checked to be callable") };
+    let Some((params, ret)) = super::call::callable_sig(env.tcx.base(callee_ty), env) else { unreachable!("the field was checked to be callable") };
     let class = env.tcx.record_def(env.tcx.ref_inner(receiver_ty).unwrap_or(receiver_ty)).map(|c| env.tcx.class_name(c).to_string()).unwrap_or_default();
     let mut call = finish_call(format!("{class}.{field}"), params, ret, None, site, env);
     if let HirExprKind::Call { callee: slot, .. } = &mut call.hir.kind {

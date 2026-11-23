@@ -1,0 +1,10 @@
+// WHAT THIS TESTS
+// The item type of a generic iterator named in an `Fn` bound (`I::Item`) is the type `for` binds.
+fun fold<I: Iterator, F: Fn(i32, I::Item) -> i32>(it: I, init: i32, f: F): i32 {
+    var acc = init
+    for (x in it) {
+        acc = f(acc, x)
+    }
+    return acc
+}
+fun main() {}

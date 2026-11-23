@@ -48,7 +48,12 @@ fn callee_signature(
 /// The signature of the local binding `name` when it is callable: a function or closure type, or a
 /// type parameter bounded by `Fn*`.
 fn local_callable_sig(name: &str, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
-    let ty = env.binding(name)?.ty;
+    callable_sig(env.binding(name)?.ty, env)
+}
+
+/// The signature of a value of type `ty` that can be called: a function or closure type, or a
+/// type parameter bounded by `Fn*`.
+pub(super) fn callable_sig(ty: TyId, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
     env.tcx.func_sig(ty).or_else(|| {
         env.param_env.iter().find_map(|p| {
             let callable = p.self_ty == ty && env.tcx.is_fn_trait(p.trait_ref.trait_id);
@@ -279,6 +284,10 @@ pub(super) fn finish_call(
         let expected = explicit.get(index).copied();
         // print is overloaded (i32 | i64 | String); its declared `i32` must not leak into a generic argument.
         let hint = if crate::builtins::is_print(&name) { None } else { expected };
+        // Earlier arguments may have fixed a type parameter whose projection types the closure's parameters (#323).
+        if matches!(arg, Expr::Closure(..)) {
+            super::super::solve::select_where_possible(env);
+        }
         let checked = dispatch(arg, hint, return_ty, env);
         if let Some(expected) = expected {
             check_argument(&name, index, &checked, expected, env);
@@ -429,7 +438,11 @@ fn fn_bound_sig(ty: TyId, env: &mut Env<'_>) -> Option<(Vec<TyId>, TyId)> {
 pub(super) fn check_closure_expr(closure: &Closure, expected: Option<TyId>, env: &mut Env<'_>) -> Checked {
     let from_bound = expected.and_then(|ty| fn_bound_sig(env.settle(ty), env));
     let (params, ret) = match expected.and_then(|ty| env.tcx.func_sig(env.tcx.base(ty))).or(from_bound) {
-        Some(sig) => sig,
+        Some((params, ret)) => {
+            // `Fn(I::Item)` of a bound: `I` may be known by now (#323).
+            let params = params.into_iter().map(|p| super::super::solve::normalize(env, p, None)).collect();
+            (params, super::super::solve::normalize(env, ret, None))
+        }
         None => {
             let params: Vec<TyId> = closure.params.iter().map(|_| env.infcx.new_var(env.tcx, VarKind::General)).collect();
             // A parameter the body never constrains is reported at the end of the body, not left unresolved.

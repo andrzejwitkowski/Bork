@@ -1,0 +1,19 @@
+// exit: 7
+// WHAT THIS TESTS
+// A field typed by a class parameter `F` is called as `this.f(x)` inside `impl<F: Fn(..)> Trait for Holder<F>`:
+// the call goes through the `Fn` bound of the impl, not through a closure type seen at the call site.
+trait Runner {
+    fun run(x: i32): i32
+}
+class Holder<F> {
+    f: F
+}
+impl<F: Fn(i32) -> i32> Runner for Holder<F> {
+    fun run(x: i32): i32 {
+        return this.f(x)
+    }
+}
+fun main(): i32 {
+    val h = Holder({ x -> x + 3 })
+    return h.run(4)
+}

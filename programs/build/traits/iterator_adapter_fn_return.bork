@@ -1,0 +1,43 @@
+// exit: 12
+// WHAT THIS TESTS
+// An impl parameter that only an `F: Fn(..) -> B` bound mentions (`B`) is fixed by the closure, in typeck and in mono.
+// A generic adapter (`Map<I, F>`) over a generic iterator, folded with a closure.
+class VecIter<T> {
+    v: Vec<T>
+    i: i32
+}
+impl<T> Iterator for VecIter<T> {
+    type Item = T
+    fun next(): T? {
+        if (this.i >= this.v.len()) { return None }
+        val x = this.v.get(this.i)
+        this.i = this.i + 1
+        return Some(x)
+    }
+}
+class Map<I, F> {
+    it: I
+    f: F
+}
+impl<I: Iterator, F: Fn(I::Item) -> B, B> Iterator for Map<I, F> {
+    type Item = B
+    fun next(): B? {
+        when (this.it.next()) {
+            Some(x) => { return Some(this.f(x)) }
+            None => { return None }
+        }
+    }
+}
+fun fold<I: Iterator, F: Fn(i32, I::Item) -> i32>(it: I, init: i32, f: F): i32 {
+    var acc = init
+    for (x in it) { acc = f(acc, x) }
+    return acc
+}
+fun main(): i32 {
+    var v = Vec::<i32>()
+    v.push(1)
+    v.push(2)
+    v.push(3)
+    val m = Map(VecIter(move v, 0), { x -> x * 2 })
+    return fold(m, 0, { a, x -> a + x })
+}

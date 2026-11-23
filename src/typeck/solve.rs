@@ -135,8 +135,10 @@ fn solve_callable(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome {
         });
         return Outcome::Failed(unsatisfied(env, predicate, &why));
     }
-    match predicate.trait_ref.args.first() {
-        Some(&want) if env.infcx.unify(env.tcx, want, sig).is_ok() => Outcome::Solved(Vec::new()),
+    // The bound may name projections (`Fn(I::Item)`) that are known by now (#323).
+    let want = predicate.trait_ref.args.first().map(|&w| normalize(env, w, None));
+    match want {
+        Some(want) if env.infcx.unify(env.tcx, want, sig).is_ok() => Outcome::Solved(Vec::new()),
         _ => Outcome::Failed(unsatisfied(env, predicate, "the function signature differs from the bound")),
     }
 }
@@ -468,7 +470,19 @@ fn project_from_impls(env: &mut Env<'_>, base: TyId, trait_name: Option<&str>, n
             let snap = env.infcx.snapshot();
             let fresh: Vec<TyId> = info.generics.iter().map(|_| env.infcx.new_var(env.tcx, crate::infer::VarKind::General)).collect();
             let value = match (crate::ty::subst(env.tcx, info.self_ty, &fresh), crate::ty::subst(env.tcx, value, &fresh)) {
-                (Ok(head), Ok(value)) if env.infcx.unify(env.tcx, head, base).is_ok() => env.infcx.resolve(env.tcx, value).ok(),
+                (Ok(head), Ok(value)) if env.infcx.unify(env.tcx, head, base).is_ok() => {
+                    // `F: Fn(..) -> B` fixes `B` once `F` is a closure (#278).
+                    for predicate in &info.predicates {
+                        let Some(&arg) = predicate.trait_ref.args.first().filter(|_| env.tcx.is_fn_trait(predicate.trait_ref.trait_id)) else { continue };
+                        let Ok(callable) = crate::ty::subst(env.tcx, predicate.self_ty, &fresh) else { continue };
+                        let callable = env.infcx.resolve(env.tcx, callable).unwrap_or(callable);
+                        let (Some((_, actual)), Ok(want)) = (env.tcx.func_sig(callable), crate::ty::subst(env.tcx, arg, &fresh)) else { continue };
+                        if let Some((_, ret)) = env.tcx.func_sig(want) {
+                            let _ = env.infcx.unify(env.tcx, ret, actual);
+                        }
+                    }
+                    env.infcx.resolve(env.tcx, value).ok()
+                }
                 _ => None,
             };
             env.infcx.rollback_to(snap);
