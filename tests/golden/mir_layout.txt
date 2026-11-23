@@ -602,6 +602,10 @@ enum E size=4 align=4 variants=[[0], [0]]
 class VecIter<i32> size=16 align=8 fields=[0, 8]
 class Map<VecIter<i32>,closure#0(i32)->i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/traits/iterator_adapter_generic_helper.bork
+class VecIter<i32> size=16 align=8 fields=[0, 8]
+class Map<VecIter<i32>,closure#0(i32)->i32> size=24 align=8 fields=[0, 16]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/traits/iterator_for.bork
 class Counter size=8 align=4 fields=[0, 4]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]

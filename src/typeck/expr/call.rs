@@ -53,7 +53,7 @@ fn local_callable_sig(name: &str, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
 
 /// The signature of a value of type `ty` that can be called: a function or closure type, or a
 /// type parameter bounded by `Fn*`.
-pub(super) fn callable_sig(ty: TyId, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
+pub(in crate::typeck) fn callable_sig(ty: TyId, env: &Env<'_>) -> Option<(Vec<TyId>, TyId)> {
     env.tcx.func_sig(ty).or_else(|| {
         env.param_env.iter().find_map(|p| {
             let callable = p.self_ty == ty && env.tcx.is_fn_trait(p.trait_ref.trait_id);
