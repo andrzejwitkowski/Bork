@@ -7279,6 +7279,15 @@ Arenas
     ├── v [Local]
     ├── a [Local]
     └── b [Local]
+== programs/check_fail/vec/element_view_blocks_borrow_through_alias.bork
+Ownership Error [349..358] cannot borrow `v` while `e`, a view of one of its elements, is still in use
+Arenas
+├── fun grow
+│   └── v [Borrow ← call site]
+└── fun main
+    ├── v [Local]
+    ├── alias [Local]
+    └── e [Local]
 == programs/check_fail/vec/element_view_blocks_clear.bork
 Ownership Error [120..127] cannot call `clear` on `v` while `e`, a view of one of its elements, is still in use
 Arenas

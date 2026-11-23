@@ -216,6 +216,11 @@ fn check_with(body: &Body, general: bool) -> Vec<(Span, String)> {
 /// Mutating `Vec` operations, moves and overwrites of a `Vec` while a live view of one of its elements exists
 /// (`push` may reallocate the buffer the view points into). Reads are fine under a shared view; an `&rw` view
 /// is exclusive.
+/// Whether `local` is `root` or holds a loan on it (`val alias = &rw v` reaches `v`; `v.push(..)` passes `&v` in a temporary).
+fn reaches(st: &Loans, local: Local, root: Local) -> bool {
+    local == root || st.get(&local).is_some_and(|ls| ls.iter().any(|l| l.root.local == root))
+}
+
 fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &HashSet<Local>, names: &HashMap<Local, String>, found: &mut Vec<(Span, String)>) {
     let mut loans = st.iter().filter(|(h, _)| after.contains(h)).flat_map(|(h, ls)| ls.iter().filter(|l| l.elem).map(move |l| (*h, l))).peekable();
     if loans.peek().is_none() {
@@ -230,15 +235,14 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
     for (holder, loan) in loans {
         let root = loan.root.local;
         let what = match kind {
-            // `v.push(..)` passes `&v` in a temporary, so follow the receiver's own loans back to `v`.
             StmtKind::VecOp { op, receiver, .. }
                 if (op.mutates() || *op == VecOp::ViewRw || loan.rw)
-                    && receiver.place().is_some_and(|p| p.local == root || st.get(&p.local).is_some_and(|ls| ls.iter().any(|l| l.root.local == root))) =>
+                    && receiver.place().is_some_and(|p| reaches(st, p.local, root)) =>
             {
                 if matches!(op, VecOp::View | VecOp::ViewRw) { "borrow an element of".to_string() } else { format!("call `{}` on", op.name()) }
             }
             // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
-            StmtKind::Borrow { src, rw, .. } if src.local == root && (*rw || loan.rw) => "borrow".into(),
+            StmtKind::Borrow { src, rw, .. } if reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
             _ if kill.contains(&root) => "assign to".into(),
             _ if moved.contains(&root) => "move".into(),
             _ => continue,
