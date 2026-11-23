@@ -318,6 +318,10 @@ impl<'ctx> Codegen<'ctx> {
         self.two_pointer_void_fn("bork_arena_register_strong_root")
     }
 
+    pub fn arena_root_strong_if_dynamic_fn(&self) -> FunctionValue<'ctx> {
+        self.two_pointer_void_fn("bork_arena_root_strong_if_dynamic")
+    }
+
     pub fn arena_register_ref_drop_fn(&self) -> FunctionValue<'ctx> {
         self.two_pointer_void_fn("bork_arena_register_ref_drop")
     }

@@ -256,6 +256,11 @@ impl<'ctx> Codegen<'ctx> {
             } else {
                 let copied = self.copy_value_into(glue, arena, tys[k], value)?;
                 self.builder.build_store(to, copied)?;
+                // An object is not copied: keep its arena alive as long as the destination.
+                if self.tcx.holds_object(tys[k]) && !self.tcx.is_nullable(tys[k]) {
+                    let object_arena = self.builder.build_extract_value(copied.into_struct_value(), 0, "capture.object.arena")?;
+                    self.builder.build_call(self.arena_root_strong_if_dynamic_fn(), &[arena.into(), object_arena.into()], "")?;
+                }
             }
         }
         self.builder.build_return(Some(&dst))?;

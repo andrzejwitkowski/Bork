@@ -1,0 +1,16 @@
+// exit: 3
+// Promoting repeatedly keeps each round's captured object alive until the end of the program.
+class Node { id: i32 }
+fun main(): i32 {
+    var outer = Vec::<() -> i32>()
+    var i = 0
+    while (i < 3) {
+        var inner = Vec::<() -> i32>()
+        val n = Node(i + 1)
+        inner.push(move (n) { -> n.id })
+        outer = promote inner
+        i = i + 1
+    }
+    val f = outer.get(0)
+    return f()
+}

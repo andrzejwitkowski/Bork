@@ -3935,6 +3935,44 @@ Arenas
         │   ├── j [Moved ← Block]
         │   └── s [Moved ← Block]
         └── Closure
+== programs/build/vec/closure_elems_promote_object_capture.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── n [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            └── n [Moved ← Block]
+== programs/build/vec/closure_elems_promote_object_fields.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── o [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── o [Moved ← Block]
+            ├── IfValSome
+            │   └── x [Borrow ← presence guard]
+            └── IfValNone
+== programs/build/vec/closure_elems_promote_object_loop.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── i [Local]
+    ├── f [Local]
+    └── WhileLoop
+        ├── inner [Local]
+        ├── n [Local]
+        ├── i [Copy]
+        ├── inner [Moved ← WhileLoop]
+        └── Closure (move)
+            └── n [Moved ← WhileLoop]
 == programs/build/vec/closure_elems_promote_ref_capture.bork
 Arenas
 └── fun main

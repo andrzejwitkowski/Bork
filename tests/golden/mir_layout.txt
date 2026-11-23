@@ -572,6 +572,13 @@ class Counter size=8 align=4 fields=[0, 4]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/vec/closure_elems_inner_ref_capture.bork
 class Node size=4 align=4 fields=[0]
+== programs/build/vec/closure_elems_promote_object_capture.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/closure_elems_promote_object_fields.bork
+class Inner size=4 align=4 fields=[0]
+class Outer size=56 align=8 fields=[0, 16, 32]
+== programs/build/vec/closure_elems_promote_object_loop.bork
+class Node size=4 align=4 fields=[0]
 == programs/build/vec/closure_elems_promote_ref_capture.bork
 class Node size=4 align=4 fields=[0]
 == programs/build/vec/closure_elems_ref_capture.bork

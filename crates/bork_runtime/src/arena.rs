@@ -873,6 +873,20 @@ pub(crate) fn retain_strong_internal(arena: *mut c_void) {
     });
 }
 
+/// Keeps `target` alive for as long as `owner` lives, if `target` is a live dynamic arena; any other arena
+/// (lexical, already freed) is left alone, as its lifetime is not counted.
+#[no_mangle]
+pub unsafe extern "C" fn bork_arena_root_strong_if_dynamic(owner: *mut c_void, target: *mut c_void) {
+    let dynamic = !target.is_null()
+        && with_control(target, |c| {
+            c.state == ArenaState::Alive && matches!(c.mode, ArenaMode::DynamicFree | ArenaMode::DynamicScoped)
+        });
+    if dynamic {
+        retain_strong_internal(target);
+        register_drop_internal(owner, target, drop_strong_root);
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn bork_arena_retain_strong(arena: *mut c_void) {
     retain_strong_internal(arena);
