@@ -68,7 +68,7 @@ pub(super) fn check_vec_method(
         },
     );
     // The signature is the prelude's `intrinsic fun`, with `T` replaced by the element type.
-    let (params, mut result) = prelude_signature(method, elem, span, env);
+    let (params, mut result) = prelude_signature(op, elem, span, env);
     // A `Vec<Ref<T>>` pops the `Ref` itself, not an `Option` of it.
     if op == VecOp::Pop && env.tcx.is_managed_ref(elem) {
         result = elem;
@@ -148,16 +148,15 @@ fn reject_immutable(receiver: &Expr, env: &mut Env<'_>, span: Span) {
 }
 
 /// Parameters and result of `Vec<elem>.method`, from the prelude's `intrinsic class Vec<T>`.
-fn prelude_signature(method: &str, elem: TyId, span: Span, env: &mut Env<'_>) -> (Vec<TyId>, TyId) {
+fn prelude_signature(op: VecOp, elem: TyId, span: Span, env: &mut Env<'_>) -> (Vec<TyId>, TyId) {
+    let fun_sigs = env.fun_sigs; // copy the shared reference so `env` stays free for `subst_sig`
     let sig = env
-        .tcx
-        .vec_def()
-        .and_then(|class| env.defs.lookup_method(class, method))
-        .and_then(|def| env.fun_sigs.get(&def))
-        .cloned()
+        .defs
+        .vec_method(op)
+        .and_then(|def| fun_sigs.get(&def))
         .expect("the prelude's `Vec` declares every `VecOp`");
-    let name = format!("Vec.{method}");
-    let (mut params, result) = super::call::subst_sig(&name, span, &sig, &[elem], env).expect("a `Vec` signature substitutes");
+    let name = format!("Vec.{}", op.name());
+    let (mut params, result) = super::call::subst_sig(&name, span, sig, &[elem], env).expect("a `Vec` signature substitutes");
     params.remove(0); // the receiver
     (params, result)
 }

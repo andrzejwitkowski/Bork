@@ -20,7 +20,7 @@ mod sig;
 
 use std::collections::HashMap;
 
-use crate::defs::{DefId, DefTable};
+use crate::defs::{DefId, DefTable, LangItem};
 use crate::hir::Prim;
 
 pub use caps::TyCaps;
@@ -101,10 +101,8 @@ pub struct TyCtx {
     param_names: Vec<String>,
     /// The prelude's `Option`: `T?` is `Option<T>` (#54), so this is the enum every nullable type is.
     option_def: Option<DefId>,
-    /// The prelude's `intrinsic class Vec<T>`: `Class(vec_def, [T])` is the type `Vec<T>`.
-    vec_def: Option<DefId>,
-    /// The prelude's `intrinsic class Range<T>`: the type of a literal `a..b`.
-    range_def: Option<DefId>,
+    /// The prelude's `intrinsic class`es: `Class(vec_def, [T])` is the type `Vec<T>`, `Range` is the type of `a..b`.
+    lang: [Option<DefId>; LangItem::COUNT],
     /// The kind and `move`-ness of each `TyData::Closure`, by its id.
     closure_kinds: Vec<(ClosureKind, bool)>,
     /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by origin, not name.
@@ -122,7 +120,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, vec_def: defs.lookup_vec(), range_def: defs.lookup_range(), closure_kinds: Vec::new(), fn_traits: defs.lookup_fn_traits() };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, lang: LangItem::ALL.map(|item| defs.lang_item(item)), closure_kinds: Vec::new(), fn_traits: defs.lookup_fn_traits() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

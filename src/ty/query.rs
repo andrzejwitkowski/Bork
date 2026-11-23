@@ -1,6 +1,7 @@
 //! Queries and constructors over `TyId`. The "kind" queries (`is_ref`, `array_elem`, ...) look
 //! through `T?`; the strict ones (`is_copy`, `is_array`, `is_text`, ...) do not.
 
+use crate::defs::LangItem;
 use super::{ClosureKind, DefId, Prim, TyCtx, TyData, TyId};
 
 impl TyCtx {
@@ -166,20 +167,20 @@ impl TyCtx {
     }
 
     fn vec_elem_unsupported(&self, id: TyId) -> bool {
-        self.intrinsic_arg(id, self.vec_def).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
+        self.intrinsic_arg(id, self.vec_def()).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
     }
 
     pub fn vec_def(&self) -> Option<DefId> {
-        self.vec_def
+        self.lang[LangItem::Vec as usize]
     }
 
     pub fn range_def(&self) -> Option<DefId> {
-        self.range_def
+        self.lang[LangItem::Range as usize]
     }
 
     /// `Vec` and `Range` are classes in name only: one type argument, no fields, no object layout.
     pub fn is_intrinsic_def(&self, def: DefId) -> bool {
-        Some(def) == self.vec_def || Some(def) == self.range_def
+        self.lang.contains(&Some(def))
     }
 
     /// A user class or an enum: the types that can implement traits. `Vec` and `Range` are not.
@@ -192,7 +193,7 @@ impl TyCtx {
     }
 
     pub fn is_intrinsic_class(&self, id: TyId) -> bool {
-        self.intrinsic_arg(id, self.vec_def).is_some() || self.intrinsic_arg(id, self.range_def).is_some()
+        self.lang.iter().any(|&def| self.intrinsic_arg(id, def).is_some())
     }
 
     pub fn class_def(&self, id: TyId) -> Option<DefId> {
@@ -228,16 +229,16 @@ impl TyCtx {
         let base = self.base(id);
         match self.data(base) {
             TyData::Ref(inner, _) => self.vec_elem(*inner),
-            _ => self.intrinsic_arg(base, self.vec_def),
+            _ => self.intrinsic_arg(base, self.vec_def()),
         }
     }
 
     pub fn is_vec(&self, id: TyId) -> bool {
-        self.intrinsic_arg(id, self.vec_def).is_some()
+        self.intrinsic_arg(id, self.vec_def()).is_some()
     }
 
     pub fn range_elem(&self, id: TyId) -> Option<TyId> {
-        self.intrinsic_arg(self.base(id), self.range_def)
+        self.intrinsic_arg(self.base(id), self.range_def())
     }
 
     /// `(params, ret)` of a non-nullable function type.
@@ -445,12 +446,12 @@ impl TyCtx {
     pub fn vec_of(&mut self, elem: TyId) -> TyId {
         // Without the prelude `Vec` (a program that defines its own) there is no such type; the
         // lowering of the written type has already reported why.
-        let Some(def) = self.vec_def else { return self.error() };
+        let Some(def) = self.vec_def() else { return self.error() };
         self.add(TyData::Class(def, vec![elem]))
     }
 
     pub fn range(&mut self, elem: TyId) -> TyId {
-        let Some(def) = self.range_def else { return self.error() };
+        let Some(def) = self.range_def() else { return self.error() };
         self.add(TyData::Class(def, vec![elem]))
     }
 

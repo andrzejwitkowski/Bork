@@ -336,6 +336,20 @@ pub enum VecOp {
 }
 
 impl VecOp {
+    pub const ALL: [VecOp; 7] = [Self::Push, Self::Pop, Self::Get, Self::Set, Self::Len, Self::Capacity, Self::Clear];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Push => "push",
+            Self::Pop => "pop",
+            Self::Get => "get",
+            Self::Set => "set",
+            Self::Len => "len",
+            Self::Capacity => "capacity",
+            Self::Clear => "clear",
+        }
+    }
+
     pub fn from_name(name: &str) -> Option<Self> {
         Some(match name {
             "push" => Self::Push,

@@ -160,7 +160,7 @@ fn check_bodies(
         .map(|function| check_function(checker, function, None))
         .collect();
     // An intrinsic class has no bodies to check: the compiler supplies its methods.
-    for class in program.classes.iter().filter(|c| !c.intrinsic) {
+    for class in program.user_classes() {
         let owner = defs.lookup_class(&class.name).expect("every class is registered");
         for method in &class.methods {
             functions.push(check_function(checker, method, Some(Owner::Class(owner))));
@@ -197,10 +197,7 @@ fn check_impl_methods(
 
 fn lower_classes(program: &Program, defs: &DefTable, classes: &ClassTable) -> Vec<HirClass> {
     program
-        .classes
-        .iter()
-        // An intrinsic class (`Vec`) is a compiler-known type with no fields to lay out.
-        .filter(|class| !class.intrinsic)
+        .user_classes()
         .filter_map(|class| classes.get(&defs.lookup_class(&class.name)?))
         .map(|class| HirClass {
             name: class.name.clone(),
