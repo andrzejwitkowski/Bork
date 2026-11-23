@@ -115,8 +115,13 @@ fn accepted_generic_bodies_are_accepted_for_every_instance() {
         if !pre.is_ok() {
             continue;
         }
-        for ty in INSTANCES.iter().filter(|ty| !case.skip.contains(ty)) {
+        for ty in INSTANCES {
             let post = check(&source(&instantiate(case.body, ty)));
+            if case.skip.contains(&ty) {
+                // #138: type-level constraints are enforced per instance, not pre-mono.
+                assert!(!post.is_ok(), "{}: {ty} should be ill-formed", case.name);
+                continue;
+            }
             assert!(
                 post.is_ok(),
                 "{}: accepted pre-mono but rejected for {ty}: {:?}",
