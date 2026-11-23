@@ -157,12 +157,16 @@ fn solve_from_bounds(env: &mut Env<'_>, predicate: &Predicate<TyId>) -> Outcome 
         *arg = normalize(env, *arg, None);
     }
     let predicate = &predicate;
-    let candidates: Vec<Predicate<TyId>> = env
+    let mut candidates: Vec<Predicate<TyId>> = env
         .param_env
         .iter()
         .filter(|p| p.self_ty == predicate.self_ty && bound_implies(env, p.trait_ref.trait_id, predicate.trait_ref.trait_id))
         .cloned()
         .collect();
+    // Both sides are reduced, so a bound spelled `Fn(VecIter<i32>::Item)` still meets `Fn(i32)`.
+    for arg in candidates.iter_mut().flat_map(|c| c.trait_ref.args.iter_mut()) {
+        *arg = normalize(env, *arg, None);
+    }
     for candidate in candidates {
         let snap = env.infcx.snapshot();
         let unified = candidate
