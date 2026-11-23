@@ -1940,6 +1940,145 @@ fn fill$closure0 (parent=true, sink=false) {
     return
 }
 
+== vec/element_view_in_loop.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<String> [Temp]
+  let _3: Vec<String> [Var] v
+  let _4: &Vec<String> [Temp]
+  let _5: &Vec<String> [Temp]
+  let _6: &Vec<String> [Temp]
+  let _7: i32 [Var] total
+  let _8: i32 [Temp]
+  let _9: i32 [Var] i
+  let _10: unit [Hidden(DebugScope)]
+  let _11: bool [Temp]
+  let _12: unit [Hidden(DebugScope)]
+  let _13: &String [Temp]
+  let _14: &String [Val] e
+  let _15: &String [Temp]
+  let _16: i32 [Temp]
+  let _17: i32 [Temp]
+  region r0 Block
+  region r1 For in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<String> decl
+    _4 = borrow _3
+    vec_Push(copy _4, "a")
+    _5 = borrow _3
+    vec_Push(copy _5, "bb")
+    _6 = borrow _3
+    vec_Push(copy _6, "ccc")
+    _7 = 0  // label "total": i32 decl
+    _8 = 3
+    _9 = 0  // label "i": i32 decl
+    storage_live _10
+    goto bb1
+  bb1:
+    _11 = lt(copy _9, copy _8)
+    switch copy _11 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _12
+    _13 = vec_View(copy _3, copy _9)
+    _14 = copy _13  // label "e": &String decl
+    _15 = borrow _14
+    _16 = call size(copy _15) +current -> bb5
+  bb3:
+    _9 = add(copy _9, 1)
+    goto bb1
+  bb4:
+    storage_dead _10
+    intrinsic PrintlnInt(copy _7)
+    _0 = copy _7
+    storage_dead _1
+    region_exit r0
+    return
+  bb5:
+    _17 = add(copy _7, copy _16)
+    _7 = copy _17
+    storage_dead _12
+    goto bb3
+}
+
+fn size (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &String [Arg] s
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = len(_1)
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== vec/element_view_read.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<String> [Temp]
+  let _3: Vec<String> [Var] v
+  let _4: &Vec<String> [Temp]
+  let _5: &Vec<String> [Temp]
+  let _6: &String [Temp]
+  let _7: &String [Val] e
+  let _8: &String [Temp]
+  let _9: i32 [Temp]
+  let _10: i32 [Val] n
+  let _11: &Vec<String> [Temp]
+  let _12: &Vec<String> [Temp]
+  let _13: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<String> decl
+    _4 = borrow _3
+    vec_Push(copy _4, "a")
+    _5 = borrow _3
+    vec_Push(copy _5, "bcd")
+    _6 = vec_View(copy _3, 1)
+    _7 = copy _6  // label "e": &String decl
+    _8 = borrow _7
+    _9 = call size(copy _8) +current -> bb1
+  bb1:
+    _10 = copy _9  // label "n": i32 decl
+    _11 = borrow _3
+    vec_Push(copy _11, "c")
+    intrinsic PrintlnInt(copy _10)
+    _12 = borrow _3
+    _13 = vec_Len(copy _12)
+    _0 = copy _13
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn size (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &String [Arg] s
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = len(_1)
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == vec/grow_past_page.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

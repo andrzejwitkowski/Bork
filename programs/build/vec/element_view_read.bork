@@ -1,0 +1,16 @@
+// exit: 3
+// stdout: 3\n
+// A view of an element reads the slot; `push` is allowed once the view is no longer used.
+fun size(s: &String): i32 {
+    return s.length
+}
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    v.push("bcd")
+    val e = &v[1]
+    val n = size(&e)
+    v.push("c")
+    println(n)
+    return v.len()
+}

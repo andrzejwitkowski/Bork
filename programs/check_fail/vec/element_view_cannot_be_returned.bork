@@ -1,0 +1,7 @@
+// diag: returning a reference is not supported
+fun first(v: &Vec<String>): &String {
+    return &v[0]
+}
+fun main(): i32 {
+    return 0
+}

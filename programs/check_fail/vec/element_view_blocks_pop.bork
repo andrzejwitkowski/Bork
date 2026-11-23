@@ -1,0 +1,8 @@
+// diag: cannot call `pop` on `v`
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    val e = &v[0]
+    v.pop()
+    return e.length
+}

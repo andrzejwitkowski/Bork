@@ -337,6 +337,9 @@ pub enum VecOp {
     Len,
     Capacity,
     Clear,
+    /// `&v[i]` / `&rw v[i]`: the element as a view of its slot (a `Ref` is not cloned). MIR only, not a method.
+    View,
+    ViewRw,
 }
 
 impl VecOp {
@@ -351,6 +354,8 @@ impl VecOp {
             Self::Len => "len",
             Self::Capacity => "capacity",
             Self::Clear => "clear",
+            Self::View => "view",
+            Self::ViewRw => "view_rw",
         }
     }
 

@@ -1,0 +1,8 @@
+// diag: cannot call `len` on `v`
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    val e = &rw v[0]
+    val n = v.len()
+    return e.length + n
+}

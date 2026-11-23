@@ -497,7 +497,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                                 arena.as_ref().filter(|a| arena_ok(a))?;
                             }
                         }
-                        (VecOp::Get, [i]) => index(i)?,
+                        (VecOp::Get | VecOp::View | VecOp::ViewRw, [i]) => index(i)?,
                         (VecOp::Push, [v]) => element(v)?,
                         (VecOp::Set, [i, v]) => {
                             index(i)?;
@@ -1535,9 +1535,10 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let count = cx.vec_load_word(header, if op == VecOp::Len { vec::LEN } else { vec::CAP })?;
                 Some(cx.builder.build_int_truncate(count, cx.context.i32_type(), "vec.count")?.into())
             }
-            VecOp::Get => {
+            VecOp::Get | VecOp::View | VecOp::ViewRw => {
                 let loaded = cx.builder.build_load(llvm_elem, slot()?, "vec.get")?;
-                Some(if is_ref { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
+                // A view borrows the slot, so it does not take a reference of its own.
+                Some(if is_ref && op == VecOp::Get { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
             }
             VecOp::Set => {
                 store(slot()?, &args[1], false)?;

@@ -434,7 +434,7 @@ Examples:
 - Mutating methods need a `var` (or a `&Vec` parameter). Index reads and methods borrow the vector like an `&T` argument, so they work inside loops without `move`.
 - `move` / `promote` copies the vector into the sink arena: `String` bytes are copied and each `Ref` is cloned and rehomed, so its edge kind is recomputed for the new owner. The source binding is moved and cannot be read afterwards, but its allocation remains until its arena dies, like `copy_array_into_arena`.
 - A `Vec<Ref<T>>` registers one drop on its header (`bork_vec_drop_refs`) that releases the first `len` slots. A per-slot drop would dangle because the buffer moves on growth.
-- `return` of a vector is rejected like arrays until a return arena exists. Element borrows do not exist (`&v[i]` is rejected), so no lock on `push` is needed yet.
+- `return` of a vector is rejected like arrays until a return arena exists. `&v[i]` / `&rw v[i]` is a view of the slot; while it is live (`mir::borrows`, last use) `v` cannot be pushed to, popped, cleared, set, moved, assigned or borrowed `&rw`, because `push` moves `buf`. `Ref` and scalar elements cannot be borrowed.
 
 ### Nullable (`T?`)
 

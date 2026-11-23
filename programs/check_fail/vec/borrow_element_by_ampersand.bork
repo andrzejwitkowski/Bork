@@ -1,9 +1,10 @@
-// diag: `&` borrows a name
-// An element cannot be borrowed, so there is nothing that could block `push` (vec-design, Borrows).
+// diag: cannot call `push` on `v` while `e`, a view of one of its elements, is still in use
+// at: 8:5
+// `&v[i]` views the slot; `push` may reallocate the buffer under it (vec-design, Borrows).
 fun main(): i32 {
     var v = Vec::<String>()
     v.push("a")
     val e = &v[0]
     v.push("b")
-    return v.len()
+    return e.length
 }

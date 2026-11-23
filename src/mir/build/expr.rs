@@ -163,6 +163,12 @@ impl<'a> FnBuilder<'a> {
                 Ok(self.assign_temp(e, Rvalue::Unary(MirUnOp::Not, v)))
             }
             UnaryOp::NotNullAssert => self.not_null_assert(e, inner),
+            UnaryOp::Borrow { rw } if matches!(&inner.kind, HirExprKind::Index { receiver, .. } if self.is_vec_ty(receiver.ty)) => {
+                let HirExprKind::Index { receiver, index, .. } = &inner.kind else { return Err(BuildError::unsupported(Capability::FieldAccess, span_of(e))) };
+                let recv = self.bare_operand(receiver)?;
+                let idx = self.bare_operand(index)?;
+                Ok(self.vec_op(e, if *rw { crate::hir::VecOp::ViewRw } else { crate::hir::VecOp::View }, recv, vec![idx]))
+            }
             UnaryOp::Borrow { rw } => {
                 let src = self.place_of(inner)?;
                 let dst = self.temp(e.ty);

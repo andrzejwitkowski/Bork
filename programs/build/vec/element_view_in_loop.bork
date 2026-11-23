@@ -1,0 +1,18 @@
+// exit: 6
+// stdout: 6\n
+fun size(s: &String): i32 {
+    return s.length
+}
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    v.push("bb")
+    v.push("ccc")
+    var total = 0
+    for (i in 0..3) {
+        val e = &v[i]
+        total = total + size(&e)
+    }
+    println(total)
+    return total
+}

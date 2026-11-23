@@ -1,0 +1,6 @@
+// diag: cannot borrow `val` `v` as `&rw`
+fun main(): i32 {
+    val v = Vec::<String>()
+    val e = &rw v[0]
+    return 0
+}

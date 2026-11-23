@@ -1,0 +1,7 @@
+// diag: cannot borrow Copy type `i32`
+fun main(): i32 {
+    var v = Vec::<i32>()
+    v.push(1)
+    val e = &v[0]
+    return 0
+}
