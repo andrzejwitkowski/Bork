@@ -1940,6 +1940,61 @@ fn fill$closure0 (parent=true, sink=false) {
     return
 }
 
+== vec/element_rw_view_through_rw_param.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<String> [Temp]
+  let _3: Vec<String> [Var] v
+  let _4: &Vec<String> [Temp]
+  let _5: &Vec<String> [Temp]
+  let _6: &rw Vec<String> [Temp]
+  let _7: i32 [Temp]
+  let _8: i32 [Val] n
+  let _9: &Vec<String> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    _3 = copy _2  // label "v": Vec<String> decl
+    _4 = borrow _3
+    vec_Push(copy _4, "a")
+    _5 = borrow _3
+    vec_Push(copy _5, "bcd")
+    _6 = borrow_rw _3
+    _7 = call width(copy _6) +current -> bb1
+  bb1:
+    _8 = copy _7  // label "n": i32 decl
+    _9 = borrow _3
+    vec_Push(copy _9, "e")
+    intrinsic PrintlnInt(copy _8)
+    _0 = copy _8
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn width (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &rw Vec<String> [Arg] v
+  let _2: unit [Hidden(DebugScope)]
+  let _3: &rw String [Temp]
+  let _4: &rw String [Val] e
+  let _5: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = vec_ViewRw(copy _1, 1)
+    _4 = copy _3  // label "e": &rw String decl
+    _5 = len(_4)
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
 == vec/element_shared_views_coexist.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

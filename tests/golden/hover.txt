@@ -276,6 +276,7 @@ programs/build/vec/closure_elems_ref_capture.bork: hits=17 hash=f641abaace0eea84
 programs/build/vec/closure_elems_ref_capture_replace.bork: hits=38 hash=ea67aa24ec08f0bc
 programs/build/vec/closure_elems_set_pop_clear.bork: hits=86 hash=919d1fc6e5682f5e
 programs/build/vec/closure_elems_via_param.bork: hits=17 hash=1871f54bfa6cbf5f
+programs/build/vec/element_rw_view_through_rw_param.bork: hits=32 hash=cc496e30502ca7ad
 programs/build/vec/element_shared_views_coexist.bork: hits=17 hash=b969e0964f52dc78
 programs/build/vec/element_view_in_loop.bork: hits=51 hash=3c3f44bfc8fe8799
 programs/build/vec/element_view_read.bork: hits=35 hash=60a4a45168922f86

@@ -1,0 +1,16 @@
+// exit: 3
+// stdout: 3\n
+// `&rw v[i]` through an `&rw Vec` parameter is accepted (the read-only `&Vec` case is rejected), and the view reads the slot.
+fun width(v: &rw Vec<String>): i32 {
+    val e = &rw v[1]
+    return e.length
+}
+fun main(): i32 {
+    var v = Vec::<String>()
+    v.push("a")
+    v.push("bcd")
+    val n = width(&rw v)
+    v.push("e")
+    println(n)
+    return n
+}

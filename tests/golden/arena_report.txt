@@ -4452,6 +4452,14 @@ Arenas
 └── fun main
     ├── v [Local]
     └── f [Local]
+== programs/build/vec/element_rw_view_through_rw_param.bork
+Arenas
+├── fun width
+│   ├── v [Borrow ← call site]
+│   └── e [Local]
+└── fun main
+    ├── v [Local]
+    └── n [Local]
 == programs/build/vec/element_shared_views_coexist.bork
 Arenas
 └── fun main
