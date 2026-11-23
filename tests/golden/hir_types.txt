@@ -655,6 +655,8 @@ programs/build/vec/closure_elems_inner_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_loop.bork::main() -> i32
 programs/build/vec/closure_elems_move.bork::main() -> i32
 programs/build/vec/closure_elems_promote.bork::main() -> i32
+programs/build/vec/closure_elems_promote_nullable_none.bork::main() -> i32
+programs/build/vec/closure_elems_promote_nullable_object.bork::main() -> i32
 programs/build/vec/closure_elems_promote_object_capture.bork::main() -> i32
 programs/build/vec/closure_elems_promote_object_fields.bork::main() -> i32
 programs/build/vec/closure_elems_promote_object_loop.bork::main() -> i32

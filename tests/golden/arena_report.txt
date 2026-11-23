@@ -3935,6 +3935,34 @@ Arenas
         │   ├── j [Moved ← Block]
         │   └── s [Moved ← Block]
         └── Closure
+== programs/build/vec/closure_elems_promote_nullable_none.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── n [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── n [Moved ← Block]
+            ├── MatchArm
+            │   └── x [Borrow ← pattern binding]
+            └── MatchArm
+== programs/build/vec/closure_elems_promote_nullable_object.bork
+Arenas
+└── fun main
+    ├── outer [Local]
+    ├── f [Local]
+    └── Block
+        ├── inner [Local]
+        ├── n [Local]
+        ├── inner [Moved ← Block]
+        └── Closure (move)
+            ├── n [Moved ← Block]
+            ├── MatchArm
+            │   └── x [Borrow ← pattern binding]
+            └── MatchArm
 == programs/build/vec/closure_elems_promote_object_capture.bork
 Arenas
 └── fun main

@@ -877,7 +877,9 @@ pub(crate) fn retain_strong_internal(arena: *mut c_void) {
 /// (lexical, already freed) is left alone, as its lifetime is not counted.
 #[no_mangle]
 pub unsafe extern "C" fn bork_arena_root_strong_if_dynamic(owner: *mut c_void, target: *mut c_void) {
+    // A self-root would hold the arena up from inside itself, so it could never be destroyed.
     let dynamic = !target.is_null()
+        && owner != target
         && with_control(target, |c| {
             c.state == ArenaState::Alive && matches!(c.mode, ArenaMode::DynamicFree | ArenaMode::DynamicScoped)
         });

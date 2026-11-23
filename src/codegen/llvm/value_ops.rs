@@ -220,6 +220,15 @@ impl<'ctx> Codegen<'ctx> {
         Ok(phi.as_basic_value().into_pointer_value())
     }
 
+    /// An object is not copied with its holder: keep its arena alive as long as `arena`. No-op for other types.
+    fn root_object_arena(&self, arena: PointerValue<'ctx>, ty: TyId, value: BasicValueEnum<'ctx>) -> Result<(), Diagnostic> {
+        if self.tcx.holds_object(ty) && !self.tcx.is_nullable(ty) {
+            let object_arena = self.builder.build_extract_value(value.into_struct_value(), 0, "object.arena")?;
+            self.builder.build_call(self.arena_root_strong_if_dynamic_fn(), &[arena.into(), object_arena.into()], "")?;
+        }
+        Ok(())
+    }
+
     /// `bork.closure.copy.<function>`: `(env, arena) -> env'`, a copy of a by-value environment in `arena` whose
     /// captures are re-homed like any other copied value (owned `Ref`s cloned and registered). Built once per closure function.
     pub(super) fn closure_copy_glue(&self, function: &str, env_ty: inkwell::types::StructType<'ctx>, tys: &[TyId], owned: &[bool]) -> Result<FunctionValue<'ctx>, Diagnostic> {
@@ -256,11 +265,7 @@ impl<'ctx> Codegen<'ctx> {
             } else {
                 let copied = self.copy_value_into(glue, arena, tys[k], value)?;
                 self.builder.build_store(to, copied)?;
-                // An object is not copied: keep its arena alive as long as the destination.
-                if self.tcx.holds_object(tys[k]) && !self.tcx.is_nullable(tys[k]) {
-                    let object_arena = self.builder.build_extract_value(copied.into_struct_value(), 0, "capture.object.arena")?;
-                    self.builder.build_call(self.arena_root_strong_if_dynamic_fn(), &[arena.into(), object_arena.into()], "")?;
-                }
+                self.root_object_arena(arena, tys[k], copied)?;
             }
         }
         self.builder.build_return(Some(&dst))?;
@@ -389,7 +394,9 @@ impl<'ctx> Codegen<'ctx> {
         let payload = match self.basic_type(payload_ty) {
             Some(payload_llvm) => {
                 let payload = self.builder.build_load(payload_llvm, slot, "opt.val")?;
-                Some(self.copy_value_into(llvm_fn, arena, payload_ty, payload)?)
+                let copied = self.copy_value_into(llvm_fn, arena, payload_ty, payload)?;
+                self.root_object_arena(arena, payload_ty, copied)?;
+                Some(copied)
             }
             None => None,
         };
