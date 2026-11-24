@@ -1,8 +1,8 @@
 # Automatic strict code review
 
 OpenCodeReview runs on a dedicated **self-hosted Linux x64 runner** labelled
-`bork-review`. The runner can call a model on the same machine over localhost;
-GitHub does not need an inbound connection to the machine or model port.
+`bork-review`. The selected model is **DeepSeek V4.1 Flash through OpenCode Go**.
+The machine runs OCR and the Actions runner; inference uses the Go API.
 
 ## What runs
 
@@ -36,57 +36,82 @@ Other PR base branches get their own `strict (<base>)` status; pushes without a 
 use `OpenCodeReview / push`. A clean review against another base or a smaller push
 range cannot overwrite a failed PR review on the same commit.
 
-## 1. Register the machine
+## 1. Start the configured machine
 
-Use a dedicated OS account and runner work directory, separate from your personal
-checkout and credentials. The runner must have Bash, **Git >= 2.41**, **Node.js 24
-with npm**, and **Python 3** on its service user's PATH. OCR is installed by the
-workflow into the runner's temporary directory; no global privileged npm install
-or Rust/LLVM build is needed for review.
+The API key belongs in `~/.config/bork-review/opencode-go.key`, mode `0600`,
+not in this repository. It is also stored as the encrypted Actions secret
+`OCR_LLM_AUTH_TOKEN`. The workflow defaults already select the Go endpoint,
+`deepseek-v4.1-flash`, the OpenAI protocol, and Go's required user-agent/session
+headers. There are no model variables or URL secrets to configure manually.
 
-1. Open [Bork → Settings → Actions → Runners](https://github.com/andrzejwitkowski/Bork/settings/actions/runners).
-2. Select **New self-hosted runner**, then **Linux / x64**.
-3. Under the dedicated account, follow GitHub's generated download and
-   configuration commands. Add `--labels bork-review --name bork-review` to the
-   generated `./config.sh` command. Keep the one-time registration token private.
-4. Start `./run.sh` and confirm that GitHub displays the runner as **Idle**.
-5. For unattended operation, install/start the runner's service using the
-   generated runner directory's `svc.sh`, selecting the dedicated account.
-   Verify that Node/npm and the model remain available when the service runs.
+Run in a normal terminal on the machine:
 
-Keep one runner service per machine for this workflow: the upstream composite
-Action uses fixed `/tmp/ocr-result.json` and `/tmp/ocr-stderr.log` paths. A runner
-executes one job at a time; separate concurrent services would share those files.
-The machine must remain on and connected, otherwise jobs wait for its runner.
-
-## 2. Configure the model
-
-The Actions runner executes OCR; **it does not start a model server**. Start your
-existing OpenAI-compatible model server separately and enable tool/function
-calling. OCR needs that capability to read and search repository context.
-
-For example, a model listening on port 8080 could expose:
-
-```text
-http://127.0.0.1:8080/v1/chat/completions
+```sh
+bash scripts/setup-review-runner.sh
 ```
 
-Use the actual port and model ID from your server; `GET /v1/models` normally lists
-available IDs. The example URL is the full completion endpoint, not just `/v1`.
-The model needs enough context for the selected files and review rules.
+The installer:
 
-In [Settings → Secrets and variables → Actions](https://github.com/andrzejwitkowski/Bork/settings/secrets/actions), set:
+1. Installs OCR 1.14.2 under `~/.local/share/bork-review/tools` and writes a
+   credential-reading local profile at `~/.config/bork-review/review.env`.
+2. Runs `ocr llm test` against Go before registering anything.
+3. Uploads the local key as an encrypted GitHub Actions secret using the existing
+   `gh` login.
+4. Downloads the pinned Linux x64 runner 2.338.2, verifies its SHA-256 checksum,
+   and registers it automatically with the `bork-review` label.
+5. Creates a dedicated `bork-review` system account and enables the system service
+   `bork-review-runner.service`. Sudo is needed to create the account and service;
+   the runner starts at boot and survives logout.
 
-| Kind | Name | Value |
-| --- | --- | --- |
-| Secret | `OCR_LLM_URL` | Full endpoint URL reachable from the runner, e.g. the localhost URL above |
-| Secret | `OCR_LLM_AUTH_TOKEN` | Model API token; a nonempty dummy value such as `local` works only if your localhost server does not require authentication |
-| Variable | `OCR_LLM_MODEL` | Exact model ID accepted by the server |
-| Variable, optional | `OCR_LLM_PROTOCOL` | `openai` (default), `openai-responses`, or `anthropic` |
-| Variable, optional | `OCR_LLM_EXTRA_BODY` | Provider-specific JSON, e.g. thinking settings; default `{}` |
+The machine needs Git >= 2.41, Node/npm (the local OCR launcher supports Node >= 14),
+Python 3, curl, tar, GitHub CLI authenticated with repository admin access, sudo,
+and systemd. Each CI job sets up Node 24 itself. The service runs under the
+dedicated account in `/var/lib/bork-review`; systemd blocks access to personal
+home directories, limits writes to that runner directory and private temporary
+files, and prevents privilege elevation. Personal Go/gh credentials stay with
+the invoking user; jobs receive their model credential from Actions secrets.
+The script must run outside a restricted agent sandbox because it downloads
+binaries, calls Go, registers the runner and starts the system service.
 
-The same inputs also support a remote model API. A paid coding-agent subscription
-does not itself supply this workflow's model credentials.
+Check readiness with:
+
+```sh
+systemctl status bork-review-runner.service
+```
+
+For manual local reviews, load the prepared profile first:
+
+```sh
+source ~/.config/bork-review/review.env
+ocr review
+```
+
+The machine must remain on and connected. Keep one runner service per machine:
+the upstream Action uses fixed `/tmp/ocr-result.json` and `/tmp/ocr-stderr.log`
+paths, and a single runner executes jobs serially.
+
+Bork is public. Repository runners can also be selected by workflows modified
+in fork PRs, so the installer enforces approval for **all external contributors**,
+not only new contributors. This repository setting is already configured.
+Inspect workflow changes before approving external runs; do not approve a fork
+workflow that executes arbitrary PR code on `bork-review`. The trusted
+`pull_request_target` reviewer still reads fork source as data.
+
+## 2. Model settings
+
+The default full endpoint is
+`https://opencode.ai/inference/go/openai/v1/chat/completions` and the model ID is
+`deepseek-v4.1-flash`. Both local and CI requests identify OCR with its own
+`User-Agent` and a stable `x-opencode-session` for each review. These headers are
+required by [OpenCode Go](https://opencode.ai/docs/console/go/).
+
+The supplied key needs an active Go subscription with access to DeepSeek. Go may
+require Global regions enabled in the workspace's Privacy settings; a rejected
+model-access test must be resolved there before the installer continues.
+
+Optional overrides remain available through the `OCR_LLM_URL` secret and
+`OCR_LLM_MODEL`, `OCR_LLM_PROTOCOL`, `OCR_LLM_EXTRA_BODY` repository variables.
+The local profile is specific to the selected Go account/model.
 
 ## 3. Enable and verify
 

@@ -44,6 +44,7 @@ jobs:
       statuses: write
     env:
       OCR_NO_UPDATE: '1'
+      OCR_LLM_EXTRA_HEADERS: User-Agent=Bork-OpenCodeReview/1.14.2,x-opencode-session=bork-${{ github.run_id }}-${{ github.run_attempt }}
       OCR_BACKGROUND: >-
         Bork is a compiler written in Rust with an unsafe arena/reference runtime.
         Review correctness across typeck, HIR, MIR, LLVM codegen and runtime boundaries.
@@ -102,9 +103,9 @@ jobs:
       - name: Prepare review tools and validate configuration
         if: steps.context.outputs.mode != ''
         env:
-          OCR_LLM_URL: ${{ secrets.OCR_LLM_URL }}
+          OCR_LLM_URL: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
           OCR_LLM_TOKEN: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
-          OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL }}
+          OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
         run: |
           rm -f /tmp/ocr-result.json /tmp/ocr-stderr.log
           for name in OCR_LLM_URL OCR_LLM_TOKEN OCR_LLM_MODEL; do
@@ -118,17 +119,24 @@ jobs:
           echo "NPM_CONFIG_PREFIX=$ocr_prefix" >> "$GITHUB_ENV"
           echo "$ocr_prefix/bin" >> "$GITHUB_PATH"
 
+      - name: Setup Node.js for OCR
+        if: steps.context.outputs.mode != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
       - name: Review PR and publish comments
         if: steps.context.outputs.mode == 'pr'
         uses: alibaba/open-code-review@e74f2c6bd4422bd1e12d257d1725bcce1d6b9ddd # v1.14.2
         with:
           ocr_version: '1.14.2'
-          llm_url: ${{ secrets.OCR_LLM_URL }}
+          llm_url: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
           llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
-          llm_model: ${{ vars.OCR_LLM_MODEL }}
+          llm_model: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
           llm_use_anthropic: 'false'
           llm_protocol: ${{ vars.OCR_LLM_PROTOCOL || 'openai' }}
           llm_extra_body: ${{ vars.OCR_LLM_EXTRA_BODY || '{}' }}
+          llm_extra_headers: ${{ env.OCR_LLM_EXTRA_HEADERS }}
           llm_timeout: '600'
           effort: high
           review_concurrency: '1'
@@ -155,9 +163,9 @@ jobs:
       - name: Review push without an open PR
         if: steps.context.outputs.mode == 'push'
         env:
-          OCR_LLM_URL: ${{ secrets.OCR_LLM_URL }}
+          OCR_LLM_URL: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
           OCR_LLM_TOKEN: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
-          OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL }}
+          OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
           OCR_LLM_PROTOCOL: ${{ vars.OCR_LLM_PROTOCOL || 'openai' }}
           OCR_USE_ANTHROPIC: ${{ vars.OCR_LLM_PROTOCOL == 'anthropic' && 'true' || 'false' }}
           OCR_EXTRA_BODY: ${{ vars.OCR_LLM_EXTRA_BODY || '{}' }}
