@@ -1,0 +1,15 @@
+// exit: 7
+// WHAT THIS TESTS
+// A generic helper returns `m.next()` (a `B?`) straight from `map(iter(v), f)`: the call result goes to the caller's result sink, not the receiver's arena (#332).
+fun firstOf<F: Fn(i32) -> B, B>(v: Vec<i32>, f: F): B? {
+    var m = map(iter(move v), f)
+    return m.next()
+}
+fun main(): i32 {
+    var v = Vec::<i32>()
+    v.push(4)
+    when (firstOf(move v, { x -> x + 3 })) {
+        Some(n) => { return n }
+        None => { return 0 }
+    }
+}

@@ -244,6 +244,15 @@ fun Iterator@1.next<VecIter<i32>,closure#0(i32)->i32,i32>
 fun Iterator@0.next<i32>
 class VecIter<i32>
 class Map<VecIter<i32>,closure#0(i32)->i32>
+== programs/build/traits/iterator_adapter_generic_return.bork
+fun main
+fun firstOf<closure#0(i32)->i32,i32>
+fun iter<i32>
+fun map<VecIter<i32>,closure#0(i32)->i32,i32>
+fun Iterator@1.next<VecIter<i32>,closure#0(i32)->i32,i32>
+fun Iterator@0.next<i32>
+class VecIter<i32>
+class Map<VecIter<i32>,closure#0(i32)->i32>
 == programs/check/generics/explicit_args.bork
 fun main
 fun id<i64>

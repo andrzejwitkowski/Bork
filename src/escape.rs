@@ -385,7 +385,12 @@ impl<'h> Escape<'h, '_> {
             sink.unwrap_or(self.depth)
         } else {
             let deepest = args.iter().map(|arg| self.place(arg, None)).fold(0, usize::max);
-            if self.maybe_arena(expr.ty) {
+            // A directly returned call materializes its result in the caller's result sink (MIR `call_result_sink`),
+            // not in an argument's arena; a reference result stays conservative.
+            let to_result_sink = sink == Some(0)
+                && crate::mir::build::abi_for_return(self.tcx, expr.ty).result_sink
+                && !self.tcx.is_ref(expr.ty);
+            if self.maybe_arena(expr.ty) && !to_result_sink {
                 deepest
             } else {
                 0
