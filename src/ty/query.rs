@@ -139,6 +139,8 @@ impl TyCtx {
             _ => (false, None),
         };
         match self.data(self.base(id)) {
+            // `&Ref<T>` (a `Vec` element view) reads like the `Ref` itself.
+            TyData::Ref(inner, _) if self.is_managed_ref(*inner) => self.field_receiver(*inner),
             TyData::Ref(inner, _) => {
                 let (named, class) = named(*inner);
                 (named, class, false)

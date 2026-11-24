@@ -4840,6 +4840,17 @@ Arenas
         ├── e [Local]
         ├── v [Borrow ← fun main]
         └── total [Copy]
+== programs/build/vec/element_view_of_ref.bork
+Arenas
+├── fun look
+│   └── r [Borrow ← call site]
+└── fun main
+    ├── nodes [Local]
+    ├── n [Local]
+    ├── r [Local]
+    ├── before [Local]
+    ├── e [Local]
+    └── IfThen
 == programs/build/vec/element_view_read.bork
 Arenas
 ├── fun size
@@ -7689,14 +7700,6 @@ Arenas
 ├── fun first
 │   └── v [Borrow ← call site]
 └── fun main
-== programs/check_fail/vec/element_view_of_ref.bork
-Type Error [300..309] cannot borrow a `Ref` element; `v[i]` gives you a `Ref` of its own
-Arenas
-└── fun main
-    ├── nodes [Local]
-    ├── n [Local]
-    ├── r [Local]
-    └── e [Local]
 == programs/check_fail/vec/element_view_of_scalar.bork
 Type Error [108..113] cannot borrow Copy type `i32`; read it with `v[i]`
 Arenas

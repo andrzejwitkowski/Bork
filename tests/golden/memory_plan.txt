@@ -989,6 +989,7 @@ programs/build/vec/closure_elems_ref_capture.bork: 187..191 Node Dynamic Program
 programs/build/vec/closure_elems_ref_capture_replace.bork: 197..201 Node Dynamic Program
 programs/build/vec/closure_elems_ref_capture_replace.bork: 228..232 Node Dynamic Program
 programs/build/vec/closure_elems_set_pop_clear.bork: 262..266 Node Dynamic Program
+programs/build/vec/element_view_of_ref.bork: 298..302 Node Dynamic Program
 programs/build/vec/index_through_field.bork: 170..171 H Lexical LexicalScope(0)
 programs/build/vec/move_vec_field.bork: 175..176 H Lexical LexicalScope(1)
 programs/build/vec/ref_counts_across_arenas.bork: 1643..1647 Node Dynamic Program
