@@ -178,13 +178,13 @@ jobs:
           ocr config set llm.protocol "$OCR_LLM_PROTOCOL"
           ocr config set llm.extra_body "$OCR_EXTRA_BODY"
           ocr config set language English
-          args=(--format json --audience agent --effort high --concurrency 1 --timeout 30
+          args=(--format json --audience agent --concurrency 1 --timeout 30
                 --max-tokens-budget 2000000 --rule .opencodereview/rule.json --background "$OCR_BACKGROUND")
           zero=0000000000000000000000000000000000000000
           if [ "$BEFORE_SHA" != "$zero" ] && git merge-base --is-ancestor "$BEFORE_SHA" "$HEAD_SHA" 2>/dev/null; then
-            ocr review --from "$BEFORE_SHA" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
+            ocr review --effort high --from "$BEFORE_SHA" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
           elif [ "$BEFORE_SHA" = "$zero" ] && [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
-            ocr review --from "origin/$DEFAULT_BRANCH" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
+            ocr review --effort high --from "origin/$DEFAULT_BRANCH" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
           else
             # OCR ranges use merge-base; rewinds/divergence could otherwise look empty.
             ocr scan "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log

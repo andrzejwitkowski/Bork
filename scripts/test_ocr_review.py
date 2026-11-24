@@ -140,7 +140,11 @@ class PushRangeTests(unittest.TestCase):
             git("update-ref", "refs/remotes/origin/main", baseline)
             for name, body in {
                 "npm": "#!/bin/sh\nexit 0\n",
-                "ocr": '#!/bin/sh\ncase "$1" in review|scan) printf "%s\\n" "$1" > "$OCR_TEST_MODE";; esac\n',
+                "ocr": ('#!/bin/sh\n'
+                        'if [ "$1" = scan ]; then\n'
+                        '  for arg; do [ "$arg" != --effort ] || exit 2; done\n'
+                        'fi\n'
+                        'case "$1" in review|scan) printf "%s\\n" "$1" > "$OCR_TEST_MODE";; esac\n'),
             }.items():
                 path = bin_dir / name
                 path.write_text(body)

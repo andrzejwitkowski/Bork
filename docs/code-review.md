@@ -19,11 +19,13 @@ The machine runs OCR and the Actions runner; inference uses the Go API.
 - **Actions → OpenCodeReview → Run workflow**: enter an open PR number to re-review.
 
 The workflow pins the Action and CLI to **1.14.2**. There is no OCR option named
-`strict`: this configuration uses `effort: high`, full-range review on every run,
+`strict`: range reviews use `effort: high`, full-range review on every run,
 one concurrent task, a 30-minute task timeout, a 120-minute job timeout, and a
 2,000,000-token budget. Comment deduplication does not reduce review coverage.
+Full-file fallback scans use OCR's scan pipeline; OCR 1.14.2 does not accept an
+`--effort` flag for `scan`. The same strict findings/coverage gate applies.
 Rules preserve OCR's built-in checks and add Bork's compiler/runtime invariants.
-`.bork` programs, expected outputs, Rust integration tests and documentation are
+`.bork` programs, expected outputs, Rust/Python tests and documentation are
 explicitly included instead of falling through OCR's default exclusions.
 
 The **`OpenCodeReview / strict (main)` commit status** fails for high/critical findings,
