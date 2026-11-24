@@ -1,0 +1,87 @@
+name: Mira
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open pull request number
+        required: true
+        type: string
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Mira review
+    # Forks cannot receive the Go secret on pull_request. A maintainer can use
+    # workflow_dispatch; Mira reads the diff and source files via GitHub's API.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       !github.event.pull_request.draft && github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: mira-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+      cancel-in-progress: true
+    steps:
+      - name: Review and publish findings
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          GITHUB_TOKEN: ${{ github.token }}
+          MIRA_OPENCODE_GO_KEY: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+        run: |
+          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Supply a valid pull request number."
+            exit 1
+          fi
+          if [[ -z "$MIRA_OPENCODE_GO_KEY" ]]; then
+            echo "::error::Missing OCR_LLM_AUTH_TOKEN."
+            exit 1
+          fi
+          pr_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PR_NUMBER"
+          if [[ "$(gh pr view "$pr_url" --json state --jq .state)" != OPEN ]]; then
+            echo "::error::Pull request must be open."
+            exit 1
+          fi
+
+          config_dir=$(mktemp -d)
+          trap 'rm -rf "$config_dir"' EXIT
+          cat > "$config_dir/mira.yaml" <<'YAML'
+          llm:
+            provider: openai
+            api_style: chat
+            base_url: https://opencode.ai/inference/go/openai/v1
+            api_key_env: MIRA_OPENCODE_GO_KEY
+            model: deepseek-v4.1-flash
+            review_reasoning_effort: "off"
+          review:
+            max_concurrent_chunks: 1
+          YAML
+          cat > "$config_dir/providers.json" <<JSON
+          {
+            "opencode-go": {
+              "base_url": "https://opencode.ai/inference/go/openai/v1",
+              "extra_headers": {
+                "User-Agent": "mira/0.11.1",
+                "x-opencode-session": "bork-mira-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+              },
+              "reasoning_off_payload": {"thinking": {"type": "disabled"}}
+            }
+          }
+          JSON
+          ADMIN_PASSWORD=$(cat /proc/sys/kernel/random/uuid)
+          export ADMIN_PASSWORD
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --cap-drop ALL --security-opt no-new-privileges --workdir /tmp \
+            --env GITHUB_TOKEN --env MIRA_OPENCODE_GO_KEY --env ADMIN_PASSWORD \
+            --env MIRA_PROVIDERS_JSON_PATH=/run/mira/providers.json \
+            --mount "type=bind,src=$config_dir,dst=/run/mira,readonly" \
+            --entrypoint mira \
+            ghcr.io/miracodeai/mira@sha256:cfe31d675d61a2a3fcd873975da4762c1aad703368888dc8f8dba9cb7e2fbac4 \
+            review --config /run/mira/mira.yaml --pr "$pr_url" --no-walkthrough --max-comments 5
