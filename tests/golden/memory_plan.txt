@@ -933,6 +933,12 @@ programs/build/traits/iterator_adapter_generic_helper.bork: 650..657 VecIter<i32
 programs/build/traits/iterator_adapter_generic_helper.bork: 880..895 Option<i32> Lexical LexicalScope(16)
 programs/build/traits/iterator_adapter_generic_helper.bork: 927..931 Option<i32> Lexical LexicalScope(17)
 programs/build/traits/iterator_adapter_generic_helper.bork: 1034..1037 Map<VecIter<i32>,closure#0(i32)->i32> Lexical LexicalScope(6)
+programs/build/traits/iterator_adapter_generic_return.bork: 501..505 Option<i32> Lexical LexicalScope(14)
+programs/build/traits/iterator_adapter_generic_return.bork: 586..593 Option<i32> Lexical LexicalScope(13)
+programs/build/traits/iterator_adapter_generic_return.bork: 650..657 VecIter<i32> Lexical LexicalScope(5)
+programs/build/traits/iterator_adapter_generic_return.bork: 880..895 Option<i32> Lexical LexicalScope(16)
+programs/build/traits/iterator_adapter_generic_return.bork: 927..931 Option<i32> Lexical LexicalScope(17)
+programs/build/traits/iterator_adapter_generic_return.bork: 1034..1037 Map<VecIter<i32>,closure#0(i32)->i32> Lexical LexicalScope(6)
 programs/build/traits/iterator_for.bork: 177..181 Option<i32> Lexical LexicalScope(8)
 programs/build/traits/iterator_for.bork: 235..247 Option<i32> Lexical LexicalScope(7)
 programs/build/traits/iterator_for.bork: 286..293 Counter Dynamic Program

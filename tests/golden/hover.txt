@@ -259,6 +259,7 @@ programs/build/traits/eq_ord_generic.bork: hits=72 hash=ba68fcc71fd090f6
 programs/build/traits/eq_ord_operators.bork: hits=95 hash=dbb64698417248b5
 programs/build/traits/iterator_adapter_fn_return.bork: hits=95 hash=6670f8983e3ce7d8
 programs/build/traits/iterator_adapter_generic_helper.bork: hits=17 hash=42217ea6d8138d2c
+programs/build/traits/iterator_adapter_generic_return.bork: hits=19 hash=a94f3c2db85c2a75
 programs/build/traits/iterator_for.bork: hits=35 hash=a654cb71d2eda2bb
 programs/build/vec/assign_concat_through_borrowed_vec.bork: hits=52 hash=aa10f6b2f6b38459
 programs/build/vec/closure_elems_grow.bork: hits=41 hash=0982321e4f604731
