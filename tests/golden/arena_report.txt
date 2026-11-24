@@ -2246,8 +2246,6 @@ Arenas
 Arenas
 ├── fun mkHolder
 │   └── r [Local]
-├── fun mkNullable
-│   └── n [Local]
 ├── fun mkFnE
 │   ├── n [Local]
 │   └── Closure (move)
@@ -2399,20 +2397,67 @@ Arenas
 │   ├── v [Borrow ← call site]
 │   ├── i [Local]
 │   └── IfThen
+├── fun isNone
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── r [Local]
+│   └── MatchArm
 ├── fun find
 │   ├── v [Borrow ← call site]
 │   ├── i [Local]
-│   └── WhileLoop
+│   ├── WhileLoop
+│   │   ├── p [Local]
+│   │   ├── v [Borrow ← fun find]
+│   │   ├── i [Copy]
+│   │   └── IfThen
+│   │       └── p [Shared ← WhileLoop]
+│   └── Block
 │       ├── p [Local]
 │       ├── v [Borrow ← fun find]
-│       ├── i [Copy]
 │       └── IfThen
-│           └── p [Shared ← WhileLoop]
 └── fun main
     ├── v [Local]
     ├── p [Local]
     ├── MatchArm
     │   ├── r [Local]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
+== programs/build/loops/call_in_loop_stored_in_returned_object.bork
+Arenas
+├── fun make
+│   ├── n [Local]
+│   └── Closure (move)
+│       └── n [Moved ← fun make]
+├── fun pick
+│   └── r [Local]
+├── fun loopW
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── f [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── f [Shared ← WhileLoop]
+├── fun loopH
+│   ├── r [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── r [Shared ← fun loopH]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── p [Shared ← WhileLoop]
+├── fun churn
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── node [Local]
+    ├── r [Local]
+    ├── w [Local]
+    ├── h [Local]
+    ├── g [Local]
+    ├── MatchArm
+    │   ├── p [Local]
     │   └── IfValSome
     │       └── x [Borrow ← presence guard]
     └── MatchArm

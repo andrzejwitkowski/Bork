@@ -420,11 +420,9 @@ impl<'ctx> Codegen<'ctx> {
         Ok(phi.as_basic_value().into_struct_value())
     }
 
-    /// Whether the enum instance `ty` holds a `Ref` or a closure, directly or through an enum field (nullables included).
-    pub(super) fn enum_holds_ref(&self, ty: TyId, depth: usize) -> bool {
-        let Some(name) = crate::mono::enum_instance_name(&self.tcx, ty).filter(|_| depth < 8) else { return false };
-        let Some(decl) = self.enums.iter().find(|e| e.name == name) else { return false };
-        decl.variants.iter().flat_map(|v| &v.fields).any(|f| self.tcx.is_handle_clone(f.ty) || self.tcx.is_callable(f.ty) || (self.tcx.enum_args(f.ty).is_some() && self.enum_holds_ref(f.ty, depth + 1)))
+    /// Whether the enum `ty` holds a `Ref` or a closure (see `mono::enum_holds_ref`).
+    pub(super) fn enum_holds_ref(&self, ty: TyId) -> bool {
+        crate::mono::enum_holds_ref(&self.tcx, &self.enums, ty)
     }
 
     /// An enum holding `Ref`s or closures copied into `arena` (#338): a fresh slot whose handles are cloned (the new slot
@@ -486,7 +484,7 @@ impl<'ctx> Codegen<'ctx> {
         if self.tcx.is_callable(ty) {
             return Ok(self.copy_closure_into(llvm_fn, arena, value.into_pointer_value())?.into());
         }
-        if self.enum_holds_ref(ty, 0) {
+        if self.enum_holds_ref(ty) {
             return Ok(self.copy_ref_enum_into(llvm_fn, arena, ty, value.into_struct_value())?.into());
         }
         if self.tcx.is_text(ty) {

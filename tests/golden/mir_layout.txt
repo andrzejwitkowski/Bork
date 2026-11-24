@@ -288,6 +288,11 @@ enum E size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/loops/call_in_loop_shadowed_name_returned.bork
 class Node size=4 align=4 fields=[0]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_stored_in_returned_object.bork
+class Node size=4 align=4 fields=[0]
+class W size=8 align=8 fields=[0]
+class H size=16 align=8 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/managed_refs/cache_manager_graph.bork
 class Node size=56 align=8 fields=[0, 4, 8, 32]
 class CacheManager size=48 align=8 fields=[0, 24]

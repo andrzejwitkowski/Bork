@@ -2,12 +2,12 @@
 // stdout: 7\n1\n
 // WHAT THIS TESTS
 // A class object and an enum holding a closure returned from a loop and read after churn: neither may be left in the
-// freed iteration region (#338).
+// freed iteration region (#338). The closure inside the enum cannot be called (a binding from a `when` arm is a borrow),
+// so the enum is checked through its tag: reading freed memory is reported by `-g` as `UnusedInPool`.
 class Node { n: i32 }
 class Holder { keep: Ref<Node> }
 enum FnE { F(f: () -> i32), None2 }
 fun mkHolder(r: Ref<Node>): Holder { return Holder(r) }
-fun mkNullable(n: i32): Holder? { return None }
 fun mkFnE(n: i32): FnE { return FnE.F(move (n) { -> n + 1 }) }
 fun loopHolder(r: Ref<Node>): Holder {
     var i = 0

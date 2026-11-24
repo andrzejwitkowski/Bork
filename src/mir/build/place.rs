@@ -243,9 +243,13 @@ impl<'a> FnBuilder<'a> {
         Ok(self.copy_into(op, ty, arena, span))
     }
 
-    /// `materialize` for a returned local that is not already in the result sink: a handle-holding enum or a closure
-    /// is copied too, as the call result it came from may live in a loop region the exit resets (#338).
+    /// `materialize` for a local going into the result sink (returned, or stored in a field of a returned value) that is
+    /// not already there: a handle-holding enum or a closure is copied too, as the call result it came from may live in a
+    /// loop region the exit resets (#338).
     pub(super) fn materialize_returned_local(&mut self, op: Operand, ty: TyId, arena: &ArenaRef, span: Span) -> Res<Operand> {
+        if *arena != ArenaRef::ResultSink {
+            return Ok(op);
+        }
         let local = match &op {
             Operand::Copy(p) | Operand::Move(p) if p.proj.is_empty() => p.local,
             _ => return Ok(op),

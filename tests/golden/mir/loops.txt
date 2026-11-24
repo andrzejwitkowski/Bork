@@ -3522,10 +3522,19 @@ fn find (parent=true, sink=true) {
   let _11: unit [Hidden(DebugScope)]
   let _12: Option<Ref<Node>> [Temp]
   let _13: i32 [Temp]
-  let _14: Option<Ref<Node>> [Temp]
+  let _14: unit [Hidden(DebugScope)]
+  let _15: &Vec<Ref<Node>> [Temp]
+  let _16: Option<Ref<Node>> [Temp]
+  let _17: Option<Ref<Node>> [Val] p
+  let _18: bool [Temp]
+  let _19: unit [Hidden(DebugScope)]
+  let _20: Option<Ref<Node>> [Temp]
+  let _21: Option<Ref<Node>> [Temp]
   region r0 Block
   region r1 While in r0
   region r2 IfThen in r1
+  region r3 Block in r0
+  region r4 IfThen in r3
   bb0:
     storage_live _2
     region_enter r0
@@ -3545,12 +3554,10 @@ fn find (parent=true, sink=true) {
   bb4:
     storage_dead _4
     region_exit r1
-    _14 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
-    register_drop result_sink _14 Enum("Option<Ref<Node>>")
-    _0 = copy _14
-    storage_dead _2
-    region_exit r0
-    return
+    region_enter r3
+    storage_live _14
+    _15 = borrow _1
+    _16 = call pick(copy _15, 0) +current +result_sink -> bb8
   bb5:
     _9 = copy _8  // label "p": Option<Ref<Node>> decl
     _10 = eq(copy _3, 1)
@@ -3571,6 +3578,33 @@ fn find (parent=true, sink=true) {
     _3 = copy _13
     storage_dead _6
     goto bb3
+  bb8:
+    _17 = copy _16  // label "p": Option<Ref<Node>> decl
+    _18 = call isNone(copy _17) +current -> bb9
+  bb9:
+    switch copy _18 [ 1 -> bb10, else -> bb11]
+  bb10:
+    region_enter r4
+    storage_live _19
+    _20 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    register_drop result_sink _20 Enum("Option<Ref<Node>>")
+    _0 = copy _20
+    storage_dead _19
+    storage_dead _14
+    storage_dead _2
+    region_exit r4
+    region_exit r3
+    region_exit r0
+    return
+  bb11:
+    storage_dead _14
+    region_exit r3
+    _21 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    register_drop result_sink _21 Enum("Option<Ref<Node>>")
+    _0 = copy _21
+    storage_dead _2
+    region_exit r0
+    return
 }
 
 fn pick (parent=true, sink=true) {
@@ -3614,6 +3648,363 @@ fn pick (parent=true, sink=true) {
     register_drop result_sink _11 Enum("Option<Ref<Node>>")
     _0 = copy _11
     storage_dead _3
+    region_exit r0
+    return
+}
+
+fn isNone (parent=true, sink=false) {
+  let _0: bool [Return]
+  let _1: Option<Ref<Node>> [Arg] o
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Ref<Node> [Val] r
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 MatchArm in r0
+  bb0:
+    storage_live _2
+    region_enter r0
+    match _1 {
+      Option#0(bind) -> bb2
+      Option#1() -> bb3
+    }
+  bb1:
+    _0 = true
+    storage_dead _2
+    region_exit r0
+    return
+  bb2:
+    region_enter r1
+    storage_live _4
+    _3 = ref_clone copy _1@0.0
+    register_drop current _3 RefSlot
+    _0 = false
+    storage_dead _4
+    storage_dead _2
+    region_exit r1
+    region_exit r0
+    return
+  bb3:
+    storage_live _5
+    _0 = true
+    storage_dead _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+== loops/call_in_loop_stored_in_returned_object.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Node [Temp]
+  let _4: Node [Val] node
+  let _5: Ref<Node> [Temp]
+  let _6: Ref<Node> [Val] r
+  let _7: W [Temp]
+  let _8: W [Val] w
+  let _9: Ref<Node> [Temp]
+  let _10: H [Temp]
+  let _11: H [Val] h
+  let _12: i32 [Temp]
+  let _13: i32 [Temp]
+  let _14: ()->i32 [Val] g
+  let _15: i32 [Temp]
+  let _16: Ref<Node> [Val] p
+  let _17: unit [Hidden(DebugScope)]
+  let _18: Ref<Node> [Temp]
+  let _19: unit [Temp]
+  let _20: &Node [Val]
+  let _21: bool [Temp]
+  let _22: unit [Hidden(DebugScope)]
+  let _23: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 MatchArm in r0
+  region r2 PresenceSome in r1
+  region r3 MatchArm in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 7  // label "Node.n": i32 decl owner=fresh2
+    _4 = copy _3  // label "node": Node decl
+    _5 = ref_create source=current target=object_arena(_4) copy _4
+    _6 = move _5  // label "r": Ref<Node> decl
+    register_drop current _6 RefSlot
+    _7 = call loopW() +current +current -> bb1
+  bb1:
+    _8 = copy _7  // label "w": W decl
+    _9 = ref_clone copy _6
+    _10 = call loopH(move _9) +current +current -> bb2
+  bb2:
+    _11 = copy _10  // label "h": H decl
+    _12 = call churn() +current -> bb3
+  bb3:
+    _13 = call churn() +current -> bb4
+  bb4:
+    _14 = copy _8.0  // label "g": ()->i32 decl
+    _15 = call_closure copy _14() +current -> bb5
+  bb5:
+    intrinsic PrintlnInt(copy _15)
+    match _11.0 {
+      Option#0(bind) -> bb7
+      Option#1() -> bb8
+    }
+  bb6:
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+  bb7:
+    region_enter r1
+    storage_live _17
+    _16 = ref_clone copy _11.0@0.0
+    register_drop current _16 RefSlot
+    _18 = ref_clone copy _16
+    (_19, _20, _21) = observe copy _18
+    ref_drop move _18
+    switch copy _21 [ 1 -> bb10, else -> bb11]
+  bb8:
+    storage_live _23
+    intrinsic PrintlnInt(0)
+    storage_dead _23
+    goto bb6
+  bb9:
+    storage_dead _17
+    region_exit r1
+    goto bb6
+  bb10:
+    goto bb9
+  bb11:
+    region_enter r2
+    storage_live _22
+    observation_register current _19
+    intrinsic PrintlnInt(copy _20.0)
+    storage_dead _22
+    region_exit r2
+    goto bb9
+}
+
+fn loopW (parent=true, sink=true) {
+  let _0: W [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: i32 [Var] i
+  let _3: unit [Hidden(DebugScope)]
+  let _4: unit [Hidden(RegionArena)]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: ()->i32 [Temp]
+  let _7: ()->i32 [Val] f
+  let _8: bool [Temp]
+  let _9: unit [Hidden(DebugScope)]
+  let _10: W [Temp]
+  let _11: ()->i32 [Temp]
+  let _12: i32 [Temp]
+  let _13: ()->i32 [Temp]
+  let _14: W [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 IfThen in r1
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = 0  // label "i": i32 decl
+    region_enter r1
+    storage_live _3
+    goto bb1
+  bb1:
+    switch true [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _5
+    _6 = call make(copy _2) +current +current -> bb5
+  bb3:
+    _4 = region_reset r1
+    goto bb1
+  bb4:
+    storage_dead _3
+    region_exit r1
+    _13 = call make(0) +current +result_sink -> bb8
+  bb5:
+    _7 = copy _6  // label "f": ()->i32 decl
+    _8 = eq(copy _2, 2)
+    switch copy _8 [ 1 -> bb6, else -> bb7]
+  bb6:
+    region_enter r2
+    storage_live _9
+    _10 = alloc Object { class: "W" } in result_sink  // label "W": W
+    _11 = copy_into _7 in result_sink
+    _10.0 = copy _11  // label "W.f": ()->i32 decl owner=result_sink
+    _0 = copy _10
+    storage_dead _9
+    storage_dead _5
+    storage_dead _3
+    storage_dead _1
+    region_exit r2
+    region_exit r1
+    region_exit r0
+    return
+  bb7:
+    _12 = add(copy _2, 1)
+    _2 = copy _12
+    storage_dead _5
+    goto bb3
+  bb8:
+    _14 = alloc Object { class: "W" } in result_sink  // label "W": W
+    _14.0 = copy _13  // label "W.f": ()->i32 decl owner=result_sink
+    _0 = copy _14
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn loopH (parent=true, sink=true) {
+  let _0: H [Return]
+  let _1: Ref<Node> [Arg] r
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Var] i
+  let _4: unit [Hidden(DebugScope)]
+  let _5: unit [Hidden(RegionArena)]
+  let _6: unit [Hidden(DebugScope)]
+  let _7: Ref<Node> [Temp]
+  let _8: Option<Ref<Node>> [Temp]
+  let _9: Option<Ref<Node>> [Val] p
+  let _10: bool [Temp]
+  let _11: unit [Hidden(DebugScope)]
+  let _12: H [Temp]
+  let _13: Option<Ref<Node>> [Temp]
+  let _14: i32 [Temp]
+  let _15: Option<Ref<Node>> [Temp]
+  let _16: H [Temp]
+  region r0 Block
+  region r1 While in r0
+  region r2 IfThen in r1
+  bb0:
+    storage_live _2
+    region_enter r0
+    register_drop current _1 RefSlot
+    _3 = 0  // label "i": i32 decl
+    region_enter r1
+    storage_live _4
+    goto bb1
+  bb1:
+    switch true [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _6
+    _7 = ref_clone copy _1
+    _8 = call pick(move _7) +current +current -> bb5
+  bb3:
+    _5 = region_reset r1
+    goto bb1
+  bb4:
+    storage_dead _4
+    region_exit r1
+    _15 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    register_drop result_sink _15 Enum("Option<Ref<Node>>")
+    _16 = alloc Object { class: "H" } in result_sink  // label "H": H
+    _16.0 = copy _15  // label "H.o": Option<Ref<Node>> decl owner=result_sink
+    _0 = copy _16
+    storage_dead _2
+    region_exit r0
+    return
+  bb5:
+    _9 = copy _8  // label "p": Option<Ref<Node>> decl
+    _10 = eq(copy _3, 2)
+    switch copy _10 [ 1 -> bb6, else -> bb7]
+  bb6:
+    region_enter r2
+    storage_live _11
+    _12 = alloc Object { class: "H" } in result_sink  // label "H": H
+    _13 = copy_into _9 in result_sink
+    _12.0 = copy _13  // label "H.o": Option<Ref<Node>> decl owner=result_sink
+    _0 = copy _12
+    storage_dead _11
+    storage_dead _6
+    storage_dead _4
+    storage_dead _2
+    region_exit r2
+    region_exit r1
+    region_exit r0
+    return
+  bb7:
+    _14 = add(copy _3, 1)
+    _3 = copy _14
+    storage_dead _6
+    goto bb3
+}
+
+fn churn (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: String [Temp]
+  let _3: String [Val] a
+  let _4: String [Temp]
+  let _5: String [Val] b
+  region r0 Block
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = intrinsic Concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy") in current
+    _3 = copy _2  // label "a": String decl
+    _4 = intrinsic Concat(copy _3, copy _3) in current
+    _5 = copy _4  // label "b": String decl
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn make (parent=true, sink=true) {
+  let _0: ()->i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: unit [Hidden(DebugScope)]
+  let _3: closure#0()->i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = closure make$closure0(copy _1) in result_sink
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn pick (parent=true, sink=true) {
+  let _0: Option<Ref<Node>> [Return]
+  let _1: Ref<Node> [Arg] r
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Ref<Node> [Temp]
+  let _4: Option<Ref<Node>> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    register_drop current _1 RefSlot
+    _3 = ref_clone copy _1
+    _4 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    ref_store_fresh _4@0.0 owner=result_sink move _3  // label "Option<Ref<Node>>.Some.value": Ref<Node> decl owner=result_sink
+    register_drop result_sink _4 Enum("Option<Ref<Node>>")
+    _0 = copy _4
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn make$closure0 (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: i32 [Arg] n
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = add(copy _1, 1)
+    _0 = copy _3
+    storage_dead _2
     region_exit r0
     return
 }

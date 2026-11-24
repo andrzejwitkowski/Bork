@@ -364,7 +364,6 @@ programs/build/loops/call_in_loop_returns_call_directly.bork::pick(v: &Vec<Ref<N
 programs/build/loops/call_in_loop_returns_call_directly.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_call_directly.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::mkHolder(r: Ref<Node>) -> Holder
-programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::mkNullable(n: i32) -> Holder?
 programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::mkFnE(n: i32) -> FnE
 programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::loopHolder(r: Ref<Node>) -> Holder
 programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::loopFnE() -> FnE
@@ -388,8 +387,15 @@ programs/build/loops/call_in_loop_returns_plain_enum.bork::find() -> E
 programs/build/loops/call_in_loop_returns_plain_enum.bork::churn() -> i32
 programs/build/loops/call_in_loop_returns_plain_enum.bork::main() -> i32
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_shadowed_name_returned.bork::isNone(o: Option<Ref<Node>>) -> bool
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::main() -> i32
+programs/build/loops/call_in_loop_stored_in_returned_object.bork::make(n: i32) -> ()->i32
+programs/build/loops/call_in_loop_stored_in_returned_object.bork::pick(r: Ref<Node>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_stored_in_returned_object.bork::loopW() -> W
+programs/build/loops/call_in_loop_stored_in_returned_object.bork::loopH(r: Ref<Node>) -> H
+programs/build/loops/call_in_loop_stored_in_returned_object.bork::churn() -> i32
+programs/build/loops/call_in_loop_stored_in_returned_object.bork::main() -> i32
 programs/build/loops/for_nested.bork::main() -> i32
 programs/build/loops/for_sum.bork::main() -> i32
 programs/build/loops/while_accumulate.bork::main() -> i32

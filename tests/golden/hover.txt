@@ -142,12 +142,13 @@ programs/build/loops/call_in_loop_isnone_reader.bork: hits=62 hash=561e6f67a9096
 programs/build/loops/call_in_loop_return_id_of_arg.bork: hits=65 hash=e70dc23ed278a369
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork: hits=65 hash=035257074812bd28
 programs/build/loops/call_in_loop_returns_call_directly.bork: hits=59 hash=8af7a1ffd0089625
-programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork: hits=76 hash=14e8a01293e949e7
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork: hits=75 hash=2112c1ca80b1e847
 programs/build/loops/call_in_loop_returns_closure.bork: hits=43 hash=74be50675ac9ea12
 programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork: hits=117 hash=6da3d564f008c0e4
 programs/build/loops/call_in_loop_returns_option_ref.bork: hits=65 hash=e19f5c054330fe53
 programs/build/loops/call_in_loop_returns_plain_enum.bork: hits=44 hash=1bb4a96355970f1a
-programs/build/loops/call_in_loop_shadowed_name_returned.bork: hits=52 hash=fc90b803af00ef34
+programs/build/loops/call_in_loop_shadowed_name_returned.bork: hits=58 hash=7e95b61125ee4e9c
+programs/build/loops/call_in_loop_stored_in_returned_object.bork: hits=77 hash=b7fa2a0865c0d5ce
 programs/build/loops/for_nested.bork: hits=17 hash=88627a0b66c3c541
 programs/build/loops/for_sum.bork: hits=17 hash=8cd0d14cac15ce74
 programs/build/loops/while_accumulate.bork: hits=12 hash=59464f89826f5e7e

@@ -137,7 +137,7 @@ impl<'a> FnBuilder<'a> {
     /// A non-nullable enum instance that holds a `Ref` or a closure, directly or through an enum field: `CopyInto` copies
     /// it when it escapes (#338).
     pub(super) fn holds_ref_enum(&self, ty: TyId) -> bool {
-        !self.tcx.is_nullable(ty) && self.enum_holds_ref(ty, 0)
+        !self.tcx.is_nullable(ty) && self.enum_holds_ref(ty)
     }
 
     /// Whether a call result of type `ty` can stay in a loop region because `return` copies it out whole: a closure, a
@@ -147,7 +147,7 @@ impl<'a> FnBuilder<'a> {
         if self.tcx.is_callable(ty) {
             return true;
         }
-        if !(self.tcx.is_nullable(ty) || self.enum_holds_ref(ty, 0)) {
+        if !(self.tcx.is_nullable(ty) || self.enum_holds_ref(ty)) {
             return false;
         }
         let Some(name) = crate::mono::enum_instance_name(self.tcx, ty).filter(|_| depth < 8) else { return false };
@@ -156,11 +156,8 @@ impl<'a> FnBuilder<'a> {
         decl.variants.iter().flat_map(|v| &v.fields).all(|f| field_ok(f.ty))
     }
 
-    fn enum_holds_ref(&self, ty: TyId, depth: usize) -> bool {
-        // By-value enum fields cannot cycle (a recursive enum goes through a `Ref`); the bound is a backstop.
-        let Some(name) = crate::mono::enum_instance_name(self.tcx, ty).filter(|_| depth < 8) else { return false };
-        let Some(decl) = self.mono.hir.enums.iter().find(|e| e.name == name) else { return false };
-        decl.variants.iter().flat_map(|v| &v.fields).any(|f| self.tcx.is_managed_ref(f.ty) || self.tcx.is_callable(f.ty) || (self.tcx.enum_args(f.ty).is_some() && self.enum_holds_ref(f.ty, depth + 1)))
+    fn enum_holds_ref(&self, ty: TyId) -> bool {
+        crate::mono::enum_holds_ref(self.tcx, &self.mono.hir.enums, ty)
     }
 
     pub(super) fn enum_has_ref(&self, enum_name: &str) -> bool {
@@ -191,6 +188,7 @@ impl<'a> FnBuilder<'a> {
             return Ok(());
         }
         let v = self.materialize(op, ty, arena, span)?;
+        let v = self.materialize_returned_local(v, ty, arena, span)?;
         self.stmt_with(StmtKind::Assign(slot, Rvalue::Use(v)), span, None, label);
         Ok(())
     }

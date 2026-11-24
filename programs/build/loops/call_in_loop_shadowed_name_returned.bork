@@ -1,7 +1,8 @@
 // exit: 0
 // stdout: 5\n
 // WHAT THIS TESTS
-// The same name bound twice in a function, once returned: the name-based analysis of #327 gave up on it; copy on return (#338) does not look at names.
+// The same name bound twice in one function, the loop-bound one returned: the name-based analysis of #327 gave up on
+// it; copy on return (#338) does not look at names.
 class Node {
     n: i32
 }
@@ -9,12 +10,23 @@ fun pick(v: &Vec<Ref<Node>>, i: i32): Option<Ref<Node>> {
     if (i >= v.len()) { return None }
     return Some(v.get(i))
 }
+fun isNone(o: Option<Ref<Node>>): bool {
+    when (o) {
+        Some(r) => { return false }
+        None => { return true }
+    }
+    return true
+}
 fun find(v: &Vec<Ref<Node>>): Option<Ref<Node>> {
     var i = 0
     while (true) {
         val p = pick(&v, i)
         if (i == 1) { return p }
         i = i + 1
+    }
+    {
+        val p = pick(&v, 0)
+        if (isNone(p)) { return None }
     }
     return None
 }

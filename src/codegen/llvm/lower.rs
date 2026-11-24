@@ -514,13 +514,15 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 StmtKind::CopyInto { dst, src, arena } if dst.is_bare() && arena_ok(arena) => {
                     let t = body.local(dst.local)?.ty;
                     let src_ty = place_ty(cx, body, src)?;
-                    // A closure copied to the function type it is returned as keeps its environment layout.
-                    if src_ty != t && !(cx.tcx.is_callable(src_ty) && cx.tcx.is_callable(t)) {
+                    // A closure copied to the function type it is returned as: same signature, and `copy_closure_into` re-homes
+                    // the environment through its own glue, so the layout is the source's whatever the destination type says.
+                    let same_signature = |a: TyId, b: TyId| cx.tcx.is_callable(a) && cx.tcx.is_callable(b) && cx.tcx.func_sig(cx.tcx.base(a)) == cx.tcx.func_sig(cx.tcx.base(b));
+                    if src_ty != t && !same_signature(src_ty, t) {
                         return None;
                     }
                     let copyable = cx.tcx.is_text(t)
                         || cx.tcx.is_callable(t)
-                        || (plain_enum(cx, t).is_some() && cx.enum_holds_ref(t, 0))
+                        || (plain_enum(cx, t).is_some() && cx.enum_holds_ref(t))
                         || plain_array(cx, t).is_some()
                         || plain_vec(cx, t).is_some()
                         // The payload moves with the slot; handles pass through like `materialize_owned_value`.

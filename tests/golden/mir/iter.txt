@@ -153,13 +153,15 @@ fn filter<VecIter<String>,closure#0(String)->bool> (parent=true, sink=true) {
   let _2: closure#0(String)->bool [Arg] p
   let _3: unit [Hidden(DebugScope)]
   let _4: Filter<VecIter<String>, closure#0(String)->bool> [Temp]
+  let _5: closure#0(String)->bool [Temp]
   region r0 Block
   bb0:
     storage_live _3
     region_enter r0
     _4 = alloc Object { class: "Filter<VecIter<String>,closure#0(String)->bool>" } in result_sink  // label "Filter<VecIter<String>,closure#0(String)->bool>": Filter<VecIter<String>, closure#0(String)->bool>
     _4.0 = move _1  // label "Filter<VecIter<String>,closure#0(String)->bool>.it": VecIter<String> decl owner=result_sink
-    _4.1 = move _2  // label "Filter<VecIter<String>,closure#0(String)->bool>.p": closure#0(String)->bool decl owner=result_sink
+    _5 = copy_into _2 in result_sink
+    _4.1 = copy _5  // label "Filter<VecIter<String>,closure#0(String)->bool>.p": closure#0(String)->bool decl owner=result_sink
     _0 = copy _4
     storage_dead _3
     region_exit r0
@@ -540,13 +542,15 @@ fn map<VecIter<i32>,closure#0(i32)->i32,i32> (parent=true, sink=true) {
   let _2: closure#0(i32)->i32 [Arg] f
   let _3: unit [Hidden(DebugScope)]
   let _4: Map<VecIter<i32>, closure#0(i32)->i32> [Temp]
+  let _5: closure#0(i32)->i32 [Temp]
   region r0 Block
   bb0:
     storage_live _3
     region_enter r0
     _4 = alloc Object { class: "Map<VecIter<i32>,closure#0(i32)->i32>" } in result_sink  // label "Map<VecIter<i32>,closure#0(i32)->i32>": Map<VecIter<i32>, closure#0(i32)->i32>
     _4.0 = move _1  // label "Map<VecIter<i32>,closure#0(i32)->i32>.it": VecIter<i32> decl owner=result_sink
-    _4.1 = move _2  // label "Map<VecIter<i32>,closure#0(i32)->i32>.f": closure#0(i32)->i32 decl owner=result_sink
+    _5 = copy_into _2 in result_sink
+    _4.1 = copy _5  // label "Map<VecIter<i32>,closure#0(i32)->i32>.f": closure#0(i32)->i32 decl owner=result_sink
     _0 = copy _4
     storage_dead _3
     region_exit r0
@@ -559,13 +563,15 @@ fn filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool> (parent=tr
   let _2: closure#1(i32)->bool [Arg] p
   let _3: unit [Hidden(DebugScope)]
   let _4: Filter<Map<VecIter<i32>, closure#0(i32)->i32>, closure#1(i32)->bool> [Temp]
+  let _5: closure#1(i32)->bool [Temp]
   region r0 Block
   bb0:
     storage_live _3
     region_enter r0
     _4 = alloc Object { class: "Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>" } in result_sink  // label "Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>": Filter<Map<VecIter<i32>, closure#0(i32)->i32>, closure#1(i32)->bool>
     _4.0 = move _1  // label "Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>.it": Map<VecIter<i32>, closure#0(i32)->i32> decl owner=result_sink
-    _4.1 = move _2  // label "Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>.p": closure#1(i32)->bool decl owner=result_sink
+    _5 = copy_into _2 in result_sink
+    _4.1 = copy _5  // label "Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>.p": closure#1(i32)->bool decl owner=result_sink
     _0 = copy _4
     storage_dead _3
     region_exit r0
@@ -651,13 +657,15 @@ fn filter<VecIter<i32>,closure#3(i32)->bool> (parent=true, sink=true) {
   let _2: closure#3(i32)->bool [Arg] p
   let _3: unit [Hidden(DebugScope)]
   let _4: Filter<VecIter<i32>, closure#3(i32)->bool> [Temp]
+  let _5: closure#3(i32)->bool [Temp]
   region r0 Block
   bb0:
     storage_live _3
     region_enter r0
     _4 = alloc Object { class: "Filter<VecIter<i32>,closure#3(i32)->bool>" } in result_sink  // label "Filter<VecIter<i32>,closure#3(i32)->bool>": Filter<VecIter<i32>, closure#3(i32)->bool>
     _4.0 = move _1  // label "Filter<VecIter<i32>,closure#3(i32)->bool>.it": VecIter<i32> decl owner=result_sink
-    _4.1 = move _2  // label "Filter<VecIter<i32>,closure#3(i32)->bool>.p": closure#3(i32)->bool decl owner=result_sink
+    _5 = copy_into _2 in result_sink
+    _4.1 = copy _5  // label "Filter<VecIter<i32>,closure#3(i32)->bool>.p": closure#3(i32)->bool decl owner=result_sink
     _0 = copy _4
     storage_dead _3
     region_exit r0
@@ -1359,13 +1367,15 @@ fn filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool> (parent=true, sink=true
   let _2: closure#0(Ref<Node>)->bool [Arg] p
   let _3: unit [Hidden(DebugScope)]
   let _4: Filter<VecIter<Ref<Node>>, closure#0(Ref<Node>)->bool> [Temp]
+  let _5: closure#0(Ref<Node>)->bool [Temp]
   region r0 Block
   bb0:
     storage_live _3
     region_enter r0
     _4 = alloc Object { class: "Filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>" } in result_sink  // label "Filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>": Filter<VecIter<Ref<Node>>, closure#0(Ref<Node>)->bool>
     _4.0 = move _1  // label "Filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>.it": VecIter<Ref<Node>> decl owner=result_sink
-    _4.1 = move _2  // label "Filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>.p": closure#0(Ref<Node>)->bool decl owner=result_sink
+    _5 = copy_into _2 in result_sink
+    _4.1 = copy _5  // label "Filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>.p": closure#0(Ref<Node>)->bool decl owner=result_sink
     _0 = copy _4
     storage_dead _3
     region_exit r0
@@ -1616,13 +1626,15 @@ fn map<VecIter<String>,closure#0(String)->i32,i32> (parent=true, sink=true) {
   let _2: closure#0(String)->i32 [Arg] f
   let _3: unit [Hidden(DebugScope)]
   let _4: Map<VecIter<String>, closure#0(String)->i32> [Temp]
+  let _5: closure#0(String)->i32 [Temp]
   region r0 Block
   bb0:
     storage_live _3
     region_enter r0
     _4 = alloc Object { class: "Map<VecIter<String>,closure#0(String)->i32>" } in result_sink  // label "Map<VecIter<String>,closure#0(String)->i32>": Map<VecIter<String>, closure#0(String)->i32>
     _4.0 = move _1  // label "Map<VecIter<String>,closure#0(String)->i32>.it": VecIter<String> decl owner=result_sink
-    _4.1 = move _2  // label "Map<VecIter<String>,closure#0(String)->i32>.f": closure#0(String)->i32 decl owner=result_sink
+    _5 = copy_into _2 in result_sink
+    _4.1 = copy _5  // label "Map<VecIter<String>,closure#0(String)->i32>.f": closure#0(String)->i32 decl owner=result_sink
     _0 = copy _4
     storage_dead _3
     region_exit r0
