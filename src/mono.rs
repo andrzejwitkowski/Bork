@@ -132,12 +132,16 @@ fn bind_callable_rets(tcx: &TyCtx, rets: &[(TyId, TyId)], out: &mut [Option<TyId
 /// One-way match of the generic `pattern` against the concrete `actual`, binding `Param(i)` to
 /// `out[i]`. False when the shapes differ or a parameter would get two different types.
 fn bind(tcx: &TyCtx, pattern: TyId, actual: TyId, out: &mut [Option<TyId>]) -> bool {
+    // A projection says nothing about its base's shape; the other parameters fix it. Before the param-free
+    // fast path, or a concrete `Concrete::Output` would be compared unnormalized against `i32`.
+    // shortcut: concrete projections are not normalized, so impls differing only by one are not told apart.
+    if matches!(tcx.data(pattern), TyData::Projection(..)) {
+        return true;
+    }
     if !tcx.has_param(pattern) {
         return pattern == actual;
     }
     match (tcx.data(pattern), tcx.data(actual)) {
-        // A projection says nothing about its base's shape; the other parameters fix it.
-        (TyData::Projection(..), _) => true,
         (TyData::Param(idx), _) => match out.get_mut(idx.0 as usize) {
             Some(slot) => *slot.get_or_insert(actual) == actual,
             None => false,

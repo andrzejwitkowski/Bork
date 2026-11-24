@@ -411,3 +411,9 @@ fn a_closure_inside_a_generic_function_gets_its_own_region_per_instance() {
         assert!(root.is_some(), "no region for {}", f.name);
     }
 }
+
+#[test]
+fn a_concrete_projection_in_a_callable_bound_selects_the_impl() {
+    let src = "class Concrete {\n    value: i32\n}\ntrait Shape {\n    type Output\n}\nimpl Shape for Concrete {\n    type Output = i32\n}\ntrait Run {\n    fun run(): i32\n}\nclass Runner<F> {\n    f: F\n}\nimpl<F: Fn() -> Concrete::Output> Run for Runner<F> {\n    fun run(): i32 { return 7 }\n}\nfun main(): i32 {\n    val runner = Runner({ -> 42 })\n    return runner.run()\n}\n";
+    mono(src);
+}
