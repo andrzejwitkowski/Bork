@@ -134,7 +134,7 @@ fn find (parent=true, sink=true) {
   bb2:
     storage_live _6
     _7 = borrow _1
-    _8 = call pick(copy _7, copy _3) +current +result_sink -> bb5
+    _8 = call pick(copy _7, copy _3) +current +current -> bb5
   bb3:
     _5 = region_reset r1
     goto bb1

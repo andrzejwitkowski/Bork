@@ -1407,7 +1407,7 @@ fn Iterator@2.next<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool> (parent=true, 
   bb2:
     storage_live _5
     _6 = borrow _1.0
-    _7 = call Iterator@0.next<Ref<Node>>(copy _6) +current +result_sink -> bb5
+    _7 = call Iterator@0.next<Ref<Node>>(copy _6) +current +current -> bb5
   bb3:
     _4 = region_reset r1
     goto bb1
