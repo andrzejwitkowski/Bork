@@ -1,5 +1,5 @@
 // exit: 0
-// stdout: 6\n
+// stdout: 6\n7\n
 // WHAT THIS TESTS
 // A loop binds a closure returned by a call and only calls it: the closure stays in the iteration's region instead of
 // piling up in the caller's result sink (#327). Its sibling `call_in_loop_returns_closure` covers the escaping case.
@@ -16,7 +16,18 @@ fun total(): i32 {
     return sum
 }
 
+// The enclosing function has a result sink (it returns a closure), so only the `Sink::Local` plan keeps `f` in the loop.
+fun run(): (i32) -> i32 {
+    for (i in 0..4) {
+        val f = make(i)
+        if (f(0) > 100) { println(f(1)) }
+    }
+    return make(7)
+}
+
 fun main(): i32 {
     println(total())
+    val g = run()
+    println(g(0))
     return 0
 }

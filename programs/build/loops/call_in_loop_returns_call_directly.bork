@@ -1,0 +1,30 @@
+// exit: 0
+// stdout: 5\n
+// WHAT THIS TESTS
+// A call result that moves a handle and is returned from inside a loop must outlive the iteration (#327). Here via `return call()`.
+class Node {
+    n: i32
+}
+fun pick(v: &Vec<Ref<Node>>, i: i32): Option<Ref<Node>> {
+    if (i >= v.len()) { return None }
+    return Some(v.get(i))
+}
+fun find(v: &Vec<Ref<Node>>): Option<Ref<Node>> {
+    var i = 0
+    while (true) {
+        if (i == 1) { return pick(&v, i) }
+        i = i + 1
+    }
+    return None
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    v.push(Node(5))
+    val found = find(&v)
+    when (found) {
+        Some(r) => { if val (x = r) { println(x.n) } }
+        None => { println(0) }
+    }
+    return 0
+}

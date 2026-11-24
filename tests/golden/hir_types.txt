@@ -321,7 +321,14 @@ programs/build/iter/vec_string_elems.bork::Iterator@1.next(this: &Map<T0, T1>) -
 programs/build/iter/vec_string_elems.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
 programs/build/loops/call_in_loop_closure_only_called.bork::make(n: i32) -> (i32)->i32
 programs/build/loops/call_in_loop_closure_only_called.bork::total() -> i32
+programs/build/loops/call_in_loop_closure_only_called.bork::run() -> (i32)->i32
 programs/build/loops/call_in_loop_closure_only_called.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_call_directly.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_call_directly.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_call_directly.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_closure.bork::make(n: i32) -> ()->String
 programs/build/loops/call_in_loop_returns_closure.bork::churn() -> i32
 programs/build/loops/call_in_loop_returns_closure.bork::find() -> ()->String

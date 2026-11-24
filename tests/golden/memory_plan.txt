@@ -392,6 +392,17 @@ programs/build/iter/vec_string_elems.bork: 650..657 VecIter<String> Lexical Lexi
 programs/build/iter/vec_string_elems.bork: 880..895 Option<i32> Lexical LexicalScope(14)
 programs/build/iter/vec_string_elems.bork: 927..931 Option<i32> Lexical LexicalScope(15)
 programs/build/iter/vec_string_elems.bork: 1034..1037 Map<VecIter<String>,closure#0(String)->i32> Lexical LexicalScope(4)
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork: 306..310 Option<Ref<Node>> Lexical LexicalScope(1)
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork: 324..338 Option<Ref<Node>> Lexical LexicalScope(0)
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork: 573..577 Option<Ref<Node>> Lexical LexicalScope(7)
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork: 625..629 Option<Ref<Node>> Lexical LexicalScope(2)
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork: 692..696 Node Dynamic Program
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork: 712..716 Node Dynamic Program
+programs/build/loops/call_in_loop_returns_call_directly.bork: 293..297 Option<Ref<Node>> Lexical LexicalScope(1)
+programs/build/loops/call_in_loop_returns_call_directly.bork: 311..325 Option<Ref<Node>> Lexical LexicalScope(0)
+programs/build/loops/call_in_loop_returns_call_directly.bork: 489..493 Option<Ref<Node>> Lexical LexicalScope(2)
+programs/build/loops/call_in_loop_returns_call_directly.bork: 556..560 Node Dynamic Program
+programs/build/loops/call_in_loop_returns_call_directly.bork: 576..580 Node Dynamic Program
 programs/build/loops/call_in_loop_returns_option_ref.bork: 336..340 Option<Ref<Node>> Lexical LexicalScope(1)
 programs/build/loops/call_in_loop_returns_option_ref.bork: 354..368 Option<Ref<Node>> Lexical LexicalScope(0)
 programs/build/loops/call_in_loop_returns_option_ref.bork: 566..573 Option<Ref<Node>> Lexical LexicalScope(6)

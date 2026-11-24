@@ -1981,7 +1981,64 @@ Arenas
 │       ├── i [Local]
 │       ├── f [Local]
 │       └── sum [Copy]
+├── fun run
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       ├── f [Local]
+│       └── IfThen
+│           └── f [Shared ← ForLoop (i)]
 └── fun main
+    └── g [Local]
+== programs/build/loops/call_in_loop_returns_bound_option_ref.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun find
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── v [Borrow ← fun find]
+│       ├── i [Copy]
+│       ├── MatchArm
+│       │   ├── r [Local]
+│       │   └── IfValSome
+│       │       ├── x [Borrow ← presence guard]
+│       │       └── IfThen
+│       │           └── p [Shared ← WhileLoop]
+│       └── MatchArm
+└── fun main
+    ├── v [Local]
+    ├── found [Local]
+    ├── MatchArm
+    │   ├── r [Local]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
+== programs/build/loops/call_in_loop_returns_call_directly.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun find
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── IfThen
+│           ├── v [Borrow ← fun find]
+│           └── i [Copy]
+└── fun main
+    ├── v [Local]
+    ├── found [Local]
+    ├── MatchArm
+    │   ├── r [Local]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
 == programs/build/loops/call_in_loop_returns_closure.bork
 Arenas
 ├── fun make
