@@ -135,7 +135,7 @@ jobs:
           llm_model: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
           llm_use_anthropic: 'false'
           llm_protocol: ${{ vars.OCR_LLM_PROTOCOL || 'openai' }}
-          llm_extra_body: ${{ vars.OCR_LLM_EXTRA_BODY || '{}' }}
+          llm_extra_body: ${{ vars.OCR_LLM_EXTRA_BODY || '{"thinking":{"type":"disabled"}}' }}
           llm_extra_headers: ${{ env.OCR_LLM_EXTRA_HEADERS }}
           llm_timeout: '600'
           effort: high
@@ -168,7 +168,7 @@ jobs:
           OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
           OCR_LLM_PROTOCOL: ${{ vars.OCR_LLM_PROTOCOL || 'openai' }}
           OCR_USE_ANTHROPIC: ${{ vars.OCR_LLM_PROTOCOL == 'anthropic' && 'true' || 'false' }}
-          OCR_EXTRA_BODY: ${{ vars.OCR_LLM_EXTRA_BODY || '{}' }}
+          OCR_EXTRA_BODY: ${{ vars.OCR_LLM_EXTRA_BODY || '{"thinking":{"type":"disabled"}}' }}
           OCR_LLM_TIMEOUT: '600'
           BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ steps.context.outputs.head_sha }}

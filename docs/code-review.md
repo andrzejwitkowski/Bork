@@ -108,6 +108,8 @@ The default full endpoint is
 to extra headers, where OCR rejects reserved headers. Both local and CI requests
 add a stable `x-opencode-session` for each review, as required by
 [OpenCode Go](https://opencode.ai/docs/console/go/).
+The request body uses the upstream Action's default `thinking: disabled` for
+compatible tool calls. OCR's own `effort: high` review pipeline remains enabled.
 
 The supplied key needs an active Go subscription with access to DeepSeek. Go may
 require Global regions enabled in the workspace's Privacy settings; a rejected

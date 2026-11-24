@@ -28,6 +28,7 @@ export OCR_LLM_EXTRA_HEADERS="x-opencode-session=bork-local-$(date +%s)"
 export OCR_NO_UPDATE=1
 PROFILE
 source "$HOME/.config/bork-review/review.env"
+ocr config set llm.extra_body '{"thinking":{"type":"disabled"}}'
 ocr llm test
 
 gh secret set OCR_LLM_AUTH_TOKEN --repo "$repo" < "$key_file"
