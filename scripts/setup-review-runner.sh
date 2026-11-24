@@ -24,7 +24,7 @@ export OCR_LLM_MODEL=deepseek-v4.1-flash
 export OCR_LLM_PROTOCOL=openai
 export OCR_USE_ANTHROPIC=false
 export OCR_LLM_TOKEN="$(cat "$HOME/.config/bork-review/opencode-go.key")"
-export OCR_LLM_EXTRA_HEADERS="User-Agent=Bork-OpenCodeReview/1.14.2,x-opencode-session=bork-local-$(date +%s)"
+export OCR_LLM_EXTRA_HEADERS="x-opencode-session=bork-local-$(date +%s)"
 export OCR_NO_UPDATE=1
 PROFILE
 source "$HOME/.config/bork-review/review.env"

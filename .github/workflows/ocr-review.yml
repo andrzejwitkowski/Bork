@@ -44,7 +44,7 @@ jobs:
       statuses: write
     env:
       OCR_NO_UPDATE: '1'
-      OCR_LLM_EXTRA_HEADERS: User-Agent=Bork-OpenCodeReview/1.14.2,x-opencode-session=bork-${{ github.run_id }}-${{ github.run_attempt }}
+      OCR_LLM_EXTRA_HEADERS: x-opencode-session=bork-${{ github.run_id }}-${{ github.run_attempt }}
       OCR_BACKGROUND: >-
         Bork is a compiler written in Rust with an unsafe arena/reference runtime.
         Review correctness across typeck, HIR, MIR, LLVM codegen and runtime boundaries.

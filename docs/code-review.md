@@ -101,9 +101,10 @@ workflow that executes arbitrary PR code on `bork-review`. The trusted
 
 The default full endpoint is
 `https://opencode.ai/inference/go/openai/v1/chat/completions` and the model ID is
-`deepseek-v4.1-flash`. Both local and CI requests identify OCR with its own
-`User-Agent` and a stable `x-opencode-session` for each review. These headers are
-required by [OpenCode Go](https://opencode.ai/docs/console/go/).
+`deepseek-v4.1-flash`. OCR sends its own `User-Agent` automatically; do not add it
+to extra headers, where OCR rejects reserved headers. Both local and CI requests
+add a stable `x-opencode-session` for each review, as required by
+[OpenCode Go](https://opencode.ai/docs/console/go/).
 
 The supplied key needs an active Go subscription with access to DeepSeek. Go may
 require Global regions enabled in the workspace's Privacy settings; a rejected
