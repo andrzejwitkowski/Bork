@@ -1,0 +1,32 @@
+// exit: 0
+// stdout: 5\n
+// WHAT THIS TESTS
+// A handle bound by a `when` arm over a loop-local call result is returned from the loop: the arm binds a clone and
+// `return` re-homes it into the result sink, so keeping the call result in the iteration region is safe (#327).
+class Node {
+    n: i32
+}
+fun pick(v: &Vec<Ref<Node>>, i: i32): Option<Ref<Node>> {
+    if (i >= v.len()) { return None }
+    return Some(v.get(i))
+}
+fun find(v: &Vec<Ref<Node>>): Ref<Node> {
+    var i = 0
+    while (true) {
+        val p = pick(&v, i)
+        when (p) {
+            Some(r) => { if val (x = r) { if (x.n == 5) { return r } } }
+            None => { return v.get(0) }
+        }
+        i = i + 1
+    }
+    return v.get(0)
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    v.push(Node(5))
+    val r = find(&v)
+    if val (x = r) { println(x.n) }
+    return 0
+}

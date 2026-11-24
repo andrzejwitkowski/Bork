@@ -250,7 +250,11 @@ impl<'a> FnBuilder<'a> {
     /// so it keeps the result sink unless `sinks::local_loop_calls` showed it is only called or matched (#327).
     fn call_result_sink(&self, id: crate::hir::NodeId, ty: crate::ty::TyId) -> ArenaRef {
         let local = self.planned_sinks.get(&id) == Some(&super::sinks::Sink::Local);
-        let escapes = ((self.moves_handle(ty) || self.tcx.is_callable(ty)) && !local) || self.loops.is_empty();
+        // Outside any loop nothing resets the region before the caller sees the result.
+        let outside_loop = self.loops.is_empty();
+        // Inside one, only a handle or closure result can be returned as is, unless `local_loop_calls` ruled that out.
+        let may_be_returned = (self.moves_handle(ty) || self.tcx.is_callable(ty)) && !local;
+        let escapes = outside_loop || may_be_returned;
         if self.abi.result_sink && escapes { ArenaRef::ResultSink } else { self.sink.clone() }
     }
 

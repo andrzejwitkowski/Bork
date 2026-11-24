@@ -329,6 +329,9 @@ programs/build/loops/call_in_loop_arg_to_reader.bork::isNone(o: Option<Ref<Node>
 programs/build/loops/call_in_loop_arg_to_reader.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_arg_to_reader.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_arg_to_reader.bork::main() -> i32
+programs/build/loops/call_in_loop_arm_binding_returned.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_arm_binding_returned.bork::find(v: &Vec<Ref<Node>>) -> Ref<Node>
+programs/build/loops/call_in_loop_arm_binding_returned.bork::main() -> i32
 programs/build/loops/call_in_loop_closure_alias_returned.bork::make(n: i32) -> (i32)->i32
 programs/build/loops/call_in_loop_closure_alias_returned.bork::apply(f: (i32)->i32, x: i32) -> i32
 programs/build/loops/call_in_loop_closure_alias_returned.bork::find() -> (i32)->i32

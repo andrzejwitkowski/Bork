@@ -405,6 +405,10 @@ programs/build/loops/call_in_loop_arg_to_reader.bork: 871..875 Option<Ref<Node>>
 programs/build/loops/call_in_loop_arg_to_reader.bork: 923..927 Option<Ref<Node>> Lexical LexicalScope(6)
 programs/build/loops/call_in_loop_arg_to_reader.bork: 990..994 Node Dynamic Program
 programs/build/loops/call_in_loop_arg_to_reader.bork: 1010..1014 Node Dynamic Program
+programs/build/loops/call_in_loop_arm_binding_returned.bork: 390..394 Option<Ref<Node>> Lexical LexicalScope(1)
+programs/build/loops/call_in_loop_arm_binding_returned.bork: 408..422 Option<Ref<Node>> Lexical LexicalScope(0)
+programs/build/loops/call_in_loop_arm_binding_returned.bork: 776..780 Node Dynamic Program
+programs/build/loops/call_in_loop_arm_binding_returned.bork: 796..800 Node Dynamic Program
 programs/build/loops/call_in_loop_return_id_of_arg.bork: 326..330 Option<Ref<Node>> Lexical LexicalScope(1)
 programs/build/loops/call_in_loop_return_id_of_arg.bork: 344..358 Option<Ref<Node>> Lexical LexicalScope(0)
 programs/build/loops/call_in_loop_return_id_of_arg.bork: 799..803 Option<Ref<Node>> Lexical LexicalScope(6)

@@ -133,6 +133,7 @@ programs/build/iter/vec_ref_elems.bork: hits=65 hash=5f52bc0b91192d81
 programs/build/iter/vec_string_elems.bork: hits=25 hash=d8b0628c2f2e1d76
 programs/build/loops/call_in_loop_alias_returned.bork: hits=67 hash=2044f4caa87da2d4
 programs/build/loops/call_in_loop_arg_to_reader.bork: hits=71 hash=0479ee9d96204f29
+programs/build/loops/call_in_loop_arm_binding_returned.bork: hits=55 hash=d7cbf5592d4c3e86
 programs/build/loops/call_in_loop_closure_alias_returned.bork: hits=25 hash=91190a3aec89f2c9
 programs/build/loops/call_in_loop_closure_arg.bork: hits=23 hash=695fd3d62565e8ba
 programs/build/loops/call_in_loop_closure_only_called.bork: hits=49 hash=e718b9ecdccb4fb7

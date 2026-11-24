@@ -2035,6 +2035,32 @@ Arenas
     │   └── IfValSome
     │       └── x [Borrow ← presence guard]
     └── MatchArm
+== programs/build/loops/call_in_loop_arm_binding_returned.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun find
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── v [Borrow ← fun find]
+│       ├── i [Copy]
+│       ├── MatchArm
+│       │   ├── r [Local]
+│       │   └── IfValSome
+│       │       ├── x [Borrow ← presence guard]
+│       │       └── IfThen
+│       │           └── r [Shared ← MatchArm]
+│       └── MatchArm
+│           └── v [Borrow ← fun find]
+└── fun main
+    ├── v [Local]
+    ├── r [Local]
+    └── IfValSome
+        └── x [Borrow ← presence guard]
 == programs/build/loops/call_in_loop_closure_alias_returned.bork
 Arenas
 ├── fun make
