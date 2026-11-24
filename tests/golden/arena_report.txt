@@ -1968,6 +1968,39 @@ Arenas
         │   └── IfThen
         │       └── x [Shared ← MatchArm]
         └── MatchArm
+== programs/build/loops/call_in_loop_closure_only_called.bork
+Arenas
+├── fun make
+│   ├── n [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── n [Moved ← fun make]
+├── fun total
+│   ├── sum [Local]
+│   └── ForLoop (i)
+│       ├── i [Local]
+│       ├── f [Local]
+│       └── sum [Copy]
+└── fun main
+== programs/build/loops/call_in_loop_returns_closure.bork
+Arenas
+├── fun make
+│   ├── n [Local]
+│   ├── t [Local]
+│   └── Closure (move)
+│       └── t [Moved ← fun make]
+├── fun churn
+│   ├── a [Local]
+│   └── b [Local]
+├── fun find
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── f [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── f [Shared ← WhileLoop]
+└── fun main
+    └── f [Local]
 == programs/build/loops/call_in_loop_returns_option_ref.bork
 Arenas
 ├── fun pick

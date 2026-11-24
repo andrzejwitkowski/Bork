@@ -200,7 +200,7 @@ impl<'a> FnBuilder<'a> {
                 hidden.push(ArenaRef::Current);
             }
             if abi.result_sink {
-                hidden.push(self.call_result_sink(e.ty));
+                hidden.push(self.call_result_sink(e.id, e.ty));
             }
             let dest = self.temp(e.ty);
             let target = self.new_block();
@@ -246,9 +246,11 @@ impl<'a> FnBuilder<'a> {
     /// Where a call's result is allocated. A function with a result sink sends every call result there, so one made in a
     /// loop body piled up per iteration (a `filter` rejecting many items). A plain value only reaches the caller through
     /// `return`, which copies it into the result sink (a handle is re-cloned there), so inside a loop it stays in the
-    /// loop's own arena. A callable result may carry its environment out of the loop, so it keeps the result sink (#327).
-    fn call_result_sink(&self, ty: crate::ty::TyId) -> ArenaRef {
-        let escapes = self.tcx.is_callable(ty) || self.loops.is_empty();
+    /// loop's own arena. A callable result may carry its environment out of the loop, so it keeps the result sink unless
+    /// `sinks::local_loop_calls` showed it is only ever called (#327).
+    fn call_result_sink(&self, id: crate::hir::NodeId, ty: crate::ty::TyId) -> ArenaRef {
+        let local = self.planned_sinks.get(&id) == Some(&super::sinks::Sink::Local);
+        let escapes = (self.tcx.is_callable(ty) && !local) || self.loops.is_empty();
         if self.abi.result_sink && escapes { ArenaRef::ResultSink } else { self.sink.clone() }
     }
 
@@ -260,7 +262,7 @@ impl<'a> FnBuilder<'a> {
             hidden.push(ArenaRef::Current);
         }
         if abi.result_sink {
-            hidden.push(self.call_result_sink(e.ty));
+            hidden.push(self.call_result_sink(e.id, e.ty));
         }
         let dest = self.temp(e.ty);
         let target = self.new_block();

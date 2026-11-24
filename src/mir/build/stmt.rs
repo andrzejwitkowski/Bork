@@ -49,6 +49,7 @@ impl<'a> FnBuilder<'a> {
                 let planned = self.planned_sinks.get(&value.id).cloned();
                 let (sink, v) = match planned {
                     None => (self.sink.clone(), self.expr(value)?),
+                    Some(Sink::Local) => (self.sink.clone(), self.expr(value)?),
                     Some(Sink::Result) => (ArenaRef::ResultSink, self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?),
                     Some(Sink::Outer(target)) => {
                         let home = self.lookup(&target, span)?;

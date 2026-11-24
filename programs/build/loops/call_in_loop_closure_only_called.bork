@@ -1,0 +1,22 @@
+// exit: 0
+// stdout: 6\n
+// WHAT THIS TESTS
+// A loop binds a closure returned by a call and only calls it: the closure stays in the iteration's region instead of
+// piling up in the caller's result sink (#327). Its sibling `call_in_loop_returns_closure` covers the escaping case.
+fun make(n: i32): (i32) -> i32 {
+    return move (n) { x -> x + n }
+}
+
+fun total(): i32 {
+    var sum = 0
+    for (i in 0..4) {
+        val f = make(i)
+        sum = sum + f(0)
+    }
+    return sum
+}
+
+fun main(): i32 {
+    println(total())
+    return 0
+}
