@@ -154,6 +154,18 @@ event intentionally skips its model work and may finish green.
 CodeRabbit and OpenCodeReview run side by side. Keep CodeRabbit's automatic
 reviews enabled; each reviewer publishes its own findings and status.
 
+Mira also reviews ready PRs from branches in this repository when they open,
+reopen, become ready, or receive new commits. Automatic runs require a human
+owner, member, or collaborator as the PR author. Mira runs the trusted base
+workflow on a GitHub-hosted runner and reads PR files through the GitHub API.
+It uses DeepSeek V4.1 Flash and the `OCR_LLM_AUTH_TOKEN` secret configured in
+[step 1](#1-start-the-configured-machine). Suggestions and nitpicks share a
+five-comment cap. Warnings and blockers can still be posted above that cap.
+
+For a fork or a manual rerun, a maintainer can use **Actions → Mira → Run
+workflow** on the default branch and enter the PR number. Manual runs also
+require an open, ready PR from a human author.
+
 ## Trust boundary and local checks
 
 The PR review path uses a trusted workflow and reads PR-head Git objects without
