@@ -57,6 +57,9 @@ jobs:
         Include regression tests and .bork programs; do not execute code from a PR.
         Report only defects introduced by the reviewed changes. Verify the cited path and
         behavior against the repository before reporting. Omit observations that require no fix.
+        Submit findings only when their justified severity is medium, high, or critical.
+        Omit low-severity findings rather than upgrading them. Skip cosmetic changes,
+        unused test scaffolding, and other cleanup without a concrete regression.
     steps:
       - name: Resolve review context
         id: context
