@@ -257,6 +257,9 @@ enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_arm_binding_returned.bork
 class Node size=4 align=4 fields=[0]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_isnone_reader.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_return_id_of_arg.bork
 class Node size=4 align=4 fields=[0]
 class Holder size=16 align=8 fields=[0]
@@ -267,8 +270,28 @@ enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_call_directly.bork
 class Node size=4 align=4 fields=[0]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork
+class Node size=4 align=4 fields=[0]
+class Holder size=24 align=8 fields=[0]
+enum FnE size=16 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork
+class Node size=4 align=4 fields=[0]
+class Holder size=24 align=8 fields=[0]
+enum In size=32 align=8 variants=[[0, 8], [0]]
+enum Out size=32 align=8 variants=[[0, 8, 24], [0]]
+enum WithObj size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_option_ref.bork
 class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_returns_plain_enum.bork
+enum E size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/loops/call_in_loop_shadowed_name_returned.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_stored_in_returned_object.bork
+class Node size=4 align=4 fields=[0]
+class W size=8 align=8 fields=[0]
+class H size=16 align=8 fields=[0]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/managed_refs/cache_manager_graph.bork
 class Node size=56 align=8 fields=[0, 4, 8, 32]

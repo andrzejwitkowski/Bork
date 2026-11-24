@@ -1,0 +1,58 @@
+// exit: 0
+// stdout: 3\n7\n
+// WHAT THIS TESTS
+// A closure and an `Option<Ref<Node>>` bound in a loop, then stored in a field of the object the function returns: the
+// field is copied into the result sink, not left pointing into the iteration region the loop exit resets (#338, #345).
+class Node {
+    n: i32
+}
+class W {
+    f: () -> i32
+}
+class H {
+    o: Option<Ref<Node>>
+}
+fun make(n: i32): () -> i32 {
+    return move (n) { -> n + 1 }
+}
+fun pick(r: Ref<Node>): Option<Ref<Node>> {
+    return Some(r)
+}
+fun loopW(): W {
+    var i = 0
+    while (true) {
+        val f = make(i)
+        if (i == 2) { return W(f) }
+        i = i + 1
+    }
+    return W(make(0))
+}
+fun loopH(r: Ref<Node>): H {
+    var i = 0
+    while (true) {
+        val p = pick(r)
+        if (i == 2) { return H(p) }
+        i = i + 1
+    }
+    return H(None)
+}
+fun churn(): i32 {
+    val a = concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy")
+    val b = concat(a, a)
+    return 0
+}
+fun main(): i32 {
+    val node = Node(7)
+    val r: Ref<Node> = node
+    val w = loopW()
+    val h = loopH(r)
+    churn()
+    churn()
+    val g = w.f
+    println(g())
+    when (h.o) {
+        Some(p) => { if val (x = p) { println(x.n) } }
+        None => { println(0) }
+    }
+    return 0
+}

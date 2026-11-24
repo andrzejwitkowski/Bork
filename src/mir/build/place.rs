@@ -1,7 +1,7 @@
 //! Places, arrays, slices, `Vec` operations and bounds checks.
 
 use super::expr::span_of;
-use super::{BuildError, FnBuilder, Res};
+use super::{BuildError, FnBuilder, Res, SinkKey};
 use crate::ast::BinOp;
 use crate::hir::{HirExpr, HirExprKind, VecOp};
 use crate::mir::body::*;
@@ -240,9 +240,32 @@ impl<'a> FnBuilder<'a> {
         if !(t.is_nullable(ty) || t.is_string(ty) || t.is_array(ty) || t.is_vec(ty)) {
             return Ok(op);
         }
+        Ok(self.copy_into(op, ty, arena, span))
+    }
+
+    /// `materialize` for a local going into the result sink (returned, or stored in a field of a returned value) that is
+    /// not already there: a handle-holding enum or a closure is copied too, as the call result it came from may live in a
+    /// loop region the exit resets (#338).
+    pub(super) fn materialize_returned_local(&mut self, op: Operand, ty: TyId, arena: &ArenaRef, span: Span) -> Res<Operand> {
+        if *arena != ArenaRef::ResultSink {
+            return Ok(op);
+        }
+        let local = match &op {
+            Operand::Copy(p) | Operand::Move(p) if p.proj.is_empty() => p.local,
+            _ => return Ok(op),
+        };
+        let named = matches!(self.locals[local.0 as usize].kind, LocalKind::Val | LocalKind::Var | LocalKind::Arg);
+        let in_result = matches!(self.decl_sinks.get(&local), Some(SinkKey::Other(ArenaRef::ResultSink)));
+        if !(named && !in_result && (self.tcx.is_callable(ty) || self.holds_ref_enum(ty))) {
+            return Ok(op);
+        }
+        Ok(self.copy_into(op, ty, arena, span))
+    }
+
+    fn copy_into(&mut self, op: Operand, ty: TyId, arena: &ArenaRef, span: Span) -> Operand {
         let src = self.operand_place(op, ty, span);
         let dst = self.temp(ty);
         self.stmt(StmtKind::CopyInto { dst: Place::local(dst), src, arena: arena.clone() }, span, None);
-        Ok(Operand::Copy(Place::local(dst)))
+        Operand::Copy(Place::local(dst))
     }
 }

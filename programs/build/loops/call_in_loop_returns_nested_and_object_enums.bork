@@ -1,0 +1,58 @@
+// exit: 0
+// stdout: 3\n7\n7\n
+// WHAT THIS TESTS
+// Enums returned from a loop and read after churn: one nested in another, one holding a class object. The nested one is
+// copied out whole on return; the class object is passed by handle, so its result keeps the result sink (#338).
+class Node { n: i32 }
+class Holder { keep: Ref<Node> }
+enum In { Has(p: Ref<Node>), No }
+enum Out { Wrap(i: In, k: i32), Empty }
+enum WithObj { Obj(h: Holder), Nothing }
+fun mkOut(r: Ref<Node>): Out { return Out.Wrap(In.Has(r), 3) }
+fun mkObj(r: Ref<Node>): WithObj { return WithObj.Obj(Holder(r)) }
+fun loopOut(r: Ref<Node>): Out {
+    var i = 0
+    while (true) {
+        val e = mkOut(r)
+        if (i == 2) { return e }
+        i = i + 1
+    }
+    return Out.Empty
+}
+fun loopObj(r: Ref<Node>): WithObj {
+    var i = 0
+    while (true) {
+        val e = mkObj(r)
+        if (i == 2) { return e }
+        i = i + 1
+    }
+    return WithObj.Nothing
+}
+fun churn(): i32 {
+    val a = concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy")
+    val b = concat(a, a)
+    return 0
+}
+fun main(): i32 {
+    val node = Node(7)
+    val r: Ref<Node> = node
+    val o = loopOut(r)
+    val w = loopObj(r)
+    churn()
+    churn()
+    when (o) {
+        Out.Wrap(inner, k) => {
+            println(k)
+            when (inner) {
+                In.Has(p) => { if val (x = p) { println(x.n) } }
+                In.No => { println(0) }
+            }
+        }
+        Out.Empty => { println(0) }
+    }
+    when (w) {
+        WithObj.Obj(h) => { if val (x = h.keep) { println(x.n) } }
+        WithObj.Nothing => { println(0) }
+    }
+    return 0
+}

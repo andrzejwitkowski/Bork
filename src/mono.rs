@@ -430,6 +430,18 @@ pub(crate) fn enum_instance_name(tcx: &TyCtx, ty: TyId) -> Option<String> {
     Some(mangle(tcx.class_name(def), tcx, args))
 }
 
+/// Whether the enum value `ty` holds a `Ref` or a closure, directly or through an enum field (nullables included).
+/// MIR (what `return` copies) and codegen (how it copies) both ask this, so they cannot disagree (#338).
+pub(crate) fn enum_holds_ref(tcx: &TyCtx, enums: &[crate::hir::HirEnum], ty: TyId) -> bool {
+    fn walk(tcx: &TyCtx, enums: &[crate::hir::HirEnum], ty: TyId, depth: usize) -> bool {
+        // By-value enum fields cannot cycle (a recursive enum goes through a `Ref`); the bound is a backstop.
+        let Some(name) = enum_instance_name(tcx, ty).filter(|_| depth < 8) else { return false };
+        let Some(decl) = enums.iter().find(|e| e.name == name) else { return false };
+        decl.variants.iter().flat_map(|v| &v.fields).any(|f| tcx.is_managed_ref(f.ty) || tcx.is_callable(f.ty) || (tcx.enum_args(f.ty).is_some() && walk(tcx, enums, f.ty, depth + 1)))
+    }
+    walk(tcx, enums, ty, 0)
+}
+
 /// Specialises the program reachable from `main`. `report` is the sema output for `hir`
 /// (one root per function, same order), and planning diagnostics come back as errors.
 pub fn monomorphize(hir: &HirProgram, tcx: &mut TyCtx, report: &ArenaReport) -> Result<Mono, Vec<Diagnostic>> {

@@ -1,0 +1,38 @@
+// exit: 0
+// stdout: 3\n
+// WHAT THIS TESTS
+// A loop-bound `Option<Ref<Node>>` that is only read by a callee (`isNone(p)`) and never leaves the iteration: it stays in
+// the iteration region instead of piling up in the result sink (#338).
+class Node {
+    n: i32
+}
+fun pick(v: &Vec<Ref<Node>>, i: i32): Option<Ref<Node>> {
+    if (i >= v.len()) { return None }
+    return Some(v.get(i))
+}
+fun isNone(o: Option<Ref<Node>>): bool {
+    when (o) {
+        Some(r) => { return false }
+        None => { return true }
+    }
+    return true
+}
+fun count(v: &Vec<Ref<Node>>): i32 {
+    var i = 0
+    var seen = 0
+    while (true) {
+        val p = pick(&v, i)
+        if (isNone(p)) { return seen }
+        seen = seen + 1
+        i = i + 1
+    }
+    return seen
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    v.push(Node(2))
+    v.push(Node(3))
+    println(count(&v))
+    return 0
+}

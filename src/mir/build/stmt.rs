@@ -26,7 +26,7 @@ impl<'a> FnBuilder<'a> {
                     Some(v) => {
                         // A returned closure's environment must outlive the call too.
                     let to_result = self.abi.result_sink
-                        && (self.tcx.is_callable(v.ty) || (self.moves_handle(v.ty) && (self.lifetimes() || matches!(v.kind, HirExprKind::Ident { .. }))));
+                        && (self.tcx.is_callable(v.ty) || (self.moves_handle(v.ty) && (self.lifetimes() || matches!(v.kind, HirExprKind::Ident { .. } | HirExprKind::Call { .. }))));
                         Some(if to_result { self.with_sink(ArenaRef::ResultSink, |b| b.expr(v))? } else { self.expr(v)? })
                     }
                     None => None,
@@ -34,6 +34,7 @@ impl<'a> FnBuilder<'a> {
                 if let Some(mut v) = v.filter(|_| !self.is_unit(self.function.return_ty)) {
                     if self.abi.result_sink {
                         v = self.materialize(v, self.function.return_ty, &ArenaRef::ResultSink, span)?;
+                        v = self.materialize_returned_local(v, self.function.return_ty, &ArenaRef::ResultSink, span)?;
                     }
                     // At the value's own span, where the escape diagnostics of a returned local point.
                     let at = value.as_ref().map_or(span, span_of);
@@ -48,6 +49,8 @@ impl<'a> FnBuilder<'a> {
             HirStmt::VarDecl { kind, name, ty, value } => {
                 let planned = self.planned_sinks.get(&value.id).cloned();
                 let (sink, v) = match planned {
+                    // A call result outside a loop is allocated in the result sink (`call_result_sink`), so the binding lives there.
+                    None if matches!(value.kind, HirExprKind::Call { .. }) => (self.call_result_sink(value.id, value.ty), self.expr(value)?),
                     None => (self.sink.clone(), self.expr(value)?),
                     Some(Sink::Local) => (self.sink.clone(), self.expr(value)?),
                     Some(Sink::Result) => (ArenaRef::ResultSink, self.with_sink(ArenaRef::ResultSink, |b| b.expr(value))?),
@@ -56,7 +59,7 @@ impl<'a> FnBuilder<'a> {
                         (ArenaRef::Home(home), self.with_sink(ArenaRef::Home(home), |b| b.expr(value))?)
                     }
                 };
-                let key = self.moves_handle(*ty).then(|| self.sink_key(&sink));
+                let key = (self.moves_handle(*ty) || self.tcx.is_callable(*ty)).then(|| self.sink_key(&sink));
                 let local_kind = if matches!(kind, BindingKind::Val) { LocalKind::Val } else { LocalKind::Var };
                 let local = self.new_local(*ty, local_kind, Some(name.clone()));
                 if let Some(key) = key {
