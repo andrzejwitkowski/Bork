@@ -35,9 +35,11 @@ explicitly included instead of falling through OCR's default exclusions.
 
 The **`OpenCodeReview / strict (main)` commit status** fails for high/critical or unclassified findings,
 incomplete or waived coverage, files too large to review, token/round limits,
-invalid output, or an operational failure. PR reviews group medium and low findings
-in the updated summary. High, critical and unclassified findings remain inline
-when OCR can attach them to a changed line. The gate still reads the full report.
+invalid output, or an operational failure. OCR is instructed to omit low-severity
+findings and preserve the actual severity. The action groups medium findings
+and any remaining low findings in the PR summary. High, critical and unclassified
+findings remain inline when OCR can attach them to a changed line. The gate still
+reads the full report.
 A run with no eligible changed files may skip cleanly.
 This status is attached to the reviewed **head commit**, including for
 `pull_request_target`; the workflow's ordinary job check alone is not the gate.
