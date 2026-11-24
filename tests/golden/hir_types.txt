@@ -776,6 +776,8 @@ programs/build/vec/element_rw_view_through_rw_param.bork::main() -> i32
 programs/build/vec/element_shared_views_coexist.bork::main() -> i32
 programs/build/vec/element_view_in_loop.bork::size(s: &String) -> i32
 programs/build/vec/element_view_in_loop.bork::main() -> i32
+programs/build/vec/element_view_of_ref.bork::look(r: &Ref<Node>) -> i32
+programs/build/vec/element_view_of_ref.bork::main() -> i32
 programs/build/vec/element_view_read.bork::size(s: &String) -> i32
 programs/build/vec/element_view_read.bork::main() -> i32
 programs/build/vec/grow_past_page.bork::main() -> i32

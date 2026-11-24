@@ -2113,6 +2113,155 @@ fn size (parent=true, sink=false) {
     return
 }
 
+== vec/element_view_of_ref.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<Ref<Node>> [Temp]
+  let _3: Vec<Ref<Node>> [Var] nodes
+  let _4: unit [Hidden(DynamicArena)]
+  let _5: Node [Temp]
+  let _6: Node [Val] n
+  let _7: Ref<Node> [Temp]
+  let _8: Ref<Node> [Val] r
+  let _9: &Vec<Ref<Node>> [Temp]
+  let _10: Ref<Node> [Temp]
+  let _11: Ref<Node> [Temp]
+  let _12: i32 [Temp]
+  let _13: i32 [Val] before
+  let _14: &Ref<Node> [Temp]
+  let _15: &Ref<Node> [Val] e
+  let _16: i32 [Temp]
+  let _17: unit [Temp]
+  let _18: Node [Val]
+  let _19: bool [Temp]
+  let _20: i32? [Temp]
+  let _21: i32? [Temp]
+  let _22: i32? [Temp]
+  let _23: i32 [Temp]
+  let _24: &Ref<Node> [Temp]
+  let _25: i32 [Temp]
+  let _26: Ref<Node> [Temp]
+  let _27: i32 [Temp]
+  let _28: bool [Temp]
+  let _29: unit [Hidden(DebugScope)]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    register_drop current _2 Vec(TyId(19))
+    _3 = copy _2  // label "nodes": Vec<Ref<Node>> decl
+    _4 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _4
+    _5 = alloc Object { class: "Node" } in fresh4  // label "Node": Node
+    _5.0 = 7  // label "Node.id": i32 decl owner=fresh4
+    _6 = copy _5  // label "n": Node decl
+    _7 = ref_create source=current target=object_arena(_6) copy _6
+    _8 = move _7  // label "r": Ref<Node> decl
+    register_drop current _8 RefSlot
+    _9 = borrow _3
+    _10 = ref_clone copy _8
+    vec_Push(copy _9, move _10)
+    _11 = ref_clone copy _8
+    _12 = ref_count move _11
+    _13 = copy _12  // label "before": i32 decl
+    _14 = vec_View(copy _3, 0)
+    _15 = copy _14  // label "e": &Ref<Node> decl
+    (_17, _18, _19) = observe copy _15
+    switch copy _19 [ 1 -> bb5, else -> bb4]
+  bb1:
+    _16 = copy _23
+    goto bb3
+  bb2:
+    _16 = 0
+    goto bb3
+  bb3:
+    intrinsic PrintlnInt(copy _16)
+    _24 = borrow _15
+    _25 = call look(copy _24) +current -> bb7
+  bb4:
+    _21 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
+    _21.some = copy _18.*.0
+    observation_release _17
+    _20 = copy _21
+    goto bb6
+  bb5:
+    _22 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _20 = copy _22
+    goto bb6
+  bb6:
+    match _20 {
+      Some(bind) _23=_20.some -> bb1
+      None -> bb2
+    }
+  bb7:
+    intrinsic PrintlnInt(copy _25)
+    _26 = ref_clone copy _8
+    _27 = ref_count move _26
+    _28 = ne(copy _27, copy _13)
+    switch copy _28 [ 1 -> bb8, else -> bb9]
+  bb8:
+    storage_live _29
+    _0 = 1
+    storage_dead _29
+    storage_dead _1
+    region_exit r0
+    return
+  bb9:
+    _0 = 0
+    storage_dead _1
+    region_exit r0
+    return
+}
+
+fn look (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Ref<Node> [Arg] r
+  let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Temp]
+  let _4: unit [Temp]
+  let _5: Node [Val]
+  let _6: bool [Temp]
+  let _7: i32? [Temp]
+  let _8: i32? [Temp]
+  let _9: i32? [Temp]
+  let _10: i32 [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    (_4, _5, _6) = observe copy _1
+    switch copy _6 [ 1 -> bb5, else -> bb4]
+  bb1:
+    _3 = copy _10
+    goto bb3
+  bb2:
+    _3 = 0
+    goto bb3
+  bb3:
+    _0 = copy _3
+    storage_dead _2
+    region_exit r0
+    return
+  bb4:
+    _8 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in current
+    _8.some = copy _5.*.0
+    observation_release _4
+    _7 = copy _8
+    goto bb6
+  bb5:
+    _9 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in current
+    _7 = copy _9
+    goto bb6
+  bb6:
+    match _7 {
+      Some(bind) _10=_7.some -> bb1
+      None -> bb2
+    }
+}
+
 == vec/element_view_read.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

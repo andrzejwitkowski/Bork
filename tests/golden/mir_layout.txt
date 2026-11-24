@@ -658,6 +658,9 @@ class Node size=4 align=4 fields=[0]
 == programs/build/vec/closure_elems_set_pop_clear.bork
 class Node size=4 align=4 fields=[0]
 enum Option<()->i32> size=16 align=8 variants=[[0, 8], [0]]
+== programs/build/vec/element_view_of_ref.bork
+class Node size=4 align=4 fields=[0]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/vec/index_through_field.bork
 class H size=8 align=8 fields=[0]
 == programs/build/vec/move_vec_field.bork

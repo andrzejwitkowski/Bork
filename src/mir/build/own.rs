@@ -172,7 +172,7 @@ impl<'a> FnBuilder<'a> {
             if self.tcx.is_nullable(e.ty) && self.is_enum_ty(self.nullable_payload(e.ty)) {
                 return Err(BuildError::unsupported(Capability::SafeFieldEnum, span));
             }
-            if self.tcx.is_managed_ref(receiver.ty) {
+            if self.tcx.is_managed_ref(self.tcx.deref_ty(receiver.ty)) {
                 return self.safe_ref_field(e, receiver, field_index);
             }
             let flatten = Some(self.class_field_ty(self.nullable_payload(receiver.ty), field_index)?);
@@ -197,13 +197,16 @@ impl<'a> FnBuilder<'a> {
     /// `r?.f` on a `Ref`: `None` when the target is gone, otherwise `Some(f)` read through an observation.
     fn safe_ref_field(&mut self, e: &HirExpr, receiver: &HirExpr, field_index: usize) -> Res<Operand> {
         let span = span_of(e);
-        let target = self.tcx.managed_ref_inner(receiver.ty).ok_or_else(|| BuildError::Internal("`?.` Ref without a target".into()))?;
+        let target = self.tcx.managed_ref_inner(self.tcx.deref_ty(receiver.ty)).ok_or_else(|| BuildError::Internal("`?.` Ref without a target".into()))?;
         let r = self.expr(receiver)?;
         let obs = self.temp(self.unit);
         let object = self.new_local(target, LocalKind::Val, None);
         let absent = self.temp(self.bool_ty);
         self.stmt(StmtKind::Observe { obs, object, absent, value: super::refs::as_copy(&r) }, span, Some(e.id));
-        self.stmt(StmtKind::Ref(RefOp::Drop(r)), span, Some(e.id));
+        // A borrowed `&Ref` (a `Vec` element view) is not ours to release.
+        if !self.tcx.is_ref(receiver.ty) {
+            self.stmt(StmtKind::Ref(RefOp::Drop(r)), span, Some(e.id));
+        }
         let result = self.temp(e.ty);
         let (some_b, none_b, end) = (self.new_block(), self.new_block(), self.new_block());
         self.terminate(TermKind::Switch { value: Operand::Copy(Place::local(absent)), cases: vec![(1, none_b)], otherwise: some_b }, span, Some(e.id));

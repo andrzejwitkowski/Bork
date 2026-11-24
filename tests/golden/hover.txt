@@ -291,6 +291,7 @@ programs/build/vec/closure_elems_via_param.bork: hits=17 hash=1871f54bfa6cbf5f
 programs/build/vec/element_rw_view_through_rw_param.bork: hits=32 hash=cc496e30502ca7ad
 programs/build/vec/element_shared_views_coexist.bork: hits=17 hash=b969e0964f52dc78
 programs/build/vec/element_view_in_loop.bork: hits=51 hash=3c3f44bfc8fe8799
+programs/build/vec/element_view_of_ref.bork: hits=82 hash=5975323252104df8
 programs/build/vec/element_view_read.bork: hits=35 hash=60a4a45168922f86
 programs/build/vec/grow_past_page.bork: hits=32 hash=73d0bd5055d70e56
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90
@@ -598,7 +599,6 @@ programs/check_fail/vec/element_view_blocks_pop.bork: hits=13 hash=21bf63b916b7f
 programs/check_fail/vec/element_view_blocks_rw_borrow.bork: hits=16 hash=8dfbc7b50441eead
 programs/check_fail/vec/element_view_blocks_set.bork: hits=13 hash=e0a5aca20b3e5db3
 programs/check_fail/vec/element_view_cannot_be_returned.bork: hits=2 hash=49e5b4b572b3aa24
-programs/check_fail/vec/element_view_of_ref.bork: hits=24 hash=03d6ea976ae3115c
 programs/check_fail/vec/element_view_of_scalar.bork: hits=8 hash=7022f3fd56e39036
 programs/check_fail/vec/element_view_of_val_as_rw.bork: hits=3 hash=1e1cff43f996da84
 programs/check_fail/vec/element_view_through_alias_locks_vec.bork: hits=24 hash=6af5e4913d3b650c

@@ -72,7 +72,7 @@ fn callable(cx: &Codegen<'_>, ty: TyId) -> bool {
 fn plain_value(cx: &Codegen<'_>, ty: TyId) -> bool {
     callable(cx, ty)
         || prim(cx, ty).is_some()
-        || cx.tcx.is_managed_ref(ty)
+        || cx.tcx.is_managed_ref(cx.tcx.deref_ty(ty))
         || cx.tcx.is_text(ty)
         || plain_array(cx, ty).is_some()
         || plain_vec(cx, ty).is_some()
@@ -429,7 +429,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 }
                 StmtKind::Observe { object, absent, value, .. } => {
                     let vty = place_ty(cx, body, value.place()?)?;
-                    cx.tcx.is_managed_ref(vty).then_some(())?;
+                    cx.tcx.is_managed_ref(cx.tcx.deref_ty(vty)).then_some(())?;
                     general(value)?;
                     let oty = body.local(*object)?.ty;
                     (plain_class(cx, oty).is_some() || plain_enum(cx, oty).is_some()).then_some(())?;

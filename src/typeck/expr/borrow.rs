@@ -75,11 +75,9 @@ pub(super) fn check_element_borrow(
     let element = super::array::check_index(receiver, index, index_span, return_ty, env);
     let unknown = env.tcx.is_unknown(element.ty);
     let is_vec = matches!(&element.hir.kind, HirExprKind::Index { receiver, .. } if env.tcx.vec_elem(receiver.ty).is_some());
-    let rejected = match (is_vec || unknown, env.tcx.is_managed_ref(element.ty), env.tcx.is_trivially_copy(element.ty)) {
-        (false, ..) => Some(format!("`{}` borrows a name; only a `Vec` element can be borrowed by index", if rw { "&rw" } else { "&" })),
-        // shortcut: the MIR backend has no `&Ref<T>` local yet; lift once it does (#282 follow-up).
-        (_, true, _) => Some("cannot borrow a `Ref` element; `v[i]` gives you a `Ref` of its own".to_string()),
-        (_, _, true) => Some(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty))),
+    let rejected = match (is_vec || unknown, env.tcx.is_trivially_copy(element.ty)) {
+        (false, _) => Some(format!("`{}` borrows a name; only a `Vec` element can be borrowed by index", if rw { "&rw" } else { "&" })),
+        (_, true) => Some(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty))),
         _ => None,
     };
     if let Some(message) = rejected {

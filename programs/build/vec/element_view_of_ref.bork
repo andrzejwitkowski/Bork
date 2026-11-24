@@ -1,0 +1,19 @@
+// exit: 0
+// stdout: 7\n7\n
+// A view of a `Ref` slot reads through the slot, directly and via a `&Ref` parameter, without taking a reference of its own.
+class Node { id: i32 }
+fun look(r: &Ref<Node>): i32 {
+    return r?.id ?: 0
+}
+fun main(): i32 {
+    var nodes = Vec::<Ref<Node>>()
+    val n = Node(7)
+    val r: Ref<Node> = n
+    nodes.push(r)
+    val before = strongCount(r)
+    val e = &nodes[0]
+    println(e?.id ?: 0)
+    println(look(&e))
+    if (strongCount(r) != before) { return 1 }
+    return 0
+}
