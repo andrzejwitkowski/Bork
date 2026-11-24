@@ -134,7 +134,13 @@ class WorkflowTriggerTests(unittest.TestCase):
             const context = {eventName: 'push', payload: {after: 'head'},
                 ref: 'refs/heads/feature', repo: {owner: 'owner', repo: 'repo'}};
             const core = {notice: () => {}, setOutput: (key, value) => outputs[key] = value};
-            const github = {rest: {pulls: {list: async () => ({data: prs})}}, paginate: async () => prs};
+            const github = {rest: {pulls: {list: async () => ({data: prs})}},
+                paginate: async (_list, options) => {
+                    if (options.state !== 'open' || options.head !== 'owner:feature') {
+                        throw new Error('Push lookup must filter open PRs by head branch');
+                    }
+                    return prs;
+                }};
         """ + "(async () => {" + script + "})().then(() => console.log(JSON.stringify(outputs)));"
         for associations, expected_mode in [([], "push"), (["NONE"], "push"),
                                             (["OWNER"], None), (["NONE", "COLLABORATOR"], None)]:
@@ -167,6 +173,9 @@ class WorkflowTriggerTests(unittest.TestCase):
             ("NONE", "User", "/open-code-review", "open", False),
             ("COLLABORATOR", "Bot", "/open-code-review", "open", False),
             ("OWNER", "User", "unrelated comment", "open", False),
+            ("OWNER", "User", "/open-code-review-disabled", "open", False),
+            ("MEMBER", "User", "@open-code-reviewer", "open", False),
+            ("OWNER", "User", "/open-code-review please", "open", True),
             ("OWNER", "User", "/open-code-review", "closed", False),
         ]:
             cases.append(("issue_comment", {
@@ -220,7 +229,9 @@ class PushRangeTests(unittest.TestCase):
                         'case "$1" in review|scan)\n'
                         '  printf "%s\\n" "$1" > "$OCR_TEST_MODE"\n'
                         '  while [ "$#" -gt 1 ]; do\n'
-                        '    if [ "$1" = --commit ]; then printf "%s\\n" "$2" > "$OCR_TEST_COMMIT"; break; fi\n'
+                        '    if [ "$1" = --commit ] || [ "$1" = --from ]; then\n'
+                        '      printf "%s\\n" "$1" "$2" > "$OCR_TEST_RANGE"; break\n'
+                        '    fi\n'
                         '    shift\n'
                         '  done;;\n'
                         'esac\n'),
@@ -236,22 +247,26 @@ class PushRangeTests(unittest.TestCase):
             for before, head, expected_parent in cases:
                 with self.subTest(before=before, head=head):
                     git("checkout", "--detach", "-q", head)
-                    comparison_file = root / "comparison"
-                    comparison_file.unlink(missing_ok=True)
+                    range_file = root / "range"
+                    for output in (range_file, root / "mode", root / "result.json"):
+                        output.unlink(missing_ok=True)
                     env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
                                BEFORE_SHA=before, HEAD_SHA=head, DEFAULT_BRANCH="main",
                                GITHUB_REF_NAME="feature", OCR_LLM_PROTOCOL="openai",
                                OCR_EXTRA_BODY="{}", OCR_BACKGROUND="test",
-                               OCR_TEST_MODE=str(root / "mode"), OCR_TEST_COMMIT=str(comparison_file))
+                               OCR_TEST_MODE=str(root / "mode"), OCR_TEST_RANGE=str(range_file))
                     process = subprocess.run(["bash", "-e"], input=script, cwd=repo, env=env,
                                              text=True, capture_output=True)
                     self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+                    self.assertTrue((root / "result.json").is_file())
                     self.assertEqual((root / "mode").read_text().strip(), "review")
                     self.assertEqual(git("rev-parse", "HEAD"), head)
+                    flag, comparison = range_file.read_text().splitlines()
                     if expected_parent is None:
-                        self.assertFalse(comparison_file.exists())
+                        self.assertEqual((flag, comparison),
+                                         ("--from", "origin/main" if before == "0" * 40 else before))
                     else:
-                        comparison = comparison_file.read_text().strip()
+                        self.assertEqual(flag, "--commit")
                         self.assertEqual(git("show", "-s", "--format=%P", comparison), expected_parent)
                         self.assertEqual(git("rev-parse", comparison+"^{tree}"), git("rev-parse", head+"^{tree}"))
                         self.assertIn("source.rs", git("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", comparison))

@@ -18,8 +18,9 @@ The machine runs OCR and the Actions runner; inference uses the Go API.
 - Push to a branch with an open PR from a trusted author: the PR event handles
   review, avoiding a second model invocation. A PR from an outside author does
   not suppress reviews of pushes made by repository writers.
-- A PR comment starting with `/open-code-review` or `@open-code-review`: re-review,
-  restricted to human owners, members and collaborators.
+- Human owners, members and collaborators can request another review with
+  `/open-code-review` or `@open-code-review` in a PR comment. A space can separate
+  the command from optional trailing text.
 - **Actions → OpenCodeReview → Run workflow**: enter an open PR number to re-review.
 
 The workflow pins the Action and CLI to **1.14.2**. There is no OCR option named
@@ -77,8 +78,9 @@ Python 3, curl, tar, GitHub CLI authenticated with repository admin access, sudo
 and systemd. Each CI job sets up Node 24 itself. The service runs under the
 dedicated account in `/var/lib/bork-review`; systemd blocks access to personal
 home directories, limits writes to that runner directory and private temporary
-files, and prevents privilege elevation. Personal Go/gh credentials stay with
-the invoking user; jobs receive their model credential from Actions secrets.
+files, and prevents privilege elevation. The installer uses the invoking user's
+`gh` login. Review jobs receive the Go key from the encrypted repository secret
+`OCR_LLM_AUTH_TOKEN`, which is mapped to `OCR_LLM_TOKEN` for the OCR CLI.
 The script must run outside a restricted agent sandbox because it downloads
 binaries, calls Go, registers the runner and starts the system service.
 
@@ -124,7 +126,8 @@ model-access test must be resolved there before the installer continues.
 
 Optional overrides remain available through the `OCR_LLM_URL` secret and
 `OCR_LLM_MODEL`, `OCR_LLM_PROTOCOL`, `OCR_LLM_EXTRA_BODY` repository variables.
-The local profile is specific to the selected Go account/model.
+The local profile uses DeepSeek V4.1 Flash. To match a different CI model, edit
+the local profile separately.
 
 ## 3. Enable and verify
 
@@ -140,6 +143,9 @@ can mean findings or incomplete review; inspect the summary and JSON artifact.
 
 To block merges on the result, add **`OpenCodeReview / strict (main)`** as a required
 status check in the branch ruleset/protection for `main` after its first run.
+For other target branches, use the corresponding `OpenCodeReview / strict (<base>)`
+status. When an outside author updates a PR, a maintainer must request review of
+the new head. A push status does not satisfy the strict PR check.
 Do not select only the ordinary `Strict review` Actions job: a duplicate push
 event intentionally skips its model work and may finish green.
 
@@ -148,11 +154,10 @@ reviews enabled; each reviewer publishes its own findings and status.
 
 ## Trust boundary and local checks
 
-For public fork PRs, the pinned upstream Action checks out the trusted base and
-reads PR-head Git objects. This workflow never builds, tests, or executes PR-head
-code with secrets on the self-hosted runner. Keep that property when editing it.
-The push path checks out only branches pushed by repository writers. Model access
-is read-only review; no fixes or automatic merges are performed.
+The PR review path uses a trusted workflow and reads PR-head Git objects without
+building or testing that head. Other workflows triggered by fork PRs are subject
+to the separate approval policy. The push path runs the pushed workflow and gate
+from branches writable by repository writers, who are trusted with the runner.
 
 Run the strict-gate tests without a model:
 

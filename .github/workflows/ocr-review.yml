@@ -29,8 +29,10 @@ jobs:
         github.event.issue.pull_request && github.event.issue.state == 'open' &&
         github.event.comment.user.type != 'Bot' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-        (startsWith(github.event.comment.body, '/open-code-review') ||
-         startsWith(github.event.comment.body, '@open-code-review'))))
+        (github.event.comment.body == '/open-code-review' ||
+         github.event.comment.body == '@open-code-review' ||
+         startsWith(github.event.comment.body, '/open-code-review ') ||
+         startsWith(github.event.comment.body, '@open-code-review '))))
     runs-on: [self-hosted, linux, x64, bork-review]
     timeout-minutes: 120
     permissions:
@@ -104,6 +106,7 @@ jobs:
             });
 
       - name: Prepare review tools and validate configuration
+        id: prepare
         if: steps.context.outputs.mode != ''
         env:
           OCR_LLM_URL: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
@@ -207,7 +210,7 @@ jobs:
           fi
 
       - name: Save push review report
-        if: always() && steps.context.outputs.mode == 'push'
+        if: always() && steps.prepare.outcome == 'success' && steps.context.outputs.mode == 'push'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ocr-push-${{ github.run_id }}-${{ github.run_attempt }}
@@ -218,7 +221,7 @@ jobs:
           retention-days: 14
 
       - name: Enforce strict findings and coverage
-        if: always() && steps.context.outputs.mode != ''
+        if: steps.context.outputs.mode != ''
         run: python3 scripts/ocr_review.py /tmp/ocr-result.json
 
       - name: Publish strict status on the reviewed head
