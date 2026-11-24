@@ -1,0 +1,34 @@
+// exit: 0
+// stdout: dynamic-x\n
+// WHAT THIS TESTS
+// A loop calls a function returning a closure that owns a String and returns the matching one: the returned
+// closure must outlive the loop iteration and its region reset. Guards the callable exception in `call_result_sink`:
+// moving such a result into the loop region reads freed memory (#327).
+fun make(n: i32): () -> String {
+    val t = concat("dynamic-", "x")
+    return move (t) { -> t }
+}
+
+fun churn(): i32 {
+    val a = concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy")
+    val b = concat(a, a)
+    return 0
+}
+
+fun find(): () -> String {
+    var i = 0
+    while (true) {
+        val f = make(i)
+        if (i == 3) { return f }
+        i = i + 1
+    }
+    return make(0)
+}
+
+fun main(): i32 {
+    val f = find()
+    churn()
+    churn()
+    println(f())
+    return 0
+}

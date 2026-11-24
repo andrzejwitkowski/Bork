@@ -246,6 +246,27 @@ class VecIter<String> size=16 align=8 fields=[0, 8]
 class Map<VecIter<String>,closure#0(String)->i32> size=24 align=8 fields=[0, 16]
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/loops/call_in_loop_alias_returned.bork
+class Node size=4 align=4 fields=[0]
+class Holder size=16 align=8 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_arg_to_reader.bork
+class Node size=4 align=4 fields=[0]
+class Holder size=16 align=8 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_arm_binding_returned.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_return_id_of_arg.bork
+class Node size=4 align=4 fields=[0]
+class Holder size=16 align=8 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_returns_bound_option_ref.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
+== programs/build/loops/call_in_loop_returns_call_directly.bork
+class Node size=4 align=4 fields=[0]
+enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_option_ref.bork
 class Node size=4 align=4 fields=[0]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]

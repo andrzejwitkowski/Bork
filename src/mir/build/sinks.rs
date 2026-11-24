@@ -13,6 +13,9 @@ pub(crate) enum Sink {
     Result,
     /// The arena of this outer binding.
     Outer(String),
+    /// The current region: a callable call result bound in a loop and only ever called, so it cannot outlive the
+    /// iteration (#327).
+    Local,
 }
 
 pub(crate) fn decl_sinks(function: &HirFunction, tcx: &TyCtx) -> HashMap<NodeId, Sink> {
@@ -20,7 +23,87 @@ pub(crate) fn decl_sinks(function: &HirFunction, tcx: &TyCtx) -> HashMap<NodeId,
     let visible: HashSet<String> = function.params.iter().map(|p| p.name.clone()).collect();
     outer_hoists(&function.body, &visible, &mut sinks);
     result_hoists(&function.body, tcx, &mut sinks);
+    local_loop_calls(&function.body, tcx, &function.body, false, &mut sinks);
     sinks
+}
+
+/// `val f = call()` in a loop body whose result is callable or moves a handle stays in the iteration's region when every
+/// mention of `f` in the function is the callee of a call or a `when`/`if val` scrutinee: nothing can carry the value
+/// out of the iteration (`return f` would hand out the loop slot, which `materialize` does not copy).
+/// shortcut: name-based (a shadowing or reused name just keeps the result sink), refine with binding ids if it matters.
+fn local_loop_calls(block: &HirBlock, tcx: &TyCtx, root: &HirBlock, in_loop: bool, out: &mut HashMap<NodeId, Sink>) {
+    for stmt in &block.stmts {
+        if let HirStmt::VarDecl { name, value, .. } = stmt {
+            let called = matches!(value.kind, HirExprKind::Call { .. }) && (tcx.is_callable(value.ty) || moves_handle(tcx, value.ty));
+            if in_loop && called && !out.contains_key(&value.id) && mentions_only_as_callee(root, name) {
+                out.insert(value.id, Sink::Local);
+            }
+        }
+        // `when (call())` in a loop: the arms bind clones, so the scrutinee itself never leaves the iteration.
+        if let (true, HirStmt::Expr(e)) = (in_loop, stmt) {
+            if let HirExprKind::Match { scrutinee, .. } = &e.kind {
+                let call = matches!(scrutinee.kind, HirExprKind::Call { .. });
+                if call && (tcx.is_callable(scrutinee.ty) || moves_handle(tcx, scrutinee.ty)) {
+                    out.entry(scrutinee.id).or_insert(Sink::Local);
+                }
+            }
+        }
+        let inner_loop = in_loop || matches!(stmt, HirStmt::For { .. } | HirStmt::While { .. });
+        for inner in nested_blocks(stmt) {
+            local_loop_calls(inner, tcx, root, inner_loop, out);
+        }
+    }
+}
+
+/// Mirrors `Builder::moves_handle`.
+fn moves_handle(t: &TyCtx, ty: crate::ty::TyId) -> bool {
+    let payload = if t.is_nullable(ty) { t.enum_args(ty).and_then(|(_, a)| a.first().copied()).unwrap_or(ty) } else { ty };
+    t.enum_args(payload).is_some() || (t.record_def(ty).is_some() && !t.is_managed_ref(ty))
+}
+
+/// Whether `name` is declared once in `block` and every mention of it is a callee or a match scrutinee.
+fn mentions_only_as_callee(block: &HirBlock, name: &str) -> bool {
+    use crate::hir::ChildMut;
+    fn walk(children: Vec<ChildMut<'_>>, name: &str, uses: &mut usize) -> bool {
+        for child in children {
+            let ok = match child {
+                ChildMut::Block(b) => b.stmts.iter_mut().all(|s| walk(s.children_mut(), name, uses)),
+                ChildMut::Expr(e) => match &mut e.kind {
+                    HirExprKind::Ident { name: n, .. } => n != name,
+                    HirExprKind::Call { callee, args } => {
+                        let callee_is_name = matches!(&callee.kind, HirExprKind::Ident { name: n, .. } if n == name);
+                        *uses += usize::from(callee_is_name);
+                        let callee_ok = callee_is_name || walk(vec![ChildMut::Expr(callee)], name, uses);
+                        callee_ok && args.iter_mut().all(|a| walk(vec![ChildMut::Expr(a)], name, uses))
+                    }
+                    HirExprKind::Match { scrutinee, arms } if matches!(&scrutinee.kind, HirExprKind::Ident { name: n, .. } if n == name) => {
+                        arms.iter_mut().all(|a| walk(vec![ChildMut::Block(&mut a.body)], name, uses))
+                    }
+                    HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
+                        let head_is_name = bindings.tail.is_empty() && matches!(&bindings.head.value.kind, HirExprKind::Ident { name: n, .. } if n == name);
+                        if head_is_name {
+                            walk(std::iter::once(ChildMut::Block(some_block)).chain(none_block.iter_mut().map(ChildMut::Block)).collect(), name, uses)
+                        } else {
+                            walk(e.children_mut(), name, uses)
+                        }
+                    }
+                    _ => walk(e.children_mut(), name, uses),
+                },
+            };
+            if !ok {
+                return false;
+            }
+        }
+        true
+    }
+    let mut decls = Vec::new();
+    collect_decls(block, &mut decls);
+    if decls.iter().filter(|(n, _)| n == name).count() != 1 {
+        return false;
+    }
+    let mut uses = 0;
+    let mut body = block.clone();
+    body.stmts.iter_mut().all(|s| walk(s.children_mut(), name, &mut uses))
 }
 
 fn outer_hoists(block: &HirBlock, outer: &HashSet<String>, out: &mut HashMap<NodeId, Sink>) {

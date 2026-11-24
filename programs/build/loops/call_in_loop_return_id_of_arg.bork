@@ -1,0 +1,44 @@
+// exit: 0
+// stdout: 5\n
+// WHAT THIS TESTS
+// A loop-bound handle result passed to a function that returns it, then returned from the loop: relaxing the sink for call arguments would read freed memory (#327).
+class Node {
+    n: i32
+}
+fun pick(v: &Vec<Ref<Node>>, i: i32): Option<Ref<Node>> {
+    if (i >= v.len()) { return None }
+    return Some(v.get(i))
+}
+fun isNone(o: Option<Ref<Node>>): bool {
+    when (o) {
+        Some(r) => { return false }
+        None => { return true }
+    }
+    return true
+}
+fun id(o: Option<Ref<Node>>): Option<Ref<Node>> {
+    return o
+}
+class Holder {
+    o: Option<Ref<Node>>
+}
+fun find(v: &Vec<Ref<Node>>): Option<Ref<Node>> {
+    var i = 0
+    while (true) {
+        val p = pick(&v, i)
+        if (i == 1) { return id(p) }
+        i = i + 1
+    }
+    return None
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    v.push(Node(5))
+    val found = find(&v)
+    when (found) {
+        Some(r) => { if val (x = r) { println(x.n) } }
+        None => { println(0) }
+    }
+    return 0
+}

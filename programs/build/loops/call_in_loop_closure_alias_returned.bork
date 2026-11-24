@@ -1,0 +1,25 @@
+// exit: 0
+// stdout: 3\n
+// WHAT THIS TESTS
+// A loop-bound closure aliased by another val that is returned: the alias must keep the result sink (#327).
+fun make(n: i32): (i32) -> i32 {
+    return move (n) { x -> x + n }
+}
+fun apply(f: (i32) -> i32, x: i32): i32 {
+    return f(x)
+}
+fun find(): (i32) -> i32 {
+    var i = 0
+    while (true) {
+        val f = make(i)
+        val g = f
+        if (i == 3) { return g }
+        i = i + 1
+    }
+    return make(0)
+}
+fun main(): i32 {
+    val g = find()
+    println(g(0))
+    return 0
+}

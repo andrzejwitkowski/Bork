@@ -319,6 +319,46 @@ programs/build/iter/vec_string_elems.bork::fold(it: T0, init: i32, f: T1) -> i32
 programs/build/iter/vec_string_elems.bork::Iterator@0.next(this: &VecIter<T0>) -> T0?
 programs/build/iter/vec_string_elems.bork::Iterator@1.next(this: &Map<T0, T1>) -> T2?
 programs/build/iter/vec_string_elems.bork::Iterator@2.next(this: &Filter<T0, T1>) -> T0::Item?
+programs/build/loops/call_in_loop_alias_returned.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_alias_returned.bork::isNone(o: Option<Ref<Node>>) -> bool
+programs/build/loops/call_in_loop_alias_returned.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_alias_returned.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_alias_returned.bork::main() -> i32
+programs/build/loops/call_in_loop_arg_to_reader.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_arg_to_reader.bork::isNone(o: Option<Ref<Node>>) -> bool
+programs/build/loops/call_in_loop_arg_to_reader.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_arg_to_reader.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_arg_to_reader.bork::main() -> i32
+programs/build/loops/call_in_loop_arm_binding_returned.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_arm_binding_returned.bork::find(v: &Vec<Ref<Node>>) -> Ref<Node>
+programs/build/loops/call_in_loop_arm_binding_returned.bork::main() -> i32
+programs/build/loops/call_in_loop_closure_alias_returned.bork::make(n: i32) -> (i32)->i32
+programs/build/loops/call_in_loop_closure_alias_returned.bork::apply(f: (i32)->i32, x: i32) -> i32
+programs/build/loops/call_in_loop_closure_alias_returned.bork::find() -> (i32)->i32
+programs/build/loops/call_in_loop_closure_alias_returned.bork::main() -> i32
+programs/build/loops/call_in_loop_closure_arg.bork::make(n: i32) -> (i32)->i32
+programs/build/loops/call_in_loop_closure_arg.bork::apply(f: (i32)->i32, x: i32) -> i32
+programs/build/loops/call_in_loop_closure_arg.bork::find() -> (i32)->i32
+programs/build/loops/call_in_loop_closure_arg.bork::main() -> i32
+programs/build/loops/call_in_loop_closure_only_called.bork::make(n: i32) -> (i32)->i32
+programs/build/loops/call_in_loop_closure_only_called.bork::total() -> i32
+programs/build/loops/call_in_loop_closure_only_called.bork::run() -> (i32)->i32
+programs/build/loops/call_in_loop_closure_only_called.bork::main() -> i32
+programs/build/loops/call_in_loop_return_id_of_arg.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_return_id_of_arg.bork::isNone(o: Option<Ref<Node>>) -> bool
+programs/build/loops/call_in_loop_return_id_of_arg.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_return_id_of_arg.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_return_id_of_arg.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_bound_option_ref.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_call_directly.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_call_directly.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_returns_call_directly.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_closure.bork::make(n: i32) -> ()->String
+programs/build/loops/call_in_loop_returns_closure.bork::churn() -> i32
+programs/build/loops/call_in_loop_returns_closure.bork::find() -> ()->String
+programs/build/loops/call_in_loop_returns_closure.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_option_ref.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_option_ref.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_option_ref.bork::main() -> i32
