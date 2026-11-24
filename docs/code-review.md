@@ -136,9 +136,8 @@ status check in the branch ruleset/protection for `main` after its first run.
 Do not select only the ordinary `Strict review` Actions job: a duplicate push
 event intentionally skips its model work and may finish green.
 
-This PR disables CodeRabbit's automatic reviews in `.coderabbit.yaml` after the
-replacement's failing/passing end-to-end checks. Removing its repository access
-and cancelling a paid subscription remain separate account settings.
+CodeRabbit and OpenCodeReview run side by side. Keep CodeRabbit's automatic
+reviews enabled; each reviewer publishes its own findings and status.
 
 ## Trust boundary and local checks
 
