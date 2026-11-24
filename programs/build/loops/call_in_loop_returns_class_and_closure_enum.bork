@@ -1,0 +1,48 @@
+// exit: 0
+// stdout: 7\n1\n
+// WHAT THIS TESTS
+// A class object and an enum holding a closure returned from a loop and read after churn: neither may be left in the
+// freed iteration region (#338).
+class Node { n: i32 }
+class Holder { keep: Ref<Node> }
+enum FnE { F(f: () -> i32), None2 }
+fun mkHolder(r: Ref<Node>): Holder { return Holder(r) }
+fun mkNullable(n: i32): Holder? { return None }
+fun mkFnE(n: i32): FnE { return FnE.F(move (n) { -> n + 1 }) }
+fun loopHolder(r: Ref<Node>): Holder {
+    var i = 0
+    while (true) {
+        val h = mkHolder(r)
+        if (i == 2) { return h }
+        i = i + 1
+    }
+    return mkHolder(r)
+}
+fun loopFnE(): FnE {
+    var i = 0
+    while (true) {
+        val e = mkFnE(i)
+        if (i == 2) { return e }
+        i = i + 1
+    }
+    return FnE.None2
+}
+fun churn(): i32 {
+    val a = concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy")
+    val b = concat(a, a)
+    return 0
+}
+fun main(): i32 {
+    val node = Node(7)
+    val r: Ref<Node> = node
+    val h = loopHolder(r)
+    val e = loopFnE()
+    churn()
+    churn()
+    if val (x = h.keep) { println(x.n) }
+    when (e) {
+        FnE.F(f) => { println(1) }
+        FnE.None2 => { println(0) }
+    }
+    return 0
+}

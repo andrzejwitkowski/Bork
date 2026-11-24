@@ -1,0 +1,31 @@
+// exit: 0
+// stdout: 2\n
+// WHAT THIS TESTS
+// A plain enum (scalar fields only) returned from a loop: `return` passes it by handle, so its call result must stay in
+// the result sink, not the freed iteration region (#338).
+enum E { A(n: i32), B }
+fun make(i: i32): E { return E.A(i) }
+fun find(): E {
+    var i = 0
+    while (true) {
+        val p = make(i)
+        if (i == 2) { return p }
+        i = i + 1
+    }
+    return E.B
+}
+fun churn(): i32 {
+    val a = concat("xxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyy")
+    val b = concat(a, a)
+    return 0
+}
+fun main(): i32 {
+    val e = find()
+    churn()
+    churn()
+    when (e) {
+        E.A(n) => { println(n) }
+        E.B => { println(0) }
+    }
+    return 0
+}

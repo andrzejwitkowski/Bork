@@ -1,0 +1,31 @@
+// exit: 0
+// stdout: 5\n
+// WHAT THIS TESTS
+// The same name bound twice in a function, once returned: the name-based analysis of #327 gave up on it; copy on return (#338) does not look at names.
+class Node {
+    n: i32
+}
+fun pick(v: &Vec<Ref<Node>>, i: i32): Option<Ref<Node>> {
+    if (i >= v.len()) { return None }
+    return Some(v.get(i))
+}
+fun find(v: &Vec<Ref<Node>>): Option<Ref<Node>> {
+    var i = 0
+    while (true) {
+        val p = pick(&v, i)
+        if (i == 1) { return p }
+        i = i + 1
+    }
+    return None
+}
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    v.push(Node(1))
+    v.push(Node(5))
+    val p = find(&v)
+    when (p) {
+        Some(r) => { if val (x = r) { println(x.n) } }
+        None => { println(0) }
+    }
+    return 0
+}

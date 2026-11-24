@@ -244,18 +244,17 @@ impl<'a> FnBuilder<'a> {
     }
 
     /// Where a call's result is allocated. A function with a result sink sends every call result there, so one made in a
-    /// loop body piled up per iteration (a `filter` rejecting many items). A plain value only reaches the caller through
-    /// `return`, which copies it into the result sink, so inside a loop it stays in the loop's own arena.
-    /// A result that moves a handle or is callable may be returned as is (`return call()`, `val p = call(); return p`),
-    /// so it keeps the result sink unless `sinks::local_loop_calls` showed it is only called or matched (#327).
-    fn call_result_sink(&self, id: crate::hir::NodeId, ty: crate::ty::TyId) -> ArenaRef {
+    /// loop body piled up per iteration (a `filter` rejecting many items). A value only reaches the caller through
+    /// `return`, which copies it into the result sink (`materialize`), so inside a loop it stays in the loop's own
+    /// arena whatever the callee does with it, provided it is a type `return` copies whole (`copies_on_escape`) (#338);
+    /// any other handle result stays in the result sink unless `local_loop_calls` showed it never leaves the iteration (#327).
+    pub(super) fn call_result_sink(&self, id: crate::hir::NodeId, ty: crate::ty::TyId) -> ArenaRef {
+        // Planned `Local` by `sinks::local_loop_calls`: only called or matched, so it never leaves the iteration (#327).
         let local = self.planned_sinks.get(&id) == Some(&super::sinks::Sink::Local);
-        // Outside any loop nothing resets the region before the caller sees the result.
-        let outside_loop = self.loops.is_empty();
-        // Inside one, only a handle or closure result can be returned as is, unless `local_loop_calls` ruled that out.
-        let may_be_returned = (self.moves_handle(ty) || self.tcx.is_callable(ty)) && !local;
-        let escapes = outside_loop || may_be_returned;
-        if self.abi.result_sink && escapes { ArenaRef::ResultSink } else { self.sink.clone() }
+        // Outside any loop nothing resets the region before the caller sees the result; inside one a result `return`
+        // cannot copy out whole (a class object, a plain enum) may be handed out as is, so it keeps the result sink.
+        let may_be_returned = (self.moves_handle(ty) || self.tcx.is_callable(ty)) && !self.copies_on_escape(ty, 0) && !local;
+        if self.abi.result_sink && (self.loops.is_empty() || may_be_returned) { ArenaRef::ResultSink } else { self.sink.clone() }
     }
 
     /// A call through the closure value `callee`; the result goes where the surrounding expression allocates.

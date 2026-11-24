@@ -513,10 +513,14 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                 }
                 StmtKind::CopyInto { dst, src, arena } if dst.is_bare() && arena_ok(arena) => {
                     let t = body.local(dst.local)?.ty;
-                    if place_ty(cx, body, src)? != t {
+                    let src_ty = place_ty(cx, body, src)?;
+                    // A closure copied to the function type it is returned as keeps its environment layout.
+                    if src_ty != t && !(cx.tcx.is_callable(src_ty) && cx.tcx.is_callable(t)) {
                         return None;
                     }
                     let copyable = cx.tcx.is_text(t)
+                        || cx.tcx.is_callable(t)
+                        || (plain_enum(cx, t).is_some() && cx.enum_holds_ref(t, 0))
                         || plain_array(cx, t).is_some()
                         || plain_vec(cx, t).is_some()
                         // The payload moves with the slot; handles pass through like `materialize_owned_value`.

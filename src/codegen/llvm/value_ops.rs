@@ -420,6 +420,63 @@ impl<'ctx> Codegen<'ctx> {
         Ok(phi.as_basic_value().into_struct_value())
     }
 
+    /// Whether the enum instance `ty` holds a `Ref` or a closure, directly or through an enum field (nullables included).
+    pub(super) fn enum_holds_ref(&self, ty: TyId, depth: usize) -> bool {
+        let Some(name) = crate::mono::enum_instance_name(&self.tcx, ty).filter(|_| depth < 8) else { return false };
+        let Some(decl) = self.enums.iter().find(|e| e.name == name) else { return false };
+        decl.variants.iter().flat_map(|v| &v.fields).any(|f| self.tcx.is_handle_clone(f.ty) || self.tcx.is_callable(f.ty) || (self.tcx.enum_args(f.ty).is_some() && self.enum_holds_ref(f.ty, depth + 1)))
+    }
+
+    /// An enum holding `Ref`s or closures copied into `arena` (#338): a fresh slot whose handles are cloned (the new slot
+    /// owns and drops them) and whose other fields are copied like any value.
+    fn copy_ref_enum_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, ty: TyId, value: StructValue<'ctx>) -> Result<StructValue<'ctx>, Diagnostic> {
+        let name = crate::mono::enum_instance_name(&self.tcx, ty).ok_or_else(|| not_yet_supported("enum copy", None))?;
+        let layout = self.enum_layout(&name).ok_or_else(|| not_yet_supported(&format!("enum `{name}`"), None))?;
+        let e = self.enums.iter().find(|e| e.name == name).ok_or_else(|| not_yet_supported(&format!("enum `{name}`"), None))?;
+        let object = self.builder.build_extract_value(value, 1, "enum.src")?.into_pointer_value();
+        let new = self.arena_alloc(arena, self.word(layout.size), layout.align as usize)?;
+        self.debug_allocation(new, "", &name, false)?;
+        let i32_ty = self.context.i32_type();
+        let tag = self.builder.build_load(i32_ty, self.builder.build_struct_gep(layout.variants[0], object, 0, "tag.src")?, "tag")?.into_int_value();
+        self.builder.build_store(self.builder.build_struct_gep(layout.variants[0], new, 0, "tag.dst")?, tag)?;
+        let done = self.context.append_basic_block(llvm_fn, "enum.copy.end");
+        for (index, variant) in e.variants.iter().enumerate().filter(|(_, v)| v.fields.iter().any(|f| f.ty != self.unit_ty())) {
+            let arm = self.context.append_basic_block(llvm_fn, &format!("enum.copy.{index}"));
+            let after = self.context.append_basic_block(llvm_fn, &format!("enum.copy.after.{index}"));
+            let hit = self.builder.build_int_compare(inkwell::IntPredicate::EQ, tag, i32_ty.const_int(index as u64, false), "is.variant")?;
+            self.builder.build_conditional_branch(hit, arm, after)?;
+            self.position_at_end(arm);
+            for (i, field) in variant.fields.iter().enumerate().filter(|(_, f)| f.ty != self.unit_ty()) {
+                let (from, to) = (self.builder.build_struct_gep(layout.variants[index], object, i as u32 + 1, "field.src")?, self.builder.build_struct_gep(layout.variants[index], new, i as u32 + 1, "field.dst")?);
+                let llvm = self.basic_type(field.ty).ok_or_else(|| not_yet_supported("enum field without a value type", None))?;
+                let loaded = self.builder.build_load(llvm, from, "field")?;
+                if self.tcx.is_handle_clone(field.ty) {
+                    let cloned = self.ref_clone(llvm_fn, loaded)?;
+                    self.builder.build_store(to, self.ref_handle_type().const_zero())?;
+                    self.ref_store(llvm_fn, to, arena, cloned)?;
+                } else {
+                    let copied = self.copy_value_into(llvm_fn, arena, field.ty, loaded)?;
+                    self.root_object_arena(arena, field.ty, copied)?;
+                    self.builder.build_store(to, copied)?;
+                }
+            }
+            self.builder.build_unconditional_branch(done)?;
+            self.position_at_end(after);
+        }
+        self.builder.build_unconditional_branch(done)?;
+        self.position_at_end(done);
+        if let Some(glue) = self.enum_drop_glue(&name) {
+            self.builder.build_call(self.arena_register_drop_fn(), &[arena.into(), new.into(), glue.as_global_value().as_pointer_value().into()], "")?;
+        }
+        let handle = self.object_handle_type().const_named_struct(&[]);
+        let handle = self.builder.build_insert_value(handle, arena, 0, "object.arena")?;
+        let copied = self.builder.build_insert_value(handle, new, 1, "object.ptr")?.into_struct_value();
+        if self.debug.is_some() {
+            self.debug_copy_origin(object, new)?;
+        }
+        Ok(copied)
+    }
+
     /// `value` of type `ty` copied into `arena`: text, arrays, `Vec`s, closures and nullables of
     /// those; anything else (scalars) is returned as is.
     pub(super) fn copy_value_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, ty: TyId, value: BasicValueEnum<'ctx>) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
@@ -428,6 +485,9 @@ impl<'ctx> Codegen<'ctx> {
         }
         if self.tcx.is_callable(ty) {
             return Ok(self.copy_closure_into(llvm_fn, arena, value.into_pointer_value())?.into());
+        }
+        if self.enum_holds_ref(ty, 0) {
+            return Ok(self.copy_ref_enum_into(llvm_fn, arena, ty, value.into_struct_value())?.into());
         }
         if self.tcx.is_text(ty) {
             return Ok(self.copy_string_into(arena, value.into_struct_value())?.into());

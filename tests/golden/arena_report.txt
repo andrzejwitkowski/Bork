@@ -1999,6 +1999,24 @@ Arenas
     │   └── IfValSome
     │       └── x [Borrow ← presence guard]
     └── MatchArm
+== programs/build/loops/call_in_loop_apply_closure.bork
+Arenas
+├── fun make
+│   ├── n [Local]
+│   └── Closure (move)
+│       ├── x [Local]
+│       └── n [Moved ← fun make]
+├── fun apply
+│   ├── f [Local]
+│   └── x [Local]
+├── fun total
+│   ├── i [Local]
+│   ├── sum [Local]
+│   └── WhileLoop
+│       ├── f [Local]
+│       ├── i [Copy]
+│       └── sum [Copy]
+└── fun main
 == programs/build/loops/call_in_loop_arg_to_reader.bork
 Arenas
 ├── fun pick
@@ -2120,6 +2138,30 @@ Arenas
 │           └── f [Shared ← ForLoop (i)]
 └── fun main
     └── g [Local]
+== programs/build/loops/call_in_loop_isnone_reader.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun isNone
+│   ├── o [Local]
+│   ├── MatchArm
+│   │   └── r [Local]
+│   └── MatchArm
+├── fun count
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   ├── seen [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── v [Borrow ← fun count]
+│       ├── i [Copy]
+│       ├── seen [Copy]
+│       └── IfThen
+│           └── seen [Copy]
+└── fun main
+    └── v [Local]
 == programs/build/loops/call_in_loop_return_id_of_arg.bork
 Arenas
 ├── fun pick
@@ -2200,6 +2242,45 @@ Arenas
     │   └── IfValSome
     │       └── x [Borrow ← presence guard]
     └── MatchArm
+== programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork
+Arenas
+├── fun mkHolder
+│   └── r [Local]
+├── fun mkNullable
+│   └── n [Local]
+├── fun mkFnE
+│   ├── n [Local]
+│   └── Closure (move)
+│       └── n [Moved ← fun mkFnE]
+├── fun loopHolder
+│   ├── r [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── h [Local]
+│       ├── r [Shared ← fun loopHolder]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── h [Shared ← WhileLoop]
+├── fun loopFnE
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── e [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── e [Shared ← WhileLoop]
+├── fun churn
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── node [Local]
+    ├── r [Local]
+    ├── h [Local]
+    ├── e [Local]
+    ├── IfValSome
+    │   └── x [Borrow ← presence guard]
+    ├── MatchArm
+    │   └── f [Local]
+    └── MatchArm
 == programs/build/loops/call_in_loop_returns_closure.bork
 Arenas
 ├── fun make
@@ -2219,6 +2300,52 @@ Arenas
 │           └── f [Shared ← WhileLoop]
 └── fun main
     └── f [Local]
+== programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork
+Arenas
+├── fun mkOut
+│   └── r [Local]
+├── fun mkObj
+│   └── r [Local]
+├── fun loopOut
+│   ├── r [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── e [Local]
+│       ├── r [Shared ← fun loopOut]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── e [Shared ← WhileLoop]
+├── fun loopObj
+│   ├── r [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── e [Local]
+│       ├── r [Shared ← fun loopObj]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── e [Shared ← WhileLoop]
+├── fun churn
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── node [Local]
+    ├── r [Local]
+    ├── o [Local]
+    ├── w [Local]
+    ├── MatchArm
+    │   ├── inner [Borrow ← pattern binding]
+    │   ├── k [Local]
+    │   ├── MatchArm
+    │   │   ├── p [Local]
+    │   │   └── IfValSome
+    │   │       └── x [Borrow ← presence guard]
+    │   └── MatchArm
+    ├── MatchArm
+    ├── MatchArm
+    │   ├── h [Borrow ← pattern binding]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
 == programs/build/loops/call_in_loop_returns_option_ref.bork
 Arenas
 ├── fun pick
@@ -2242,6 +2369,48 @@ Arenas
 └── fun main
     ├── v [Local]
     ├── found [Local]
+    ├── MatchArm
+    │   ├── r [Local]
+    │   └── IfValSome
+    │       └── x [Borrow ← presence guard]
+    └── MatchArm
+== programs/build/loops/call_in_loop_returns_plain_enum.bork
+Arenas
+├── fun make
+│   └── i [Local]
+├── fun find
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── p [Shared ← WhileLoop]
+├── fun churn
+│   ├── a [Local]
+│   └── b [Local]
+└── fun main
+    ├── e [Local]
+    ├── MatchArm
+    │   └── n [Local]
+    └── MatchArm
+== programs/build/loops/call_in_loop_shadowed_name_returned.bork
+Arenas
+├── fun pick
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── IfThen
+├── fun find
+│   ├── v [Borrow ← call site]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── p [Local]
+│       ├── v [Borrow ← fun find]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── p [Shared ← WhileLoop]
+└── fun main
+    ├── v [Local]
+    ├── p [Local]
     ├── MatchArm
     │   ├── r [Local]
     │   └── IfValSome

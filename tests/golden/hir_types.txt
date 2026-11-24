@@ -324,6 +324,10 @@ programs/build/loops/call_in_loop_alias_returned.bork::isNone(o: Option<Ref<Node
 programs/build/loops/call_in_loop_alias_returned.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_alias_returned.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_alias_returned.bork::main() -> i32
+programs/build/loops/call_in_loop_apply_closure.bork::make(n: i32) -> (i32)->i32
+programs/build/loops/call_in_loop_apply_closure.bork::apply(f: (i32)->i32, x: i32) -> i32
+programs/build/loops/call_in_loop_apply_closure.bork::total() -> i32
+programs/build/loops/call_in_loop_apply_closure.bork::main() -> i32
 programs/build/loops/call_in_loop_arg_to_reader.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_arg_to_reader.bork::isNone(o: Option<Ref<Node>>) -> bool
 programs/build/loops/call_in_loop_arg_to_reader.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
@@ -344,6 +348,10 @@ programs/build/loops/call_in_loop_closure_only_called.bork::make(n: i32) -> (i32
 programs/build/loops/call_in_loop_closure_only_called.bork::total() -> i32
 programs/build/loops/call_in_loop_closure_only_called.bork::run() -> (i32)->i32
 programs/build/loops/call_in_loop_closure_only_called.bork::main() -> i32
+programs/build/loops/call_in_loop_isnone_reader.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_isnone_reader.bork::isNone(o: Option<Ref<Node>>) -> bool
+programs/build/loops/call_in_loop_isnone_reader.bork::count(v: &Vec<Ref<Node>>) -> i32
+programs/build/loops/call_in_loop_isnone_reader.bork::main() -> i32
 programs/build/loops/call_in_loop_return_id_of_arg.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_return_id_of_arg.bork::isNone(o: Option<Ref<Node>>) -> bool
 programs/build/loops/call_in_loop_return_id_of_arg.bork::id(o: Option<Ref<Node>>) -> Option<Ref<Node>>
@@ -355,13 +363,33 @@ programs/build/loops/call_in_loop_returns_bound_option_ref.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_call_directly.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_call_directly.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_call_directly.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::mkHolder(r: Ref<Node>) -> Holder
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::mkNullable(n: i32) -> Holder?
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::mkFnE(n: i32) -> FnE
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::loopHolder(r: Ref<Node>) -> Holder
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::loopFnE() -> FnE
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::churn() -> i32
+programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_closure.bork::make(n: i32) -> ()->String
 programs/build/loops/call_in_loop_returns_closure.bork::churn() -> i32
 programs/build/loops/call_in_loop_returns_closure.bork::find() -> ()->String
 programs/build/loops/call_in_loop_returns_closure.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork::mkOut(r: Ref<Node>) -> Out
+programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork::mkObj(r: Ref<Node>) -> WithObj
+programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork::loopOut(r: Ref<Node>) -> Out
+programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork::loopObj(r: Ref<Node>) -> WithObj
+programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork::churn() -> i32
+programs/build/loops/call_in_loop_returns_nested_and_object_enums.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_option_ref.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_option_ref.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
 programs/build/loops/call_in_loop_returns_option_ref.bork::main() -> i32
+programs/build/loops/call_in_loop_returns_plain_enum.bork::make(i: i32) -> E
+programs/build/loops/call_in_loop_returns_plain_enum.bork::find() -> E
+programs/build/loops/call_in_loop_returns_plain_enum.bork::churn() -> i32
+programs/build/loops/call_in_loop_returns_plain_enum.bork::main() -> i32
+programs/build/loops/call_in_loop_shadowed_name_returned.bork::pick(v: &Vec<Ref<Node>>, i: i32) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_shadowed_name_returned.bork::find(v: &Vec<Ref<Node>>) -> Option<Ref<Node>>
+programs/build/loops/call_in_loop_shadowed_name_returned.bork::main() -> i32
 programs/build/loops/for_nested.bork::main() -> i32
 programs/build/loops/for_sum.bork::main() -> i32
 programs/build/loops/while_accumulate.bork::main() -> i32

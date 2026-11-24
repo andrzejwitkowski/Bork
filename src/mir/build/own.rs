@@ -134,6 +134,35 @@ impl<'a> FnBuilder<'a> {
         Ok(Operand::Copy(Place::local(dst)))
     }
 
+    /// A non-nullable enum instance that holds a `Ref` or a closure, directly or through an enum field: `CopyInto` copies
+    /// it when it escapes (#338).
+    pub(super) fn holds_ref_enum(&self, ty: TyId) -> bool {
+        !self.tcx.is_nullable(ty) && self.enum_holds_ref(ty, 0)
+    }
+
+    /// Whether a call result of type `ty` can stay in a loop region because `return` copies it out whole: a closure, a
+    /// nullable, or an enum holding a `Ref` or closure (`holds_ref_enum`), with every field copied the same way. A class
+    /// object or a plain enum is passed by handle, not copied, so a result holding one keeps the result sink (#338).
+    pub(super) fn copies_on_escape(&self, ty: TyId, depth: usize) -> bool {
+        if self.tcx.is_callable(ty) {
+            return true;
+        }
+        if !(self.tcx.is_nullable(ty) || self.enum_holds_ref(ty, 0)) {
+            return false;
+        }
+        let Some(name) = crate::mono::enum_instance_name(self.tcx, ty).filter(|_| depth < 8) else { return false };
+        let Some(decl) = self.mono.hir.enums.iter().find(|e| e.name == name) else { return false };
+        let field_ok = |t: TyId| self.tcx.is_managed_ref(t) || self.tcx.is_callable(t) || !self.moves_handle(t) || self.copies_on_escape(t, depth + 1);
+        decl.variants.iter().flat_map(|v| &v.fields).all(|f| field_ok(f.ty))
+    }
+
+    fn enum_holds_ref(&self, ty: TyId, depth: usize) -> bool {
+        // By-value enum fields cannot cycle (a recursive enum goes through a `Ref`); the bound is a backstop.
+        let Some(name) = crate::mono::enum_instance_name(self.tcx, ty).filter(|_| depth < 8) else { return false };
+        let Some(decl) = self.mono.hir.enums.iter().find(|e| e.name == name) else { return false };
+        decl.variants.iter().flat_map(|v| &v.fields).any(|f| self.tcx.is_managed_ref(f.ty) || self.tcx.is_callable(f.ty) || (self.tcx.enum_args(f.ty).is_some() && self.enum_holds_ref(f.ty, depth + 1)))
+    }
+
     pub(super) fn enum_has_ref(&self, enum_name: &str) -> bool {
         self.mono
             .hir

@@ -1,7 +1,7 @@
 // exit: 0
 // stdout: 3\n
 // WHAT THIS TESTS
-// A loop-bound closure passed to a function that calls it: correct (kept in the result sink for now) (#327).
+// A loop-bound closure passed to a function that calls it: the result stays in the iteration region; a return copies it out (#338).
 fun make(n: i32): (i32) -> i32 {
     return move (n) { x -> x + n }
 }

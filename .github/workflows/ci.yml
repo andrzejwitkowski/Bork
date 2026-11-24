@@ -61,7 +61,7 @@ jobs:
           source /etc/os-release
           echo "deb http://apt.llvm.org/${VERSION_CODENAME}/ llvm-toolchain-${VERSION_CODENAME}-23 main" | sudo tee /etc/apt/sources.list.d/llvm-23.list
           sudo apt-get update
-          sudo apt-get install --yes llvm-23-dev clang
+          sudo apt-get install --yes llvm-23-dev clang gdb
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
