@@ -138,32 +138,50 @@ class PushRangeTests(unittest.TestCase):
             git("commit", "-qam", "change")
             changed = git("rev-parse", "HEAD")
             git("update-ref", "refs/remotes/origin/main", baseline)
+            git("checkout", "--detach", "-q", baseline)
+            source.write_text("fn divergent() {}\n")
+            git("commit", "-qam", "divergent change")
+            divergent = git("rev-parse", "HEAD")
             for name, body in {
                 "npm": "#!/bin/sh\nexit 0\n",
                 "ocr": ('#!/bin/sh\n'
-                        'if [ "$1" = scan ]; then\n'
-                        '  for arg; do [ "$arg" != --effort ] || exit 2; done\n'
-                        'fi\n'
-                        'case "$1" in review|scan) printf "%s\\n" "$1" > "$OCR_TEST_MODE";; esac\n'),
+                        'case "$1" in review|scan)\n'
+                        '  printf "%s\\n" "$1" > "$OCR_TEST_MODE"\n'
+                        '  while [ "$#" -gt 1 ]; do\n'
+                        '    if [ "$1" = --commit ]; then printf "%s\\n" "$2" > "$OCR_TEST_COMMIT"; break; fi\n'
+                        '    shift\n'
+                        '  done;;\n'
+                        'esac\n'),
             }.items():
                 path = bin_dir / name
                 path.write_text(body)
                 path.chmod(0o755)
             script = script.replace("/tmp/ocr-result.json", str(root / "result.json"))
             script = script.replace("/tmp/ocr-stderr.log", str(root / "stderr.log"))
-            cases = [(baseline, changed, "review"), (changed, baseline, "scan"),
-                     ("0" * 40, changed, "review"), ("f" * 40, changed, "scan")]
-            for before, head, expected in cases:
+            cases = [(baseline, changed, None), (changed, baseline, changed),
+                     ("0" * 40, changed, None), ("f" * 40, changed, ""),
+                     (changed, divergent, changed)]
+            for before, head, expected_parent in cases:
                 with self.subTest(before=before, head=head):
                     git("checkout", "--detach", "-q", head)
+                    comparison_file = root / "comparison"
+                    comparison_file.unlink(missing_ok=True)
                     env = dict(os.environ, PATH=str(bin_dir) + os.pathsep + os.environ["PATH"],
                                BEFORE_SHA=before, HEAD_SHA=head, DEFAULT_BRANCH="main",
                                GITHUB_REF_NAME="feature", OCR_LLM_PROTOCOL="openai",
                                OCR_EXTRA_BODY="{}", OCR_BACKGROUND="test",
-                               OCR_TEST_MODE=str(root / "mode"))
+                               OCR_TEST_MODE=str(root / "mode"), OCR_TEST_COMMIT=str(comparison_file))
                     subprocess.run(["bash", "-e"], input=script, cwd=repo, env=env,
                                    text=True, capture_output=True, check=True)
-                    self.assertEqual((root / "mode").read_text().strip(), expected)
+                    self.assertEqual((root / "mode").read_text().strip(), "review")
+                    self.assertEqual(git("rev-parse", "HEAD"), head)
+                    if expected_parent is None:
+                        self.assertFalse(comparison_file.exists())
+                    else:
+                        comparison = comparison_file.read_text().strip()
+                        self.assertEqual(git("show", "-s", "--format=%P", comparison), expected_parent)
+                        self.assertEqual(git("rev-parse", comparison+"^{tree}"), git("rev-parse", head+"^{tree}"))
+                        self.assertIn("source.rs", git("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", comparison))
 
 
 if __name__ == "__main__":

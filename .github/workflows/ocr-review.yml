@@ -186,8 +186,14 @@ jobs:
           elif [ "$BEFORE_SHA" = "$zero" ] && [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
             ocr review --effort high --from "origin/$DEFAULT_BRANCH" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
           else
-            # OCR ranges use merge-base; rewinds/divergence could otherwise look empty.
-            ocr scan "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
+            # Commit mode preserves exact push contents and the strict coverage manifest.
+            comparison_parents=()
+            if git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+              comparison_parents=(-p "$BEFORE_SHA")
+            fi
+            comparison_commit="$(git -c user.name=OpenCodeReview -c user.email=review@localhost \
+              -c commit.gpgsign=false commit-tree "$HEAD_SHA^{tree}" "${comparison_parents[@]}" -m 'OCR exact push comparison')"
+            ocr review --effort high --commit "$comparison_commit" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
           fi
 
       - name: Save push review report

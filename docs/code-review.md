@@ -10,8 +10,9 @@ The machine runs OCR and the Actions runner; inference uses the Go API.
   a draft ready: full PR review, inline comments and an updated summary.
 - Push to a branch without an open PR: review the pushed range and save the JSON
   result and diagnostic log as an Actions artifact. New branches are compared
-  with the default branch. Non-fast-forward pushes and unavailable previous
-  commits trigger a full repository scan instead of a misleading merge-base diff.
+  with the default branch. Non-fast-forward pushes compare the exact old/new
+  trees through a temporary local commit, without moving HEAD. If the previous
+  commit is unavailable, every target file is reviewed as a full-file addition.
 - Push to a branch with an open PR: the PR event handles review, avoiding a second
   model invocation from the push event.
 - A PR comment starting with `/open-code-review` or `@open-code-review`: re-review,
@@ -22,8 +23,8 @@ The workflow pins the Action and CLI to **1.14.2**. There is no OCR option named
 `strict`: range reviews use `effort: high`, full-range review on every run,
 one concurrent task, a 30-minute task timeout, a 120-minute job timeout, and a
 2,000,000-token budget. Comment deduplication does not reduce review coverage.
-Full-file fallback scans use OCR's scan pipeline; OCR 1.14.2 does not accept an
-`--effort` flag for `scan`. The same strict findings/coverage gate applies.
+Fallbacks also use native `review` commit mode: OCR 1.14.2's separate `scan`
+pipeline lacks the coverage manifest required by the strict gate.
 Rules preserve OCR's built-in checks and add Bork's compiler/runtime invariants.
 `.bork` programs, expected outputs, Rust/Python tests and documentation are
 explicitly included instead of falling through OCR's default exclusions.
