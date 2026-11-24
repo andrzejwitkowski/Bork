@@ -55,6 +55,8 @@ jobs:
         Review correctness across typeck, HIR, MIR, LLVM codegen and runtime boundaries.
         Read docs/language.md and docs/memory-model.md when needed to establish Bork semantics.
         Include regression tests and .bork programs; do not execute code from a PR.
+        Report only defects introduced by the reviewed changes. Verify the cited path and
+        behavior against the repository before reporting. Omit observations that require no fix.
     steps:
       - name: Resolve review context
         id: context
@@ -152,6 +154,7 @@ jobs:
           background: ${{ env.OCR_BACKGROUND }}
           sticky_summary: 'true'
           incremental: 'true'
+          route_severity_below: 'medium'
           checkpoint_range: 'false'
           stream_progress: 'true'
           pr_number: ${{ steps.context.outputs.pr_number }}
