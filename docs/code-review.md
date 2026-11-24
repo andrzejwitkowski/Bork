@@ -66,8 +66,8 @@ The installer:
    Loading it selects Go explicitly, overriding any saved OCR provider settings;
    the key itself is read from the environment rather than saved in OCR config.
 2. Runs `ocr llm test` against Go before registering anything.
-3. Uploads the local key as an encrypted GitHub Actions secret using the existing
-   `gh` login.
+3. Configures approval for all external fork contributors, then uploads the local
+   key as an encrypted GitHub Actions secret using the existing `gh` login.
 4. If not installed, downloads Linux x64 runner 2.338.2 and verifies its SHA-256
    checksum, then registers it with the `bork-review` label. Existing runners
    retain GitHub's normal automatic updates.

@@ -40,9 +40,12 @@ PROFILE
 chmod 600 "$HOME/.config/bork-review/review.env"
 ( source "$HOME/.config/bork-review/review.env"; ocr llm test )
 
+if ! gh api --method PUT "repos/$repo/actions/permissions/fork-pr-contributor-approval" \
+  -f approval_policy=all_external_contributors; then
+  echo "Could not configure fork approval for $repo. Run setup with a GitHub CLI login that has repository administrator access." >&2
+  exit 1
+fi
 gh secret set OCR_LLM_AUTH_TOKEN --repo "$repo" < "$key_file"
-gh api --method PUT "repos/$repo/actions/permissions/fork-pr-contributor-approval" \
-  -f approval_policy=all_external_contributors
 
 sudo -v
 if ! id bork-review >/dev/null 2>&1; then
