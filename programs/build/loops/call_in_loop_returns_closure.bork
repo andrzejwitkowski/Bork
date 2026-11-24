@@ -4,6 +4,7 @@
 // A loop calls a function returning a closure that owns a String and returns the matching one: the returned
 // closure must outlive the loop iteration and its region reset. Guards the callable exception in `call_result_sink`:
 // moving such a result into the loop region reads freed memory (#327).
+fun make(n: i32): () -> String {
     val t = concat("dynamic-", "x")
     return move (t) { -> t }
 }
