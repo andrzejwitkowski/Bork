@@ -3,7 +3,7 @@
 set -euo pipefail
 umask 077
 
-for command in gh curl tar sha256sum git node npm python3 systemctl sudo getent; do
+for command in gh curl tar sha256sum git node npm python3 systemctl sudo getent hostname install; do
   command -v "$command" >/dev/null || { echo "Missing command: $command" >&2; exit 1; }
 done
 
@@ -13,6 +13,7 @@ runner_dir=/var/lib/bork-review/runner
 runner_name="bork-review-$(hostname -s)"
 key_file="$HOME/.config/bork-review/opencode-go.key"
 test -s "$key_file" || { echo "Missing OpenCode Go key file: $key_file" >&2; exit 1; }
+install -d -m 700 "$HOME/.config/bork-review" "$data_dir" "$data_dir/tools"
 chmod 600 "$key_file"
 
 # The local profile reads the key at runtime; no raw credential is stored in Git.
@@ -26,10 +27,18 @@ export OCR_USE_ANTHROPIC=false
 export OCR_LLM_TOKEN="$(cat "$HOME/.config/bork-review/opencode-go.key")"
 export OCR_LLM_EXTRA_HEADERS="x-opencode-session=bork-local-$(date +%s)"
 export OCR_NO_UPDATE=1
-PROFILE
-source "$HOME/.config/bork-review/review.env"
+ocr config unset provider
+ocr config set llm.url "$OCR_LLM_URL"
+ocr config set llm.model "$OCR_LLM_MODEL"
+ocr config set llm.auth_token ''
+ocr config set llm.auth_token_cmd 'printf "%s" "$OCR_LLM_TOKEN"'
+ocr config set llm.auth_header ''
+ocr config set llm.extra_headers ''
+ocr config set llm.protocol "$OCR_LLM_PROTOCOL"
 ocr config set llm.extra_body '{"thinking":{"type":"disabled"}}'
-ocr llm test
+PROFILE
+chmod 600 "$HOME/.config/bork-review/review.env"
+( source "$HOME/.config/bork-review/review.env"; ocr llm test )
 
 gh secret set OCR_LLM_AUTH_TOKEN --repo "$repo" < "$key_file"
 gh api --method PUT "repos/$repo/actions/permissions/fork-pr-contributor-approval" \
@@ -51,21 +60,21 @@ if ! sudo test -x "$runner_dir/bin/Runner.Listener"; then
     https://github.com/actions/runner/releases/download/v2.338.2/actions-runner-linux-x64-2.338.2.tar.gz \
     --output "$archive"
   echo "baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40  $archive" | sha256sum --check --status
-  sudo tar -xzf "$archive" -C "$runner_dir"
-  sudo chown -R bork-review:bork-review "$runner_dir"
+  sudo -u bork-review tar -xzf - -C "$runner_dir" < "$archive"
   rm "$archive"
 fi
 
-sudo install -m 700 -o bork-review -g bork-review "$runner_dir/bin/runsvc.sh" "$runner_dir/runsvc.sh"
+sudo -u bork-review install -m 700 "$runner_dir/bin/runsvc.sh" "$runner_dir/runsvc.sh"
 
 if ! sudo test -f "$runner_dir/.runner"; then
-  registration_token="$(gh api --method POST "repos/$repo/actions/runners/registration-token" --jq .token)"
-  sudo -H -u bork-review env -u OCR_LLM_TOKEN PATH=/usr/local/bin:/usr/bin:/bin \
-    bash -c 'cd "$1"; shift; exec ./config.sh "$@"' bash "$runner_dir" \
-    --unattended --url "https://github.com/$repo" --token "$registration_token" \
+  gh api --method POST "repos/$repo/actions/runners/registration-token" --jq .token | \
+    sudo -H -u bork-review env -u OCR_LLM_TOKEN PATH=/usr/local/bin:/usr/bin:/bin \
+    bash -ec 'cd "$1"; shift; IFS= read -r ACTIONS_RUNNER_INPUT_TOKEN; export ACTIONS_RUNNER_INPUT_TOKEN; exec ./config.sh "$@"' bash "$runner_dir" \
+    --unattended --url "https://github.com/$repo" \
     --name "$runner_name" --labels bork-review --work _work
-  unset registration_token
 fi
+runner_name="$(sudo cat "$runner_dir/.runner" | python3 -c 'import json,sys; print(json.load(sys.stdin)["agentName"])')"
+runner_id="$(sudo cat "$runner_dir/.runner" | python3 -c 'import json,sys; print(int(json.load(sys.stdin)["agentId"]))')"
 
 sudo tee /etc/systemd/system/bork-review-runner.service >/dev/null <<UNIT
 [Unit]
@@ -94,12 +103,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now bork-review-runner.service
 sudo systemctl is-active bork-review-runner.service
 for attempt in {1..20}; do
-  status="$(gh api "repos/$repo/actions/runners" --jq ".runners[] | select(.name == \"$runner_name\") | .status")"
+  status="$(gh api --paginate "repos/$repo/actions/runners" --jq ".runners[] | select(.id == $runner_id) | .status")"
   if [ "$status" = online ]; then
     echo 'Runner online. Merge PR #334, then comment /open-code-review on an open PR.'
     exit 0
   fi
   sleep 3
 done
-echo 'Runner did not come online; inspect sudo journalctl -u bork-review-runner.service' >&2
+echo "Runner '$runner_name' did not come online; inspect sudo journalctl -u bork-review-runner.service. If removed on GitHub, run config.sh remove and register again." >&2
 exit 1

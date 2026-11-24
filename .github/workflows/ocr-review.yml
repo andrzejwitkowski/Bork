@@ -17,31 +17,33 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  # Unrelated comments must not cancel a running PR review.
-  group: >-
-    ocr-${{ github.event_name == 'issue_comment' && format('comment-{0}', github.run_id)
-      || github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number)
-      || github.event_name == 'workflow_dispatch' && format('pr-{0}', inputs.pr_number)
-      || format('push-{0}', github.ref) }}
-  cancel-in-progress: true
-
 jobs:
   review:
     name: Strict review
     # PR code is read as Git objects by the pinned action, never executed.
     if: >-
-      github.event_name != 'issue_comment' || (
+      (github.event_name != 'pull_request_target' || (
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
+        (github.event.action != 'edited' || github.event.changes.base))) &&
+      (github.event_name != 'issue_comment' || (
         github.event.issue.pull_request && github.event.comment.user.type != 'Bot' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (startsWith(github.event.comment.body, '/open-code-review') ||
-         startsWith(github.event.comment.body, '@open-code-review')))
+         startsWith(github.event.comment.body, '@open-code-review'))))
     runs-on: [self-hosted, linux, x64, bork-review]
     timeout-minutes: 120
     permissions:
       contents: read
       pull-requests: write
       statuses: write
+    # Apply after the job gate so ignored events cannot cancel authorized reviews.
+    concurrency:
+      group: >-
+        ocr-${{ github.event_name == 'issue_comment' && format('comment-{0}', github.run_id)
+          || github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number)
+          || github.event_name == 'workflow_dispatch' && format('pr-{0}', inputs.pr_number)
+          || format('push-{0}', github.ref) }}
+      cancel-in-progress: true
     env:
       OCR_NO_UPDATE: '1'
       OCR_LLM_EXTRA_HEADERS: x-opencode-session=bork-${{ github.run_id }}-${{ github.run_attempt }}
@@ -62,10 +64,10 @@ jobs:
             if (context.eventName === 'push') {
               if (context.payload.deleted) return;
               const branch = context.ref.replace(/^refs\/heads\//, '');
-              const { data: prs } = await github.rest.pulls.list({
-                ...context.repo, state: 'open', head: `${context.repo.owner}:${branch}`, per_page: 1,
+              const prs = await github.paginate(github.rest.pulls.list, {
+                ...context.repo, state: 'open', head: `${context.repo.owner}:${branch}`, per_page: 100,
               });
-              if (prs.length) {
+              if (prs.some(pr => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pr.author_association))) {
                 core.notice('The PR event reviews this push; skipping the duplicate push review.');
                 return;
               }
@@ -175,6 +177,13 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           npm install --global @alibaba-group/open-code-review@1.14.2
+          ocr config unset provider
+          ocr config set llm.url "$OCR_LLM_URL"
+          ocr config set llm.model "$OCR_LLM_MODEL"
+          ocr config set llm.auth_token ''
+          ocr config set llm.auth_token_cmd 'printf "%s" "$OCR_LLM_TOKEN"'
+          ocr config set llm.auth_header ''
+          ocr config set llm.extra_headers ''
           ocr config set llm.protocol "$OCR_LLM_PROTOCOL"
           ocr config set llm.extra_body "$OCR_EXTRA_BODY"
           ocr config set language English

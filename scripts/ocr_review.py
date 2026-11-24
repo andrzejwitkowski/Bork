@@ -28,11 +28,11 @@ def strict_errors(result):
     ):
         errors.append("review hit a token or round limit")
     blocking = sum(
-        comment.get("severity", "").lower() in ("high", "critical")
+        str(comment.get("severity") or "").strip().lower() not in ("medium", "low")
         for comment in result.get("comments") or []
     )
     if blocking:
-        errors.append(f"{blocking} high/critical finding(s)")
+        errors.append(f"{blocking} high/critical or unclassified finding(s)")
     return errors
 
 
@@ -40,8 +40,8 @@ def main():
     try:
         result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
         errors = strict_errors(result)
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
-        errors = ["missing or invalid OCR result/coverage manifest"]
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError) as error:
+        errors = [f"missing or invalid OCR result/coverage manifest: {error}"]
     message = "Strict review: " + ("; ".join(errors) if errors else "passed")
     print(message)
     if os.environ.get("GITHUB_STEP_SUMMARY"):

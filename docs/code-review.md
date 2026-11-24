@@ -6,15 +6,18 @@ The machine runs OCR and the Actions runner; inference uses the Go API.
 
 ## What runs
 
-- PR creation, new commits, reopening, edits (including base changes), and marking
-  a draft ready: full PR review, inline comments and an updated summary.
+- PR creation, new commits, reopening, base-branch changes, and marking a draft
+  ready: full PR review, inline comments and an updated summary. Automatic runs
+  require an owner, member or collaborator as the PR author. For outside authors,
+  a maintainer starts review with the comment command or manual workflow trigger.
 - Push to a branch without an open PR: review the pushed range and save the JSON
   result and diagnostic log as an Actions artifact. New branches are compared
   with the default branch. Non-fast-forward pushes compare the exact old/new
   trees through a temporary local commit, without moving HEAD. If the previous
   commit is unavailable, every target file is reviewed as a full-file addition.
-- Push to a branch with an open PR: the PR event handles review, avoiding a second
-  model invocation from the push event.
+- Push to a branch with an open PR from a trusted author: the PR event handles
+  review, avoiding a second model invocation. A PR from an outside author does
+  not suppress reviews of pushes made by repository writers.
 - A PR comment starting with `/open-code-review` or `@open-code-review`: re-review,
   restricted to human owners, members and collaborators.
 - **Actions → OpenCodeReview → Run workflow**: enter an open PR number to re-review.
@@ -29,7 +32,7 @@ Rules preserve OCR's built-in checks and add Bork's compiler/runtime invariants.
 `.bork` programs, expected outputs, Rust/Python tests and documentation are
 explicitly included instead of falling through OCR's default exclusions.
 
-The **`OpenCodeReview / strict (main)` commit status** fails for high/critical findings,
+The **`OpenCodeReview / strict (main)` commit status** fails for high/critical or unclassified findings,
 incomplete or waived coverage, files too large to review, token/round limits,
 invalid output, or an operational failure. Medium/low findings remain visible
 without failing the status. A run with no eligible changed files may skip cleanly.
@@ -57,11 +60,14 @@ The installer:
 
 1. Installs OCR 1.14.2 under `~/.local/share/bork-review/tools` and writes a
    credential-reading local profile at `~/.config/bork-review/review.env`.
+   Loading it selects Go explicitly, overriding any saved OCR provider settings;
+   the key itself is read from the environment rather than saved in OCR config.
 2. Runs `ocr llm test` against Go before registering anything.
 3. Uploads the local key as an encrypted GitHub Actions secret using the existing
    `gh` login.
-4. Downloads the pinned Linux x64 runner 2.338.2, verifies its SHA-256 checksum,
-   and registers it automatically with the `bork-review` label.
+4. If not installed, downloads Linux x64 runner 2.338.2 and verifies its SHA-256
+   checksum, then registers it with the `bork-review` label. Existing runners
+   retain GitHub's normal automatic updates.
 5. Creates a dedicated `bork-review` system account and enables the system service
    `bork-review-runner.service`. Sudo is needed to create the account and service;
    the runner starts at boot and survives logout.
@@ -98,7 +104,8 @@ in fork PRs, so the installer enforces approval for **all external contributors*
 not only new contributors. This repository setting is already configured.
 Inspect workflow changes before approving external runs; do not approve a fork
 workflow that executes arbitrary PR code on `bork-review`. The trusted
-`pull_request_target` reviewer still reads fork source as data.
+`pull_request_target` reviewer still reads fork source as data; outside authors
+need a maintainer's comment command or manual workflow dispatch to start it.
 
 ## 2. Model settings
 

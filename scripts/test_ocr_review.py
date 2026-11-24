@@ -53,6 +53,14 @@ class StrictReviewTests(unittest.TestCase):
                 result["comments"] = [{"severity": severity}]
                 self.check_gate(result, 1)
 
+    def test_unclassified_findings_fail_closed(self):
+        for comment in ({}, {"severity": None}, {"severity": ""},
+                        {"severity": "unknown"}, {"severity": 1}):
+            with self.subTest(comment=comment):
+                result = copy.deepcopy(COMPLETE)
+                result["comments"] = [comment]
+                self.check_gate(result, 1)
+
     def test_partial_or_failed_review_cannot_pass_without_findings(self):
         for status in ("partial", "failed"):
             with self.subTest(status=status):
@@ -112,10 +120,69 @@ class StrictReviewTests(unittest.TestCase):
                 self.check_gate(result, 1)
 
 
+class WorkflowTriggerTests(unittest.TestCase):
+    def test_push_is_skipped_only_when_an_authorized_pr_event_can_review_it(self):
+        workflow = GATE.parents[1] / ".github/workflows/ocr-review.yml"
+        step = workflow.read_text().split("      - name: Resolve review context\n", 1)[1]
+        script = textwrap.dedent(step.split("\n      - name:", 1)[0].split("          script: |\n", 1)[1])
+        harness = """
+            const prs = JSON.parse(process.argv[1]);
+            const outputs = {};
+            const context = {eventName: 'push', payload: {after: 'head'},
+                ref: 'refs/heads/feature', repo: {owner: 'owner', repo: 'repo'}};
+            const core = {notice: () => {}, setOutput: (key, value) => outputs[key] = value};
+            const github = {rest: {pulls: {list: async () => ({data: prs})}}, paginate: async () => prs};
+        """ + "(async () => {" + script + "})().then(() => console.log(JSON.stringify(outputs)));"
+        for associations, expected_mode in [([], "push"), (["NONE"], "push"),
+                                            (["OWNER"], None), (["NONE", "COLLABORATOR"], None)]:
+            with self.subTest(associations=associations):
+                prs = [{"author_association": association} for association in associations]
+                output = subprocess.check_output(["node", "-e", harness, json.dumps(prs)], text=True)
+                self.assertEqual(json.loads(output).get("mode"), expected_mode)
+
+    def test_only_authorized_events_start_the_runner(self):
+        workflow = GATE.parents[1] / ".github/workflows/ocr-review.yml"
+        condition = workflow.read_text().split("    if: >-\n", 1)[1].split("\n    runs-on:", 1)[0]
+        script = """
+            const github = JSON.parse(process.argv[1]);
+            const fromJSON = JSON.parse;
+            const contains = (items, value) => items.includes(value);
+            const startsWith = (value, prefix) => value.startsWith(prefix);
+        """ + "console.log(Boolean(" + condition + "));"
+        cases = [
+            ("pull_request_target", {"pull_request": {"author_association": "OWNER"}, "action": "opened"}, True),
+            ("pull_request_target", {"pull_request": {"author_association": "COLLABORATOR"}, "action": "synchronize"}, True),
+            ("pull_request_target", {"pull_request": {"author_association": "NONE"}, "action": "opened"}, False),
+            ("pull_request_target", {"pull_request": {"author_association": "OWNER"}, "action": "edited", "changes": {"title": {}}}, False),
+            ("pull_request_target", {"pull_request": {"author_association": "OWNER"}, "action": "edited", "changes": {"base": {"ref": {}}}}, True),
+            ("push", {}, True),
+            ("workflow_dispatch", {}, True),
+        ]
+        for association, user_type, body, allowed in [
+            ("OWNER", "User", "/open-code-review", True),
+            ("MEMBER", "User", "@open-code-review", True),
+            ("NONE", "User", "/open-code-review", False),
+            ("COLLABORATOR", "Bot", "/open-code-review", False),
+            ("OWNER", "User", "unrelated comment", False),
+        ]:
+            cases.append(("issue_comment", {
+                "issue": {"pull_request": {}},
+                "comment": {"author_association": association, "user": {"type": user_type}, "body": body},
+            }, allowed))
+        for event_name, event, allowed in cases:
+            with self.subTest(event_name=event_name, event=event):
+                output = subprocess.check_output(
+                    ["node", "-e", script, json.dumps({"event_name": event_name, "event": event})], text=True,
+                )
+                self.assertEqual(output.strip(), str(allowed).lower())
+
+
 class PushRangeTests(unittest.TestCase):
     def test_pushes_do_not_turn_rewinds_into_empty_reviews(self):
         workflow = GATE.parents[1] / ".github/workflows/ocr-review.yml"
-        step = workflow.read_text().split("      - name: Review push without an open PR\n", 1)[1]
+        marker = "      - name: Review push without an open PR\n"
+        self.assertIn(marker, workflow.read_text(), "Push review step is missing or renamed")
+        step = workflow.read_text().split(marker, 1)[1]
         script = textwrap.dedent(step.split("\n      - name:", 1)[0].split("        run: |\n", 1)[1])
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
