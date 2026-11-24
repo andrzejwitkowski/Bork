@@ -123,7 +123,10 @@ class StrictReviewTests(unittest.TestCase):
 class WorkflowTriggerTests(unittest.TestCase):
     def test_push_is_skipped_only_when_an_authorized_pr_event_can_review_it(self):
         workflow = GATE.parents[1] / ".github/workflows/ocr-review.yml"
-        step = workflow.read_text().split("      - name: Resolve review context\n", 1)[1]
+        marker = "      - name: Resolve review context\n"
+        workflow_text = workflow.read_text()
+        self.assertIn(marker, workflow_text, "Review context step is missing or renamed")
+        step = workflow_text.split(marker, 1)[1]
         script = textwrap.dedent(step.split("\n      - name:", 1)[0].split("          script: |\n", 1)[1])
         harness = """
             const prs = JSON.parse(process.argv[1]);
@@ -158,15 +161,16 @@ class WorkflowTriggerTests(unittest.TestCase):
             ("push", {}, True),
             ("workflow_dispatch", {}, True),
         ]
-        for association, user_type, body, allowed in [
-            ("OWNER", "User", "/open-code-review", True),
-            ("MEMBER", "User", "@open-code-review", True),
-            ("NONE", "User", "/open-code-review", False),
-            ("COLLABORATOR", "Bot", "/open-code-review", False),
-            ("OWNER", "User", "unrelated comment", False),
+        for association, user_type, body, state, allowed in [
+            ("OWNER", "User", "/open-code-review", "open", True),
+            ("MEMBER", "User", "@open-code-review", "open", True),
+            ("NONE", "User", "/open-code-review", "open", False),
+            ("COLLABORATOR", "Bot", "/open-code-review", "open", False),
+            ("OWNER", "User", "unrelated comment", "open", False),
+            ("OWNER", "User", "/open-code-review", "closed", False),
         ]:
             cases.append(("issue_comment", {
-                "issue": {"pull_request": {}},
+                "issue": {"pull_request": {}, "state": state},
                 "comment": {"author_association": association, "user": {"type": user_type}, "body": body},
             }, allowed))
         for event_name, event, allowed in cases:

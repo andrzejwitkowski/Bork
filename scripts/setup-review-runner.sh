@@ -73,8 +73,16 @@ if ! sudo test -f "$runner_dir/.runner"; then
     --unattended --url "https://github.com/$repo" \
     --name "$runner_name" --labels bork-review --work _work
 fi
-runner_name="$(sudo cat "$runner_dir/.runner" | python3 -c 'import json,sys; print(json.load(sys.stdin)["agentName"])')"
-runner_id="$(sudo cat "$runner_dir/.runner" | python3 -c 'import json,sys; print(int(json.load(sys.stdin)["agentId"]))')"
+if ! runner_id="$(sudo -u bork-review python3 -c 'import json, sys
+with open(sys.argv[1], encoding="utf-8") as registration:
+    runner_id = json.load(registration)["agentId"]
+if type(runner_id) is not int or runner_id <= 0:
+    raise ValueError("expected a positive runner ID")
+print(runner_id)
+' "$runner_dir/.runner" 2>/dev/null)"; then
+  echo "Cannot read runner ID from $runner_dir/.runner. Check the registration file and re-register the runner if needed." >&2
+  exit 1
+fi
 
 sudo tee /etc/systemd/system/bork-review-runner.service >/dev/null <<UNIT
 [Unit]
@@ -105,10 +113,10 @@ sudo systemctl is-active bork-review-runner.service
 for attempt in {1..20}; do
   status="$(gh api --paginate "repos/$repo/actions/runners" --jq ".runners[] | select(.id == $runner_id) | .status")"
   if [ "$status" = online ]; then
-    echo 'Runner online. Merge PR #334, then comment /open-code-review on an open PR.'
+    echo 'Runner online. Once the workflow is on the default branch, comment /open-code-review on an open PR.'
     exit 0
   fi
   sleep 3
 done
-echo "Runner '$runner_name' did not come online; inspect sudo journalctl -u bork-review-runner.service. If removed on GitHub, run config.sh remove and register again." >&2
+echo "Runner ID $runner_id did not come online; inspect sudo journalctl -u bork-review-runner.service. If removed on GitHub, run config.sh remove and register again." >&2
 exit 1

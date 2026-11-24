@@ -59,7 +59,7 @@ bash scripts/setup-review-runner.sh
 The installer:
 
 1. Installs OCR 1.14.2 under `~/.local/share/bork-review/tools` and writes a
-   credential-reading local profile at `~/.config/bork-review/review.env`.
+   profile for manual reviews at `~/.config/bork-review/review.env`.
    Loading it selects Go explicitly, overriding any saved OCR provider settings;
    the key itself is read from the environment rather than saved in OCR config.
 2. Runs `ocr llm test` against Go before registering anything.
@@ -88,11 +88,11 @@ Check readiness with:
 systemctl status bork-review-runner.service
 ```
 
-For manual local reviews, load the prepared profile first:
+For manual local reviews, load the profile and run OCR in a subshell to scope the
+model credential to that review:
 
 ```sh
-source ~/.config/bork-review/review.env
-ocr review
+( source ~/.config/bork-review/review.env && ocr review )
 ```
 
 The machine must remain on and connected. Keep one runner service per machine:

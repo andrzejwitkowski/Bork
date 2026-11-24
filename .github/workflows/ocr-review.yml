@@ -26,7 +26,8 @@ jobs:
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
         (github.event.action != 'edited' || github.event.changes.base))) &&
       (github.event_name != 'issue_comment' || (
-        github.event.issue.pull_request && github.event.comment.user.type != 'Bot' &&
+        github.event.issue.pull_request && github.event.issue.state == 'open' &&
+        github.event.comment.user.type != 'Bot' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (startsWith(github.event.comment.body, '/open-code-review') ||
          startsWith(github.event.comment.body, '@open-code-review'))))
