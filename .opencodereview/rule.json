@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.bork", "**/*.bork.expected", "programs/**", "tests/**/*.rs", "**/*_test.rs", "**/*_tests.rs", "**/tests.rs", "**/test_*.py", "**/*_test.py", "docs/**/*.md"],
+  "include": ["**/*.bork", "**/*.bork.expected", "programs/**", "**/tests/**/*.rs", "**/*_test.rs", "**/*_tests.rs", "**/tests.rs", "**/test_*.py", "**/*_test.py", "docs/**/*.md"],
   "exclude": ["**/target/**", "**/node_modules/**", "**/artifacts/**"],
   "rules": [
     {
