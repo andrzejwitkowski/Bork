@@ -1,0 +1,245 @@
+name: OpenCodeReview
+
+on:
+  push:
+    branches: ['**']
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review again
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Strict review
+    # PR code is read as Git objects by the pinned action, never executed.
+    if: >-
+      (github.event_name != 'pull_request_target' || (
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
+        (github.event.action != 'edited' || github.event.changes.base))) &&
+      (github.event_name != 'issue_comment' || (
+        github.event.issue.pull_request && github.event.issue.state == 'open' &&
+        github.event.comment.user.type != 'Bot' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        (github.event.comment.body == '/open-code-review' ||
+         github.event.comment.body == '@open-code-review' ||
+         startsWith(github.event.comment.body, '/open-code-review ') ||
+         startsWith(github.event.comment.body, '@open-code-review '))))
+    runs-on: [self-hosted, linux, x64, bork-review]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    # Apply after the job gate so ignored events cannot cancel authorized reviews.
+    concurrency:
+      group: >-
+        ocr-${{ github.event_name == 'issue_comment' && format('comment-{0}', github.run_id)
+          || github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number)
+          || github.event_name == 'workflow_dispatch' && format('pr-{0}', inputs.pr_number)
+          || format('push-{0}', github.ref) }}
+      cancel-in-progress: true
+    env:
+      OCR_NO_UPDATE: '1'
+      OCR_LLM_EXTRA_HEADERS: x-opencode-session=bork-${{ github.run_id }}-${{ github.run_attempt }}
+      OCR_BACKGROUND: >-
+        Bork is a compiler written in Rust with an unsafe arena/reference runtime.
+        Review correctness across typeck, HIR, MIR, LLVM codegen and runtime boundaries.
+        Read docs/language.md and docs/memory-model.md when needed to establish Bork semantics.
+        Include regression tests and .bork programs; do not execute code from a PR.
+        Report only defects introduced by the reviewed changes. Verify the cited path and
+        behavior against the repository before reporting. Omit observations that require no fix.
+    steps:
+      - name: Resolve review context
+        id: context
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          MANUAL_PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            let pr = context.payload.pull_request;
+            if (context.eventName === 'push') {
+              if (context.payload.deleted) return;
+              const branch = context.ref.replace(/^refs\/heads\//, '');
+              const prs = await github.paginate(github.rest.pulls.list, {
+                ...context.repo, state: 'open', head: `${context.repo.owner}:${branch}`, per_page: 100,
+              });
+              if (prs.some(pr => ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(pr.author_association))) {
+                core.notice('The PR event reviews this push; skipping the duplicate push review.');
+                return;
+              }
+              core.setOutput('mode', 'push');
+              core.setOutput('head_sha', context.payload.after);
+              core.setOutput('status_context', 'OpenCodeReview / push');
+              return;
+            }
+            if (!pr) {
+              const raw = context.payload.issue?.number || process.env.MANUAL_PR_NUMBER;
+              if (!/^[1-9][0-9]*$/.test(String(raw))) throw new Error('Invalid PR number');
+              ({ data: pr } = await github.rest.pulls.get({ ...context.repo, pull_number: Number(raw) }));
+            }
+            if (pr.state !== 'open') throw new Error('The PR is not open');
+            core.setOutput('mode', 'pr');
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('status_context', `OpenCodeReview / strict (${pr.base.ref})`);
+
+      - name: Mark head pending
+        if: steps.context.outputs.mode != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REVIEW_HEAD: ${{ steps.context.outputs.head_sha }}
+          STATUS_CONTEXT: ${{ steps.context.outputs.status_context }}
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              ...context.repo, sha: process.env.REVIEW_HEAD, context: process.env.STATUS_CONTEXT,
+              state: 'pending', description: 'Strict review is running',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Prepare review tools and validate configuration
+        id: prepare
+        if: steps.context.outputs.mode != ''
+        env:
+          OCR_LLM_URL: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
+          OCR_LLM_TOKEN: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
+        run: |
+          rm -f /tmp/ocr-result.json /tmp/ocr-stderr.log
+          for name in OCR_LLM_URL OCR_LLM_TOKEN OCR_LLM_MODEL; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name; see docs/code-review.md"
+              exit 1
+            fi
+          done
+          ocr_prefix="$RUNNER_TEMP/ocr-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$ocr_prefix/bin"
+          echo "NPM_CONFIG_PREFIX=$ocr_prefix" >> "$GITHUB_ENV"
+          echo "$ocr_prefix/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Node.js for OCR
+        if: steps.context.outputs.mode != ''
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Review PR and publish comments
+        if: steps.context.outputs.mode == 'pr'
+        uses: alibaba/open-code-review@e74f2c6bd4422bd1e12d257d1725bcce1d6b9ddd # v1.14.2
+        with:
+          ocr_version: '1.14.2'
+          llm_url: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
+          llm_use_anthropic: 'false'
+          llm_protocol: ${{ vars.OCR_LLM_PROTOCOL || 'openai' }}
+          llm_extra_body: ${{ vars.OCR_LLM_EXTRA_BODY || '{"thinking":{"type":"disabled"}}' }}
+          llm_extra_headers: ${{ env.OCR_LLM_EXTRA_HEADERS }}
+          llm_timeout: '600'
+          effort: high
+          review_concurrency: '1'
+          review_task_timeout: '30'
+          max_tokens_budget: '2000000'
+          rule: .opencodereview/rule.json
+          background: ${{ env.OCR_BACKGROUND }}
+          sticky_summary: 'true'
+          incremental: 'true'
+          route_severity_below: 'medium'
+          checkpoint_range: 'false'
+          stream_progress: 'true'
+          pr_number: ${{ steps.context.outputs.pr_number }}
+          base_ref: ${{ steps.context.outputs.base_ref }}
+          head_sha: ${{ steps.context.outputs.head_sha }}
+
+      - name: Checkout push from repository writer
+        if: steps.context.outputs.mode == 'push'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.context.outputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Review push without an open PR
+        if: steps.context.outputs.mode == 'push'
+        env:
+          OCR_LLM_URL: ${{ secrets.OCR_LLM_URL || 'https://opencode.ai/inference/go/openai/v1/chat/completions' }}
+          OCR_LLM_TOKEN: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          OCR_LLM_MODEL: ${{ vars.OCR_LLM_MODEL || 'deepseek-v4.1-flash' }}
+          OCR_LLM_PROTOCOL: ${{ vars.OCR_LLM_PROTOCOL || 'openai' }}
+          OCR_USE_ANTHROPIC: ${{ vars.OCR_LLM_PROTOCOL == 'anthropic' && 'true' || 'false' }}
+          OCR_EXTRA_BODY: ${{ vars.OCR_LLM_EXTRA_BODY || '{"thinking":{"type":"disabled"}}' }}
+          OCR_LLM_TIMEOUT: '600'
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ steps.context.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          npm install --global @alibaba-group/open-code-review@1.14.2
+          ocr config unset provider
+          ocr config set llm.url "$OCR_LLM_URL"
+          ocr config set llm.model "$OCR_LLM_MODEL"
+          ocr config set llm.auth_token ''
+          ocr config set llm.auth_token_cmd 'printf "%s" "$OCR_LLM_TOKEN"'
+          ocr config set llm.auth_header ''
+          ocr config set llm.extra_headers ''
+          ocr config set llm.protocol "$OCR_LLM_PROTOCOL"
+          ocr config set llm.extra_body "$OCR_EXTRA_BODY"
+          ocr config set language English
+          args=(--format json --audience agent --concurrency 1 --timeout 30
+                --max-tokens-budget 2000000 --rule .opencodereview/rule.json --background "$OCR_BACKGROUND")
+          zero=0000000000000000000000000000000000000000
+          if [ "$BEFORE_SHA" != "$zero" ] && git merge-base --is-ancestor "$BEFORE_SHA" "$HEAD_SHA" 2>/dev/null; then
+            ocr review --effort high --from "$BEFORE_SHA" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
+          elif [ "$BEFORE_SHA" = "$zero" ] && [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            ocr review --effort high --from "origin/$DEFAULT_BRANCH" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
+          else
+            # Commit mode preserves exact push contents and the strict coverage manifest.
+            comparison_parents=()
+            if git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+              comparison_parents=(-p "$BEFORE_SHA")
+            fi
+            comparison_commit="$(git -c user.name=OpenCodeReview -c user.email=review@localhost \
+              -c commit.gpgsign=false commit-tree "$HEAD_SHA^{tree}" "${comparison_parents[@]}" -m 'OCR exact push comparison')"
+            ocr review --effort high --commit "$comparison_commit" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
+          fi
+
+      - name: Save push review report
+        if: always() && steps.prepare.outcome == 'success' && steps.context.outputs.mode == 'push'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocr-push-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            /tmp/ocr-result.json
+            /tmp/ocr-stderr.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce strict findings and coverage
+        if: steps.context.outputs.mode != ''
+        run: python3 scripts/ocr_review.py /tmp/ocr-result.json
+
+      - name: Publish strict status on the reviewed head
+        if: always() && steps.context.outputs.mode != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REVIEW_HEAD: ${{ steps.context.outputs.head_sha }}
+          STATUS_CONTEXT: ${{ steps.context.outputs.status_context }}
+          REVIEW_JOB_STATUS: ${{ job.status }}
+        with:
+          script: |
+            const success = process.env.REVIEW_JOB_STATUS === 'success';
+            await github.rest.repos.createCommitStatus({
+              ...context.repo, sha: process.env.REVIEW_HEAD, context: process.env.STATUS_CONTEXT,
+              state: success ? 'success' : 'failure',
+              description: success ? 'Strict review passed' : 'Findings or incomplete review; see the run',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });

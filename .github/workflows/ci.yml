@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check review installer and strict gate
+        run: |
+          bash -n scripts/setup-review-runner.sh
+          python3 -m unittest discover -s scripts -p test_ocr_review.py -v
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
