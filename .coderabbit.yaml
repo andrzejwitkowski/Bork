@@ -1,5 +1,7 @@
 reviews:
   profile: assertive
+  auto_review:
+    enabled: false
   path_instructions:
     - path: "src/**/*.rs"
       instructions: |

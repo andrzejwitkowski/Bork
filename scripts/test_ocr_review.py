@@ -39,6 +39,7 @@ class StrictReviewTests(unittest.TestCase):
                 capture_output=True, text=True, env=env,
             )
         self.assertEqual(process.returncode, expected, process.stdout + process.stderr)
+        self.assertTrue(process.stdout.startswith("Strict review:"), process.stdout + process.stderr)
 
     def test_complete_review_allows_medium_and_low_findings(self):
         result = copy.deepcopy(COMPLETE)
@@ -171,8 +172,9 @@ class PushRangeTests(unittest.TestCase):
                                GITHUB_REF_NAME="feature", OCR_LLM_PROTOCOL="openai",
                                OCR_EXTRA_BODY="{}", OCR_BACKGROUND="test",
                                OCR_TEST_MODE=str(root / "mode"), OCR_TEST_COMMIT=str(comparison_file))
-                    subprocess.run(["bash", "-e"], input=script, cwd=repo, env=env,
-                                   text=True, capture_output=True, check=True)
+                    process = subprocess.run(["bash", "-e"], input=script, cwd=repo, env=env,
+                                             text=True, capture_output=True)
+                    self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
                     self.assertEqual((root / "mode").read_text().strip(), "review")
                     self.assertEqual(git("rev-parse", "HEAD"), head)
                     if expected_parent is None:

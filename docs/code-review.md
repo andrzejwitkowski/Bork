@@ -136,9 +136,9 @@ status check in the branch ruleset/protection for `main` after its first run.
 Do not select only the ordinary `Strict review` Actions job: a duplicate push
 event intentionally skips its model work and may finish green.
 
-Disable CodeRabbit for Bork after confirming the replacement works. Removing its
-repository access and cancelling any paid subscription are separate account
-settings; this PR does neither.
+This PR disables CodeRabbit's automatic reviews in `.coderabbit.yaml` after the
+replacement's failing/passing end-to-end checks. Removing its repository access
+and cancelling a paid subscription remain separate account settings.
 
 ## Trust boundary and local checks
 
