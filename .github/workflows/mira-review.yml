@@ -1,12 +1,12 @@
 name: Mira
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       pr_number:
-        description: Open pull request number
+        description: Open, ready pull request number
         required: true
         type: string
 
@@ -18,12 +18,15 @@ permissions:
 jobs:
   review:
     name: Mira review
-    # Forks cannot receive the Go secret on pull_request. A maintainer can use
-    # workflow_dispatch; Mira reads the diff and source files via GitHub's API.
+    # Use the trusted base workflow. Mira reads PR files via GitHub's API
+    # without checking out or executing PR code.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       !github.event.pull_request.draft && github.actor != 'dependabot[bot]')
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) &&
+       !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
@@ -33,7 +36,7 @@ jobs:
       - name: Review and publish findings
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           MIRA_OPENCODE_GO_KEY: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
         run: |
           if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
@@ -45,8 +48,12 @@ jobs:
             exit 1
           fi
           pr_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$PR_NUMBER"
-          if [[ "$(gh pr view "$pr_url" --json state --jq .state)" != OPEN ]]; then
-            echo "::error::Pull request must be open."
+          if ! pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"); then
+            echo "::error::Cannot read pull request $PR_NUMBER from $GITHUB_REPOSITORY."
+            exit 1
+          fi
+          if ! jq -e '.state == "open" and .draft == false and .user.type == "User"' <<< "$pr" >/dev/null; then
+            echo "::error::Pull request must be open, ready for review and opened by a human."
             exit 1
           fi
 
@@ -75,8 +82,7 @@ jobs:
             }
           }
           JSON
-          ADMIN_PASSWORD=$(cat /proc/sys/kernel/random/uuid)
-          export ADMIN_PASSWORD
+          GITHUB_TOKEN="$GH_TOKEN" ADMIN_PASSWORD=$(cat /proc/sys/kernel/random/uuid) \
           docker run --rm --user "$(id -u):$(id -g)" \
             --cap-drop ALL --security-opt no-new-privileges --workdir /tmp \
             --env GITHUB_TOKEN --env MIRA_OPENCODE_GO_KEY --env ADMIN_PASSWORD \
