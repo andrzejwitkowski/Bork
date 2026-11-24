@@ -41,9 +41,11 @@ and any remaining low findings in the PR summary. OCR posts high, critical and
 unclassified findings inline when it can attach them to a changed line.
 Deduplication can skip a finding if its lines overlap another finding or a
 previous OCR comment. The summary counts these skips without showing their text.
-The strict gate still reads the full report. If it fails without a matching
-comment, open the linked Actions run and download the `ocr-review-result-*`
-artifact to inspect `ocr-result.json`.
+The strict gate still reads the full report. If the status fails without a
+matching comment, open the linked Actions run. PR reviews use the
+`ocr-review-result-*` artifact and push reviews use `ocr-push-*`. Inspect
+`ocr-result.json` for findings or `ocr-stderr.log` for errors during review.
+If the run failed before producing an artifact, check the failed step's log.
 A run with no eligible changed files may skip cleanly.
 This status is attached to the reviewed **head commit**, including for
 `pull_request_target`; the workflow's ordinary job check alone is not the gate.
