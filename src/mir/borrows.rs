@@ -309,6 +309,7 @@ fn is_arg_temp(body: &Body, names: &HashMap<Local, String>, l: Local) -> bool {
 fn ends_in_nested_call(block: &Block, holder: Local, dst: Local) -> bool {
     let (args, returns_borrows) = match block.term.as_ref().map(|t| &t.kind) {
         Some(TermKind::Call { args, ret_borrows, .. }) => (args, !ret_borrows.is_empty()),
+        // `CallClosure` has no `ret_borrows` yet; update when RFC 0005 adds it.
         Some(TermKind::CallClosure { args, .. }) => (args, false),
         _ => return false,
     };
