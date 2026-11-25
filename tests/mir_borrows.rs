@@ -58,3 +58,96 @@ fn dead_borrow_does_not_conflict() {
     let src = format!("{F}fun main() {{\n    var a: [i32; 2] = [1, 2]\n    val b = &a\n    val x = b[0]\n    var c: [i32; 2] = [x, 2]\n    f(&rw a, &c)\n}}\n");
     assert_eq!(diagnostics(&src).expect("builds"), Vec::<String>::new());
 }
+
+fn main_with(body: &str) -> Vec<String> {
+    diagnostics(&format!("{F}fun id(a: &[i32; 2]): i32 {{\n    return a[0]\n}}\nfun h(a: &rw [i32; 2], n: i32) {{\n}}\nfun main() {{\n    var a: [i32; 2] = [1, 2]\n{body}}}\n")).expect("builds")
+}
+
+#[test]
+fn a_nested_call_borrow_ends_before_the_outer_rw_borrow_is_used() {
+    assert_eq!(main_with("    h(&rw a, id(&a))\n"), Vec::<String>::new());
+}
+
+#[test]
+fn writing_a_borrowed_place_while_the_borrow_is_in_use_is_rejected() {
+    let found = main_with("    val b = &a\n    a = [3, 4]\n    val x = b[0]\n");
+    assert!(found.iter().any(|m| m.contains("cannot assign to `a` while `b`")), "{found:?}");
+    // Last use of `b` is before the write: fine.
+    assert_eq!(main_with("    val b = &a\n    val x = b[0]\n    a = [3, 4]\n"), Vec::<String>::new());
+}
+
+#[test]
+fn writing_through_a_projection_of_a_borrowed_place_is_rejected() {
+    let found = main_with("    val b = &a\n    a[0] = 5\n    val x = b[1]\n");
+    assert!(found.iter().any(|m| m.contains("cannot assign to `a` while `b`")), "{found:?}");
+}
+
+#[test]
+fn a_shared_reborrow_of_an_rw_borrow_is_shared() {
+    let src = "fun two(x: &[i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    two(&r, &r)\n}\n";
+    assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
+}
+
+#[test]
+fn moving_a_borrowed_place_into_a_call_is_rejected() {
+    let src = "class C {\n    n: i32\n}\nfun take(c: C) {\n}\nfun main() {\n    var a = C(1)\n    val b = &a\n    take(move a)\n    println(b.n)\n}\n";
+    let found = diagnostics(src).expect("builds");
+    assert!(found.iter().any(|m| m.contains("cannot move `a` while `b`")), "{found:?}");
+}
+
+#[test]
+fn a_reborrow_of_a_borrow_conflicts_with_another_live_view_of_the_owner() {
+    let src = "fun two(x: &rw [i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    val s = &r\n    two(&rw r, &s)\n}\n";
+    let found = diagnostics(src).expect("builds");
+    assert!(!found.is_empty(), "{found:?}");
+}
+
+#[test]
+fn a_shared_reborrow_chain_does_not_conflict_with_its_own_ancestors() {
+    let src = "fun use2(x: &[i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    val s = &r\n    val t = &s\n    use2(&t, &s)\n    val x = r[0]\n}\n";
+    assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
+}
+
+#[test]
+fn writing_through_a_holder_conflicts_with_a_live_reborrow_of_it() {
+    let w = |body: &str| diagnostics(&format!("fun main() {{\n    var a: [i32; 2] = [1, 2]\n    val r: &rw [i32; 2] = &rw a\n{body}}}\n")).expect("builds");
+    let found = w("    val s = &r\n    r[0] = 5\n    val x = s[1]\n");
+    assert!(found.iter().any(|m| m.contains("cannot assign through `r` while `s`")), "{found:?}");
+    assert_eq!(w("    val s = &r\n    val x = s[1]\n    r[0] = 5\n"), Vec::<String>::new());
+}
+
+#[test]
+fn a_mutating_vec_call_conflicts_with_a_live_plain_borrow_of_the_vec() {
+    let w = |body: &str| diagnostics(&format!("fun main() {{\n    var v = Vec::<i32>()\n    v.push(1)\n{body}}}\n")).expect("builds");
+    let found = w("    val r = &v\n    v.push(2)\n    val n = r.len()\n");
+    assert!(found.iter().any(|m| m.contains("cannot call `push` on `v` while `r`")), "{found:?}");
+    assert_eq!(w("    val r = &v\n    val n = r.len()\n    v.push(2)\n"), Vec::<String>::new());
+}
+
+#[test]
+fn pushing_through_the_holder_of_a_vec_borrow_is_fine() {
+    let src = "fun add(v: &rw Vec<i32>) {\n    v.push(1)\n}\nfun main() {\n    var v = Vec::<i32>()\n    add(&rw v)\n    v.push(2)\n}\n";
+    assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
+}
+
+#[test]
+fn borrow_patterns_typeck_accepts_are_not_rejected() {
+    let fns = "fun id(a: &[i32; 2]): i32 {\n    return a[0]\n}\nfun h(a: &rw [i32; 2], n: i32) {\n}\nfun k(n: i32, a: &rw [i32; 2]) {\n}\nfun two(a: &rw [i32; 2], n: i32, m: i32) {\n}\n";
+    for call in [
+        "h(&rw a, id(&a))",
+        "k(id(&a), &rw a)",
+        "val x = id(&a)\n    h(&rw a, x)",
+        "two(&rw a, id(&a), id(&a))",
+        "h(&rw a, id(&a) + id(&a))",
+    ] {
+        let src = format!("{fns}fun main() {{\n    var a: [i32; 2] = [1, 2]\n    {call}\n}}\n");
+        assert_eq!(diagnostics(&src).expect("builds"), Vec::<String>::new(), "{call}");
+    }
+}
+
+#[test]
+fn a_move_in_a_call_conflicts_with_a_borrow_whose_last_use_is_that_call() {
+    let src = "class C {\n    n: i32\n}\nfun take(c: C, b: &C) {\n}\nfun main() {\n    var a = C(1)\n    val b = &a\n    take(move a, &b)\n}\n";
+    let found = diagnostics(src).expect("builds");
+    assert!(found.iter().any(|m| m.contains("cannot move `a` while")), "{found:?}");
+}

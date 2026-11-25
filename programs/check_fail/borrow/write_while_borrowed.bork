@@ -1,0 +1,7 @@
+// diag: cannot assign to `a` while `b`, a borrow of it, is still in use
+fun main() {
+    var a: [i32; 2] = [1, 2]
+    val b = &a
+    a = [3, 4]
+    println(b[0])
+}

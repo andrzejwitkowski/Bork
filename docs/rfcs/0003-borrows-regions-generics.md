@@ -59,7 +59,7 @@ This RFC decides where a borrow `&T` may appear. It changes no code. Where it sa
 Rules for v1:
 - `&name` is allowed for `val` and `var`; it never allows writes. This closes the `val`-mutated-through-a-borrow gap (section 1).
 - `&rw name` requires `name` to be a `var` (array, `Vec`; further types when they gain element writes).
-- A call cannot borrow the same name twice when one of the borrows is `&rw` (`f(&rw a, &a)`, `f(&rw a, &rw a)`). This is the only aliasing rule in v1. It is keyed by the borrowed name, so aliasing through another name (`val b = &a; f(&rw a, &b)`) is not detected; closing that needs region tracking (#201).
+- A call cannot borrow the same name twice when one of the borrows is `&rw` (`f(&rw a, &a)`, `f(&rw a, &rw a)`). This is the only aliasing rule in v1. It is keyed by the borrowed name, so aliasing through another name (`val b = &a; f(&rw a, &b)`) is not caught there; `mir::borrows` catches it (by liveness, #331; RFC 0004 section 3.6).
 - Inside a callee, a `&rw` parameter may be passed on as `&rw buf` or `&buf` (reborrow); a `&` parameter can only be passed on as `&`.
 - `&rw` follows every `&` restriction in section 6 (not a type argument, not a field, not returned, not in containers, not nullable).
 - `unique` is reserved: using `&unique` is an error ("not implemented"), so the syntax stays free. Its semantics are for a later RFC (candidate use: exclusive access across a region boundary, Send-like rules).
