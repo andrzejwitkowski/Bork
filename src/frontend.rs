@@ -165,7 +165,7 @@ fn object_lifetimes(hir: &HirProgram, report: &ArenaReport, tcx: &TyCtx, source:
         match result {
             Ok(body) => {
                 found.extend(escape::check(body));
-                found.extend(borrows::check_element_locks(body));
+                found.extend(borrows::check(body));
             }
             Err(BuildError::Unsupported(u)) if u.capability == Capability::MoveEscapesArena => {
                 let name = source.get(u.span.start..u.span.end).unwrap_or("value");

@@ -5534,6 +5534,13 @@ Arenas
 │       └── p [Local]
 └── fun main
     └── a [Local]
+== programs/check_fail/borrow/move_while_borrowed.bork
+Ownership Error [140..154] cannot move `a` while `b`, a borrow of it, is still in use
+Arenas
+└── fun main
+    ├── a [Moved ← fun main]
+    ├── b [Local]
+    └── c [Local]
 == programs/check_fail/borrow/pass_view_without_ampersand.bork
 Type Error [128..129] argument 1 to `r` expects borrow `&…`, got &[i32; 2]
 Arenas
@@ -5673,6 +5680,12 @@ Arenas
 │   └── p [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/check_fail/borrow/write_while_borrowed.bork
+Ownership Error [134..144] cannot assign to `a` while `b`, a borrow of it, is still in use
+Arenas
+└── fun main
+    ├── a [Local]
+    └── b [Local]
 == programs/check_fail/classes/owned_layout_cycle.bork
 Type Error [45..46] class `A` has a recursive by-value layout (A -> B -> A); use `Ref<..>` for the recursive field
 Type Error [62..63] class `B` has a recursive by-value layout (B -> A -> B); use `Ref<..>` for the recursive field

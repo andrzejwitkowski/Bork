@@ -47,7 +47,7 @@ var data: [i32; 64] = ...
 - a view through `&rw` excludes every other use of `a`: `a[i]`, `&a`, `&rw a`, `a = ...`, `move a`;
 - a view through `&` excludes writes to `a`: `a[i] = v`, `a = ...`, `move a`, `&rw a`, and any `Vec` operation that can reallocate (`push`, ...). Reads and further `&a` stay allowed.
 
-*Implemented so far (#282):* only for views of a `Vec` element (`&v[i]`), by liveness (the lock ends at the view's last use) in `mir::borrows`; the other rules above are still prose.
+*Implemented (#331, #282):* in `mir::borrows`, by liveness (the lock ends at the view's last use) rather than by region; borrows stored in aggregates are not tracked yet.
 
 This covers `val b = &rw a; f(&rw a, &b)` and subsumes the call-site rule of #199, which stays as the cheaper early check. **Breaking:** programs that write `a` while a `val b = &a` is in scope stop compiling. The follow-up issue (section 7, item 5) starts by counting them in `programs/` and migrating them, as #198 did for `&`.
 

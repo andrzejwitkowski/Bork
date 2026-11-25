@@ -58,3 +58,20 @@ fn dead_borrow_does_not_conflict() {
     let src = format!("{F}fun main() {{\n    var a: [i32; 2] = [1, 2]\n    val b = &a\n    val x = b[0]\n    var c: [i32; 2] = [x, 2]\n    f(&rw a, &c)\n}}\n");
     assert_eq!(diagnostics(&src).expect("builds"), Vec::<String>::new());
 }
+
+fn main_with(body: &str) -> Vec<String> {
+    diagnostics(&format!("{F}fun id(a: &[i32; 2]): i32 {{\n    return a[0]\n}}\nfun h(a: &rw [i32; 2], n: i32) {{\n}}\nfun main() {{\n    var a: [i32; 2] = [1, 2]\n{body}}}\n")).expect("builds")
+}
+
+#[test]
+fn a_nested_call_borrow_ends_before_the_outer_rw_borrow_is_used() {
+    assert_eq!(main_with("    h(&rw a, id(&a))\n"), Vec::<String>::new());
+}
+
+#[test]
+fn writing_a_borrowed_place_while_the_borrow_is_in_use_is_rejected() {
+    let found = main_with("    val b = &a\n    a = [3, 4]\n    val x = b[0]\n");
+    assert!(found.iter().any(|m| m.contains("cannot assign to `a` while `b`")), "{found:?}");
+    // Last use of `b` is before the write: fine.
+    assert_eq!(main_with("    val b = &a\n    val x = b[0]\n    a = [3, 4]\n"), Vec::<String>::new());
+}

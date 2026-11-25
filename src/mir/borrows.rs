@@ -4,8 +4,7 @@
 //! borrows through locals, so `val b = &a; f(&rw a, &b)` is rejected. Run from `check` (`frontend::object_lifetimes`)
 //! over what `main` reaches. A view of a `Vec` element (`&v[i]`, #282) also locks the Vec until its last use.
 // shortcut: only direct borrows and views copied through locals are tracked (not borrows stored
-// in aggregates or returned from calls beyond `ret_borrows`); writes and moves of a borrowed place are only
-// checked for a Vec under an element view (`lock_conflicts`), the rest of RFC 0004 section 3.6 is a follow-up.
+// in aggregates or returned by calls beyond `ret_borrows`); liveness-based (NLL), not RFC 0004 3.6 by-scope.
 
 use std::collections::{HashMap, HashSet};
 
@@ -100,16 +99,6 @@ fn name(body: &Body, l: Local, names: &HashMap<Local, String>) -> String {
 /// `(span of the later borrow, message)`; wording of `check_aliased_borrows` when both borrows
 /// are arguments of one call, otherwise a general one naming the variable that holds the old borrow.
 pub fn check(body: &Body) -> Vec<(Span, String)> {
-    check_with(body, true)
-}
-
-/// Only the `Vec` element-view locks (`lock_conflicts`), which is what `check` (the frontend) enforces today: the general
-/// overlap rule above also rejects `h(&rw a, id(&a))`, which `typeck::check_aliased_borrows` accepts as a separate call.
-pub fn check_element_locks(body: &Body) -> Vec<(Span, String)> {
-    check_with(body, false)
-}
-
-fn check_with(body: &Body, general: bool) -> Vec<(Span, String)> {
     let live = liveness(body);
     let mut names: HashMap<Local, String> = HashMap::new();
     for b in &body.blocks {
@@ -149,11 +138,15 @@ fn check_with(body: &Body, general: bool) -> Vec<(Span, String)> {
                         Some(l) => l,
                         None => {
                             let new = Loan { root: src.clone(), rw: *rw, elem: false };
-                            for (holder, held) in st.iter().filter(|_| general) {
+                            for (holder, held) in &st {
                                 if *holder == dst.local || !after.contains(holder) {
                                     continue;
                                 }
-                                if let Some(old) = held.iter().find(|o| overlap(&o.root, &new.root) && (new.rw || o.rw)) {
+                                // Element views are reported by `lock_conflicts`.
+                                if let Some(old) = held.iter().find(|o| !o.elem && overlap(&o.root, &new.root) && (new.rw || o.rw)) {
+                                    if !new.rw && ends_in_nested_call(body, block, *holder, dst.local, &names) {
+                                        continue;
+                                    }
                                     let msg = call_message(body, block, *holder, dst.local, old, &new, &names)
                                         .unwrap_or_else(|| general_message(body, *holder, old, &new, &names));
                                     if !found.contains(&(s.span, msg.clone())) {
@@ -222,7 +215,7 @@ fn reaches(st: &Loans, local: Local, root: Local) -> bool {
 }
 
 fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &HashSet<Local>, names: &HashMap<Local, String>, found: &mut Vec<(Span, String)>) {
-    let mut loans = st.iter().filter(|(h, _)| after.contains(h)).flat_map(|(h, ls)| ls.iter().filter(|l| l.elem).map(move |l| (*h, l))).peekable();
+    let mut loans = st.iter().filter(|(h, _)| after.contains(h)).flat_map(|(h, ls)| ls.iter().map(move |l| (*h, l))).peekable();
     if loans.peek().is_none() {
         return;
     }
@@ -236,22 +229,33 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
         let root = loan.root.local;
         let what = match kind {
             StmtKind::VecOp { op, receiver, .. }
-                if (op.mutates() || *op == VecOp::ViewRw || loan.rw)
+                if loan.elem
+                    && (op.mutates() || *op == VecOp::ViewRw || loan.rw)
                     && receiver.place().is_some_and(|p| reaches(st, p.local, root)) =>
             {
                 if matches!(op, VecOp::View | VecOp::ViewRw) { "borrow an element of".to_string() } else { format!("call `{}` on", op.name()) }
             }
             // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
-            StmtKind::Borrow { src, rw, .. } if reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
+            StmtKind::Borrow { src, rw, .. } if loan.elem && reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
             _ if kill.contains(&root) => "assign to".into(),
             _ if moved.contains(&root) => "move".into(),
             _ => continue,
         };
-        let msg = format!("cannot {what} `{}` while `{}`, a view of one of its elements, is still in use", name(body, root, names), name(body, holder, names));
+        let held = if loan.elem { "a view of one of its elements" } else { "a borrow of it" };
+        let msg = format!("cannot {what} `{}` while `{}`, {held}, is still in use", name(body, root, names), name(body, holder, names));
         if !found.contains(&(span, msg.clone())) {
             found.push((span, msg));
         }
     }
+}
+
+/// Two-phase borrow: an argument temp `holder` (`&rw a`, not yet passed) does not conflict with a shared borrow
+/// `dst` that a nested call consumes and does not return, as in `h(&rw a, id(&a))`.
+fn ends_in_nested_call(body: &Body, block: &Block, holder: Local, dst: Local, names: &HashMap<Local, String>) -> bool {
+    let unnamed = !names.contains_key(&holder) && body.local(holder).is_some_and(|l| l.name.is_none());
+    let Some(TermKind::Call { args, ret_borrows, .. }) = block.term.as_ref().map(|t| &t.kind) else { return false };
+    let uses_local = |l: Local| args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l));
+    unnamed && ret_borrows.is_empty() && uses_local(dst) && !uses_local(holder)
 }
 
 fn shown(root: &str, rw: bool) -> String {

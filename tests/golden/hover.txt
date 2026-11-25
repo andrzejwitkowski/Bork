@@ -373,6 +373,7 @@ programs/check/vec/push_via_this_field.bork: hits=25 hash=c62d3d4398084f9c
 programs/check_fail/borrow/assign_view_to_var.bork: hits=6 hash=956b21b38f209d1d
 programs/check_fail/borrow/borrow_array_element.bork: hits=1 hash=9b804be4edfe91f1
 programs/check_fail/borrow/lift_borrow_in_if.bork: hits=4 hash=4a093dbd6412191b
+programs/check_fail/borrow/move_while_borrowed.bork: hits=13 hash=021d1a4644ac7287
 programs/check_fail/borrow/pass_view_without_ampersand.bork: hits=5 hash=92de35cb20004ec1
 programs/check_fail/borrow/reference_requires_ampersand.bork: hits=7 hash=de7dd57043178e2e
 programs/check_fail/borrow/rw_aliased.bork: hits=7 hash=18268769b994910b
@@ -393,6 +394,7 @@ programs/check_fail/borrow/var_binds_view.bork: hits=5 hash=1899c72d6e25d655
 programs/check_fail/borrow/vec_field_push_through_shared.bork: hits=8 hash=592331b82b175170
 programs/check_fail/borrow/vec_push_through_shared.bork: hits=8 hash=0cdbea05279b04cc
 programs/check_fail/borrow/write_through_shared.bork: hits=4 hash=b16c4a808b713dd6
+programs/check_fail/borrow/write_while_borrowed.bork: hits=13 hash=a92022778dd6aed9
 programs/check_fail/classes/owned_layout_cycle.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/classes/ref_dot.bork: hits=2 hash=0631e700de510247
 programs/check_fail/closures/annotated_view_moved_into_var.bork: hits=19 hash=8b00913ed3477a52
