@@ -1,3 +1,15 @@
+== programs/build/buf/stack_empty.bork
+class StackSeed<i32> size=4 align=4 fields=[0]
+class Stack<i32> unsupported
+== programs/build/buf/stack_get_past_len_aborts.bork
+class StackSeed<i32> size=4 align=4 fields=[0]
+class Stack<i32> unsupported
+== programs/build/buf/stack_push_at_capacity_boundary.bork
+class StackSeed<i32> size=4 align=4 fields=[0]
+class Stack<i32> unsupported
+== programs/build/buf/stack_push_grow_get.bork
+class StackSeed<i32> size=4 align=4 fields=[0]
+class Stack<i32> unsupported
 == programs/build/classes/call_arg.bork
 class Point size=8 align=4 fields=[0, 4]
 == programs/build/classes/mutable_field.bork

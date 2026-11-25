@@ -43,6 +43,30 @@ programs/build/borrow/shared_borrow_of_val_array.bork::sum(a: &[i32; 3]) -> i32
 programs/build/borrow/shared_borrow_of_val_array.bork::main() -> i32
 programs/build/borrow/store_scalar_into_borrowed_array.bork::set(buf: &rw [i32; 2]) -> unit
 programs/build/borrow/store_scalar_into_borrowed_array.bork::main() -> i32
+programs/build/buf/stack_empty.bork::main() -> i32
+programs/build/buf/stack_empty.bork::newStack() -> Stack<T0>
+programs/build/buf/stack_empty.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
+programs/build/buf/stack_empty.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
+programs/build/buf/stack_empty.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
+programs/build/buf/stack_empty.bork::Stack.len(this: &Stack<T0>) -> i32
+programs/build/buf/stack_get_past_len_aborts.bork::main() -> i32
+programs/build/buf/stack_get_past_len_aborts.bork::newStack() -> Stack<T0>
+programs/build/buf/stack_get_past_len_aborts.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
+programs/build/buf/stack_get_past_len_aborts.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
+programs/build/buf/stack_get_past_len_aborts.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
+programs/build/buf/stack_get_past_len_aborts.bork::Stack.len(this: &Stack<T0>) -> i32
+programs/build/buf/stack_push_at_capacity_boundary.bork::main() -> i32
+programs/build/buf/stack_push_at_capacity_boundary.bork::newStack() -> Stack<T0>
+programs/build/buf/stack_push_at_capacity_boundary.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
+programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
+programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
+programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.len(this: &Stack<T0>) -> i32
+programs/build/buf/stack_push_grow_get.bork::main() -> i32
+programs/build/buf/stack_push_grow_get.bork::newStack() -> Stack<T0>
+programs/build/buf/stack_push_grow_get.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
+programs/build/buf/stack_push_grow_get.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
+programs/build/buf/stack_push_grow_get.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
+programs/build/buf/stack_push_grow_get.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/classes/call_arg.bork::take(p: Point) -> i32
 programs/build/classes/call_arg.bork::main() -> i32
 programs/build/classes/mutable_field.bork::main() -> i32

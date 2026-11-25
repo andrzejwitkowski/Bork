@@ -1,0 +1,11 @@
+// exit: 9
+// The first push allocates 4 slots; the 4th push fills them exactly and the 5th doubles to 8. Slots 3 and 4 straddle the grow.
+fun main(): i32 {
+    val s: Stack<i32> = newStack()
+    s.push(1)
+    s.push(2)
+    s.push(3)
+    s.push(4)
+    s.push(5)
+    return s.get(3) + s.get(4)
+}

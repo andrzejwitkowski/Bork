@@ -1,0 +1,7 @@
+// diag: `slotLoad` requires an `unsafe` context
+fun first(b: &Buf<i32>): i32 {
+    return slotLoad(b, 0)
+}
+fun main(): i32 {
+    return 0
+}

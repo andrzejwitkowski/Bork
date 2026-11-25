@@ -189,6 +189,158 @@ Arenas
 │   └── buf [Borrow ← call site]
 └── fun main
     └── a [Local]
+== programs/build/buf/stack_empty.bork
+Arenas
+├── fun main
+│   ├── s [Local]
+│   └── IfThen
+├── fun newStack
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun newStack]
+├── fun StackSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Stack.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Stack.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── IfThen
+│   │   └── Block
+│   │       ├── old [Local]
+│   │       ├── this [Shared ← fun Stack.push]
+│   │       └── next [Copy]
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Stack.push]
+│       └── v [Shared ← fun Stack.push]
+├── fun Stack.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Stack.len
+    └── this [Borrow ← call site]
+== programs/build/buf/stack_get_past_len_aborts.bork
+Arenas
+├── fun main
+│   ├── s [Local]
+│   └── x [Local]
+├── fun newStack
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun newStack]
+├── fun StackSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Stack.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Stack.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── IfThen
+│   │   └── Block
+│   │       ├── old [Local]
+│   │       ├── this [Shared ← fun Stack.push]
+│   │       └── next [Copy]
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Stack.push]
+│       └── v [Shared ← fun Stack.push]
+├── fun Stack.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Stack.len
+    └── this [Borrow ← call site]
+== programs/build/buf/stack_push_at_capacity_boundary.bork
+Arenas
+├── fun main
+│   └── s [Local]
+├── fun newStack
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun newStack]
+├── fun StackSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Stack.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Stack.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── IfThen
+│   │   └── Block
+│   │       ├── old [Local]
+│   │       ├── this [Shared ← fun Stack.push]
+│   │       └── next [Copy]
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Stack.push]
+│       └── v [Shared ← fun Stack.push]
+├── fun Stack.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Stack.len
+    └── this [Borrow ← call site]
+== programs/build/buf/stack_push_grow_get.bork
+Arenas
+├── fun main
+│   ├── s [Local]
+│   ├── i [Local]
+│   ├── sum [Local]
+│   ├── j [Local]
+│   ├── WhileLoop
+│   │   ├── s [Shared ← fun main]
+│   │   └── i [Copy]
+│   └── WhileLoop
+│       ├── sum [Copy]
+│       ├── s [Shared ← fun main]
+│       └── j [Copy]
+├── fun newStack
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun newStack]
+├── fun StackSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Stack.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Stack.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── IfThen
+│   │   └── Block
+│   │       ├── old [Local]
+│   │       ├── this [Shared ← fun Stack.push]
+│   │       └── next [Copy]
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Stack.push]
+│       └── v [Shared ← fun Stack.push]
+├── fun Stack.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Stack.len
+    └── this [Borrow ← call site]
 == programs/build/classes/call_arg.bork
 Arenas
 ├── fun take
@@ -7233,6 +7385,12 @@ Arenas
 == programs/check_fail/unsafe/primitive_outside_unsafe.bork
 Type Error [68..73] `abort` requires an `unsafe` context
 Arenas
+└── fun main
+== programs/check_fail/unsafe/user_calls_slot_load.bork
+Type Error [91..99] `slotLoad` requires an `unsafe` context
+Arenas
+├── fun first
+│   └── b [Borrow ← call site]
 └── fun main
 == programs/check_fail/unsafe/user_unsafe_block.bork
 Parse Error [85..85] `unsafe` is only allowed in the prelude

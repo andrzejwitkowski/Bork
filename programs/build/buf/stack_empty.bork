@@ -1,0 +1,9 @@
+// exit: 7
+// A fresh `Stack` has no pushes and no buffer yet (lazy allocation on the first push).
+fun main(): i32 {
+    val s: Stack<i32> = newStack()
+    if (s.len() == 0) {
+        return 7
+    }
+    return 0
+}

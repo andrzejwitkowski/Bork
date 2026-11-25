@@ -1,0 +1,53 @@
+// Internal `Stack<T>` (#285 step 1): proves `Buf<T>` and the unsafe primitives from Bork; step 2 replaces it with `Vec`.
+// shortcut: elements must be plain scalars (Buf slots are copied bitwise), until Buf learns to clone and drop them.
+// Lazy allocation: `newStack` starts on an empty buffer and the first `push` grows it in the Stack's own arena.
+class StackSeed<T> {
+    n: i32
+    // Zero bytes in the seed's arena: never read, and `bufGrow` copies 0 bytes from it.
+    unsafe fun empty(): Buf<T> {
+        return bufAlloc::<T>(arenaOf(this), 0)
+    }
+}
+class Stack<T> {
+    buf: Buf<T>
+    n: i32
+    fun push(v: T) {
+        var cap = 0
+        unsafe {
+            cap = this.buf.cap()
+        }
+        if (this.n == cap) {
+            var next = cap * 2
+            if (next == 0) {
+                next = 4
+            }
+            unsafe {
+                val old = this.buf
+                this.buf = bufGrow(&old, next)
+            }
+        }
+        unsafe {
+            val b = this.buf
+            slotStore(&b, this.n, v)
+        }
+        this.n = this.n + 1
+    }
+    fun get(i: i32): T {
+        unsafe {
+            if (i < 0 || i >= this.n) {
+                abort()
+            }
+            val b = this.buf
+            return slotLoad(&b, i)
+        }
+    }
+    fun len(): i32 {
+        return this.n
+    }
+}
+fun newStack<T>(): Stack<T> {
+    val seed: StackSeed<T> = StackSeed(0)
+    unsafe {
+        return Stack(seed.empty(), 0)
+    }
+}

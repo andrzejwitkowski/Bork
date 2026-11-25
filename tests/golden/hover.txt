@@ -22,6 +22,10 @@ programs/build/borrow/rw_param.bork: hits=9 hash=7d5d3f76b78b1218
 programs/build/borrow/rw_two_distinct.bork: hits=17 hash=c5347569c00e8021
 programs/build/borrow/shared_borrow_of_val_array.bork: hits=6 hash=58ec55fddf0b8415
 programs/build/borrow/store_scalar_into_borrowed_array.bork: hits=9 hash=61597fcd189e7760
+programs/build/buf/stack_empty.bork: hits=5 hash=4497ffb57a548cd0
+programs/build/buf/stack_get_past_len_aborts.bork: hits=17 hash=ca3bbfbfef3ab69a
+programs/build/buf/stack_push_at_capacity_boundary.bork: hits=34 hash=feb0dff429a2d556
+programs/build/buf/stack_push_grow_get.bork: hits=29 hash=cb8eafde3ba42090
 programs/build/classes/call_arg.bork: hits=3 hash=e78e04710ecea6e2
 programs/build/classes/mutable_field.bork: hits=5 hash=cd3878e5291db128
 programs/build/classes/nested_field.bork: hits=2 hash=35c04f12e683a17a
@@ -567,6 +571,7 @@ programs/check_fail/traits/trait_arity.bork: hits=2 hash=1b2758a396987c03
 programs/check_fail/traits/type_mismatch.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/traits/unknown_trait.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/unsafe/primitive_outside_unsafe.bork: hits=12 hash=9e1ffbe62c25bed9
+programs/check_fail/unsafe/user_calls_slot_load.bork: hits=20 hash=337e2619eebe091c
 programs/check_fail/unsafe/user_unsafe_block.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/unsafe/user_unsafe_fun.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/vec/borrow_element_as_argument.bork: hits=19 hash=cd9a405b3ee9270a
