@@ -3,8 +3,9 @@
 //! (RFC 0003 section 5, RFC 0004 borrow sets). Unlike `typeck::check_aliased_borrows` it follows
 //! borrows through locals, so `val b = &a; f(&rw a, &b)` is rejected. Run from `check` (`frontend::object_lifetimes`)
 //! over what `main` reaches. A view of a `Vec` element (`&v[i]`, #282) also locks the Vec until its last use.
-// shortcut: only direct borrows and views copied through locals are tracked (not borrows stored
-// in aggregates or returned by calls beyond `ret_borrows`); liveness-based (NLL), not RFC 0004 3.6 by-scope.
+// shortcut: only direct borrows and views copied through locals are tracked. Borrows stored in aggregates
+// or returned by calls cannot occur yet (typeck rejects them, `ret_borrows` is always empty); extend this
+// pass when RFC 0004 views / RFC 0005 returned borrows land. Liveness-based (NLL), not RFC 0004 3.6 by-scope.
 
 use std::collections::{HashMap, HashSet};
 
