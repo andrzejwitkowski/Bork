@@ -109,6 +109,8 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
         }
     }
     let mut found: Vec<(Span, String)> = Vec::new();
+    // (new holder, old holder) pairs already reported, so a reborrow of the new holder does not repeat them.
+    let mut reported: HashSet<(Local, Local)> = HashSet::new();
     let mut state_in: Vec<Option<Loans>> = vec![None; body.blocks.len()];
     state_in[0] = Some(Loans::new());
     let mut work = vec![0usize];
@@ -134,30 +136,30 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                 }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
-                    let loans = match inherited {
-                        // A shared reborrow of an `&rw` loan is only shared.
+                    // A reborrow of a borrow holds the same roots, shared when the reborrow is shared.
+                    let loans: Vec<Loan> = match inherited {
                         Some(l) => l.into_iter().map(|o| Loan { rw: o.rw && *rw, ..o }).collect(),
-                        None => {
-                            let new = Loan { root: src.clone(), rw: *rw, elem: false };
-                            for (holder, held) in &st {
-                                if *holder == dst.local || !after.contains(holder) {
+                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false }],
+                    };
+                    for new in loans.iter().filter(|l| !l.elem) {
+                        for (holder, held) in &st {
+                            if *holder == dst.local || *holder == src.local || !after.contains(holder) || reported.contains(&(*holder, src.local)) {
+                                continue;
+                            }
+                            // Element views are reported by `lock_conflicts`.
+                            if let Some(old) = held.iter().find(|o| !o.elem && overlap(&o.root, &new.root) && (new.rw || o.rw)) {
+                                if !new.rw && ends_in_nested_call(body, block, *holder, dst.local, &names) {
                                     continue;
                                 }
-                                // Element views are reported by `lock_conflicts`.
-                                if let Some(old) = held.iter().find(|o| !o.elem && overlap(&o.root, &new.root) && (new.rw || o.rw)) {
-                                    if !new.rw && ends_in_nested_call(body, block, *holder, dst.local, &names) {
-                                        continue;
-                                    }
-                                    let msg = call_message(body, block, *holder, dst.local, old, &new, &names)
-                                        .unwrap_or_else(|| general_message(body, *holder, old, &new, &names));
-                                    if !found.contains(&(s.span, msg.clone())) {
-                                        found.push((s.span, msg));
-                                    }
+                                let msg = call_message(body, block, *holder, dst.local, old, new, &names)
+                                    .unwrap_or_else(|| general_message(body, *holder, old, new, &names));
+                                reported.insert((dst.local, *holder));
+                                if !found.contains(&(s.span, msg.clone())) {
+                                    found.push((s.span, msg));
                                 }
                             }
-                            vec![new]
                         }
-                    };
+                    }
                     st.insert(dst.local, loans);
                 }
                 StmtKind::Assign(dst, Rvalue::Use(Operand::Copy(src) | Operand::Move(src))) if dst.is_bare() && src.is_bare() => {

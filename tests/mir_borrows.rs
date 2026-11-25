@@ -94,3 +94,10 @@ fn moving_a_borrowed_place_into_a_call_is_rejected() {
     let found = diagnostics(src).expect("builds");
     assert!(found.iter().any(|m| m.contains("cannot move `a` while `b`")), "{found:?}");
 }
+
+#[test]
+fn a_reborrow_of_a_borrow_conflicts_with_another_live_view_of_the_owner() {
+    let src = "fun two(x: &rw [i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    val s = &r\n    two(&rw r, &s)\n}\n";
+    let found = diagnostics(src).expect("builds");
+    assert!(!found.is_empty(), "{found:?}");
+}
