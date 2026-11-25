@@ -186,6 +186,8 @@ fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
                     }
                 }
                 HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
+                    // shortcut: only a single-binding `if val` counts its bare-ident initializer as a scrutinee use (kept from the
+                    // name-based analysis); a chained one escapes, which is safe, just not optimal. Relax with a test if it matters.
                     let single = bindings.tail.is_empty();
                     let mut bound = 0;
                     for b in std::iter::once(&mut *bindings.head).chain(&mut bindings.tail) {
