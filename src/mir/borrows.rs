@@ -135,7 +135,8 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
                     let loans = match inherited {
-                        Some(l) => l,
+                        // A shared reborrow of an `&rw` loan is only shared.
+                        Some(l) => l.into_iter().map(|o| Loan { rw: o.rw && *rw, ..o }).collect(),
                         None => {
                             let new = Loan { root: src.clone(), rw: *rw, elem: false };
                             for (holder, held) in &st {
@@ -173,8 +174,18 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                 }
             }
         }
-        if let Some(Terminator { kind, .. }) = &block.term {
+        if let Some(Terminator { kind, span, .. }) = &block.term {
             if let TermKind::Call { args, dest, ret_borrows, .. } = kind {
+                // A move in a call argument is not a statement: check it against loans live up to the call.
+                let before = live[i].last();
+                for (holder, loan) in st.iter().filter(|(h, _)| before.is_some_and(|b| b.contains(h))).flat_map(|(h, ls)| ls.iter().map(move |l| (*h, l))) {
+                    if args.iter().any(|a| matches!(a, Operand::Move(p) if p.local == loan.root.local)) && holder != loan.root.local {
+                        let msg = format!("cannot move `{}` while `{}`, a borrow of it, is still in use", name(body, loan.root.local, &names), name(body, holder, &names));
+                        if !found.contains(&(*span, msg.clone())) {
+                            found.push((*span, msg));
+                        }
+                    }
+                }
                 let carried: Vec<Loan> = ret_borrows
                     .iter()
                     .filter_map(|&a| args.get(a as usize)?.place().and_then(|p| st.get(&p.local)))
@@ -255,9 +266,12 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
 /// `dst` that a nested call consumes and does not return, as in `h(&rw a, id(&a))`.
 fn ends_in_nested_call(body: &Body, block: &Block, holder: Local, dst: Local, names: &HashMap<Local, String>) -> bool {
     let unnamed = !names.contains_key(&holder) && body.local(holder).is_some_and(|l| l.name.is_none());
+    let is_call_arg = body.blocks.iter().filter_map(|b| b.term.as_ref()).any(|t| {
+        matches!(&t.kind, TermKind::Call { args, .. } if args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == holder)))
+    });
     let Some(TermKind::Call { args, ret_borrows, .. }) = block.term.as_ref().map(|t| &t.kind) else { return false };
     let uses_local = |l: Local| args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l));
-    unnamed && ret_borrows.is_empty() && uses_local(dst) && !uses_local(holder)
+    unnamed && is_call_arg && ret_borrows.is_empty() && uses_local(dst) && !uses_local(holder)
 }
 
 fn shown(root: &str, rw: bool) -> String {

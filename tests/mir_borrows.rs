@@ -81,3 +81,16 @@ fn writing_through_a_projection_of_a_borrowed_place_is_rejected() {
     let found = main_with("    val b = &a\n    a[0] = 5\n    val x = b[1]\n");
     assert!(found.iter().any(|m| m.contains("cannot assign to `a` while `b`")), "{found:?}");
 }
+
+#[test]
+fn a_shared_reborrow_of_an_rw_borrow_is_shared() {
+    let src = "fun two(x: &[i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    two(&r, &r)\n}\n";
+    assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
+}
+
+#[test]
+fn moving_a_borrowed_place_into_a_call_is_rejected() {
+    let src = "class C {\n    n: i32\n}\nfun take(c: C) {\n}\nfun main() {\n    var a = C(1)\n    val b = &a\n    take(move a)\n    println(b.n)\n}\n";
+    let found = diagnostics(src).expect("builds");
+    assert!(found.iter().any(|m| m.contains("cannot move `a` while `b`")), "{found:?}");
+}
