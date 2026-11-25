@@ -145,10 +145,11 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                 }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
+                    let temp = *rw && is_arg_temp(body, &names, dst.local);
                     // A reborrow of a borrow holds the same roots, shared when the reborrow is shared.
                     let loans: Vec<Loan> = match inherited {
-                        Some(l) => l.into_iter().map(|o| { let mut via = o.via.clone(); via.push(src.local); Loan { rw: o.rw && *rw, via, reserved: false, ..o } }).collect(),
-                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false, via: Vec::new(), reserved: *rw && is_arg_temp(body, &names, dst.local) }],
+                        Some(l) => l.into_iter().map(|o| { let mut via = o.via.clone(); via.push(src.local); Loan { rw: o.rw && *rw, via, reserved: temp && o.rw, ..o } }).collect(),
+                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false, via: Vec::new(), reserved: temp }],
                     };
                     for new in loans.iter().filter(|l| !l.elem) {
                         for (holder, held) in &st {
@@ -299,7 +300,7 @@ fn is_arg_temp(body: &Body, names: &HashMap<Local, String>, l: Local) -> bool {
     !names.contains_key(&l)
         && body.local(l).is_some_and(|d| d.name.is_none())
         && body.blocks.iter().filter_map(|b| b.term.as_ref()).any(|t| {
-            matches!(&t.kind, TermKind::Call { args, .. } if args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l)))
+            matches!(&t.kind, TermKind::Call { args, .. } | TermKind::CallClosure { args, .. } if args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l)))
         })
 }
 
