@@ -367,3 +367,39 @@ fn loop_matched_class_enum_does_not_pile_up() {
     let (short, long) = (total_arena_bytes(dir.path(), "short", &source(5)), total_arena_bytes(dir.path(), "long", &source(300)));
     assert_eq!(short, long, "a class-holding enum result piles up per iteration");
 }
+
+/// `val q = w` before the `when`: the alias only reaches the scrutinee, so the call result still stays in the iteration (#344).
+#[test]
+fn loop_aliased_class_enum_does_not_pile_up() {
+    if !gdb_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let source = |n: u32| format!("class Obj {{ v: i32 }}\nenum W {{ Has(o: Obj), No }}\nfun mk(i: i32): W {{ return W.Has(Obj(i)) }}\nfun scan(n: i32): W {{\n    var i = 0\n    var sum = 0\n    while (i < n) {{\n        val w = mk(i)\n        val q = w\n        when (q) {{\n            W.Has(o) => {{ sum = sum + o.v }}\n            W.No => {{ sum = sum + 0 }}\n        }}\n        i = i + 1\n    }}\n    return W.No\n}}\nfun main(): i32 {{\n    val s = scan({n})\n    println(1)\n    return 0\n}}\n");
+    let (short, long) = (total_arena_bytes(dir.path(), "short", &source(5)), total_arena_bytes(dir.path(), "long", &source(300)));
+    assert_eq!(short, long, "an aliased class-holding enum result piles up per iteration");
+}
+
+/// An alias that is returned escapes the iteration, so the call result must keep the result sink (not `Sink::Local`) (#344).
+#[test]
+fn loop_alias_that_escapes_keeps_the_result_sink() {
+    if !gdb_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let source = |n: u32| format!("class Obj {{ v: i32 }}\nenum W {{ Has(o: Obj), No }}\nfun mk(i: i32): W {{ return W.Has(Obj(i)) }}\nfun scan(n: i32): W {{\n    var i = 0\n    while (i < n) {{\n        val w = mk(i)\n        val q = w\n        if (i == n - 1) {{\n            return q\n        }}\n        i = i + 1\n    }}\n    return W.No\n}}\nfun main(): i32 {{\n    val s = scan({n})\n    println(1)\n    return 0\n}}\n");
+    let (short, long) = (total_arena_bytes(dir.path(), "short", &source(5)), total_arena_bytes(dir.path(), "long", &source(300)));
+    assert_ne!(short, long, "an escaping alias must not be reset with the iteration region");
+}
+
+/// The same name declared again outside the loop (and returned) must not stop the loop's own `w` staying in the iteration (#344).
+#[test]
+fn loop_call_result_with_reused_name_does_not_pile_up() {
+    if !gdb_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let source = |n: u32| format!("class Obj {{ v: i32 }}\nenum W {{ Has(o: Obj), No }}\nfun mk(i: i32): W {{ return W.Has(Obj(i)) }}\nfun scan(n: i32): W {{\n    var i = 0\n    var sum = 0\n    while (i < n) {{\n        val w = mk(i)\n        when (w) {{\n            W.Has(o) => {{ sum = sum + o.v }}\n            W.No => {{ sum = sum + 0 }}\n        }}\n        i = i + 1\n    }}\n    val w = mk(0)\n    return w\n}}\nfun main(): i32 {{\n    val s = scan({n})\n    println(1)\n    return 0\n}}\n");
+    let (short, long) = (total_arena_bytes(dir.path(), "short", &source(5)), total_arena_bytes(dir.path(), "long", &source(300)));
+    assert_eq!(short, long, "a reused name keeps the loop result on the result sink");
+}
