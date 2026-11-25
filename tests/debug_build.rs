@@ -413,5 +413,5 @@ fn loop_call_in_initializer_block_does_not_pile_up() {
     let dir = tempfile::tempdir().unwrap();
     let source = |n: u32| format!("class Obj {{ v: i32 }}\nenum W {{ Has(o: Obj), No }}\nfun mk(i: i32): W {{ return W.Has(Obj(i)) }}\nfun scan(n: i32): W {{\n    var i = 0\n    var sum = 0\n    while (i < n) {{\n        val w = mk(i)\n        when (w) {{\n            W.Has(o) => {{ sum = sum + o.v }}\n            W.No => {{ sum = sum + 0 }}\n        }}\n        val t = if (i >= 0) {{\n            val p = mk(i)\n            when (p) {{\n                W.Has(o) => {{ sum = sum + o.v }}\n                W.No => {{ sum = sum + 0 }}\n            }}\n            1\n        }} else {{\n            2\n        }}\n        i = i + t\n    }}\n    return W.No\n}}\nfun main(): i32 {{\n    val s = scan({n})\n    println(1)\n    return 0\n}}\n");
     let (short, long) = (total_arena_bytes(dir.path(), "short", &source(5)), total_arena_bytes(dir.path(), "long", &source(300)));
-    assert_eq!(short, long, "an initializer-block call piles up per iteration");
+    assert_eq!(short, long, "an initializer-block call must not pile up per iteration");
 }

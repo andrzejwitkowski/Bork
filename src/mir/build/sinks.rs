@@ -160,6 +160,13 @@ fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
                     self.block(body);
                     self.depth -= 1;
                 }
+                HirStmt::Assign { target, .. } => {
+                    // `children_mut` omits a `Name` target: the write must be seen, the binding now holds a value this analysis did not place.
+                    if let Some(name) = target.binding_name() {
+                        self.escape(name);
+                    }
+                    s.children_mut().into_iter().for_each(|c| self.child(c));
+                }
                 _ => s.children_mut().into_iter().for_each(|c| self.child(c)),
             }
         }
@@ -199,7 +206,7 @@ fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
                         self.scopes.push(HashMap::from([(b.name.name.clone(), UNTRACKED)]));
                         bound += 1;
                     }
-                    self.stmts(some_block);
+                    self.block(some_block);
                     (0..bound).for_each(|_| drop(self.scopes.pop()));
                     none_block.iter_mut().for_each(|b| self.block(b));
                 }
