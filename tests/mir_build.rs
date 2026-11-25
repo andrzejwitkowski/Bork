@@ -167,3 +167,10 @@ fn a_store_through_a_borrowed_array_is_the_borrowed_store_escapes_capability() {
         assert!(matches!(&err, BuildError::Unsupported(u) if u.capability.to_string() == "borrowed-store-escapes"), "{name}: {err:?}");
     }
 }
+
+#[test]
+fn field_read_through_this_and_a_same_class_parameter_builds() {
+    let source = "class C {\n    n: i32\n    fun twice(): i32 { return this.n + this.n }\n    fun sum(other: &C): i32 { return this.n + other.n }\n}\nfun main(): i32 {\n    val a = C(1)\n    return a.twice() + a.sum(&a)\n}\n";
+    let text = emit(source).expect("this.n and other.n lower");
+    assert!(!text.contains("field-access"), "{text}");
+}
