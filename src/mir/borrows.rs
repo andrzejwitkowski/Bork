@@ -221,8 +221,10 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
     }
     let (_, kill) = uses(|f| kind.walk(f));
     let mut moved = Vec::new();
+    let mut written = Vec::new();
     kind.walk(&mut |u| match u {
         Use::Op(Operand::Move(p)) | Use::Consume(p) => moved.push(p.local),
+        Use::Def(p) => written.push(p.clone()),
         _ => {}
     });
     for (holder, loan) in loans {
@@ -237,7 +239,7 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
             }
             // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
             StmtKind::Borrow { src, rw, .. } if loan.elem && reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
-            _ if kill.contains(&root) => "assign to".into(),
+            _ if kill.contains(&root) || (!loan.elem && written.iter().any(|w| overlap(w, &loan.root))) => "assign to".into(),
             _ if moved.contains(&root) => "move".into(),
             _ => continue,
         };

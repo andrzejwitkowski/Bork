@@ -75,3 +75,9 @@ fn writing_a_borrowed_place_while_the_borrow_is_in_use_is_rejected() {
     // Last use of `b` is before the write: fine.
     assert_eq!(main_with("    val b = &a\n    val x = b[0]\n    a = [3, 4]\n"), Vec::<String>::new());
 }
+
+#[test]
+fn writing_through_a_projection_of_a_borrowed_place_is_rejected() {
+    let found = main_with("    val b = &a\n    a[0] = 5\n    val x = b[1]\n");
+    assert!(found.iter().any(|m| m.contains("cannot assign to `a` while `b`")), "{found:?}");
+}
