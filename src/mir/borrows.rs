@@ -266,6 +266,10 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
     for (holder, loan) in loans {
         let root = loan.root.local;
         let what = match kind {
+            // A mutating `Vec` operation on a plainly borrowed `Vec` writes it (not through the holder or a reborrow of it).
+            StmtKind::VecOp { op, receiver, .. } if !loan.elem && op.mutates() && receiver.place().is_some_and(|p| p.local != holder && reaches(st, p.local, root) && !st.get(&p.local).is_some_and(|ls| ls.iter().any(|l| l.via.contains(&holder)))) => {
+                format!("call `{}` on", op.name())
+            }
             StmtKind::VecOp { op, receiver, .. }
                 if loan.elem
                     && (op.mutates() || *op == VecOp::ViewRw || loan.rw)

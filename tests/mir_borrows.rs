@@ -115,3 +115,17 @@ fn writing_through_a_holder_conflicts_with_a_live_reborrow_of_it() {
     assert!(found.iter().any(|m| m.contains("cannot assign through `r` while `s`")), "{found:?}");
     assert_eq!(w("    val s = &r\n    val x = s[1]\n    r[0] = 5\n"), Vec::<String>::new());
 }
+
+#[test]
+fn a_mutating_vec_call_conflicts_with_a_live_plain_borrow_of_the_vec() {
+    let w = |body: &str| diagnostics(&format!("fun main() {{\n    var v = Vec::<i32>()\n    v.push(1)\n{body}}}\n")).expect("builds");
+    let found = w("    val r = &v\n    v.push(2)\n    val n = r.len()\n");
+    assert!(found.iter().any(|m| m.contains("cannot call `push` on `v` while `r`")), "{found:?}");
+    assert_eq!(w("    val r = &v\n    val n = r.len()\n    v.push(2)\n"), Vec::<String>::new());
+}
+
+#[test]
+fn pushing_through_the_holder_of_a_vec_borrow_is_fine() {
+    let src = "fun add(v: &rw Vec<i32>) {\n    v.push(1)\n}\nfun main() {\n    var v = Vec::<i32>()\n    add(&rw v)\n    v.push(2)\n}\n";
+    assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
+}
