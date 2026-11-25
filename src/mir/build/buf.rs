@@ -61,6 +61,7 @@ impl<'a> FnBuilder<'a> {
         Operand::Copy(Place::local(cap))
     }
 
+    // shortcut: bufGrow allocates in the arena of `this`; the buffer must be a field of `this` (not checked), tighten when Vec moves to Bork (#285 step 2)
     fn this_arena(&self, span: crate::span::Span) -> Res<ArenaRef> {
         let this = self.lookup("this", span).map_err(|_| BuildError::unlowered("a `Buf` primitive outside a method", span))?;
         Ok(ArenaRef::ObjectArena(this))
