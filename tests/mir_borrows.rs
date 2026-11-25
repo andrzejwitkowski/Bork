@@ -101,3 +101,9 @@ fn a_reborrow_of_a_borrow_conflicts_with_another_live_view_of_the_owner() {
     let found = diagnostics(src).expect("builds");
     assert!(!found.is_empty(), "{found:?}");
 }
+
+#[test]
+fn a_shared_reborrow_chain_does_not_conflict_with_its_own_ancestors() {
+    let src = "fun use2(x: &[i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    val s = &r\n    val t = &s\n    use2(&t, &s)\n    val x = r[0]\n}\n";
+    assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
+}

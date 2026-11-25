@@ -19,6 +19,9 @@ struct Loan {
     rw: bool,
     /// A view of one `Vec` element (`&v[i]`): the Vec is also locked against mutation and moves while it is live.
     elem: bool,
+    /// Locals this loan was reborrowed through (`val s = &r` where `r` holds the loan): while `s` is used they are
+    /// suspended, so they do not conflict with it.
+    via: Vec<Local>,
 }
 
 type Loans = HashMap<Local, Vec<Loan>>;
@@ -134,19 +137,19 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                     if roots.is_empty() {
                         st.remove(&dst.local);
                     } else {
-                        st.insert(dst.local, roots.into_iter().map(|root| Loan { root, rw, elem: true }).collect());
+                        st.insert(dst.local, roots.into_iter().map(|root| Loan { root, rw, elem: true, via: Vec::new() }).collect());
                     }
                 }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
                     // A reborrow of a borrow holds the same roots, shared when the reborrow is shared.
                     let loans: Vec<Loan> = match inherited {
-                        Some(l) => l.into_iter().map(|o| Loan { rw: o.rw && *rw, ..o }).collect(),
-                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false }],
+                        Some(l) => l.into_iter().map(|o| { let mut via = o.via.clone(); via.push(src.local); Loan { rw: o.rw && *rw, via, ..o } }).collect(),
+                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false, via: Vec::new() }],
                     };
                     for new in loans.iter().filter(|l| !l.elem) {
                         for (holder, held) in &st {
-                            if *holder == dst.local || *holder == src.local || !after.contains(holder) || reported.contains(&(*holder, src.local)) {
+                            if *holder == dst.local || new.via.contains(holder) || !after.contains(holder) || reported.contains(&(*holder, src.local)) {
                                 continue;
                             }
                             // Element views are reported by `lock_conflicts`.
