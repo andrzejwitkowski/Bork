@@ -52,6 +52,12 @@ fn local_loop_calls(block: &HirBlock, tcx: &TyCtx, safe: &HashSet<NodeId>, in_lo
         for inner in nested_blocks(stmt) {
             local_loop_calls(inner, tcx, safe, inner_loop, out);
         }
+        // `val x = if (c) { val w = call() ... }`: the initializer's blocks are not statements of this block.
+        if let HirStmt::VarDecl { value, .. } = stmt {
+            for inner in expr_blocks(value) {
+                local_loop_calls(inner, tcx, safe, inner_loop, out);
+            }
+        }
     }
 }
 
@@ -127,7 +133,10 @@ fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
             match s {
                 HirStmt::VarDecl { kind, name, value, .. } => {
                     // `val q = w` is an alias: `w` stays safe only if `q` does. Resolved before `q` is in scope.
-                    let alias = Self::ident(value).filter(|_| *kind == crate::ast::BindingKind::Val).and_then(|n| self.lookup(&n));
+                    let alias = Self::ident(value)
+                        .filter(|_| *kind == crate::ast::BindingKind::Val)
+                        .filter(|_| !matches!(value.kind, HirExprKind::Ident { use_kind: UseKind::Move, .. }))
+                        .and_then(|n| self.lookup(&n));
                     match alias {
                         Some(t) => self.decls[t].escapes |= self.decls[t].depth != self.depth,
                         None => self.expr(value),
@@ -178,15 +187,18 @@ fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
                 }
                 HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
                     let single = bindings.tail.is_empty();
+                    let mut bound = 0;
                     for b in std::iter::once(&mut *bindings.head).chain(&mut bindings.tail) {
                         match Self::ident(&b.value) {
                             Some(n) if single => self.plain_use(&n),
                             _ => self.expr(&mut b.value),
                         }
+                        // A later initializer can use the names bound before it.
+                        self.scopes.push(HashMap::from([(b.name.name.clone(), UNTRACKED)]));
+                        bound += 1;
                     }
-                    self.scopes.push(bindings.iter().map(|b| (b.name.name.clone(), UNTRACKED)).collect());
                     self.stmts(some_block);
-                    self.scopes.pop();
+                    (0..bound).for_each(|_| drop(self.scopes.pop()));
                     none_block.iter_mut().for_each(|b| self.block(b));
                 }
                 HirExprKind::Closure { params, body, captures, .. } => {
@@ -201,13 +213,14 @@ fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
             }
         }
     }
-    fn safe(decls: &[Decl], d: usize) -> bool {
-        // Aliases are declared after their target, so this terminates.
-        !decls[d].escapes && decls[d].aliases.iter().all(|&a| safe(decls, a))
-    }
     let mut walk = Walk { scopes: vec![HashMap::new()], decls: Vec::new(), depth: 0 };
     walk.stmts(&mut block.clone());
-    (0..walk.decls.len()).filter(|&d| safe(&walk.decls, d)).map(|d| walk.decls[d].id).collect()
+    // An alias is declared after its target, so a reverse pass sees every alias's verdict first.
+    let mut safe = vec![false; walk.decls.len()];
+    for d in (0..safe.len()).rev() {
+        safe[d] = !walk.decls[d].escapes && walk.decls[d].aliases.iter().all(|&a| safe[a]);
+    }
+    (0..safe.len()).filter(|&d| safe[d]).map(|d| walk.decls[d].id).collect()
 }
 
 fn outer_hoists(block: &HirBlock, outer: &HashSet<String>, out: &mut HashMap<NodeId, Sink>) {
