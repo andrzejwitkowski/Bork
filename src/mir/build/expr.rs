@@ -190,6 +190,9 @@ impl<'a> FnBuilder<'a> {
             return Ok(self.call_closure(e, callee_op, ops));
         };
         let through_value = *use_kind == UseKind::Copy;
+        if !through_value && (builtins::is_buf_primitive(name) || name == "Buf.cap") {
+            return self.buf_primitive(e, name, args);
+        }
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested
         // temporaries do not land in the destination's arena (`call_gathers_without_sink`).
         let arg_sink = if builtins::is_print(name) { self.sink.clone() } else { ArenaRef::Current };

@@ -469,6 +469,12 @@ impl TyCtx {
         self.add(TyData::Class(def, vec![elem]))
     }
 
+    /// The prelude's opaque `Arena` (#285).
+    pub fn is_arena(&self, id: TyId) -> bool {
+        let base = self.base(id);
+        matches!(self.data(base), TyData::Class(def, _) if self.lang[LangItem::Arena as usize] == Some(*def))
+    }
+
     /// The prelude's opaque `Arena`, or the error type without it.
     pub fn arena(&mut self) -> TyId {
         let Some(def) = self.lang[LangItem::Arena as usize] else { return self.error() };

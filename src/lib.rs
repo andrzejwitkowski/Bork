@@ -53,6 +53,11 @@ pub(crate) fn parse_unnumbered(source: &str) -> Result<Program, Error> {
 
 /// Like [`parse`], plus the `(Span, AstId)` index of every numbered node (for the LSP).
 pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::AstId)>), Error> {
+    parse_indexed_with(source, false)
+}
+
+/// [`parse_indexed`]; `allow_unsafe` accepts `unsafe` as prelude code does (test hook, #285).
+pub(crate) fn parse_indexed_with(source: &str, allow_unsafe: bool) -> Result<(Program, Vec<(span::Span, span::AstId)>), Error> {
     let normalized = normalize_parenthesized_newlines(source);
     let input = normalized.as_deref().unwrap_or(source);
     let mut program = parser::ProgramParser::new()
@@ -66,7 +71,7 @@ pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::As
         return Err(ParseError::User { error: "`intrinsic` is only allowed in the prelude" });
     }
     let (index, uses_unsafe) = ast_number::number_nodes_checked(&mut program, 0);
-    if uses_unsafe {
+    if uses_unsafe && !allow_unsafe {
         return Err(ParseError::User { error: "`unsafe` is only allowed in the prelude" });
     }
     Ok((program, index))

@@ -76,8 +76,20 @@ fn plain_value(cx: &Codegen<'_>, ty: TyId) -> bool {
         || cx.tcx.is_text(ty)
         || plain_array(cx, ty).is_some()
         || plain_vec(cx, ty).is_some()
+        || plain_buf(cx, ty).is_some()
+        || cx.tcx.is_arena(ty)
         || plain_class(cx, ty).is_some()
         || plain_enum(cx, ty).is_some()
+}
+
+/// The element of a `Buf<T>` codegen lowers (#285).
+// shortcut: scalar elements only (slots are copied bitwise, never cloned or dropped); allow handles once a slot
+// gets the Ref/text ownership protocol.
+fn plain_buf(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
+    // `buf_elem` also looks through `?`, but a `Buf?` is an enum slot handle, not `{ptr, cap}`.
+    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
+    (!cx.tcx.is_nullable(ty)).then_some(())?;
+    cx.tcx.buf_elem(ty).filter(|&e| prim(cx, e).is_some() && !is_unit(cx, e))
 }
 
 /// Answers depend only on the type, so they are memoised on `cx` (keyed with the reference
@@ -540,6 +552,37 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     plain_array(cx, place_ty(cx, body, args[0].place()?)?)?;
                     operand(&args[1])?;
                     operand(&args[2])?;
+                }
+                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+                    let dty = dst.as_ref().filter(|d| d.is_bare()).and_then(|d| body.local(d.local)).map(|l| l.ty);
+                    let buf = |op: &Operand| op_place_ty(cx, body, op).and_then(|t| plain_buf(cx, t));
+                    match (op, args.as_slice(), arena) {
+                        (IntrinsicOp::ArenaOf, [], Some(a)) if arena_ok(a) => cx.tcx.is_arena(dty?).then_some(())?,
+                        (IntrinsicOp::BufAlloc, [a, cap], None) => {
+                            cx.tcx.is_arena(op_place_ty(cx, body, a)?).then_some(())?;
+                            operand(cap)?;
+                            plain_buf(cx, dty?)?;
+                        }
+                        (IntrinsicOp::BufCap, [b], None) => {
+                            buf(b)?;
+                            scalar(dty?)?;
+                        }
+                        (IntrinsicOp::SlotLoad, [b, i], None) => {
+                            (buf(b)? == dty?).then_some(())?;
+                            operand(i)?;
+                        }
+                        (IntrinsicOp::SlotStore, [b, i, v], None) if dst.is_none() => {
+                            let elem = buf(b)?;
+                            op_place_ty(cx, body, v).is_none_or(|t| t == elem).then_some(())?;
+                            operand(i)?;
+                            operand(v)?;
+                        }
+                        (IntrinsicOp::BufGrow, [b, c], Some(a)) if arena_ok(a) => {
+                            (Some(buf(b)?) == plain_buf(cx, dty?)).then_some(())?;
+                            operand(c)?;
+                        }
+                        _ => return None,
+                    }
                 }
                 StmtKind::Intrinsic { dst: None, op: IntrinsicOp::PrintInt | IntrinsicOp::PrintlnInt, args, arena: None } if args.len() == 1 => {
                     operand(&args[0])?;
@@ -1423,6 +1466,9 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let out = cx.string_from_utf8(self.llvm_fn, arena, buffer, start, count, dty)?;
                 self.store(d, out.into())?;
             }
+            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+                self.buf_intrinsic(*op, dst.as_ref(), args, arena.as_ref(), stmt.region)?;
+            }
             StmtKind::Intrinsic { op, args, .. } => {
                 let ty = self.op_ty(&args[0]).unwrap_or_else(|| cx.i32_ty());
                 let int = self.operand(&args[0], ty)?.into_int_value();
@@ -1436,6 +1482,45 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 cx.builder.build_call(cx.print_i64_fn(*op == IntrinsicOp::PrintlnInt), &[wide.into()], "")?;
             }
             _ => unreachable!("filtered by supported"),
+        }
+        Ok(())
+    }
+
+    /// A `Buf<T>` primitive (#285); `supported` checked the operand types and MIR the bounds.
+    fn buf_intrinsic(&self, op: IntrinsicOp, dst: Option<&Place>, args: &[Operand], arena: Option<&ArenaRef>, region: RegionId) -> Result<(), Diagnostic> {
+        let cx = self.cx;
+        let i32_ty = cx.i32_ty();
+        let int = |op: &Operand| -> Result<inkwell::values::IntValue<'ctx>, Diagnostic> { self.int_as(self.operand(op, i32_ty)?, i32_ty) };
+        let buf = |op: &Operand| -> Result<(inkwell::values::StructValue<'ctx>, TyId), Diagnostic> {
+            let ty = self.op_ty(op).expect("checked buffer");
+            Ok((self.operand(op, ty)?.into_struct_value(), plain_buf(cx, ty).expect("checked element")))
+        };
+        let value: Option<BasicValueEnum<'ctx>> = match (op, args) {
+            (IntrinsicOp::ArenaOf, []) => Some(self.arena_ref(arena.expect("checked arena"), region)?.into()),
+            (IntrinsicOp::BufAlloc, [a, cap]) => {
+                let arena = self.operand(a, self.op_ty(a).expect("checked arena"))?.into_pointer_value();
+                let elem = plain_buf(cx, self.body.local(dst.expect("checked").local).expect("checked").ty).expect("checked element");
+                Some(cx.buf_alloc(arena, elem, int(cap)?)?.into())
+            }
+            (IntrinsicOp::BufCap, [b]) => Some(cx.buf_cap(buf(b)?.0)?.into()),
+            (IntrinsicOp::SlotLoad, [b, i]) => {
+                let (b, elem) = buf(b)?;
+                Some(cx.buf_load(b, int(i)?, elem)?)
+            }
+            (IntrinsicOp::SlotStore, [b, i, v]) => {
+                let (b, elem) = buf(b)?;
+                cx.buf_store(b, int(i)?, elem, self.operand(v, elem)?)?;
+                None
+            }
+            (IntrinsicOp::BufGrow, [b, c]) => {
+                let arena = self.arena_ref(arena.expect("checked arena"), region)?;
+                let (b, elem) = buf(b)?;
+                Some(cx.buf_grow(arena, b, int(c)?, elem)?.into())
+            }
+            _ => unreachable!("filtered by supported"),
+        };
+        if let (Some(d), Some(v)) = (dst, value) {
+            self.store(d, v)?;
         }
         Ok(())
     }
