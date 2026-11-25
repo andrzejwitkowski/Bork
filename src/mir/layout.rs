@@ -34,6 +34,8 @@ pub enum Repr {
     VecPtr,
     /// Struct body of a class record or of one enum variant (`i32` tag first).
     Aggregate,
+    /// `Buf<T>` value `{ptr, i32 cap}`.
+    BufHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,6 +107,11 @@ impl<'a> Layouts<'a> {
         }
         if tcx.is_string(ty) || tcx.is_array(ty) {
             return Some(Layout { size: 2 * ptr, align: self.data.pointer_align, fields: vec![0, ptr], repr: Repr::Descriptor });
+        }
+        if tcx.buf_elem(ty).is_some() {
+            let mut l = aggregate([(ptr, self.data.pointer_align), (4, 4)]);
+            l.repr = Repr::BufHandle;
+            return Some(l);
         }
         if tcx.is_vec(ty) {
             return Some(Layout { size: ptr, align: self.data.pointer_align, fields: Vec::new(), repr: Repr::VecPtr });
