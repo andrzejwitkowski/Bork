@@ -5,7 +5,8 @@
 //! over what `main` reaches. A view of a `Vec` element (`&v[i]`, #282) also locks the Vec until its last use.
 // shortcut: only direct borrows and views copied through locals are tracked. Borrows stored in aggregates
 // or returned by calls cannot occur yet (typeck rejects them, `ret_borrows` is always empty); extend this
-// pass when RFC 0004 views / RFC 0005 returned borrows land. Liveness-based (NLL), not RFC 0004 3.6 by-scope.
+// pass when RFC 0004 views / RFC 0005 returned borrows land (#348). Liveness-based (NLL), not RFC 0004 3.6 by-scope.
+// Two-phase: an `&rw` into an unnamed call-argument temp is `reserved` until the call (`h(&rw a, id(&a))` is fine).
 
 use std::collections::{HashMap, HashSet};
 
@@ -22,6 +23,8 @@ struct Loan {
     /// Locals this loan was reborrowed through (`val s = &r` where `r` holds the loan): while `s` is used they are
     /// suspended, so they do not conflict with it.
     via: Vec<Local>,
+    /// Two-phase: an `&rw` into an unnamed call-argument temp, not active until the call.
+    reserved: bool,
 }
 
 type Loans = HashMap<Local, Vec<Loan>>;
@@ -137,15 +140,15 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                     if roots.is_empty() {
                         st.remove(&dst.local);
                     } else {
-                        st.insert(dst.local, roots.into_iter().map(|root| Loan { root, rw, elem: true, via: Vec::new() }).collect());
+                        st.insert(dst.local, roots.into_iter().map(|root| Loan { root, rw, elem: true, via: Vec::new(), reserved: false }).collect());
                     }
                 }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
                     // A reborrow of a borrow holds the same roots, shared when the reborrow is shared.
                     let loans: Vec<Loan> = match inherited {
-                        Some(l) => l.into_iter().map(|o| { let mut via = o.via.clone(); via.push(src.local); Loan { rw: o.rw && *rw, via, ..o } }).collect(),
-                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false, via: Vec::new() }],
+                        Some(l) => l.into_iter().map(|o| { let mut via = o.via.clone(); via.push(src.local); Loan { rw: o.rw && *rw, via, reserved: false, ..o } }).collect(),
+                        None => vec![Loan { root: src.clone(), rw: *rw, elem: false, via: Vec::new(), reserved: *rw && is_arg_temp(body, &names, dst.local) }],
                     };
                     for new in loans.iter().filter(|l| !l.elem) {
                         for (holder, held) in &st {
@@ -154,7 +157,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                             }
                             // Element views are reported by `lock_conflicts`.
                             if let Some(old) = held.iter().find(|o| !o.elem && overlap(&o.root, &new.root) && (new.rw || o.rw)) {
-                                if !new.rw && ends_in_nested_call(body, block, *holder, dst.local, &names) {
+                                if !new.rw && old.reserved && ends_in_nested_call(block, *holder, dst.local) {
                                     continue;
                                 }
                                 let msg = call_message(body, block, *holder, dst.local, old, new, &names)
@@ -291,16 +294,21 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
     }
 }
 
-/// Two-phase borrow: an argument temp `holder` (`&rw a`, not yet passed) does not conflict with a shared borrow
-/// `dst` that a nested call consumes and does not return, as in `h(&rw a, id(&a))`.
-fn ends_in_nested_call(body: &Body, block: &Block, holder: Local, dst: Local, names: &HashMap<Local, String>) -> bool {
-    let unnamed = !names.contains_key(&holder) && body.local(holder).is_some_and(|l| l.name.is_none());
-    let is_call_arg = body.blocks.iter().filter_map(|b| b.term.as_ref()).any(|t| {
-        matches!(&t.kind, TermKind::Call { args, .. } if args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == holder)))
-    });
+/// Whether `l` is an unnamed temp passed as an argument of some call (the reserved phase of a two-phase borrow).
+fn is_arg_temp(body: &Body, names: &HashMap<Local, String>, l: Local) -> bool {
+    !names.contains_key(&l)
+        && body.local(l).is_some_and(|d| d.name.is_none())
+        && body.blocks.iter().filter_map(|b| b.term.as_ref()).any(|t| {
+            matches!(&t.kind, TermKind::Call { args, .. } if args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l)))
+        })
+}
+
+/// Two-phase borrow: a reserved `&rw a` (`holder`, not yet passed) does not conflict with a shared borrow
+/// `dst` that a nested call consumes without returning it, as in `h(&rw a, id(&a))`.
+fn ends_in_nested_call(block: &Block, holder: Local, dst: Local) -> bool {
     let Some(TermKind::Call { args, ret_borrows, .. }) = block.term.as_ref().map(|t| &t.kind) else { return false };
     let uses_local = |l: Local| args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l));
-    unnamed && is_call_arg && ret_borrows.is_empty() && uses_local(dst) && !uses_local(holder)
+    ret_borrows.is_empty() && uses_local(dst) && !uses_local(holder)
 }
 
 fn shown(root: &str, rw: bool) -> String {
