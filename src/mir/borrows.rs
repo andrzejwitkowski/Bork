@@ -307,9 +307,13 @@ fn is_arg_temp(body: &Body, names: &HashMap<Local, String>, l: Local) -> bool {
 /// Two-phase borrow: a reserved `&rw a` (`holder`, not yet passed) does not conflict with a shared borrow
 /// `dst` that a nested call consumes without returning it, as in `h(&rw a, id(&a))`.
 fn ends_in_nested_call(block: &Block, holder: Local, dst: Local) -> bool {
-    let Some(TermKind::Call { args, ret_borrows, .. }) = block.term.as_ref().map(|t| &t.kind) else { return false };
+    let (args, returns_borrows) = match block.term.as_ref().map(|t| &t.kind) {
+        Some(TermKind::Call { args, ret_borrows, .. }) => (args, !ret_borrows.is_empty()),
+        Some(TermKind::CallClosure { args, .. }) => (args, false),
+        _ => return false,
+    };
     let uses_local = |l: Local| args.iter().any(|a| a.place().is_some_and(|p| p.is_bare() && p.local == l));
-    ret_borrows.is_empty() && uses_local(dst) && !uses_local(holder)
+    !returns_borrows && uses_local(dst) && !uses_local(holder)
 }
 
 fn shown(root: &str, rw: bool) -> String {
