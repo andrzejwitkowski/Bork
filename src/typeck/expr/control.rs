@@ -306,7 +306,7 @@ pub(super) fn check_value_block_in_current_scope(
 ) -> (HirBlock, TyId) {
     let Some((last, prefix)) = block.stmts.split_last() else {
         let unit = env.tcx.unit();
-        return (HirBlock { stmts: Vec::new(), span: block.span, statement_spans: Vec::new() }, unit);
+        return (HirBlock { stmts: Vec::new(), span: block.span, statement_spans: Vec::new(), unsafe_: block.unsafe_ }, unit);
     };
 
     let mut stmts = prefix
@@ -325,5 +325,5 @@ pub(super) fn check_value_block_in_current_scope(
             env.tcx.unit()
         }
     };
-    (HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone() }, result_ty)
+    (HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone(), unsafe_: block.unsafe_ }, result_ty)
 }

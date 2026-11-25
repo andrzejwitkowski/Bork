@@ -1,0 +1,5 @@
+// diag: only allowed in the prelude
+fun main(): i32 {
+    unsafe { }
+    return 0
+}

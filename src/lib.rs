@@ -65,7 +65,10 @@ pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::As
     {
         return Err(ParseError::User { error: "`intrinsic` is only allowed in the prelude" });
     }
-    let index = ast_number::number_nodes(&mut program);
+    let (index, uses_unsafe) = ast_number::number_nodes_checked(&mut program, 0);
+    if uses_unsafe {
+        return Err(ParseError::User { error: "`unsafe` is only allowed in the prelude" });
+    }
     Ok((program, index))
 }
 
@@ -117,5 +120,21 @@ mod intrinsic_syntax_tests {
         assert!(super::parse(src).is_err(), "user source must reject `intrinsic fun`");
         let program = super::parse_unnumbered(src).unwrap();
         assert!(program.classes[0].methods[0].intrinsic);
+    }
+
+    #[test]
+    fn unsafe_fun_and_block_parse_only_unnumbered() {
+        let prelude = super::parse_unnumbered("unsafe fun f() {}").unwrap();
+        assert!(prelude.functions[0].unsafe_);
+        let prelude = super::parse_unnumbered("fun f() { unsafe { } }").unwrap();
+        assert!(matches!(&prelude.functions[0].body.stmts[0], crate::ast::Stmt::Block(b) if b.unsafe_));
+    }
+
+    #[test]
+    fn user_source_rejects_unsafe() {
+        for src in ["unsafe fun f() {}", "fun f() { unsafe { } }", "class A { unsafe fun f() {} }"] {
+            let err = format!("{:?}", super::parse(src).unwrap_err());
+            assert!(err.contains("only allowed in the prelude"), "{src}: {err}");
+        }
     }
 }

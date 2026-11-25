@@ -23,6 +23,7 @@ match {
     "when" => "when",
     "fun" => "fun",
     "intrinsic" => "intrinsic",
+    "unsafe" => "unsafe",
     "val" => "val",
     "var" => "var",
     "for" => "for",
@@ -339,7 +340,7 @@ TypeArgs: Vec<Type> = {
 };
 
 Function: Function = {
-    "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <wh:WhereClause?> <body:Block> =>? {
+    <unsafe_:"unsafe"?> "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> <wh:WhereClause?> <body:Block> =>? {
         let mut generics = generics.unwrap_or_default();
         ast::merge_where(&mut generics, wh.unwrap_or_default()).map_err(|_| ParseError::User {
             error: "a `where` clause may only bound the function's own type parameters",
@@ -353,6 +354,7 @@ Function: Function = {
             return_type: ret,
             body,
             intrinsic: false,
+            unsafe_: unsafe_.is_some(),
         })
     },
     "intrinsic" "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> => Function {
@@ -362,8 +364,9 @@ Function: Function = {
         generics: generics.unwrap_or_default(),
         params: params.unwrap_or_default(),
         return_type: ret,
-        body: Block { stmts: Vec::new(), span: None, statement_spans: Vec::new() },
+        body: Block::default(),
         intrinsic: true,
+        unsafe_: false,
     },
 };
 
@@ -495,6 +498,7 @@ SpannedStmt: (Stmt, Span) = {
 
 Stmt: Stmt = {
     <b:Block> => Stmt::Block(b),
+    "unsafe" <b:Block> => Stmt::Block(Block { unsafe_: true, ..b }),
     "move" <captures:("(" <Comma<SpannedIdent>?> ")")?> <body:Block> => Stmt::MoveBlock {
         captures: captures.map(|c| c.unwrap_or_default()),
         body,

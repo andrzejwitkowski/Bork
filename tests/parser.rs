@@ -1072,3 +1072,10 @@ fn braces_without_arrow_stay_blocks() {
         );
     }
 }
+
+#[test]
+fn unsafe_is_rejected_in_user_source_not_a_parse_panic() {
+    for src in ["unsafe fun f() {}\nfun main() {}", "fun main() { unsafe { } }"] {
+        assert!(matches!(parse(src), Err(ParseError::User { error }) if error.contains("only allowed in the prelude")), "{src}");
+    }
+}
