@@ -88,7 +88,7 @@ pub(crate) fn hover_doc(name: &str) -> Option<&'static str> {
         Builtin::SlotLoad => "`slotLoad<T>(b: &Buf<T>, i: i32): T`\nReads slot `i`; aborts outside `0..cap`. `unsafe` only.",
         Builtin::SlotStore => "`slotStore<T>(b: &Buf<T>, i: i32, v: T)`\nWrites slot `i`; aborts outside `0..cap`. `unsafe` only.",
         Builtin::BufGrow => {
-            "`bufGrow<T>(b: &Buf<T>, newCap: i32): Buf<T>`\nA bigger copy in the arena of `this` (`b` must be a field of `this`); aborts unless `newCap > cap`. `unsafe` only."
+            "`bufGrow<T>(b: &Buf<T>, newCap: i32): Buf<T>`\nA bigger copy in the arena of `this` (`b` must have been allocated in `this`'s arena); aborts unless `newCap > cap`. `unsafe` only."
         }
         Builtin::Abort => "`abort()`\nStops the program. `unsafe` only.",
         Builtin::ArenaOf => "`arenaOf(this): Arena`\nThe arena the receiver lives in. `unsafe` only.",
