@@ -23,19 +23,19 @@ pub(crate) fn decl_sinks(function: &HirFunction, tcx: &TyCtx) -> HashMap<NodeId,
     let visible: HashSet<String> = function.params.iter().map(|p| p.name.clone()).collect();
     outer_hoists(&function.body, &visible, &mut sinks);
     result_hoists(&function.body, tcx, &mut sinks);
-    local_loop_calls(&function.body, tcx, &function.body, false, &mut sinks);
+    local_loop_calls(&function.body, tcx, &callee_only_decls(&function.body), false, &mut sinks);
     sinks
 }
 
 /// `val f = call()` in a loop body whose result is callable or moves a handle stays in the iteration's region when every
 /// mention of `f` in the function is the callee of a call or a `when`/`if val` scrutinee: nothing can carry the value
 /// out of the iteration (`return f` would hand out the loop slot, which `materialize` does not copy).
-/// shortcut: name-based (a shadowing or reused name just keeps the result sink), refine with binding ids if it matters.
-fn local_loop_calls(block: &HirBlock, tcx: &TyCtx, root: &HirBlock, in_loop: bool, out: &mut HashMap<NodeId, Sink>) {
+/// A `val q = f` alias counts when `q` is itself callee/scrutinee-only (`callee_only_decls`, which resolves uses by scope).
+fn local_loop_calls(block: &HirBlock, tcx: &TyCtx, safe: &HashSet<NodeId>, in_loop: bool, out: &mut HashMap<NodeId, Sink>) {
     for stmt in &block.stmts {
-        if let HirStmt::VarDecl { name, value, .. } = stmt {
+        if let HirStmt::VarDecl { value, .. } = stmt {
             let called = matches!(value.kind, HirExprKind::Call { .. }) && (tcx.is_callable(value.ty) || moves_handle(tcx, value.ty));
-            if in_loop && called && !out.contains_key(&value.id) && mentions_only_as_callee(root, name) {
+            if in_loop && called && !out.contains_key(&value.id) && safe.contains(&value.id) {
                 out.insert(value.id, Sink::Local);
             }
         }
@@ -50,7 +50,13 @@ fn local_loop_calls(block: &HirBlock, tcx: &TyCtx, root: &HirBlock, in_loop: boo
         }
         let inner_loop = in_loop || matches!(stmt, HirStmt::For { .. } | HirStmt::While { .. });
         for inner in nested_blocks(stmt) {
-            local_loop_calls(inner, tcx, root, inner_loop, out);
+            local_loop_calls(inner, tcx, safe, inner_loop, out);
+        }
+        // `val x = if (c) { val w = call() ... }`: the initializer's blocks are not statements of this block.
+        if let HirStmt::VarDecl { value, .. } = stmt {
+            for inner in expr_blocks(value) {
+                local_loop_calls(inner, tcx, safe, inner_loop, out);
+            }
         }
     }
 }
@@ -61,49 +67,169 @@ fn moves_handle(t: &TyCtx, ty: crate::ty::TyId) -> bool {
     t.enum_args(payload).is_some() || (t.record_def(ty).is_some() && !t.is_managed_ref(ty))
 }
 
-/// Whether `name` is declared once in `block` and every mention of it is a callee or a match scrutinee.
-fn mentions_only_as_callee(block: &HirBlock, name: &str) -> bool {
-    use crate::hir::ChildMut;
-    fn walk(children: Vec<ChildMut<'_>>, name: &str, uses: &mut usize) -> bool {
-        for child in children {
-            let ok = match child {
-                ChildMut::Block(b) => b.stmts.iter_mut().all(|s| walk(s.children_mut(), name, uses)),
-                ChildMut::Expr(e) => match &mut e.kind {
-                    HirExprKind::Ident { name: n, .. } => n != name,
-                    HirExprKind::Call { callee, args } => {
-                        let callee_is_name = matches!(&callee.kind, HirExprKind::Ident { name: n, .. } if n == name);
-                        *uses += usize::from(callee_is_name);
-                        let callee_ok = callee_is_name || walk(vec![ChildMut::Expr(callee)], name, uses);
-                        callee_ok && args.iter_mut().all(|a| walk(vec![ChildMut::Expr(a)], name, uses))
-                    }
-                    HirExprKind::Match { scrutinee, arms } if matches!(&scrutinee.kind, HirExprKind::Ident { name: n, .. } if n == name) => {
-                        arms.iter_mut().all(|a| walk(vec![ChildMut::Block(&mut a.body)], name, uses))
-                    }
-                    HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
-                        let head_is_name = bindings.tail.is_empty() && matches!(&bindings.head.value.kind, HirExprKind::Ident { name: n, .. } if n == name);
-                        if head_is_name {
-                            walk(std::iter::once(ChildMut::Block(some_block)).chain(none_block.iter_mut().map(ChildMut::Block)).collect(), name, uses)
-                        } else {
-                            walk(e.children_mut(), name, uses)
-                        }
-                    }
-                    _ => walk(e.children_mut(), name, uses),
-                },
-            };
-            if !ok {
-                return false;
+/// Initialiser ids of the declarations in `block` whose every use is a callee, a match scrutinee, or a `val` alias that is
+/// itself such. Uses resolve to the innermost visible binding, so shadowed and reused names are told apart exactly.
+fn callee_only_decls(block: &HirBlock) -> HashSet<NodeId> {
+    use crate::hir::{ChildMut, HirPat, HirPatKind};
+    /// A binding we do not track (pattern, `for`, closure parameter): it only shadows.
+    const UNTRACKED: usize = usize::MAX;
+    struct Decl {
+        id: NodeId,
+        depth: usize,
+        escapes: bool,
+        aliases: Vec<usize>,
+    }
+    struct Walk {
+        scopes: Vec<HashMap<String, usize>>,
+        decls: Vec<Decl>,
+        /// Closure / `move` nesting: a use from deeper than the declaration is captured, so it escapes.
+        depth: usize,
+    }
+    impl Walk {
+        fn lookup(&self, name: &str) -> Option<usize> {
+            self.scopes.iter().rev().find_map(|s| s.get(name)).copied().filter(|&d| d != UNTRACKED)
+        }
+        fn escape(&mut self, name: &str) {
+            if let Some(d) = self.lookup(name) {
+                self.decls[d].escapes = true;
             }
         }
-        true
+        /// A callee or scrutinee use.
+        fn plain_use(&mut self, name: &str) {
+            if let Some(d) = self.lookup(name) {
+                self.decls[d].escapes |= self.decls[d].depth != self.depth;
+            }
+        }
+        fn bind(&mut self, name: &str, d: usize) {
+            self.scopes.last_mut().unwrap().insert(name.to_string(), d);
+        }
+        fn pat(&mut self, p: &HirPat) {
+            match &p.kind {
+                HirPatKind::Bind { name, .. } => self.bind(&name.name, UNTRACKED),
+                HirPatKind::Variant { fields, .. } => fields.iter().for_each(|f| self.pat(f)),
+                HirPatKind::Some(inner) => self.pat(inner),
+                _ => {}
+            }
+        }
+        fn stmts(&mut self, b: &mut HirBlock) {
+            b.stmts.iter_mut().for_each(|s| self.stmt(s));
+        }
+        fn block(&mut self, b: &mut HirBlock) {
+            self.scopes.push(HashMap::new());
+            self.stmts(b);
+            self.scopes.pop();
+        }
+        fn child(&mut self, c: ChildMut<'_>) {
+            match c {
+                ChildMut::Block(b) => self.block(b),
+                ChildMut::Expr(e) => self.expr(e),
+            }
+        }
+        /// The name of `e` when it is a bare identifier.
+        fn ident(e: &HirExpr) -> Option<String> {
+            if let HirExprKind::Ident { name, .. } = &e.kind { Some(name.clone()) } else { None }
+        }
+        fn stmt(&mut self, s: &mut HirStmt) {
+            match s {
+                HirStmt::VarDecl { kind, name, value, .. } => {
+                    // `val q = w` is an alias: `w` stays safe only if `q` does. Resolved before `q` is in scope.
+                    let alias = Self::ident(value)
+                        .filter(|_| *kind == crate::ast::BindingKind::Val)
+                        .filter(|_| !matches!(value.kind, HirExprKind::Ident { use_kind: UseKind::Move, .. }))
+                        .and_then(|n| self.lookup(&n));
+                    match alias {
+                        Some(t) => self.decls[t].escapes |= self.decls[t].depth != self.depth,
+                        None => self.expr(value),
+                    }
+                    let d = self.decls.len();
+                    self.decls.push(Decl { id: value.id, depth: self.depth, escapes: false, aliases: Vec::new() });
+                    if let Some(t) = alias {
+                        self.decls[t].aliases.push(d);
+                    }
+                    self.bind(name, d);
+                }
+                HirStmt::For { name, iter, body } => {
+                    self.expr(iter);
+                    self.scopes.push(HashMap::from([(name.clone(), UNTRACKED)]));
+                    self.stmts(body);
+                    self.scopes.pop();
+                }
+                HirStmt::MoveBlock { captures, body } => {
+                    captures.iter().flatten().for_each(|n| self.escape(n));
+                    self.depth += 1;
+                    self.block(body);
+                    self.depth -= 1;
+                }
+                HirStmt::Assign { target, .. } => {
+                    // `children_mut` omits a `Name` target: the write must be seen, the binding now holds a value this analysis did not place.
+                    if let Some(name) = target.binding_name() {
+                        self.escape(name);
+                    }
+                    s.children_mut().into_iter().for_each(|c| self.child(c));
+                }
+                _ => s.children_mut().into_iter().for_each(|c| self.child(c)),
+            }
+        }
+        fn expr(&mut self, e: &mut HirExpr) {
+            match &mut e.kind {
+                HirExprKind::Ident { name, .. } => self.escape(name),
+                HirExprKind::Call { callee, args } => {
+                    match Self::ident(callee) {
+                        Some(n) => self.plain_use(&n),
+                        None => self.expr(callee),
+                    }
+                    args.iter_mut().for_each(|a| self.expr(a));
+                }
+                HirExprKind::Match { scrutinee, arms } => {
+                    match Self::ident(scrutinee) {
+                        Some(n) => self.plain_use(&n),
+                        None => self.expr(scrutinee),
+                    }
+                    for arm in arms {
+                        self.scopes.push(HashMap::new());
+                        self.pat(&arm.pat);
+                        self.stmts(&mut arm.body);
+                        self.scopes.pop();
+                    }
+                }
+                HirExprKind::PresenceMatch { bindings, some_block, none_block } => {
+                    // shortcut: only a single-binding `if val` counts its bare-ident initializer as a scrutinee use (kept from the
+                    // name-based analysis); a chained one escapes, which is safe, just not optimal. Relax with a test if it matters.
+                    let single = bindings.tail.is_empty();
+                    let mut bound = 0;
+                    for b in std::iter::once(&mut *bindings.head).chain(&mut bindings.tail) {
+                        match Self::ident(&b.value) {
+                            Some(n) if single => self.plain_use(&n),
+                            _ => self.expr(&mut b.value),
+                        }
+                        // A later initializer can use the names bound before it.
+                        self.scopes.push(HashMap::from([(b.name.name.clone(), UNTRACKED)]));
+                        bound += 1;
+                    }
+                    self.block(some_block);
+                    (0..bound).for_each(|_| drop(self.scopes.pop()));
+                    none_block.iter_mut().for_each(|b| self.block(b));
+                }
+                HirExprKind::Closure { params, body, captures, .. } => {
+                    captures.iter().for_each(|c| self.escape(&c.name));
+                    self.depth += 1;
+                    self.scopes.push(params.iter().map(|p| (p.name.clone(), UNTRACKED)).collect());
+                    self.stmts(body);
+                    self.scopes.pop();
+                    self.depth -= 1;
+                }
+                _ => e.children_mut().into_iter().for_each(|c| self.child(c)),
+            }
+        }
     }
-    let mut decls = Vec::new();
-    collect_decls(block, &mut decls);
-    if decls.iter().filter(|(n, _)| n == name).count() != 1 {
-        return false;
+    let mut walk = Walk { scopes: vec![HashMap::new()], decls: Vec::new(), depth: 0 };
+    walk.stmts(&mut block.clone());
+    // An alias is declared after its target, so a reverse pass sees every alias's verdict first.
+    let mut safe = vec![false; walk.decls.len()];
+    for d in (0..safe.len()).rev() {
+        safe[d] = !walk.decls[d].escapes && walk.decls[d].aliases.iter().all(|&a| safe[a]);
     }
-    let mut uses = 0;
-    let mut body = block.clone();
-    body.stmts.iter_mut().all(|s| walk(s.children_mut(), name, &mut uses))
+    (0..safe.len()).filter(|&d| safe[d]).map(|d| walk.decls[d].id).collect()
 }
 
 fn outer_hoists(block: &HirBlock, outer: &HashSet<String>, out: &mut HashMap<NodeId, Sink>) {
