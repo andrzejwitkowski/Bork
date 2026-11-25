@@ -129,3 +129,25 @@ fn pushing_through_the_holder_of_a_vec_borrow_is_fine() {
     let src = "fun add(v: &rw Vec<i32>) {\n    v.push(1)\n}\nfun main() {\n    var v = Vec::<i32>()\n    add(&rw v)\n    v.push(2)\n}\n";
     assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
 }
+
+#[test]
+fn borrow_patterns_typeck_accepts_are_not_rejected() {
+    let fns = "fun id(a: &[i32; 2]): i32 {\n    return a[0]\n}\nfun h(a: &rw [i32; 2], n: i32) {\n}\nfun k(n: i32, a: &rw [i32; 2]) {\n}\nfun two(a: &rw [i32; 2], n: i32, m: i32) {\n}\n";
+    for call in [
+        "h(&rw a, id(&a))",
+        "k(id(&a), &rw a)",
+        "val x = id(&a)\n    h(&rw a, x)",
+        "two(&rw a, id(&a), id(&a))",
+        "h(&rw a, id(&a) + id(&a))",
+    ] {
+        let src = format!("{fns}fun main() {{\n    var a: [i32; 2] = [1, 2]\n    {call}\n}}\n");
+        assert_eq!(diagnostics(&src).expect("builds"), Vec::<String>::new(), "{call}");
+    }
+}
+
+#[test]
+fn a_move_in_a_call_conflicts_with_a_borrow_whose_last_use_is_that_call() {
+    let src = "class C {\n    n: i32\n}\nfun take(c: C, b: &C) {\n}\nfun main() {\n    var a = C(1)\n    val b = &a\n    take(move a, &b)\n}\n";
+    let found = diagnostics(src).expect("builds");
+    assert!(found.iter().any(|m| m.contains("cannot move `a` while")), "{found:?}");
+}
