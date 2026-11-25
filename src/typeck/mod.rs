@@ -575,9 +575,9 @@ fn enter_function(
 }
 
 fn check_body(env: &mut Env<'_>, function: &Function, return_ty: TyId) -> crate::hir::HirBlock {
-    env.unsafe_depth = usize::from(function.unsafe_);
+    let outer_unsafe = std::mem::replace(&mut env.unsafe_depth, usize::from(function.unsafe_));
     let body = stmt::check_block(&function.body, return_ty, env, false);
-    env.unsafe_depth = 0;
+    env.unsafe_depth = outer_unsafe;
     let unit = env.tcx.unit();
     if return_ty != unit && !stmt::block_always_returns(&body) {
         env.error(

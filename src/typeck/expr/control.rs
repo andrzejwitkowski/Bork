@@ -309,6 +309,7 @@ pub(super) fn check_value_block_in_current_scope(
         return (HirBlock { stmts: Vec::new(), span: block.span, statement_spans: Vec::new(), unsafe_: block.unsafe_ }, unit);
     };
 
+    env.unsafe_depth += usize::from(block.unsafe_);
     let mut stmts = prefix
         .iter()
         .map(|statement| stmt::check(statement, return_ty, env))
@@ -325,5 +326,6 @@ pub(super) fn check_value_block_in_current_scope(
             env.tcx.unit()
         }
     };
+    env.unsafe_depth -= usize::from(block.unsafe_);
     (HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone(), unsafe_: block.unsafe_ }, result_ty)
 }

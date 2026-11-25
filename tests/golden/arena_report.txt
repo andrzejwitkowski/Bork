@@ -7230,6 +7230,14 @@ Arenas
 Type Error [58..62] unknown trait `Nope`
 Arenas
 └── fun main
+== programs/check_fail/unsafe/primitive_outside_unsafe.bork
+Type Error [68..73] `abort` requires an `unsafe` context
+Arenas
+└── fun main
+== programs/check_fail/unsafe/user_unsafe_block.bork
+Parse Error [85..85] `unsafe` is only allowed in the prelude
+== programs/check_fail/unsafe/user_unsafe_fun.bork
+Parse Error [94..94] `unsafe` is only allowed in the prelude
 == programs/check_fail/vec/borrow_element_as_argument.bork
 Type Error [232..236] argument 1 to `grow` expects borrow `&…`, got String
 Type Error [232..236] argument 1 to `grow` has type String, expected &String

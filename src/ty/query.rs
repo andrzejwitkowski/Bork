@@ -178,6 +178,19 @@ impl TyCtx {
         self.lang[LangItem::Range as usize]
     }
 
+    pub fn buf_def(&self) -> Option<DefId> {
+        self.lang[LangItem::Buf as usize]
+    }
+
+    /// The slot type of a `Buf<T>`, through borrows and `?`.
+    pub fn buf_elem(&self, id: TyId) -> Option<TyId> {
+        let base = self.base(id);
+        match self.data(base) {
+            TyData::Ref(inner, _) => self.buf_elem(*inner),
+            _ => self.intrinsic_arg(base, self.buf_def()),
+        }
+    }
+
     /// `Vec` and `Range` are classes in name only: one type argument, no fields, no object layout.
     pub fn is_intrinsic_def(&self, def: DefId) -> bool {
         self.lang.contains(&Some(def))
@@ -448,6 +461,18 @@ impl TyCtx {
         // lowering of the written type has already reported why.
         let Some(def) = self.vec_def() else { return self.error() };
         self.add(TyData::Class(def, vec![elem]))
+    }
+
+    /// `Buf<elem>`, or the error type without the prelude's `Buf`.
+    pub fn buf_of(&mut self, elem: TyId) -> TyId {
+        let Some(def) = self.buf_def() else { return self.error() };
+        self.add(TyData::Class(def, vec![elem]))
+    }
+
+    /// The prelude's opaque `Arena`, or the error type without it.
+    pub fn arena(&mut self) -> TyId {
+        let Some(def) = self.lang[LangItem::Arena as usize] else { return self.error() };
+        self.add(TyData::Class(def, Vec::new()))
     }
 
     pub fn range(&mut self, elem: TyId) -> TyId {

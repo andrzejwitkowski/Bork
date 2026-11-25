@@ -168,7 +168,6 @@ impl<'a> Env<'a> {
     }
 
     /// True inside an `unsafe fun` body or an `unsafe { }` block.
-    #[allow(dead_code)] // first caller lands with the unsafe-only primitives
     pub(super) fn in_unsafe(&self) -> bool {
         self.unsafe_depth > 0
     }

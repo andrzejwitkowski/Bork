@@ -76,16 +76,22 @@ pub struct Def {
 pub enum LangItem {
     Vec,
     Range,
+    /// `Buf<T>` (#285): a bounds-checked buffer handle, only usable through the unsafe primitives.
+    Buf,
+    /// `Arena`: the opaque arena `arenaOf(this)` returns and `bufAlloc` allocates in.
+    Arena,
 }
 
 impl LangItem {
-    pub const ALL: [LangItem; 2] = [LangItem::Vec, LangItem::Range];
+    pub const ALL: [LangItem; 4] = [LangItem::Vec, LangItem::Range, LangItem::Buf, LangItem::Arena];
     pub const COUNT: usize = Self::ALL.len();
 
     fn from_name(name: &str) -> Option<LangItem> {
         match name {
             "Vec" => Some(LangItem::Vec),
             "Range" => Some(LangItem::Range),
+            "Buf" => Some(LangItem::Buf),
+            "Arena" => Some(LangItem::Arena),
             _ => None,
         }
     }
@@ -508,7 +514,10 @@ fn is_builtin_type_name(name: &str) -> bool {
 }
 
 /// Builtin functions, registered as `Intrinsic` definitions (mirrors `builtins::resolve`).
-const INTRINSICS: [&str; 6] = ["print", "println", "concat", "stringFromUtf8", "strongCount", "weakCount"];
+const INTRINSICS: [&str; 12] = [
+    "print", "println", "concat", "stringFromUtf8", "strongCount", "weakCount",
+    "bufAlloc", "slotLoad", "slotStore", "bufGrow", "abort", "arenaOf",
+];
 
 /// A builtin redefinition is reported at the first parameter (the AST keeps no span for the keyword).
 fn builtin_redefine_span(function: &Function) -> Option<Span> {
@@ -544,6 +553,24 @@ mod tests {
     }
 
     #[test]
+    fn buf_and_arena_come_only_with_their_chunk() {
+        let with = |source: &str| {
+            let mut program = parse(source).expect("parses");
+            crate::prelude::add_prelude(&mut program, source, 1_000_000);
+            DefTable::build(&program)
+        };
+        let t = with("fun f(b: &Buf<i32>) {}\nfun main() {}\n");
+        assert_eq!(t.lang_item(LangItem::Buf), t.lookup_class("Buf"));
+        assert_eq!(t.lang_item(LangItem::Arena), t.lookup_class("Arena"));
+        assert!(t.lang_item(LangItem::Buf).is_some() && t.lang_item(LangItem::Arena).is_some());
+        // A user's own `Buf` blocks the chunk: no lang item, and the user class is not intrinsic.
+        let user = with("class Buf {\n x: i32\n}\nfun main() {}\n");
+        assert_eq!(user.lang_item(LangItem::Buf), None);
+        assert_eq!(user.lang_item(LangItem::Arena), None);
+        assert_eq!(with("fun main() {}\n").lang_item(LangItem::Buf), None);
+    }
+
+    #[test]
     fn every_declaration_gets_a_distinct_def_with_the_right_kind() {
         let (_, t) = table(
             "const N: i32 = 1\nclass C {\n x: i32\n fun m() {}\n}\nfun f() {}\nfun main() {}\n",
@@ -574,6 +601,9 @@ mod tests {
     fn intrinsic_list_matches_builtins() {
         for name in INTRINSICS {
             assert!(crate::builtins::is_intrinsic(name), "{name}");
+        }
+        for name in ["bufAlloc", "slotLoad", "slotStore", "bufGrow", "abort", "arenaOf"] {
+            assert!(INTRINSICS.contains(&name) && crate::builtins::is_intrinsic(name), "{name}");
         }
         assert!(!crate::builtins::is_intrinsic("notABuiltin"));
     }

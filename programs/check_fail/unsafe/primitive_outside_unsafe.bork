@@ -1,0 +1,5 @@
+// diag: `abort` requires an `unsafe` context
+fun main(): i32 {
+    abort()
+    return 0
+}
