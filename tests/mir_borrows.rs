@@ -107,3 +107,11 @@ fn a_shared_reborrow_chain_does_not_conflict_with_its_own_ancestors() {
     let src = "fun use2(x: &[i32; 2], y: &[i32; 2]) {\n}\nfun main() {\n    var a: [i32; 2] = [1, 2]\n    val r = &rw a\n    val s = &r\n    val t = &s\n    use2(&t, &s)\n    val x = r[0]\n}\n";
     assert_eq!(diagnostics(src).expect("builds"), Vec::<String>::new());
 }
+
+#[test]
+fn writing_through_a_holder_conflicts_with_a_live_reborrow_of_it() {
+    let w = |body: &str| diagnostics(&format!("fun main() {{\n    var a: [i32; 2] = [1, 2]\n    val r: &rw [i32; 2] = &rw a\n{body}}}\n")).expect("builds");
+    let found = w("    val s = &r\n    r[0] = 5\n    val x = s[1]\n");
+    assert!(found.iter().any(|m| m.contains("cannot assign through `r` while `s`")), "{found:?}");
+    assert_eq!(w("    val s = &r\n    val x = s[1]\n    r[0] = 5\n"), Vec::<String>::new());
+}

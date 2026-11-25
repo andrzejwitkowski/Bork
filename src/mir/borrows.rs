@@ -249,6 +249,20 @@ fn lock_conflicts(body: &Body, kind: &StmtKind, span: Span, st: &Loans, after: &
         Use::Def(p) => written.push(p.clone()),
         _ => {}
     });
+    // A write through a holder (`r[0] = v` with `r = &rw a`) conflicts with another live holder of the same owner,
+    // such as a reborrow `s = &r`; the holder's own ancestors are suspended, so they do not count.
+    for w in written.iter().filter(|w| !w.is_bare()) {
+        for wl in st.get(&w.local).into_iter().flatten().filter(|l| !l.elem) {
+            for (h, ls) in st.iter().filter(|(h, _)| **h != w.local && after.contains(*h) && !wl.via.contains(*h)) {
+                if ls.iter().any(|l| !l.elem && overlap(&l.root, &wl.root)) {
+                    let msg = format!("cannot assign through `{}` while `{}`, a borrow of `{}`, is still in use", name(body, w.local, names), name(body, *h, names), name(body, wl.root.local, names));
+                    if !found.contains(&(span, msg.clone())) {
+                        found.push((span, msg));
+                    }
+                }
+            }
+        }
+    }
     for (holder, loan) in loans {
         let root = loan.root.local;
         let what = match kind {
