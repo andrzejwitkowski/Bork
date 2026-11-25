@@ -54,7 +54,8 @@ fn term_uses(b: &Block) -> (Vec<Local>, Vec<Local>) {
 }
 
 /// Locals live after each statement of each block.
-fn liveness(body: &Body) -> Vec<Vec<HashSet<Local>>> {
+/// Per block: locals live after each statement, and locals live just before the terminator.
+fn liveness(body: &Body) -> Vec<(Vec<HashSet<Local>>, HashSet<Local>)> {
     let n = body.blocks.len();
     let mut live_in = vec![HashSet::<Local>::new(); n];
     let live_out = |i: usize, live_in: &[HashSet<Local>]| -> HashSet<Local> {
@@ -80,13 +81,14 @@ fn liveness(body: &Body) -> Vec<Vec<HashSet<Local>>> {
         .map(|i| {
             let mut live = live_out(i, &live_in);
             step_live(&mut live, term_uses(&body.blocks[i]));
+            let before_term = live.clone();
             let mut after = Vec::new();
             for s in body.blocks[i].stmts.iter().rev() {
                 after.push(live.clone());
                 step_live(&mut live, uses(|f| s.kind.walk(f)));
             }
             after.reverse();
-            after
+            (after, before_term)
         })
         .collect()
 }
@@ -119,7 +121,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
         let mut st = state_in[i].clone().unwrap();
         let block = &body.blocks[i];
         for (k, s) in block.stmts.iter().enumerate() {
-            let after = &live[i][k];
+            let after = &live[i].0[k];
             lock_conflicts(body, &s.kind, s.span, &st, after, &names, &mut found);
             match &s.kind {
                 StmtKind::VecOp { dst: Some(dst), op: op @ (VecOp::View | VecOp::ViewRw), receiver, .. } if dst.is_bare() => {
@@ -178,17 +180,20 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
             }
         }
         if let Some(Terminator { kind, span, .. }) = &block.term {
-            if let TermKind::Call { args, dest, ret_borrows, .. } = kind {
+            if let TermKind::Call { args, .. } | TermKind::CallClosure { args, .. } = kind {
                 // A move in a call argument is not a statement: check it against loans live up to the call.
-                let before = live[i].last();
-                for (holder, loan) in st.iter().filter(|(h, _)| before.is_some_and(|b| b.contains(h))).flat_map(|(h, ls)| ls.iter().map(move |l| (*h, l))) {
-                    if args.iter().any(|a| matches!(a, Operand::Move(p) if p.local == loan.root.local)) && holder != loan.root.local {
-                        let msg = format!("cannot move `{}` while `{}`, a borrow of it, is still in use", name(body, loan.root.local, &names), name(body, holder, &names));
+                let before = &live[i].1;
+                for (holder, loan) in st.iter().filter(|(h, _)| before.contains(h)).flat_map(|(h, ls)| ls.iter().map(move |l| (*h, l))) {
+                    let root = loan.root.local;
+                    if !loan.elem && holder != root && args.iter().any(|a| matches!(a, Operand::Move(p) if p.is_bare() && p.local == root)) {
+                        let msg = format!("cannot move `{}` while `{}`, a borrow of it, is still in use", name(body, root, &names), name(body, holder, &names));
                         if !found.contains(&(*span, msg.clone())) {
                             found.push((*span, msg));
                         }
                     }
                 }
+            }
+            if let TermKind::Call { args, dest, ret_borrows, .. } = kind {
                 let carried: Vec<Loan> = ret_borrows
                     .iter()
                     .filter_map(|&a| args.get(a as usize)?.place().and_then(|p| st.get(&p.local)))
