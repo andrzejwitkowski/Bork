@@ -140,6 +140,24 @@ pub(super) fn check_call(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    // `VecB::<T>()` / `VecB::<T>(capacity)` (the Bork `Vec`): the factory function builds it.
+    if let (Expr::Ident { name, span, id }, [_]) = (callee, type_args) {
+        if env.defs.vec_class().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
+            if args.len() > 1 {
+                env.error("`Vec` takes at most one argument, the capacity", Some(*span));
+                return super::method::poisoned(args, *span, return_ty, env);
+            }
+            // Lower the whole `VecB<T>` so the element rule is enforced in one place.
+            let whole = env.lower(&Type::Named { name: name.clone(), args: type_args.to_vec(), nullable: false }, Some(*span));
+            if env.tcx.is_error(whole) {
+                return super::method::poisoned(args, *span, return_ty, env);
+            }
+            let factory = if args.is_empty() { "vecBNew" } else { "vecBWithCapacity" };
+            let callee = Expr::Ident { name: factory.to_string(), span: *span, id: *id };
+            let call = Expr::Call { callee: Box::new(callee), type_args: type_args.to_vec(), args: args.to_vec() };
+            return dispatch(&call, expected, return_ty, env);
+        }
+    }
     // `Vec::<T>()` / `Vec::<T>(capacity)`: the prelude's `Vec` has no fields to construct.
     if let (Expr::Ident { name, span, .. }, [elem]) = (callee, type_args) {
         if env.tcx.vec_def().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
@@ -600,7 +618,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         return super::method::poisoned(site.args, span, site.return_ty, env);
     }
     let builtin = crate::builtins::resolve(name).expect("a buffer primitive is a builtin");
-    let generic = builtin == Builtin::BufAlloc;
+    let generic = matches!(builtin, Builtin::BufAlloc | Builtin::RefNone);
     if !type_args.is_empty() && !(generic && type_args.len() == 1) {
         let want = if generic { "one type argument" } else { "no type arguments" };
         env.error(format!("`{name}` takes {want}"), Some(span));
@@ -621,6 +639,9 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         Builtin::SlotLoad => (2, elem, vec![i32_ty]),
         Builtin::SlotStore => (3, unit, vec![i32_ty, elem]),
         Builtin::SlotDrop => (2, unit, vec![i32_ty]),
+        Builtin::SlotCopy => (3, unit, vec![i32_ty, elem]),
+        Builtin::SlotTake => (2, elem, vec![i32_ty]),
+        Builtin::RefNone => (0, elem, vec![]),
         Builtin::BufGrow => (2, buf, vec![i32_ty]),
         Builtin::Abort => (0, unit, vec![]),
         Builtin::ArenaOf => (1, arena, vec![]),
@@ -646,7 +667,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
     check_builtin_call(name, site, env, arity, expected, result, |checked, env| {
         let typed = match builtin {
             Builtin::BufAlloc => vec![(&checked[0], arena), (&checked[1], i32_ty)],
-            Builtin::Abort | Builtin::ArenaOf => Vec::new(),
+            Builtin::Abort | Builtin::ArenaOf | Builtin::RefNone => Vec::new(),
             _ => {
                 let handle = &checked[0];
                 let borrowed = matches!(&handle.kind, HirExprKind::Unary { op: UnaryOp::Borrow { .. }, .. });

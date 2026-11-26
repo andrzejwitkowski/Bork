@@ -182,8 +182,13 @@ pub enum IntrinsicOp {
     SlotLoad,
     /// `(buf, i, v)`: writes slot `i`.
     SlotStore,
+    /// `(buf, i)`: moves the value out of slot `i`; a `Ref` slot is left `None`.
+    SlotTake,
     /// `(buf, i)`: releases a `Ref` in slot `i` (leaving `None`); a no-op for other slot types.
     SlotDrop,
+    /// `(receiver, buf, i)`: a view of slot `i` of a `Vec` (`&v[i]`, `&rw v[i]`); the receiver only names the locked vector.
+    SlotView,
+    SlotViewRw,
     /// `(buf, newCap)`: a new `Buf` in `arena` holding a copy of the old `cap` slots.
     BufGrow,
     /// `(buf)`: its slot count.

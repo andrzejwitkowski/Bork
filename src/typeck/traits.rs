@@ -370,7 +370,7 @@ fn check_impl(
         tcx.set_param_names(Vec::new());
         return None;
     }
-    if !tcx.is_object_type(self_ty) {
+    if !tcx.is_object_type(self_ty) || tcx.record_def(self_ty).is_some_and(|d| Some(d) == defs.vec_class()) {
         let message = format!("`impl {trait_name} for {}`: only classes and enums can implement a trait yet", tcx.display(self_ty));
         diagnostics.push(type_error(message, Some(i.self_span)));
         tcx.set_param_names(Vec::new());

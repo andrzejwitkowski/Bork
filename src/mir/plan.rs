@@ -121,6 +121,12 @@ fn analyse(body: &Body, id: usize, tcx: &TyCtx, st: &mut State, sites: &mut Hash
         if let Some(Terminator { kind: TermKind::Call { args, .. } | TermKind::CallClosure { args, .. }, .. }) = &block.term {
             pass.escape_args(args);
         }
+        // `VecB.push` / `.set` store their value arguments in a vector that outlives the call, as `VecOp::Push` does.
+        if let Some(Terminator { kind: TermKind::Call { callee, args, .. }, .. }) = &block.term {
+            if callee.starts_with("VecB.push") || callee.starts_with("VecB.set") {
+                pass.vec_store(args);
+            }
+        }
     }
 }
 

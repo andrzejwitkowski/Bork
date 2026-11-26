@@ -18,6 +18,16 @@ opaque class VecB<T> {
             this.buf = bufGrow(&old, cap)
         }
     }
+    // Makes room for `cap` elements without growing again; does nothing when there already is.
+    fun reserveAtLeast(cap: i32) {
+        var have = 0
+        unsafe {
+            have = this.buf.cap()
+        }
+        if (have < cap) {
+            this.reserveExact(cap)
+        }
+    }
     fun push(v: T) {
         var cap = 0
         unsafe {
@@ -44,6 +54,17 @@ opaque class VecB<T> {
         unsafe {
             val b = this.buf
             return Some(slotLoad(&b, this.n))
+        }
+    }
+    // `pop` of a `Ref` element (typeck rewrites `v.pop()` to this for `VecB<Ref<C>>`): the `Ref` itself, `None` when empty.
+    fun popRef(): T {
+        unsafe {
+            if (this.n == 0) {
+                return refNone::<T>()
+            }
+            this.n = this.n - 1
+            val b = this.buf
+            return slotTake(&b, this.n)
         }
     }
     fun get(i: i32): T {
@@ -78,7 +99,7 @@ opaque class VecB<T> {
         while (i < src.len()) {
             unsafe {
                 val b = this.buf
-                slotStore(&b, i, src.get(i))
+                slotCopy(&b, i, src.get(i))
             }
             i = i + 1
         }
@@ -117,8 +138,6 @@ fun vecBWithCapacity<T>(n: i32): VecB<T> {
         }
     }
     val v: VecB<T> = vecBNew()
-    if (n > 0) {
-        v.reserveExact(n)
-    }
+    v.reserveAtLeast(n)
     return v
 }

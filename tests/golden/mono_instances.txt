@@ -349,6 +349,7 @@ fun VecB.clear<i32>
 fun vecBWithCapacity<i32>
 fun VecBSeed.empty<i32>
 fun VecB.reserveExact<i32>
+fun VecB.reserveAtLeast<i32>
 class VecBSeed<i32>
 class VecB<i32>
 == programs/build/vecb/move_into_outer.bork
@@ -359,6 +360,7 @@ fun vecBNew<i32>
 fun VecB.assignFrom<i32>
 fun VecB.capacity<i32>
 fun VecB.len<i32>
+fun VecB.reserveAtLeast<i32>
 fun VecB.reserveExact<i32>
 fun VecBSeed.empty<i32>
 fun VecB.get<i32>

@@ -103,6 +103,8 @@ pub struct TyCtx {
     option_def: Option<DefId>,
     /// The prelude's `intrinsic class`es: `Class(vec_def, [T])` is the type `Vec<T>`, `Range` is the type of `a..b`.
     lang: [Option<DefId>; LangItem::COUNT],
+    /// The prelude's Bork `Vec` class (`VecB` until the switch, #285), when the program has it.
+    vec_class: Option<DefId>,
     /// The kind and `move`-ness of each `TyData::Closure`, by its id.
     closure_kinds: Vec<(ClosureKind, bool)>,
     /// The prelude's `Fn`, `FnMut`, `FnOnce` (RFC 0007), found by origin, not name.
@@ -120,7 +122,7 @@ impl TyCtx {
             defs.classes().chain(defs.enums()).map(|(name, id)| (name.to_string(), id)).collect();
         let class_names = class_ids.iter().map(|(name, id)| (*id, name.clone())).collect();
         let option_def = defs.lookup_option();
-        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, lang: LangItem::ALL.map(|item| defs.lang_item(item)), closure_kinds: Vec::new(), fn_traits: defs.lookup_fn_traits() };
+        let mut ctx = TyCtx { types: Vec::new(), ids: HashMap::new(), class_names, param_names: Vec::new(), option_def, lang: LangItem::ALL.map(|item| defs.lang_item(item)), vec_class: defs.vec_class(), closure_kinds: Vec::new(), fn_traits: defs.lookup_fn_traits() };
         // Read-only consumers (codegen) look these up with `prim_id` and cannot intern.
         for prim in ALL_PRIMS {
             ctx.add(TyData::Prim(prim));

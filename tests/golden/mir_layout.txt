@@ -719,6 +719,10 @@ enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 class Node size=4 align=4 fields=[0]
 == programs/build/vec/ref_nodes.bork
 class Node size=4 align=4 fields=[0]
+== programs/build/vec/ref_pop_empty_is_none.bork
+class Node size=4 align=4 fields=[0]
+== programs/build/vec/ref_pop_moves_the_handle.bork
+class Node size=4 align=4 fields=[0]
 == programs/build/vec/ref_promote.bork
 class Node size=4 align=4 fields=[0]
 == programs/build/vec/ref_promote_strong.bork

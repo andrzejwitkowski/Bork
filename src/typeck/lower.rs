@@ -167,6 +167,19 @@ impl LowerCx<'_> {
         if !self.check_arity(name, self.defs.get(class).arity, args.len()) || !self.check_type_args(name, &args) {
             return self.tcx.error();
         }
+        if Some(class) == self.defs.vec_class() {
+            // The Bork `Vec` keeps the rules of the compiler one: not nullable, and only the supported element types.
+            if nullable {
+                self.error("`Vec` cannot be nullable");
+                return self.tcx.error();
+            }
+            let elem = args[0];
+            let is_param = matches!(self.tcx.data(elem), TyData::Param(_));
+            if !self.tcx.is_unknown(elem) && !is_param && !self.tcx.is_vec_elem_supported(elem) {
+                let message = self.tcx.vec_elem_message(elem);
+                self.error(message);
+            }
+        }
         let ty = if is_enum { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
         self.nullable_if(ty, nullable)
     }

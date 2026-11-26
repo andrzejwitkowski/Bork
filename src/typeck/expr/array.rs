@@ -98,7 +98,7 @@ pub(super) fn check_array_lit(
 
 /// The prelude's Bork `Vec` (`VecB` until the switch, #285): an `opaque` class, so a user class of that name never matches.
 pub(in crate::typeck) fn is_vec_class(ty: TyId, env: &Env<'_>) -> bool {
-    env.tcx.record_def(ty).and_then(|def| env.class(def)).is_some_and(|c| c.opaque && c.name == "VecB")
+    env.tcx.is_vec_class(ty)
 }
 
 pub(super) fn check_index(
@@ -108,18 +108,30 @@ pub(super) fn check_index(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    check_index_as(receiver, index, span, return_ty, false, env)
+}
+
+/// `check_index`; with `keep_index` the Bork `Vec` stays an `Index` node (for `&v[i]`) instead of becoming `v.get(i)`.
+pub(super) fn check_index_as(
+    receiver: &Expr,
+    index: &Expr,
+    span: Span,
+    return_ty: TyId,
+    keep_index: bool,
+    env: &mut Env<'_>,
+) -> Checked {
     // Peek at a plain name's type first: synthesizing it as a value would count as a use (a move, inside a loop).
     let peeked = match receiver {
         Expr::Ident { name, .. } => env.binding(name).map(|b| b.ty),
         _ => None,
     };
-    if peeked.is_some_and(|ty| is_vec_class(ty, env)) {
+    if !keep_index && peeked.is_some_and(|ty| is_vec_class(ty, env)) {
         // `v[i]` on the Bork `Vec` is `v.get(i)`.
         let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
         return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
     }
     let receiver_hir = synthesize(receiver, return_ty, env);
-    if is_vec_class(receiver_hir.ty, env) {
+    if !keep_index && is_vec_class(receiver_hir.ty, env) {
         // `v[i]` on the Bork `Vec` is `v.get(i)`.
         let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
         return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
@@ -132,6 +144,7 @@ pub(super) fn check_index(
         .tcx
         .array_elem(receiver_hir.ty)
         .or_else(|| env.tcx.vec_elem(receiver_hir.ty))
+        .or_else(|| env.tcx.vec_class_elem(receiver_hir.ty))
     {
         elem
     } else {

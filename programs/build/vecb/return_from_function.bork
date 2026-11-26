@@ -1,14 +1,14 @@
 // exit: 21
 // A `VecB` returned from a function outlives the callee's arena; pushing after the return grows in the caller's arena.
 fun build(): VecB<i32> {
-    val v: VecB<i32> = vecBNew()
+    var v: VecB<i32> = vecBNew()
     v.push(1)
     v.push(2)
     v.push(3)
     return v
 }
 fun main(): i32 {
-    val v = build()
+    var v = build()
     v.push(4)
     v.push(5)
     v.push(6)

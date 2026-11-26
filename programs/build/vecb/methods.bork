@@ -4,7 +4,7 @@
 // `code` is the number of the last failed check.
 fun main(): i32 {
     var code = 0
-    val v: VecB<i32> = vecBNew()
+    var v: VecB<i32> = vecBNew()
     if (v.capacity() != 0) { code = 1 }
     v.push(1)
     if (v.capacity() != 4) { code = 2 }
@@ -21,14 +21,14 @@ fun main(): i32 {
     if (v.len() != 0 || v.capacity() != 8) { code = 6 }
     val none = v.pop() ?: 7
     if (none != 7) { code = 7 }
-    val sized: VecB<i32> = vecBWithCapacity(3)
+    var sized: VecB<i32> = vecBWithCapacity(3)
     if (sized.capacity() != 3) { code = 8 }
     sized.push(1)
     sized.push(2)
     sized.push(3)
     sized.push(4)
     if (sized.capacity() != 6) { code = 9 }
-    val zero: VecB<i32> = vecBWithCapacity(0)
+    var zero: VecB<i32> = vecBWithCapacity(0)
     if (zero.capacity() != 0) { code = 10 }
     return code
 }

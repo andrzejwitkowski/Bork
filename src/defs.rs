@@ -106,6 +106,8 @@ pub struct DefTable {
     option: Option<DefId>,
     /// The prelude's `intrinsic class`es (`Vec`, `Range`), by `LangItem`.
     lang: [Option<DefId>; LangItem::COUNT],
+    /// The prelude's Bork `Vec` (`VecB` until the switch, #285): the one `opaque class` of that name.
+    vec_class: Option<DefId>,
     /// `Vec`'s prelude method for each `VecOp`, resolved once after `add_methods`.
     vec_methods: [Option<DefId>; VecOp::ALL.len()],
     /// The prelude's `Fn`, `FnMut`, `FnOnce`, by origin; empty when the user's own trait suppressed the chunk.
@@ -193,6 +195,9 @@ impl DefTable {
                 clashes.push(Clash::ClassDuplicate);
             } else {
                 self.classes.insert(class.name.clone(), id);
+                if class.opaque && class.name == "VecB" {
+                    self.vec_class = Some(id);
+                }
                 if let (true, Some(item)) = (class.intrinsic, LangItem::from_name(&class.name)) {
                     self.lang[item as usize] = Some(id);
                 }
@@ -350,6 +355,10 @@ impl DefTable {
 
     pub fn lookup_fn_traits(&self) -> [Option<DefId>; 3] {
         self.fn_traits
+    }
+
+    pub fn vec_class(&self) -> Option<DefId> {
+        self.vec_class
     }
 
     pub fn lang_item(&self, item: LangItem) -> Option<DefId> {

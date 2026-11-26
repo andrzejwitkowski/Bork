@@ -11,7 +11,7 @@ impl<'a> FnBuilder<'a> {
         let span = span_of(e);
         let mut ops = args.iter().map(|a| self.buf_arg(a)).collect::<Res<Vec<_>>>()?;
         // A closure stored in a buffer gets its environment copied into the arena of `this`, so it outlives the storing scope.
-        if name == "slotStore" && args.get(2).is_some_and(|v| self.tcx.is_callable(v.ty)) {
+        if name == "slotCopy" && args.get(2).is_some_and(|v| self.tcx.is_callable(v.ty)) {
             let ty = args[2].ty;
             let arena = self.this_arena(span)?;
             ops[2] = self.copy_into(ops[2].clone(), ty, &arena, span);
@@ -29,16 +29,20 @@ impl<'a> FnBuilder<'a> {
                 self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(dst)), op: IntrinsicOp::ArenaOf, args: Vec::new(), arena }, span, Some(e.id));
                 return Ok(Operand::Copy(Place::local(dst)));
             }
+            // The `None` handle of a `Ref` type: all zero.
+            ("refNone", []) => return Ok(Operand::Const(Const::None)),
             ("Buf.cap", [_]) => (IntrinsicOp::BufCap, None),
             ("bufAlloc", [_, cap]) => {
                 self.abort_unless(&[(BinOp::Ge, cap.clone(), zero)], AbortReason::NegativeCapacity, span, e);
                 (IntrinsicOp::BufAlloc, None)
             }
-            ("slotLoad", [buf, i]) | ("slotStore", [buf, i, _]) | ("slotDrop", [buf, i]) => {
+            ("slotLoad" | "slotTake", [buf, i]) | ("slotStore" | "slotCopy", [buf, i, _]) | ("slotDrop", [buf, i]) => {
                 let cap = self.buf_cap(buf, e);
                 self.abort_unless(&[(BinOp::Ge, i.clone(), zero), (BinOp::Lt, i.clone(), cap)], AbortReason::Bounds, span, e);
                 if name == "slotLoad" {
                     (IntrinsicOp::SlotLoad, None)
+                } else if name == "slotTake" {
+                    (IntrinsicOp::SlotTake, None)
                 } else if name == "slotDrop" {
                     (IntrinsicOp::SlotDrop, None)
                 } else {
@@ -73,6 +77,35 @@ impl<'a> FnBuilder<'a> {
         let cap = self.temp(self.tcx.prim_id(crate::hir::Prim::I32));
         self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(cap)), op: IntrinsicOp::BufCap, args: vec![buf.clone()], arena: None }, span_of(e), Some(e.id));
         Operand::Copy(Place::local(cap))
+    }
+
+    /// `&v[i]` / `&rw v[i]` on the Bork `Vec`: aborts unless `0 <= i < v.n`, then views slot `i` of `v.buf`. The receiver stays an
+    /// operand of the statement so `mir::borrows` can lock the vector while the view lives.
+    pub(super) fn vec_class_view(&mut self, e: &HirExpr, receiver: &HirExpr, index: &HirExpr, rw: bool) -> Res<Operand> {
+        let span = span_of(e);
+        let recv = self.bare_operand(receiver)?;
+        let idx = self.bare_operand(index)?;
+        let place = recv.place().cloned().ok_or_else(|| BuildError::unsupported(crate::mir::capability::Capability::FieldAccess, span))?;
+        let field = |this: &mut Self, i: u32, ty: crate::ty::TyId| {
+            let t = this.temp(ty);
+            let mut p = place.clone();
+            p.proj.push(Proj::Field(i));
+            this.stmt(StmtKind::Assign(Place::local(t), Rvalue::Use(Operand::Copy(p))), span, Some(e.id));
+            Operand::Copy(Place::local(t))
+        };
+        // Field order of the prelude's `VecB`: `buf`, `n`.
+        let i32_ty = self.tcx.prim_id(crate::hir::Prim::I32);
+        let n = field(self, 1, i32_ty);
+        // `buf` is field 0 of the instantiated class; read its type off the monomorphised definition.
+        let shown = self.tcx.display(self.tcx.deref_ty(receiver.ty)).to_string();
+        let buf_ty = self.mono.hir.classes.iter().find(|c| c.name == shown).and_then(|c| c.fields.first()).map(|f| f.ty).ok_or_else(|| BuildError::Internal(format!("no class `{shown}`")))?;
+        let buf = field(self, 0, buf_ty);
+        let zero = Operand::Const(Const::Int(0));
+        self.abort_unless(&[(BinOp::Ge, idx.clone(), zero), (BinOp::Lt, idx.clone(), n)], AbortReason::Bounds, span, e);
+        let dst = self.temp(e.ty);
+        let op = if rw { IntrinsicOp::SlotViewRw } else { IntrinsicOp::SlotView };
+        self.stmt(StmtKind::Intrinsic { dst: Some(Place::local(dst)), op, args: vec![recv, buf, idx], arena: None }, span, Some(e.id));
+        Ok(Operand::Copy(Place::local(dst)))
     }
 
     // shortcut: bufGrow allocates in the arena of `this`; the buffer must be a field of `this` (not checked), tighten when Vec moves to Bork (#285 step 2); the limit is reachable from user code via the public `Stack.buf` field (see follow-up)

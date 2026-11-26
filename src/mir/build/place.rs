@@ -21,6 +21,11 @@ impl<'a> FnBuilder<'a> {
         }
     }
 
+    /// The prelude's Bork `Vec` (`VecB` until the switch, #285), or a borrow of it.
+    pub(super) fn is_vec_class_ty(&self, ty: TyId) -> bool {
+        self.tcx.is_vec_class(ty)
+    }
+
     pub(super) fn is_vec_ty(&self, ty: TyId) -> bool {
         self.tcx.is_vec(self.tcx.deref_ty(ty))
     }

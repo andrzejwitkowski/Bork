@@ -13,6 +13,12 @@ pub(super) fn span_of(e: &HirExpr) -> Span {
     e.span.unwrap_or_default()
 }
 
+/// `vecBNew` / `vecBWithCapacity` (#285): a vector is allocated where it is declared, like the compiler `Vec` header was,
+/// not in the function's result sink, so closures built in its arena can capture the declaring block's objects.
+pub(super) fn is_vec_factory(name: &str) -> bool {
+    name.starts_with("vecBNew") || name.starts_with("vecBWithCapacity")
+}
+
 impl<'a> FnBuilder<'a> {
     /// Evaluates `e`. An owned `Ref` temporary comes back as `Move` so its single consumer is checkable.
     pub(super) fn expr(&mut self, e: &HirExpr) -> Res<Operand> {
@@ -169,6 +175,10 @@ impl<'a> FnBuilder<'a> {
                 let idx = self.bare_operand(index)?;
                 Ok(self.vec_op(e, if *rw { crate::hir::VecOp::ViewRw } else { crate::hir::VecOp::View }, recv, vec![idx]))
             }
+            UnaryOp::Borrow { rw } if matches!(&inner.kind, HirExprKind::Index { receiver, .. } if self.is_vec_class_ty(receiver.ty)) => {
+                let HirExprKind::Index { receiver, index, .. } = &inner.kind else { return Err(BuildError::unsupported(Capability::FieldAccess, span_of(e))) };
+                self.vec_class_view(e, receiver, index, *rw)
+            }
             UnaryOp::Borrow { rw } => {
                 let src = self.place_of(inner)?;
                 let dst = self.temp(e.ty);
@@ -198,14 +208,33 @@ impl<'a> FnBuilder<'a> {
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested
         // temporaries do not land in the destination's arena (`call_gathers_without_sink`).
         let arg_sink = if builtins::is_print(name) { self.sink.clone() } else { ArenaRef::Current };
-        let ops = self.with_sink(arg_sink, |b| b.exprs(args))?;
+        // A closure passed to a method of the Bork `Vec` has its environment allocated in the vector's arena, so it outlives
+        // the pushing scope (as `vec_op_expr` does for the compiler `Vec`).
+        let vec_home = match args.first().map(|r| match &r.kind {
+            HirExprKind::Unary { expr, .. } => &**expr,
+            _ => r,
+        }) {
+            Some(HirExpr { kind: HirExprKind::Ident { name: recv, .. }, .. }) if name.starts_with("VecB.") => Some(ArenaRef::Home(self.lookup(recv, span)?)),
+            _ => None,
+        };
+        let ops = match vec_home {
+            Some(home) => {
+                let mut ops = Vec::with_capacity(args.len());
+                for (i, a) in args.iter().enumerate() {
+                    let sink = if i > 0 && self.tcx.is_callable(a.ty) { home.clone() } else { arg_sink.clone() };
+                    ops.push(self.with_sink(sink, |b| b.expr(a))?);
+                }
+                ops
+            }
+            None => self.with_sink(arg_sink, |b| b.exprs(args))?,
+        };
         if let Some(abi) = self.abi_of(name).filter(|_| !through_value) {
             let mut hidden = Vec::new();
             if abi.caller_parent {
                 hidden.push(ArenaRef::Current);
             }
             if abi.result_sink {
-                hidden.push(self.call_result_sink(e.id, e.ty));
+                hidden.push(if is_vec_factory(name) { self.sink.clone() } else { self.call_result_sink(e.id, e.ty) });
             }
             let dest = self.temp(e.ty);
             let target = self.new_block();
@@ -293,6 +322,8 @@ impl<'a> FnBuilder<'a> {
                 // A closure value does not name its variable's arena (as an object handle does): use the region the variable was declared in.
                 // A `Vec` header names its arena at run time (it may be a `&rw` parameter).
                 ArenaRef::Home(h) if self.is_vec_ty(self.locals[h.0 as usize].ty) => ArenaRef::Home(*h),
+                // A `&rw VecB` parameter's arena is the caller's: read it from the object at run time.
+                ArenaRef::Home(h) if self.is_vec_class_ty(self.locals[h.0 as usize].ty) && (self.locals[h.0 as usize].kind == LocalKind::Arg || self.tcx.is_ref(self.locals[h.0 as usize].ty)) => ArenaRef::ObjectArena(*h),
                 ArenaRef::Home(h) => ArenaRef::Region(self.locals[h.0 as usize].region),
                 other => other.clone(),
             }

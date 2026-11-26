@@ -508,6 +508,8 @@ impl<'a> FnBuilder<'a> {
     pub(super) fn sink_key(&self, a: &ArenaRef) -> SinkKey {
         match a {
             ArenaRef::Current => SinkKey::Region(self.cur_region()),
+            // A named region is the same arena as the region key: `outlives` compares them by region.
+            ArenaRef::Region(r) => SinkKey::Region(*r),
             other => SinkKey::Other(other.clone()),
         }
     }

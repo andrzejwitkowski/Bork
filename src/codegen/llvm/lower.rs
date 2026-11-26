@@ -560,7 +560,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     operand(&args[1])?;
                     operand(&args[2])?;
                 }
-                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                     let dty = dst.as_ref().filter(|d| d.is_bare()).and_then(|d| body.local(d.local)).map(|l| l.ty);
                     let buf = |op: &Operand| op_place_ty(cx, body, op).and_then(|t| plain_buf(cx, t));
                     match (op, args.as_slice(), arena) {
@@ -574,7 +574,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             buf(b)?;
                             scalar(dty?)?;
                         }
-                        (IntrinsicOp::SlotLoad, [b, i], None) => {
+                        (IntrinsicOp::SlotLoad | IntrinsicOp::SlotTake, [b, i], None) => {
                             (buf(b)? == dty?).then_some(())?;
                             operand(i)?;
                         }
@@ -583,6 +583,11 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             op_place_ty(cx, body, v).is_none_or(|t| t == elem).then_some(())?;
                             operand(i)?;
                             general(v)?;
+                        }
+                        // `(receiver, buf, i)`: the receiver only names the locked vector.
+                        (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw, [_, b, i], None) if dst.as_ref().is_some_and(|d| d.is_bare()) => {
+                            buf(b)?;
+                            operand(i)?;
                         }
                         (IntrinsicOp::SlotDrop, [b, i], None) if dst.is_none() => {
                             buf(b)?;
@@ -1477,7 +1482,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let out = cx.string_from_utf8(self.llvm_fn, arena, buffer, start, count, dty)?;
                 self.store(d, out.into())?;
             }
-            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                 self.buf_intrinsic(*op, dst.as_ref(), args, arena.as_ref(), stmt.region)?;
             }
             StmtKind::Intrinsic { op, args, .. } => {
@@ -1514,6 +1519,17 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 Some(cx.buf_alloc(arena, elem, int(cap)?)?.into())
             }
             (IntrinsicOp::BufCap, [b]) => Some(cx.buf_cap(buf(b)?.0)?.into()),
+            (IntrinsicOp::SlotTake, [b, i]) => {
+                let (b, elem) = buf(b)?;
+                let index = int(i)?;
+                let taken = cx.buf_load(b, index, elem)?;
+                if cx.tcx.is_managed_ref(elem) {
+                    // The handle moved out: the slot reads `None` now, so the buffer's drop releases nothing for it.
+                    let (slot, _) = cx.buf_slot(b, index, elem)?;
+                    cx.builder.build_store(slot, cx.ref_handle_type().const_zero())?;
+                }
+                Some(taken)
+            }
             (IntrinsicOp::SlotLoad, [b, i]) => {
                 let (b, elem) = buf(b)?;
                 let loaded = cx.buf_load(b, int(i)?, elem)?;
@@ -1531,6 +1547,11 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     cx.buf_store(b, index, elem, value)?;
                 }
                 None
+            }
+            // A view borrows the slot, so it does not take a reference of its own.
+            (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw, [_, b, i]) => {
+                let (b, elem) = buf(b)?;
+                Some(cx.buf_load(b, int(i)?, elem)?)
             }
             (IntrinsicOp::SlotDrop, [b, i]) => {
                 let (b, elem) = buf(b)?;

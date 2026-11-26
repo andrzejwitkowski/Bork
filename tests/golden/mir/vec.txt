@@ -3250,6 +3250,155 @@ fn main (parent=false, sink=false) {
     goto bb8
 }
 
+== vec/ref_pop_empty_is_none.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: Vec<Ref<Node>> [Temp]
+  let _3: Vec<Ref<Node>> [Var] v
+  let _4: &Vec<Ref<Node>> [Temp]
+  let _5: Ref<Node> [Temp]
+  let _6: Ref<Node> [Val] p
+  let _7: i32 [Var] seen
+  let _8: Ref<Node> [Temp]
+  let _9: unit [Temp]
+  let _10: &Node [Val]
+  let _11: bool [Temp]
+  let _12: unit [Hidden(DebugScope)]
+  let _13: i32 [Temp]
+  region r0 Block
+  region r1 PresenceSome in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = alloc Vec { cap: None } in current
+    register_drop current _2 Vec(TyId(20))
+    _3 = copy _2  // label "v": Vec<Ref<Node>> decl
+    _4 = borrow _3
+    _5 = vec_Pop(copy _4)
+    _6 = move _5  // label "p": Ref<Node> decl
+    register_drop current _6 RefSlot
+    _7 = 0  // label "seen": i32 decl
+    _8 = ref_clone copy _6
+    (_9, _10, _11) = observe copy _8
+    ref_drop move _8
+    switch copy _11 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _0 = copy _7
+    storage_dead _1
+    region_exit r0
+    return
+  bb2:
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _12
+    observation_register current _9
+    _13 = add(copy _10.0, 1)
+    _7 = copy _13
+    storage_dead _12
+    region_exit r1
+    goto bb1
+}
+
+== vec/ref_pop_moves_the_handle.bork
+fn main (parent=false, sink=false) {
+  let _0: i32 [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: Node [Temp]
+  let _4: Node [Val] n
+  let _5: Ref<Node> [Temp]
+  let _6: Ref<Node> [Val] r
+  let _7: Vec<Ref<Node>> [Temp]
+  let _8: Vec<Ref<Node>> [Var] v
+  let _9: &Vec<Ref<Node>> [Temp]
+  let _10: Ref<Node> [Temp]
+  let _11: &Vec<Ref<Node>> [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: Ref<Node> [Temp]
+  let _14: i32 [Temp]
+  let _15: i32 [Val] s0
+  let _16: &Vec<Ref<Node>> [Temp]
+  let _17: Ref<Node> [Temp]
+  let _18: Ref<Node> [Val] p
+  let _19: Ref<Node> [Temp]
+  let _20: i32 [Temp]
+  let _21: i32 [Val] s1
+  let _22: i32 [Var] id
+  let _23: Ref<Node> [Temp]
+  let _24: unit [Temp]
+  let _25: &Node [Val]
+  let _26: bool [Temp]
+  let _27: unit [Hidden(DebugScope)]
+  let _28: i32 [Temp]
+  let _29: i32 [Temp]
+  let _30: i32 [Temp]
+  let _31: i32 [Temp]
+  let _32: &Vec<Ref<Node>> [Temp]
+  let _33: i32 [Temp]
+  let _34: i32 [Temp]
+  region r0 Block
+  region r1 PresenceSome in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _2
+    _3 = alloc Object { class: "Node" } in fresh2  // label "Node": Node
+    _3.0 = 7  // label "Node.id": i32 decl owner=fresh2
+    _4 = copy _3  // label "n": Node decl
+    _5 = ref_create source=current target=object_arena(_4) copy _4
+    _6 = move _5  // label "r": Ref<Node> decl
+    register_drop current _6 RefSlot
+    _7 = alloc Vec { cap: None } in current
+    register_drop current _7 Vec(TyId(20))
+    _8 = copy _7  // label "v": Vec<Ref<Node>> decl
+    _9 = borrow _8
+    _10 = ref_clone copy _6
+    vec_Push(copy _9, move _10)
+    _11 = borrow _8
+    _12 = ref_clone copy _6
+    vec_Push(copy _11, move _12)
+    _13 = ref_clone copy _6
+    _14 = ref_count move _13
+    _15 = copy _14  // label "s0": i32 decl
+    _16 = borrow _8
+    _17 = vec_Pop(copy _16)
+    _18 = move _17  // label "p": Ref<Node> decl
+    register_drop current _18 RefSlot
+    _19 = ref_clone copy _6
+    _20 = ref_count move _19
+    _21 = copy _20  // label "s1": i32 decl
+    _22 = 0  // label "id": i32 decl
+    _23 = ref_clone copy _18
+    (_24, _25, _26) = observe copy _23
+    ref_drop move _23
+    switch copy _26 [ 1 -> bb2, else -> bb3]
+  bb1:
+    _28 = mul(copy _22, 100)
+    _29 = sub(copy _15, copy _21)
+    _30 = mul(copy _29, 10)
+    _31 = add(copy _28, copy _30)
+    _32 = borrow _8
+    _33 = vec_Len(copy _32)
+    _34 = add(copy _31, copy _33)
+    _0 = copy _34
+    storage_dead _1
+    region_exit r0
+    return
+  bb2:
+    goto bb1
+  bb3:
+    region_enter r1
+    storage_live _27
+    observation_register current _24
+    _22 = copy _25.0
+    storage_dead _27
+    region_exit r1
+    goto bb1
+}
+
 == vec/ref_promote.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]

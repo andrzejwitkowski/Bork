@@ -248,6 +248,21 @@ impl TyCtx {
         }
     }
 
+    /// Whether `id` (or a borrow of it) is the Bork `Vec` class.
+    pub fn is_vec_class(&self, id: TyId) -> bool {
+        self.vec_class_elem(id).is_some()
+    }
+
+    /// Element type of the Bork `Vec` (`VecB<T>`, or a borrow of it); the one `opaque` class of that name.
+    pub fn vec_class_elem(&self, id: TyId) -> Option<TyId> {
+        let base = self.base(id);
+        match self.data(base) {
+            TyData::Ref(inner, _) => self.vec_class_elem(*inner),
+            TyData::Class(def, args) if self.vec_class == Some(*def) => args.first().copied(),
+            _ => None,
+        }
+    }
+
     pub fn is_vec(&self, id: TyId) -> bool {
         self.intrinsic_arg(id, self.vec_def()).is_some()
     }

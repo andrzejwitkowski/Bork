@@ -58,6 +58,8 @@ pub(super) fn check_method_call(
         }
         return check_trait_method_call(checked, method, id, site, env);
     };
+    // `pop` of a `Ref` element is the `Ref` itself, as for the compiler `Vec` (a `Ref` already has its own `None`).
+    let method = if method == "pop" && env.defs.vec_class() == Some(class) && env.tcx.vec_class_elem(checked.ty).is_some_and(|e| env.tcx.is_managed_ref(e)) { "popRef" } else { method };
     let class_name = env.tcx.class_name(class).to_string();
     let method_def = env.defs.lookup_method(class, method);
     if !env.in_prelude && method_def.is_some_and(|def| env.class(class).is_some_and(|c| c.unsafe_methods.contains(&def))) {
@@ -86,8 +88,17 @@ pub(super) fn check_method_call(
     let Some((params, ret)) = instantiate_method(&name, class, &sig, &checked, span, env) else {
         return poisoned(args, span, return_ty, env);
     };
+    let is_vec = env.defs.vec_class() == Some(class);
+    if is_vec && matches!(method, "push" | "pop" | "popRef" | "set" | "clear") {
+        super::vec::reject_immutable(receiver, env, span);
+    }
+    let receiver_expr = receiver;
     let receiver = borrow(checked, env);
-    finish_call(name, params, ret, Some(receiver), site, env)
+    let result = finish_call(name, params, ret, Some(receiver), site, env);
+    if is_vec && matches!(method, "push" | "set") {
+        super::vec::check_stored_closure(receiver_expr, &result, span, env);
+    }
+    result
 }
 
 /// The type of the function-typed (possibly nullable) field `name` of the class `receiver_ty`, if there is one.

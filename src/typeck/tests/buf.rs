@@ -171,6 +171,6 @@ fn vecb_index_assign_on_a_val_is_rejected() {
 
 #[test]
 fn a_user_class_named_vecb_is_not_indexable() {
-    let diags = super::diags_of("class VecB<T> {\n    n: i32\n}\nfun main() {\n    val v = VecB::<i32>(1)\n    val x = v[0]\n}\n");
+    let diags = super::diags_of("class VecB<T> {\n    n: i32\n}\nfun main() {\n    val v: VecB<i32> = VecB(1)\n    val x = v[0]\n}\n");
     assert!(diags.iter().any(|d| d.message.contains("indexing requires an array type")), "{diags:?}");
 }

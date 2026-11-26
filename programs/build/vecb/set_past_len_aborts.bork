@@ -1,7 +1,7 @@
 // exit: 1
 // `set` past `len` aborts instead of writing into the spare capacity.
 fun main(): i32 {
-    val v: VecB<i32> = vecBNew()
+    var v: VecB<i32> = vecBNew()
     v.push(1)
     v.set(2, 5)
     return 0
