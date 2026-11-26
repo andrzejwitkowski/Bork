@@ -33,6 +33,12 @@ fn buf_grow_outside_a_method_is_rejected() {
 }
 
 #[test]
+fn arena_of_this_outside_a_method_is_rejected() {
+    let d = prelude_diags("unsafe fun f() {\n    val a = arenaOf(this)\n}\nfun main() {}\n");
+    assert!(d.iter().any(|d| d.message.contains("`arenaOf` can only be called inside a method")), "{d:?}");
+}
+
+#[test]
 fn slot_load_result_is_the_element_type() {
     let d = prelude_diags("unsafe fun f(b: &Buf<i32>) {\n    val x: bool = slotLoad(&b, 0)\n}\nfun main() {}\n");
     assert!(d.iter().any(|d| d.message.contains("has type i32, expected bool")), "{d:?}");

@@ -629,6 +629,10 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         env.error("`arenaOf` takes `this`, the receiver of the method it is called in", Some(span));
         return super::method::poisoned(site.args, span, site.return_ty, env);
     }
+    if builtin == Builtin::ArenaOf && env.binding("this").is_none() {
+        env.error("`arenaOf` can only be called inside a method: it names the arena of `this`", Some(span));
+        return super::method::poisoned(site.args, span, site.return_ty, env);
+    }
     if builtin == Builtin::BufGrow && env.binding("this").is_none() {
         env.error("`bufGrow` can only be called inside a method: it allocates in the arena of `this`", Some(span));
         return super::method::poisoned(site.args, span, site.return_ty, env);
