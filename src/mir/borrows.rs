@@ -262,7 +262,7 @@ pub(crate) fn vec_method(callee: &str) -> Option<&str> {
 }
 
 /// Whether the `Vec` method writes the vector (and so may reallocate its buffer).
-fn vec_mutates(method: &str) -> bool {
+pub(crate) fn vec_mutates(method: &str) -> bool {
     matches!(method, "push" | "pop" | "popRef" | "set" | "clear" | "assignFrom" | "reserveExact" | "reserveAtLeast")
 }
 

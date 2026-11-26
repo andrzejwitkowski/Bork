@@ -1199,6 +1199,8 @@ programs/build/vec/ref_weak_expires.bork: 3901..3908 VecSeed<Ref<Node>> Dynamic 
 programs/build/vec/ref_weak_expires.bork: 3940..3943 Vec<Ref<Node>> Lexical LexicalScope(9)
 programs/build/vec/return_from_function.bork: 3901..3908 VecSeed<i32> Dynamic Program
 programs/build/vec/return_from_function.bork: 3940..3943 Vec<i32> Lexical LexicalScope(4)
+programs/build/vec/return_from_loop.bork: 3901..3908 VecSeed<i32> Dynamic Program
+programs/build/vec/return_from_loop.bork: 3940..3943 Vec<i32> Lexical LexicalScope(5)
 programs/build/vec/return_vec_of_linked_refs.bork: 238..239 B Lexical LexicalScope(0)
 programs/build/vec/return_vec_of_linked_refs.bork: 240..241 A Dynamic LexicalScope(0)
 programs/build/vec/return_vec_of_linked_refs.bork: 258..259 B Lexical LexicalScope(0)

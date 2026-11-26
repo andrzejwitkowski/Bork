@@ -521,6 +521,8 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         }
                         (IntrinsicOp::SlotStore, [b, i, v], a) if dst.is_none() && a.as_ref().is_none_or(|a| arena_ok(a)) => {
                             let elem = buf(b)?;
+                            // A `String` is copied and a `Ref` stored through the buffer's arena: it has to be named.
+                            (a.is_some() || !(cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem))).then_some(())?;
                             op_place_ty(cx, body, v).is_none_or(|t| t == elem).then_some(())?;
                             operand(i)?;
                             general(v)?;

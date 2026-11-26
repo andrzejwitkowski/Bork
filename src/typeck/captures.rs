@@ -216,6 +216,15 @@ impl Scan {
             }
             K::Call { callee, args } => {
                 self.expr(callee);
+                // A mutating `Vec` method writes the vector it borrows (`{ -> v.push(1) }` is an `FnMut`).
+                if let (K::Ident { name, .. }, Some(receiver)) = (&callee.kind, args.first()) {
+                    if crate::mir::borrows::vec_method(name).is_some_and(crate::mir::borrows::vec_mutates) {
+                        match &receiver.kind {
+                            K::Unary { expr, .. } => self.write_root(expr),
+                            _ => self.write_root(receiver),
+                        }
+                    }
+                }
                 if let K::Ident { name, use_kind: UseKind::Copy } = &callee.kind {
                     match self.aliases.get(name) {
                         Some(from) => self.called.push(from.clone()),

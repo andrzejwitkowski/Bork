@@ -110,9 +110,16 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         let blocked = shadowed(chunk) || chunk.needs.iter().any(|&need| shadowed(&CHUNKS[need]));
         wanted[index] = !blocked && (index == OPTION || index >= ALWAYS_FROM || chunk.names.iter().any(|name| mentions(&code, name)));
     }
-    for (index, chunk) in CHUNKS.iter().enumerate() {
-        if wanted[index] {
-            chunk.needs.iter().for_each(|&need| wanted[need] = true);
+    // Transitive: `iter` needs `Vec`, which needs `Buf`.
+    loop {
+        let before = wanted;
+        for (index, chunk) in CHUNKS.iter().enumerate() {
+            if wanted[index] {
+                chunk.needs.iter().for_each(|&need| wanted[need] = true);
+            }
+        }
+        if wanted == before {
+            break;
         }
     }
     let mut extra = Program { constants: Vec::new(), classes: Vec::new(), enums: Vec::new(), functions: Vec::new(), traits: Vec::new(), impls: Vec::new() };
@@ -238,6 +245,13 @@ mod tests {
         assert!(!none.iter().any(|c| c == "Buf" || c == "Arena"), "{none:?}");
         let named = classes("fun main(): i32 {\n    val s: Stack<i32> = newStack()\n    return s.len()\n}\n");
         assert!(["Stack", "StackSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+    }
+
+    #[test]
+    fn a_chunk_pulls_in_the_dependencies_of_its_dependencies() {
+        // `iter` -> `Vec` -> `Buf`: naming only `iter` must still load `Buf`.
+        let result = check("fun main(): i32 {\n    val iter = 1\n    return iter\n}\n");
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
     }
 
     #[test]

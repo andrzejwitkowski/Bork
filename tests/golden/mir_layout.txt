@@ -903,6 +903,9 @@ class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/vec/return_from_function.bork
 class VecSeed<i32> size=4 align=4 fields=[0]
 class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/return_from_loop.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/return_vec_of_linked_refs.bork
 class A size=4 align=4 fields=[0]
 class B size=24 align=8 fields=[0]

@@ -179,8 +179,9 @@ impl<'ctx> Codegen<'ctx> {
         let buf = self.builder.build_load(self.buf_type(), field(source, 0)?, "vec.buf")?.into_struct_value();
         let n = self.builder.build_load(self.context.i32_type(), field(source, 1)?, "vec.n")?.into_int_value();
         let size = record.size_of().ok_or_else(|| not_yet_supported("unsized record", None))?;
-        // `Vec` holds a pointer, so its record is 8-aligned.
-        let object = self.arena_alloc(arena, size, 8)?;
+        use inkwell::types::BasicType;
+        let align = record.get_alignment().get_zero_extended_constant().unwrap_or(8) as usize;
+        let object = self.arena_alloc(arena, size, align)?;
         self.debug_allocation(object, "", &name, false)?;
         let copied = self.buf_alloc(arena, elem_ty, n)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;

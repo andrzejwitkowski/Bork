@@ -1212,6 +1212,16 @@ fun Vec.reserveExact<i32>
 fun VecSeed.empty<i32>
 class VecSeed<i32>
 class Vec<i32>
+== programs/build/vec/return_from_loop.bork
+fun main
+fun first
+fun Vec.get<i32>
+fun vecNew<i32>
+fun Vec.push<i32>
+fun VecSeed.empty<i32>
+fun Vec.reserveExact<i32>
+class VecSeed<i32>
+class Vec<i32>
 == programs/build/vec/return_vec_of_linked_refs.bork
 fun main
 fun make

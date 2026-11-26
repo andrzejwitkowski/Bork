@@ -434,7 +434,7 @@ Examples:
 - Mutating methods need a `var` (or a `&Vec` parameter). Index reads and methods borrow the vector like an `&T` argument, so they work inside loops without `move`.
 - `move` / `promote` copies the vector into the sink arena: `String` bytes are copied and each `Ref` is cloned and rehomed, so its edge kind is recomputed for the new owner. The source binding is moved and cannot be read afterwards, but its allocation remains until its arena dies, like `copy_array_into_arena`.
 - A buffer of `Ref`s is zeroed when allocated and registers one drop (`bork_buf_drop_refs`) that releases every non-`None` slot; growth moves the handles and zeroes the old slots, so nothing is released twice. A per-slot drop would dangle because the buffer moves on growth.
-- A `Vec` can be returned: a `val v = Vec::<T>()` that is returned is allocated in the result arena. `&v[i]` / `&rw v[i]` is a view of the slot; while it is live (`mir::borrows`, last use) `v` cannot be pushed to, popped, cleared, set, moved, assigned or borrowed `&rw`, because `push` moves `buf`. `Ref` and scalar elements cannot be borrowed.
+- A `Vec` can be returned (`return v` of a `val v = Vec::<T>()`, or `return move v`): a returned declaration is allocated in the result arena, any other `Vec` is copied there with `cap = len`. A `Vec` is otherwise allocated where it is declared. `&v[i]` / `&rw v[i]` is a view of the slot; while it is live (`mir::borrows`, last use) `v` cannot be pushed to, popped, cleared, set, moved, assigned or borrowed `&rw`, because `push` moves `buf`. `Ref` and scalar elements cannot be borrowed.
 
 ### Nullable (`T?`)
 

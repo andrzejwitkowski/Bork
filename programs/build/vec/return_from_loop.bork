@@ -1,0 +1,17 @@
+// exit: 7
+// A `Vec` declared in a loop body and returned from inside the loop is copied into the result arena (the loop region is exited by the return).
+fun first(n: i32): Vec<i32> {
+    var i = 0
+    while (i < n) {
+        var v = Vec::<i32>()
+        v.push(7)
+        v.push(i)
+        if (i == 2) { return move v }
+        i = i + 1
+    }
+    return Vec::<i32>()
+}
+fun main(): i32 {
+    val v = first(5)
+    return v.get(0)
+}

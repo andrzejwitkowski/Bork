@@ -62,8 +62,8 @@ impl<'a> FnBuilder<'a> {
     /// outlives its new owner. `mir::build::sinks` allocates the initialiser there for `outer = move inner` (next statement) and
     /// `return move a`; anywhere else the object would die with its region, so the move is reported instead.
     /// Whether the handle in `place` may be passed on as is: it was allocated in an arena that outlives the sink's.
-    pub(super) fn handle_move_ok(&self, place: &Place) -> bool {
-        let dest = self.sink_key(&self.sink);
+    pub(super) fn handle_move_ok(&self, place: &Place, arena: &ArenaRef) -> bool {
+        let dest = self.sink_key(arena);
         match self.decl_sinks.get(&place.local) {
             Some(decl) => self.outlives(decl, &dest),
             // A parameter lives in the caller's arena, which outlives this call and every region in it. Any other
@@ -73,7 +73,7 @@ impl<'a> FnBuilder<'a> {
     }
 
     fn move_handle(&mut self, place: Place, span: Span) -> Res<Operand> {
-        let ok = self.handle_move_ok(&place);
+        let ok = self.handle_move_ok(&place, &self.sink.clone());
         if !ok {
             return Err(BuildError::unsupported(Capability::MoveEscapesArena, span));
         }
@@ -96,7 +96,7 @@ impl<'a> FnBuilder<'a> {
             _ => {
                 let t = self.tcx;
                 // A `Vec` that cannot be passed on as a handle (it would die before its new owner) is copied instead.
-                if self.moves_handle(e.ty) && !(t.is_vec(e.ty) && !self.handle_move_ok(&place)) {
+                if self.moves_handle(e.ty) && !(t.is_vec(e.ty) && !self.handle_move_ok(&place, &self.sink.clone())) {
                     return self.move_handle(place, span);
                 }
                 if !(t.is_nullable(e.ty) || t.is_string(e.ty) || t.is_array(e.ty) || t.is_vec(e.ty)) {

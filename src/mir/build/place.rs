@@ -192,7 +192,7 @@ impl<'a> FnBuilder<'a> {
             return Ok(op);
         }
         // A `Vec` already allocated where it is going is passed on as is (a returned `val v = vecNew()`).
-        if t.is_vec(ty) && op.place().is_some_and(|p| p.is_bare() && self.handle_move_ok(p)) {
+        if t.is_vec(ty) && op.place().is_some_and(|p| p.is_bare() && self.handle_move_ok(p, arena)) {
             return Ok(op);
         }
         Ok(self.copy_into(op, ty, arena, span))
