@@ -262,6 +262,8 @@ fn build_classes(
             fields: Vec::new(),
             methods: HashMap::new(),
             generics: generics::names(&class.generics, &[]),
+            opaque: class.opaque,
+            unsafe_methods: HashSet::new(),
         });
     }
     let mut filled = HashSet::new();
@@ -294,7 +296,7 @@ fn build_classes(
                 }
                 ClassFieldInfo {
                     name: field.name.name.clone(),
-                    ty: lower_type(&field.ty, defs, &scope, tcx, diagnostics, Some(field.name.span)),
+                    ty: lower_type(&field.ty, defs, &scope, tcx, diagnostics, Some(field.name.span), class.prelude),
                     span: field.name.span,
                 }
             })
@@ -338,7 +340,7 @@ fn build_enums(program: &Program, defs: &DefTable, tcx: &mut TyCtx, diagnostics:
                         }
                         ClassFieldInfo {
                             name: field.name.name.clone(),
-                            ty: lower_type(&field.ty, defs, &scope, tcx, diagnostics, Some(field.name.span)),
+                            ty: lower_type(&field.ty, defs, &scope, tcx, diagnostics, Some(field.name.span), false),
                             span: field.name.span,
                         }
                     })
@@ -368,9 +370,9 @@ fn collect_fun_sigs(
         let params = function
             .params
             .iter()
-            .map(|param| lower_type(&param.ty, defs, &scope, tcx, diagnostics, Some(param.name.span)))
+            .map(|param| lower_type(&param.ty, defs, &scope, tcx, diagnostics, Some(param.name.span), function.prelude))
             .collect();
-        let ret = lower_type(&function.return_type, defs, &scope, tcx, diagnostics, Some(function.name_span));
+        let ret = lower_type(&function.return_type, defs, &scope, tcx, diagnostics, Some(function.name_span), function.prelude);
         // Redeclared names share one id; the last declaration wins.
         let id = defs.lookup_fn(&function.name).expect("every function is registered");
         let mut sig = FnSig::new(params, ret);
@@ -416,9 +418,9 @@ fn collect_method_sigs(
             let params: Vec<TyId> = method
                 .params
                 .iter()
-                .map(|param| lower_type(&param.ty, defs, &scope, tcx, diagnostics, Some(param.name.span)))
+                .map(|param| lower_type(&param.ty, defs, &scope, tcx, diagnostics, Some(param.name.span), method.prelude))
                 .collect();
-            let return_ty = lower_type(&method.return_type, defs, &scope, tcx, diagnostics, Some(method.name_span));
+            let return_ty = lower_type(&method.return_type, defs, &scope, tcx, diagnostics, Some(method.name_span), method.prelude);
             let shown_params: Vec<String> = method
                 .params
                 .iter()
@@ -444,6 +446,9 @@ fn collect_method_sigs(
             fun_sigs.insert(key, sig);
             if let Some(info) = classes.get_mut(&owner) {
                 info.methods.insert(key, signature.clone());
+                if method.unsafe_ {
+                    info.unsafe_methods.insert(key);
+                }
             }
             members.insert(
                 method.id.numbered(),
@@ -576,8 +581,10 @@ fn enter_function(
 
 fn check_body(env: &mut Env<'_>, function: &Function, return_ty: TyId) -> crate::hir::HirBlock {
     let outer_unsafe = std::mem::replace(&mut env.unsafe_depth, usize::from(function.unsafe_));
+    let outer_prelude = std::mem::replace(&mut env.in_prelude, function.prelude);
     let body = stmt::check_block(&function.body, return_ty, env, false);
     env.unsafe_depth = outer_unsafe;
+    env.in_prelude = outer_prelude;
     let unit = env.tcx.unit();
     if return_ty != unit && !stmt::block_always_returns(&body) {
         env.error(

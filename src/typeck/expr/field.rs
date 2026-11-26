@@ -97,6 +97,7 @@ pub(super) fn check_field(
         );
     };
 
+    env.reject_opaque(class, || format!("field `{name}`"), span);
     let field_ty = env.member_ty(receiver.ty, field.ty);
     let result_ty = if env.tcx.is_ref(receiver.ty) && env.tcx.record_def(field_ty).is_some() {
         env.tcx.ref_to_flag(field_ty, env.tcx.is_rw_ref(receiver.ty))

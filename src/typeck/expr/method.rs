@@ -60,6 +60,10 @@ pub(super) fn check_method_call(
     };
     let class_name = env.tcx.class_name(class).to_string();
     let method_def = env.defs.lookup_method(class, method);
+    if !env.in_prelude && method_def.is_some_and(|def| env.class(class).is_some_and(|c| c.unsafe_methods.contains(&def))) {
+        env.error(format!("`{class_name}.{method}` is an `unsafe` method private to the prelude"), Some(span));
+        return poisoned(args, span, return_ty, env);
+    }
     let (Some(sig), Some(signature)) = (
         method_def.and_then(|def| env.fun_sigs.get(&def)).cloned(),
         method_def.and_then(|def| env.class(class)?.methods.get(&def).cloned()),
