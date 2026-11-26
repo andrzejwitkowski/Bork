@@ -182,6 +182,8 @@ pub enum IntrinsicOp {
     SlotLoad,
     /// `(buf, i, v)`: writes slot `i`.
     SlotStore,
+    /// `(buf, i)`: releases a `Ref` in slot `i` (leaving `None`); a no-op for other slot types.
+    SlotDrop,
     /// `(buf, newCap)`: a new `Buf` in `arena` holding a copy of the old `cap` slots.
     BufGrow,
     /// `(buf)`: its slot count.

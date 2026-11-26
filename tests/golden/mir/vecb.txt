@@ -1149,14 +1149,55 @@ fn VecB.clear<i32> (parent=true, sink=false) {
   let _0: unit [Return]
   let _1: &VecB<i32> [Arg] this
   let _2: unit [Hidden(DebugScope)]
+  let _3: i32 [Var] i
+  let _4: bool [Temp]
+  let _5: unit [Hidden(DebugScope)]
+  let _6: unit [Hidden(DebugScope)]
+  let _7: unit [Hidden(DebugScope)]
+  let _8: Buf<i32> [Val] b
+  let _9: i32 [Temp]
+  let _10: bool [Temp]
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
   region r0 Block
+  region r1 While in r0
+  region r2 Block in r1
   bb0:
     storage_live _2
     region_enter r0
+    _3 = 0  // label "i": i32 decl
+    storage_live _5
+    goto bb1
+  bb1:
+    _4 = lt(copy _3, copy _1.1)
+    switch copy _4 [ 1 -> bb2, else -> bb4]
+  bb2:
+    storage_live _6
+    storage_live _7
+    _8 = copy _1.0  // label "b": Buf<i32> decl
+    _9 = intrinsic BufCap(reborrow _8)
+    _10 = ge(copy _3, 0)
+    switch copy _10 [ 1 -> bb6, else -> bb5]
+  bb3:
+    goto bb1
+  bb4:
+    storage_dead _5
     _1.1 = 0  // label "VecB<i32>.n": i32 decl owner=object_arena(_1)
     storage_dead _2
     region_exit r0
     return
+  bb5:
+    abort Bounds
+  bb6:
+    _11 = lt(copy _3, copy _9)
+    switch copy _11 [ 1 -> bb7, else -> bb5]
+  bb7:
+    intrinsic SlotDrop(reborrow _8, copy _3)
+    storage_dead _7
+    _12 = add(copy _3, 1)
+    _3 = copy _12
+    storage_dead _6
+    goto bb3
 }
 
 fn vecBWithCapacity<i32> (parent=true, sink=true) {

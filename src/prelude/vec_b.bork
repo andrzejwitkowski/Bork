@@ -1,7 +1,6 @@
 // `VecB` (#285): `Vec` written in Bork on `Buf<T>`. It lives beside the compiler's `Vec` until the switch (plan Part 3), when it takes the name `Vec`.
 // Both classes are `opaque` (#350): user code cannot read their fields or construct them, so a `Buf` never leaves the prelude.
 // shortcut: each `vecBNew` / `vecBWithCapacity` call leaks one `VecBSeed` in the program-lifetime arena, until an arena-less empty-`Buf` primitive exists.
-// shortcut: `clear` and `pop` do not release `Ref` slots yet (scalars and `String` only), until Ref elements move over (plan Task 7).
 opaque class VecBSeed<T> {
     n: i32
     // Zero bytes in the seed's arena: never read, and `bufGrow` copies 0 bytes from it.
@@ -94,6 +93,14 @@ opaque class VecB<T> {
         }
     }
     fun clear() {
+        var i = 0
+        while (i < this.n) {
+            unsafe {
+                val b = this.buf
+                slotDrop(&b, i)
+            }
+            i = i + 1
+        }
         this.n = 0
     }
 }

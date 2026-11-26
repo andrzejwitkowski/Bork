@@ -5775,7 +5775,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/get_negative_aborts.bork
 Arenas
 ├── fun main
@@ -5851,7 +5858,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/methods.bork
 Arenas
 ├── fun main
@@ -5942,7 +5956,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/move_into_outer.bork
 Arenas
 ├── fun main
@@ -6021,7 +6042,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/promote_outlives_inner.bork
 Arenas
 ├── fun main
@@ -6106,7 +6134,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/promote_strings.bork
 Arenas
 ├── fun main
@@ -6185,7 +6220,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/return_from_function.bork
 Arenas
 ├── fun build
@@ -6269,7 +6311,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build/vecb/set_past_len_aborts.bork
 Arenas
 ├── fun main
@@ -6345,7 +6394,14 @@ Arenas
 ├── fun VecB.capacity (compacted 1 brace)
 │   └── this [Borrow ← call site]
 └── fun VecB.clear
-    └── this [Borrow ← call site]
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun VecB.clear]
+            └── i [Copy]
 == programs/build_fail/borrow/store_ref_into_borrowed_array.bork
 Ownership Error [121..134] storing a `String`, array or `Ref` into a borrowed array would allocate it in this function's arena, which is freed on return; build the value where the array lives (the caller) and pass it in
 Arenas

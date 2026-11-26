@@ -89,8 +89,8 @@ fn plain_buf(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     // `buf_elem` also looks through `?`, but a `Buf?` is an enum slot handle, not `{ptr, cap}`.
     let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
     (!cx.tcx.is_nullable(ty)).then_some(())?;
-    // Scalars, text and `Ref`s: the elements `Buf` has glue for (a closure element is #285 part 2).
-    cx.tcx.buf_elem(ty).filter(|&e| (prim(cx, e).is_some() && !is_unit(cx, e)) || cx.tcx.is_text(e) || cx.tcx.is_managed_ref(e))
+    // Scalars, text, `Ref`s and closures: the elements `Buf` has glue for.
+    cx.tcx.buf_elem(ty).filter(|&e| (prim(cx, e).is_some() && !is_unit(cx, e)) || cx.tcx.is_text(e) || cx.tcx.is_managed_ref(e) || cx.tcx.is_callable(e))
 }
 
 /// Answers depend only on the type, so they are memoised on `cx` (keyed with the reference
@@ -560,7 +560,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     operand(&args[1])?;
                     operand(&args[2])?;
                 }
-                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                     let dty = dst.as_ref().filter(|d| d.is_bare()).and_then(|d| body.local(d.local)).map(|l| l.ty);
                     let buf = |op: &Operand| op_place_ty(cx, body, op).and_then(|t| plain_buf(cx, t));
                     match (op, args.as_slice(), arena) {
@@ -583,6 +583,10 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             op_place_ty(cx, body, v).is_none_or(|t| t == elem).then_some(())?;
                             operand(i)?;
                             general(v)?;
+                        }
+                        (IntrinsicOp::SlotDrop, [b, i], None) if dst.is_none() => {
+                            buf(b)?;
+                            operand(i)?;
                         }
                         (IntrinsicOp::BufGrow, [b, c], Some(a)) if arena_ok(a) => {
                             (Some(buf(b)?) == plain_buf(cx, dty?)).then_some(())?;
@@ -1473,7 +1477,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let out = cx.string_from_utf8(self.llvm_fn, arena, buffer, start, count, dty)?;
                 self.store(d, out.into())?;
             }
-            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                 self.buf_intrinsic(*op, dst.as_ref(), args, arena.as_ref(), stmt.region)?;
             }
             StmtKind::Intrinsic { op, args, .. } => {
@@ -1525,6 +1529,14 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                     cx.buf_store_in(self.llvm_fn, arena, b, index, elem, value)?;
                 } else {
                     cx.buf_store(b, index, elem, value)?;
+                }
+                None
+            }
+            (IntrinsicOp::SlotDrop, [b, i]) => {
+                let (b, elem) = buf(b)?;
+                if cx.tcx.is_managed_ref(elem) {
+                    let (slot, _) = cx.buf_slot(b, int(i)?, elem)?;
+                    cx.builder.build_call(cx.ref_drop_slot_fn(), &[slot.into()], "")?;
                 }
                 None
             }

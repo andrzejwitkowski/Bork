@@ -9,7 +9,13 @@ use crate::mir::body::*;
 impl<'a> FnBuilder<'a> {
     pub(super) fn buf_primitive(&mut self, e: &HirExpr, name: &str, args: &[HirExpr]) -> Res<Operand> {
         let span = span_of(e);
-        let ops = args.iter().map(|a| self.buf_arg(a)).collect::<Res<Vec<_>>>()?;
+        let mut ops = args.iter().map(|a| self.buf_arg(a)).collect::<Res<Vec<_>>>()?;
+        // A closure stored in a buffer gets its environment copied into the arena of `this`, so it outlives the storing scope.
+        if name == "slotStore" && args.get(2).is_some_and(|v| self.tcx.is_callable(v.ty)) {
+            let ty = args[2].ty;
+            let arena = self.this_arena(span)?;
+            ops[2] = self.copy_into(ops[2].clone(), ty, &arena, span);
+        }
         let zero = Operand::Const(Const::Int(0));
         let (op, arena) = match (name, ops.as_slice()) {
             ("abort", []) => {
@@ -28,11 +34,13 @@ impl<'a> FnBuilder<'a> {
                 self.abort_unless(&[(BinOp::Ge, cap.clone(), zero)], AbortReason::NegativeCapacity, span, e);
                 (IntrinsicOp::BufAlloc, None)
             }
-            ("slotLoad", [buf, i]) | ("slotStore", [buf, i, _]) => {
+            ("slotLoad", [buf, i]) | ("slotStore", [buf, i, _]) | ("slotDrop", [buf, i]) => {
                 let cap = self.buf_cap(buf, e);
                 self.abort_unless(&[(BinOp::Ge, i.clone(), zero), (BinOp::Lt, i.clone(), cap)], AbortReason::Bounds, span, e);
                 if name == "slotLoad" {
                     (IntrinsicOp::SlotLoad, None)
+                } else if name == "slotDrop" {
+                    (IntrinsicOp::SlotDrop, None)
                 } else {
                     // A `String` is copied into, and a `Ref` stored through, the arena of `this` (shortcut: same limit as `bufGrow`).
                     let in_arena = args.get(2).is_some_and(|v| self.tcx.is_text(v.ty) || self.tcx.is_managed_ref(v.ty));

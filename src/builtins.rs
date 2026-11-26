@@ -12,6 +12,7 @@ pub(crate) enum Builtin {
     BufAlloc,
     SlotLoad,
     SlotStore,
+    SlotDrop,
     BufGrow,
     Abort,
     ArenaOf,
@@ -28,6 +29,7 @@ pub(crate) fn resolve(name: &str) -> Option<Builtin> {
         "bufAlloc" => Some(Builtin::BufAlloc),
         "slotLoad" => Some(Builtin::SlotLoad),
         "slotStore" => Some(Builtin::SlotStore),
+        "slotDrop" => Some(Builtin::SlotDrop),
         "bufGrow" => Some(Builtin::BufGrow),
         "abort" => Some(Builtin::Abort),
         "arenaOf" => Some(Builtin::ArenaOf),
@@ -60,7 +62,7 @@ pub(crate) fn is_borrowed_arg(name: &str, index: usize) -> bool {
 pub(crate) fn is_buf_primitive(name: &str) -> bool {
     matches!(
         resolve(name),
-        Some(Builtin::BufAlloc | Builtin::SlotLoad | Builtin::SlotStore | Builtin::BufGrow | Builtin::Abort | Builtin::ArenaOf)
+        Some(Builtin::BufAlloc | Builtin::SlotLoad | Builtin::SlotStore | Builtin::SlotDrop | Builtin::BufGrow | Builtin::Abort | Builtin::ArenaOf)
     )
 }
 
@@ -87,6 +89,7 @@ pub(crate) fn hover_doc(name: &str) -> Option<&'static str> {
         Builtin::BufAlloc => "`bufAlloc<T>(a: Arena, cap: i32): Buf<T>`\nA buffer of `cap` slots in arena `a`. `unsafe` only.",
         Builtin::SlotLoad => "`slotLoad<T>(b: &Buf<T>, i: i32): T`\nReads slot `i`; aborts outside `0..cap`. `unsafe` only.",
         Builtin::SlotStore => "`slotStore<T>(b: &Buf<T>, i: i32, v: T)`\nWrites slot `i`; aborts outside `0..cap`. `unsafe` only.",
+        Builtin::SlotDrop => "`slotDrop<T>(b: &Buf<T>, i: i32)`\nReleases the `Ref` in slot `i` and leaves it `None`; does nothing for other slot types. Aborts outside `0..cap`. `unsafe` only.",
         Builtin::BufGrow => {
             "`bufGrow<T>(b: &Buf<T>, newCap: i32): Buf<T>`\nA bigger copy in the arena of `this` (`b` must have been allocated in `this`'s arena); aborts unless `newCap > cap`. `unsafe` only."
         }
@@ -132,6 +135,7 @@ impl Builtin {
             Builtin::BufAlloc => "bufAlloc",
             Builtin::SlotLoad => "slotLoad",
             Builtin::SlotStore => "slotStore",
+            Builtin::SlotDrop => "slotDrop",
             Builtin::BufGrow => "bufGrow",
             Builtin::Abort => "abort",
             Builtin::ArenaOf => "arenaOf",
@@ -147,7 +151,7 @@ impl Builtin {
             // Typeck checks the counters itself: the argument is any `Ref<T>`.
             Builtin::StrongCount | Builtin::WeakCount => (name, Vec::new(), tcx.i32()),
             // Typeck checks the buffer primitives itself: they are generic over the slot type.
-            Builtin::BufAlloc | Builtin::SlotLoad | Builtin::SlotStore | Builtin::BufGrow | Builtin::Abort | Builtin::ArenaOf => {
+            Builtin::BufAlloc | Builtin::SlotLoad | Builtin::SlotStore | Builtin::SlotDrop | Builtin::BufGrow | Builtin::Abort | Builtin::ArenaOf => {
                 (name, Vec::new(), tcx.unit())
             }
             Builtin::Concat => (name, vec![tcx.string(false), tcx.string(false)], tcx.string(false)),

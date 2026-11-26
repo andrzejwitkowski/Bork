@@ -7,7 +7,13 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const PARITY: &[&str] = &["strings", "negative_capacity_aborts", "push_grow_sum", "pop_set_clear", "grow_past_page", "index_through_field", "vec_field_repeated", "assign_concat_through_borrowed_vec", "index_from_element", "move_to_outer", "move_vec_field"];
+const PARITY: &[&str] = &["strings", "negative_capacity_aborts", "push_grow_sum", "pop_set_clear", "grow_past_page", "index_through_field", "vec_field_repeated", "assign_concat_through_borrowed_vec", "index_from_element", "move_to_outer", "move_vec_field", "closure_elems_grow", "closure_elems_loop", "closure_elems_move", "closure_elems_promote", "closure_elems_promote_nullable_none", "closure_elems_promote_nullable_object", "closure_elems_promote_object_capture", "closure_elems_promote_object_loop", "closure_elems_promote_string_bytes", "closure_elems_ref_capture", "closure_elems_ref_capture_replace", "closure_elems_set_pop_clear", "closure_elems_via_param", "ref_counts_across_arenas", "ref_nodes", "ref_promote", "ref_promote_strong", "ref_weak_expires", "return_vec_of_linked_refs"];
+
+/// Known gaps (plan Task 7): a closure capturing a `Ref` or an object is built in the scope of the `push` call, not in the
+/// vector's arena, so its owned `Ref`s are not rehomed. Building it in the vector's arena (`vec_op_expr` does this for the
+/// compiler `Vec`) trips `MoveEscapesArena`, because a `VecB` returned by `vecBNew()` is allocated in the call's result sink.
+/// Task 10 cannot land until these pass: run with `--ignored`.
+const GAPS: &[&str] = &["closure_elems_inner_ref_capture", "closure_elems_promote_object_fields", "closure_elems_promote_ref_capture"];
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -21,14 +27,17 @@ fn rewrite(source: &str) -> String {
         out.push_str(&rest[..at]);
         let after = &rest[at + "Vec::<".len()..];
         let mut depth = 1;
+        let mut prev = ' ';
         let close = after
             .char_indices()
             .find(|&(_, c)| {
                 match c {
                     '<' => depth += 1,
-                    '>' => depth -= 1,
+                    // `->` in a function type is not a closing bracket.
+                    '>' if prev != '-' => depth -= 1,
                     _ => {}
                 }
+                prev = c;
                 depth == 0
             })
             .map(|(i, _)| i)
@@ -79,9 +88,23 @@ fn rewrite_turns_constructors_and_types_into_vecb() {
 
 #[test]
 fn vecb_matches_vec_on_the_parity_programs() {
-    for name in PARITY {
+    check_all(PARITY);
+}
+
+#[test]
+#[ignore = "known gaps, plan Task 7: closures capturing a Ref or an object"]
+fn vecb_matches_vec_on_the_known_gaps() {
+    check_all(GAPS);
+}
+
+fn check_all(names: &[&str]) {
+    let mut failures = Vec::new();
+    for name in names {
         let original = std::fs::read_to_string(root().join("programs/build/vec").join(format!("{name}.bork"))).unwrap();
         let (code, stderr) = build_and_run(&rewrite(&original), name);
-        assert_eq!(code, want_exit(&original), "{name} (VecB):\n{stderr}");
+        if code != want_exit(&original) {
+            failures.push(format!("{name} (VecB): exit {code}, want {}:\n{stderr}", want_exit(&original)));
+        }
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

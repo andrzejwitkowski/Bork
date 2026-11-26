@@ -268,7 +268,7 @@ impl<'a> FnBuilder<'a> {
         Ok(self.copy_into(op, ty, arena, span))
     }
 
-    fn copy_into(&mut self, op: Operand, ty: TyId, arena: &ArenaRef, span: Span) -> Operand {
+    pub(super) fn copy_into(&mut self, op: Operand, ty: TyId, arena: &ArenaRef, span: Span) -> Operand {
         let src = self.operand_place(op, ty, span);
         let dst = self.temp(ty);
         self.stmt(StmtKind::CopyInto { dst: Place::local(dst), src, arena: arena.clone() }, span, None);

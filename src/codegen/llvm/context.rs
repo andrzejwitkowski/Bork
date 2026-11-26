@@ -368,6 +368,11 @@ impl<'ctx> Codegen<'ctx> {
         self.arena_handle_fn("bork_ref_release_observation_ptr")
     }
 
+    /// `void bork_ref_drop(ptr slot)`: releases the `Ref` in `slot` and leaves `None` there.
+    pub fn ref_drop_slot_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_ref_drop")
+    }
+
     pub fn ref_drop_value_fn(&self) -> FunctionValue<'ctx> {
         self.arena_handle_fn("bork_ref_drop_value_ptr")
     }

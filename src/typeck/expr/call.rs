@@ -620,6 +620,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         Builtin::BufAlloc => (2, buf, vec![]),
         Builtin::SlotLoad => (2, elem, vec![i32_ty]),
         Builtin::SlotStore => (3, unit, vec![i32_ty, elem]),
+        Builtin::SlotDrop => (2, unit, vec![i32_ty]),
         Builtin::BufGrow => (2, buf, vec![i32_ty]),
         Builtin::Abort => (0, unit, vec![]),
         Builtin::ArenaOf => (1, arena, vec![]),
