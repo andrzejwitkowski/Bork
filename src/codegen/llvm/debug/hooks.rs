@@ -108,9 +108,7 @@ impl<'ctx> Codegen<'ctx> {
         if self.debug.is_none() || self.tcx.is_managed_ref(ty) {
             return Ok(());
         }
-        let pointer = if self.tcx.is_vec(ty) {
-            value.into_pointer_value()
-        } else if self.tcx.class_def(ty).is_some()
+        let pointer = if self.tcx.class_def(ty).is_some()
             || matches!(self.tcx.data(ty), crate::ty::TyData::Enum(..))
         {
             self.builder
@@ -129,14 +127,6 @@ impl<'ctx> Codegen<'ctx> {
             &self.tcx.display(ty).to_string(),
             declaration,
         )?;
-        if self.tcx.is_vec(ty) {
-            let ptr_ty = self.context.ptr_type(AddressSpace::default());
-            let buffer = self
-                .builder
-                .build_load(ptr_ty, pointer, "debug.vec.buffer")?
-                .into_pointer_value();
-            self.debug_allocation(buffer, name, &self.tcx.display(ty).to_string(), declaration)?;
-        }
         Ok(())
     }
 

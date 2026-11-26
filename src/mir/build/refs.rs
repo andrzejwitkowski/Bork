@@ -61,14 +61,19 @@ impl<'a> FnBuilder<'a> {
     /// `move x` of an object: the handle is passed on, which is only sound when `x` was allocated in an arena that
     /// outlives its new owner. `mir::build::sinks` allocates the initialiser there for `outer = move inner` (next statement) and
     /// `return move a`; anywhere else the object would die with its region, so the move is reported instead.
-    fn move_handle(&mut self, place: Place, span: Span) -> Res<Operand> {
+    /// Whether the handle in `place` may be passed on as is: it was allocated in an arena that outlives the sink's.
+    pub(super) fn handle_move_ok(&self, place: &Place) -> bool {
         let dest = self.sink_key(&self.sink);
-        let ok = match self.decl_sinks.get(&place.local) {
+        match self.decl_sinks.get(&place.local) {
             Some(decl) => self.outlives(decl, &dest),
             // A parameter lives in the caller's arena, which outlives this call and every region in it. Any other
             // local without a recorded declaration (a temporary, a binding) has no known arena: reject it.
             None => self.locals[place.local.0 as usize].kind == LocalKind::Arg && !matches!(&dest, SinkKey::Other(ArenaRef::Home(h)) if self.locals[h.0 as usize].kind == LocalKind::Arg),
-        };
+        }
+    }
+
+    fn move_handle(&mut self, place: Place, span: Span) -> Res<Operand> {
+        let ok = self.handle_move_ok(&place);
         if !ok {
             return Err(BuildError::unsupported(Capability::MoveEscapesArena, span));
         }
@@ -90,7 +95,8 @@ impl<'a> FnBuilder<'a> {
             }
             _ => {
                 let t = self.tcx;
-                if self.moves_handle(e.ty) {
+                // A `Vec` that cannot be passed on as a handle (it would die before its new owner) is copied instead.
+                if self.moves_handle(e.ty) && !(t.is_vec(e.ty) && !self.handle_move_ok(&place)) {
                     return self.move_handle(place, span);
                 }
                 if !(t.is_nullable(e.ty) || t.is_string(e.ty) || t.is_array(e.ty) || t.is_vec(e.ty)) {

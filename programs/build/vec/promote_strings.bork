@@ -1,10 +1,10 @@
 // exit: 6
 // stdout: hello\n
-// Promoting a `VecB<String>` copies each String into the outer vector's arena: the inner block's arena is gone when they are read.
+// Promoting a `Vec<String>` copies each String into the outer vector's arena: the inner block's arena is gone when they are read.
 fun main(): i32 {
-    var outer: VecB<String> = vecBNew()
+    var outer: Vec<String> = vecNew()
     {
-        var inner: VecB<String> = vecBNew()
+        var inner: Vec<String> = vecNew()
         inner.push(concat("hel", "lo"))
         inner.push("x")
         outer = promote inner

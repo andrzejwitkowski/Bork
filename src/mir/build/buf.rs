@@ -93,7 +93,7 @@ impl<'a> FnBuilder<'a> {
             this.stmt(StmtKind::Assign(Place::local(t), Rvalue::Use(Operand::Copy(p))), span, Some(e.id));
             Operand::Copy(Place::local(t))
         };
-        // Field order of the prelude's `VecB`: `buf`, `n`.
+        // Field order of the prelude's `Vec`: `buf`, `n`.
         let i32_ty = self.tcx.prim_id(crate::hir::Prim::I32);
         let n = field(self, 1, i32_ty);
         // `buf` is field 0 of the instantiated class; read its type off the monomorphised definition.

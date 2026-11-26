@@ -1,27 +1,12 @@
 //! Runtime bounds check: abort when an index is outside `0..len`.
 
 use inkwell::values::{FunctionValue, IntValue};
-use inkwell::IntPredicate;
 
 use crate::diag::Diagnostic;
 
 use super::super::context::Codegen;
 
 impl<'ctx> Codegen<'ctx> {
-    pub(in crate::codegen::llvm) fn guard_index(
-        &self,
-        llvm_fn: FunctionValue<'ctx>,
-        index: IntValue<'ctx>,
-        len: IntValue<'ctx>,
-    ) -> Result<(), Diagnostic> {
-        let idx = self.builder.build_int_s_extend(index, len.get_type(), "idx")?;
-        let zero = len.get_type().const_int(0, false);
-        let neg = self.builder.build_int_compare(IntPredicate::SLT, idx, zero, "neg")?;
-        let ge = self.builder.build_int_compare(IntPredicate::UGE, idx, len, "oob")?;
-        let bad = self.builder.build_or(neg, ge, "idx.bad")?;
-        self.branch_abort_if(llvm_fn, bad)
-    }
-
     pub(in crate::codegen::llvm) fn branch_abort_if(
         &self,
         llvm_fn: FunctionValue<'ctx>,

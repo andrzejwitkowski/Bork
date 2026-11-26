@@ -27,23 +27,21 @@ const FN: usize = 5;
 const BUF: usize = 7;
 /// Chunks from here on are always added: `==` and `<` on objects resolve `Eq` / `Ord` without the
 /// program naming them. Each trait is its own chunk, so a program's own `Display` leaves `Eq` alone.
-const ALWAYS_FROM: usize = 10;
+const ALWAYS_FROM: usize = 9;
 
-const CHUNKS: [Chunk; 14] = [
+const CHUNKS: [Chunk; 13] = [
     Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
     Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
-    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec"], needs: &[], source: include_str!("prelude/vec.bork") },
+    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec", "VecSeed", "vecNew", "vecWithCapacity"], needs: &[BUF], source: include_str!("prelude/vec.bork") },
     // `F: Fn(A) -> R` bounds (RFC 0007); the solver gives closures and functions their impls.
     Chunk { path: "<bork-prelude>/fn.bork", names: &["Fn", "FnMut", "FnOnce"], needs: &[], source: include_str!("prelude/fn.bork") },
     Chunk { path: "<bork-prelude>/iter.bork", names: &["VecIter", "iter", "Map", "map", "Filter", "filter", "fold"], needs: &[OPTION, ITERATOR, VEC, FN], source: include_str!("prelude/iter.bork") },
     // `Buf<T>` and `Arena` (#285): the opaque types of the unsafe-only buffer primitives.
     Chunk { path: "<bork-prelude>/buf.bork", names: &["Buf", "Arena"], needs: &[], source: include_str!("prelude/buf.bork") },
-    // Internal `Stack<T>` (#285 step 1) on `Buf<T>`; step 2 replaces it with `Vec` written in Bork.
+    // Internal `Stack<T>` (#285 step 1) on `Buf<T>`.
     Chunk { path: "<bork-prelude>/stack.bork", names: &["Stack", "StackSeed", "newStack"], needs: &[BUF], source: include_str!("prelude/stack.bork") },
-    // `Vec` in Bork (#285), beside the compiler's `Vec` until the switch.
-    Chunk { path: "<bork-prelude>/vec_b.bork", names: &["VecB", "VecBSeed", "vecBNew", "vecBWithCapacity"], needs: &[OPTION, BUF], source: include_str!("prelude/vec_b.bork") },
     // Always added (index >= ALWAYS_FROM): a literal `a..b` has the type `Range<i32>` without naming it.
     Chunk { path: "<bork-prelude>/range.bork", names: &["Range"], needs: &[], source: include_str!("prelude/range.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
@@ -243,16 +241,16 @@ mod tests {
     }
 
     #[test]
-    fn vecb_comes_only_when_named() {
+    fn vec_comes_only_when_named() {
         let classes = |code: &str| {
             let result = check(code);
             assert!(result.is_ok(), "{:?}", result.diagnostics);
             result.hir.unwrap().classes.into_iter().map(|c| c.name).collect::<Vec<_>>()
         };
         let none = classes("fun main() {}\n");
-        assert!(!none.iter().any(|c| c.starts_with("VecB")), "{none:?}");
-        let named = classes("fun main(): i32 {\n    val v: VecB<i32> = vecBNew()\n    return v.len()\n}\n");
-        assert!(["VecB", "VecBSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+        assert!(!none.iter().any(|c| c.starts_with("Vec")), "{none:?}");
+        let named = classes("fun main(): i32 {\n    val v: Vec<i32> = vecNew()\n    return v.len()\n}\n");
+        assert!(["Vec", "VecSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
     }
 
     #[test]

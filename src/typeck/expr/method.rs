@@ -40,10 +40,6 @@ pub(super) fn check_method_call(
         env.error("method call on a nullable receiver", Some(span));
         return poisoned(args, span, return_ty, env);
     }
-    if let Some(elem) = env.tcx.vec_elem(checked.ty) {
-        let borrowed = borrow(checked, env);
-        return super::vec::check_vec_method(receiver, borrowed, elem, method, id, site, env);
-    }
     // An inherent method shadows a trait method of the same name.
     // `Buf<T>` is intrinsic, so not a record, but its prelude `intrinsic fun cap()` is an inherent method.
     let buf = env.tcx.buf_elem(checked.ty).and(env.tcx.buf_def());
@@ -59,6 +55,7 @@ pub(super) fn check_method_call(
         return check_trait_method_call(checked, method, id, site, env);
     };
     // `pop` of a `Ref` element is the `Ref` itself, as for the compiler `Vec` (a `Ref` already has its own `None`).
+    let written = method;
     let method = if method == "pop" && env.defs.vec_class() == Some(class) && env.tcx.vec_class_elem(checked.ty).is_some_and(|e| env.tcx.is_managed_ref(e)) { "popRef" } else { method };
     let class_name = env.tcx.class_name(class).to_string();
     let method_def = env.defs.lookup_method(class, method);
@@ -73,7 +70,12 @@ pub(super) fn check_method_call(
         env.error(format!("class `{class_name}` has no method `{method}`"), Some(span));
         return poisoned(args, span, return_ty, env);
     };
-    // A call synthesized by `v[i]` on `VecB` has no source node to hover over.
+    // Hover shows the instantiated receiver (`Vec<Ref<Node>>.push`), not the generic `T`.
+    let signature = match env.tcx.vec_class_elem(checked.ty).filter(|_| env.defs.vec_class() == Some(class)) {
+        Some(elem) => format!("Vec<{}>.{written}", env.show(elem)),
+        None => signature,
+    };
+    // A call synthesized by `v[i]` on `Vec` has no source node to hover over.
     if id != AstId::DUMMY {
         env.members.insert(
             id.numbered(),

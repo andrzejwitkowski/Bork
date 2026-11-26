@@ -31,7 +31,7 @@ impl TyCtx {
     /// Whether `payload` could have been written `payload?`. An `Option<Ref<T>>` is only an enum:
     /// the kind queries do not look through it.
     fn supports_nullable_payload(&self, payload: TyId) -> bool {
-        !self.is_intrinsic_class(payload) && !matches!(self.data(payload), TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
+        !self.is_intrinsic_class(payload) && !self.is_vec(payload) && !matches!(self.data(payload), TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
     }
 
     /// a type that cannot be nullable (`Error`) is unchanged.
@@ -46,7 +46,7 @@ impl TyCtx {
 
     pub fn supports_nullable(&self, id: TyId) -> bool {
         let base = self.base(id);
-        !self.is_intrinsic_class(base) && !matches!(self.data(base), TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
+        !self.is_intrinsic_class(base) && !self.is_vec(base) && !matches!(self.data(base), TyData::Ref(..) | TyData::ManagedRef(_) | TyData::Error)
     }
 
     /// Whether `id` mentions an opaque type parameter anywhere (`Ref<T>`, `Vec<T>`, `T?`, ...).
@@ -169,11 +169,7 @@ impl TyCtx {
     }
 
     fn vec_elem_unsupported(&self, id: TyId) -> bool {
-        self.intrinsic_arg(id, self.vec_def()).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
-    }
-
-    pub fn vec_def(&self) -> Option<DefId> {
-        self.lang[LangItem::Vec as usize]
+        self.vec_class_elem(id).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
     }
 
     pub fn range_def(&self) -> Option<DefId> {
@@ -241,11 +237,7 @@ impl TyCtx {
 
     /// through borrows and `?`.
     pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
-        let base = self.base(id);
-        match self.data(base) {
-            TyData::Ref(inner, _) => self.vec_elem(*inner),
-            _ => self.intrinsic_arg(base, self.vec_def()),
-        }
+        self.vec_class_elem(id)
     }
 
     /// Whether `id` (or a borrow of it) is the Bork `Vec` class.
@@ -253,7 +245,7 @@ impl TyCtx {
         self.vec_class_elem(id).is_some()
     }
 
-    /// Element type of the Bork `Vec` (`VecB<T>`, or a borrow of it); the one `opaque` class of that name.
+    /// Element type of the Bork `Vec` (`Vec<T>`, or a borrow of it); the one `opaque` class of that name.
     pub fn vec_class_elem(&self, id: TyId) -> Option<TyId> {
         let base = self.base(id);
         match self.data(base) {
@@ -264,7 +256,7 @@ impl TyCtx {
     }
 
     pub fn is_vec(&self, id: TyId) -> bool {
-        self.intrinsic_arg(id, self.vec_def()).is_some()
+        matches!(self.data(id), TyData::Class(def, _) if self.vec_class == Some(*def))
     }
 
     pub fn range_elem(&self, id: TyId) -> Option<TyId> {
@@ -476,7 +468,7 @@ impl TyCtx {
     pub fn vec_of(&mut self, elem: TyId) -> TyId {
         // Without the prelude `Vec` (a program that defines its own) there is no such type; the
         // lowering of the written type has already reported why.
-        let Some(def) = self.vec_def() else { return self.error() };
+        let Some(def) = self.vec_class else { return self.error() };
         self.add(TyData::Class(def, vec![elem]))
     }
 

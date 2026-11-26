@@ -11,7 +11,6 @@
 use std::collections::{HashMap, HashSet};
 
 use super::body::*;
-use crate::hir::VecOp;
 use crate::span::Span;
 
 #[derive(Clone, PartialEq)]
@@ -118,12 +117,21 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
         }
     }
     let mut found: Vec<(Span, String)> = Vec::new();
-    // Temps passed as the receiver of a `VecB` method call.
+    // Temps passed as the receiver of a `Vec` method call.
     let vec_call_receivers: HashSet<Local> = body
         .blocks
         .iter()
         .filter_map(|b| match b.term.as_ref().map(|t| &t.kind) {
             Some(TermKind::Call { callee, args, .. }) if vec_method(callee).is_some() => args.first()?.place().map(|p| p.local),
+            _ => None,
+        })
+        .collect();
+    // Receivers of a call that writes the vector: reported at the call, not at the `&rw` borrow that passes it.
+    let mutating_receivers: HashSet<Local> = body
+        .blocks
+        .iter()
+        .filter_map(|b| match b.term.as_ref().map(|t| &t.kind) {
+            Some(TermKind::Call { callee, args, .. }) if vec_method(callee).is_some_and(vec_mutates) => args.first()?.place().map(|p| p.local),
             _ => None,
         })
         .collect();
@@ -139,10 +147,6 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
             let after = &live[i].0[k];
             lock_conflicts(body, &vec_call_receivers, &s.kind, s.span, &st, after, &names, &mut found);
             match &s.kind {
-                StmtKind::VecOp { dst: Some(dst), op: op @ (VecOp::View | VecOp::ViewRw), receiver, .. } if dst.is_bare() => {
-                    let rw = *op == VecOp::ViewRw;
-                    open_view(&mut st, dst, receiver, rw);
-                }
                 StmtKind::Intrinsic { dst: Some(dst), op: op @ (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw), args, .. } if dst.is_bare() && !args.is_empty() => {
                     open_view(&mut st, dst, &args[0], *op == IntrinsicOp::SlotViewRw);
                 }
@@ -154,7 +158,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                         Some(l) => l.into_iter().map(|o| { let mut via = o.via.clone(); via.push(src.local); Loan { rw: o.rw && *rw, via, reserved: temp && o.rw, ..o } }).collect(),
                         None => vec![Loan { root: src.clone(), rw: *rw, elem: false, via: Vec::new(), reserved: temp }],
                     };
-                    for new in loans.iter().filter(|l| !l.elem) {
+                    for new in loans.iter().filter(|l| !l.elem && !mutating_receivers.contains(&dst.local)) {
                         for (holder, held) in &st {
                             if *holder == dst.local || new.via.contains(holder) || !after.contains(holder) || reported.contains(&(*holder, src.local)) {
                                 continue;
@@ -190,13 +194,16 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
             }
         }
         if let Some(Terminator { kind, span, .. }) = &block.term {
-            // `v.push(..)` and the rest of the `VecB` methods under a live view of one of its elements.
+            // `v.push(..)` and the rest of the `Vec` methods under a live view of one of its elements.
             if let TermKind::Call { callee, args, .. } = kind {
                 if let (Some(method), Some(recv)) = (vec_method(callee), args.first().and_then(|a| a.place())) {
-                    let mutates = matches!(method, "push" | "pop" | "popRef" | "set" | "clear" | "assignFrom" | "reserveExact" | "reserveAtLeast");
+                    let mutates = vec_mutates(method);
                     for (holder, loan) in st.iter().filter(|(h, _)| live[i].1.contains(h) && **h != recv.local).flat_map(|(h, ls)| ls.iter().map(move |l| (*h, l))) {
-                        if loan.elem && (mutates || loan.rw) && reaches(&st, recv.local, loan.root.local) {
-                            let msg = format!("cannot call `{method}` on `{}` while `{}`, a view of one of its elements, is still in use", name(body, loan.root.local, &names), name(body, holder, &names));
+                        // Not through a reborrow of the receiver itself (`v.push(..)` inside a callee holding `&rw v`).
+                        let own = st.get(&recv.local).is_some_and(|ls| ls.iter().any(|l| l.via.contains(&holder)));
+                        if (mutates || (loan.elem && loan.rw)) && !own && reaches(&st, recv.local, loan.root.local) {
+                            let held = if loan.elem { "a view of one of its elements" } else { "a borrow of it" };
+                            let msg = format!("cannot call `{method}` on `{}` while `{}`, {held}, is still in use", name(body, loan.root.local, &names), name(body, holder, &names));
                             if !found.contains(&(*span, msg.clone())) {
                                 found.push((*span, msg));
                             }
@@ -249,9 +256,14 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
     found
 }
 
-/// The method of the Bork `Vec` a monomorphised callee name stands for (`VecB.push<i32>` is `push`).
+/// The method of the Bork `Vec` a monomorphised callee name stands for (`Vec.push<i32>` is `push`).
 fn vec_method(callee: &str) -> Option<&str> {
-    callee.strip_prefix("VecB.")?.split('<').next()
+    callee.strip_prefix("Vec.")?.split('<').next()
+}
+
+/// Whether the `Vec` method writes the vector (and so may reallocate its buffer).
+fn vec_mutates(method: &str) -> bool {
+    matches!(method, "push" | "pop" | "popRef" | "set" | "clear" | "assignFrom" | "reserveExact" | "reserveAtLeast")
 }
 
 /// `dst` becomes a view of one element of the Vec `receiver` names. Through an alias (`val a = &rw v; &a[0]`) the Vec is the
@@ -306,24 +318,13 @@ fn lock_conflicts(body: &Body, vec_call_receivers: &HashSet<Local>, kind: &StmtK
     for (holder, loan) in loans {
         let root = loan.root.local;
         let what = match kind {
-            // A mutating `Vec` operation on a plainly borrowed `Vec` writes it (not through the holder or a reborrow of it).
-            StmtKind::VecOp { op, receiver, .. } if !loan.elem && op.mutates() && receiver.place().is_some_and(|p| p.local != holder && reaches(st, p.local, root) && !st.get(&p.local).is_some_and(|ls| ls.iter().any(|l| l.via.contains(&holder)))) => {
-                format!("call `{}` on", op.name())
-            }
-            StmtKind::VecOp { op, receiver, .. }
-                if loan.elem
-                    && (op.mutates() || *op == VecOp::ViewRw || loan.rw)
-                    && receiver.place().is_some_and(|p| reaches(st, p.local, root)) =>
-            {
-                if matches!(op, VecOp::View | VecOp::ViewRw) { "borrow an element of".to_string() } else { format!("call `{}` on", op.name()) }
-            }
             // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
             StmtKind::Intrinsic { op: op @ (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw), args, .. }
                 if loan.elem && (*op == IntrinsicOp::SlotViewRw || loan.rw) && args.first().and_then(|a| a.place()).is_some_and(|p| reaches(st, p.local, root)) =>
             {
                 "borrow an element of".to_string()
             }
-            // The receiver temp of a `VecB` method call (`v.push(..)` passes `&rw v`): the call, not the borrow, is reported.
+            // The receiver temp of a `Vec` method call (`v.push(..)` passes `&rw v`): the call, not the borrow, is reported.
             StmtKind::Borrow { dst, .. } if loan.elem && vec_call_receivers.contains(&dst.local) => continue,
             StmtKind::Borrow { src, rw, .. } if loan.elem && reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
             _ if kill.contains(&root) || (!loan.elem && written.iter().any(|w| overlap(w, &loan.root))) => "assign to".into(),

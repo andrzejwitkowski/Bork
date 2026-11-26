@@ -4,7 +4,7 @@
 //! - **check** (uses the expected type): `Int`, `Float`, `ArrayLit`, `None`, `Some`, `If`/`IfVal`
 //!   branches, `&` borrow, `!!`, `?:`, arithmetic `Binary`, call/constructor/`Vec` arguments, and a
 //!   managed `Ref<T>` target (wraps `T` in `RefCreate`).
-//! - **synthesize**: `Bool`, `Str`, `Index`, `Slice`, `VecNew`, `Ident`, `Move`, `Promote`,
+//! - **synthesize**: `Bool`, `Str`, `Index`, `Slice`, `Ident`, `Move`, `Promote`,
 //!   `Field`, `Call`, `!`, other `Binary`.
 //!
 //! Mode switch: a synthesized expression met with an expected type is compared by the caller

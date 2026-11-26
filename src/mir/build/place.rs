@@ -3,7 +3,7 @@
 use super::expr::span_of;
 use super::{BuildError, FnBuilder, Res, SinkKey};
 use crate::ast::BinOp;
-use crate::hir::{HirExpr, HirExprKind, VecOp};
+use crate::hir::{HirExpr, HirExprKind};
 use crate::mir::body::*;
 use crate::mir::capability::Capability;
 use crate::span::Span;
@@ -21,13 +21,9 @@ impl<'a> FnBuilder<'a> {
         }
     }
 
-    /// The prelude's Bork `Vec` (`VecB` until the switch, #285), or a borrow of it.
+    /// The prelude's `Vec` (a class written in Bork, #285), or a borrow of it.
     pub(super) fn is_vec_class_ty(&self, ty: TyId) -> bool {
         self.tcx.is_vec_class(ty)
-    }
-
-    pub(super) fn is_vec_ty(&self, ty: TyId) -> bool {
-        self.tcx.is_vec(self.tcx.deref_ty(ty))
     }
 
     /// The storage `e` names (a binding, a field, an array element); anything else is evaluated into a temporary.
@@ -43,7 +39,7 @@ impl<'a> FnBuilder<'a> {
                 place.proj.push(Proj::Field(*field_index as u32));
                 Ok(place)
             }
-            HirExprKind::Index { receiver, index, .. } if !self.is_vec_ty(receiver.ty) => {
+            HirExprKind::Index { receiver, index, .. } => {
                 let mut place = self.place_of(receiver)?;
                 let idx = self.bare_operand(index)?;
                 self.bounds_guard(&place, &idx, span, e);
@@ -96,13 +92,8 @@ impl<'a> FnBuilder<'a> {
         self.cur = ok;
     }
 
-    pub(super) fn index(&mut self, e: &HirExpr, receiver: &HirExpr, index: &HirExpr) -> Res<Operand> {
+    pub(super) fn index(&mut self, e: &HirExpr) -> Res<Operand> {
         let span = span_of(e);
-        if self.is_vec_ty(receiver.ty) {
-            let recv = self.bare_operand(receiver)?;
-            let idx = self.bare_operand(index)?;
-            return Ok(self.vec_op(e, VecOp::Get, recv, vec![idx]));
-        }
         let place = self.place_of(e)?;
         if self.tcx.is_managed_ref(e.ty) {
             let dst = self.temp(e.ty);
@@ -132,49 +123,6 @@ impl<'a> FnBuilder<'a> {
         }
         let place = self.place_of(receiver)?;
         Ok(self.assign_temp(e, Rvalue::Len(place)))
-    }
-
-    pub(super) fn vec_op(&mut self, e: &HirExpr, op: VecOp, receiver: Operand, args: Vec<Operand>) -> Operand {
-        let dst = (!self.is_unit(e.ty)).then(|| self.temp(e.ty));
-        // The `Option` slot of a `pop` that is not a `Ref` lives in the sink arena.
-        let arena = (op == VecOp::Pop && !self.tcx.is_managed_ref(e.ty)).then(|| self.sink.clone());
-        self.stmt(StmtKind::VecOp { dst: dst.map(Place::local), op, receiver, args, arena }, span_of(e), Some(e.id));
-        dst.map_or(Operand::Const(Const::Unit), |d| Operand::Copy(Place::local(d)))
-    }
-
-    pub(super) fn vec_new(&mut self, e: &HirExpr, cap: Option<&HirExpr>) -> Res<Operand> {
-        let cap = cap.map(|c| self.expr(c)).transpose()?;
-        let dst = self.temp(e.ty);
-        let arena = self.sink.clone();
-        self.stmt(StmtKind::Alloc { dst: Place::local(dst), kind: AllocKind::Vec { cap }, arena: arena.clone() }, span_of(e), Some(e.id));
-        // Only a `Vec` of `Ref`s has a release to run when its arena goes.
-        if let Some(elem) = self.tcx.vec_elem(e.ty).filter(|&el| self.tcx.is_managed_ref(el)) {
-            self.stmt(StmtKind::RegisterDrop { arena, place: Place::local(dst), glue: DropGlue::Vec(elem) }, span_of(e), Some(e.id));
-        }
-        Ok(Operand::Copy(Place::local(dst)))
-    }
-
-    pub(super) fn vec_op_expr(&mut self, e: &HirExpr, op: VecOp, receiver: &HirExpr, args: &[HirExpr]) -> Res<Operand> {
-        let recv = self.bare_operand(receiver)?;
-        let mut ops = Vec::with_capacity(args.len());
-        for (i, a) in args.iter().enumerate() {
-            let is_index = i == 0 && matches!(op, VecOp::Get | VecOp::Set);
-            // A closure stored in a `Vec` has its environment allocated in the vector's arena, so it outlives the pushing scope.
-            let target = match &receiver.kind {
-                HirExprKind::Unary { expr, .. } => expr,
-                _ => receiver,
-            };
-            let home = match &target.kind {
-                HirExprKind::Ident { name, .. } if !is_index && self.tcx.is_callable(a.ty) => Some(ArenaRef::Home(self.lookup(name, span_of(target))?)),
-                _ => None,
-            };
-            ops.push(match home {
-                Some(home) => self.with_sink(home, |b| b.expr(a))?,
-                None if is_index => self.bare_operand(a)?,
-                None => self.expr(a)?,
-            });
-        }
-        Ok(self.vec_op(e, op, recv, ops))
     }
 
     /// Stores a `Ref` into an array element through the runtime protocol, labelled `[]` with its index for the debug
@@ -213,14 +161,6 @@ impl<'a> FnBuilder<'a> {
         let v = self.with_sink(ArenaRef::Home(local), |b| b.expr(value))?;
         let idx = self.bare_operand(index)?;
         let ty = self.locals[local.0 as usize].ty;
-        if self.is_vec_ty(ty) {
-            self.stmt(
-                StmtKind::VecOp { dst: None, op: VecOp::Set, receiver: Operand::Reborrow(Place::local(local)), args: vec![idx, v], arena: None },
-                span,
-                Some(value.id),
-            );
-            return Ok(());
-        }
         // A text/array descriptor names no owner arena, so the store would land in this callee's (dying) region.
         let t = self.tcx;
         // Any `&rw` local, not only a parameter: `val alias: &rw [..] = &rw buf` has the same owner. shortcut: also rejects an alias of a local array, upgrade when origins are tracked.
@@ -249,6 +189,10 @@ impl<'a> FnBuilder<'a> {
             return Ok(Operand::Move(Place::local(dst)));
         }
         if !(t.is_nullable(ty) || t.is_string(ty) || t.is_array(ty) || t.is_vec(ty)) {
+            return Ok(op);
+        }
+        // A `Vec` already allocated where it is going is passed on as is (a returned `val v = vecNew()`).
+        if t.is_vec(ty) && op.place().is_some_and(|p| p.is_bare() && self.handle_move_ok(p)) {
             return Ok(op);
         }
         Ok(self.copy_into(op, ty, arena, span))

@@ -103,7 +103,7 @@ pub struct TyCtx {
     option_def: Option<DefId>,
     /// The prelude's `intrinsic class`es: `Class(vec_def, [T])` is the type `Vec<T>`, `Range` is the type of `a..b`.
     lang: [Option<DefId>; LangItem::COUNT],
-    /// The prelude's Bork `Vec` class (`VecB` until the switch, #285), when the program has it.
+    /// The prelude's Bork `Vec` class (`Vec` until the switch, #285), when the program has it.
     vec_class: Option<DefId>,
     /// The kind and `move`-ness of each `TyData::Closure`, by its id.
     closure_kinds: Vec<(ClosureKind, bool)>,
@@ -200,7 +200,7 @@ mod tests {
     use super::*;
 
     pub(super) fn ctx() -> TyCtx {
-        let program = crate::parse_unnumbered("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nintrinsic class Vec<T> {}\nintrinsic class Range<T> {}\nfun main() {}\n").unwrap();
+        let program = crate::parse_unnumbered("class Point {\n x: i32\n}\nclass Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nopaque class Vec<T> {}\nintrinsic class Range<T> {}\nfun main() {}\n").unwrap();
         TyCtx::new(&DefTable::build(&program))
     }
 

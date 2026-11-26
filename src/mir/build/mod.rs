@@ -117,7 +117,7 @@ fn check_signatures(mono: &Mono, tcx: &TyCtx) -> Res<()> {
     Ok(())
 }
 
-/// Whether `ty` holds a `Vec` or array of `unit` anywhere inside it.
+/// Whether `ty` holds an array of `unit` anywhere inside it.
 fn has_unit_elem(tcx: &TyCtx, ty: TyId) -> bool {
     let unit = tcx.prim_id(Prim::Unit);
     tcx.vec_elem(ty).or_else(|| tcx.array_elem(ty)).is_some_and(|e| e == unit) || tcx.data(ty).children().into_iter().any(|c| has_unit_elem(tcx, c))
@@ -284,9 +284,18 @@ impl<'a> FnBuilder<'a> {
         let mut blocks = self.blocks;
         // A `Vec`/array of `unit` is allocated in the body that writes `Vec::<()>(...)` or `[(), ()]`.
         for stmt in blocks.iter().flat_map(|b| &b.stmts) {
-            if let StmtKind::Alloc { dst, kind: AllocKind::Vec { .. } | AllocKind::Array, .. } = &stmt.kind {
+            if let StmtKind::Alloc { dst, kind: AllocKind::Array, .. } = &stmt.kind {
                 if self.locals.get(dst.local.0 as usize).is_some_and(|l| has_unit_elem(self.tcx, l.ty)) {
                     return Err(BuildError::unsupported(Capability::UnitElem, stmt.span));
+                }
+            }
+        }
+        // A `Vec` of `unit` is built by the body that calls `vecNew::<()>` / `vecWithCapacity::<()>`.
+        for term in blocks.iter().filter_map(|b| b.term.as_ref()) {
+            if let TermKind::Call { callee, dest, .. } = &term.kind {
+                let factory = callee.starts_with("vecNew") || callee.starts_with("vecWithCapacity");
+                if factory && dest.is_bare() && self.locals.get(dest.local.0 as usize).is_some_and(|l| has_unit_elem(self.tcx, l.ty)) {
+                    return Err(BuildError::unsupported(Capability::UnitElem, term.span));
                 }
             }
         }

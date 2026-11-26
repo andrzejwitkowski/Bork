@@ -109,33 +109,9 @@ impl LowerCx<'_> {
         self.tcx.managed_ref(inner_ty)
     }
 
-    fn lower_vec(&mut self, elem: &Type) -> TyId {
-        let elem_ty = self.lower(elem);
-        let is_param = matches!(self.tcx.data(elem_ty), TyData::Param(_));
-        if !self.tcx.is_unknown(elem_ty) && !is_param && !self.tcx.is_vec_elem_supported(elem_ty) {
-            let message = self.tcx.vec_elem_message(elem_ty);
-            self.error(message);
-        }
-        self.tcx.vec_of(elem_ty)
-    }
-
     fn lower_named(&mut self, name: &str, args: &[Type], nullable: bool) -> TyId {
         if let Some(&(_, idx)) = self.scope.iter().find(|(param, _)| param == name) {
             return self.lower_param(name, idx, args, nullable);
-        }
-        // A program that defines its own `Vec` has no prelude one; its class is an ordinary class.
-        if name == "Vec" && self.tcx.vec_def().is_some() {
-            if nullable {
-                self.error("`Vec` cannot be nullable");
-                return self.tcx.error();
-            }
-            return match args {
-                [elem] => self.lower_vec(elem),
-                _ => {
-                    self.error("`Vec` takes one type argument");
-                    self.tcx.error()
-                }
-            };
         }
         let lowered: Vec<TyId> = args.iter().map(|arg| self.lower(arg)).collect();
         if name == "String" {

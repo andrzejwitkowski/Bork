@@ -96,7 +96,7 @@ pub(super) fn check_array_lit(
     )
 }
 
-/// The prelude's Bork `Vec` (`VecB` until the switch, #285): an `opaque` class, so a user class of that name never matches.
+/// The prelude's Bork `Vec` (`Vec` until the switch, #285): an `opaque` class, so a user class of that name never matches.
 pub(in crate::typeck) fn is_vec_class(ty: TyId, env: &Env<'_>) -> bool {
     env.tcx.is_vec_class(ty)
 }

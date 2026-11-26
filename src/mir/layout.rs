@@ -30,8 +30,6 @@ pub enum Repr {
     ObjectHandle,
     /// Managed `Ref<T>` `{target, object, kind}`.
     RefHandle,
-    /// `Vec<T>` value: a pointer to the arena header.
-    VecPtr,
     /// Struct body of a class record or of one enum variant (`i32` tag first).
     Aggregate,
     /// `Buf<T>` value `{ptr, i32 cap}`.
@@ -113,9 +111,6 @@ impl<'a> Layouts<'a> {
             l.repr = Repr::BufHandle;
             return Some(l);
         }
-        if tcx.is_vec(ty) {
-            return Some(Layout { size: ptr, align: self.data.pointer_align, fields: Vec::new(), repr: Repr::VecPtr });
-        }
         if tcx.class_def(ty).is_some() || matches!(tcx.data(ty), TyData::Enum(..)) {
             return Some(Layout { size: 2 * ptr, align: self.data.pointer_align, fields: vec![0, ptr], repr: Repr::ObjectHandle });
         }
@@ -125,12 +120,6 @@ impl<'a> Layouts<'a> {
             TyData::Prim(p) => Some(scalar(prim_size(*p), Repr::Scalar)),
             _ => None,
         }
-    }
-
-    /// The `{buf, len, cap, arena}` header a `Vec` value points at.
-    pub fn vec_header(&self) -> Layout {
-        let (p, a) = (self.data.pointer_size, self.data.pointer_align);
-        aggregate([(p, a), (8, 8), (8, 8), (p, a)])
     }
 
     /// `RefObservation`: `{ptr, ptr}`.
@@ -206,7 +195,6 @@ mod tests {
         let tcx = TyCtx::new(&Default::default());
         let hir = HirProgram::default();
         let ls = Layouts::new(&tcx, &hir, DataLayout::default());
-        assert_eq!(ls.vec_header().size, 32);
         assert_eq!(ls.observation().size, 16);
         let s = tcx.prim_id(Prim::I32);
         assert_eq!(ls.value(s).map(|l| (l.size, l.align)), Some((4, 4)));

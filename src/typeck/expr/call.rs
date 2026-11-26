@@ -140,31 +140,22 @@ pub(super) fn check_call(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    // `VecB::<T>()` / `VecB::<T>(capacity)` (the Bork `Vec`): the factory function builds it.
+    // `Vec::<T>()` / `Vec::<T>(capacity)` (the Bork `Vec`): the factory function builds it.
     if let (Expr::Ident { name, span, id }, [_]) = (callee, type_args) {
         if env.defs.vec_class().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
             if args.len() > 1 {
                 env.error("`Vec` takes at most one argument, the capacity", Some(*span));
                 return super::method::poisoned(args, *span, return_ty, env);
             }
-            // Lower the whole `VecB<T>` so the element rule is enforced in one place.
+            // Lower the whole `Vec<T>` so the element rule is enforced in one place.
             let whole = env.lower(&Type::Named { name: name.clone(), args: type_args.to_vec(), nullable: false }, Some(*span));
             if env.tcx.is_error(whole) {
                 return super::method::poisoned(args, *span, return_ty, env);
             }
-            let factory = if args.is_empty() { "vecBNew" } else { "vecBWithCapacity" };
+            let factory = if args.is_empty() { "vecNew" } else { "vecWithCapacity" };
             let callee = Expr::Ident { name: factory.to_string(), span: *span, id: *id };
             let call = Expr::Call { callee: Box::new(callee), type_args: type_args.to_vec(), args: args.to_vec() };
             return dispatch(&call, expected, return_ty, env);
-        }
-    }
-    // `Vec::<T>()` / `Vec::<T>(capacity)`: the prelude's `Vec` has no fields to construct.
-    if let (Expr::Ident { name, span, .. }, [elem]) = (callee, type_args) {
-        if env.tcx.vec_def().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
-            if args.len() > 1 {
-                env.error("`Vec` takes at most one argument, the capacity", Some(*span));
-            }
-            return super::vec::check_vec_new(elem, args.first(), *span, return_ty, env);
         }
     }
     // Before the type-argument check below: `bufAlloc::<T>(..)` is generic though it has no `FunSig`.
@@ -439,12 +430,14 @@ pub(super) fn build_call(
         callee_ty,
         span,
     );
-    env.expr(
+    // The span lets a diagnostic raised on the lowered call (a `Vec` mutated under a live view) point at it.
+    env.expr_at(
         HirExprKind::Call {
             callee: Box::new(callee.hir),
             args,
         },
         return_ty,
+        span,
     )
 }
 

@@ -1,10 +1,10 @@
 // exit: 3
 // `outer = move inner` copies like `promote`; a shorter source than the target's capacity reuses the target's buffer.
 fun main(): i32 {
-    var outer: VecB<i32> = vecBWithCapacity(8)
+    var outer: Vec<i32> = vecWithCapacity(8)
     outer.push(9)
     {
-        var inner: VecB<i32> = vecBNew()
+        var inner: Vec<i32> = vecNew()
         inner.push(1)
         inner.push(2)
         inner.push(3)

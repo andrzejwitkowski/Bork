@@ -1,7 +1,7 @@
 // exit: 21
-// A `VecB` returned from a function outlives the callee's arena; pushing after the return grows in the caller's arena.
-fun build(): VecB<i32> {
-    var v: VecB<i32> = vecBNew()
+// A `Vec` returned from a function outlives the callee's arena; pushing after the return grows in the caller's arena.
+fun build(): Vec<i32> {
+    var v: Vec<i32> = vecNew()
     v.push(1)
     v.push(2)
     v.push(3)

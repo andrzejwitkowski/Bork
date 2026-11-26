@@ -82,7 +82,7 @@ extern "C" {
     fn bork_debug_copy_origin(source: *const c_void, destination: *const c_void);
     fn bork_ref_is_none_ptr(p: *const c_void) -> bool;
     fn bork_ref_release_observation_ptr(p: *const c_void);
-    fn bork_vec_drop_refs(p: *mut c_void);
+    fn bork_buf_drop_refs(p: *mut c_void);
     fn bork_string_hash(p: *const u8, size: usize) -> u64;
 }
 
@@ -157,7 +157,7 @@ unsafe fn child(case: &str) {
             bork_ref_is_none_ptr(p);
         }
         "observation" => bork_ref_release_observation_ptr(p),
-        "vec" => bork_vec_drop_refs(p),
+        "buf" => bork_buf_drop_refs(p),
         "string" => {
             bork_string_hash(p.cast(), 64);
         }
@@ -184,7 +184,7 @@ fn invalid_runtime_access_aborts_before_payload_read() {
         "handle",
         "ref",
         "observation",
-        "vec",
+        "buf",
         "string",
         "print",
         "promotion",

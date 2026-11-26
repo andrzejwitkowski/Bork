@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirParam, HirPat, HirPatKind, HirStmt, UseKind, VecOp};
+use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirParam, HirPat, HirPatKind, HirStmt, UseKind};
 use crate::ty::{ClosureKind, TyId};
 
 #[derive(Default)]
@@ -182,14 +182,6 @@ impl Scan {
                 self.expr(receiver);
                 self.expr(lo);
                 self.expr(hi);
-            }
-            K::VecNew { cap, .. } => cap.iter().for_each(|x| self.expr(x)),
-            K::VecOp { op, receiver, args } => {
-                self.expr(receiver);
-                if matches!(op, VecOp::Push | VecOp::Pop | VecOp::Set | VecOp::Clear) {
-                    self.write_root(receiver);
-                }
-                args.iter().for_each(|x| self.expr(x));
             }
             // `&rw x` hands out an editable borrow: the callee may write through it, so this is a write of `x`.
             K::Unary { op: crate::ast::UnaryOp::Borrow { rw: true }, expr: inner } => {

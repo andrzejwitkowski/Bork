@@ -257,7 +257,7 @@ fn every_borrow_restriction_also_covers_the_editable_borrow() {
         ("enum E {\n    A(v: &rw P)\n}\n", "", "cannot be stored in enum payloads"),
         ("fun f(p: &rw P): &rw P {\n    return p\n}\n", "", "returning a reference is not supported"),
         ("", "    var a: [i32; 2] = [1, 2]\n    var x = &rw a\n", "to a reference type; use `val`"),
-        ("fun f(v: Vec<&rw P>) {\n}\n", "", "`Vec` element must be"),
+        ("fun f(v: Vec<&rw P>) {\n}\n", "", "cannot be a type argument of `Vec`"),
         ("fun f(v: Ref<&rw P>) {\n}\n", "", "managed Ref target must be"),
         ("fun f(h: H<&rw P>) {\n}\n", "", "cannot be a type argument of `H`"),
         ("fun id<T>(x: T): T {\n    return x\n}\n", "    var a: [i32; 2] = [1, 2]\n    val q = id::<&rw [i32; 2]>(&rw a)\n", "cannot be a type argument of `id`"),

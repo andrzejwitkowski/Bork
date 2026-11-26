@@ -1,7 +1,7 @@
 // exit: 1
 // A negative index aborts.
 fun main(): i32 {
-    var v: VecB<i32> = vecBNew()
+    var v: Vec<i32> = vecNew()
     v.push(1)
     return v.get(0 - 1)
 }

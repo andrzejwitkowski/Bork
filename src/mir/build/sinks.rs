@@ -335,7 +335,7 @@ fn mark_decls(block: &HirBlock, used: &[String], in_loop: bool, out: &mut HashMa
     }
 }
 
-/// `vecBNew()` / `vecBWithCapacity(n)`: a construct for `result_hoists` (the vector is allocated where it is declared).
+/// `vecNew()` / `vecWithCapacity(n)`: a construct for `result_hoists` (the vector is allocated where it is declared).
 fn is_vec_factory_call(e: &HirExpr) -> bool {
     matches!(&e.kind, HirExprKind::Call { callee, .. } if matches!(&callee.kind, HirExprKind::Ident { name, .. } if super::expr::is_vec_factory(name)))
 }

@@ -49,4 +49,20 @@ impl<'ctx> Codegen<'ctx> {
         let (size, align) = array_elem_layout(self, elem_ty)?;
         Ok((llvm, size, align))
     }
+
+    pub(in crate::codegen::llvm) fn word(&self, value: u64) -> inkwell::values::IntValue<'ctx> {
+        self.context.i64_type().const_int(value, false)
+    }
+
+    /// Address of element `index` in a buffer of `stride`-byte elements; callers bounds-check `index`.
+    pub(in crate::codegen::llvm) fn vec_slot(
+        &self,
+        buf: inkwell::values::PointerValue<'ctx>,
+        index: inkwell::values::IntValue<'ctx>,
+        stride: usize,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, Diagnostic> {
+        let offset = self.builder.build_int_mul(index, self.word(stride as u64), "slot.off")?;
+        // SAFETY: callers bounds-check `index` against the buffer's capacity.
+        Ok(unsafe { self.builder.build_gep(self.context.i8_type(), buf, &[offset], "slot")? })
+    }
 }

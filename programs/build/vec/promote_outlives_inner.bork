@@ -1,9 +1,9 @@
 // exit: 15
-// A `VecB` built in an inner block is promoted into the outer var, which owns a copy (the buffer lives in outer's arena).
+// A `Vec` built in an inner block is promoted into the outer var, which owns a copy (the buffer lives in outer's arena).
 fun main(): i32 {
-    var outer: VecB<i32> = vecBNew()
+    var outer: Vec<i32> = vecNew()
     {
-        var inner: VecB<i32> = vecBNew()
+        var inner: Vec<i32> = vecNew()
         inner.push(1)
         inner.push(2)
         inner.push(3)

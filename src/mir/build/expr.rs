@@ -13,10 +13,10 @@ pub(super) fn span_of(e: &HirExpr) -> Span {
     e.span.unwrap_or_default()
 }
 
-/// `vecBNew` / `vecBWithCapacity` (#285): a vector is allocated where it is declared, like the compiler `Vec` header was,
+/// `vecNew` / `vecWithCapacity` (#285): a vector is allocated where it is declared, like the compiler `Vec` header was,
 /// not in the function's result sink, so closures built in its arena can capture the declaring block's objects.
 pub(super) fn is_vec_factory(name: &str) -> bool {
-    name.starts_with("vecBNew") || name.starts_with("vecBWithCapacity")
+    name.starts_with("vecNew") || name.starts_with("vecWithCapacity")
 }
 
 impl<'a> FnBuilder<'a> {
@@ -45,11 +45,9 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::MakeClosure { function, captures, kind, is_move } => self.make_closure(e, function, captures, *kind, *is_move),
             HirExprKind::Closure { .. } => Err(BuildError::Internal("a closure expression survived mono lifting".into())),
             HirExprKind::If { cond, then_block, else_block } => self.if_expr(e, cond, then_block, else_block.as_ref()),
-            HirExprKind::Index { receiver, index, .. } => self.index(e, receiver, index),
+            HirExprKind::Index { .. } => self.index(e),
             HirExprKind::Slice { receiver, lo, hi } => self.slice(e, receiver, lo, hi),
             HirExprKind::Field { receiver, name, safe } => self.field(e, receiver, name, *safe),
-            HirExprKind::VecNew { cap, .. } => self.vec_new(e, cap.as_deref()),
-            HirExprKind::VecOp { op, receiver, args } => self.vec_op_expr(e, *op, receiver, args),
             HirExprKind::ArrayLit { elements } => self.array_lit(e, elements),
             HirExprKind::ObjectConstruct { class_name, fields } => self.object_construct(e, class_name, fields),
             HirExprKind::EnumConstruct { enum_name, variant, fields } => self.enum_construct(e, enum_name, variant, fields),
@@ -169,12 +167,6 @@ impl<'a> FnBuilder<'a> {
                 Ok(self.assign_temp(e, Rvalue::Unary(MirUnOp::Not, v)))
             }
             UnaryOp::NotNullAssert => self.not_null_assert(e, inner),
-            UnaryOp::Borrow { rw } if matches!(&inner.kind, HirExprKind::Index { receiver, .. } if self.is_vec_ty(receiver.ty)) => {
-                let HirExprKind::Index { receiver, index, .. } = &inner.kind else { return Err(BuildError::unsupported(Capability::FieldAccess, span_of(e))) };
-                let recv = self.bare_operand(receiver)?;
-                let idx = self.bare_operand(index)?;
-                Ok(self.vec_op(e, if *rw { crate::hir::VecOp::ViewRw } else { crate::hir::VecOp::View }, recv, vec![idx]))
-            }
             UnaryOp::Borrow { rw } if matches!(&inner.kind, HirExprKind::Index { receiver, .. } if self.is_vec_class_ty(receiver.ty)) => {
                 let HirExprKind::Index { receiver, index, .. } = &inner.kind else { return Err(BuildError::unsupported(Capability::FieldAccess, span_of(e))) };
                 self.vec_class_view(e, receiver, index, *rw)
@@ -214,7 +206,7 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Unary { expr, .. } => &**expr,
             _ => r,
         }) {
-            Some(HirExpr { kind: HirExprKind::Ident { name: recv, .. }, .. }) if name.starts_with("VecB.") => Some(ArenaRef::Home(self.lookup(recv, span)?)),
+            Some(HirExpr { kind: HirExprKind::Ident { name: recv, .. }, .. }) if name.starts_with("Vec.") => Some(ArenaRef::Home(self.lookup(recv, span)?)),
             _ => None,
         };
         let ops = match vec_home {
@@ -321,8 +313,7 @@ impl<'a> FnBuilder<'a> {
             match &self.sink {
                 // A closure value does not name its variable's arena (as an object handle does): use the region the variable was declared in.
                 // A `Vec` header names its arena at run time (it may be a `&rw` parameter).
-                ArenaRef::Home(h) if self.is_vec_ty(self.locals[h.0 as usize].ty) => ArenaRef::Home(*h),
-                // A `&rw VecB` parameter's arena is the caller's: read it from the object at run time.
+                                // A `&rw Vec` parameter's arena is the caller's: read it from the object at run time.
                 ArenaRef::Home(h) if self.is_vec_class_ty(self.locals[h.0 as usize].ty) && (self.locals[h.0 as usize].kind == LocalKind::Arg || self.tcx.is_ref(self.locals[h.0 as usize].ty)) => ArenaRef::ObjectArena(*h),
                 ArenaRef::Home(h) => ArenaRef::Region(self.locals[h.0 as usize].region),
                 other => other.clone(),
