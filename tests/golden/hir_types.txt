@@ -85,6 +85,20 @@ programs/build/buf/stack_push_grow_get.bork::Stack.push(this: &Stack<T0>, v: T0)
 programs/build/buf/stack_push_grow_get.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_push_grow_get.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_push_grow_get.bork::Stack.len(this: &Stack<T0>) -> i32
+programs/build/buf/stack_ref_elems_release.bork::main() -> i32
+programs/build/buf/stack_ref_elems_release.bork::newStack() -> Stack<T0>
+programs/build/buf/stack_ref_elems_release.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
+programs/build/buf/stack_ref_elems_release.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
+programs/build/buf/stack_ref_elems_release.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
+programs/build/buf/stack_ref_elems_release.bork::Stack.pop(this: &Stack<T0>) -> T0
+programs/build/buf/stack_ref_elems_release.bork::Stack.len(this: &Stack<T0>) -> i32
+programs/build/buf/stack_string_elems_grow.bork::main() -> i32
+programs/build/buf/stack_string_elems_grow.bork::newStack() -> Stack<T0>
+programs/build/buf/stack_string_elems_grow.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
+programs/build/buf/stack_string_elems_grow.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
+programs/build/buf/stack_string_elems_grow.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
+programs/build/buf/stack_string_elems_grow.bork::Stack.pop(this: &Stack<T0>) -> T0
+programs/build/buf/stack_string_elems_grow.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/classes/call_arg.bork::take(p: Point) -> i32
 programs/build/classes/call_arg.bork::main() -> i32
 programs/build/classes/mutable_field.bork::main() -> i32

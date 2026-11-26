@@ -452,6 +452,25 @@ pub unsafe extern "C" fn bork_vec_drop_refs(header: *mut c_void) {
     }
 }
 
+/// Header of a `Buf<Ref<T>>`: `{ ptr, cap }`.
+#[repr(C)]
+struct BufHeader {
+    ptr: *mut RefHandle,
+    cap: usize,
+}
+
+/// Drop registered on a `Buf<Ref<T>>`: releases every slot. Unwritten and moved-out slots are zeroed `None` handles,
+/// which release nothing, so no length is needed.
+#[no_mangle]
+pub unsafe extern "C" fn bork_buf_drop_refs(header: *mut c_void) {
+    // SAFETY: The registry holds a pointer to an initialized header whose `cap` slots are all initialized handles.
+    let header = unsafe { &*header.cast::<BufHeader>() };
+    for index in 0..header.cap {
+        // SAFETY: Every slot of the live buffer is an initialized (possibly `None`) RefHandle.
+        unsafe { bork_ref_drop(header.ptr.add(index)) };
+    }
+}
+
 unsafe extern "C" fn drop_ref_slot_runtime(value: *mut c_void) {
     // SAFETY: The drop registry contains a pointer to an initialized RefHandle slot.
     unsafe { bork_ref_drop(value.cast()) };
@@ -653,5 +672,19 @@ mod vec_tests {
             bork_arena_release_strong(target);
             assert_eq!(control_count(), base);
         }
+    }
+}
+
+#[cfg(test)]
+mod buf_tests {
+    use super::*;
+
+    #[test]
+    fn bork_buf_drop_refs_skips_none_slots() {
+        // A fresh `Buf<Ref<T>>` is all zero bytes: every slot is a `None` handle and releases nothing.
+        let mut slots = [RefHandle::none(), RefHandle::none(), RefHandle::none()];
+        let mut header = BufHeader { ptr: slots.as_mut_ptr(), cap: slots.len() };
+        unsafe { bork_buf_drop_refs((&mut header as *mut BufHeader).cast()) };
+        assert!(slots.iter().all(|s| matches!(s.kind, RefKind::None)));
     }
 }

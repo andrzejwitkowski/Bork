@@ -31,7 +31,13 @@ impl<'a> FnBuilder<'a> {
             ("slotLoad", [buf, i]) | ("slotStore", [buf, i, _]) => {
                 let cap = self.buf_cap(buf, e);
                 self.abort_unless(&[(BinOp::Ge, i.clone(), zero), (BinOp::Lt, i.clone(), cap)], AbortReason::Bounds, span, e);
-                (if name == "slotLoad" { IntrinsicOp::SlotLoad } else { IntrinsicOp::SlotStore }, None)
+                if name == "slotLoad" {
+                    (IntrinsicOp::SlotLoad, None)
+                } else {
+                    // A `String` is copied into, and a `Ref` stored through, the arena of `this` (shortcut: same limit as `bufGrow`).
+                    let in_arena = args.get(2).is_some_and(|v| self.tcx.is_text(v.ty) || self.tcx.is_managed_ref(v.ty));
+                    (IntrinsicOp::SlotStore, if in_arena { Some(self.this_arena(span)?) } else { None })
+                }
             }
             ("bufGrow", [buf, new_cap]) => {
                 let cap = self.buf_cap(buf, e);

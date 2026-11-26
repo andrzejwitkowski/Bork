@@ -443,6 +443,11 @@ impl<'ctx> Codegen<'ctx> {
         self.arena_handle_fn("bork_vec_drop_refs")
     }
 
+    /// `void bork_buf_drop_refs(ptr header)`: drop for a `Buf<Ref<T>>`, header `{ptr, cap}`.
+    pub fn buf_drop_refs_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_buf_drop_refs")
+    }
+
     /// `i1 bork_arena_count_lease_retain(ptr arena)`.
     pub fn arena_count_lease_retain_fn(&self) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());

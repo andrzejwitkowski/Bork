@@ -89,7 +89,8 @@ fn plain_buf(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     // `buf_elem` also looks through `?`, but a `Buf?` is an enum slot handle, not `{ptr, cap}`.
     let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
     (!cx.tcx.is_nullable(ty)).then_some(())?;
-    cx.tcx.buf_elem(ty).filter(|&e| prim(cx, e).is_some() && !is_unit(cx, e))
+    // Scalars, text and `Ref`s: the elements `Buf` has glue for (a closure element is #285 part 2).
+    cx.tcx.buf_elem(ty).filter(|&e| (prim(cx, e).is_some() && !is_unit(cx, e)) || cx.tcx.is_text(e) || cx.tcx.is_managed_ref(e))
 }
 
 /// Answers depend only on the type, so they are memoised on `cx` (keyed with the reference
@@ -577,11 +578,11 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             (buf(b)? == dty?).then_some(())?;
                             operand(i)?;
                         }
-                        (IntrinsicOp::SlotStore, [b, i, v], None) if dst.is_none() => {
+                        (IntrinsicOp::SlotStore, [b, i, v], a) if dst.is_none() && a.as_ref().is_none_or(|a| arena_ok(a)) => {
                             let elem = buf(b)?;
                             op_place_ty(cx, body, v).is_none_or(|t| t == elem).then_some(())?;
                             operand(i)?;
-                            operand(v)?;
+                            general(v)?;
                         }
                         (IntrinsicOp::BufGrow, [b, c], Some(a)) if arena_ok(a) => {
                             (Some(buf(b)?) == plain_buf(cx, dty?)).then_some(())?;
@@ -1511,11 +1512,20 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             (IntrinsicOp::BufCap, [b]) => Some(cx.buf_cap(buf(b)?.0)?.into()),
             (IntrinsicOp::SlotLoad, [b, i]) => {
                 let (b, elem) = buf(b)?;
-                Some(cx.buf_load(b, int(i)?, elem)?)
+                let loaded = cx.buf_load(b, int(i)?, elem)?;
+                // The slot keeps its own reference; the loaded value is a new one.
+                Some(if cx.tcx.is_managed_ref(elem) { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
             }
             (IntrinsicOp::SlotStore, [b, i, v]) => {
                 let (b, elem) = buf(b)?;
-                cx.buf_store(b, int(i)?, elem, self.operand(v, elem)?)?;
+                let (index, value) = (int(i)?, self.operand(v, elem)?);
+                if cx.tcx.is_managed_ref(elem) || cx.tcx.is_text(elem) {
+                    // Both live in the arena of the buffer's owner: a `Ref` is stored through it, a `String` is copied into it.
+                    let arena = self.arena_ref(arena.expect("checked arena"), region)?;
+                    cx.buf_store_in(self.llvm_fn, arena, b, index, elem, value)?;
+                } else {
+                    cx.buf_store(b, index, elem, value)?;
+                }
                 None
             }
             (IntrinsicOp::BufGrow, [b, c]) => {

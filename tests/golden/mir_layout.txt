@@ -16,6 +16,13 @@ class Stack<i32> size=24 align=8 fields=[0, 16]
 == programs/build/buf/stack_push_grow_get.bork
 class StackSeed<i32> size=4 align=4 fields=[0]
 class Stack<i32> size=24 align=8 fields=[0, 16]
+== programs/build/buf/stack_ref_elems_release.bork
+class Node size=4 align=4 fields=[0]
+class StackSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Stack<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/buf/stack_string_elems_grow.bork
+class StackSeed<String> size=4 align=4 fields=[0]
+class Stack<String> size=24 align=8 fields=[0, 16]
 == programs/build/classes/call_arg.bork
 class Point size=8 align=4 fields=[0, 4]
 == programs/build/classes/mutable_field.bork
