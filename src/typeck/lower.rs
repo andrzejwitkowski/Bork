@@ -17,8 +17,9 @@ pub(crate) fn lower_type(
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
+    prelude: bool,
 ) -> TyId {
-    LowerCx { defs, scope, tcx, diagnostics, span }.lower(ty)
+    LowerCx { defs, scope, tcx, diagnostics, span, prelude }.lower(ty)
 }
 
 /// What lowering one written type reads and reports to: the definitions and type parameters in
@@ -29,6 +30,8 @@ struct LowerCx<'a> {
     tcx: &'a mut TyCtx,
     diagnostics: &'a mut Vec<Diagnostic>,
     span: Option<Span>,
+    /// Lowering prelude code; user code may not name the intrinsic `Buf` (#350).
+    prelude: bool,
 }
 
 impl LowerCx<'_> {
@@ -157,6 +160,10 @@ impl LowerCx<'_> {
     /// A class or enum name applied to the lowered type arguments `args`.
     fn lower_class(&mut self, name: &str, args: Vec<TyId>, nullable: bool) -> TyId {
         let Some((class, is_enum)) = self.resolve_class(name) else { return self.tcx.error() };
+        if !self.prelude && Some(class) == self.tcx.buf_def() {
+            self.error("`Buf` is private to the prelude");
+            return self.tcx.error();
+        }
         if !self.check_arity(name, self.defs.get(class).arity, args.len()) || !self.check_type_args(name, &args) {
             return self.tcx.error();
         }

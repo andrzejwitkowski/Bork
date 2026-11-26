@@ -129,6 +129,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         }));
         extra.impls.extend(parsed.impls);
     }
+    extra.mark_prelude();
     crate::ast_number::number_nodes_from(&mut extra, next_id);
     program.constants.extend(extra.constants);
     program.classes.extend(extra.classes);

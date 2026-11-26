@@ -7485,6 +7485,7 @@ Type Error [68..73] `abort` requires an `unsafe` context
 Arenas
 └── fun main
 == programs/check_fail/unsafe/user_calls_slot_load.bork
+Type Error [59..60] `Buf` is private to the prelude
 Type Error [91..99] `slotLoad` requires an `unsafe` context
 Arenas
 ├── fun first
