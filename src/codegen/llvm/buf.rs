@@ -22,6 +22,10 @@ impl<'ctx> Codegen<'ctx> {
         let wide = self.builder.build_int_s_extend(cap, self.context.i64_type(), "buf.cap")?;
         let bytes = self.builder.build_int_mul(wide, self.word(stride as u64), "buf.bytes")?;
         let ptr = self.arena_alloc(arena, bytes, align)?;
+        if self.debug.is_some() {
+            // A zero-byte buffer is a placeholder: `bufGrow` copies 0 bytes from it.
+            self.debug_allocation(ptr, "", &format!("Buf<{}>", self.tcx.display(elem)), false)?;
+        }
         if self.tcx.is_managed_ref(elem) {
             // Zeroed slots are `None` handles: a slot that was never stored releases nothing. One drop per buffer
             // (its header is `{ptr, cap}`), registered where the buffer lives.
