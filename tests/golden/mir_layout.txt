@@ -4,6 +4,12 @@ class Stack<i32> size=24 align=8 fields=[0, 16]
 == programs/build/buf/stack_get_past_len_aborts.bork
 class StackSeed<i32> size=4 align=4 fields=[0]
 class Stack<i32> size=24 align=8 fields=[0, 16]
+== programs/build/buf/stack_pop.bork
+class StackSeed<i32> size=4 align=4 fields=[0]
+class Stack<i32> size=24 align=8 fields=[0, 16]
+== programs/build/buf/stack_pop_empty_aborts.bork
+class StackSeed<i32> size=4 align=4 fields=[0]
+class Stack<i32> size=24 align=8 fields=[0, 16]
 == programs/build/buf/stack_push_at_capacity_boundary.bork
 class StackSeed<i32> size=4 align=4 fields=[0]
 class Stack<i32> size=24 align=8 fields=[0, 16]

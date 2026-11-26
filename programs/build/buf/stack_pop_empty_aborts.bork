@@ -1,0 +1,7 @@
+// exit: 1
+// `pop` on an empty Stack aborts (the harness reports the SIGABRT as exit 1); without the abort main returns 0.
+fun main(): i32 {
+    val s: Stack<i32> = newStack()
+    val x = s.pop()
+    return 0
+}

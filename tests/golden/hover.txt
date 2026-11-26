@@ -24,6 +24,8 @@ programs/build/borrow/shared_borrow_of_val_array.bork: hits=6 hash=58ec55fddf0b8
 programs/build/borrow/store_scalar_into_borrowed_array.bork: hits=9 hash=61597fcd189e7760
 programs/build/buf/stack_empty.bork: hits=5 hash=4497ffb57a548cd0
 programs/build/buf/stack_get_past_len_aborts.bork: hits=17 hash=ca3bbfbfef3ab69a
+programs/build/buf/stack_pop.bork: hits=38 hash=eab162d2e38d5521
+programs/build/buf/stack_pop_empty_aborts.bork: hits=12 hash=8af2be5ae2b5e48b
 programs/build/buf/stack_push_at_capacity_boundary.bork: hits=34 hash=feb0dff429a2d556
 programs/build/buf/stack_push_grow_get.bork: hits=29 hash=cb8eafde3ba42090
 programs/build/classes/call_arg.bork: hits=3 hash=e78e04710ecea6e2

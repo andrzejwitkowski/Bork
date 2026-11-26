@@ -44,6 +44,16 @@ class Stack<T> {
             return slotLoad(&b, i)
         }
     }
+    fun pop(): T {
+        unsafe {
+            if (this.n <= 0) {
+                abort()
+            }
+            this.n = this.n - 1
+            val b = this.buf
+            return slotLoad(&b, this.n)
+        }
+    }
     fun len(): i32 {
         return this.n
     }

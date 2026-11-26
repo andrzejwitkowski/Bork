@@ -1,0 +1,12 @@
+// exit: 14
+// `pop` returns the last pushed element and shrinks `len()`; capacity stays, so a push after a pop reuses the slot.
+fun main(): i32 {
+    val s: Stack<i32> = newStack()
+    s.push(5)
+    s.push(7)
+    val a = s.pop()
+    s.push(9)
+    val b = s.pop()
+    val c = s.pop()
+    return a + b - c + s.len() + 3
+}

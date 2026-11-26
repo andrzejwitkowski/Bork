@@ -223,6 +223,10 @@ Arenas
 │   ├── i [Local]
 │   ├── b [Local]
 │   └── IfThen
+├── fun Stack.pop (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── b [Local]
+│   └── IfThen
 └── fun Stack.len
     └── this [Borrow ← call site]
 == programs/build/buf/stack_get_past_len_aborts.bork
@@ -259,6 +263,92 @@ Arenas
 │   ├── i [Local]
 │   ├── b [Local]
 │   └── IfThen
+├── fun Stack.pop (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Stack.len
+    └── this [Borrow ← call site]
+== programs/build/buf/stack_pop.bork
+Arenas
+├── fun main
+│   ├── s [Local]
+│   ├── a [Local]
+│   ├── b [Local]
+│   └── c [Local]
+├── fun newStack
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun newStack]
+├── fun StackSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Stack.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Stack.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── IfThen
+│   │   └── Block
+│   │       ├── old [Local]
+│   │       ├── this [Shared ← fun Stack.push]
+│   │       └── next [Copy]
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Stack.push]
+│       └── v [Shared ← fun Stack.push]
+├── fun Stack.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Stack.pop (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── b [Local]
+│   └── IfThen
+└── fun Stack.len
+    └── this [Borrow ← call site]
+== programs/build/buf/stack_pop_empty_aborts.bork
+Arenas
+├── fun main
+│   ├── s [Local]
+│   └── x [Local]
+├── fun newStack
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun newStack]
+├── fun StackSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Stack.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Stack.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── IfThen
+│   │   └── Block
+│   │       ├── old [Local]
+│   │       ├── this [Shared ← fun Stack.push]
+│   │       └── next [Copy]
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Stack.push]
+│       └── v [Shared ← fun Stack.push]
+├── fun Stack.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Stack.pop (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── b [Local]
+│   └── IfThen
 └── fun Stack.len
     └── this [Borrow ← call site]
 == programs/build/buf/stack_push_at_capacity_boundary.bork
@@ -292,6 +382,10 @@ Arenas
 ├── fun Stack.get (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Stack.pop (compacted 1 brace)
+│   ├── this [Borrow ← call site]
 │   ├── b [Local]
 │   └── IfThen
 └── fun Stack.len
@@ -337,6 +431,10 @@ Arenas
 ├── fun Stack.get (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Stack.pop (compacted 1 brace)
+│   ├── this [Borrow ← call site]
 │   ├── b [Local]
 │   └── IfThen
 └── fun Stack.len
