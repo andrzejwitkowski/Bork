@@ -890,6 +890,54 @@ programs/build/vec/return_vec_of_linked_refs.bork::main() -> i32
 programs/build/vec/strings.bork::main() -> i32
 programs/build/vec/vec_field_repeated.bork::main() -> i32
 programs/build/vec/with_capacity.bork::main() -> i32
+programs/build/vecb/get_between_len_and_cap_aborts.bork::main() -> i32
+programs/build/vecb/get_between_len_and_cap_aborts.bork::vecBNew() -> VecB<T0>
+programs/build/vecb/get_between_len_and_cap_aborts.bork::vecBWithCapacity(n: i32) -> VecB<T0>
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecBSeed.empty(this: &VecBSeed<T0>) -> Buf<T0>
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.reserveExact(this: &VecB<T0>, cap: i32) -> unit
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.push(this: &VecB<T0>, v: T0) -> unit
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.pop(this: &VecB<T0>) -> T0?
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.get(this: &VecB<T0>, i: i32) -> T0
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.set(this: &VecB<T0>, i: i32, v: T0) -> unit
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.len(this: &VecB<T0>) -> i32
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.capacity(this: &VecB<T0>) -> i32
+programs/build/vecb/get_between_len_and_cap_aborts.bork::VecB.clear(this: &VecB<T0>) -> unit
+programs/build/vecb/get_negative_aborts.bork::main() -> i32
+programs/build/vecb/get_negative_aborts.bork::vecBNew() -> VecB<T0>
+programs/build/vecb/get_negative_aborts.bork::vecBWithCapacity(n: i32) -> VecB<T0>
+programs/build/vecb/get_negative_aborts.bork::VecBSeed.empty(this: &VecBSeed<T0>) -> Buf<T0>
+programs/build/vecb/get_negative_aborts.bork::VecB.reserveExact(this: &VecB<T0>, cap: i32) -> unit
+programs/build/vecb/get_negative_aborts.bork::VecB.push(this: &VecB<T0>, v: T0) -> unit
+programs/build/vecb/get_negative_aborts.bork::VecB.pop(this: &VecB<T0>) -> T0?
+programs/build/vecb/get_negative_aborts.bork::VecB.get(this: &VecB<T0>, i: i32) -> T0
+programs/build/vecb/get_negative_aborts.bork::VecB.set(this: &VecB<T0>, i: i32, v: T0) -> unit
+programs/build/vecb/get_negative_aborts.bork::VecB.len(this: &VecB<T0>) -> i32
+programs/build/vecb/get_negative_aborts.bork::VecB.capacity(this: &VecB<T0>) -> i32
+programs/build/vecb/get_negative_aborts.bork::VecB.clear(this: &VecB<T0>) -> unit
+programs/build/vecb/methods.bork::main() -> i32
+programs/build/vecb/methods.bork::vecBNew() -> VecB<T0>
+programs/build/vecb/methods.bork::vecBWithCapacity(n: i32) -> VecB<T0>
+programs/build/vecb/methods.bork::VecBSeed.empty(this: &VecBSeed<T0>) -> Buf<T0>
+programs/build/vecb/methods.bork::VecB.reserveExact(this: &VecB<T0>, cap: i32) -> unit
+programs/build/vecb/methods.bork::VecB.push(this: &VecB<T0>, v: T0) -> unit
+programs/build/vecb/methods.bork::VecB.pop(this: &VecB<T0>) -> T0?
+programs/build/vecb/methods.bork::VecB.get(this: &VecB<T0>, i: i32) -> T0
+programs/build/vecb/methods.bork::VecB.set(this: &VecB<T0>, i: i32, v: T0) -> unit
+programs/build/vecb/methods.bork::VecB.len(this: &VecB<T0>) -> i32
+programs/build/vecb/methods.bork::VecB.capacity(this: &VecB<T0>) -> i32
+programs/build/vecb/methods.bork::VecB.clear(this: &VecB<T0>) -> unit
+programs/build/vecb/set_past_len_aborts.bork::main() -> i32
+programs/build/vecb/set_past_len_aborts.bork::vecBNew() -> VecB<T0>
+programs/build/vecb/set_past_len_aborts.bork::vecBWithCapacity(n: i32) -> VecB<T0>
+programs/build/vecb/set_past_len_aborts.bork::VecBSeed.empty(this: &VecBSeed<T0>) -> Buf<T0>
+programs/build/vecb/set_past_len_aborts.bork::VecB.reserveExact(this: &VecB<T0>, cap: i32) -> unit
+programs/build/vecb/set_past_len_aborts.bork::VecB.push(this: &VecB<T0>, v: T0) -> unit
+programs/build/vecb/set_past_len_aborts.bork::VecB.pop(this: &VecB<T0>) -> T0?
+programs/build/vecb/set_past_len_aborts.bork::VecB.get(this: &VecB<T0>, i: i32) -> T0
+programs/build/vecb/set_past_len_aborts.bork::VecB.set(this: &VecB<T0>, i: i32, v: T0) -> unit
+programs/build/vecb/set_past_len_aborts.bork::VecB.len(this: &VecB<T0>) -> i32
+programs/build/vecb/set_past_len_aborts.bork::VecB.capacity(this: &VecB<T0>) -> i32
+programs/build/vecb/set_past_len_aborts.bork::VecB.clear(this: &VecB<T0>) -> unit
 programs/check/borrow/array_slice_length.bork::main() -> i32
 programs/check/borrow/reborrow_in_for.bork::inner(a: &rw [i32; 2]) -> unit
 programs/check/borrow/reborrow_in_for.bork::outer(a: &rw [i32; 2]) -> unit

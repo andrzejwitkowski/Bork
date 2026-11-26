@@ -733,3 +733,16 @@ class Bag size=8 align=8 fields=[0]
 class H size=8 align=8 fields=[0]
 == programs/build/vec/with_capacity.bork
 class Node size=4 align=4 fields=[0]
+== programs/build/vecb/get_between_len_and_cap_aborts.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vecb/get_negative_aborts.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vecb/methods.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vecb/set_past_len_aborts.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]

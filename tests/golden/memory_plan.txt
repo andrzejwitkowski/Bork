@@ -1066,6 +1066,16 @@ programs/build/vec/vec_field_repeated.bork: 118..119 H Lexical LexicalScope(0)
 programs/build/vec/with_capacity.bork: 1659..1663 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1683..1687 Node Dynamic Program
 programs/build/vec/with_capacity.bork: 1707..1711 Node Dynamic Program
+programs/build/vecb/get_between_len_and_cap_aborts.bork: 2326..2334 VecBSeed<i32> Dynamic Program
+programs/build/vecb/get_between_len_and_cap_aborts.bork: 2366..2370 VecB<i32> Lexical LexicalScope(2)
+programs/build/vecb/get_negative_aborts.bork: 2326..2334 VecBSeed<i32> Dynamic Program
+programs/build/vecb/get_negative_aborts.bork: 2366..2370 VecB<i32> Lexical LexicalScope(2)
+programs/build/vecb/methods.bork: 1532..1536 Option<i32> Lexical LexicalScope(24)
+programs/build/vecb/methods.bork: 1640..1666 Option<i32> Lexical LexicalScope(25)
+programs/build/vecb/methods.bork: 2326..2334 VecBSeed<i32> Dynamic Program
+programs/build/vecb/methods.bork: 2366..2370 VecB<i32> Lexical LexicalScope(12)
+programs/build/vecb/set_past_len_aborts.bork: 2326..2334 VecBSeed<i32> Dynamic Program
+programs/build/vecb/set_past_len_aborts.bork: 2366..2370 VecB<i32> Lexical LexicalScope(2)
 programs/check/conditionals/if_return_move_then_use.bork: 133..137 Node Dynamic Program
 programs/check/conditionals/nullable_eq.bork: 42..46 Option<String> Lexical LexicalScope(0)
 programs/check/conditionals/nullable_eq.bork: 63..67 Option<String> Lexical LexicalScope(0)

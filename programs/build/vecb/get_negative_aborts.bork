@@ -1,0 +1,7 @@
+// exit: 1
+// A negative index aborts.
+fun main(): i32 {
+    val v: VecB<i32> = vecBNew()
+    v.push(1)
+    return v.get(0 - 1)
+}
