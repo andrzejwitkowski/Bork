@@ -28,7 +28,7 @@ Before you tell the user a PR is done, no review thread may be left silently ope
 
 Rules:
 - Do this after every push: a new push can add new threads (OpenCodeReview and CodeRabbit re-review each head).
-- Check CI against the PR's *current* head SHA (`gh pr view <n> --json headRefOid`, `gh run list --branch <b>`), not
+- Check CI against the PR's *current* head SHA (`gh pr view <n> --json headRefOid`, then `gh pr checks <n>` or `gh run list --branch <b> --json headSha,name,status,conclusion`; plain `gh run list` does not show SHAs), not
   the first red result you see; a push that GitHub did not register leaves the old runs on the old SHA.
 - When you report status, say per thread what happened (fixed / rejected / deferred, with SHA or issue), and which
   CI checks are green on which SHA. Do not write "addressed" without one of those.
