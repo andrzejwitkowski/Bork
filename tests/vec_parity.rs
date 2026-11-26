@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const PARITY: &[&str] = &["strings", "negative_capacity_aborts", "push_grow_sum", "pop_set_clear", "grow_past_page", "index_through_field", "vec_field_repeated", "assign_concat_through_borrowed_vec", "index_from_element"];
+const PARITY: &[&str] = &["strings", "negative_capacity_aborts", "push_grow_sum", "pop_set_clear", "grow_past_page", "index_through_field", "vec_field_repeated", "assign_concat_through_borrowed_vec", "index_from_element", "move_to_outer", "move_vec_field"];
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

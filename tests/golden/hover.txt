@@ -328,6 +328,10 @@ programs/build/vec/with_capacity.bork: hits=279 hash=fb4761a22c58c53e
 programs/build/vecb/get_between_len_and_cap_aborts.bork: hits=16 hash=ae924c5ec4e3ad3d
 programs/build/vecb/get_negative_aborts.bork: hits=10 hash=e10419e3b72dfe34
 programs/build/vecb/methods.bork: hits=207 hash=ea1d2b1d50dba4f9
+programs/build/vecb/move_into_outer.bork: hits=67 hash=508e0aa1ba7f3051
+programs/build/vecb/promote_outlives_inner.bork: hits=94 hash=f503908c5f37949c
+programs/build/vecb/promote_strings.bork: hits=72 hash=bc78e83a116ee4de
+programs/build/vecb/return_from_function.bork: hits=59 hash=2e7ffa5553a67700
 programs/build/vecb/set_past_len_aborts.bork: hits=10 hash=58237c0728346f80
 programs/build_fail/borrow/store_ref_into_borrowed_array.bork: hits=8 hash=0dbca6980761e4f2
 programs/build_fail/borrow/store_string_into_borrowed_array.bork: hits=15 hash=689b38856acb49d8

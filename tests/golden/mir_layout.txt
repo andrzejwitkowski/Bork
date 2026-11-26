@@ -743,6 +743,18 @@ class VecB<i32> size=24 align=8 fields=[0, 16]
 class VecBSeed<i32> size=4 align=4 fields=[0]
 class VecB<i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vecb/move_into_outer.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vecb/promote_outlives_inner.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vecb/promote_strings.bork
+class VecBSeed<String> size=4 align=4 fields=[0]
+class VecB<String> size=24 align=8 fields=[0, 16]
+== programs/build/vecb/return_from_function.bork
+class VecBSeed<i32> size=4 align=4 fields=[0]
+class VecB<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vecb/set_past_len_aborts.bork
 class VecBSeed<i32> size=4 align=4 fields=[0]
 class VecB<i32> size=24 align=8 fields=[0, 16]

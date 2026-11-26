@@ -65,6 +65,26 @@ opaque class VecB<T> {
             slotStore(&b, i, v)
         }
     }
+    // `outer = promote inner` / `outer = move inner` (typeck rewrites it to this call): `this` takes a copy of `src` in its own arena.
+    // A `String` is copied into that arena and a `Ref` is rehomed by `slotStore`, so the copy owns its elements.
+    fun assignFrom(src: &VecB<T>) {
+        var cap = 0
+        unsafe {
+            cap = this.buf.cap()
+        }
+        if (cap < src.len()) {
+            this.reserveExact(src.len())
+        }
+        var i = 0
+        while (i < src.len()) {
+            unsafe {
+                val b = this.buf
+                slotStore(&b, i, src.get(i))
+            }
+            i = i + 1
+        }
+        this.n = src.len()
+    }
     fun len(): i32 {
         return this.n
     }

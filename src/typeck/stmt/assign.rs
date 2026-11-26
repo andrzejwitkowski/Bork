@@ -22,6 +22,17 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: TyId, env: &
                 return check_receiver_field(&this, name, *name_span, *id, value, return_ty, env);
             }
             let bound = assign_binding(env, name, *name_span, *id, false);
+            // `outer = promote inner` / `outer = move inner` on the Bork `Vec`: `outer` takes a copy of `inner` in its own
+            // arena (the prelude method allocates through `arenaOf(this)`); the source is moved by sema, as for any class.
+            if let (Expr::Promote { name: src, span, .. } | Expr::Move { name: src, span, .. }, true) =
+                (value, bound.is_some_and(|ty| expr::array::is_vec_class(ty, env)))
+            {
+                let target = Expr::Ident { name: name.clone(), span: *name_span, id: *id };
+                let method = Expr::Field { receiver: Box::new(target), name: "assignFrom".to_string(), safe: false, span: *span, id: AstId::DUMMY };
+                let source = Expr::Unary { op: crate::ast::UnaryOp::Borrow { rw: false }, expr: Box::new(Expr::Ident { name: src.clone(), span: *span, id: AstId::DUMMY }), span: *span };
+                let call = Expr::call(method, Vec::new(), vec![source], None, *span);
+                return HirStmt::Expr(expr::synthesize(&call, return_ty, env).hir);
+            }
             let value = expr::dispatch(value, bound, return_ty, env);
             if let Some(bound) = bound {
                 env.mismatch(&format!("assignment to `{name}`"), value.ty, bound, Some(*name_span));

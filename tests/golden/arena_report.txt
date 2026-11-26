@@ -5753,6 +5753,23 @@ Arenas
 │   ├── v [Local]
 │   ├── b [Local]
 │   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
 ├── fun VecB.len
 │   └── this [Borrow ← call site]
 ├── fun VecB.capacity (compacted 1 brace)
@@ -5812,6 +5829,23 @@ Arenas
 │   ├── v [Local]
 │   ├── b [Local]
 │   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
 ├── fun VecB.len
 │   └── this [Borrow ← call site]
 ├── fun VecB.capacity (compacted 1 brace)
@@ -5886,6 +5920,350 @@ Arenas
 │   ├── v [Local]
 │   ├── b [Local]
 │   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
+├── fun VecB.len
+│   └── this [Borrow ← call site]
+├── fun VecB.capacity (compacted 1 brace)
+│   └── this [Borrow ← call site]
+└── fun VecB.clear
+    └── this [Borrow ← call site]
+== programs/build/vecb/move_into_outer.bork
+Arenas
+├── fun main
+│   ├── outer [Local]
+│   ├── Block
+│   │   └── inner [Moved ← Block]
+│   └── IfThen
+├── fun vecBNew
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun vecBNew]
+├── fun vecBWithCapacity
+│   ├── n [Local]
+│   ├── v [Local]
+│   ├── IfThen (compacted 1 brace)
+│   └── IfThen
+│       ├── v [Shared ← fun vecBWithCapacity]
+│       └── n [Copy]
+├── fun VecBSeed.empty
+│   └── this [Borrow ← call site]
+├── fun VecB.reserveExact (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── cap [Local]
+│   └── old [Local]
+├── fun VecB.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── this [Borrow ← fun VecB.push]
+│   │   └── IfThen
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun VecB.push]
+│       └── v [Shared ← fun VecB.push]
+├── fun VecB.pop
+│   ├── this [Borrow ← call site]
+│   ├── IfThen
+│   └── Block
+│       ├── b [Local]
+│       └── this [Shared ← fun VecB.pop]
+├── fun VecB.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.set (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── v [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
+├── fun VecB.len
+│   └── this [Borrow ← call site]
+├── fun VecB.capacity (compacted 1 brace)
+│   └── this [Borrow ← call site]
+└── fun VecB.clear
+    └── this [Borrow ← call site]
+== programs/build/vecb/promote_outlives_inner.bork
+Arenas
+├── fun main
+│   ├── outer [Local]
+│   ├── total [Local]
+│   ├── j [Local]
+│   ├── Block
+│   │   ├── inner [Local]
+│   │   └── inner [Moved ← Block]
+│   └── WhileLoop
+│       ├── total [Copy]
+│       ├── outer [Borrow ← fun main]
+│       └── j [Copy]
+├── fun vecBNew
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun vecBNew]
+├── fun vecBWithCapacity
+│   ├── n [Local]
+│   ├── v [Local]
+│   ├── IfThen (compacted 1 brace)
+│   └── IfThen
+│       ├── v [Shared ← fun vecBWithCapacity]
+│       └── n [Copy]
+├── fun VecBSeed.empty
+│   └── this [Borrow ← call site]
+├── fun VecB.reserveExact (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── cap [Local]
+│   └── old [Local]
+├── fun VecB.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── this [Borrow ← fun VecB.push]
+│   │   └── IfThen
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun VecB.push]
+│       └── v [Shared ← fun VecB.push]
+├── fun VecB.pop
+│   ├── this [Borrow ← call site]
+│   ├── IfThen
+│   └── Block
+│       ├── b [Local]
+│       └── this [Shared ← fun VecB.pop]
+├── fun VecB.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.set (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── v [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
+├── fun VecB.len
+│   └── this [Borrow ← call site]
+├── fun VecB.capacity (compacted 1 brace)
+│   └── this [Borrow ← call site]
+└── fun VecB.clear
+    └── this [Borrow ← call site]
+== programs/build/vecb/promote_strings.bork
+Arenas
+├── fun main
+│   ├── outer [Local]
+│   └── Block
+│       ├── inner [Local]
+│       └── inner [Moved ← Block]
+├── fun vecBNew
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun vecBNew]
+├── fun vecBWithCapacity
+│   ├── n [Local]
+│   ├── v [Local]
+│   ├── IfThen (compacted 1 brace)
+│   └── IfThen
+│       ├── v [Shared ← fun vecBWithCapacity]
+│       └── n [Copy]
+├── fun VecBSeed.empty
+│   └── this [Borrow ← call site]
+├── fun VecB.reserveExact (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── cap [Local]
+│   └── old [Local]
+├── fun VecB.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── this [Borrow ← fun VecB.push]
+│   │   └── IfThen
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun VecB.push]
+│       └── v [Shared ← fun VecB.push]
+├── fun VecB.pop
+│   ├── this [Borrow ← call site]
+│   ├── IfThen
+│   └── Block
+│       ├── b [Local]
+│       └── this [Shared ← fun VecB.pop]
+├── fun VecB.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.set (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── v [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
+├── fun VecB.len
+│   └── this [Borrow ← call site]
+├── fun VecB.capacity (compacted 1 brace)
+│   └── this [Borrow ← call site]
+└── fun VecB.clear
+    └── this [Borrow ← call site]
+== programs/build/vecb/return_from_function.bork
+Arenas
+├── fun build
+│   └── v [Local]
+├── fun main
+│   ├── v [Local]
+│   ├── total [Local]
+│   ├── j [Local]
+│   └── WhileLoop
+│       ├── total [Copy]
+│       ├── v [Shared ← fun main]
+│       └── j [Copy]
+├── fun vecBNew
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun vecBNew]
+├── fun vecBWithCapacity
+│   ├── n [Local]
+│   ├── v [Local]
+│   ├── IfThen (compacted 1 brace)
+│   └── IfThen
+│       ├── v [Shared ← fun vecBWithCapacity]
+│       └── n [Copy]
+├── fun VecBSeed.empty
+│   └── this [Borrow ← call site]
+├── fun VecB.reserveExact (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── cap [Local]
+│   └── old [Local]
+├── fun VecB.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── this [Borrow ← fun VecB.push]
+│   │   └── IfThen
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun VecB.push]
+│       └── v [Shared ← fun VecB.push]
+├── fun VecB.pop
+│   ├── this [Borrow ← call site]
+│   ├── IfThen
+│   └── Block
+│       ├── b [Local]
+│       └── this [Shared ← fun VecB.pop]
+├── fun VecB.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.set (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── v [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
 ├── fun VecB.len
 │   └── this [Borrow ← call site]
 ├── fun VecB.capacity (compacted 1 brace)
@@ -5945,6 +6323,23 @@ Arenas
 │   ├── v [Local]
 │   ├── b [Local]
 │   └── IfThen
+├── fun VecB.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun VecB.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun VecB.assignFrom]
+│   │   └── src [Borrow ← fun VecB.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun VecB.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun VecB.assignFrom]
 ├── fun VecB.len
 │   └── this [Borrow ← call site]
 ├── fun VecB.capacity (compacted 1 brace)
