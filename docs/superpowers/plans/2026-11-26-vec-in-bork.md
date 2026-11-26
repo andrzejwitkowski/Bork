@@ -151,3 +151,14 @@
 ### Task 11: issue bookkeeping (only after the user agrees)
 
 - [ ] Propose a rewritten body of #285 (steps 2-4 replaced by Parts 1-3 here) and a new issue "impl Trait for Vec and Iterator on Vec" (the old step 4, blocked by Part 3); post only after the user approves.
+
+---
+
+## Status after the first execution session (2026-11-26)
+
+Branch `feat/285-vec-in-bork` (on `origin/main` + the #350 commit). Tasks 1-6 done; Task 7 partial; Tasks 8-11 not started.
+
+- Build parity (exit code only, `tests/vec_parity.rs`): all `programs/build/vec` programs that use methods, `v[i]`, `promote`/`move`, `Ref` and closure elements pass on `VecB`, except 3 closure programs (`closure_elems_inner_ref_capture`, `_promote_object_fields`, `_promote_ref_capture`), kept in an `#[ignore]` test. Cause is open: building the closure in the vector's arena trips `MoveEscapesArena`; the "result sink" explanation was not proven (compare `inner`'s decl sink between `Vec` and `VecB`; sema still sees `outer = promote inner`, which the typeck rewrite to `assignFrom` hides from `mir::build::sinks`).
+- **check_fail parity was never part of the plan's tests and fails: 24 of 31 `programs/check_fail/vec` programs differ on `VecB`.** The rules live in `typeck/expr/vec.rs` and `Vec<T>` type lowering and do not apply to an ordinary class: `val` receiver mutation (`push_on_val`, `push_through_val_field`), element-type rules (`class_element`, `closure_fnonce_element`, `nullable`), closure-push restrictions (`closure_*_push`), `Vec(n)` arity (`two_arguments`), `user_defined_vec`, `impl_trait`, and all `&v[i]` view / lock programs (Task 8). Our own `vecb/methods.bork` and `return_from_function.bork` push through `val` and encode the wrong behaviour.
+- Not yet checked: `// stdout:` lines and `-g` builds in the parity harness; `pop` of a `Ref` (old `Vec` returns the `Ref` itself and moves it out of the slot, `VecB.pop` returns `Some(clone)` and leaves it); Task 9 (`bork-debug` layout).
+- Decisions needed from the owner before Task 8/10: (1) how `&v[i]` locks a class-based `Vec`; (2) where the `val`-receiver and element-type rules live once `Vec` is a prelude class.
