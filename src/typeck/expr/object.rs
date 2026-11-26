@@ -31,6 +31,9 @@ pub(super) fn check_construct(
         env.error(format!("`{}` is a built-in type and cannot be constructed like a class{hint}", class.name), Some(span));
         return super::method::poisoned(args, span, return_ty, env);
     }
+    if env.reject_opaque(class.id, || "construction".to_string(), span) {
+        return super::method::poisoned(args, span, return_ty, env);
+    }
     if args.len() > class.fields.len() {
         env.error(
             format!(

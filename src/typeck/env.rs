@@ -55,6 +55,10 @@ pub(super) struct ClassInfo {
     pub(super) methods: HashMap<DefId, String>,
     /// Names of the class type parameters.
     pub(super) generics: Vec<String>,
+    /// `opaque class` (#350): user code cannot touch its fields or construct it.
+    pub(super) opaque: bool,
+    /// Its `unsafe fun` methods, which only prelude code may call.
+    pub(super) unsafe_methods: HashSet<DefId>,
 }
 
 pub(super) type ClassTable = HashMap<DefId, ClassInfo>;
@@ -92,6 +96,8 @@ pub(super) struct Env<'a> {
     pub(super) loop_depth: usize,
     /// Enclosing `unsafe` blocks, plus one inside an `unsafe fun`; see [`Env::in_unsafe`].
     pub(super) unsafe_depth: usize,
+    /// True while checking a prelude function or method (#350); see `ClassInfo::opaque`.
+    pub(super) in_prelude: bool,
     /// Class whose method body is being checked; `None` in top-level functions.
     pub(super) self_class: Option<DefId>,
     /// Member names resolved by typeck, for sema and LSP.
@@ -153,6 +159,7 @@ impl<'a> Env<'a> {
             node_tys: NodeTypes::new(),
             loop_depth: 0,
             unsafe_depth: 0,
+            in_prelude: false,
             self_class: None,
             members: MemberResolutions::new(),
             option_if_vals: HashSet::new(),
@@ -165,6 +172,16 @@ impl<'a> Env<'a> {
             proj_env: Vec::new(),
             projections: Vec::new(),
         }
+    }
+
+    /// Reports a user-code touch (`what`: "field `n`", "construction") of an `opaque class` (#350); true when rejected.
+    pub(super) fn reject_opaque(&mut self, class: DefId, what: impl FnOnce() -> String, span: Span) -> bool {
+        if self.in_prelude {
+            return false;
+        }
+        let Some(name) = self.class(class).filter(|c| c.opaque).map(|c| c.name.clone()) else { return false };
+        self.error(format!("{} of `{name}` is private to the prelude", what()), Some(span));
+        true
     }
 
     /// True inside an `unsafe fun` body or an `unsafe { }` block.
@@ -409,7 +426,7 @@ impl<'a> Env<'a> {
 
     /// Lowers a written type, reporting problems at `span`.
     pub(super) fn lower(&mut self, ty: &crate::ast::Type, span: Option<Span>) -> TyId {
-        let lowered = super::lower_type(ty, self.defs, &self.tparams, self.tcx, &mut self.diagnostics, span);
+        let lowered = super::lower_type(ty, self.defs, &self.tparams, self.tcx, &mut self.diagnostics, span, self.in_prelude);
         super::solve::normalize(self, lowered, span)
     }
 

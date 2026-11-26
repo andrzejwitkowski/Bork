@@ -27,6 +27,10 @@ pub struct Class {
     pub methods: Vec<Function>,
     /// `intrinsic class Vec<T> {}`: a compiler-known type (prelude only).
     pub intrinsic: bool,
+    /// `opaque class Stack<T> {}`: user code cannot read, write or construct its fields, nor call its `unsafe fun`s (prelude only, #350).
+    pub opaque: bool,
+    /// Set by `add_prelude` on classes it injects; a user declaration never has it.
+    pub prelude: bool,
 }
 
 /// `enum Shape { Circle(r: f64), Empty }`. Payload fields are named like class fields.
@@ -66,6 +70,8 @@ impl Class {
             fields,
             methods,
             intrinsic: false,
+            opaque: false,
+            prelude: false,
         }
     }
 }
@@ -97,6 +103,14 @@ pub enum Item {
 }
 
 impl Program {
+    /// Flags every function, method and class as prelude code (`add_prelude`, and the `unsafe`-allowing test hooks).
+    pub fn mark_prelude(&mut self) {
+        self.classes.iter_mut().for_each(|c| c.prelude = true);
+        let methods = self.classes.iter_mut().flat_map(|c| c.methods.iter_mut());
+        let impl_methods = self.impls.iter_mut().flat_map(|i| i.methods.iter_mut());
+        methods.chain(impl_methods).chain(self.functions.iter_mut()).for_each(|f| f.prelude = true);
+    }
+
     pub fn from_items(items: Vec<Item>) -> Self {
         let mut constants = Vec::new();
         let mut classes = Vec::new();
@@ -183,6 +197,8 @@ pub struct Function {
     pub intrinsic: bool,
     /// `unsafe fun f(...)`: the whole body is an unsafe context (prelude only).
     pub unsafe_: bool,
+    /// Set by `add_prelude` on functions and methods it injects; a user declaration never has it.
+    pub prelude: bool,
 }
 
 /// `T` in `fun f<T>` / `class Box<T>`, with the bounds of `T: A + B<i32>` and `where T: C`.

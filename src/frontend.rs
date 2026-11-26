@@ -78,6 +78,9 @@ fn check_inner(source: &str, escape: bool, allow_unsafe: bool) -> CheckResult {
         }
     };
 
+    if allow_unsafe {
+        program.mark_prelude(); // test hook: the snippet stands in for prelude code (#285, #350)
+    }
     let user_functions = program.functions.len();
     let user_enums = program.enums.len();
     crate::prelude::add_prelude(&mut program, source, node_index.len() as u32);

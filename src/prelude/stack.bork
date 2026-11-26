@@ -1,17 +1,16 @@
-// shortcut: `Stack` is an internal prototype and must not ship as a public type (blocks #285 step 2). Its fields `buf`/`n` are user-reachable and `Buf` is a bitwise-copyable {ptr, cap} with no arena tracking, so user code can copy a `Buf` out (`return s.buf`) or assign `long.buf = short.buf`, ending with a dangling pointer or a `bufGrow` in the wrong arena.
+// Both classes are `opaque` (#350): user code cannot read their fields, construct them or call `StackSeed.empty`, so a `Buf` never leaves the prelude.
 // shortcut: each `newStack` call leaks one `StackSeed` in the program-lifetime arena, until an arena-less empty-`Buf` primitive exists.
-// shortcut: calls to `unsafe fun` are not gated, so user code can call `StackSeed(0).empty()`; harmless only because its capacity is 0. No future `unsafe fun` may assume prelude-only callers.
 // Internal `Stack<T>` (#285 step 1): proves `Buf<T>` and the unsafe primitives from Bork; step 2 replaces it with `Vec`.
 // shortcut: elements must be plain scalars (Buf slots are copied bitwise), until Buf learns to clone and drop them.
 // Lazy allocation: `newStack` starts on an empty buffer and the first `push` grows it in the Stack's own arena.
-class StackSeed<T> {
+opaque class StackSeed<T> {
     n: i32
     // Zero bytes in the seed's arena: never read, and `bufGrow` copies 0 bytes from it.
     unsafe fun empty(): Buf<T> {
         return bufAlloc::<T>(arenaOf(this), 0)
     }
 }
-class Stack<T> {
+opaque class Stack<T> {
     buf: Buf<T>
     n: i32
     fun push(v: T) {

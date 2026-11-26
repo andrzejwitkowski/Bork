@@ -70,6 +70,9 @@ pub(crate) fn parse_indexed_with(source: &str, allow_unsafe: bool) -> Result<(Pr
     {
         return Err(ParseError::User { error: "`intrinsic` is only allowed in the prelude" });
     }
+    if program.classes.iter().any(|c| c.opaque) && !allow_unsafe {
+        return Err(ParseError::User { error: "`opaque` is only allowed in the prelude" });
+    }
     let (index, uses_unsafe) = ast_number::number_nodes_checked(&mut program, 0);
     if uses_unsafe && !allow_unsafe {
         return Err(ParseError::User { error: "`unsafe` is only allowed in the prelude" });
