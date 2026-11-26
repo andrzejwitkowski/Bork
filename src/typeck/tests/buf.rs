@@ -12,17 +12,24 @@ fn prelude_diags(source: &str) -> Vec<Diagnostic> {
 }
 
 const STACKISH: &str = "class S {\n    buf: Buf<i32>\n    n: i32\n\
-    unsafe fun fresh(): Buf<i32> {\n        return bufAlloc::<i32>(arenaOf(this), 4)\n    }\n}\n";
+    unsafe fun fresh(): Buf<i32> {\n        return bufAlloc::<i32>(arenaOf(this), 4)\n    }\n\
+    unsafe fun grown(b: &Buf<i32>): Buf<i32> {\n        return bufGrow(&b, 8)\n    }\n}\n";
 
 #[test]
 fn primitives_check_inside_unsafe() {
     let source = format!(
         "{STACKISH}fun f(b: &Buf<i32>) {{\n    unsafe {{\n        val x: i32 = slotLoad(&b, 0)\n\
-         slotStore(&b, 1, x)\n        val g: Buf<i32> = bufGrow(&b, 8)\n        val c: i32 = g.cap()\n\
+         slotStore(&b, 1, x)\n        val c: i32 = b.cap()\n\
          if (c < 0) {{\n            abort()\n        }}\n    }}\n}}\nfun main() {{}}\n"
     );
     let d = prelude_diags(&source);
     assert!(d.is_empty(), "{d:?}");
+}
+
+#[test]
+fn buf_grow_outside_a_method_is_rejected() {
+    let d = prelude_diags("unsafe fun f(b: &Buf<i32>) {\n    val g: Buf<i32> = bufGrow(&b, 8)\n}\nfun main() {}\n");
+    assert!(d.iter().any(|d| d.message.contains("`bufGrow` can only be called inside a method")), "{d:?}");
 }
 
 #[test]

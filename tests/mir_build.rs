@@ -220,3 +220,10 @@ fn buf_alloc_arena_of_and_cap_shapes() {
     assert!(fresh.contains("abort NegativeCapacity") && fresh.contains("intrinsic BufAlloc("), "{fresh}");
     assert!(buf_fn("S.size").contains("intrinsic BufCap("));
 }
+
+#[test]
+fn a_user_class_named_buf_keeps_its_own_cap_method() {
+    let src = "class Buf {\n    fun cap(): i32 { return 1 }\n}\nfun main(): i32 {\n    val b = Buf()\n    return b.cap() - 1\n}\n";
+    let text = emit(src).expect("user `Buf.cap` builds as an ordinary call");
+    assert!(!text.contains("BufCap"), "{text}");
+}

@@ -28,7 +28,7 @@ impl<'a> FnBuilder<'a> {
                 self.abort_unless(&[(BinOp::Ge, cap.clone(), zero)], AbortReason::NegativeCapacity, span, e);
                 (IntrinsicOp::BufAlloc, None)
             }
-            ("slotLoad", [buf, i, ..]) | ("slotStore", [buf, i, _]) => {
+            ("slotLoad", [buf, i]) | ("slotStore", [buf, i, _]) => {
                 let cap = self.buf_cap(buf, e);
                 self.abort_unless(&[(BinOp::Ge, i.clone(), zero), (BinOp::Lt, i.clone(), cap)], AbortReason::Bounds, span, e);
                 (if name == "slotLoad" { IntrinsicOp::SlotLoad } else { IntrinsicOp::SlotStore }, None)

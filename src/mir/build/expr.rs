@@ -190,7 +190,9 @@ impl<'a> FnBuilder<'a> {
             return Ok(self.call_closure(e, callee_op, ops));
         };
         let through_value = *use_kind == UseKind::Copy;
-        if !through_value && (builtins::is_buf_primitive(name) || name == "Buf.cap") {
+        // `Buf.cap` is matched by name: a user class `Buf` with its own `cap` must not take the intrinsic path.
+        let buf_cap = name == "Buf.cap" && args.first().is_some_and(|recv| self.tcx.buf_elem(recv.ty).is_some());
+        if !through_value && (builtins::is_buf_primitive(name) || buf_cap) {
             return self.buf_primitive(e, name, args);
         }
         // Arguments are gathered without the assignment's sink (only `print` keeps it), so nested

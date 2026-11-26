@@ -234,7 +234,14 @@ mod tests {
         };
         let none = classes("fun main() {}\n");
         assert!(!none.iter().any(|c| c.starts_with("Stack")), "{none:?}");
+        assert!(!none.iter().any(|c| c == "Buf" || c == "Arena"), "{none:?}");
         let named = classes("fun main(): i32 {\n    val s: Stack<i32> = newStack()\n    return s.len()\n}\n");
         assert!(["Stack", "StackSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+    }
+
+    #[test]
+    fn buf_index_points_at_the_buf_chunk() {
+        assert!(super::CHUNKS[super::BUF].names.contains(&"Buf"));
+        assert!(super::CHUNKS[super::BUF + 1].names.contains(&"Stack"));
     }
 }
