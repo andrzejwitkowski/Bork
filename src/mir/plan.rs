@@ -123,7 +123,7 @@ fn analyse(body: &Body, id: usize, tcx: &TyCtx, st: &mut State, sites: &mut Hash
         }
         // `Vec.push` / `.set` store their value arguments in a vector that outlives the call.
         if let Some(Terminator { kind: TermKind::Call { callee, args, .. }, .. }) = &block.term {
-            if callee.starts_with("Vec.push") || callee.starts_with("Vec.set") {
+            if matches!(super::borrows::vec_method(callee), Some("push" | "set")) {
                 pass.vec_store(args);
             }
         }

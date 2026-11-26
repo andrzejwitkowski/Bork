@@ -229,6 +229,7 @@ fun Vec.len<Ref<Node<i32>>>
 fun Vec.get<Ref<Node<i32>>>
 fun VecSeed.empty<Ref<Node<i32>>>
 fun Vec.reserveExact<Ref<Node<i32>>>
+fun Vec.clear<Ref<Node<i32>>>
 class VecSeed<Ref<Node<i32>>>
 class Vec<Ref<Node<i32>>>
 class Node<i32>
@@ -760,6 +761,7 @@ fun Vec.get<()->i32>
 fun Vec.len<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 class VecSeed<()->i32>
 class Vec<()->i32>
 == programs/build/vec/closure_elems_promote.bork
@@ -771,6 +773,7 @@ fun Vec.get<()->i32>
 fun Vec.len<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 class VecSeed<()->i32>
 class Vec<()->i32>
 == programs/build/vec/closure_elems_promote_nullable_none.bork
@@ -781,6 +784,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class Node
 class VecSeed<()->i32>
@@ -793,6 +797,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class Node
 class VecSeed<()->i32>
@@ -805,6 +810,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class Node
 class VecSeed<()->i32>
@@ -817,6 +823,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class Inner
 class Outer
@@ -830,6 +837,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class Node
 class VecSeed<()->i32>
@@ -842,6 +850,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class Node
 class VecSeed<()->i32>
@@ -854,6 +863,7 @@ fun Vec.assignFrom<()->i32>
 fun Vec.get<()->i32>
 fun VecSeed.empty<()->i32>
 fun Vec.reserveExact<()->i32>
+fun Vec.clear<()->i32>
 fun Vec.len<()->i32>
 class VecSeed<()->i32>
 class Vec<()->i32>
@@ -1015,6 +1025,7 @@ fun Vec.len<i32>
 fun Vec.reserveAtLeast<i32>
 fun Vec.reserveExact<i32>
 fun VecSeed.empty<i32>
+fun Vec.clear<i32>
 fun Vec.get<i32>
 class VecSeed<i32>
 class Vec<i32>
@@ -1027,6 +1038,7 @@ fun Vec.len<i32>
 fun Vec.get<i32>
 fun VecSeed.empty<i32>
 fun Vec.reserveExact<i32>
+fun Vec.clear<i32>
 class VecSeed<i32>
 class Vec<i32>
 == programs/build/vec/move_vec_field.bork
@@ -1070,6 +1082,7 @@ fun Vec.len<i32>
 fun Vec.get<i32>
 fun VecSeed.empty<i32>
 fun Vec.reserveExact<i32>
+fun Vec.clear<i32>
 class VecSeed<i32>
 class Vec<i32>
 == programs/build/vec/promote_strings.bork
@@ -1081,6 +1094,7 @@ fun Vec.get<String>
 fun Vec.len<String>
 fun VecSeed.empty<String>
 fun Vec.reserveExact<String>
+fun Vec.clear<String>
 class VecSeed<String>
 class Vec<String>
 == programs/build/vec/push_grow_sum.bork
@@ -1145,6 +1159,20 @@ fun Vec.len<Ref<Node>>
 fun Vec.get<Ref<Node>>
 fun VecSeed.empty<Ref<Node>>
 fun Vec.reserveExact<Ref<Node>>
+fun Vec.clear<Ref<Node>>
+class Node
+class VecSeed<Ref<Node>>
+class Vec<Ref<Node>>
+== programs/build/vec/ref_promote_over_longer_releases_tail.bork
+fun main
+fun vecNew<Ref<Node>>
+fun Vec.push<Ref<Node>>
+fun Vec.assignFrom<Ref<Node>>
+fun VecSeed.empty<Ref<Node>>
+fun Vec.reserveExact<Ref<Node>>
+fun Vec.clear<Ref<Node>>
+fun Vec.len<Ref<Node>>
+fun Vec.get<Ref<Node>>
 class Node
 class VecSeed<Ref<Node>>
 class Vec<Ref<Node>>
@@ -1157,6 +1185,7 @@ fun Vec.len<Ref<Node>>
 fun Vec.get<Ref<Node>>
 fun VecSeed.empty<Ref<Node>>
 fun Vec.reserveExact<Ref<Node>>
+fun Vec.clear<Ref<Node>>
 class Node
 class VecSeed<Ref<Node>>
 class Vec<Ref<Node>>

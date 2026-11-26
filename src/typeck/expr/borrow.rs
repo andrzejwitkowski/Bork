@@ -74,7 +74,7 @@ pub(super) fn check_element_borrow(
 ) -> Checked {
     let element = super::array::check_index_as(receiver, index, index_span, return_ty, true, env);
     let unknown = env.tcx.is_unknown(element.ty);
-    let is_vec = matches!(&element.hir.kind, HirExprKind::Index { receiver, .. } if env.tcx.vec_elem(receiver.ty).is_some() || env.tcx.vec_class_elem(receiver.ty).is_some());
+    let is_vec = matches!(&element.hir.kind, HirExprKind::Index { receiver, .. } if env.tcx.vec_elem(receiver.ty).is_some());
     let rejected = match (is_vec || unknown, env.tcx.is_trivially_copy(element.ty)) {
         (false, _) => Some(format!("`{}` borrows a name; only a `Vec` element can be borrowed by index", if rw { "&rw" } else { "&" })),
         (_, true) => Some(format!("cannot borrow Copy type `{}`; read it with `v[i]`", env.show(element.ty))),

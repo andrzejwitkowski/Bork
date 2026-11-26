@@ -206,7 +206,7 @@ impl<'a> FnBuilder<'a> {
             HirExprKind::Unary { expr, .. } => &**expr,
             _ => r,
         }) {
-            Some(HirExpr { kind: HirExprKind::Ident { name: recv, .. }, .. }) if name.starts_with("Vec.") => Some(ArenaRef::Home(self.lookup(recv, span)?)),
+            Some(HirExpr { kind: HirExprKind::Ident { name: recv, .. }, .. }) if crate::mir::borrows::vec_method(name).is_some() => Some(ArenaRef::Home(self.lookup(recv, span)?)),
             _ => None,
         };
         let ops = match vec_home {

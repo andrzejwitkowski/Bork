@@ -171,7 +171,7 @@ impl<'ctx> Codegen<'ctx> {
     /// A copy of a `Vec` (the Bork class) in `arena`: a new `{buf, n}` object whose buffer holds the `n` live elements, each
     /// copied the way its type needs (bytes, a cloned `Ref`, a re-homed closure, a copied `String`).
     pub(super) fn copy_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, ty: TyId, value: StructValue<'ctx>) -> Result<StructValue<'ctx>, Diagnostic> {
-        let elem_ty = self.tcx.vec_class_elem(ty).ok_or_else(|| not_yet_supported("vec copy type", None))?;
+        let elem_ty = self.tcx.vec_elem(ty).ok_or_else(|| not_yet_supported("vec copy type", None))?;
         let name = crate::mono::class_instance_name(&self.tcx, ty).ok_or_else(|| not_yet_supported("vec copy class", None))?;
         let record = self.record_type(&name).ok_or_else(|| not_yet_supported("vec copy record", None))?;
         let source = self.builder.build_extract_value(value, 1, "vec.src")?.into_pointer_value();

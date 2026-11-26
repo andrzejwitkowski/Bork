@@ -293,7 +293,7 @@ impl<'a> FnBuilder<'a> {
         // A `Vec` of `unit` is built by the body that calls `vecNew::<()>` / `vecWithCapacity::<()>`.
         for term in blocks.iter().filter_map(|b| b.term.as_ref()) {
             if let TermKind::Call { callee, dest, .. } = &term.kind {
-                let factory = callee.starts_with("vecNew") || callee.starts_with("vecWithCapacity");
+                let factory = expr::is_vec_factory(callee);
                 if factory && dest.is_bare() && self.locals.get(dest.local.0 as usize).is_some_and(|l| has_unit_elem(self.tcx, l.ty)) {
                     return Err(BuildError::unsupported(Capability::UnitElem, term.span));
                 }

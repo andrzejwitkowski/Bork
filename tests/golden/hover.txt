@@ -327,6 +327,7 @@ programs/build/vec/ref_nodes.bork: hits=52 hash=944c120b131926ff
 programs/build/vec/ref_pop_empty_is_none.bork: hits=14 hash=9b77c41d929a0162
 programs/build/vec/ref_pop_moves_the_handle.bork: hits=63 hash=c4798b39bcddd608
 programs/build/vec/ref_promote.bork: hits=71 hash=964a6d5fb4a72e6d
+programs/build/vec/ref_promote_over_longer_releases_tail.bork: hits=129 hash=698d19e296ae7e3c
 programs/build/vec/ref_promote_strong.bork: hits=127 hash=982f3f6c1acbff1d
 programs/build/vec/ref_weak_expires.bork: hits=180 hash=964822fb60c8441b
 programs/build/vec/return_from_function.bork: hits=59 hash=ba18747ce8f22a8d

@@ -88,6 +88,8 @@ opaque class Vec<T> {
     // `outer = promote inner` / `outer = move inner` (typeck rewrites it to this call): `this` takes a copy of `src` in its own arena.
     // A `String` is copied into that arena and a `Ref` is rehomed by `slotStore`, so the copy owns its elements.
     fun assignFrom(src: &Vec<T>) {
+        // Release what `this` holds first, so a shorter source leaves no live `Ref` in the old tail.
+        this.clear()
         var cap = 0
         unsafe {
             cap = this.buf.cap()

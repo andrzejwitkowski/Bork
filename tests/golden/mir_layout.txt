@@ -888,6 +888,10 @@ class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 class Node size=4 align=4 fields=[0]
 class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
 class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/vec/ref_promote_over_longer_releases_tail.bork
+class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/vec/ref_promote_strong.bork
 class Node size=4 align=4 fields=[0]
 class VecSeed<Ref<Node>> size=4 align=4 fields=[0]

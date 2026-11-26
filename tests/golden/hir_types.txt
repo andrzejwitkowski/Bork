@@ -1940,6 +1940,21 @@ programs/build/vec/ref_promote.bork::Vec.assignFrom(this: &Vec<T0>, src: &Vec<T0
 programs/build/vec/ref_promote.bork::Vec.len(this: &Vec<T0>) -> i32
 programs/build/vec/ref_promote.bork::Vec.capacity(this: &Vec<T0>) -> i32
 programs/build/vec/ref_promote.bork::Vec.clear(this: &Vec<T0>) -> unit
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::main() -> i32
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::vecNew() -> Vec<T0>
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::vecWithCapacity(n: i32) -> Vec<T0>
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.pop(this: &Vec<T0>) -> T0?
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.popRef(this: &Vec<T0>) -> T0
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.get(this: &Vec<T0>, i: i32) -> T0
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.set(this: &Vec<T0>, i: i32, v: T0) -> unit
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.assignFrom(this: &Vec<T0>, src: &Vec<T0>) -> unit
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.len(this: &Vec<T0>) -> i32
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.capacity(this: &Vec<T0>) -> i32
+programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/ref_promote_strong.bork::main() -> i32
 programs/build/vec/ref_promote_strong.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_promote_strong.bork::vecWithCapacity(n: i32) -> Vec<T0>

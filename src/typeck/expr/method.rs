@@ -56,7 +56,7 @@ pub(super) fn check_method_call(
     };
     // `pop` of a `Ref` element is the `Ref` itself, as for the compiler `Vec` (a `Ref` already has its own `None`).
     let written = method;
-    let method = if method == "pop" && env.defs.vec_class() == Some(class) && env.tcx.vec_class_elem(checked.ty).is_some_and(|e| env.tcx.is_managed_ref(e)) { "popRef" } else { method };
+    let method = if method == "pop" && env.defs.vec_class() == Some(class) && env.tcx.vec_elem(checked.ty).is_some_and(|e| env.tcx.is_managed_ref(e)) { "popRef" } else { method };
     let class_name = env.tcx.class_name(class).to_string();
     let method_def = env.defs.lookup_method(class, method);
     if !env.in_prelude && method_def.is_some_and(|def| env.class(class).is_some_and(|c| c.unsafe_methods.contains(&def))) {
@@ -71,7 +71,7 @@ pub(super) fn check_method_call(
         return poisoned(args, span, return_ty, env);
     };
     // Hover shows the instantiated receiver (`Vec<Ref<Node>>.push`), not the generic `T`.
-    let signature = match env.tcx.vec_class_elem(checked.ty).filter(|_| env.defs.vec_class() == Some(class)) {
+    let signature = match env.tcx.vec_elem(checked.ty).filter(|_| env.defs.vec_class() == Some(class)) {
         Some(elem) => format!("Vec<{}>.{written}", env.show(elem)),
         None => signature,
     };

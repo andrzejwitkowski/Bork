@@ -169,7 +169,7 @@ impl TyCtx {
     }
 
     fn vec_elem_unsupported(&self, id: TyId) -> bool {
-        self.vec_class_elem(id).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
+        self.vec_elem(id).is_some_and(|elem| !self.is_unknown(elem) && !self.is_vec_elem_supported(elem))
     }
 
     pub fn range_def(&self) -> Option<DefId> {
@@ -235,21 +235,16 @@ impl TyCtx {
         }
     }
 
-    /// through borrows and `?`.
-    pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
-        self.vec_class_elem(id)
-    }
-
     /// Whether `id` (or a borrow of it) is the Bork `Vec` class.
     pub fn is_vec_class(&self, id: TyId) -> bool {
-        self.vec_class_elem(id).is_some()
+        self.vec_elem(id).is_some()
     }
 
     /// Element type of the Bork `Vec` (`Vec<T>`, or a borrow of it); the one `opaque` class of that name.
-    pub fn vec_class_elem(&self, id: TyId) -> Option<TyId> {
+    pub fn vec_elem(&self, id: TyId) -> Option<TyId> {
         let base = self.base(id);
         match self.data(base) {
-            TyData::Ref(inner, _) => self.vec_class_elem(*inner),
+            TyData::Ref(inner, _) => self.vec_elem(*inner),
             TyData::Class(def, args) if self.vec_class == Some(*def) => args.first().copied(),
             _ => None,
         }

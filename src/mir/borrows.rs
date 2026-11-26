@@ -257,7 +257,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
 }
 
 /// The method of the Bork `Vec` a monomorphised callee name stands for (`Vec.push<i32>` is `push`).
-fn vec_method(callee: &str) -> Option<&str> {
+pub(crate) fn vec_method(callee: &str) -> Option<&str> {
     callee.strip_prefix("Vec.")?.split('<').next()
 }
 

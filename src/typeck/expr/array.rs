@@ -144,7 +144,6 @@ pub(super) fn check_index_as(
         .tcx
         .array_elem(receiver_hir.ty)
         .or_else(|| env.tcx.vec_elem(receiver_hir.ty))
-        .or_else(|| env.tcx.vec_class_elem(receiver_hir.ty))
     {
         elem
     } else {

@@ -1,0 +1,24 @@
+// exit: 0
+// `outer = promote inner` over a longer `outer` releases the old tail: only the two promoted slots hold a strong reference
+// (the inner vector is newer than the node, so its own slots are weak).
+class Node { id: i32 }
+fun main(): i32 {
+    val n = Node(1)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    var outer = Vec::<Ref<Node>>()
+    outer.push(r)
+    outer.push(r)
+    outer.push(r)
+    outer.push(r)
+    var code = 0
+    {
+        var inner = Vec::<Ref<Node>>()
+        inner.push(r)
+        inner.push(r)
+        outer = promote inner
+        if (strongCount(r) != s0 + 2) { code = 1 }
+    }
+    if (strongCount(r) != s0 + 2) { code = 2 }
+    return code
+}
