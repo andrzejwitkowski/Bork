@@ -1096,3 +1096,63 @@ fn when_in_a_loop_with_returning_arms_runs() {
     assert_eq!(run.status.code(), Some(0));
     assert_eq!(stdout_of(&run), "2000\n");
 }
+
+/// Prelude-shaped `Buf<T>` code (#285), built through the library with `unsafe` allowed (user source cannot write it).
+fn buf_run(name: &str, main_body: &str) -> std::process::ExitStatus {
+    let source = format!(
+        "class H {{\n    n: i32\n    unsafe fun fresh(cap: i32): Buf<i32> {{\n        return bufAlloc::<i32>(arenaOf(this), cap)\n    }}\n}}\n\
+         class S {{\n    buf: Buf<i32>\n    n: i32\n\
+         unsafe fun get(i: i32): i32 {{\n        val b = this.buf\n        return slotLoad(&b, i)\n    }}\n\
+         unsafe fun put(i: i32, v: i32) {{\n        val b = this.buf\n        slotStore(&b, i, v)\n    }}\n\
+         unsafe fun grow(c: i32) {{\n        val b = this.buf\n        this.buf = bufGrow(&b, c)\n    }}\n\
+         unsafe fun size(): i32 {{\n        return this.buf.cap()\n    }}\n}}\n\
+         fun main(): i32 {{\n    unsafe {{\n        val h = H(0)\n        val s = S(h.fresh(2), 0)\n        s.put(0, 40)\n        s.put(1, 2)\n{main_body}\n    }}\n}}\n"
+    );
+    let dir = scratch_dir(name);
+    let binary = dir.join("main");
+    let checked = bork::frontend::check_allowing_unsafe(&source);
+    assert!(checked.is_ok(), "{name}: {:?}", checked.diagnostics);
+    if let Err(e) = bork::codegen::build(&checked, &binary) {
+        panic!("{name}: build failed: {}", match e {
+            bork::codegen::BuildError::Diagnostics(d) => format!("{d:?}"),
+            bork::codegen::BuildError::Toolchain(m) => m,
+        });
+    }
+    Command::new(&binary).status().unwrap()
+}
+
+#[test]
+fn buf_store_load_grow_and_cap_run() {
+    let run = buf_run("buf_ok", "        s.grow(4)\n        s.put(3, s.size())\n        return s.get(0) + s.get(1) + s.get(3) - 4");
+    assert_eq!(run.code(), Some(42), "{run:?}");
+}
+
+#[test]
+fn buf_out_of_range_load_aborts() {
+    for (label, body) in [("buf_oob_load", "        return s.get(2)"), ("buf_oob_negative", "        return s.get(0 - 1)"), ("buf_oob_store", "        s.put(2, 1)\n        return 0")] {
+        let run = buf_run(label, body);
+        assert_eq!(run.signal(), Some(libc_sigabrt()), "{label}: must abort, got {run:?}");
+    }
+}
+
+#[test]
+fn buf_zero_capacity_grows() {
+    let run = buf_run("buf_zero_cap", "        val z = S(h.fresh(0), 0)\n        z.grow(1)\n        z.put(0, 5)\n        return z.get(0) + z.size()");
+    assert_eq!(run.code(), Some(6), "{run:?}");
+}
+
+#[test]
+fn buf_grow_to_a_smaller_or_equal_cap_aborts() {
+    for (label, c) in [("buf_grow_smaller", 1), ("buf_grow_equal", 2)] {
+        let run = buf_run(label, &format!("        s.grow({c})\n        return 0"));
+        assert_eq!(run.signal(), Some(libc_sigabrt()), "{label}: must abort, got {run:?}");
+    }
+}
+
+#[test]
+fn buf_explicit_abort_and_negative_alloc_abort() {
+    let run = buf_run("buf_abort", "        abort()\n        return 0");
+    assert_eq!(run.signal(), Some(libc_sigabrt()), "{run:?}");
+    let run = buf_run("buf_alloc_negative", "        val b = h.fresh(0 - 1)\n        return 0");
+    assert_eq!(run.signal(), Some(libc_sigabrt()), "{run:?}");
+}

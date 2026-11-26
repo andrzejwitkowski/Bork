@@ -12,6 +12,11 @@ pub fn number_nodes(program: &mut Program) -> Vec<(Span, AstId)> {
 /// Like [`number_nodes`], with ids starting at `first`. The prelude is numbered this way, after the
 /// user's program, and its index is dropped.
 pub fn number_nodes_from(program: &mut Program, first: u32) -> Vec<(Span, AstId)> {
+    number_nodes_checked(program, first).0
+}
+
+/// Like [`number_nodes_from`]; also reports whether the program uses `unsafe` (prelude-only syntax).
+pub fn number_nodes_checked(program: &mut Program, first: u32) -> (Vec<(Span, AstId)>, bool) {
     let mut n = Numberer { next: first, ..Numberer::default() };
     program.constants.iter_mut().for_each(|c| c.number(&mut n));
     program.classes.iter_mut().for_each(|c| c.number(&mut n));
@@ -19,7 +24,7 @@ pub fn number_nodes_from(program: &mut Program, first: u32) -> Vec<(Span, AstId)
     program.functions.iter_mut().for_each(|f| f.number(&mut n));
     program.traits.iter_mut().for_each(|t| t.number(&mut n));
     program.impls.iter_mut().for_each(|i| i.number(&mut n));
-    n.index
+    (n.index, n.unsafe_seen)
 }
 
 /// A declaration that numbers its own names; the walk above is then one line per item kind.
@@ -56,6 +61,7 @@ impl Numbered for crate::ast::Enum {
 impl Numbered for crate::ast::Function {
     fn number(&mut self, n: &mut Numberer) {
         self.id = n.fresh(self.name_span);
+        n.unsafe_seen |= self.unsafe_;
         n.generics(&mut self.generics);
         n.params(&mut self.params);
         n.block(&mut self.body);
@@ -92,6 +98,7 @@ impl Numbered for crate::ast::Impl {
 struct Numberer {
     next: u32,
     index: Vec<(Span, AstId)>,
+    unsafe_seen: bool,
 }
 
 impl Numberer {
@@ -125,6 +132,7 @@ impl Numberer {
     }
 
     fn block(&mut self, block: &mut Block) {
+        self.unsafe_seen |= block.unsafe_;
         block.stmts.iter_mut().for_each(|s| self.stmt(s));
     }
 

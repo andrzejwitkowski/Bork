@@ -16,6 +16,7 @@ pub(super) fn check_block(
     if nested {
         env.enter_scope();
     }
+    env.unsafe_depth += usize::from(block.unsafe_);
 
     let stmts = block
         .stmts
@@ -23,11 +24,12 @@ pub(super) fn check_block(
         .map(|stmt| check(stmt, return_ty, env))
         .collect();
 
+    env.unsafe_depth -= usize::from(block.unsafe_);
     if nested {
         env.exit_scope();
     }
 
-    HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone() }
+    HirBlock { stmts, span: block.span, statement_spans: block.statement_spans.clone(), unsafe_: block.unsafe_ }
 }
 
 pub(super) fn block_always_returns(block: &HirBlock) -> bool {

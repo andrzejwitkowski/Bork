@@ -53,7 +53,17 @@ pub fn check(source: &str) -> CheckResult {
 /// [`check`], optionally without the HIR escape pass (the MIR escape analysis, #217, runs on programs it rejects).
 #[doc(hidden)]
 pub fn check_with(source: &str, escape: bool) -> CheckResult {
-    let (mut program, node_index) = match crate::parse_indexed(source) {
+    check_inner(source, escape, false)
+}
+
+/// [`check`] with `unsafe` accepted, so tests can build code shaped like the prelude's (#285).
+#[doc(hidden)]
+pub fn check_allowing_unsafe(source: &str) -> CheckResult {
+    check_inner(source, true, true)
+}
+
+fn check_inner(source: &str, escape: bool, allow_unsafe: bool) -> CheckResult {
+    let (mut program, node_index) = match crate::parse_indexed_with(source, allow_unsafe) {
         Ok(parsed) => parsed,
         Err(err) => {
             return CheckResult {

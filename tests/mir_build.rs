@@ -167,3 +167,63 @@ fn a_store_through_a_borrowed_array_is_the_borrowed_store_escapes_capability() {
         assert!(matches!(&err, BuildError::Unsupported(u) if u.capability.to_string() == "borrowed-store-escapes"), "{name}: {err:?}");
     }
 }
+
+#[test]
+fn field_read_through_this_and_a_same_class_parameter_builds() {
+    let source = "class C {\n    n: i32\n    fun twice(): i32 { return this.n + this.n }\n    fun sum(other: &C): i32 { return this.n + other.n }\n}\nfun main(): i32 {\n    val a = C(1)\n    return a.twice() + a.sum(&a)\n}\n";
+    let text = emit(source).expect("this.n and other.n lower");
+    assert!(!text.contains("field-access"), "{text}");
+}
+
+/// Prelude-shaped code over `Buf<T>` (#285): user source cannot write `unsafe`, so it goes through the test hook.
+const BUF_SNIPPET: &str = "class H {\n    n: i32\n    unsafe fun fresh(cap: i32): Buf<i32> {\n        return bufAlloc::<i32>(arenaOf(this), cap)\n    }\n}\n\
+class S {\n    buf: Buf<i32>\n    n: i32\n\
+    unsafe fun get(i: i32): i32 {\n        val b = this.buf\n        return slotLoad(&b, i)\n    }\n\
+    unsafe fun put(i: i32, v: i32) {\n        val b = this.buf\n        slotStore(&b, i, v)\n    }\n\
+    unsafe fun grow(c: i32) {\n        val b = this.buf\n        this.buf = bufGrow(&b, c)\n    }\n\
+    unsafe fun size(): i32 {\n        return this.buf.cap()\n    }\n}\n\
+fun main(): i32 {\n    unsafe {\n        val h = H(0)\n        val s = S(h.fresh(2), 0)\n        s.put(0, 40)\n        s.put(1, 2)\n        s.grow(4)\n        s.put(3, s.size())\n        return s.get(0) + s.get(1) + s.get(3) - 4\n    }\n}\n";
+
+fn buf_fn(name: &str) -> String {
+    let text = bork::mir::emit::emit_mir(&bork::frontend::check_allowing_unsafe(BUF_SNIPPET)).expect("Buf snippet builds");
+    let start = text.find(&format!("fn {name}")).unwrap_or_else(|| panic!("no fn {name}:\n{text}"));
+    let rest = &text[start..];
+    rest[..rest[1..].find("\nfn ").map_or(rest.len(), |i| i + 1)].to_string()
+}
+
+#[test]
+fn buf_slot_load_lowers_to_a_bounds_check_and_a_load() {
+    let text = buf_fn("S.get");
+    let [cap, ge, lt, _, load] = ["intrinsic BufCap(", "ge(", "lt(", "abort Bounds", "intrinsic SlotLoad("].map(|s| text.find(s).unwrap_or_else(|| panic!("{s}:\n{text}")));
+    assert!(cap < ge && cap < lt && load > ge && load > lt, "{text}");
+}
+
+#[test]
+fn buf_slot_store_is_bounds_checked() {
+    let text = buf_fn("S.put");
+    for s in ["intrinsic BufCap(", "ge(", "lt(", "abort Bounds", "intrinsic SlotStore("] {
+        assert!(text.contains(s), "{s}:\n{text}");
+    }
+}
+
+#[test]
+fn buf_grow_aborts_unless_larger_and_allocates_in_the_object_arena() {
+    let text = buf_fn("S.grow");
+    assert!(text.contains("gt(") && text.contains("abort BufGrow"), "{text}");
+    assert!(text.lines().any(|l| l.contains("intrinsic BufGrow(") && l.contains("in object_arena(")), "{text}");
+}
+
+#[test]
+fn buf_alloc_arena_of_and_cap_shapes() {
+    let fresh = buf_fn("H.fresh");
+    assert!(fresh.lines().any(|l| l.contains("intrinsic ArenaOf(")), "{fresh}");
+    assert!(fresh.contains("abort NegativeCapacity") && fresh.contains("intrinsic BufAlloc("), "{fresh}");
+    assert!(buf_fn("S.size").contains("intrinsic BufCap("));
+}
+
+#[test]
+fn a_user_class_named_buf_keeps_its_own_cap_method() {
+    let src = "class Buf {\n    fun cap(): i32 { return 1 }\n}\nfun main(): i32 {\n    val b = Buf()\n    return b.cap() - 1\n}\n";
+    let text = emit(src).expect("user `Buf.cap` builds as an ordinary call");
+    assert!(!text.contains("BufCap"), "{text}");
+}

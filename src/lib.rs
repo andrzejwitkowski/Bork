@@ -53,6 +53,11 @@ pub(crate) fn parse_unnumbered(source: &str) -> Result<Program, Error> {
 
 /// Like [`parse`], plus the `(Span, AstId)` index of every numbered node (for the LSP).
 pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::AstId)>), Error> {
+    parse_indexed_with(source, false)
+}
+
+/// [`parse_indexed`]; `allow_unsafe` accepts `unsafe` as prelude code does (test hook, #285).
+pub(crate) fn parse_indexed_with(source: &str, allow_unsafe: bool) -> Result<(Program, Vec<(span::Span, span::AstId)>), Error> {
     let normalized = normalize_parenthesized_newlines(source);
     let input = normalized.as_deref().unwrap_or(source);
     let mut program = parser::ProgramParser::new()
@@ -65,7 +70,10 @@ pub fn parse_indexed(source: &str) -> Result<(Program, Vec<(span::Span, span::As
     {
         return Err(ParseError::User { error: "`intrinsic` is only allowed in the prelude" });
     }
-    let index = ast_number::number_nodes(&mut program);
+    let (index, uses_unsafe) = ast_number::number_nodes_checked(&mut program, 0);
+    if uses_unsafe && !allow_unsafe {
+        return Err(ParseError::User { error: "`unsafe` is only allowed in the prelude" });
+    }
     Ok((program, index))
 }
 
@@ -117,5 +125,21 @@ mod intrinsic_syntax_tests {
         assert!(super::parse(src).is_err(), "user source must reject `intrinsic fun`");
         let program = super::parse_unnumbered(src).unwrap();
         assert!(program.classes[0].methods[0].intrinsic);
+    }
+
+    #[test]
+    fn unsafe_fun_and_block_parse_only_unnumbered() {
+        let prelude = super::parse_unnumbered("unsafe fun f() {}").unwrap();
+        assert!(prelude.functions[0].unsafe_);
+        let prelude = super::parse_unnumbered("fun f() { unsafe { } }").unwrap();
+        assert!(matches!(&prelude.functions[0].body.stmts[0], crate::ast::Stmt::Block(b) if b.unsafe_));
+    }
+
+    #[test]
+    fn user_source_rejects_unsafe() {
+        for src in ["unsafe fun f() {}", "fun f() { unsafe { } }", "class A { unsafe fun f() {} }"] {
+            let err = format!("{:?}", super::parse(src).unwrap_err());
+            assert!(err.contains("only allowed in the prelude"), "{src}: {err}");
+        }
     }
 }

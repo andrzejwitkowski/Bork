@@ -1,0 +1,4 @@
+intrinsic class Buf<T> {
+    intrinsic fun cap(): i32
+}
+intrinsic class Arena {}

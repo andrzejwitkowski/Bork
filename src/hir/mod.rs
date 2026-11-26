@@ -207,6 +207,8 @@ pub struct HirBlock {
     pub span: Option<Span>,
     /// One source span per statement; lowering preserves statement order and count.
     pub statement_spans: Vec<Span>,
+    /// Lowered from `unsafe { ... }`.
+    pub unsafe_: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]

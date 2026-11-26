@@ -5,6 +5,7 @@
 //! same order as `RegionVisitor` does (condition before its regions, `&&`/`||`/`?:` right-hand sides
 //! never, arms in order).
 
+mod buf;
 mod expr;
 mod own;
 mod place;

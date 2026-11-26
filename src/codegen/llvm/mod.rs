@@ -1,6 +1,7 @@
 //! Inkwell (LLVM 23) emission for the codegen subset.
 
 mod array;
+mod buf;
 mod call_abi;
 mod context;
 mod debug;

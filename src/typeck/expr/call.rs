@@ -149,6 +149,13 @@ pub(super) fn check_call(
             return super::vec::check_vec_new(elem, args.first(), *span, return_ty, env);
         }
     }
+    // Before the type-argument check below: `bufAlloc::<T>(..)` is generic though it has no `FunSig`.
+    // A local or a method of the same name shadows the primitive (neither gets the redefine-builtin clash).
+    if let Expr::Ident { name, span, .. } = callee {
+        if crate::builtins::is_buf_primitive(name) && env.binding(name).is_none() && env.implicit_method(name).is_none() {
+            return check_buf_primitive(name, type_args, CallSite { span: *span, args, return_ty }, env);
+        }
+    }
     let is_variant = matches!(callee, Expr::Field { receiver, safe, .. } if super::object::variant_path(receiver, *safe, env).is_some());
     if !type_args.is_empty() && !is_generic_fn(callee, env) && !is_variant {
         match callee {
@@ -578,6 +585,86 @@ fn check_ref_count(name: &str, site: CallSite<'_>, env: &mut Env<'_>) -> Checked
                 format!("`{name}` expects a `Ref<T>`, got {}", env.show(reference.ty)),
                 reference.span.or(Some(span)),
             );
+        }
+    })
+}
+
+/// The buffer primitives (#285), legal only inside `unsafe`: `bufAlloc<T>(a: Arena, cap: i32): Buf<T>`,
+/// `slotLoad<T>(&b, i): T`, `slotStore<T>(&b, i, v: T)`, `bufGrow<T>(&b, newCap): Buf<T>`, `abort()`,
+/// `arenaOf(this): Arena`. `b` is written `&b` for a `Buf<T>` (or a borrow of one).
+fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: &mut Env<'_>) -> Checked {
+    use crate::builtins::Builtin;
+    let span = site.span;
+    if !env.in_unsafe() {
+        env.error(format!("`{name}` requires an `unsafe` context"), Some(span));
+        return super::method::poisoned(site.args, span, site.return_ty, env);
+    }
+    let builtin = crate::builtins::resolve(name).expect("a buffer primitive is a builtin");
+    let generic = builtin == Builtin::BufAlloc;
+    if !type_args.is_empty() && !(generic && type_args.len() == 1) {
+        let want = if generic { "one type argument" } else { "no type arguments" };
+        env.error(format!("`{name}` takes {want}"), Some(span));
+        return super::method::poisoned(site.args, span, site.return_ty, env);
+    }
+    let i32_ty = env.tcx.i32();
+    let unit = env.tcx.unit();
+    let elem = match type_args {
+        [elem] => env.lower(elem, Some(span)),
+        _ if generic => fresh_params(&["T".to_string()], name, span, env)[0],
+        _ => env.infcx.new_var(env.tcx, VarKind::General),
+    };
+    let buf = env.tcx.buf_of(elem);
+    let arena = env.tcx.arena();
+    // Arity, result, and the types of the arguments after the `&b` handle.
+    let (arity, result, rest) = match builtin {
+        Builtin::BufAlloc => (2, buf, vec![]),
+        Builtin::SlotLoad => (2, elem, vec![i32_ty]),
+        Builtin::SlotStore => (3, unit, vec![i32_ty, elem]),
+        Builtin::BufGrow => (2, buf, vec![i32_ty]),
+        Builtin::Abort => (0, unit, vec![]),
+        Builtin::ArenaOf => (1, arena, vec![]),
+        _ => unreachable!("not a buffer primitive"),
+    };
+    if builtin == Builtin::ArenaOf && !matches!(site.args, [Expr::Ident { name, .. }] if name == "this") {
+        env.error("`arenaOf` takes `this`, the receiver of the method it is called in", Some(span));
+        return super::method::poisoned(site.args, span, site.return_ty, env);
+    }
+    if builtin == Builtin::ArenaOf && env.binding("this").is_none() {
+        env.error("`arenaOf` can only be called inside a method: it names the arena of `this`", Some(span));
+        return super::method::poisoned(site.args, span, site.return_ty, env);
+    }
+    if builtin == Builtin::BufGrow && env.binding("this").is_none() {
+        env.error("`bufGrow` can only be called inside a method: it allocates in the arena of `this`", Some(span));
+        return super::method::poisoned(site.args, span, site.return_ty, env);
+    }
+    let expected = |index: usize| match builtin {
+        Builtin::BufAlloc => [Some(arena), Some(i32_ty)].get(index).copied().flatten(),
+        Builtin::ArenaOf => None,
+        _ => index.checked_sub(1).and_then(|i| rest.get(i).copied()),
+    };
+    check_builtin_call(name, site, env, arity, expected, result, |checked, env| {
+        let typed = match builtin {
+            Builtin::BufAlloc => vec![(&checked[0], arena), (&checked[1], i32_ty)],
+            Builtin::Abort | Builtin::ArenaOf => Vec::new(),
+            _ => {
+                let handle = &checked[0];
+                let borrowed = matches!(&handle.kind, HirExprKind::Unary { op: UnaryOp::Borrow { .. }, .. });
+                match env.tcx.buf_elem(handle.ty).filter(|_| borrowed) {
+                    Some(slot) => {
+                        env.same(elem, slot);
+                    }
+                    None if !env.tcx.is_unknown(handle.ty) => {
+                        let shown = env.show(handle.ty);
+                        env.error(format!("`{name}` expects a borrowed buffer `&b`, got {shown}"), handle.span.or(Some(span)));
+                    }
+                    None => {}
+                }
+                checked[1..].iter().zip(rest.iter().copied()).collect()
+            }
+        };
+        for (index, (argument, want)) in typed.into_iter().enumerate() {
+            let position = index + usize::from(!matches!(builtin, Builtin::BufAlloc)) + 1;
+            env.mismatch(&format!("`{name}` argument {position}"), argument.ty, want, argument.span.or(Some(span)));
         }
     })
 }

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PR #354: prelude-only unsafe, Buf&lt;T&gt; and Stack&lt;T&gt;</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1f;--mut:#666;--ac:#1f5fbf;--card:#fff;--bd:#ddd8cc;--ok:#1b7a3d;--bad:#b3261e;--hl:#fff4cf}
+@media(prefers-color-scheme:dark){:root{--bg:#17181a;--fg:#e8e6e1;--mut:#9a9a9a;--ac:#7fb0ff;--card:#202225;--bd:#3a3d42;--ok:#5cd18a;--bad:#ff8a80;--hl:#3a3220}}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 Georgia,serif}
+main{max-width:50rem;margin:0 auto;padding:1rem 1.2rem 5rem}
+h1{font-size:2rem;line-height:1.2;margin-top:2rem}h2{margin-top:3rem;border-bottom:1px solid var(--bd);padding-bottom:.3rem}h3{margin-top:1.8rem}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+pre{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:.8rem 1rem;overflow:auto;white-space:pre}
+nav{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:.6rem 1.2rem}nav a{color:var(--ac)}
+.call{background:var(--hl);border-left:4px solid var(--ac);padding:.6rem 1rem;margin:1.2rem 0;border-radius:4px}
+.row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:1rem 0}
+.box{border:2px solid var(--ac);border-radius:6px;padding:.4rem .8rem;background:var(--card);font-family:ui-monospace,monospace;font-size:.85em;text-align:center}
+.box.no{border-color:var(--bad)}.box.yes{border-color:var(--ok)}.arrow{color:var(--mut)}
+.slots{display:flex;gap:2px;margin:.3rem 0}.slot{width:2.2rem;height:2.2rem;border:1px solid var(--fg);display:flex;align-items:center;justify-content:center;font:.8rem ui-monospace,monospace;background:var(--card)}.slot.e{opacity:.35}
+.lbl{font:.8rem ui-monospace,monospace;color:var(--mut);margin-top:.6rem}
+table{border-collapse:collapse;width:100%;font-size:.92em}td,th{border:1px solid var(--bd);padding:.35rem .6rem;text-align:left;vertical-align:top}
+.q{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:1rem 1.2rem;margin:1.5rem 0}
+.q button{display:block;width:100%;text-align:left;margin:.4rem 0;padding:.55rem .8rem;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit;cursor:pointer}
+.q button:hover:not(:disabled){border-color:var(--ac)}.q button.right{border-color:var(--ok);background:rgba(40,160,80,.15)}.q button.wrong{border-color:var(--bad);background:rgba(200,50,40,.12)}
+.fb{display:none;margin-top:.6rem;padding:.5rem .8rem;border-radius:6px;background:var(--hl)}.fb.show{display:block}
+#score{font-weight:bold}
+</style></head><body><main>
+<h1>PR #354 — a collection written in Bork, behind a locked door</h1>
+<p><em>feat: prelude-only unsafe, <code>Buf&lt;T&gt;</code> primitives and internal <code>Stack&lt;T&gt;</code> (#285 step 1). 49 files, +2090/−19. Generated from the PR head at <code>76f1359</code>.</em></p>
+<nav><strong>Contents</strong><ol>
+<li><a href="#bg">Background</a></li><li><a href="#intuition">Intuition</a></li><li><a href="#code">Code walkthrough</a></li><li><a href="#limits">Known limits</a></li><li><a href="#quiz">Quiz</a></li></ol></nav>
+
+<h2 id="bg">1. Background</h2>
+<h3>The broad picture (skip if you know the compiler)</h3>
+<p>Bork is a compiled language with arena-based memory: objects live in an <em>arena</em>, and the whole arena is freed at once when its owner dies. The compiler runs source through a parser, a type checker (typeck), a mid-level IR (MIR) and finally LLVM codegen. Its standard library is not special: a handful of <em>prelude chunks</em> written in Bork itself are parsed together with your program, and a chunk is only included when the program names something it defines.</p>
+<p>Until now, <code>Vec</code> has been implemented inside the compiler. Issue #285 wants to move collections into Bork itself. That needs a way to say “give me N raw slots and let me read and write them”, which is by nature unsafe: an out-of-range index or a stale pointer is memory corruption.</p>
+<h3>What this change needs from the existing system</h3>
+<ul><li>A gate in the <strong>parser</strong> and <strong>typeck</strong>, so raw slot access exists but only the prelude can reach it.</li>
+<li>A new opaque type, a fat handle, that codegen can lower to <code>{ptr, i32}</code>.</li>
+<li>Guards in <strong>MIR</strong>, so every access is bounds-checked before codegen sees it.</li>
+<li>A real client: an internal <code>Stack&lt;T&gt;</code> that proves the primitives are enough.</li></ul>
+
+<h2 id="intuition">2. Intuition</h2>
+<p>The design is a vault with two locks and a guard at the inner door.</p>
+<div class="row"><div class="box">user source</div><span class="arrow">→ parser lock →</span><div class="box">prelude source</div><span class="arrow">→ typeck lock →</span><div class="box">primitive call</div><span class="arrow">→ MIR guard →</span><div class="box">raw slot access</div></div>
+<ol><li><strong>Parser lock.</strong> The keyword <code>unsafe</code> parses only in prelude source. A user who writes <code>unsafe { }</code> or <code>unsafe fun</code> gets <code>`unsafe` is only allowed in the prelude</code>.</li>
+<li><strong>Typeck lock.</strong> Even in code that parses, <code>slotLoad</code>, <code>slotStore</code>, <code>bufAlloc</code>, <code>bufGrow</code>, <code>abort</code> and <code>arenaOf</code> need an enclosing <code>unsafe</code>. Otherwise: <code>`slotLoad` requires an `unsafe` context</code>.</li>
+<li><strong>MIR guard.</strong> Lowering inserts the checks, so the access can never be out of range.</li></ol>
+<div class="call"><strong>Key idea.</strong> A <code>Buf&lt;T&gt;</code> is just <code>{ptr, cap}</code>: a pointer and a length. It has no arena header, so it can be copied bitwise. All safety comes from the guards around the primitives, not from the type.</div>
+<h3>A <code>Stack&lt;i32&gt;</code> growing under pushes</h3>
+<div class="lbl">after newStack(): cap 0, n 0</div><div class="slots"></div>
+<div class="lbl">push #1: n == cap, so grow to 4 (alloc new, copy 0 slots)</div><div class="slots"><div class="slot">0</div><div class="slot e">·</div><div class="slot e">·</div><div class="slot e">·</div></div>
+<div class="lbl">pushes #2–#4 fill it; push #5: n == cap == 4, grow to 8 (alloc new, copy 4 slots)</div><div class="slots"><div class="slot">0</div><div class="slot">1</div><div class="slot">2</div><div class="slot">3</div><div class="slot">4</div><div class="slot e">·</div><div class="slot e">·</div><div class="slot e">·</div></div>
+<p>Twenty pushes pass through capacities 4, 8, 16 and 32. The old buffers are not freed; they die with the arena. The test <code>stack_push_grow_get.bork</code> sums <code>0..19</code> and expects exit code 190.</p>
+
+<h2 id="code">3. Code walkthrough</h2>
+<table><tr><th>Layer</th><th>What changed</th></tr>
+<tr><td>Parser (<code>parser.lalrpop</code>, <code>ast.rs</code>)</td><td><code>unsafe</code> keyword; <code>unsafe fun</code> sets <code>Function.unsafe_</code>; statement-level <code>unsafe { }</code> sets <code>Block.unsafe_</code>. <code>frontend::check_allowing_unsafe</code> is a test hook, since user source cannot write <code>unsafe</code>.</td></tr>
+<tr><td>Typeck (<code>env.rs</code>, <code>call.rs</code>, <code>control.rs</code>, <code>stmt/mod.rs</code>)</td><td><code>Env.unsafe_depth</code> is raised by <code>unsafe</code> blocks and set to 1 in an <code>unsafe fun</code>; <code>in_unsafe()</code> is <code>depth &gt; 0</code>. <code>check_buf_primitive</code> checks context, arity and types. <code>arenaOf</code> takes only <code>this</code>; <code>arenaOf</code> and <code>bufGrow</code> need a method receiver.</td></tr>
+<tr><td>Builtins (<code>builtins.rs</code>, <code>defs.rs</code>)</td><td>Six names become reserved builtins in every program: <code>abort, arenaOf, bufAlloc, slotLoad, slotStore, bufGrow</code>. A user <code>fun abort()</code> hits the redefine-builtin error; locals and methods of that name still shadow.</td></tr>
+<tr><td>MIR (<code>mir/build/buf.rs</code>)</td><td>Each primitive becomes an <code>Intrinsic</code> after guards:
+<ul><li><code>bufAlloc</code>: aborts unless <code>cap &gt;= 0</code> (<code>NegativeCapacity</code>)</li><li><code>slotLoad</code>/<code>slotStore</code>: abort unless <code>0 &lt;= i &lt; cap</code> (<code>Bounds</code>)</li><li><code>bufGrow</code>: aborts unless <code>newCap &gt; cap</code> (<code>BufGrow</code>); allocates in the arena of <code>this</code></li></ul></td></tr>
+<tr><td>Codegen (<code>codegen/llvm/buf.rs</code>)</td><td><code>Buf</code> lowers to <code>{ptr, i32}</code>. Alloc is <code>cap × stride</code> bytes from <code>arena_alloc</code>. Grow is alloc plus <code>memcpy</code> of the old <code>cap × stride</code> bytes. No bounds checks here: MIR already did them. Only plain scalar elements are supported.</td></tr>
+<tr><td>Layout (<code>mir/layout.rs</code>, <code>codegen/llvm/context.rs</code>)</td><td><code>Buf&lt;T&gt;</code> gets a real layout (size 16, align 8) so layout tests agree with LLVM.</td></tr>
+<tr><td>Prelude (<code>prelude.rs</code>, <code>prelude/buf.bork</code>, <code>prelude/stack.bork</code>)</td><td>Two new lazy chunks: <code>Buf</code>/<code>Arena</code>, and <code>Stack</code>/<code>StackSeed</code>/<code>newStack</code> (needs <code>Buf</code>). <code>ALWAYS_FROM</code> moves 7 → 9. A program that never names <code>Stack</code> pays nothing.</td></tr>
+<tr><td>Tests</td><td>Typeck tests, parser tests, four runtime programs (<code>stack_empty</code>, <code>stack_get_past_len_aborts</code>, <code>stack_push_at_capacity_boundary</code>, <code>stack_push_grow_get</code>), four <code>check_fail/unsafe</code> programs, and goldens (new <code>mir/buf.txt</code>; three <code>hover.txt</code> entries changed because the word <code>abort</code> in comments now hovers as a builtin).</td></tr></table>
+<h3>Why <code>newStack</code> goes through <code>StackSeed</code></h3>
+<p><code>bufAlloc</code> needs an arena, and the only source of one is <code>arenaOf(this)</code>, which needs a method receiver. <code>newStack</code> is a free function, so it builds a throwaway <code>StackSeed</code> object whose method <code>empty()</code> allocates a zero-byte buffer. The first <code>push</code> then grows it inside the Stack’s own arena.</p>
+<pre>fun get(i: i32): T {
+    unsafe {
+        if (i &lt; 0 || i &gt;= this.n) { abort() }   // checks n, not cap
+        val b = this.buf
+        return slotLoad(&amp;b, i)               // MIR guard checks cap
+    }
+}</pre>
+
+<h2 id="limits">4. Known limits</h2>
+<div class="call"><code>Stack</code> is an internal prototype. Its public fields let user code copy a <code>Buf</code> out, and <code>bufGrow</code> allocates in the arena of <code>this</code> without checking who owns the buffer, so a handle can dangle. Tracked in #350 (blocks #285 step 2). Also: non-scalar elements #355, <code>Buf&lt;T&gt;?</code> diagnostic #351, Layouts #352, confusing <code>newStack</code> redefinition error #353. The review threads on <code>unsafe_depth</code> were checked: its increment and restore always pair up, since typeck has no early exits.</div>
+
+<h2 id="quiz">5. Quiz</h2>
+<p>Five questions. <span id="score">Score: 0 / 5</span></p>
+<div id="quizbox"></div>
+</main>
+<script>
+const Q=[
+{q:"A user program contains <code>unsafe { }</code>. What happens, and why is this different from calling <code>slotLoad</code> without <code>unsafe</code>?",
+ o:["Typeck reports “requires an `unsafe` context” for both; they are the same lock.","The parser rejects it with “only allowed in the prelude”; a bare <code>slotLoad</code> parses fine and is rejected later by typeck. Two separate locks.","It compiles, but MIR drops the block.","Both are rejected by codegen."],a:1,
+ f:"The parser lock keeps <code>unsafe</code> out of user source. The typeck lock (<code>in_unsafe()</code>) guards the primitives in code that does parse, such as the prelude."},
+{q:"<code>slotLoad(&amp;b, 7)</code> runs on a buffer with capacity 4. Which layer produces the abort?",
+ o:["LLVM codegen, via a bounds check in <code>buf_load</code>.","Typeck, at compile time.","The MIR guard (<code>0 &lt;= i &lt; cap</code>) inserted before the intrinsic; codegen emits no check of its own.","The runtime arena allocator."],a:2,
+ f:"MIR lowers the primitive to an explicit guard that aborts with <code>AbortReason::Bounds</code>. Codegen trusts that and emits only the load."},
+{q:"A fresh <code>Stack&lt;i32&gt;</code> receives 20 pushes. Which buffer capacities does it allocate, and what happens to the old buffers?",
+ o:["4, 8, 16, 32; each grow allocates a new buffer and copies the old slots, and old buffers stay until the arena dies.","20 in one allocation.","1, 2, 4, 8, 16, 32; old buffers are freed immediately.","4, 8, 16, 32; grown in place with no copy."],a:0,
+ f:"<code>push</code> doubles the capacity and starts at 4 when it is 0. <code>bufGrow</code> is alloc plus memcpy, with no <code>bork_arena_grow</code>, so the old buffer lives until the arena is freed."},
+{q:"Why does <code>newStack</code> create a <code>StackSeed</code> instead of calling <code>bufAlloc</code> directly?",
+ o:["<code>bufAlloc</code> cannot allocate zero slots.","Generics do not work in free functions.","<code>StackSeed</code> caches buffers across calls.","<code>bufAlloc</code> needs an arena, <code>arenaOf</code> only accepts <code>this</code> inside a method, and <code>newStack</code> is a free function with no receiver."],a:3,
+ f:"The seed supplies a <code>this</code>. The cost, noted in <code>stack.bork</code>, is one leaked seed per <code>newStack</code> call in the program-lifetime arena."},
+{q:"Why is <code>Stack</code> described as an internal prototype that must not ship as a public type yet?",
+ o:["<code>Buf</code> is a bitwise-copyable <code>{ptr, cap}</code> with no arena tracking, and <code>Stack</code>’s fields are public, so user code can copy a <code>Buf</code> out or assign it across stacks and end up with a dangling pointer. Fix tracked in #350.","Because <code>Stack</code> is slower than <code>Vec</code>.","Because <code>abort()</code> is typed never.","Because the prelude chunk is always loaded."],a:0,
+ f:"Safety lives in the guards, not the type. Nothing ties a <code>Buf</code> to the arena that owns its slots, and <code>bufGrow</code> assumes the buffer belongs to <code>this</code>. #350 will forbid user access to <code>Buf</code> fields."}
+];
+let score=0,done=0;const box=document.getElementById('quizbox');
+Q.forEach((it,qi)=>{const d=document.createElement('div');d.className='q';
+ d.innerHTML=`<strong>${qi+1}.</strong> ${it.q}`;
+ const fb=document.createElement('div');fb.className='fb';
+ it.o.forEach((t,i)=>{const b=document.createElement('button');b.innerHTML=t;
+  b.onclick=()=>{d.querySelectorAll('button').forEach((x,j)=>{x.disabled=true;if(j===it.a)x.classList.add('right')});
+   const ok=i===it.a;if(!ok)b.classList.add('wrong');if(ok)score++;done++;
+   fb.innerHTML=(ok?'<b>Correct.</b> ':'<b>Not quite.</b> ')+it.f;fb.classList.add('show');
+   document.getElementById('score').textContent='Score: '+score+' / 5'+(done===5?' — done':'');};
+  d.appendChild(b)});d.appendChild(fb);box.appendChild(d)});
+</script></body></html>

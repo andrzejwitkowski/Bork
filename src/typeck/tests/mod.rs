@@ -7,6 +7,7 @@ mod closures;
 mod constants;
 mod assoc;
 mod bounds;
+mod buf;
 mod coherence;
 mod defs;
 mod dispatch;

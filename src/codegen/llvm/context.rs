@@ -188,6 +188,12 @@ impl<'ctx> Codegen<'ctx> {
         if self.tcx.is_array(ty) {
             return Some(self.buffer_descriptor_type().into());
         }
+        if self.tcx.buf_elem(ty).is_some() {
+            return Some(self.buf_type().into());
+        }
+        if self.tcx.is_arena(ty) {
+            return Some(self.context.ptr_type(AddressSpace::default()).into());
+        }
         if self.tcx.is_vec(ty) {
             // Pointer to the arena-resident header `{ buf, len, cap, arena }`.
             return Some(self.context.ptr_type(AddressSpace::default()).into());

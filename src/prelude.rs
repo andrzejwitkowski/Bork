@@ -24,11 +24,12 @@ const OPTION: usize = 0;
 const ITERATOR: usize = 3;
 const VEC: usize = 4;
 const FN: usize = 5;
+const BUF: usize = 7;
 /// Chunks from here on are always added: `==` and `<` on objects resolve `Eq` / `Ord` without the
 /// program naming them. Each trait is its own chunk, so a program's own `Display` leaves `Eq` alone.
-const ALWAYS_FROM: usize = 7;
+const ALWAYS_FROM: usize = 9;
 
-const CHUNKS: [Chunk; 11] = [
+const CHUNKS: [Chunk; 13] = [
     Chunk { path: "<bork-prelude>/option.bork", names: &["Option"], needs: &[], source: include_str!("prelude/option.bork") },
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
@@ -37,6 +38,10 @@ const CHUNKS: [Chunk; 11] = [
     // `F: Fn(A) -> R` bounds (RFC 0007); the solver gives closures and functions their impls.
     Chunk { path: "<bork-prelude>/fn.bork", names: &["Fn", "FnMut", "FnOnce"], needs: &[], source: include_str!("prelude/fn.bork") },
     Chunk { path: "<bork-prelude>/iter.bork", names: &["VecIter", "iter", "Map", "map", "Filter", "filter", "fold"], needs: &[OPTION, ITERATOR, VEC, FN], source: include_str!("prelude/iter.bork") },
+    // `Buf<T>` and `Arena` (#285): the opaque types of the unsafe-only buffer primitives.
+    Chunk { path: "<bork-prelude>/buf.bork", names: &["Buf", "Arena"], needs: &[], source: include_str!("prelude/buf.bork") },
+    // Internal `Stack<T>` (#285 step 1) on `Buf<T>`; step 2 replaces it with `Vec` written in Bork.
+    Chunk { path: "<bork-prelude>/stack.bork", names: &["Stack", "StackSeed", "newStack"], needs: &[BUF], source: include_str!("prelude/stack.bork") },
     // Always added (index >= ALWAYS_FROM): a literal `a..b` has the type `Range<i32>` without naming it.
     Chunk { path: "<bork-prelude>/range.bork", names: &["Range"], needs: &[], source: include_str!("prelude/range.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
@@ -218,5 +223,25 @@ mod tests {
         let zero_arg = messages("trait Fn {}\nfun run<F: Fn>(f: F) {}\nfun main() {\n    run({ -> 1 })\n}\n");
         assert_eq!(zero_arg.len(), 1, "{zero_arg:?}");
         assert!(zero_arg[0].contains("only classes and enums implement traits"), "{zero_arg:?}");
+    }
+
+    #[test]
+    fn stack_comes_only_when_named() {
+        let classes = |code: &str| {
+            let result = check(code);
+            assert!(result.is_ok(), "{:?}", result.diagnostics);
+            result.hir.unwrap().classes.into_iter().map(|c| c.name).collect::<Vec<_>>()
+        };
+        let none = classes("fun main() {}\n");
+        assert!(!none.iter().any(|c| c.starts_with("Stack")), "{none:?}");
+        assert!(!none.iter().any(|c| c == "Buf" || c == "Arena"), "{none:?}");
+        let named = classes("fun main(): i32 {\n    val s: Stack<i32> = newStack()\n    return s.len()\n}\n");
+        assert!(["Stack", "StackSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+    }
+
+    #[test]
+    fn buf_index_points_at_the_buf_chunk() {
+        assert!(super::CHUNKS[super::BUF].names.contains(&"Buf"));
+        assert!(super::CHUNKS[super::BUF + 1].names.contains(&"Stack"));
     }
 }

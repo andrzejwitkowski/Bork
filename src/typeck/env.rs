@@ -90,6 +90,8 @@ pub(super) struct Env<'a> {
     /// Declaration and field assignment types keyed by source span.
     pub(super) node_tys: NodeTypes,
     pub(super) loop_depth: usize,
+    /// Enclosing `unsafe` blocks, plus one inside an `unsafe fun`; see [`Env::in_unsafe`].
+    pub(super) unsafe_depth: usize,
     /// Class whose method body is being checked; `None` in top-level functions.
     pub(super) self_class: Option<DefId>,
     /// Member names resolved by typeck, for sema and LSP.
@@ -150,6 +152,7 @@ impl<'a> Env<'a> {
             diagnostics: Vec::new(),
             node_tys: NodeTypes::new(),
             loop_depth: 0,
+            unsafe_depth: 0,
             self_class: None,
             members: MemberResolutions::new(),
             option_if_vals: HashSet::new(),
@@ -162,6 +165,11 @@ impl<'a> Env<'a> {
             proj_env: Vec::new(),
             projections: Vec::new(),
         }
+    }
+
+    /// True inside an `unsafe fun` body or an `unsafe { }` block.
+    pub(super) fn in_unsafe(&self) -> bool {
+        self.unsafe_depth > 0
     }
 
     pub(super) fn bind(

@@ -175,6 +175,19 @@ pub enum IntrinsicOp {
     Concat,
     StrongCount,
     WeakCount,
+    /// `Buf<T>` primitives (#285). The builder guards indexes and sizes first (`build/buf.rs`).
+    /// `bufAlloc(arena, cap)`: a `Buf` of `cap` slots in the `Arena` operand.
+    BufAlloc,
+    /// `(buf, i)`: slot `i`.
+    SlotLoad,
+    /// `(buf, i, v)`: writes slot `i`.
+    SlotStore,
+    /// `(buf, newCap)`: a new `Buf` in `arena` holding a copy of the old `cap` slots.
+    BufGrow,
+    /// `(buf)`: its slot count.
+    BufCap,
+    /// `arenaOf(this)`, no args: the arena `ObjectArena(this)` names.
+    ArenaOf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -255,6 +268,10 @@ pub enum AbortReason {
     Utf8Range,
     NullUnwrap,
     MatchFallthrough,
+    /// `bufGrow` to a capacity not larger than the current one.
+    BufGrow,
+    /// An explicit `abort()`.
+    Explicit,
 }
 
 #[derive(Debug, Clone, PartialEq)]

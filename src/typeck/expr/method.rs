@@ -45,7 +45,9 @@ pub(super) fn check_method_call(
         return super::vec::check_vec_method(receiver, borrowed, elem, method, id, site, env);
     }
     // An inherent method shadows a trait method of the same name.
-    let inherent = env.tcx.record_def(checked.ty).filter(|&class| env.defs.lookup_method(class, method).is_some());
+    // `Buf<T>` is intrinsic, so not a record, but its prelude `intrinsic fun cap()` is an inherent method.
+    let buf = env.tcx.buf_elem(checked.ty).and(env.tcx.buf_def());
+    let inherent = env.tcx.record_def(checked.ty).or(buf).filter(|&class| env.defs.lookup_method(class, method).is_some());
     let Some(class) = inherent else {
         if let Some(field_ty) = callable_field(checked.ty, method, env).filter(|_| trait_candidates(env.tcx.ref_inner(checked.ty).unwrap_or(checked.ty), method, env).is_empty()) {
             if env.tcx.is_nullable(field_ty) {

@@ -8,6 +8,13 @@ pub(crate) enum Builtin {
     StringFromUtf8,
     StrongCount,
     WeakCount,
+    // Buffer primitives (#285): typeck accepts them only inside `unsafe`, so only the prelude reaches them.
+    BufAlloc,
+    SlotLoad,
+    SlotStore,
+    BufGrow,
+    Abort,
+    ArenaOf,
 }
 
 pub(crate) fn resolve(name: &str) -> Option<Builtin> {
@@ -18,6 +25,12 @@ pub(crate) fn resolve(name: &str) -> Option<Builtin> {
         "stringFromUtf8" => Some(Builtin::StringFromUtf8),
         "strongCount" => Some(Builtin::StrongCount),
         "weakCount" => Some(Builtin::WeakCount),
+        "bufAlloc" => Some(Builtin::BufAlloc),
+        "slotLoad" => Some(Builtin::SlotLoad),
+        "slotStore" => Some(Builtin::SlotStore),
+        "bufGrow" => Some(Builtin::BufGrow),
+        "abort" => Some(Builtin::Abort),
+        "arenaOf" => Some(Builtin::ArenaOf),
         _ => None,
     }
 }
@@ -43,6 +56,14 @@ pub(crate) fn is_borrowed_arg(name: &str, index: usize) -> bool {
         )
 }
 
+/// The unsafe-only buffer primitives (#285): typeck checks them in `check_buf_primitive`.
+pub(crate) fn is_buf_primitive(name: &str) -> bool {
+    matches!(
+        resolve(name),
+        Some(Builtin::BufAlloc | Builtin::SlotLoad | Builtin::SlotStore | Builtin::BufGrow | Builtin::Abort | Builtin::ArenaOf)
+    )
+}
+
 /// `strongCount(ref)` / `weakCount(ref)`: diagnostic counters on the arena a `Ref<T>` points into.
 pub(crate) fn is_ref_count(name: &str) -> bool {
     matches!(resolve(name), Some(Builtin::StrongCount | Builtin::WeakCount))
@@ -63,6 +84,14 @@ pub(crate) fn hover_doc(name: &str) -> Option<&'static str> {
         Builtin::WeakCount => {
             "`weakCount(r: Ref<T>): i32`\nWeak count of the arena `r` points into, including its child arenas. `None` reads as 0."
         }
+        Builtin::BufAlloc => "`bufAlloc<T>(a: Arena, cap: i32): Buf<T>`\nA buffer of `cap` slots in arena `a`. `unsafe` only.",
+        Builtin::SlotLoad => "`slotLoad<T>(b: &Buf<T>, i: i32): T`\nReads slot `i`; aborts outside `0..cap`. `unsafe` only.",
+        Builtin::SlotStore => "`slotStore<T>(b: &Buf<T>, i: i32, v: T)`\nWrites slot `i`; aborts outside `0..cap`. `unsafe` only.",
+        Builtin::BufGrow => {
+            "`bufGrow<T>(b: &Buf<T>, newCap: i32): Buf<T>`\nA bigger copy in the arena of `this` (`b` must have been allocated in `this`'s arena); aborts unless `newCap > cap`. `unsafe` only."
+        }
+        Builtin::Abort => "`abort()`\nStops the program. `unsafe` only.",
+        Builtin::ArenaOf => "`arenaOf(this): Arena`\nThe arena the receiver lives in. `unsafe` only.",
     })
 }
 
@@ -100,6 +129,12 @@ impl Builtin {
             Builtin::StringFromUtf8 => "stringFromUtf8",
             Builtin::StrongCount => "strongCount",
             Builtin::WeakCount => "weakCount",
+            Builtin::BufAlloc => "bufAlloc",
+            Builtin::SlotLoad => "slotLoad",
+            Builtin::SlotStore => "slotStore",
+            Builtin::BufGrow => "bufGrow",
+            Builtin::Abort => "abort",
+            Builtin::ArenaOf => "arenaOf",
         }
     }
 
@@ -111,6 +146,10 @@ impl Builtin {
             Builtin::StringFromUtf8 => (name, Vec::new(), tcx.string(true)),
             // Typeck checks the counters itself: the argument is any `Ref<T>`.
             Builtin::StrongCount | Builtin::WeakCount => (name, Vec::new(), tcx.i32()),
+            // Typeck checks the buffer primitives itself: they are generic over the slot type.
+            Builtin::BufAlloc | Builtin::SlotLoad | Builtin::SlotStore | Builtin::BufGrow | Builtin::Abort | Builtin::ArenaOf => {
+                (name, Vec::new(), tcx.unit())
+            }
             Builtin::Concat => (name, vec![tcx.string(false), tcx.string(false)], tcx.string(false)),
         }
     }

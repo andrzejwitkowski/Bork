@@ -1,0 +1,17 @@
+// exit: 190
+// Internal prelude `Stack<i32>` (#285): 20 pushes grow the buffer from empty (4, 8, 16, 32); the sum of 0..20 comes back via `get`.
+fun main(): i32 {
+    val s: Stack<i32> = newStack()
+    var i = 0
+    while (i < 20) {
+        s.push(i)
+        i = i + 1
+    }
+    var sum = 0
+    var j = 0
+    while (j < s.len()) {
+        sum = sum + s.get(j)
+        j = j + 1
+    }
+    return sum
+}

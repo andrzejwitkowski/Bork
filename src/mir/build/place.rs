@@ -70,18 +70,24 @@ impl<'a> FnBuilder<'a> {
         let i32_ty = self.tcx.prim_id(crate::hir::Prim::I32);
         let len = self.temp(i32_ty);
         self.stmt(StmtKind::Assign(Place::local(len), Rvalue::Len(base.clone())), span, Some(e.id));
-        let abort = self.new_block();
         // Two checks, because MIR comparisons are signed: a negative index is below `len` too.
-        for (op, bound) in [(BinOp::Ge, Operand::Const(Const::Int(0))), (BinOp::Lt, Operand::Copy(Place::local(len)))] {
+        let checks = [(BinOp::Ge, idx.clone(), Operand::Const(Const::Int(0))), (BinOp::Lt, idx.clone(), Operand::Copy(Place::local(len)))];
+        self.abort_unless(&checks, AbortReason::Bounds, span, e);
+    }
+
+    /// Aborts with `reason` unless every `lhs op rhs` in `checks` holds.
+    pub(super) fn abort_unless(&mut self, checks: &[(BinOp, Operand, Operand)], reason: AbortReason, span: Span, e: &HirExpr) {
+        let abort = self.new_block();
+        for (op, lhs, rhs) in checks {
             let inb = self.temp(self.bool_ty);
-            self.stmt(StmtKind::Assign(Place::local(inb), Rvalue::Binary(op, idx.clone(), bound)), span, Some(e.id));
+            self.stmt(StmtKind::Assign(Place::local(inb), Rvalue::Binary(op.clone(), lhs.clone(), rhs.clone())), span, Some(e.id));
             let ok = self.new_block();
             self.terminate(TermKind::Switch { value: Operand::Copy(Place::local(inb)), cases: vec![(1, ok)], otherwise: abort }, span, Some(e.id));
             self.cur = ok;
         }
         let ok = self.cur;
         self.cur = abort;
-        self.terminate(TermKind::Abort(AbortReason::Bounds), span, Some(e.id));
+        self.terminate(TermKind::Abort(reason), span, Some(e.id));
         self.cur = ok;
     }
 

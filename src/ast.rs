@@ -181,6 +181,8 @@ pub struct Function {
     pub body: Block,
     /// `intrinsic fun f(...)`: no body, the compiler supplies it (prelude only).
     pub intrinsic: bool,
+    /// `unsafe fun f(...)`: the whole body is an unsafe context (prelude only).
+    pub unsafe_: bool,
 }
 
 /// `T` in `fun f<T>` / `class Box<T>`, with the bounds of `T: A + B<i32>` and `where T: C`.
@@ -428,6 +430,8 @@ pub struct Block {
     pub span: Option<crate::span::Span>,
     /// One source span per statement, in the same order as `stmts`.
     pub statement_spans: Vec<crate::span::Span>,
+    /// `unsafe { ... }` (prelude only).
+    pub unsafe_: bool,
 }
 
 impl Block {
@@ -440,6 +444,7 @@ impl Block {
             stmts,
             span: Some(span),
             statement_spans,
+            unsafe_: false,
         }
     }
 }
