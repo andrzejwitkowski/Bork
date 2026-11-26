@@ -130,8 +130,11 @@ pub(super) fn check_index_as(
         let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
         return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
     }
+    let diagnostics_before = env.diagnostics.len();
     let receiver_hir = synthesize(receiver, return_ty, env);
     if !keep_index && is_vec_class(receiver_hir.ty, env) {
+        // The method call below checks the receiver again; drop what this first pass reported so it is reported once.
+        env.diagnostics.truncate(diagnostics_before);
         // `v[i]` on the Bork `Vec` is `v.get(i)`.
         let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
         return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);

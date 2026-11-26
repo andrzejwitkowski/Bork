@@ -174,3 +174,10 @@ fn a_user_class_named_vecb_is_not_indexable() {
     let diags = super::diags_of("class Vec<T> {\n    n: i32\n}\nfun main() {\n    val v: Vec<i32> = Vec(1)\n    val x = v[0]\n}\n");
     assert!(diags.iter().any(|d| d.message.contains("indexing requires an array type")), "{diags:?}");
 }
+
+#[test]
+fn vec_index_through_a_field_checks_the_receiver_once() {
+    super::hir_of("class H {\n    items: Vec<i32>\n}\nfun main(): i32 {\n    var h = H(Vec::<i32>())\n    h.items.push(7)\n    return h.items[0]\n}\n");
+    let diags = super::diags_of("class H {\n    items: Vec<i32>\n}\nfun main(): i32 {\n    val h = H(Vec::<i32>())\n    return h.items[true]\n}\n");
+    assert_eq!(diags.iter().filter(|d| d.message.contains("argument")).count(), 1, "{diags:?}");
+}
