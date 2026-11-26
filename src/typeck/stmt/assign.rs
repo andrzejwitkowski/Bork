@@ -58,6 +58,13 @@ fn check_index_assign(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let bound = assign_binding(env, name, name_span, id, true);
+    if bound.is_some_and(|ty| expr::array::is_vec_class(ty, env)) {
+        // `v[i] = x` on the Bork `Vec` is `v.set(i, x)`.
+        let receiver = Expr::Ident { name: name.to_string(), span: name_span, id };
+        let set = Expr::Field { receiver: Box::new(receiver), name: "set".to_string(), safe: false, span: name_span, id: AstId::DUMMY };
+        let call = Expr::call(set, Vec::new(), vec![index.clone(), value.clone()], None, name_span);
+        return HirStmt::Expr(expr::synthesize(&call, return_ty, env).hir);
+    }
     let elem = bound.and_then(|ty| env.tcx.array_elem(ty).or_else(|| env.tcx.vec_elem(ty)));
     if bound.is_some_and(|ty| {
         !env.tcx.is_unknown(ty) && env.tcx.array_elem(ty).is_none() && env.tcx.vec_elem(ty).is_none()
@@ -165,7 +172,7 @@ fn assign_binding(
         if b.kind == BindingKind::Val {
             if env.tcx.is_ref(b.ty) {
                 if index_assign {
-                    let indexable = env.tcx.ref_inner(b.ty).is_some_and(|inner| env.tcx.is_array(inner) || env.tcx.is_vec(inner));
+                    let indexable = env.tcx.ref_inner(b.ty).is_some_and(|inner| env.tcx.is_array(inner) || env.tcx.is_vec(inner) || expr::array::is_vec_class(inner, env));
                     let message = match () {
                         _ if !b.explicit_ref => Some(format!("cannot index-assign through inferred view `{name}`")),
                         _ if !indexable => Some(format!("cannot index-assign through borrow `{name}`")),

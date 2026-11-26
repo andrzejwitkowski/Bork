@@ -71,14 +71,17 @@ pub(super) fn check_method_call(
         env.error(format!("class `{class_name}` has no method `{method}`"), Some(span));
         return poisoned(args, span, return_ty, env);
     };
-    env.members.insert(
-        id.numbered(),
-        MemberRef::Method {
-            class: class_name.clone(),
-            name: method.to_string(),
-            signature,
-        },
-    );
+    // A call synthesized by `v[i]` on `VecB` has no source node to hover over.
+    if id != AstId::DUMMY {
+        env.members.insert(
+            id.numbered(),
+            MemberRef::Method {
+                class: class_name.clone(),
+                name: method.to_string(),
+                signature,
+            },
+        );
+    }
     let name = format!("{class_name}.{method}");
     let Some((params, ret)) = instantiate_method(&name, class, &sig, &checked, span, env) else {
         return poisoned(args, span, return_ty, env);

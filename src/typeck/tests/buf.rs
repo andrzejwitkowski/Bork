@@ -151,3 +151,26 @@ fn user_stack_api_stays_available() {
 fn a_user_class_named_buf_still_works() {
     super::hir_of("class Buf {\n    x: i32\n}\nfun f(b: Buf): i32 {\n    return b.x\n}\nfun main() {}\n");
 }
+
+#[test]
+fn vecb_index_reads_the_element_type() {
+    super::hir_of("fun main() {\n    var v = vecBNew::<i32>()\n    v.push(1)\n    val x: i32 = v[0]\n}\n");
+}
+
+#[test]
+fn vecb_index_assign_checks_the_element_type() {
+    let diags = super::diags_of("fun main() {\n    var v = vecBNew::<i32>()\n    v.push(1)\n    v[0] = \"s\"\n}\n");
+    assert!(diags.iter().any(|d| d.message.contains("mismatch") || d.message.contains("expected")), "{diags:?}");
+}
+
+#[test]
+fn vecb_index_assign_on_a_val_is_rejected() {
+    let diags = super::diags_of("fun main() {\n    val v = vecBNew::<i32>()\n    v[0] = 1\n}\n");
+    assert!(diags.iter().any(|d| d.message.contains("immutable `val` binding `v`")), "{diags:?}");
+}
+
+#[test]
+fn a_user_class_named_vecb_is_not_indexable() {
+    let diags = super::diags_of("class VecB<T> {\n    n: i32\n}\nfun main() {\n    val v = VecB::<i32>(1)\n    val x = v[0]\n}\n");
+    assert!(diags.iter().any(|d| d.message.contains("indexing requires an array type")), "{diags:?}");
+}

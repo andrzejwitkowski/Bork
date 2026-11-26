@@ -28,6 +28,8 @@ programs/build/buf/stack_pop.bork: hits=38 hash=eab162d2e38d5521
 programs/build/buf/stack_pop_empty_aborts.bork: hits=12 hash=8af2be5ae2b5e48b
 programs/build/buf/stack_push_at_capacity_boundary.bork: hits=34 hash=feb0dff429a2d556
 programs/build/buf/stack_push_grow_get.bork: hits=29 hash=cb8eafde3ba42090
+programs/build/buf/stack_ref_elems_release.bork: hits=153 hash=e490a3e579167a91
+programs/build/buf/stack_string_elems_grow.bork: hits=50 hash=015300c853a6fe5c
 programs/build/classes/call_arg.bork: hits=3 hash=e78e04710ecea6e2
 programs/build/classes/mutable_field.bork: hits=5 hash=cd3878e5291db128
 programs/build/classes/nested_field.bork: hits=2 hash=35c04f12e683a17a
@@ -323,6 +325,10 @@ programs/build/vec/return_vec_of_linked_refs.bork: hits=64 hash=b44a53b72fdc7551
 programs/build/vec/strings.bork: hits=32 hash=8cdc3203adb07d2c
 programs/build/vec/vec_field_repeated.bork: hits=18 hash=d2febccdc4aa6cd1
 programs/build/vec/with_capacity.bork: hits=279 hash=fb4761a22c58c53e
+programs/build/vecb/get_between_len_and_cap_aborts.bork: hits=16 hash=ae924c5ec4e3ad3d
+programs/build/vecb/get_negative_aborts.bork: hits=10 hash=e10419e3b72dfe34
+programs/build/vecb/methods.bork: hits=207 hash=ea1d2b1d50dba4f9
+programs/build/vecb/set_past_len_aborts.bork: hits=10 hash=58237c0728346f80
 programs/build_fail/borrow/store_ref_into_borrowed_array.bork: hits=8 hash=0dbca6980761e4f2
 programs/build_fail/borrow/store_string_into_borrowed_array.bork: hits=15 hash=689b38856acb49d8
 programs/build_fail/borrow/store_string_through_borrow_alias.bork: hits=25 hash=8e3e77681cfb0019

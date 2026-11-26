@@ -1,6 +1,6 @@
 use crate::ast::Expr;
 use crate::hir::{HirExpr, HirExprKind, UseKind};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
@@ -96,6 +96,11 @@ pub(super) fn check_array_lit(
     )
 }
 
+/// The prelude's Bork `Vec` (`VecB` until the switch, #285): an `opaque` class, so a user class of that name never matches.
+pub(in crate::typeck) fn is_vec_class(ty: TyId, env: &Env<'_>) -> bool {
+    env.tcx.record_def(ty).and_then(|def| env.class(def)).is_some_and(|c| c.opaque && c.name == "VecB")
+}
+
 pub(super) fn check_index(
     receiver: &Expr,
     index: &Expr,
@@ -103,7 +108,22 @@ pub(super) fn check_index(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    // Peek at a plain name's type first: synthesizing it as a value would count as a use (a move, inside a loop).
+    let peeked = match receiver {
+        Expr::Ident { name, .. } => env.binding(name).map(|b| b.ty),
+        _ => None,
+    };
+    if peeked.is_some_and(|ty| is_vec_class(ty, env)) {
+        // `v[i]` on the Bork `Vec` is `v.get(i)`.
+        let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
+        return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
+    }
     let receiver_hir = synthesize(receiver, return_ty, env);
+    if is_vec_class(receiver_hir.ty, env) {
+        // `v[i]` on the Bork `Vec` is `v.get(i)`.
+        let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
+        return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
+    }
     let i32_ty = env.tcx.i32();
     let index_hir = check(index, i32_ty, return_ty, env);
     let elem_ty = if env.tcx.is_text(receiver_hir.ty) {
