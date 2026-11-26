@@ -2036,20 +2036,23 @@ fn Vec.push<i32> (parent=true, sink=false) {
   let _11: i32 [Var] next
   let _12: bool [Temp]
   let _13: unit [Hidden(DebugScope)]
-  let _14: &Vec<i32> [Temp]
-  let _15: unit [Temp]
-  let _16: unit [Hidden(DebugScope)]
-  let _17: Buf<i32> [Val] b
-  let _18: i32 [Temp]
-  let _19: i32 [Temp]
-  let _20: bool [Temp]
-  let _21: bool [Temp]
-  let _22: i32 [Temp]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<i32> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<i32> [Val] b
+  let _20: i32 [Temp]
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: i32 [Temp]
   region r0 Block
   region r1 Block in r0
   region r2 IfThen in r0
   region r3 IfThen in r2
-  region r4 Block in r0
+  region r4 IfThen in r2
+  region r5 Block in r0
   bb0:
     storage_live _3
     region_enter r0
@@ -2068,33 +2071,41 @@ fn Vec.push<i32> (parent=true, sink=false) {
     _12 = eq(copy _11, 0)
     switch copy _12 [ 1 -> bb3, else -> bb4]
   bb2:
-    storage_live _16
-    _17 = copy _1.0  // label "b": Buf<i32> decl
-    _18 = copy _1.1
-    _19 = intrinsic BufCap(reborrow _17)
-    _20 = ge(copy _18, 0)
-    switch copy _20 [ 1 -> bb7, else -> bb6]
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<i32> decl
+    _20 = copy _1.1
+    _21 = intrinsic BufCap(reborrow _19)
+    _22 = ge(copy _20, 0)
+    switch copy _22 [ 1 -> bb9, else -> bb8]
   bb3:
     storage_live _13
     _11 = 4
     storage_dead _13
     goto bb4
   bb4:
-    _14 = borrow _1
-    _15 = call Vec.reserveExact<i32>(copy _14, copy _11) +current -> bb5
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
   bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<i32>(copy _16, copy _11) +current -> bb7
+  bb7:
     storage_dead _9
     goto bb2
-  bb6:
-    abort Bounds
-  bb7:
-    _21 = lt(copy _18, copy _19)
-    switch copy _21 [ 1 -> bb8, else -> bb6]
   bb8:
-    intrinsic SlotStore(reborrow _17, copy _18, copy _2)
-    storage_dead _16
-    _22 = add(copy _1.1, 1)
-    _1.1 = copy _22  // label "Vec<i32>.n": i32 decl owner=object_arena(_1)
+    abort Bounds
+  bb9:
+    _23 = lt(copy _20, copy _21)
+    switch copy _23 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, copy _2)
+    storage_dead _18
+    _24 = add(copy _1.1, 1)
+    _1.1 = copy _24  // label "Vec<i32>.n": i32 decl owner=object_arena(_1)
     storage_dead _3
     region_exit r0
     return
@@ -3254,21 +3265,24 @@ fn Vec.push<Ref<Node>> (parent=true, sink=false) {
   let _11: i32 [Var] next
   let _12: bool [Temp]
   let _13: unit [Hidden(DebugScope)]
-  let _14: &Vec<Ref<Node>> [Temp]
-  let _15: unit [Temp]
-  let _16: unit [Hidden(DebugScope)]
-  let _17: Buf<Ref<Node>> [Val] b
-  let _18: i32 [Temp]
-  let _19: Ref<Node> [Temp]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<Ref<Node>> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<Ref<Node>> [Val] b
   let _20: i32 [Temp]
-  let _21: bool [Temp]
-  let _22: bool [Temp]
-  let _23: i32 [Temp]
+  let _21: Ref<Node> [Temp]
+  let _22: i32 [Temp]
+  let _23: bool [Temp]
+  let _24: bool [Temp]
+  let _25: i32 [Temp]
   region r0 Block
   region r1 Block in r0
   region r2 IfThen in r0
   region r3 IfThen in r2
-  region r4 Block in r0
+  region r4 IfThen in r2
+  region r5 Block in r0
   bb0:
     storage_live _3
     region_enter r0
@@ -3288,34 +3302,42 @@ fn Vec.push<Ref<Node>> (parent=true, sink=false) {
     _12 = eq(copy _11, 0)
     switch copy _12 [ 1 -> bb3, else -> bb4]
   bb2:
-    storage_live _16
-    _17 = copy _1.0  // label "b": Buf<Ref<Node>> decl
-    _18 = copy _1.1
-    _19 = ref_clone copy _2
-    _20 = intrinsic BufCap(reborrow _17)
-    _21 = ge(copy _18, 0)
-    switch copy _21 [ 1 -> bb7, else -> bb6]
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<Ref<Node>> decl
+    _20 = copy _1.1
+    _21 = ref_clone copy _2
+    _22 = intrinsic BufCap(reborrow _19)
+    _23 = ge(copy _20, 0)
+    switch copy _23 [ 1 -> bb9, else -> bb8]
   bb3:
     storage_live _13
     _11 = 4
     storage_dead _13
     goto bb4
   bb4:
-    _14 = borrow _1
-    _15 = call Vec.reserveExact<Ref<Node>>(copy _14, copy _11) +current -> bb5
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
   bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<Ref<Node>>(copy _16, copy _11) +current -> bb7
+  bb7:
     storage_dead _9
     goto bb2
-  bb6:
-    abort Bounds
-  bb7:
-    _22 = lt(copy _18, copy _20)
-    switch copy _22 [ 1 -> bb8, else -> bb6]
   bb8:
-    intrinsic SlotStore(reborrow _17, copy _18, move _19) in object_arena(_1)
-    storage_dead _16
-    _23 = add(copy _1.1, 1)
-    _1.1 = copy _23  // label "Vec<Ref<Node>>.n": i32 decl owner=object_arena(_1)
+    abort Bounds
+  bb9:
+    _24 = lt(copy _20, copy _22)
+    switch copy _24 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, move _21) in object_arena(_1)
+    storage_dead _18
+    _25 = add(copy _1.1, 1)
+    _1.1 = copy _25  // label "Vec<Ref<Node>>.n": i32 decl owner=object_arena(_1)
     storage_dead _3
     region_exit r0
     return
@@ -3405,20 +3427,23 @@ fn Vec.push<i32> (parent=true, sink=false) {
   let _11: i32 [Var] next
   let _12: bool [Temp]
   let _13: unit [Hidden(DebugScope)]
-  let _14: &Vec<i32> [Temp]
-  let _15: unit [Temp]
-  let _16: unit [Hidden(DebugScope)]
-  let _17: Buf<i32> [Val] b
-  let _18: i32 [Temp]
-  let _19: i32 [Temp]
-  let _20: bool [Temp]
-  let _21: bool [Temp]
-  let _22: i32 [Temp]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<i32> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<i32> [Val] b
+  let _20: i32 [Temp]
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: i32 [Temp]
   region r0 Block
   region r1 Block in r0
   region r2 IfThen in r0
   region r3 IfThen in r2
-  region r4 Block in r0
+  region r4 IfThen in r2
+  region r5 Block in r0
   bb0:
     storage_live _3
     region_enter r0
@@ -3437,33 +3462,41 @@ fn Vec.push<i32> (parent=true, sink=false) {
     _12 = eq(copy _11, 0)
     switch copy _12 [ 1 -> bb3, else -> bb4]
   bb2:
-    storage_live _16
-    _17 = copy _1.0  // label "b": Buf<i32> decl
-    _18 = copy _1.1
-    _19 = intrinsic BufCap(reborrow _17)
-    _20 = ge(copy _18, 0)
-    switch copy _20 [ 1 -> bb7, else -> bb6]
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<i32> decl
+    _20 = copy _1.1
+    _21 = intrinsic BufCap(reborrow _19)
+    _22 = ge(copy _20, 0)
+    switch copy _22 [ 1 -> bb9, else -> bb8]
   bb3:
     storage_live _13
     _11 = 4
     storage_dead _13
     goto bb4
   bb4:
-    _14 = borrow _1
-    _15 = call Vec.reserveExact<i32>(copy _14, copy _11) +current -> bb5
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
   bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<i32>(copy _16, copy _11) +current -> bb7
+  bb7:
     storage_dead _9
     goto bb2
-  bb6:
-    abort Bounds
-  bb7:
-    _21 = lt(copy _18, copy _19)
-    switch copy _21 [ 1 -> bb8, else -> bb6]
   bb8:
-    intrinsic SlotStore(reborrow _17, copy _18, copy _2)
-    storage_dead _16
-    _22 = add(copy _1.1, 1)
-    _1.1 = copy _22  // label "Vec<i32>.n": i32 decl owner=object_arena(_1)
+    abort Bounds
+  bb9:
+    _23 = lt(copy _20, copy _21)
+    switch copy _23 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, copy _2)
+    storage_dead _18
+    _24 = add(copy _1.1, 1)
+    _1.1 = copy _24  // label "Vec<i32>.n": i32 decl owner=object_arena(_1)
     storage_dead _3
     region_exit r0
     return
@@ -4411,21 +4444,24 @@ fn Vec.push<Ref<Node>> (parent=true, sink=false) {
   let _11: i32 [Var] next
   let _12: bool [Temp]
   let _13: unit [Hidden(DebugScope)]
-  let _14: &Vec<Ref<Node>> [Temp]
-  let _15: unit [Temp]
-  let _16: unit [Hidden(DebugScope)]
-  let _17: Buf<Ref<Node>> [Val] b
-  let _18: i32 [Temp]
-  let _19: Ref<Node> [Temp]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<Ref<Node>> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<Ref<Node>> [Val] b
   let _20: i32 [Temp]
-  let _21: bool [Temp]
-  let _22: bool [Temp]
-  let _23: i32 [Temp]
+  let _21: Ref<Node> [Temp]
+  let _22: i32 [Temp]
+  let _23: bool [Temp]
+  let _24: bool [Temp]
+  let _25: i32 [Temp]
   region r0 Block
   region r1 Block in r0
   region r2 IfThen in r0
   region r3 IfThen in r2
-  region r4 Block in r0
+  region r4 IfThen in r2
+  region r5 Block in r0
   bb0:
     storage_live _3
     region_enter r0
@@ -4445,34 +4481,42 @@ fn Vec.push<Ref<Node>> (parent=true, sink=false) {
     _12 = eq(copy _11, 0)
     switch copy _12 [ 1 -> bb3, else -> bb4]
   bb2:
-    storage_live _16
-    _17 = copy _1.0  // label "b": Buf<Ref<Node>> decl
-    _18 = copy _1.1
-    _19 = ref_clone copy _2
-    _20 = intrinsic BufCap(reborrow _17)
-    _21 = ge(copy _18, 0)
-    switch copy _21 [ 1 -> bb7, else -> bb6]
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<Ref<Node>> decl
+    _20 = copy _1.1
+    _21 = ref_clone copy _2
+    _22 = intrinsic BufCap(reborrow _19)
+    _23 = ge(copy _20, 0)
+    switch copy _23 [ 1 -> bb9, else -> bb8]
   bb3:
     storage_live _13
     _11 = 4
     storage_dead _13
     goto bb4
   bb4:
-    _14 = borrow _1
-    _15 = call Vec.reserveExact<Ref<Node>>(copy _14, copy _11) +current -> bb5
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
   bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<Ref<Node>>(copy _16, copy _11) +current -> bb7
+  bb7:
     storage_dead _9
     goto bb2
-  bb6:
-    abort Bounds
-  bb7:
-    _22 = lt(copy _18, copy _20)
-    switch copy _22 [ 1 -> bb8, else -> bb6]
   bb8:
-    intrinsic SlotStore(reborrow _17, copy _18, move _19) in object_arena(_1)
-    storage_dead _16
-    _23 = add(copy _1.1, 1)
-    _1.1 = copy _23  // label "Vec<Ref<Node>>.n": i32 decl owner=object_arena(_1)
+    abort Bounds
+  bb9:
+    _24 = lt(copy _20, copy _22)
+    switch copy _24 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, move _21) in object_arena(_1)
+    storage_dead _18
+    _25 = add(copy _1.1, 1)
+    _1.1 = copy _25  // label "Vec<Ref<Node>>.n": i32 decl owner=object_arena(_1)
     storage_dead _3
     region_exit r0
     return

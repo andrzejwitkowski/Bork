@@ -636,6 +636,7 @@ programs/check_fail/vec/element_view_of_val_as_rw.bork: hits=3 hash=1e1cff43f996
 programs/check_fail/vec/element_view_through_alias_locks_vec.bork: hits=24 hash=6af5e4913d3b650c
 programs/check_fail/vec/impl_trait.bork: hits=0 hash=cbf29ce484222325
 programs/check_fail/vec/nullable.bork: hits=1 hash=bb6180a2a25568ea
+programs/check_fail/vec/private_helper.bork: hits=23 hash=955c918559f71b01
 programs/check_fail/vec/push_on_val.bork: hits=10 hash=667092e735ec2ae8
 programs/check_fail/vec/push_through_val_field.bork: hits=10 hash=0ac596befa076723
 programs/check_fail/vec/two_arguments.bork: hits=1 hash=47098b3e87699ebc

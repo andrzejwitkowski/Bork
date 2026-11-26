@@ -1,0 +1,6 @@
+// diag: is private to the prelude
+fun main(): i32 {
+    var v = Vec::<i32>()
+    v.reserveExact(2)
+    return v.capacity()
+}

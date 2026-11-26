@@ -97,7 +97,7 @@ impl<'a> FnBuilder<'a> {
         let i32_ty = self.tcx.prim_id(crate::hir::Prim::I32);
         let n = field(self, 1, i32_ty);
         // `buf` is field 0 of the instantiated class; read its type off the monomorphised definition.
-        let shown = self.tcx.display(self.tcx.deref_ty(receiver.ty)).to_string();
+        let shown = crate::mono::class_instance_name(self.tcx, self.tcx.deref_ty(receiver.ty)).ok_or_else(|| BuildError::Internal("a `Vec` view of a non-class".into()))?;
         let buf_ty = self.mono.hir.classes.iter().find(|c| c.name == shown).and_then(|c| c.fields.first()).map(|f| f.ty).ok_or_else(|| BuildError::Internal(format!("no class `{shown}`")))?;
         let buf = field(self, 0, buf_ty);
         let zero = Operand::Const(Const::Int(0));

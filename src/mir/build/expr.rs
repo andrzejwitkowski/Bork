@@ -16,7 +16,7 @@ pub(super) fn span_of(e: &HirExpr) -> Span {
 /// `vecNew` / `vecWithCapacity` (#285): a vector is allocated where it is declared, like the compiler `Vec` header was,
 /// not in the function's result sink, so closures built in its arena can capture the declaring block's objects.
 pub(super) fn is_vec_factory(name: &str) -> bool {
-    name.starts_with("vecNew") || name.starts_with("vecWithCapacity")
+    ["vecNew", "vecWithCapacity"].iter().any(|f| name == *f || name.strip_prefix(f).is_some_and(|rest| rest.starts_with('<')))
 }
 
 impl<'a> FnBuilder<'a> {

@@ -490,14 +490,88 @@ pub unsafe extern "C" fn bork_arena_register_observation_drop(
 
 #[cfg(test)]
 mod buf_tests {
+    //! `Buf<Ref<T>>` as `codegen/llvm/buf.rs` builds it: a zeroed buffer plus one `{ptr, cap}` header carrying
+    //! `bork_buf_drop_refs`, slots filled through `store_take`, growth by copy and zeroing the old slots.
     use super::*;
+    use crate::arena::{
+        bork_arena_alloc, bork_arena_create_dynamic, bork_arena_pop, bork_arena_push, bork_arena_register_drop,
+        bork_arena_release_strong, bork_arena_strong_count, control_count, weak_count_of,
+    };
+
+    const SLOT: usize = std::mem::size_of::<RefHandle>();
+
+    fn object() -> *mut c_void {
+        0x10 as *mut c_void
+    }
+
+    /// A zeroed buffer of `cap` slots in `arena` with its drop registered.
+    unsafe fn buf_alloc(arena: *mut c_void, cap: usize) -> *mut RefHandle {
+        let ptr = bork_arena_alloc(arena, cap * SLOT, 8).cast::<RefHandle>();
+        std::ptr::write_bytes(ptr.cast::<u8>(), 0, cap * SLOT);
+        let header = bork_arena_alloc(arena, std::mem::size_of::<BufHeader>(), 8).cast::<BufHeader>();
+        header.write(BufHeader { ptr, cap });
+        bork_arena_register_drop(arena, header.cast(), Some(bork_buf_drop_refs));
+        ptr
+    }
+
+    /// `bufGrow`: a bigger buffer holding the same handles; the old slots are zeroed so its drop releases nothing.
+    unsafe fn buf_grow(arena: *mut c_void, old: *mut RefHandle, cap: usize, new_cap: usize) -> *mut RefHandle {
+        let new = buf_alloc(arena, new_cap);
+        std::ptr::copy_nonoverlapping(old, new, cap);
+        std::ptr::write_bytes(old.cast::<u8>(), 0, cap * SLOT);
+        new
+    }
+
+    unsafe fn store(arena: *mut c_void, slot: *mut RefHandle, target: *mut c_void) {
+        bork_ref_store_take(slot, arena, bork_ref_create(arena, target, object()));
+    }
+
+    unsafe fn counts(target: *mut c_void) -> (usize, usize) {
+        (bork_arena_strong_count(target), weak_count_of(target))
+    }
 
     #[test]
-    fn bork_buf_drop_refs_skips_none_slots() {
-        // A fresh `Buf<Ref<T>>` is all zero bytes: every slot is a `None` handle and releases nothing.
-        let mut slots = [RefHandle::none(), RefHandle::none(), RefHandle::none()];
-        let mut header = BufHeader { ptr: slots.as_mut_ptr(), cap: slots.len() };
-        unsafe { bork_buf_drop_refs((&mut header as *mut BufHeader).cast()) };
-        assert!(slots.iter().all(|s| matches!(s.kind, RefKind::None)));
+    fn grown_buffer_keeps_counts_exact_and_releases_each_slot_once() {
+        unsafe {
+            let base = control_count();
+            // Ids ascend in creation order: t1 < a < t2. From `a`, t1 is a back-edge (weak) and t2 a forward edge (strong).
+            let t1 = bork_arena_create_dynamic(ptr::null_mut(), 0);
+            let a = bork_arena_push();
+            let t2 = bork_arena_create_dynamic(ptr::null_mut(), 0);
+            let (t1_base, t2_base) = (counts(t1), counts(t2));
+
+            let mut cap = 4;
+            let mut buf = buf_alloc(a, cap);
+            for i in 0..6 {
+                if i == cap {
+                    buf = buf_grow(a, buf, cap, cap * 2);
+                    cap *= 2;
+                }
+                store(a, buf.add(i), if i % 2 == 0 { t1 } else { t2 });
+            }
+            assert_eq!(cap, 8, "one growth past the first buffer");
+            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 3), "t1: three weak slots, none doubled by the growth");
+            assert_eq!(counts(t2), (t2_base.0 + 3, t2_base.1), "t2: three strong slots");
+
+            // Overwriting a live slot releases its old value.
+            store(a, buf, t2);
+            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 2));
+            assert_eq!(counts(t2), (t2_base.0 + 4, t2_base.1));
+
+            // Taking a handle out leaves `None`: the buffer's drop must not release it again.
+            let taken = std::ptr::read(buf.add(1));
+            buf.add(1).write(RefHandle::none());
+            bork_ref_drop_value(taken);
+            assert_eq!(counts(t2), (t2_base.0 + 3, t2_base.1));
+
+            // Both buffers' drops run with the arena: the old one holds only zeroed slots, the new one the rest.
+            bork_arena_pop(a);
+            assert_eq!(counts(t1), t1_base, "every weak slot released exactly once");
+            assert_eq!(counts(t2), t2_base, "every strong slot released exactly once");
+
+            bork_arena_release_strong(t1);
+            bork_arena_release_strong(t2);
+            assert_eq!(control_count(), base, "every arena and lease is released");
+        }
     }
 }

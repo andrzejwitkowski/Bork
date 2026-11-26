@@ -91,6 +91,12 @@ pub(super) fn check_method_call(
         return poisoned(args, span, return_ty, env);
     };
     let is_vec = env.defs.vec_class() == Some(class);
+    // The helpers the prelude and the typeck rewrites use are not part of the `Vec` API; only a call the user wrote is rejected
+    // (`assignFrom` comes from `outer = promote inner` with no source node, `popRef` from a `pop` on a `Ref` element).
+    if is_vec && !env.in_prelude && id != AstId::DUMMY && matches!(written, "reserveExact" | "reserveAtLeast" | "assignFrom" | "popRef") {
+        env.error(format!("`Vec.{written}` is private to the prelude"), Some(span));
+        return poisoned(args, span, return_ty, env);
+    }
     if is_vec && matches!(method, "push" | "pop" | "popRef" | "set" | "clear") {
         super::vec::reject_immutable(receiver, env, span);
     }

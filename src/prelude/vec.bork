@@ -38,6 +38,10 @@ opaque class Vec<T> {
             if (next == 0) {
                 next = 4
             }
+            // `cap * 2` wraps past 2^30; clamp to the largest `i32` (a full vector then aborts in `bufGrow`).
+            if (cap > 1073741823) {
+                next = 2147483647
+            }
             this.reserveExact(next)
         }
         unsafe {

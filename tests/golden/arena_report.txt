@@ -876,6 +876,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -1093,6 +1094,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -1282,6 +1284,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -2277,6 +2280,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -2419,6 +2423,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -2540,6 +2545,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -2673,6 +2679,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -2835,6 +2842,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -2994,6 +3002,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3135,6 +3144,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3275,6 +3285,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3418,6 +3429,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3533,6 +3545,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3705,6 +3718,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3824,6 +3838,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -3941,6 +3956,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -4052,6 +4068,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -4271,6 +4288,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -4411,6 +4429,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -4774,6 +4793,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -4885,6 +4905,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -4994,6 +5015,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5108,6 +5130,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5223,6 +5246,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5338,6 +5362,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5456,6 +5481,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5617,6 +5643,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5735,6 +5762,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5848,6 +5876,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -5962,6 +5991,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -6084,6 +6114,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -6200,6 +6231,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -7876,6 +7908,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8010,6 +8043,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8155,6 +8189,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8293,6 +8328,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8395,6 +8431,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8504,6 +8541,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8608,6 +8646,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8709,6 +8748,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8817,6 +8857,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -8920,6 +8961,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9023,6 +9065,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9123,6 +9166,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9226,6 +9270,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9328,6 +9373,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9433,6 +9479,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9536,6 +9583,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9638,6 +9686,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9745,6 +9794,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9854,6 +9904,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -9953,6 +10004,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10050,6 +10102,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10145,6 +10198,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10246,6 +10300,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10346,6 +10401,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10443,6 +10499,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10536,6 +10593,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10629,6 +10687,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10732,6 +10791,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10831,6 +10891,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -10939,6 +11000,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11035,6 +11097,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11137,6 +11200,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11232,6 +11296,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11326,6 +11391,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11422,6 +11488,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11524,6 +11591,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11620,6 +11688,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11723,6 +11792,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11849,6 +11919,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -11954,6 +12025,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12051,6 +12123,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12152,6 +12225,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12261,6 +12335,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12365,6 +12440,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12483,6 +12559,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12607,6 +12684,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12708,6 +12786,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12827,6 +12906,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -12920,6 +13000,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -13014,6 +13095,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -13108,6 +13190,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -13225,6 +13308,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -13413,6 +13497,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -14100,6 +14185,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -14261,6 +14347,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -14382,6 +14469,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -14521,6 +14609,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -14617,6 +14706,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -15405,6 +15495,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -15620,6 +15711,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -15760,6 +15852,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -16330,6 +16423,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -16657,6 +16751,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -16752,6 +16847,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -16847,6 +16943,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -16941,6 +17038,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17041,6 +17139,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17140,6 +17239,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17234,6 +17334,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17334,6 +17435,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17431,6 +17533,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17525,6 +17628,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17626,6 +17730,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17723,6 +17828,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17819,6 +17925,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -17917,6 +18024,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18012,6 +18120,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18108,6 +18217,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18203,6 +18313,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18300,6 +18411,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18395,6 +18507,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18490,6 +18603,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18585,6 +18699,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18680,6 +18795,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18776,6 +18892,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18869,6 +18986,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -18965,6 +19083,102 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
+│   │   └── IfThen
+│   └── Block
+│       ├── b [Local]
+│       ├── this [Shared ← fun Vec.push]
+│       └── v [Shared ← fun Vec.push]
+├── fun Vec.pop
+│   ├── this [Borrow ← call site]
+│   ├── IfThen
+│   └── Block
+│       ├── b [Local]
+│       └── this [Shared ← fun Vec.pop]
+├── fun Vec.popRef (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Vec.get (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Vec.set (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── i [Local]
+│   ├── v [Local]
+│   ├── b [Local]
+│   └── IfThen
+├── fun Vec.assignFrom
+│   ├── this [Borrow ← call site]
+│   ├── src [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── i [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Vec.assignFrom]
+│   ├── IfThen
+│   │   ├── this [Borrow ← fun Vec.assignFrom]
+│   │   └── src [Borrow ← fun Vec.assignFrom]
+│   └── WhileLoop
+│       ├── i [Copy]
+│       └── Block
+│           ├── b [Local]
+│           ├── this [Shared ← fun Vec.assignFrom]
+│           ├── i [Copy]
+│           └── src [Borrow ← fun Vec.assignFrom]
+├── fun Vec.len
+│   └── this [Borrow ← call site]
+├── fun Vec.capacity (compacted 1 brace)
+│   └── this [Borrow ← call site]
+└── fun Vec.clear
+    ├── this [Borrow ← call site]
+    ├── i [Local]
+    └── WhileLoop
+        ├── i [Copy]
+        └── Block
+            ├── b [Local]
+            ├── this [Shared ← fun Vec.clear]
+            └── i [Copy]
+== programs/check_fail/vec/private_helper.bork
+Type Error [82..96] `Vec.reserveExact` is private to the prelude
+Arenas
+├── fun main
+│   └── v [Local]
+├── fun vecNew
+│   ├── seed [Local]
+│   └── Block
+│       └── seed [Shared ← fun vecNew]
+├── fun vecWithCapacity
+│   ├── n [Local]
+│   ├── v [Local]
+│   └── IfThen (compacted 1 brace)
+├── fun VecSeed.empty
+│   └── this [Borrow ← call site]
+├── fun Vec.reserveExact (compacted 1 brace)
+│   ├── this [Borrow ← call site]
+│   ├── cap [Local]
+│   └── old [Local]
+├── fun Vec.reserveAtLeast
+│   ├── this [Borrow ← call site]
+│   ├── cap [Local]
+│   ├── have [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Vec.reserveAtLeast]
+│   └── IfThen
+│       ├── this [Borrow ← fun Vec.reserveAtLeast]
+│       └── cap [Copy]
+├── fun Vec.push
+│   ├── this [Borrow ← call site]
+│   ├── v [Local]
+│   ├── cap [Local]
+│   ├── Block
+│   │   └── this [Borrow ← fun Vec.push]
+│   ├── IfThen
+│   │   ├── next [Local]
+│   │   ├── cap [Copy]
+│   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -19059,6 +19273,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -19153,6 +19368,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]
@@ -19247,6 +19463,7 @@ Arenas
 │   │   ├── next [Local]
 │   │   ├── cap [Copy]
 │   │   ├── this [Borrow ← fun Vec.push]
+│   │   ├── IfThen
 │   │   └── IfThen
 │   └── Block
 │       ├── b [Local]

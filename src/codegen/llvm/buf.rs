@@ -31,6 +31,9 @@ impl<'ctx> Codegen<'ctx> {
             // (its header is `{ptr, cap}`), registered where the buffer lives.
             self.builder.build_memset(ptr, 1, self.context.i8_type().const_zero(), bytes)?;
             let header = self.arena_alloc(arena, self.word(16), 8)?;
+            if self.debug.is_some() {
+                self.debug_allocation(header, "", "BufHeader", false)?;
+            }
             self.builder.build_store(header, ptr)?;
             let cap_slot = unsafe { self.builder.build_in_bounds_gep(self.context.i8_type(), header, &[self.word(8)], "buf.hdr.cap")? };
             self.builder.build_store(cap_slot, wide)?;
