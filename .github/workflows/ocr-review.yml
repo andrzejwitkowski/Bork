@@ -152,7 +152,7 @@ jobs:
           effort: high
           review_concurrency: '1'
           review_task_timeout: '30'
-          max_tokens_budget: '5000000'
+          max_tokens_budget: '20000000'
           rule: .opencodereview/rule.json
           background: ${{ env.OCR_BACKGROUND }}
           sticky_summary: 'true'
@@ -198,7 +198,7 @@ jobs:
           ocr config set llm.extra_body "$OCR_EXTRA_BODY"
           ocr config set language English
           args=(--format json --audience agent --concurrency 1 --timeout 30
-                --max-tokens-budget 5000000 --rule .opencodereview/rule.json --background "$OCR_BACKGROUND")
+                --max-tokens-budget 20000000 --rule .opencodereview/rule.json --background "$OCR_BACKGROUND")
           zero=0000000000000000000000000000000000000000
           if [ "$BEFORE_SHA" != "$zero" ] && git merge-base --is-ancestor "$BEFORE_SHA" "$HEAD_SHA" 2>/dev/null; then
             ocr review --effort high --from "$BEFORE_SHA" --to "$HEAD_SHA" "${args[@]}" > /tmp/ocr-result.json 2>/tmp/ocr-stderr.log
