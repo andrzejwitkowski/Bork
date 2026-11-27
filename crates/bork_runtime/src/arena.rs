@@ -61,6 +61,8 @@ struct Arena {
     // Upper bound on the free tail of any page but the newest: lets a miss skip the
     // older-page scan. Anything that grows an older tail must raise it.
     older_max_tail: usize,
+    // Bytes handed out and not yet freed (block sizes, so slack counts); lets tests see a freed block come back (#369).
+    live_bytes: usize,
     #[cfg(test)]
     probes: usize,
 }
@@ -164,6 +166,7 @@ impl Arena {
             free_lists: [std::ptr::null_mut(); CLASSES],
             large: Vec::new(),
             older_max_tail: 0,
+            live_bytes: 0,
             #[cfg(test)]
             probes: 0,
         }
@@ -171,6 +174,7 @@ impl Arena {
 
     fn alloc(&mut self, size: usize, align: usize) -> *mut u8 {
         assert!(align.is_power_of_two(), "align must be a power of two");
+        self.live_bytes += block_size(size);
         if size > LARGE_THRESHOLD {
             return self.alloc_large(size, align);
         }
@@ -288,6 +292,7 @@ impl Arena {
             return;
         }
         let size = block_size(size);
+        self.live_bytes -= size;
         debug_assert!(self.owns(ptr), "free of a block this arena does not own");
         // Membership, not size, picks the container: blocks grown in place or
         // over-aligned ones do not match their size class.
@@ -327,6 +332,7 @@ impl Arena {
             let new_layout =
                 Layout::from_size_align(new.next_multiple_of(PAGE_SIZE), layout.align()).unwrap();
             self.large[i] = (grown, new_layout);
+            self.live_bytes += block_size(new) - block_size(old);
             return grown;
         }
         if let Some(page) = self.pages.iter_mut().find(|p| p.contains(ptr)) {
@@ -335,6 +341,7 @@ impl Arena {
             if old_end == page.offset && new_end <= PAGE_SIZE {
                 page.offset = new_end;
                 self.older_max_tail = PAGE_SIZE;
+                self.live_bytes += new_end - old_end;
                 return ptr;
             }
         }
@@ -1065,6 +1072,12 @@ pub unsafe extern "C" fn bork_arena_grow(
 }
 
 /// Returns a block (with the size it was allocated or last grown to) for reuse.
+/// Bytes allocated from the arena and not freed yet (block sizes); for tests (#369).
+#[no_mangle]
+pub unsafe extern "C" fn bork_arena_live_bytes(arena: *mut c_void) -> usize {
+    with_payload(arena, |payload| payload.live_bytes)
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn bork_arena_free(arena: *mut c_void, ptr: *mut c_void, size: usize) {
     #[cfg(feature = "debug-runtime")]
@@ -1263,6 +1276,7 @@ mod tests {
         let mut arena = Arena::new();
         // What alloc falls back to when a page cannot satisfy the alignment.
         let p = arena.alloc_large(64, 8192);
+        arena.live_bytes += 64; // `alloc` counts; this test bypasses it
         assert_eq!(arena.large.len(), 1);
         arena.free(p, 64);
         assert!(arena.large.is_empty());
@@ -1368,6 +1382,32 @@ mod tests {
             bork_arena_free(arena, g.cast(), 256);
             bork_arena_free(arena, wall, 8);
             assert_eq!(bork_arena_alloc(arena, 64, 8), p.cast(), "old hole reused");
+            bork_arena_pop(arena);
+        }
+    }
+
+    /// What `bufGrow` does per step (#369): allocate the bigger block, copy, free the old one. Live bytes
+    /// must follow the current capacity, not the sum of every capacity, and freed blocks must be reused.
+    #[test]
+    fn grow_and_free_keeps_live_bytes_bounded_and_reuses_blocks() {
+        let arena = bork_arena_push();
+        unsafe {
+            let mut cap = 16usize;
+            let mut buf = bork_arena_alloc(arena, cap * 4, 4);
+            // A neighbour after `buf` keeps in-place growth impossible, as in the prelude.
+            let _wall = bork_arena_alloc(arena, 8, 8);
+            let base = bork_arena_live_bytes(arena);
+            for _ in 0..6 {
+                let next = bork_arena_alloc(arena, cap * 2 * 4, 4);
+                bork_arena_free(arena, buf, cap * 4);
+                buf = next;
+                cap *= 2;
+                assert_eq!(bork_arena_live_bytes(arena), base - 16 * 4 + cap * 4, "only the current buffer is live");
+            }
+            // A freed block of a size class comes back instead of fresh memory.
+            let hole = bork_arena_alloc(arena, 64, 8);
+            bork_arena_free(arena, hole, 64);
+            assert_eq!(bork_arena_alloc(arena, 64, 8), hole, "freed block reused");
             bork_arena_pop(arena);
         }
     }
