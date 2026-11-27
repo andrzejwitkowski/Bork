@@ -126,7 +126,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         let before = wanted;
         for (index, chunk) in CHUNKS.iter().enumerate() {
             if wanted[index] {
-                chunk.needs.iter().for_each(|&need| wanted[need] = !blocked[need] || wanted[need]);
+                chunk.needs.iter().filter(|&&need| !blocked[need]).for_each(|&need| wanted[need] = true);
             }
         }
         if wanted == before {

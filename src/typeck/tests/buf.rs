@@ -181,3 +181,10 @@ fn vec_index_through_a_field_checks_the_receiver_once() {
     let diags = super::diags_of("class H {\n    items: Vec<i32>\n}\nfun main(): i32 {\n    val h = H(Vec::<i32>())\n    return h.items[true]\n}\n");
     assert_eq!(diags.iter().filter(|d| d.message.contains("argument")).count(), 1, "{diags:?}");
 }
+
+#[test]
+fn indexing_a_call_result_keeps_the_errors_inside_the_receiver() {
+    let src = "fun make(n: i32): Vec<i32> {\n    var v = Vec::<i32>()\n    return v\n}\nfun main(): i32 {\n    return make(true)[0]\n}\n";
+    let diags = super::diags_of(src);
+    assert!(diags.iter().any(|d| d.message.contains("argument") || d.message.contains("expected")), "the receiver's own error survives: {diags:?}");
+}
