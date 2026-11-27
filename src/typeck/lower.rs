@@ -175,7 +175,7 @@ impl LowerCx<'_> {
         let found = self.defs.lookup_class(name).or(enum_def).map(|class| (class, enum_def.is_some()));
         if found.is_none() {
             let hint = match crate::prelude::chunk_names(name) {
-                Some(names) if names.len() > 1 => format!(" (`{name}` is a prelude item defined together with {}; defining one of them yourself turns the whole group off)", names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ")),
+                Some(names) if names.len() > 1 => format!(" (`{name}` is a prelude item defined together with {}; if you define one of them yourself, the whole group is turned off)", names.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", ")),
                 _ => String::new(),
             };
             self.error(format!("unknown named type `{name}`{hint}"));

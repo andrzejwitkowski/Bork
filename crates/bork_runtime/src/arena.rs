@@ -356,6 +356,7 @@ impl Arena {
     fn reset(&mut self) {
         self.pages[0].offset = 0;
         self.older_max_tail = 0;
+        self.live_bytes = 0;
         for mut page in self.pages.drain(1..) {
             page.offset = 0;
             if self.spare.len() < MAX_SPARE_PAGES {
@@ -1071,13 +1072,13 @@ pub unsafe extern "C" fn bork_arena_grow(
     grow_internal(arena, ptr, old_size, new_size, align)
 }
 
-/// Returns a block (with the size it was allocated or last grown to) for reuse.
 /// Bytes allocated from the arena and not freed yet (block sizes); for tests (#369).
 #[no_mangle]
 pub unsafe extern "C" fn bork_arena_live_bytes(arena: *mut c_void) -> usize {
     with_payload(arena, |payload| payload.live_bytes)
 }
 
+/// Returns a block (with the size it was allocated or last grown to) for reuse.
 #[no_mangle]
 pub unsafe extern "C" fn bork_arena_free(arena: *mut c_void, ptr: *mut c_void, size: usize) {
     #[cfg(feature = "debug-runtime")]
@@ -1409,6 +1410,18 @@ mod tests {
             bork_arena_free(arena, hole, 64);
             assert_eq!(bork_arena_alloc(arena, 64, 8), hole, "freed block reused");
             bork_arena_pop(arena);
+        }
+    }
+
+    #[test]
+    fn recycled_arena_starts_with_no_live_bytes() {
+        let arena = bork_arena_push();
+        unsafe {
+            bork_arena_alloc(arena, 1024, 8);
+            bork_arena_pop(arena);
+            let again = bork_arena_push();
+            assert_eq!(bork_arena_live_bytes(again), 0);
+            bork_arena_pop(again);
         }
     }
 

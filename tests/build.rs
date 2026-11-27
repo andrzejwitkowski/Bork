@@ -1112,13 +1112,17 @@ fn buf_run(name: &str, main_body: &str) -> std::process::ExitStatus {
     let binary = dir.join("main");
     let checked = bork::frontend::check_allowing_unsafe(&source);
     assert!(checked.is_ok(), "{name}: {:?}", checked.diagnostics);
-    if let Err(e) = bork::codegen::build(&checked, &binary) {
+    build_or_panic(name, &checked, &binary);
+    Command::new(&binary).status().unwrap()
+}
+
+fn build_or_panic(name: &str, checked: &bork::frontend::CheckResult, binary: &std::path::Path) {
+    if let Err(e) = bork::codegen::build(checked, binary) {
         panic!("{name}: build failed: {}", match e {
             bork::codegen::BuildError::Diagnostics(d) => format!("{d:?}"),
             bork::codegen::BuildError::Toolchain(m) => m,
         });
     }
-    Command::new(&binary).status().unwrap()
 }
 
 #[test]
@@ -1164,11 +1168,6 @@ fn nullable_buf_builds_and_runs() {
     let checked = bork::frontend::check_allowing_unsafe(source);
     assert!(checked.is_ok(), "{:?}", checked.diagnostics);
     let binary = scratch_dir("buf_nullable").join("main");
-    if let Err(e) = bork::codegen::build(&checked, &binary) {
-        panic!("build failed: {}", match e {
-            bork::codegen::BuildError::Diagnostics(d) => format!("{d:?}"),
-            bork::codegen::BuildError::Toolchain(m) => m,
-        });
-    }
+    build_or_panic("buf_nullable", &checked, &binary);
     assert_eq!(Command::new(&binary).status().unwrap().code(), Some(1));
 }
