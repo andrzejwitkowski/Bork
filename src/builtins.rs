@@ -13,6 +13,7 @@ pub(crate) enum Builtin {
     SlotLoad,
     SlotStore,
     SlotDrop,
+    /// Lowered to `IntrinsicOp::SlotStore` in `mir/build/buf.rs`; the only difference is the closure-environment copy done there.
     SlotCopy,
     SlotTake,
     RefNone,

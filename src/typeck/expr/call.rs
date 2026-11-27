@@ -632,6 +632,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         Builtin::SlotLoad => (2, elem, vec![i32_ty]),
         Builtin::SlotStore => (3, unit, vec![i32_ty, elem]),
         Builtin::SlotDrop => (2, unit, vec![i32_ty]),
+        // No `IntrinsicOp::SlotCopy`: `mir/build/buf.rs` lowers `slotCopy` to `IntrinsicOp::SlotStore` (after copying a closure environment into `this`'s arena).
         Builtin::SlotCopy => (3, unit, vec![i32_ty, elem]),
         Builtin::SlotTake => (2, elem, vec![i32_ty]),
         Builtin::RefNone => (0, elem, vec![]),
