@@ -1,0 +1,55 @@
+// exit: 0
+// WHAT THIS TESTS
+// Growing a `Vec` frees the old backing storage (#363). Many pushes cross several growth steps; contents survive each
+// copy, a later allocation reuses the freed block, and the `-g` build finds no access to a freed range. Covers a scalar
+// element, a `String` element (24-byte stride) and a `Ref` element (old slots zeroed, not freed).
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    var v = Vec::<i32>()
+    var i = 0
+    while (i < 1000) {
+        v.push(i)
+        i = i + 1
+    }
+    var sum = 0
+    var j = 0
+    while (j < v.len()) {
+        sum = sum + v[j]
+        j = j + 1
+    }
+    if (sum != 499500) { return 1 }
+
+    var s = Vec::<String>()
+    var k = 0
+    while (k < 50) {
+        s.push("abcdef")
+        k = k + 1
+    }
+    var total = 0
+    var m = 0
+    while (m < s.len()) {
+        val e = &s[m]
+        total = total + e.length
+        m = m + 1
+    }
+    if (total != 300) { return 2 }
+
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    {
+        var w = Vec::<Ref<Node>>()
+        var q = 0
+        while (q < 40) {
+            w.push(r)
+            q = q + 1
+        }
+        if (strongCount(r) + weakCount(r) != s0 + w0 + 40) { return 3 }
+    }
+    if (strongCount(r) != s0 || weakCount(r) != w0) { return 4 }
+    return 0
+}

@@ -777,6 +777,11 @@ class Vec<i32> size=24 align=8 fields=[0, 16]
 class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/get_negative_aborts.bork
 class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/grow_frees_old_buffer.bork
+class Node size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+class Vec<String> size=24 align=8 fields=[0, 16]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/grow_past_page.bork
 class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/index_call_result.bork

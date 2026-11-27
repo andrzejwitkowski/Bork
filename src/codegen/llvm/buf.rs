@@ -76,8 +76,8 @@ impl<'ctx> Codegen<'ctx> {
         self.buf_store(buf, index, elem, copied.into())
     }
 
-    /// A new buffer of `new_cap` (already known larger) in `arena` holding the old `cap` slots; the old one stays
-    /// until its arena dies (no `bork_arena_grow`).
+    /// A new buffer of `new_cap` (already known larger) in `arena` holding the old `cap` slots. Growth consumes the old
+    /// buffer: its storage is freed (except `Buf<Ref<T>>`, which stays until its arena dies), so the old `Buf` is dead.
     pub(in crate::codegen::llvm) fn buf_grow(&self, arena: PointerValue<'ctx>, buf: StructValue<'ctx>, new_cap: IntValue<'ctx>, elem: TyId) -> Result<StructValue<'ctx>, Diagnostic> {
         let (_, stride, align) = self.elem_storage(elem)?;
         let grown = self.buf_alloc(arena, elem, new_cap)?;
@@ -95,7 +95,12 @@ impl<'ctx> Codegen<'ctx> {
         self.builder.build_memcpy(new, align as u32, old, align as u32, bytes)?;
         if self.tcx.is_managed_ref(elem) {
             // The handles moved: zero the old slots so the old buffer's registered drop releases nothing twice.
+            // shortcut: the old slots are not freed, their registered drop (`BufHeader`) is out of reach here;
+            // free them once growth can disarm it (#362); until then growth of `Buf<Ref<T>>` keeps every old buffer.
             self.builder.build_memset(old, 1, self.context.i8_type().const_zero(), bytes)?;
+        } else {
+            // No drop is registered on the old slots: return them (`bytes` is the size they were allocated with).
+            self.builder.build_call(self.arena_free_fn(), &[arena.into(), old.into(), bytes.into()], "")?;
         }
         self.builder.build_unconditional_branch(done)?;
         self.position_at_end(done);

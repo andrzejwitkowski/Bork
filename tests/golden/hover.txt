@@ -282,7 +282,7 @@ programs/build/traits/display_impl.bork: hits=20 hash=8af5b1da0b082e71
 programs/build/traits/eq_bound.bork: hits=32 hash=ec5de37db466a793
 programs/build/traits/eq_ord_generic.bork: hits=72 hash=ba68fcc71fd090f6
 programs/build/traits/eq_ord_operators.bork: hits=95 hash=dbb64698417248b5
-programs/build/traits/iterator_adapter_fn_return.bork: hits=96 hash=e14db5ccc98fe9c4
+programs/build/traits/iterator_adapter_fn_return.bork: hits=95 hash=6670f8983e3ce7d8
 programs/build/traits/iterator_adapter_generic_helper.bork: hits=17 hash=42217ea6d8138d2c
 programs/build/traits/iterator_adapter_generic_return.bork: hits=19 hash=a94f3c2db85c2a75
 programs/build/traits/iterator_for.bork: hits=35 hash=a654cb71d2eda2bb
@@ -311,6 +311,7 @@ programs/build/vec/element_view_read.bork: hits=35 hash=60a4a45168922f86
 programs/build/vec/factory_names_shadowed.bork: hits=64 hash=dcaa5b6d7b4a40e3
 programs/build/vec/get_between_len_and_cap_aborts.bork: hits=16 hash=f1389f64e42a5524
 programs/build/vec/get_negative_aborts.bork: hits=10 hash=87d3a34260b4031b
+programs/build/vec/grow_frees_old_buffer.bork: hits=156 hash=d9cdd0d1ef69cdb7
 programs/build/vec/grow_past_page.bork: hits=32 hash=73d0bd5055d70e56
 programs/build/vec/index_call_result.bork: hits=38 hash=1507fd40c7cf3032
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90

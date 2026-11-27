@@ -3,7 +3,8 @@
 opaque class Vec<T> {
     buf: Buf<T>
     n: i32
-    // Grows to exactly `cap` slots; the buffer is allocated in this vector's own arena.
+    // Grows to exactly `cap` slots; the buffer is allocated in this vector's own arena. Growth consumes the old
+    // backing storage, so a copy of `this.buf` taken before the call must not be used afterwards.
     fun reserveExact(cap: i32) {
         unsafe {
             val old = this.buf

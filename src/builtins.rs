@@ -104,7 +104,7 @@ pub(crate) fn hover_doc(name: &str) -> Option<&'static str> {
         Builtin::RefNone => "`refNone<T>(): T`\nThe `None` handle of a `Ref<C>` type `T`. `unsafe` only.",
         Builtin::SlotDrop => "`slotDrop<T>(b: &Buf<T>, i: i32)`\nReleases the `Ref` in slot `i` and leaves it `None`; does nothing for other slot types. Aborts outside `0..cap`. `unsafe` only.",
         Builtin::BufGrow => {
-            "`bufGrow<T>(b: &Buf<T>, newCap: i32): Buf<T>`\nA bigger copy in the arena of `this` (`b` must have been allocated in `this`'s arena); aborts unless `newCap > cap`. `unsafe` only."
+            "`bufGrow<T>(b: &Buf<T>, newCap: i32): Buf<T>`\nA bigger copy in the arena of `this` (`b` must have been allocated in `this`'s arena); aborts unless `newCap > cap`. Consumes `b`: the old storage is freed (kept until the arena dies for `Ref` elements), so `b` must not be used afterwards. `unsafe` only."
         }
         Builtin::Abort => "`abort()`\nStops the program. `unsafe` only.",
         Builtin::ArenaOf => "`arenaOf(this): Arena`\nThe arena the receiver lives in. `unsafe` only.",
