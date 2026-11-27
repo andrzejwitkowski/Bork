@@ -190,16 +190,21 @@ mod tests {
         module.print_to_string().to_string()
     }
 
-    /// Growth frees the old slots (#363) except for `Buf<Ref<T>>`, whose registered drop still reads them.
+    /// Growth frees the old slots (#363), with the size they were allocated with, except for `Buf<Ref<T>>`, whose
+    /// registered drop still reads them.
     #[test]
     fn buf_grow_frees_old_storage_except_for_ref_elements() {
-        let grow = |elem: &str, init: &str| {
-            ir_of(&format!("class C {{ id: i32 }}\nfun main() {{ var v = Vec::<{elem}>()\n v.push({init}) }}\n"))
+        let reserve_exact = |elem: &str, init: &str| {
+            let ir = ir_of(&format!("class C {{ id: i32 }}\nfun main() {{ var v = Vec::<{elem}>()\n v.push({init}) }}\n"));
+            let start = ir.find(&format!("define internal void @\"bork.Vec.reserveExact<{elem}>\"(")).expect("reserveExact instance");
+            let body = &ir[start..];
+            body[..body.find("\n}\n").expect("end of function")].to_string()
         };
-        let scalar = grow("i32", "1");
-        assert!(scalar.contains("call void @bork_arena_free("), "{scalar}");
-        let managed = grow("Ref<C>", "C(1)");
+        let scalar = reserve_exact("i32", "1");
+        assert!(scalar.contains("call void @bork_arena_free(ptr %") && scalar.contains("i64 %buf.bytes.old)"), "{scalar}");
+        let managed = reserve_exact("Ref<C>", "C(1)");
         assert!(!managed.contains("@bork_arena_free"), "{managed}");
+        assert!(managed.contains("@llvm.memset"), "old Ref slots are zeroed instead: {managed}");
     }
 
     #[test]

@@ -7,7 +7,25 @@ class Node {
     id: i32
 }
 
+fun build(): Vec<i32> {
+    var v = Vec::<i32>()
+    var i = 0
+    while (i < 5) {
+        v.push(i)
+        i = i + 1
+    }
+    return v
+}
+
 fun main(): i32 {
+    // A returned (promoted) Vec is copied into the caller's arena; growing it afterwards frees in that arena.
+    var moved = build()
+    var z = 0
+    while (z < 100) {
+        moved.push(z)
+        z = z + 1
+    }
+    if (moved.len() != 105) { return 5 }
     var v = Vec::<i32>()
     var i = 0
     while (i < 1000) {

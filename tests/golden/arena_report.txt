@@ -10506,7 +10506,15 @@ Arenas
             └── i [Copy]
 == programs/build/vec/grow_frees_old_buffer.bork
 Arenas
+├── fun build
+│   ├── v [Local]
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── v [Borrow ← fun build]
+│       └── i [Copy]
 ├── fun main
+│   ├── moved [Local]
+│   ├── z [Local]
 │   ├── v [Local]
 │   ├── i [Local]
 │   ├── sum [Local]
@@ -10519,6 +10527,10 @@ Arenas
 │   ├── r [Local]
 │   ├── s0 [Local]
 │   ├── w0 [Local]
+│   ├── WhileLoop
+│   │   ├── moved [Borrow ← fun main]
+│   │   └── z [Copy]
+│   ├── IfThen
 │   ├── WhileLoop
 │   │   ├── v [Borrow ← fun main]
 │   │   └── i [Copy]

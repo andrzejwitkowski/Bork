@@ -1081,10 +1081,10 @@ programs/build/vec/element_view_read.bork: 3652..3655 Vec<String> Lexical Lexica
 programs/build/vec/factory_names_shadowed.bork: 3652..3655 Vec<i32> Lexical LexicalScope(3)
 programs/build/vec/get_between_len_and_cap_aborts.bork: 3652..3655 Vec<i32> Lexical LexicalScope(1)
 programs/build/vec/get_negative_aborts.bork: 3652..3655 Vec<i32> Lexical LexicalScope(1)
-programs/build/vec/grow_frees_old_buffer.bork: 958..962 Node Dynamic Program
-programs/build/vec/grow_frees_old_buffer.bork: 3652..3655 Vec<Ref<Node>> Lexical LexicalScope(11)
-programs/build/vec/grow_frees_old_buffer.bork: 3652..3655 Vec<String> Lexical LexicalScope(11)
-programs/build/vec/grow_frees_old_buffer.bork: 3652..3655 Vec<i32> Lexical LexicalScope(11)
+programs/build/vec/grow_frees_old_buffer.bork: 1357..1361 Node Dynamic Program
+programs/build/vec/grow_frees_old_buffer.bork: 3652..3655 Vec<Ref<Node>> Lexical LexicalScope(15)
+programs/build/vec/grow_frees_old_buffer.bork: 3652..3655 Vec<String> Lexical LexicalScope(15)
+programs/build/vec/grow_frees_old_buffer.bork: 3652..3655 Vec<i32> Lexical LexicalScope(15)
 programs/build/vec/grow_past_page.bork: 3652..3655 Vec<i32> Lexical LexicalScope(3)
 programs/build/vec/index_call_result.bork: 3652..3655 Vec<i32> Lexical LexicalScope(4)
 programs/build/vec/index_through_field.bork: 170..171 H Dynamic Program
