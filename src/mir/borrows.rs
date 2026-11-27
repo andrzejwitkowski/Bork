@@ -148,7 +148,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
             lock_conflicts(body, &vec_call_receivers, &s.kind, s.span, &st, after, &names, &mut found);
             match &s.kind {
                 StmtKind::Intrinsic { dst: Some(dst), op: op @ (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw), args, .. } if dst.is_bare() && !args.is_empty() => {
-                    open_view(&mut st, dst, &args[0], *op == IntrinsicOp::SlotViewRw);
+                    open_view(body, &mut st, dst, &args[0], *op == IntrinsicOp::SlotViewRw, after, &names, s.span, &mut found);
                 }
                 StmtKind::Borrow { dst, src, rw } if dst.is_bare() => {
                     let inherited = src.is_bare().then(|| st.get(&src.local).cloned()).flatten();
@@ -201,7 +201,7 @@ pub fn check(body: &Body) -> Vec<(Span, String)> {
                     for (holder, loan) in st.iter().filter(|(h, _)| live[i].1.contains(h) && **h != recv.local).flat_map(|(h, ls)| ls.iter().map(move |l| (*h, l))) {
                         // Not through a reborrow of the receiver itself (`v.push(..)` inside a callee holding `&rw v`).
                         let own = st.get(&recv.local).is_some_and(|ls| ls.iter().any(|l| l.via.contains(&holder)));
-                        if (mutates || (loan.elem && loan.rw)) && !own && reaches(&st, recv.local, loan.root.local) {
+                        if (mutates || (loan.elem && loan.rw)) && !own && reaches(&st, recv, &loan.root) {
                             let held = if loan.elem { "a view of one of its elements" } else { "a borrow of it" };
                             let msg = format!("cannot call `{method}` on `{}` while `{}`, {held}, is still in use", name(body, loan.root.local, &names), name(body, holder, &names));
                             if !found.contains(&(*span, msg.clone())) {
@@ -268,11 +268,24 @@ pub(crate) fn vec_mutates(method: &str) -> bool {
 
 /// `dst` becomes a view of one element of the Vec `receiver` names. Through an alias (`val a = &rw v; &a[0]`) the Vec is the
 /// alias's own root.
-fn open_view(st: &mut Loans, dst: &Place, receiver: &Operand, rw: bool) {
+fn open_view(body: &Body, st: &mut Loans, dst: &Place, receiver: &Operand, rw: bool, after: &HashSet<Local>, names: &HashMap<Local, String>, span: Span, found: &mut Vec<(Span, String)>) {
     let roots: Vec<Place> = match receiver.place().filter(|p| p.is_bare()) {
         Some(p) => st.get(&p.local).map_or_else(|| vec![p.clone()], |ls| ls.iter().map(|l| l.root.clone()).collect()),
         None => Vec::new(),
     };
+    // Opening a view conflicts with a live ordinary loan on the same place (not an ancestor of the receiver) when either side is `&rw`.
+    let recv = receiver.place().map(|p| p.local);
+    for root in &roots {
+        let new = Loan { root: root.clone(), rw, elem: true, via: Vec::new(), reserved: false };
+        for (holder, held) in st.iter().filter(|(h, _)| Some(**h) != recv && **h != dst.local && after.contains(h) && !recv.and_then(|r| st.get(&r)).is_some_and(|ls| ls.iter().any(|l| l.via.contains(h)))) {
+            if let Some(old) = held.iter().find(|o| !o.elem && overlap(&o.root, root) && (rw || o.rw)) {
+                let msg = general_message(body, *holder, old, &new, names);
+                if !found.contains(&(span, msg.clone())) {
+                    found.push((span, msg));
+                }
+            }
+        }
+    }
     if roots.is_empty() {
         st.remove(&dst.local);
     } else {
@@ -284,8 +297,8 @@ fn open_view(st: &mut Loans, dst: &Place, receiver: &Operand, rw: bool) {
 /// (`push` may reallocate the buffer the view points into). Reads are fine under a shared view; an `&rw` view
 /// is exclusive.
 /// Whether `local` is `root` or holds a loan on it (`val alias = &rw v` reaches `v`; `v.push(..)` passes `&v` in a temporary).
-fn reaches(st: &Loans, local: Local, root: Local) -> bool {
-    local == root || st.get(&local).is_some_and(|ls| ls.iter().any(|l| l.root.local == root))
+fn reaches(st: &Loans, place: &Place, root: &Place) -> bool {
+    overlap(place, root) || st.get(&place.local).is_some_and(|ls| ls.iter().any(|l| overlap(&l.root, root)))
 }
 
 fn lock_conflicts(body: &Body, vec_call_receivers: &HashSet<Local>, kind: &StmtKind, span: Span, st: &Loans, after: &HashSet<Local>, names: &HashMap<Local, String>, found: &mut Vec<(Span, String)>) {
@@ -320,13 +333,13 @@ fn lock_conflicts(body: &Body, vec_call_receivers: &HashSet<Local>, kind: &StmtK
         let what = match kind {
             // Taking `&rw v` under a view, or any borrow of `v` under an `&rw` view.
             StmtKind::Intrinsic { op: op @ (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw), args, .. }
-                if loan.elem && (*op == IntrinsicOp::SlotViewRw || loan.rw) && args.first().and_then(|a| a.place()).is_some_and(|p| reaches(st, p.local, root)) =>
+                if loan.elem && (*op == IntrinsicOp::SlotViewRw || loan.rw) && args.first().and_then(|a| a.place()).is_some_and(|p| reaches(st, p, &loan.root)) =>
             {
                 "borrow an element of".to_string()
             }
             // The receiver temp of a `Vec` method call (`v.push(..)` passes `&rw v`): the call, not the borrow, is reported.
             StmtKind::Borrow { dst, .. } if loan.elem && vec_call_receivers.contains(&dst.local) => continue,
-            StmtKind::Borrow { src, rw, .. } if loan.elem && reaches(st, src.local, root) && (*rw || loan.rw) => "borrow".into(),
+            StmtKind::Borrow { src, rw, .. } if loan.elem && reaches(st, src, &loan.root) && (*rw || loan.rw) => "borrow".into(),
             _ if kill.contains(&root) || (!loan.elem && written.iter().any(|w| overlap(w, &loan.root))) => "assign to".into(),
             _ if moved.contains(&root) => "move".into(),
             _ => continue,

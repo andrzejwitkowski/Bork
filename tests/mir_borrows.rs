@@ -151,3 +151,27 @@ fn a_move_in_a_call_conflicts_with_a_borrow_whose_last_use_is_that_call() {
     let found = diagnostics(src).expect("builds");
     assert!(found.iter().any(|m| m.contains("cannot move `a` while")), "{found:?}");
 }
+
+#[test]
+fn opening_an_element_view_conflicts_with_a_live_borrow_of_the_vec() {
+    let w = string_vec_main;
+    let found = w("    val a = &rw v\n    val e = &v[0]\n    val n = a.len()\n");
+    assert!(found.iter().any(|m| m.contains("borrows `v` while")), "{found:?}");
+    let found = w("    val a = &v\n    val e = &rw v[0]\n    val n = a.len()\n");
+    assert!(found.iter().any(|m| m.contains("borrows `v` while")), "{found:?}");
+    assert_eq!(w("    val a = &v\n    val e = &v[0]\n    val n = a.len()\n    val x = e.length\n"), Vec::<String>::new());
+    assert_eq!(w("    val a = &rw v\n    val n = a.len()\n    val e = &v[0]\n"), Vec::<String>::new());
+    assert_eq!(w("    val a = &rw v\n    val e = &a[0]\n"), Vec::<String>::new());
+}
+
+#[test]
+fn writing_a_vec_under_a_live_element_view_is_rejected() {
+    let w = string_vec_main;
+    let found = w("    val e = &v[0]\n    v.push(\"b\")\n    val x = e.length\n");
+    assert!(found.iter().any(|m| m.contains("cannot call `push` on `v` while `e`")), "{found:?}");
+    assert_eq!(w("    val e = &v[0]\n    val x = e.length\n    v.push(\"b\")\n"), Vec::<String>::new());
+}
+
+fn string_vec_main(body: &str) -> Vec<String> {
+    diagnostics(&format!("fun main() {{\n    var v = Vec::<String>()\n    v.push(\"a\")\n{body}}}\n")).expect("builds")
+}
