@@ -86,7 +86,7 @@ impl<'ctx> Codegen<'ctx> {
         let cap = self.builder.build_int_s_extend(self.buf_cap(buf)?, self.context.i64_type(), "buf.cap.old")?;
         let bytes = self.builder.build_int_mul(cap, self.word(stride as u64), "buf.bytes.old")?;
         // An empty old buffer (possibly `bufEmpty`'s null pointer) has nothing to copy or zero.
-        let function = self.builder.get_insert_block().and_then(|b| b.get_parent()).expect("inside a function");
+        let function = self.builder.get_insert_block().and_then(|b| b.get_parent()).ok_or_else(|| super::not_yet_supported("bufGrow outside a function", None))?;
         let copy = self.context.append_basic_block(function, "buf.grow.copy");
         let done = self.context.append_basic_block(function, "buf.grow.done");
         let nonempty = self.builder.build_int_compare(inkwell::IntPredicate::NE, cap, self.word(0), "buf.nonempty")?;
