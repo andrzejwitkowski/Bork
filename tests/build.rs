@@ -1156,3 +1156,19 @@ fn buf_explicit_abort_and_negative_alloc_abort() {
     let run = buf_run("buf_alloc_negative", "        val b = h.fresh(0 - 1)\n        return 0");
     assert_eq!(run.signal(), Some(libc_sigabrt()), "{run:?}");
 }
+
+/// `Buf<T>?` is an `Option<Buf<T>>` like any other enum payload: it builds and runs (#351), it is not a codegen panic.
+#[test]
+fn nullable_buf_builds_and_runs() {
+    let source = "unsafe fun f(b: Buf<i32>?): i32 {\n    return 1\n}\nfun main(): i32 {\n    unsafe {\n        return f(None)\n    }\n}\n";
+    let checked = bork::frontend::check_allowing_unsafe(source);
+    assert!(checked.is_ok(), "{:?}", checked.diagnostics);
+    let binary = scratch_dir("buf_nullable").join("main");
+    if let Err(e) = bork::codegen::build(&checked, &binary) {
+        panic!("build failed: {}", match e {
+            bork::codegen::BuildError::Diagnostics(d) => format!("{d:?}"),
+            bork::codegen::BuildError::Toolchain(m) => m,
+        });
+    }
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(1));
+}
