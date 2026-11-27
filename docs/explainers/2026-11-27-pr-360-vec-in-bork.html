@@ -184,6 +184,55 @@ th{background:#f3f0e8}
 
 <div class="callout"><b class="t">Large buffers</b>The arena puts blocks over 2048 bytes outside its pages, in their own system allocation. A <code>Vec&lt;i32&gt;</code> crosses that line at 513 elements (cap 1024 = 4096 B). It changes where the bytes live, not who owns them: the arena still releases the block when it ends.</div>
 
+<h3>Two vectors filled in one loop</h3>
+<p>A question worth asking: what if two vectors grow side by side?</p>
+<pre>val wektor  = Vec::&lt;i32&gt;()
+val wektor2 = Vec::&lt;i32&gt;()
+for (i in 0..10) {
+    wektor.push(x)
+    wektor2.push(y)
+}</pre>
+<p>(In real Bork both would be <code>var</code>, since <code>push</code> mutates. Assume ten iterations and <code>i32</code> elements.) Three things decide the layout.</p>
+<ol>
+<li><strong>Both objects live in the same arena.</strong> Both are declared in <code>main</code>'s block, so each 24-byte <code>Vec</code> object goes into that block's arena, call it A. Each <code>Vec::&lt;i32&gt;()</code> also creates a <code>VecSeed</code> in its own fresh dynamic arena, which stays empty and lives until exit (#358). Those seeds are not part of A.</li>
+<li><strong>Buffers go to <code>arenaOf(this)</code>, which is A, not the loop.</strong> The loop body has its own region that is reset after every iteration. A buffer allocated by <code>bufGrow</code> is placed in the vector's arena, so growth during iteration 4 does not land in the iteration's region and is not wiped when the iteration ends.</li>
+<li><strong>Growth is interleaved.</strong> Both vectors run the same schedule (4, 8, 16), so they grow in the same iterations, one right after the other, and the arena hands out addresses in call order.</li>
+</ol>
+<div class="fig">
+<div class="lbl">allocation order in arena A, left to right (bump allocation, nothing is freed)</div>
+<div class="arena"><div class="title">arena A (main's block)</div>
+<div class="row" style="min-width:760px">
+<div class="cell obj w2">wektor<small>obj 24 B</small></div>
+<div class="cell obj w2">wektor2<small>obj 24 B</small></div>
+<div class="cell old w1">w1 &middot; cap 4<small>16 B, i=0</small></div>
+<div class="cell old w1">w2 &middot; cap 4<small>16 B, i=0</small></div>
+<div class="cell old w2">w1 &middot; cap 8<small>32 B, i=4</small></div>
+<div class="cell old w2">w2 &middot; cap 8<small>32 B, i=4</small></div>
+<div class="cell buf w4">w1 &middot; cap 16<small>64 B, i=8, live</small></div>
+<div class="cell buf w4">w2 &middot; cap 16<small>64 B, i=8, live</small></div>
+</div></div>
+<div class="lbl">grey = abandoned old buffers, green = current buffers</div>
+<table style="margin-top:10px">
+<tr><th>iteration</th><th>wektor</th><th>wektor2</th><th>new allocation in A</th></tr>
+<tr><td>0</td><td>push &rarr; n=1, grows 0&rarr;4</td><td>push &rarr; n=1, grows 0&rarr;4</td><td>16 B + 16 B</td></tr>
+<tr><td>1&ndash;3</td><td>n=2, 3, 4</td><td>n=2, 3, 4</td><td>none</td></tr>
+<tr><td>4</td><td>n=5, grows 4&rarr;8, copies 4</td><td>n=5, grows 4&rarr;8, copies 4</td><td>32 B + 32 B</td></tr>
+<tr><td>5&ndash;7</td><td>n=6, 7, 8</td><td>n=6, 7, 8</td><td>none</td></tr>
+<tr><td>8</td><td>n=9, grows 8&rarr;16, copies 8</td><td>n=9, grows 8&rarr;16, copies 8</td><td>64 B + 64 B</td></tr>
+<tr><td>9</td><td>n=10</td><td>n=10</td><td>none</td></tr>
+</table>
+<div class="cap">After the loop: each vector has <code>n = 10</code>, <code>cap = 16</code>.</div>
+</div>
+<p>Totals in arena A, by the arithmetic above (arena page and alignment overhead not counted):</p>
+<ul>
+<li><strong>Objects:</strong> 2 &times; 24 = 48 B.</li>
+<li><strong>Live buffers:</strong> 2 &times; 64 = 128 B, of which 2 &times; 40 = 80 B hold data and 2 &times; 24 = 48 B are spare capacity.</li>
+<li><strong>Abandoned buffers:</strong> 2 &times; (16 + 32) = 96 B, unreachable but kept until A ends.</li>
+<li><strong>Total:</strong> 272 B in A. All blocks are well below the 2048-byte threshold, so they sit in A's first 4096-byte page.</li>
+</ul>
+<div class="callout"><b class="t">What interleaving costs</b>The two live buffers are not adjacent and each is separated from the other by abandoned blocks. For two small vectors this is harmless. With many vectors that grow together, the abandoned blocks make up a growing share of the arena, and a long-lived arena keeps them until it ends. A vector that is created and filled in its own short-lived block avoids this, because its arena goes away with it.</div>
+<div class="callout warn"><b class="t">One thing the loop does change</b>If a <code>for</code> body declared a <em>new</em> vector (<code>val tmp = Vec::&lt;i32&gt;()</code> inside the loop), that vector's object and buffers would be in the iteration's region and would be wiped on every reset. Here both vectors are declared outside the loop, so the loop only appends to them.</div>
+
 <h2 id="refs">5. Vectors of <code>Ref</code>, <code>String</code> and closures</h2>
 <p>For plain scalars a buffer is just bytes. The other element types own something, and that is what the buffer glue added in this PR is for.</p>
 
