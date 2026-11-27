@@ -206,3 +206,11 @@ fn locals_named_like_the_vec_factories_do_not_shadow_them() {
 fn indexing_a_generic_call_result_infers_the_type_parameter_once() {
     super::hir_of("fun empty<T>(): Vec<T> {\n    return Vec::<T>()\n}\nfun main(): i32 {\n    val x: i32 = empty()[0]\n    return x\n}\n");
 }
+
+#[test]
+fn buf_element_must_be_a_supported_type() {
+    let d = prelude_diags("class C {\n    n: i32\n}\nunsafe fun f(b: &Buf<C>) {}\nfun main() {}\n");
+    assert!(d.iter().any(|d| d.message.contains("`Buf` element must be")), "{d:?}");
+    let d = prelude_diags("unsafe fun f(b: &Buf<i32>) {}\nfun main() {}\n");
+    assert!(d.is_empty(), "{d:?}");
+}

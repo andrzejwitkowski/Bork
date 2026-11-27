@@ -156,6 +156,15 @@ impl LowerCx<'_> {
                 self.error(message);
             }
         }
+        if Some(class) == self.tcx.buf_def() {
+            // Codegen lowers only these elements (`plain_buf`); reject the rest here, with a span.
+            let elem = args[0];
+            let is_param = matches!(self.tcx.data(elem), TyData::Param(_));
+            if !self.tcx.is_unknown(elem) && !is_param && !self.tcx.is_vec_elem_supported(elem) {
+                let message = self.tcx.buf_elem_message(elem);
+                self.error(message);
+            }
+        }
         let ty = if is_enum { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
         self.nullable_if(ty, nullable)
     }
