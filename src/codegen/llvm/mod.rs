@@ -190,6 +190,18 @@ mod tests {
         module.print_to_string().to_string()
     }
 
+    /// Growth frees the old slots (#363) except for `Buf<Ref<T>>`, whose registered drop still reads them.
+    #[test]
+    fn buf_grow_frees_old_storage_except_for_ref_elements() {
+        let grow = |elem: &str, init: &str| {
+            ir_of(&format!("class C {{ id: i32 }}\nfun main() {{ var v = Vec::<{elem}>()\n v.push({init}) }}\n"))
+        };
+        let scalar = grow("i32", "1");
+        assert!(scalar.contains("call void @bork_arena_free("), "{scalar}");
+        let managed = grow("Ref<C>", "C(1)");
+        assert!(!managed.contains("@bork_arena_free"), "{managed}");
+    }
+
     #[test]
     fn debug_local_shadowing_parameter_is_not_an_argument() {
         let source = "fun bump(x: i32): i32 {\n val x = x + 1\n return x\n}\nfun main(): i32 { return bump(1) }\n";
