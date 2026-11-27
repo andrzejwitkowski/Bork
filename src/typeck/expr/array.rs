@@ -134,11 +134,16 @@ pub(super) fn check_index_as(
     let diagnostics_before = env.diagnostics.len();
     let receiver_hir = synthesize(receiver, return_ty, env);
     if !keep_index && is_vec_class(receiver_hir.ty, env) {
-        // The method call below checks the receiver again, so what this first pass reported is dropped to report it once.
-        env.diagnostics.truncate(diagnostics_before);
-        // `v[i]` on the Bork `Vec` is `v.get(i)`; a receiver that is not a place (`make()[i]`) is borrowed through a temporary.
+        // `v[i]` on the Bork `Vec` is `v.get(i)`.
         let site = CallSite { span, args: std::slice::from_ref(index), return_ty };
-        return super::method::check_method_call_on(receiver, "get", false, AstId::DUMMY, site, true, env);
+        if super::method::is_place(receiver) {
+            // The method call checks the place receiver again, so what this first pass reported is dropped to report it once.
+            env.diagnostics.truncate(diagnostics_before);
+            let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
+            return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
+        }
+        // A receiver that is not a place (`make()[i]`) is borrowed through a temporary; it is checked once, here.
+        return super::method::check_method_call_on(receiver, "get", false, AstId::DUMMY, site, Some(receiver_hir), env);
     }
     let i32_ty = env.tcx.i32();
     let index_hir = check(index, i32_ty, return_ty, env);

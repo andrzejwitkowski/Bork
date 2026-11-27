@@ -20,29 +20,33 @@ pub(super) fn check_method_call(
     site: CallSite<'_>,
     env: &mut Env<'_>,
 ) -> Checked {
-    check_method_call_on(receiver, method, safe, id, site, false, env)
+    check_method_call_on(receiver, method, safe, id, site, None, env)
 }
 
-/// `check_method_call`; with `temp_receiver` a non-place receiver (`make()[i]`) is allowed: MIR lowers the borrow of an
-/// rvalue into a temporary, evaluated once where the expression stands.
+/// `check_method_call`; with `checked_temp` (the receiver already checked) a non-place receiver (`make()[i]`) is allowed:
+/// MIR lowers the borrow of an rvalue into a temporary, evaluated once where the expression stands. The receiver is not
+/// checked a second time, so its errors and inference variables are not duplicated.
 pub(super) fn check_method_call_on(
     receiver: &Expr,
     method: &str,
     safe: bool,
     id: AstId,
     site: CallSite<'_>,
-    temp_receiver: bool,
+    checked_temp: Option<Checked>,
     env: &mut Env<'_>,
 ) -> Checked {
     let CallSite { span, args, return_ty, .. } = site;
-    if !temp_receiver && !is_place(receiver) {
+    if checked_temp.is_none() && !is_place(receiver) {
         env.error(
             "method receiver must be a named value; bind it to a `val` first",
             Some(span),
         );
         return poisoned(args, span, return_ty, env);
     }
-    let checked = synthesize(receiver, return_ty, env);
+    let checked = match checked_temp {
+        Some(checked) => checked,
+        None => synthesize(receiver, return_ty, env),
+    };
     if env.tcx.is_unknown(checked.ty) {
         return poisoned(args, span, return_ty, env);
     }

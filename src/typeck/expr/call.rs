@@ -271,11 +271,16 @@ fn check_factory_call(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let signature = env.fun_sig(factory).cloned().expect("the prelude defines the Vec factories");
+    let Some(signature) = env.fun_sig(factory).cloned() else {
+        env.error(format!("prelude function `{factory}` is missing"), Some(span));
+        return super::method::poisoned(args, span, return_ty, env);
+    };
     let Some((params, ret)) = instantiate(factory, span, &signature, type_args, env) else {
         return super::method::poisoned(args, span, return_ty, env);
     };
-    if let Some(expected) = expected {
+    // A hint, as in `check_call`: only a generic factory, and not while its return type is a pending projection.
+    let pending_projection = env.projections.iter().any(|p| p.var == ret);
+    if let Some(expected) = expected.filter(|_| !signature.generics.is_empty() && !pending_projection) {
         env.same(ret, expected);
     }
     let mut call = finish_call(factory.to_string(), params, ret, None, CallSite { span, args, return_ty }, env);
