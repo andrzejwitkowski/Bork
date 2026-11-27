@@ -292,8 +292,9 @@ impl Arena {
             return;
         }
         let size = block_size(size);
-        self.live_bytes -= size;
         debug_assert!(self.owns(ptr), "free of a block this arena does not own");
+        debug_assert!(self.live_bytes >= size, "free of more bytes than the arena has live");
+        self.live_bytes = self.live_bytes.saturating_sub(size);
         // Membership, not size, picks the container: blocks grown in place or
         // over-aligned ones do not match their size class.
         if let Some(i) = self.large.iter().position(|(p, _)| *p == ptr) {

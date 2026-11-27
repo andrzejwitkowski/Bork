@@ -149,24 +149,23 @@ impl LowerCx<'_> {
                 self.error("`Vec` cannot be nullable");
                 return self.tcx.error();
             }
-            let elem = args[0];
-            let is_param = matches!(self.tcx.data(elem), TyData::Param(_));
-            if !self.tcx.is_unknown(elem) && !is_param && !self.tcx.is_vec_elem_supported(elem) {
-                let message = self.tcx.vec_elem_message(elem);
-                self.error(message);
-            }
+            self.check_elem(args[0], TyCtx::is_vec_elem_supported, TyCtx::vec_elem_message);
         }
         if Some(class) == self.tcx.buf_def() {
             // Codegen lowers only these elements (`plain_buf`); reject the rest here, with a span.
-            let elem = args[0];
-            let is_param = matches!(self.tcx.data(elem), TyData::Param(_));
-            if !self.tcx.is_unknown(elem) && !is_param && !self.tcx.is_vec_elem_supported(elem) {
-                let message = self.tcx.buf_elem_message(elem);
-                self.error(message);
-            }
+            self.check_elem(args[0], TyCtx::is_vec_elem_supported, TyCtx::buf_elem_message);
         }
         let ty = if is_enum { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
         self.nullable_if(ty, nullable)
+    }
+
+    /// Reports `message(elem)` unless `elem` is unknown, a type parameter (checked at instantiation) or supported.
+    fn check_elem(&mut self, elem: TyId, supported: fn(&TyCtx, TyId) -> bool, message: fn(&TyCtx, TyId) -> String) {
+        let is_param = matches!(self.tcx.data(elem), TyData::Param(_));
+        if !self.tcx.is_unknown(elem) && !is_param && !supported(self.tcx, elem) {
+            let message = message(self.tcx, elem);
+            self.error(message);
+        }
     }
 
     /// The definition `name` refers to and whether it is an enum; reports an unknown name.

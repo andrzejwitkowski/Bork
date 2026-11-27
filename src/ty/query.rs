@@ -390,13 +390,12 @@ impl TyCtx {
     /// these on written types, but exempts a type parameter ("checked at instantiation"), so the
     /// instantiated type has to be checked again once the parameter is known.
     pub fn ill_formed(&self, id: TyId) -> Option<String> {
-        let buf_bad = self.buf_elem_unsupported(id);
         match self.data(id) {
             TyData::ManagedRef(inner) if !self.is_unknown(*inner) && !self.managed_ref_target_ok(*inner) => {
                 Some(self.managed_ref_target_message(*inner))
             }
             TyData::Class(..) if self.vec_elem_unsupported(id) => self.vec_elem(id).map(|elem| self.vec_elem_message(elem)),
-            TyData::Class(..) if buf_bad.is_some() => buf_bad.map(|elem| self.buf_elem_message(elem)),
+            TyData::Class(..) if self.buf_elem_unsupported(id).is_some() => self.buf_elem_unsupported(id).map(|elem| self.buf_elem_message(elem)),
             data => self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.ill_formed(child))),
         }
     }
