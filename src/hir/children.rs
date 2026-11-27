@@ -39,8 +39,6 @@ impl HirExpr {
             HirExprKind::ArrayLit { elements } => elements.iter_mut().map(Expr).collect(),
             HirExprKind::Index { receiver, index, .. } => vec![Expr(receiver), Expr(index)],
             HirExprKind::Slice { receiver, lo, hi } => vec![Expr(receiver), Expr(lo), Expr(hi)],
-            HirExprKind::VecNew { cap, .. } => cap.iter_mut().map(|c| Expr(c)).collect(),
-            HirExprKind::VecOp { receiver, args, .. } => std::iter::once(Expr(receiver)).chain(args.iter_mut().map(Expr)).collect(),
             HirExprKind::Some(inner) | HirExprKind::RefCreate(inner) | HirExprKind::Unary { expr: inner, .. } => vec![Expr(inner)],
             HirExprKind::ObjectConstruct { fields, .. } | HirExprKind::EnumConstruct { fields, .. } => fields.iter_mut().map(Expr).collect(),
             HirExprKind::ObjectField { receiver, .. } | HirExprKind::Field { receiver, .. } => vec![Expr(receiver)],

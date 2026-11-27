@@ -10,13 +10,13 @@ fn main (parent=false, sink=false) {
   let _7: unit [Hidden(RegionArena)]
   let _8: unit [Hidden(DebugScope)]
   let _9: &Vec<String> [Temp]
-  let _10: i32 [Temp]
-  let _11: &Vec<String> [Temp]
-  let _12: i32 [Var] n
-  let _13: i32 [Var] longest
-  let _14: unit [Hidden(DebugScope)]
-  let _15: Vec<String> [Temp]
-  let _16: Vec<String> [Temp]
+  let _10: unit [Temp]
+  let _11: i32 [Temp]
+  let _12: &Vec<String> [Temp]
+  let _13: unit [Temp]
+  let _14: i32 [Var] n
+  let _15: i32 [Var] longest
+  let _16: unit [Hidden(DebugScope)]
   let _17: VecIter<String> [Temp]
   let _18: closure#0(String)->bool [Temp]
   let _19: Filter<VecIter<String>, closure#0(String)->bool> [Temp]
@@ -40,108 +40,231 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Vec { cap: None } in current
+    _2 = call vecNew<String>() +current +current -> bb1
+  bb1:
     _3 = copy _2  // label "v": Vec<String> decl
     _4 = 0  // label "i": i32 decl
     region_enter r1
     storage_live _6
-    goto bb1
-  bb1:
-    _5 = lt(copy _4, 3000)
-    switch copy _5 [ 1 -> bb2, else -> bb4]
+    goto bb2
   bb2:
+    _5 = lt(copy _4, 3000)
+    switch copy _5 [ 1 -> bb3, else -> bb5]
+  bb3:
     storage_live _8
     _9 = borrow _3
-    vec_Push(copy _9, "aa")
-    _10 = add(copy _4, 1)
-    _4 = copy _10
-    storage_dead _8
-    goto bb3
-  bb3:
-    _7 = region_reset r1
-    goto bb1
+    _10 = call Vec.push<String>(copy _9, "aa") +current -> bb6
   bb4:
+    _7 = region_reset r1
+    goto bb2
+  bb5:
     storage_dead _6
     region_exit r1
-    _11 = borrow _3
-    vec_Push(copy _11, "abcdefg")
-    _12 = 0  // label "n": i32 decl
-    _13 = 0  // label "longest": i32 decl
-    region_enter r2
-    storage_live _14
-    _15 = move _3
-    _16 = copy_into _15 in current
-    _17 = call iter<String>(copy _16) +current +current -> bb5
-  bb5:
-    _18 = closure main$closure0() in current
-    _19 = call filter<VecIter<String>,closure#0(String)->bool>(copy _17, copy _18) +current +current -> bb6
+    _12 = borrow _3
+    _13 = call Vec.push<String>(copy _12, "abcdefg") +current -> bb7
   bb6:
+    _11 = add(copy _4, 1)
+    _4 = copy _11
+    storage_dead _8
+    goto bb4
+  bb7:
+    _14 = 0  // label "n": i32 decl
+    _15 = 0  // label "longest": i32 decl
+    region_enter r2
+    storage_live _16
+    _17 = call iter<String>(move _3) +current +current -> bb8
+  bb8:
+    _18 = closure main$closure0() in current
+    _19 = call filter<VecIter<String>,closure#0(String)->bool>(copy _17, copy _18) +current +current -> bb9
+  bb9:
     _20 = copy _19  // label "?it": Filter<VecIter<String>, closure#0(String)->bool> decl
     region_enter r3
     storage_live _21
-    goto bb7
-  bb7:
-    switch true [ 1 -> bb8, else -> bb10]
-  bb8:
+    goto bb10
+  bb10:
+    switch true [ 1 -> bb11, else -> bb13]
+  bb11:
     storage_live _23
     _24 = borrow _20
-    _25 = call Iterator@2.next<VecIter<String>,closure#0(String)->bool>(copy _24) +current +current -> bb11
-  bb9:
+    _25 = call Iterator@2.next<VecIter<String>,closure#0(String)->bool>(copy _24) +current +current -> bb14
+  bb12:
     _22 = region_reset r3
-    goto bb7
-  bb10:
+    goto bb10
+  bb13:
     storage_dead _21
     region_exit r3
-    storage_dead _14
+    storage_dead _16
     region_exit r2
-    intrinsic PrintlnInt(copy _12)
-    intrinsic PrintlnInt(copy _13)
+    intrinsic PrintlnInt(copy _14)
+    intrinsic PrintlnInt(copy _15)
     _0 = 0
     storage_dead _1
     region_exit r0
     return
-  bb11:
-    match _25 {
-      Option#0(bind) _26=_25@0.0 -> bb13
-      Option#1() -> bb14
-    }
-  bb12:
-    storage_dead _23
-    goto bb9
-  bb13:
-    storage_live _27
-    _28 = add(copy _12, 1)
-    _12 = copy _28
-    _29 = len(_26)
-    _13 = copy _29
-    storage_dead _27
-    goto bb12
   bb14:
+    match _25 {
+      Option#0(bind) _26=_25@0.0 -> bb16
+      Option#1() -> bb17
+    }
+  bb15:
+    storage_dead _23
+    goto bb12
+  bb16:
+    storage_live _27
+    _28 = add(copy _14, 1)
+    _14 = copy _28
+    _29 = len(_26)
+    _15 = copy _29
+    storage_dead _27
+    goto bb15
+  bb17:
     storage_live _30
     storage_dead _30
     storage_dead _23
-    goto bb10
+    goto bb13
+}
+
+fn vecNew<String> (parent=true, sink=true) {
+  let _0: Vec<String> [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: VecSeed<String> [Temp]
+  let _4: VecSeed<String> [Val] seed
+  let _5: unit [Hidden(DebugScope)]
+  let _6: &VecSeed<String> [Temp]
+  let _7: Buf<String> [Temp]
+  let _8: Vec<String> [Temp]
+  let _9: Vec<String> [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _2
+    _3 = alloc Object { class: "VecSeed<String>" } in fresh2  // label "VecSeed<String>": VecSeed<String>
+    _3.0 = 0  // label "VecSeed<String>.n": i32 decl owner=fresh2
+    _4 = copy _3  // label "seed": VecSeed<String> decl
+    region_enter r1
+    storage_live _5
+    _6 = borrow _4
+    _7 = call VecSeed.empty<String>(copy _6) +current +result_sink -> bb1
+  bb1:
+    _8 = alloc Object { class: "Vec<String>" } in result_sink  // label "Vec<String>": Vec<String>
+    _8.0 = copy _7  // label "Vec<String>.buf": Buf<String> decl owner=result_sink
+    _8.1 = 0  // label "Vec<String>.n": i32 decl owner=result_sink
+    _9 = copy_into _8 in result_sink
+    _0 = copy _9
+    storage_dead _5
+    storage_dead _1
+    region_exit r1
+    region_exit r0
+    return
+}
+
+fn Vec.push<String> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: String [Arg] v
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Var] cap
+  let _5: unit [Hidden(DebugScope)]
+  let _6: Buf<String> [Temp]
+  let _7: i32 [Temp]
+  let _8: bool [Temp]
+  let _9: unit [Hidden(DebugScope)]
+  let _10: i32 [Temp]
+  let _11: i32 [Var] next
+  let _12: bool [Temp]
+  let _13: unit [Hidden(DebugScope)]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<String> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<String> [Val] b
+  let _20: i32 [Temp]
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 IfThen in r0
+  region r3 IfThen in r2
+  region r4 IfThen in r2
+  region r5 Block in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = 0  // label "cap": i32 decl
+    storage_live _5
+    _6 = copy _1.0
+    _7 = intrinsic BufCap(copy _6)
+    _4 = copy _7
+    storage_dead _5
+    _8 = eq(copy _1.1, copy _4)
+    switch copy _8 [ 1 -> bb1, else -> bb2]
+  bb1:
+    storage_live _9
+    _10 = mul(copy _4, 2)
+    _11 = copy _10  // label "next": i32 decl
+    _12 = eq(copy _11, 0)
+    switch copy _12 [ 1 -> bb3, else -> bb4]
+  bb2:
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<String> decl
+    _20 = copy _1.1
+    _21 = intrinsic BufCap(reborrow _19)
+    _22 = ge(copy _20, 0)
+    switch copy _22 [ 1 -> bb9, else -> bb8]
+  bb3:
+    storage_live _13
+    _11 = 4
+    storage_dead _13
+    goto bb4
+  bb4:
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
+  bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<String>(copy _16, copy _11) +current -> bb7
+  bb7:
+    storage_dead _9
+    goto bb2
+  bb8:
+    abort Bounds
+  bb9:
+    _23 = lt(copy _20, copy _21)
+    switch copy _23 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, copy _2) in object_arena(_1)
+    storage_dead _18
+    _24 = add(copy _1.1, 1)
+    _1.1 = copy _24  // label "Vec<String>.n": i32 decl owner=object_arena(_1)
+    storage_dead _3
+    region_exit r0
+    return
 }
 
 fn iter<String> (parent=true, sink=true) {
   let _0: VecIter<String> [Return]
   let _1: Vec<String> [Arg] v
   let _2: unit [Hidden(DebugScope)]
-  let _3: Vec<String> [Temp]
-  let _4: Vec<String> [Temp]
-  let _5: VecIter<String> [Temp]
-  let _6: Vec<String> [Temp]
+  let _3: VecIter<String> [Temp]
   region r0 Block
   bb0:
     storage_live _2
     region_enter r0
-    _3 = move _1
-    _4 = copy_into _3 in result_sink
-    _5 = alloc Object { class: "VecIter<String>" } in result_sink  // label "VecIter<String>": VecIter<String>
-    _6 = copy_into _4 in result_sink
-    _5.0 = copy _6  // label "VecIter<String>.v": Vec<String> decl owner=result_sink
-    _5.1 = 0  // label "VecIter<String>.i": i32 decl owner=result_sink
-    _0 = copy _5
+    _3 = alloc Object { class: "VecIter<String>" } in result_sink  // label "VecIter<String>": VecIter<String>
+    _3.0 = move _1  // label "VecIter<String>.v": Vec<String> decl owner=result_sink
+    _3.1 = 0  // label "VecIter<String>.i": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _2
     region_exit r0
     return
@@ -270,6 +393,57 @@ fn Iterator@2.next<VecIter<String>,closure#0(String)->bool> (parent=true, sink=t
     goto bb6
 }
 
+fn VecSeed.empty<String> (parent=true, sink=true) {
+  let _0: Buf<String> [Return]
+  let _1: &VecSeed<String> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Arena [Temp]
+  let _4: bool [Temp]
+  let _5: Buf<String> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic ArenaOf() in object_arena(_1)
+    _4 = ge(0, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort NegativeCapacity
+  bb2:
+    _5 = intrinsic BufAlloc(copy _3, 0)
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.reserveExact<String> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: i32 [Arg] cap
+  let _3: unit [Hidden(DebugScope)]
+  let _4: Buf<String> [Val] old
+  let _5: i32 [Temp]
+  let _6: bool [Temp]
+  let _7: Buf<String> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = copy _1.0  // label "old": Buf<String> decl
+    _5 = intrinsic BufCap(reborrow _4)
+    _6 = gt(copy _2, copy _5)
+    switch copy _6 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort BufGrow
+  bb2:
+    _7 = intrinsic BufGrow(reborrow _4, copy _2) in object_arena(_1)
+    _1.0 = copy _7  // label "Vec<String>.buf": Buf<String> decl owner=object_arena(_1)
+    storage_dead _3
+    region_exit r0
+    return
+}
+
 fn Iterator@0.next<String> (parent=true, sink=true) {
   let _0: String? [Return]
   let _1: &VecIter<String> [Arg] this
@@ -281,23 +455,23 @@ fn Iterator@0.next<String> (parent=true, sink=true) {
   let _7: String? [Temp]
   let _8: String? [Temp]
   let _9: &Vec<String> [Temp]
-  let _10: i32 [Temp]
-  let _11: String [Temp]
-  let _12: String [Val] x
-  let _13: i32 [Temp]
-  let _14: String? [Temp]
-  let _15: String [Temp]
-  let _16: String? [Temp]
+  let _10: String [Temp]
+  let _11: String [Val] x
+  let _12: i32 [Temp]
+  let _13: String? [Temp]
+  let _14: String [Temp]
+  let _15: String? [Temp]
   region r0 Block
   region r1 IfThen in r0
   bb0:
     storage_live _2
     region_enter r0
     _3 = borrow _1.0
-    _4 = vec_Len(copy _3)
-    _5 = ge(copy _1.1, copy _4)
-    switch copy _5 [ 1 -> bb1, else -> bb2]
+    _4 = call Vec.len<String>(copy _3) +current -> bb1
   bb1:
+    _5 = ge(copy _1.1, copy _4)
+    switch copy _5 [ 1 -> bb2, else -> bb3]
+  bb2:
     region_enter r1
     storage_live _6
     _7 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in result_sink  // label "Option<String>": String?
@@ -308,19 +482,86 @@ fn Iterator@0.next<String> (parent=true, sink=true) {
     region_exit r1
     region_exit r0
     return
-  bb2:
+  bb3:
     _9 = borrow _1.0
-    _10 = copy _1.1
-    _11 = vec_Get(copy _9, copy _10)
-    _12 = copy _11  // label "x": String decl
-    _13 = add(copy _1.1, 1)
-    _1.1 = copy _13  // label "VecIter<String>.i": i32 decl owner=object_arena(_1)
-    _14 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in result_sink  // label "Option<String>": String?
-    _15 = copy_into _12 in result_sink
-    _14@0.0 = copy _15  // label "Option<String>.Some.value": String decl owner=result_sink
-    _16 = copy_into _14 in result_sink
-    _0 = copy _16
+    _10 = call Vec.get<String>(copy _9, copy _1.1) +current +result_sink -> bb4
+  bb4:
+    _11 = copy _10  // label "x": String decl
+    _12 = add(copy _1.1, 1)
+    _1.1 = copy _12  // label "VecIter<String>.i": i32 decl owner=object_arena(_1)
+    _13 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in result_sink  // label "Option<String>": String?
+    _14 = copy_into _11 in result_sink
+    _13@0.0 = copy _14  // label "Option<String>.Some.value": String decl owner=result_sink
+    _15 = copy_into _13 in result_sink
+    _0 = copy _15
     storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.len<String> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _0 = copy _1.1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.get<String> (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: i32 [Arg] i
+  let _3: unit [Hidden(DebugScope)]
+  let _4: bool [Temp]
+  let _5: bool [Temp]
+  let _6: bool [Temp]
+  let _7: unit [Hidden(DebugScope)]
+  let _8: Buf<String> [Val] b
+  let _9: i32 [Temp]
+  let _10: bool [Temp]
+  let _11: bool [Temp]
+  let _12: String [Temp]
+  let _13: String [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _5 = lt(copy _2, 0)
+    switch copy _5 [ 0 -> bb1, else -> bb2]
+  bb1:
+    _6 = ge(copy _2, copy _1.1)
+    _4 = copy _6
+    goto bb3
+  bb2:
+    _4 = true
+    goto bb3
+  bb3:
+    switch copy _4 [ 1 -> bb4, else -> bb5]
+  bb4:
+    storage_live _7
+    abort Explicit
+  bb5:
+    _8 = copy _1.0  // label "b": Buf<String> decl
+    _9 = intrinsic BufCap(reborrow _8)
+    _10 = ge(copy _2, 0)
+    switch copy _10 [ 1 -> bb7, else -> bb6]
+  bb6:
+    abort Bounds
+  bb7:
+    _11 = lt(copy _2, copy _9)
+    switch copy _11 [ 1 -> bb8, else -> bb6]
+  bb8:
+    _12 = intrinsic SlotLoad(reborrow _8, copy _2)
+    _13 = copy_into _12 in result_sink
+    _0 = copy _13
+    storage_dead _3
     region_exit r0
     return
 }
@@ -350,53 +591,59 @@ fn main (parent=false, sink=false) {
   let _2: Vec<i32> [Temp]
   let _3: Vec<i32> [Var] v
   let _4: &Vec<i32> [Temp]
-  let _5: &Vec<i32> [Temp]
+  let _5: unit [Temp]
   let _6: &Vec<i32> [Temp]
-  let _7: &Vec<i32> [Temp]
-  let _8: Vec<i32> [Temp]
-  let _9: Vec<i32> [Var] w
+  let _7: unit [Temp]
+  let _8: &Vec<i32> [Temp]
+  let _9: unit [Temp]
   let _10: &Vec<i32> [Temp]
-  let _11: &Vec<i32> [Temp]
-  let _12: &Vec<i32> [Temp]
-  let _13: &Vec<i32> [Temp]
-  let _14: Vec<i32> [Temp]
-  let _15: Vec<i32> [Var] u
+  let _11: unit [Temp]
+  let _12: Vec<i32> [Temp]
+  let _13: Vec<i32> [Var] w
+  let _14: &Vec<i32> [Temp]
+  let _15: unit [Temp]
   let _16: &Vec<i32> [Temp]
-  let _17: &Vec<i32> [Temp]
+  let _17: unit [Temp]
   let _18: &Vec<i32> [Temp]
-  let _19: &Vec<i32> [Temp]
-  let _20: Vec<i32> [Temp]
-  let _21: Vec<i32> [Temp]
-  let _22: VecIter<i32> [Temp]
-  let _23: closure#0(i32)->i32 [Temp]
-  let _24: Map<VecIter<i32>, closure#0(i32)->i32> [Temp]
-  let _25: closure#1(i32)->bool [Temp]
-  let _26: Filter<Map<VecIter<i32>, closure#0(i32)->i32>, closure#1(i32)->bool> [Temp]
-  let _27: closure#2(i32, i32)->i32 [Temp]
-  let _28: i32 [Temp]
-  let _29: i32 [Var] count
-  let _30: unit [Hidden(DebugScope)]
-  let _31: Vec<i32> [Temp]
-  let _32: Vec<i32> [Temp]
-  let _33: VecIter<i32> [Temp]
-  let _34: closure#3(i32)->bool [Temp]
-  let _35: Filter<VecIter<i32>, closure#3(i32)->bool> [Temp]
-  let _36: Filter<VecIter<i32>, closure#3(i32)->bool> [Var] ?it
-  let _37: unit [Hidden(DebugScope)]
-  let _38: unit [Hidden(RegionArena)]
-  let _39: unit [Hidden(DebugScope)]
-  let _40: &Filter<VecIter<i32>, closure#3(i32)->bool> [Temp]
-  let _41: i32? [Temp]
-  let _42: i32 [Val] x
-  let _43: unit [Hidden(DebugScope)]
-  let _44: i32 [Temp]
+  let _19: unit [Temp]
+  let _20: &Vec<i32> [Temp]
+  let _21: unit [Temp]
+  let _22: Vec<i32> [Temp]
+  let _23: Vec<i32> [Var] u
+  let _24: &Vec<i32> [Temp]
+  let _25: unit [Temp]
+  let _26: &Vec<i32> [Temp]
+  let _27: unit [Temp]
+  let _28: &Vec<i32> [Temp]
+  let _29: unit [Temp]
+  let _30: &Vec<i32> [Temp]
+  let _31: unit [Temp]
+  let _32: VecIter<i32> [Temp]
+  let _33: closure#0(i32)->i32 [Temp]
+  let _34: Map<VecIter<i32>, closure#0(i32)->i32> [Temp]
+  let _35: closure#1(i32)->bool [Temp]
+  let _36: Filter<Map<VecIter<i32>, closure#0(i32)->i32>, closure#1(i32)->bool> [Temp]
+  let _37: closure#2(i32, i32)->i32 [Temp]
+  let _38: i32 [Temp]
+  let _39: i32 [Var] count
+  let _40: unit [Hidden(DebugScope)]
+  let _41: VecIter<i32> [Temp]
+  let _42: closure#3(i32)->bool [Temp]
+  let _43: Filter<VecIter<i32>, closure#3(i32)->bool> [Temp]
+  let _44: Filter<VecIter<i32>, closure#3(i32)->bool> [Var] ?it
   let _45: unit [Hidden(DebugScope)]
-  let _46: i32 [Val] base
-  let _47: Vec<i32> [Temp]
-  let _48: Vec<i32> [Temp]
-  let _49: VecIter<i32> [Temp]
-  let _50: closure#4(i32, i32)->i32 [Temp]
-  let _51: i32 [Temp]
+  let _46: unit [Hidden(RegionArena)]
+  let _47: unit [Hidden(DebugScope)]
+  let _48: &Filter<VecIter<i32>, closure#3(i32)->bool> [Temp]
+  let _49: i32? [Temp]
+  let _50: i32 [Val] x
+  let _51: unit [Hidden(DebugScope)]
+  let _52: i32 [Temp]
+  let _53: unit [Hidden(DebugScope)]
+  let _54: i32 [Val] base
+  let _55: VecIter<i32> [Temp]
+  let _56: closure#4(i32, i32)->i32 [Temp]
+  let _57: i32 [Temp]
   region r0 Block
   region r1 Block in r0
   region r2 While in r1
@@ -405,109 +652,246 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Vec { cap: None } in current
+    _2 = call vecNew<i32>() +current +current -> bb1
+  bb1:
     _3 = copy _2  // label "v": Vec<i32> decl
     _4 = borrow _3
-    vec_Push(copy _4, 1)
-    _5 = borrow _3
-    vec_Push(copy _5, 2)
-    _6 = borrow _3
-    vec_Push(copy _6, 3)
-    _7 = borrow _3
-    vec_Push(copy _7, 4)
-    _8 = alloc Vec { cap: None } in current
-    _9 = copy _8  // label "w": Vec<i32> decl
-    _10 = borrow _9
-    vec_Push(copy _10, 1)
-    _11 = borrow _9
-    vec_Push(copy _11, 2)
-    _12 = borrow _9
-    vec_Push(copy _12, 3)
-    _13 = borrow _9
-    vec_Push(copy _13, 4)
-    _14 = alloc Vec { cap: None } in current
-    _15 = copy _14  // label "u": Vec<i32> decl
-    _16 = borrow _15
-    vec_Push(copy _16, 1)
-    _17 = borrow _15
-    vec_Push(copy _17, 2)
-    _18 = borrow _15
-    vec_Push(copy _18, 3)
-    _19 = borrow _15
-    vec_Push(copy _19, 4)
-    _20 = move _3
-    _21 = copy_into _20 in current
-    _22 = call iter<i32>(copy _21) +current +current -> bb1
-  bb1:
-    _23 = closure main$closure0() in current
-    _24 = call map<VecIter<i32>,closure#0(i32)->i32,i32>(copy _22, copy _23) +current +current -> bb2
+    _5 = call Vec.push<i32>(copy _4, 1) +current -> bb2
   bb2:
-    _25 = closure main$closure1() in current
-    _26 = call filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>(copy _24, copy _25) +current +current -> bb3
+    _6 = borrow _3
+    _7 = call Vec.push<i32>(copy _6, 2) +current -> bb3
   bb3:
-    _27 = closure main$closure2() in current
-    _28 = call fold<Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>,closure#2(i32,i32)->i32>(copy _26, 0, copy _27) +current -> bb4
+    _8 = borrow _3
+    _9 = call Vec.push<i32>(copy _8, 3) +current -> bb4
   bb4:
-    intrinsic PrintlnInt(copy _28)
-    _29 = 0  // label "count": i32 decl
-    region_enter r1
-    storage_live _30
-    _31 = move _9
-    _32 = copy_into _31 in current
-    _33 = call iter<i32>(copy _32) +current +current -> bb5
+    _10 = borrow _3
+    _11 = call Vec.push<i32>(copy _10, 4) +current -> bb5
   bb5:
-    _34 = closure main$closure3() in current
-    _35 = call filter<VecIter<i32>,closure#3(i32)->bool>(copy _33, copy _34) +current +current -> bb6
+    _12 = call vecNew<i32>() +current +current -> bb6
   bb6:
-    _36 = copy _35  // label "?it": Filter<VecIter<i32>, closure#3(i32)->bool> decl
-    region_enter r2
-    storage_live _37
-    goto bb7
+    _13 = copy _12  // label "w": Vec<i32> decl
+    _14 = borrow _13
+    _15 = call Vec.push<i32>(copy _14, 1) +current -> bb7
   bb7:
-    switch true [ 1 -> bb8, else -> bb10]
+    _16 = borrow _13
+    _17 = call Vec.push<i32>(copy _16, 2) +current -> bb8
   bb8:
-    storage_live _39
-    _40 = borrow _36
-    _41 = call Iterator@2.next<VecIter<i32>,closure#3(i32)->bool>(copy _40) +current +current -> bb11
+    _18 = borrow _13
+    _19 = call Vec.push<i32>(copy _18, 3) +current -> bb9
   bb9:
-    _38 = region_reset r2
-    goto bb7
+    _20 = borrow _13
+    _21 = call Vec.push<i32>(copy _20, 4) +current -> bb10
   bb10:
-    storage_dead _37
-    region_exit r2
-    storage_dead _30
-    region_exit r1
-    intrinsic PrintlnInt(copy _29)
-    _46 = 4  // label "base": i32 decl
-    _47 = move _15
-    _48 = copy_into _47 in current
-    _49 = call iter<i32>(copy _48) +current +current -> bb15
+    _22 = call vecNew<i32>() +current +current -> bb11
   bb11:
-    match _41 {
-      Option#0(bind) _42=_41@0.0 -> bb13
-      Option#1() -> bb14
-    }
+    _23 = copy _22  // label "u": Vec<i32> decl
+    _24 = borrow _23
+    _25 = call Vec.push<i32>(copy _24, 1) +current -> bb12
   bb12:
-    storage_dead _39
-    goto bb9
+    _26 = borrow _23
+    _27 = call Vec.push<i32>(copy _26, 2) +current -> bb13
   bb13:
-    storage_live _43
-    _44 = add(copy _29, copy _42)
-    _29 = copy _44
-    storage_dead _43
-    goto bb12
+    _28 = borrow _23
+    _29 = call Vec.push<i32>(copy _28, 3) +current -> bb14
   bb14:
-    storage_live _45
-    storage_dead _45
-    storage_dead _39
-    goto bb10
+    _30 = borrow _23
+    _31 = call Vec.push<i32>(copy _30, 4) +current -> bb15
   bb15:
-    _50 = closure main$closure4(copy _46) in current
-    _51 = call fold<VecIter<i32>,closure#4(i32,i32)->i32[i32]>(copy _49, 0, copy _50) +current -> bb16
+    _32 = call iter<i32>(move _3) +current +current -> bb16
   bb16:
-    intrinsic PrintlnInt(copy _51)
+    _33 = closure main$closure0() in current
+    _34 = call map<VecIter<i32>,closure#0(i32)->i32,i32>(copy _32, copy _33) +current +current -> bb17
+  bb17:
+    _35 = closure main$closure1() in current
+    _36 = call filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>(copy _34, copy _35) +current +current -> bb18
+  bb18:
+    _37 = closure main$closure2() in current
+    _38 = call fold<Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool>,closure#2(i32,i32)->i32>(copy _36, 0, copy _37) +current -> bb19
+  bb19:
+    intrinsic PrintlnInt(copy _38)
+    _39 = 0  // label "count": i32 decl
+    region_enter r1
+    storage_live _40
+    _41 = call iter<i32>(move _13) +current +current -> bb20
+  bb20:
+    _42 = closure main$closure3() in current
+    _43 = call filter<VecIter<i32>,closure#3(i32)->bool>(copy _41, copy _42) +current +current -> bb21
+  bb21:
+    _44 = copy _43  // label "?it": Filter<VecIter<i32>, closure#3(i32)->bool> decl
+    region_enter r2
+    storage_live _45
+    goto bb22
+  bb22:
+    switch true [ 1 -> bb23, else -> bb25]
+  bb23:
+    storage_live _47
+    _48 = borrow _44
+    _49 = call Iterator@2.next<VecIter<i32>,closure#3(i32)->bool>(copy _48) +current +current -> bb26
+  bb24:
+    _46 = region_reset r2
+    goto bb22
+  bb25:
+    storage_dead _45
+    region_exit r2
+    storage_dead _40
+    region_exit r1
+    intrinsic PrintlnInt(copy _39)
+    _54 = 4  // label "base": i32 decl
+    _55 = call iter<i32>(move _23) +current +current -> bb30
+  bb26:
+    match _49 {
+      Option#0(bind) _50=_49@0.0 -> bb28
+      Option#1() -> bb29
+    }
+  bb27:
+    storage_dead _47
+    goto bb24
+  bb28:
+    storage_live _51
+    _52 = add(copy _39, copy _50)
+    _39 = copy _52
+    storage_dead _51
+    goto bb27
+  bb29:
+    storage_live _53
+    storage_dead _53
+    storage_dead _47
+    goto bb25
+  bb30:
+    _56 = closure main$closure4(copy _54) in current
+    _57 = call fold<VecIter<i32>,closure#4(i32,i32)->i32[i32]>(copy _55, 0, copy _56) +current -> bb31
+  bb31:
+    intrinsic PrintlnInt(copy _57)
     _0 = 0
     storage_dead _1
+    region_exit r0
+    return
+}
+
+fn vecNew<i32> (parent=true, sink=true) {
+  let _0: Vec<i32> [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: VecSeed<i32> [Temp]
+  let _4: VecSeed<i32> [Val] seed
+  let _5: unit [Hidden(DebugScope)]
+  let _6: &VecSeed<i32> [Temp]
+  let _7: Buf<i32> [Temp]
+  let _8: Vec<i32> [Temp]
+  let _9: Vec<i32> [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _2
+    _3 = alloc Object { class: "VecSeed<i32>" } in fresh2  // label "VecSeed<i32>": VecSeed<i32>
+    _3.0 = 0  // label "VecSeed<i32>.n": i32 decl owner=fresh2
+    _4 = copy _3  // label "seed": VecSeed<i32> decl
+    region_enter r1
+    storage_live _5
+    _6 = borrow _4
+    _7 = call VecSeed.empty<i32>(copy _6) +current +result_sink -> bb1
+  bb1:
+    _8 = alloc Object { class: "Vec<i32>" } in result_sink  // label "Vec<i32>": Vec<i32>
+    _8.0 = copy _7  // label "Vec<i32>.buf": Buf<i32> decl owner=result_sink
+    _8.1 = 0  // label "Vec<i32>.n": i32 decl owner=result_sink
+    _9 = copy_into _8 in result_sink
+    _0 = copy _9
+    storage_dead _5
+    storage_dead _1
+    region_exit r1
+    region_exit r0
+    return
+}
+
+fn Vec.push<i32> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<i32> [Arg] this
+  let _2: i32 [Arg] v
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Var] cap
+  let _5: unit [Hidden(DebugScope)]
+  let _6: Buf<i32> [Temp]
+  let _7: i32 [Temp]
+  let _8: bool [Temp]
+  let _9: unit [Hidden(DebugScope)]
+  let _10: i32 [Temp]
+  let _11: i32 [Var] next
+  let _12: bool [Temp]
+  let _13: unit [Hidden(DebugScope)]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<i32> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<i32> [Val] b
+  let _20: i32 [Temp]
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 IfThen in r0
+  region r3 IfThen in r2
+  region r4 IfThen in r2
+  region r5 Block in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = 0  // label "cap": i32 decl
+    storage_live _5
+    _6 = copy _1.0
+    _7 = intrinsic BufCap(copy _6)
+    _4 = copy _7
+    storage_dead _5
+    _8 = eq(copy _1.1, copy _4)
+    switch copy _8 [ 1 -> bb1, else -> bb2]
+  bb1:
+    storage_live _9
+    _10 = mul(copy _4, 2)
+    _11 = copy _10  // label "next": i32 decl
+    _12 = eq(copy _11, 0)
+    switch copy _12 [ 1 -> bb3, else -> bb4]
+  bb2:
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<i32> decl
+    _20 = copy _1.1
+    _21 = intrinsic BufCap(reborrow _19)
+    _22 = ge(copy _20, 0)
+    switch copy _22 [ 1 -> bb9, else -> bb8]
+  bb3:
+    storage_live _13
+    _11 = 4
+    storage_dead _13
+    goto bb4
+  bb4:
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
+  bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<i32>(copy _16, copy _11) +current -> bb7
+  bb7:
+    storage_dead _9
+    goto bb2
+  bb8:
+    abort Bounds
+  bb9:
+    _23 = lt(copy _20, copy _21)
+    switch copy _23 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, copy _2)
+    storage_dead _18
+    _24 = add(copy _1.1, 1)
+    _1.1 = copy _24  // label "Vec<i32>.n": i32 decl owner=object_arena(_1)
+    storage_dead _3
     region_exit r0
     return
 }
@@ -516,21 +900,15 @@ fn iter<i32> (parent=true, sink=true) {
   let _0: VecIter<i32> [Return]
   let _1: Vec<i32> [Arg] v
   let _2: unit [Hidden(DebugScope)]
-  let _3: Vec<i32> [Temp]
-  let _4: Vec<i32> [Temp]
-  let _5: VecIter<i32> [Temp]
-  let _6: Vec<i32> [Temp]
+  let _3: VecIter<i32> [Temp]
   region r0 Block
   bb0:
     storage_live _2
     region_enter r0
-    _3 = move _1
-    _4 = copy_into _3 in result_sink
-    _5 = alloc Object { class: "VecIter<i32>" } in result_sink  // label "VecIter<i32>": VecIter<i32>
-    _6 = copy_into _4 in result_sink
-    _5.0 = copy _6  // label "VecIter<i32>.v": Vec<i32> decl owner=result_sink
-    _5.1 = 0  // label "VecIter<i32>.i": i32 decl owner=result_sink
-    _0 = copy _5
+    _3 = alloc Object { class: "VecIter<i32>" } in result_sink  // label "VecIter<i32>": VecIter<i32>
+    _3.0 = move _1  // label "VecIter<i32>.v": Vec<i32> decl owner=result_sink
+    _3.1 = 0  // label "VecIter<i32>.i": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _2
     region_exit r0
     return
@@ -845,6 +1223,57 @@ fn fold<VecIter<i32>,closure#4(i32,i32)->i32[i32]> (parent=true, sink=false) {
     goto bb6
 }
 
+fn VecSeed.empty<i32> (parent=true, sink=true) {
+  let _0: Buf<i32> [Return]
+  let _1: &VecSeed<i32> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Arena [Temp]
+  let _4: bool [Temp]
+  let _5: Buf<i32> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic ArenaOf() in object_arena(_1)
+    _4 = ge(0, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort NegativeCapacity
+  bb2:
+    _5 = intrinsic BufAlloc(copy _3, 0)
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.reserveExact<i32> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<i32> [Arg] this
+  let _2: i32 [Arg] cap
+  let _3: unit [Hidden(DebugScope)]
+  let _4: Buf<i32> [Val] old
+  let _5: i32 [Temp]
+  let _6: bool [Temp]
+  let _7: Buf<i32> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = copy _1.0  // label "old": Buf<i32> decl
+    _5 = intrinsic BufCap(reborrow _4)
+    _6 = gt(copy _2, copy _5)
+    switch copy _6 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort BufGrow
+  bb2:
+    _7 = intrinsic BufGrow(reborrow _4, copy _2) in object_arena(_1)
+    _1.0 = copy _7  // label "Vec<i32>.buf": Buf<i32> decl owner=object_arena(_1)
+    storage_dead _3
+    region_exit r0
+    return
+}
+
 fn Iterator@2.next<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool> (parent=true, sink=true) {
   let _0: i32? [Return]
   let _1: &Filter<Map<VecIter<i32>, closure#0(i32)->i32>, closure#1(i32)->bool> [Arg] this
@@ -957,21 +1386,21 @@ fn Iterator@0.next<i32> (parent=true, sink=true) {
   let _8: i32? [Temp]
   let _9: &Vec<i32> [Temp]
   let _10: i32 [Temp]
-  let _11: i32 [Temp]
-  let _12: i32 [Val] x
-  let _13: i32 [Temp]
+  let _11: i32 [Val] x
+  let _12: i32 [Temp]
+  let _13: i32? [Temp]
   let _14: i32? [Temp]
-  let _15: i32? [Temp]
   region r0 Block
   region r1 IfThen in r0
   bb0:
     storage_live _2
     region_enter r0
     _3 = borrow _1.0
-    _4 = vec_Len(copy _3)
-    _5 = ge(copy _1.1, copy _4)
-    switch copy _5 [ 1 -> bb1, else -> bb2]
+    _4 = call Vec.len<i32>(copy _3) +current -> bb1
   bb1:
+    _5 = ge(copy _1.1, copy _4)
+    switch copy _5 [ 1 -> bb2, else -> bb3]
+  bb2:
     region_enter r1
     storage_live _6
     _7 = alloc EnumSlot { enum_name: "Option<i32>", variant: 1 } in result_sink  // label "Option<i32>": i32?
@@ -982,17 +1411,17 @@ fn Iterator@0.next<i32> (parent=true, sink=true) {
     region_exit r1
     region_exit r0
     return
-  bb2:
+  bb3:
     _9 = borrow _1.0
-    _10 = copy _1.1
-    _11 = vec_Get(copy _9, copy _10)
-    _12 = copy _11  // label "x": i32 decl
-    _13 = add(copy _1.1, 1)
-    _1.1 = copy _13  // label "VecIter<i32>.i": i32 decl owner=object_arena(_1)
-    _14 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
-    _14@0.0 = copy _12  // label "Option<i32>.Some.value": i32 decl owner=result_sink
-    _15 = copy_into _14 in result_sink
-    _0 = copy _15
+    _10 = call Vec.get<i32>(copy _9, copy _1.1) +current -> bb4
+  bb4:
+    _11 = copy _10  // label "x": i32 decl
+    _12 = add(copy _1.1, 1)
+    _1.1 = copy _12  // label "VecIter<i32>.i": i32 decl owner=object_arena(_1)
+    _13 = alloc EnumSlot { enum_name: "Option<i32>", variant: 0 } in result_sink  // label "Option<i32>": i32?
+    _13@0.0 = copy _11  // label "Option<i32>.Some.value": i32 decl owner=result_sink
+    _14 = copy_into _13 in result_sink
+    _0 = copy _14
     storage_dead _2
     region_exit r0
     return
@@ -1050,6 +1479,71 @@ fn Iterator@1.next<VecIter<i32>,closure#0(i32)->i32,i32> (parent=true, sink=true
     storage_dead _6
     storage_dead _2
     region_exit r1
+    region_exit r0
+    return
+}
+
+fn Vec.len<i32> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Vec<i32> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _0 = copy _1.1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.get<i32> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Vec<i32> [Arg] this
+  let _2: i32 [Arg] i
+  let _3: unit [Hidden(DebugScope)]
+  let _4: bool [Temp]
+  let _5: bool [Temp]
+  let _6: bool [Temp]
+  let _7: unit [Hidden(DebugScope)]
+  let _8: Buf<i32> [Val] b
+  let _9: i32 [Temp]
+  let _10: bool [Temp]
+  let _11: bool [Temp]
+  let _12: i32 [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _5 = lt(copy _2, 0)
+    switch copy _5 [ 0 -> bb1, else -> bb2]
+  bb1:
+    _6 = ge(copy _2, copy _1.1)
+    _4 = copy _6
+    goto bb3
+  bb2:
+    _4 = true
+    goto bb3
+  bb3:
+    switch copy _4 [ 1 -> bb4, else -> bb5]
+  bb4:
+    storage_live _7
+    abort Explicit
+  bb5:
+    _8 = copy _1.0  // label "b": Buf<i32> decl
+    _9 = intrinsic BufCap(reborrow _8)
+    _10 = ge(copy _2, 0)
+    switch copy _10 [ 1 -> bb7, else -> bb6]
+  bb6:
+    abort Bounds
+  bb7:
+    _11 = lt(copy _2, copy _9)
+    switch copy _11 [ 1 -> bb8, else -> bb6]
+  bb8:
+    _12 = intrinsic SlotLoad(reborrow _8, copy _2)
+    _0 = copy _12
+    storage_dead _3
     region_exit r0
     return
 }
@@ -1149,14 +1643,14 @@ fn main (parent=false, sink=false) {
   let _5: unit [Hidden(DynamicArena)]
   let _6: Node [Temp]
   let _7: Ref<Node> [Temp]
-  let _8: &Vec<Ref<Node>> [Temp]
-  let _9: unit [Hidden(DynamicArena)]
-  let _10: Node [Temp]
-  let _11: Ref<Node> [Temp]
-  let _12: i32 [Var] count
-  let _13: unit [Hidden(DebugScope)]
-  let _14: Vec<Ref<Node>> [Temp]
-  let _15: Vec<Ref<Node>> [Temp]
+  let _8: unit [Temp]
+  let _9: &Vec<Ref<Node>> [Temp]
+  let _10: unit [Hidden(DynamicArena)]
+  let _11: Node [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: unit [Temp]
+  let _14: i32 [Var] count
+  let _15: unit [Hidden(DebugScope)]
   let _16: VecIter<Ref<Node>> [Temp]
   let _17: closure#0(Ref<Node>)->bool [Temp]
   let _18: Filter<VecIter<Ref<Node>>, closure#0(Ref<Node>)->bool> [Temp]
@@ -1176,21 +1670,20 @@ fn main (parent=false, sink=false) {
   let _32: unit [Hidden(DynamicArena)]
   let _33: Node [Temp]
   let _34: Ref<Node> [Temp]
-  let _35: i32 [Var] seen
-  let _36: unit [Hidden(DebugScope)]
-  let _37: Vec<Ref<Node>> [Temp]
-  let _38: Vec<Ref<Node>> [Temp]
-  let _39: VecIter<Ref<Node>> [Temp]
-  let _40: VecIter<Ref<Node>> [Var] ?it
-  let _41: unit [Hidden(DebugScope)]
-  let _42: unit [Hidden(RegionArena)]
-  let _43: unit [Hidden(DebugScope)]
-  let _44: &VecIter<Ref<Node>> [Temp]
-  let _45: Option<Ref<Node>> [Temp]
-  let _46: Ref<Node> [Val] r
-  let _47: unit [Hidden(DebugScope)]
-  let _48: i32 [Temp]
-  let _49: unit [Hidden(DebugScope)]
+  let _35: unit [Temp]
+  let _36: i32 [Var] seen
+  let _37: unit [Hidden(DebugScope)]
+  let _38: VecIter<Ref<Node>> [Temp]
+  let _39: VecIter<Ref<Node>> [Var] ?it
+  let _40: unit [Hidden(DebugScope)]
+  let _41: unit [Hidden(RegionArena)]
+  let _42: unit [Hidden(DebugScope)]
+  let _43: &VecIter<Ref<Node>> [Temp]
+  let _44: Option<Ref<Node>> [Temp]
+  let _45: Ref<Node> [Val] r
+  let _46: unit [Hidden(DebugScope)]
+  let _47: i32 [Temp]
+  let _48: unit [Hidden(DebugScope)]
   region r0 Block
   region r1 Block in r0
   region r2 While in r1
@@ -1203,8 +1696,8 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Vec { cap: None } in current
-    register_drop current _2 Vec(TyId(62))
+    _2 = call vecNew<Ref<Node>>() +current +current -> bb1
+  bb1:
     _3 = copy _2  // label "v": Vec<Ref<Node>> decl
     _4 = borrow _3
     _5 = arena_create_dynamic parent=root scoped=false
@@ -1212,45 +1705,68 @@ fn main (parent=false, sink=false) {
     _6 = alloc Object { class: "Node" } in fresh5  // label "Node": Node
     _6.0 = 1  // label "Node.n": i32 decl owner=fresh5
     _7 = ref_create source=current target=object_arena(_6) copy _6
-    vec_Push(copy _4, move _7)
-    _8 = borrow _3
-    _9 = arena_create_dynamic parent=root scoped=false
-    register_strong_root current <- _9
-    _10 = alloc Object { class: "Node" } in fresh9  // label "Node": Node
-    _10.0 = 5  // label "Node.n": i32 decl owner=fresh9
-    _11 = ref_create source=current target=object_arena(_10) copy _10
-    vec_Push(copy _8, move _11)
-    _12 = 0  // label "count": i32 decl
-    region_enter r1
-    storage_live _13
-    _14 = move _3
-    _15 = copy_into _14 in current
-    _16 = call iter<Ref<Node>>(copy _15) +current +current -> bb1
-  bb1:
-    _17 = closure main$closure0() in current
-    _18 = call filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>(copy _16, copy _17) +current +current -> bb2
+    _8 = call Vec.push<Ref<Node>>(copy _4, move _7) +current -> bb2
   bb2:
+    _9 = borrow _3
+    _10 = arena_create_dynamic parent=root scoped=false
+    register_strong_root current <- _10
+    _11 = alloc Object { class: "Node" } in fresh10  // label "Node": Node
+    _11.0 = 5  // label "Node.n": i32 decl owner=fresh10
+    _12 = ref_create source=current target=object_arena(_11) copy _11
+    _13 = call Vec.push<Ref<Node>>(copy _9, move _12) +current -> bb3
+  bb3:
+    _14 = 0  // label "count": i32 decl
+    region_enter r1
+    storage_live _15
+    _16 = call iter<Ref<Node>>(move _3) +current +current -> bb4
+  bb4:
+    _17 = closure main$closure0() in current
+    _18 = call filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>(copy _16, copy _17) +current +current -> bb5
+  bb5:
     _19 = copy _18  // label "?it": Filter<VecIter<Ref<Node>>, closure#0(Ref<Node>)->bool> decl
     region_enter r2
     storage_live _20
-    goto bb3
-  bb3:
-    switch true [ 1 -> bb4, else -> bb6]
-  bb4:
+    goto bb6
+  bb6:
+    switch true [ 1 -> bb7, else -> bb9]
+  bb7:
     storage_live _22
     _23 = borrow _19
-    _24 = call Iterator@2.next<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>(copy _23) +current +current -> bb7
-  bb5:
+    _24 = call Iterator@2.next<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool>(copy _23) +current +current -> bb10
+  bb8:
     _21 = region_reset r2
-    goto bb3
-  bb6:
+    goto bb6
+  bb9:
     storage_dead _20
     region_exit r2
-    storage_dead _13
+    storage_dead _15
     region_exit r1
-    intrinsic PrintlnInt(copy _12)
-    _29 = alloc Vec { cap: None } in current
-    register_drop current _29 Vec(TyId(62))
+    intrinsic PrintlnInt(copy _14)
+    _29 = call vecNew<Ref<Node>>() +current +current -> bb14
+  bb10:
+    match _24 {
+      Option#0(bind) -> bb12
+      Option#1() -> bb13
+    }
+  bb11:
+    storage_dead _22
+    goto bb8
+  bb12:
+    region_enter r3
+    storage_live _26
+    _25 = ref_clone copy _24@0.0
+    register_drop current _25 RefSlot
+    _27 = add(copy _14, 1)
+    _14 = copy _27
+    storage_dead _26
+    region_exit r3
+    goto bb11
+  bb13:
+    storage_live _28
+    storage_dead _28
+    storage_dead _22
+    goto bb9
+  bb14:
     _30 = copy _29  // label "w": Vec<Ref<Node>> decl
     _31 = borrow _30
     _32 = arena_create_dynamic parent=root scoped=false
@@ -1258,104 +1774,205 @@ fn main (parent=false, sink=false) {
     _33 = alloc Object { class: "Node" } in fresh32  // label "Node": Node
     _33.0 = 7  // label "Node.n": i32 decl owner=fresh32
     _34 = ref_create source=current target=object_arena(_33) copy _33
-    vec_Push(copy _31, move _34)
-    _35 = 0  // label "seen": i32 decl
-    region_enter r5
-    storage_live _36
-    _37 = move _30
-    _38 = copy_into _37 in current
-    _39 = call iter<Ref<Node>>(copy _38) +current +current -> bb11
-  bb7:
-    match _24 {
-      Option#0(bind) -> bb9
-      Option#1() -> bb10
-    }
-  bb8:
-    storage_dead _22
-    goto bb5
-  bb9:
-    region_enter r3
-    storage_live _26
-    _25 = ref_clone copy _24@0.0
-    register_drop current _25 RefSlot
-    _27 = add(copy _12, 1)
-    _12 = copy _27
-    storage_dead _26
-    region_exit r3
-    goto bb8
-  bb10:
-    storage_live _28
-    storage_dead _28
-    storage_dead _22
-    goto bb6
-  bb11:
-    _40 = copy _39  // label "?it": VecIter<Ref<Node>> decl
-    region_enter r6
-    storage_live _41
-    goto bb12
-  bb12:
-    switch true [ 1 -> bb13, else -> bb15]
-  bb13:
-    storage_live _43
-    _44 = borrow _40
-    _45 = call Iterator@0.next<Ref<Node>>(copy _44) +current +current -> bb16
-  bb14:
-    _42 = region_reset r6
-    goto bb12
+    _35 = call Vec.push<Ref<Node>>(copy _31, move _34) +current -> bb15
   bb15:
-    storage_dead _41
+    _36 = 0  // label "seen": i32 decl
+    region_enter r5
+    storage_live _37
+    _38 = call iter<Ref<Node>>(move _30) +current +current -> bb16
+  bb16:
+    _39 = copy _38  // label "?it": VecIter<Ref<Node>> decl
+    region_enter r6
+    storage_live _40
+    goto bb17
+  bb17:
+    switch true [ 1 -> bb18, else -> bb20]
+  bb18:
+    storage_live _42
+    _43 = borrow _39
+    _44 = call Iterator@0.next<Ref<Node>>(copy _43) +current +current -> bb21
+  bb19:
+    _41 = region_reset r6
+    goto bb17
+  bb20:
+    storage_dead _40
     region_exit r6
-    storage_dead _36
+    storage_dead _37
     region_exit r5
-    intrinsic PrintlnInt(copy _35)
+    intrinsic PrintlnInt(copy _36)
     _0 = 0
     storage_dead _1
     region_exit r0
     return
-  bb16:
-    match _45 {
-      Option#0(bind) -> bb18
-      Option#1() -> bb19
+  bb21:
+    match _44 {
+      Option#0(bind) -> bb23
+      Option#1() -> bb24
     }
-  bb17:
-    storage_dead _43
-    goto bb14
-  bb18:
+  bb22:
+    storage_dead _42
+    goto bb19
+  bb23:
     region_enter r7
-    storage_live _47
-    _46 = ref_clone copy _45@0.0
-    register_drop current _46 RefSlot
-    _48 = add(copy _35, 1)
-    _35 = copy _48
-    storage_dead _47
+    storage_live _46
+    _45 = ref_clone copy _44@0.0
+    register_drop current _45 RefSlot
+    _47 = add(copy _36, 1)
+    _36 = copy _47
+    storage_dead _46
     region_exit r7
-    goto bb17
-  bb19:
-    storage_live _49
-    storage_dead _49
-    storage_dead _43
-    goto bb15
+    goto bb22
+  bb24:
+    storage_live _48
+    storage_dead _48
+    storage_dead _42
+    goto bb20
+}
+
+fn vecNew<Ref<Node>> (parent=true, sink=true) {
+  let _0: Vec<Ref<Node>> [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: VecSeed<Ref<Node>> [Temp]
+  let _4: VecSeed<Ref<Node>> [Val] seed
+  let _5: unit [Hidden(DebugScope)]
+  let _6: &VecSeed<Ref<Node>> [Temp]
+  let _7: Buf<Ref<Node>> [Temp]
+  let _8: Vec<Ref<Node>> [Temp]
+  let _9: Vec<Ref<Node>> [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _2
+    _3 = alloc Object { class: "VecSeed<Ref<Node>>" } in fresh2  // label "VecSeed<Ref<Node>>": VecSeed<Ref<Node>>
+    _3.0 = 0  // label "VecSeed<Ref<Node>>.n": i32 decl owner=fresh2
+    _4 = copy _3  // label "seed": VecSeed<Ref<Node>> decl
+    region_enter r1
+    storage_live _5
+    _6 = borrow _4
+    _7 = call VecSeed.empty<Ref<Node>>(copy _6) +current +result_sink -> bb1
+  bb1:
+    _8 = alloc Object { class: "Vec<Ref<Node>>" } in result_sink  // label "Vec<Ref<Node>>": Vec<Ref<Node>>
+    _8.0 = copy _7  // label "Vec<Ref<Node>>.buf": Buf<Ref<Node>> decl owner=result_sink
+    _8.1 = 0  // label "Vec<Ref<Node>>.n": i32 decl owner=result_sink
+    _9 = copy_into _8 in result_sink
+    _0 = copy _9
+    storage_dead _5
+    storage_dead _1
+    region_exit r1
+    region_exit r0
+    return
+}
+
+fn Vec.push<Ref<Node>> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<Ref<Node>> [Arg] this
+  let _2: Ref<Node> [Arg] v
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Var] cap
+  let _5: unit [Hidden(DebugScope)]
+  let _6: Buf<Ref<Node>> [Temp]
+  let _7: i32 [Temp]
+  let _8: bool [Temp]
+  let _9: unit [Hidden(DebugScope)]
+  let _10: i32 [Temp]
+  let _11: i32 [Var] next
+  let _12: bool [Temp]
+  let _13: unit [Hidden(DebugScope)]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<Ref<Node>> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<Ref<Node>> [Val] b
+  let _20: i32 [Temp]
+  let _21: Ref<Node> [Temp]
+  let _22: i32 [Temp]
+  let _23: bool [Temp]
+  let _24: bool [Temp]
+  let _25: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 IfThen in r0
+  region r3 IfThen in r2
+  region r4 IfThen in r2
+  region r5 Block in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    register_drop current _2 RefSlot
+    _4 = 0  // label "cap": i32 decl
+    storage_live _5
+    _6 = copy _1.0
+    _7 = intrinsic BufCap(copy _6)
+    _4 = copy _7
+    storage_dead _5
+    _8 = eq(copy _1.1, copy _4)
+    switch copy _8 [ 1 -> bb1, else -> bb2]
+  bb1:
+    storage_live _9
+    _10 = mul(copy _4, 2)
+    _11 = copy _10  // label "next": i32 decl
+    _12 = eq(copy _11, 0)
+    switch copy _12 [ 1 -> bb3, else -> bb4]
+  bb2:
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<Ref<Node>> decl
+    _20 = copy _1.1
+    _21 = ref_clone copy _2
+    _22 = intrinsic BufCap(reborrow _19)
+    _23 = ge(copy _20, 0)
+    switch copy _23 [ 1 -> bb9, else -> bb8]
+  bb3:
+    storage_live _13
+    _11 = 4
+    storage_dead _13
+    goto bb4
+  bb4:
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
+  bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<Ref<Node>>(copy _16, copy _11) +current -> bb7
+  bb7:
+    storage_dead _9
+    goto bb2
+  bb8:
+    abort Bounds
+  bb9:
+    _24 = lt(copy _20, copy _22)
+    switch copy _24 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, move _21) in object_arena(_1)
+    storage_dead _18
+    _25 = add(copy _1.1, 1)
+    _1.1 = copy _25  // label "Vec<Ref<Node>>.n": i32 decl owner=object_arena(_1)
+    storage_dead _3
+    region_exit r0
+    return
 }
 
 fn iter<Ref<Node>> (parent=true, sink=true) {
   let _0: VecIter<Ref<Node>> [Return]
   let _1: Vec<Ref<Node>> [Arg] v
   let _2: unit [Hidden(DebugScope)]
-  let _3: Vec<Ref<Node>> [Temp]
-  let _4: Vec<Ref<Node>> [Temp]
-  let _5: VecIter<Ref<Node>> [Temp]
-  let _6: Vec<Ref<Node>> [Temp]
+  let _3: VecIter<Ref<Node>> [Temp]
   region r0 Block
   bb0:
     storage_live _2
     region_enter r0
-    _3 = move _1
-    _4 = copy_into _3 in result_sink
-    _5 = alloc Object { class: "VecIter<Ref<Node>>" } in result_sink  // label "VecIter<Ref<Node>>": VecIter<Ref<Node>>
-    _6 = copy_into _4 in result_sink
-    _5.0 = copy _6  // label "VecIter<Ref<Node>>.v": Vec<Ref<Node>> decl owner=result_sink
-    _5.1 = 0  // label "VecIter<Ref<Node>>.i": i32 decl owner=result_sink
-    _0 = copy _5
+    _3 = alloc Object { class: "VecIter<Ref<Node>>" } in result_sink  // label "VecIter<Ref<Node>>": VecIter<Ref<Node>>
+    _3.0 = move _1  // label "VecIter<Ref<Node>>.v": Vec<Ref<Node>> decl owner=result_sink
+    _3.1 = 0  // label "VecIter<Ref<Node>>.i": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _2
     region_exit r0
     return
@@ -1495,22 +2112,22 @@ fn Iterator@0.next<Ref<Node>> (parent=true, sink=true) {
   let _6: unit [Hidden(DebugScope)]
   let _7: Option<Ref<Node>> [Temp]
   let _8: &Vec<Ref<Node>> [Temp]
-  let _9: i32 [Temp]
-  let _10: Ref<Node> [Temp]
-  let _11: Ref<Node> [Val] x
-  let _12: i32 [Temp]
-  let _13: Ref<Node> [Temp]
-  let _14: Option<Ref<Node>> [Temp]
+  let _9: Ref<Node> [Temp]
+  let _10: Ref<Node> [Val] x
+  let _11: i32 [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: Option<Ref<Node>> [Temp]
   region r0 Block
   region r1 IfThen in r0
   bb0:
     storage_live _2
     region_enter r0
     _3 = borrow _1.0
-    _4 = vec_Len(copy _3)
-    _5 = ge(copy _1.1, copy _4)
-    switch copy _5 [ 1 -> bb1, else -> bb2]
+    _4 = call Vec.len<Ref<Node>>(copy _3) +current -> bb1
   bb1:
+    _5 = ge(copy _1.1, copy _4)
+    switch copy _5 [ 1 -> bb2, else -> bb3]
+  bb2:
     region_enter r1
     storage_live _6
     _7 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 1 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
@@ -1521,20 +2138,138 @@ fn Iterator@0.next<Ref<Node>> (parent=true, sink=true) {
     region_exit r1
     region_exit r0
     return
-  bb2:
+  bb3:
     _8 = borrow _1.0
-    _9 = copy _1.1
-    _10 = vec_Get(copy _8, copy _9)
-    _11 = move _10  // label "x": Ref<Node> decl
-    register_drop current _11 RefSlot
-    _12 = add(copy _1.1, 1)
-    _1.1 = copy _12  // label "VecIter<Ref<Node>>.i": i32 decl owner=object_arena(_1)
-    _13 = ref_clone copy _11
-    _14 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
-    ref_store_fresh _14@0.0 owner=result_sink move _13  // label "Option<Ref<Node>>.Some.value": Ref<Node> decl owner=result_sink
-    register_drop result_sink _14 Enum("Option<Ref<Node>>")
-    _0 = copy _14
+    _9 = call Vec.get<Ref<Node>>(copy _8, copy _1.1) +current +result_sink -> bb4
+  bb4:
+    _10 = move _9  // label "x": Ref<Node> decl
+    register_drop current _10 RefSlot
+    _11 = add(copy _1.1, 1)
+    _1.1 = copy _11  // label "VecIter<Ref<Node>>.i": i32 decl owner=object_arena(_1)
+    _12 = ref_clone copy _10
+    _13 = alloc EnumSlot { enum_name: "Option<Ref<Node>>", variant: 0 } in result_sink  // label "Option<Ref<Node>>": Option<Ref<Node>>
+    ref_store_fresh _13@0.0 owner=result_sink move _12  // label "Option<Ref<Node>>.Some.value": Ref<Node> decl owner=result_sink
+    register_drop result_sink _13 Enum("Option<Ref<Node>>")
+    _0 = copy _13
     storage_dead _2
+    region_exit r0
+    return
+}
+
+fn VecSeed.empty<Ref<Node>> (parent=true, sink=true) {
+  let _0: Buf<Ref<Node>> [Return]
+  let _1: &VecSeed<Ref<Node>> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Arena [Temp]
+  let _4: bool [Temp]
+  let _5: Buf<Ref<Node>> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic ArenaOf() in object_arena(_1)
+    _4 = ge(0, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort NegativeCapacity
+  bb2:
+    _5 = intrinsic BufAlloc(copy _3, 0)
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.reserveExact<Ref<Node>> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<Ref<Node>> [Arg] this
+  let _2: i32 [Arg] cap
+  let _3: unit [Hidden(DebugScope)]
+  let _4: Buf<Ref<Node>> [Val] old
+  let _5: i32 [Temp]
+  let _6: bool [Temp]
+  let _7: Buf<Ref<Node>> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = copy _1.0  // label "old": Buf<Ref<Node>> decl
+    _5 = intrinsic BufCap(reborrow _4)
+    _6 = gt(copy _2, copy _5)
+    switch copy _6 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort BufGrow
+  bb2:
+    _7 = intrinsic BufGrow(reborrow _4, copy _2) in object_arena(_1)
+    _1.0 = copy _7  // label "Vec<Ref<Node>>.buf": Buf<Ref<Node>> decl owner=object_arena(_1)
+    storage_dead _3
+    region_exit r0
+    return
+}
+
+fn Vec.len<Ref<Node>> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Vec<Ref<Node>> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _0 = copy _1.1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.get<Ref<Node>> (parent=true, sink=true) {
+  let _0: Ref<Node> [Return]
+  let _1: &Vec<Ref<Node>> [Arg] this
+  let _2: i32 [Arg] i
+  let _3: unit [Hidden(DebugScope)]
+  let _4: bool [Temp]
+  let _5: bool [Temp]
+  let _6: bool [Temp]
+  let _7: unit [Hidden(DebugScope)]
+  let _8: Buf<Ref<Node>> [Val] b
+  let _9: i32 [Temp]
+  let _10: bool [Temp]
+  let _11: bool [Temp]
+  let _12: Ref<Node> [Temp]
+  let _13: Ref<Node> [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _5 = lt(copy _2, 0)
+    switch copy _5 [ 0 -> bb1, else -> bb2]
+  bb1:
+    _6 = ge(copy _2, copy _1.1)
+    _4 = copy _6
+    goto bb3
+  bb2:
+    _4 = true
+    goto bb3
+  bb3:
+    switch copy _4 [ 1 -> bb4, else -> bb5]
+  bb4:
+    storage_live _7
+    abort Explicit
+  bb5:
+    _8 = copy _1.0  // label "b": Buf<Ref<Node>> decl
+    _9 = intrinsic BufCap(reborrow _8)
+    _10 = ge(copy _2, 0)
+    switch copy _10 [ 1 -> bb7, else -> bb6]
+  bb6:
+    abort Bounds
+  bb7:
+    _11 = lt(copy _2, copy _9)
+    switch copy _11 [ 1 -> bb8, else -> bb6]
+  bb8:
+    _12 = intrinsic SlotLoad(reborrow _8, copy _2)
+    _13 = ref_rehome owner=result_sink move _12
+    _0 = move _13
+    storage_dead _3
     region_exit r0
     return
 }
@@ -1561,9 +2296,9 @@ fn main (parent=false, sink=false) {
   let _2: Vec<String> [Temp]
   let _3: Vec<String> [Var] v
   let _4: &Vec<String> [Temp]
-  let _5: &Vec<String> [Temp]
-  let _6: Vec<String> [Temp]
-  let _7: Vec<String> [Temp]
+  let _5: unit [Temp]
+  let _6: &Vec<String> [Temp]
+  let _7: unit [Temp]
   let _8: VecIter<String> [Temp]
   let _9: closure#0(String)->i32 [Temp]
   let _10: Map<VecIter<String>, closure#0(String)->i32> [Temp]
@@ -1573,25 +2308,154 @@ fn main (parent=false, sink=false) {
   bb0:
     storage_live _1
     region_enter r0
-    _2 = alloc Vec { cap: None } in current
+    _2 = call vecNew<String>() +current +current -> bb1
+  bb1:
     _3 = copy _2  // label "v": Vec<String> decl
     _4 = borrow _3
-    vec_Push(copy _4, "ab")
-    _5 = borrow _3
-    vec_Push(copy _5, "cde")
-    _6 = move _3
-    _7 = copy_into _6 in current
-    _8 = call iter<String>(copy _7) +current +current -> bb1
-  bb1:
-    _9 = closure main$closure0() in current
-    _10 = call map<VecIter<String>,closure#0(String)->i32,i32>(copy _8, copy _9) +current +current -> bb2
+    _5 = call Vec.push<String>(copy _4, "ab") +current -> bb2
   bb2:
-    _11 = closure main$closure1() in current
-    _12 = call fold<Map<VecIter<String>,closure#0(String)->i32>,closure#1(i32,i32)->i32>(copy _10, 0, copy _11) +current -> bb3
+    _6 = borrow _3
+    _7 = call Vec.push<String>(copy _6, "cde") +current -> bb3
   bb3:
+    _8 = call iter<String>(move _3) +current +current -> bb4
+  bb4:
+    _9 = closure main$closure0() in current
+    _10 = call map<VecIter<String>,closure#0(String)->i32,i32>(copy _8, copy _9) +current +current -> bb5
+  bb5:
+    _11 = closure main$closure1() in current
+    _12 = call fold<Map<VecIter<String>,closure#0(String)->i32>,closure#1(i32,i32)->i32>(copy _10, 0, copy _11) +current -> bb6
+  bb6:
     intrinsic PrintlnInt(copy _12)
     _0 = 0
     storage_dead _1
+    region_exit r0
+    return
+}
+
+fn vecNew<String> (parent=true, sink=true) {
+  let _0: Vec<String> [Return]
+  let _1: unit [Hidden(DebugScope)]
+  let _2: unit [Hidden(DynamicArena)]
+  let _3: VecSeed<String> [Temp]
+  let _4: VecSeed<String> [Val] seed
+  let _5: unit [Hidden(DebugScope)]
+  let _6: &VecSeed<String> [Temp]
+  let _7: Buf<String> [Temp]
+  let _8: Vec<String> [Temp]
+  let _9: Vec<String> [Temp]
+  region r0 Block
+  region r1 Block in r0
+  bb0:
+    storage_live _1
+    region_enter r0
+    _2 = arena_create_dynamic parent=root scoped=false
+    register_strong_root result_sink <- _2
+    _3 = alloc Object { class: "VecSeed<String>" } in fresh2  // label "VecSeed<String>": VecSeed<String>
+    _3.0 = 0  // label "VecSeed<String>.n": i32 decl owner=fresh2
+    _4 = copy _3  // label "seed": VecSeed<String> decl
+    region_enter r1
+    storage_live _5
+    _6 = borrow _4
+    _7 = call VecSeed.empty<String>(copy _6) +current +result_sink -> bb1
+  bb1:
+    _8 = alloc Object { class: "Vec<String>" } in result_sink  // label "Vec<String>": Vec<String>
+    _8.0 = copy _7  // label "Vec<String>.buf": Buf<String> decl owner=result_sink
+    _8.1 = 0  // label "Vec<String>.n": i32 decl owner=result_sink
+    _9 = copy_into _8 in result_sink
+    _0 = copy _9
+    storage_dead _5
+    storage_dead _1
+    region_exit r1
+    region_exit r0
+    return
+}
+
+fn Vec.push<String> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: String [Arg] v
+  let _3: unit [Hidden(DebugScope)]
+  let _4: i32 [Var] cap
+  let _5: unit [Hidden(DebugScope)]
+  let _6: Buf<String> [Temp]
+  let _7: i32 [Temp]
+  let _8: bool [Temp]
+  let _9: unit [Hidden(DebugScope)]
+  let _10: i32 [Temp]
+  let _11: i32 [Var] next
+  let _12: bool [Temp]
+  let _13: unit [Hidden(DebugScope)]
+  let _14: bool [Temp]
+  let _15: unit [Hidden(DebugScope)]
+  let _16: &Vec<String> [Temp]
+  let _17: unit [Temp]
+  let _18: unit [Hidden(DebugScope)]
+  let _19: Buf<String> [Val] b
+  let _20: i32 [Temp]
+  let _21: i32 [Temp]
+  let _22: bool [Temp]
+  let _23: bool [Temp]
+  let _24: i32 [Temp]
+  region r0 Block
+  region r1 Block in r0
+  region r2 IfThen in r0
+  region r3 IfThen in r2
+  region r4 IfThen in r2
+  region r5 Block in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = 0  // label "cap": i32 decl
+    storage_live _5
+    _6 = copy _1.0
+    _7 = intrinsic BufCap(copy _6)
+    _4 = copy _7
+    storage_dead _5
+    _8 = eq(copy _1.1, copy _4)
+    switch copy _8 [ 1 -> bb1, else -> bb2]
+  bb1:
+    storage_live _9
+    _10 = mul(copy _4, 2)
+    _11 = copy _10  // label "next": i32 decl
+    _12 = eq(copy _11, 0)
+    switch copy _12 [ 1 -> bb3, else -> bb4]
+  bb2:
+    storage_live _18
+    _19 = copy _1.0  // label "b": Buf<String> decl
+    _20 = copy _1.1
+    _21 = intrinsic BufCap(reborrow _19)
+    _22 = ge(copy _20, 0)
+    switch copy _22 [ 1 -> bb9, else -> bb8]
+  bb3:
+    storage_live _13
+    _11 = 4
+    storage_dead _13
+    goto bb4
+  bb4:
+    _14 = gt(copy _4, 1073741823)
+    switch copy _14 [ 1 -> bb5, else -> bb6]
+  bb5:
+    storage_live _15
+    _11 = 2147483647
+    storage_dead _15
+    goto bb6
+  bb6:
+    _16 = borrow _1
+    _17 = call Vec.reserveExact<String>(copy _16, copy _11) +current -> bb7
+  bb7:
+    storage_dead _9
+    goto bb2
+  bb8:
+    abort Bounds
+  bb9:
+    _23 = lt(copy _20, copy _21)
+    switch copy _23 [ 1 -> bb10, else -> bb8]
+  bb10:
+    intrinsic SlotStore(reborrow _19, copy _20, copy _2) in object_arena(_1)
+    storage_dead _18
+    _24 = add(copy _1.1, 1)
+    _1.1 = copy _24  // label "Vec<String>.n": i32 decl owner=object_arena(_1)
+    storage_dead _3
     region_exit r0
     return
 }
@@ -1600,21 +2464,15 @@ fn iter<String> (parent=true, sink=true) {
   let _0: VecIter<String> [Return]
   let _1: Vec<String> [Arg] v
   let _2: unit [Hidden(DebugScope)]
-  let _3: Vec<String> [Temp]
-  let _4: Vec<String> [Temp]
-  let _5: VecIter<String> [Temp]
-  let _6: Vec<String> [Temp]
+  let _3: VecIter<String> [Temp]
   region r0 Block
   bb0:
     storage_live _2
     region_enter r0
-    _3 = move _1
-    _4 = copy_into _3 in result_sink
-    _5 = alloc Object { class: "VecIter<String>" } in result_sink  // label "VecIter<String>": VecIter<String>
-    _6 = copy_into _4 in result_sink
-    _5.0 = copy _6  // label "VecIter<String>.v": Vec<String> decl owner=result_sink
-    _5.1 = 0  // label "VecIter<String>.i": i32 decl owner=result_sink
-    _0 = copy _5
+    _3 = alloc Object { class: "VecIter<String>" } in result_sink  // label "VecIter<String>": VecIter<String>
+    _3.0 = move _1  // label "VecIter<String>.v": Vec<String> decl owner=result_sink
+    _3.1 = 0  // label "VecIter<String>.i": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _2
     region_exit r0
     return
@@ -1714,6 +2572,57 @@ fn fold<Map<VecIter<String>,closure#0(String)->i32>,closure#1(i32,i32)->i32> (pa
     goto bb6
 }
 
+fn VecSeed.empty<String> (parent=true, sink=true) {
+  let _0: Buf<String> [Return]
+  let _1: &VecSeed<String> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  let _3: Arena [Temp]
+  let _4: bool [Temp]
+  let _5: Buf<String> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _3 = intrinsic ArenaOf() in object_arena(_1)
+    _4 = ge(0, 0)
+    switch copy _4 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort NegativeCapacity
+  bb2:
+    _5 = intrinsic BufAlloc(copy _3, 0)
+    _0 = copy _5
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.reserveExact<String> (parent=true, sink=false) {
+  let _0: unit [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: i32 [Arg] cap
+  let _3: unit [Hidden(DebugScope)]
+  let _4: Buf<String> [Val] old
+  let _5: i32 [Temp]
+  let _6: bool [Temp]
+  let _7: Buf<String> [Temp]
+  region r0 Block
+  bb0:
+    storage_live _3
+    region_enter r0
+    _4 = copy _1.0  // label "old": Buf<String> decl
+    _5 = intrinsic BufCap(reborrow _4)
+    _6 = gt(copy _2, copy _5)
+    switch copy _6 [ 1 -> bb2, else -> bb1]
+  bb1:
+    abort BufGrow
+  bb2:
+    _7 = intrinsic BufGrow(reborrow _4, copy _2) in object_arena(_1)
+    _1.0 = copy _7  // label "Vec<String>.buf": Buf<String> decl owner=object_arena(_1)
+    storage_dead _3
+    region_exit r0
+    return
+}
+
 fn Iterator@1.next<VecIter<String>,closure#0(String)->i32,i32> (parent=true, sink=true) {
   let _0: i32? [Return]
   let _1: &Map<VecIter<String>, closure#0(String)->i32> [Arg] this
@@ -1781,23 +2690,23 @@ fn Iterator@0.next<String> (parent=true, sink=true) {
   let _7: String? [Temp]
   let _8: String? [Temp]
   let _9: &Vec<String> [Temp]
-  let _10: i32 [Temp]
-  let _11: String [Temp]
-  let _12: String [Val] x
-  let _13: i32 [Temp]
-  let _14: String? [Temp]
-  let _15: String [Temp]
-  let _16: String? [Temp]
+  let _10: String [Temp]
+  let _11: String [Val] x
+  let _12: i32 [Temp]
+  let _13: String? [Temp]
+  let _14: String [Temp]
+  let _15: String? [Temp]
   region r0 Block
   region r1 IfThen in r0
   bb0:
     storage_live _2
     region_enter r0
     _3 = borrow _1.0
-    _4 = vec_Len(copy _3)
-    _5 = ge(copy _1.1, copy _4)
-    switch copy _5 [ 1 -> bb1, else -> bb2]
+    _4 = call Vec.len<String>(copy _3) +current -> bb1
   bb1:
+    _5 = ge(copy _1.1, copy _4)
+    switch copy _5 [ 1 -> bb2, else -> bb3]
+  bb2:
     region_enter r1
     storage_live _6
     _7 = alloc EnumSlot { enum_name: "Option<String>", variant: 1 } in result_sink  // label "Option<String>": String?
@@ -1808,19 +2717,86 @@ fn Iterator@0.next<String> (parent=true, sink=true) {
     region_exit r1
     region_exit r0
     return
-  bb2:
+  bb3:
     _9 = borrow _1.0
-    _10 = copy _1.1
-    _11 = vec_Get(copy _9, copy _10)
-    _12 = copy _11  // label "x": String decl
-    _13 = add(copy _1.1, 1)
-    _1.1 = copy _13  // label "VecIter<String>.i": i32 decl owner=object_arena(_1)
-    _14 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in result_sink  // label "Option<String>": String?
-    _15 = copy_into _12 in result_sink
-    _14@0.0 = copy _15  // label "Option<String>.Some.value": String decl owner=result_sink
-    _16 = copy_into _14 in result_sink
-    _0 = copy _16
+    _10 = call Vec.get<String>(copy _9, copy _1.1) +current +result_sink -> bb4
+  bb4:
+    _11 = copy _10  // label "x": String decl
+    _12 = add(copy _1.1, 1)
+    _1.1 = copy _12  // label "VecIter<String>.i": i32 decl owner=object_arena(_1)
+    _13 = alloc EnumSlot { enum_name: "Option<String>", variant: 0 } in result_sink  // label "Option<String>": String?
+    _14 = copy_into _11 in result_sink
+    _13@0.0 = copy _14  // label "Option<String>.Some.value": String decl owner=result_sink
+    _15 = copy_into _13 in result_sink
+    _0 = copy _15
     storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.len<String> (parent=true, sink=false) {
+  let _0: i32 [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: unit [Hidden(DebugScope)]
+  region r0 Block
+  bb0:
+    storage_live _2
+    region_enter r0
+    _0 = copy _1.1
+    storage_dead _2
+    region_exit r0
+    return
+}
+
+fn Vec.get<String> (parent=true, sink=true) {
+  let _0: String [Return]
+  let _1: &Vec<String> [Arg] this
+  let _2: i32 [Arg] i
+  let _3: unit [Hidden(DebugScope)]
+  let _4: bool [Temp]
+  let _5: bool [Temp]
+  let _6: bool [Temp]
+  let _7: unit [Hidden(DebugScope)]
+  let _8: Buf<String> [Val] b
+  let _9: i32 [Temp]
+  let _10: bool [Temp]
+  let _11: bool [Temp]
+  let _12: String [Temp]
+  let _13: String [Temp]
+  region r0 Block
+  region r1 IfThen in r0
+  bb0:
+    storage_live _3
+    region_enter r0
+    _5 = lt(copy _2, 0)
+    switch copy _5 [ 0 -> bb1, else -> bb2]
+  bb1:
+    _6 = ge(copy _2, copy _1.1)
+    _4 = copy _6
+    goto bb3
+  bb2:
+    _4 = true
+    goto bb3
+  bb3:
+    switch copy _4 [ 1 -> bb4, else -> bb5]
+  bb4:
+    storage_live _7
+    abort Explicit
+  bb5:
+    _8 = copy _1.0  // label "b": Buf<String> decl
+    _9 = intrinsic BufCap(reborrow _8)
+    _10 = ge(copy _2, 0)
+    switch copy _10 [ 1 -> bb7, else -> bb6]
+  bb6:
+    abort Bounds
+  bb7:
+    _11 = lt(copy _2, copy _9)
+    switch copy _11 [ 1 -> bb8, else -> bb6]
+  bb8:
+    _12 = intrinsic SlotLoad(reborrow _8, copy _2)
+    _13 = copy_into _12 in result_sink
+    _0 = copy _13
+    storage_dead _3
     region_exit r0
     return
 }

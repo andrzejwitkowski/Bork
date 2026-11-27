@@ -45,7 +45,6 @@ fn pat(p: &mut HirPat, f: &mut impl FnMut(TyId) -> TyId) {
 fn own_types(e: &mut HirExpr, f: &mut impl FnMut(TyId) -> TyId) {
     e.ty = f(e.ty);
     match &mut e.kind {
-        HirExprKind::VecNew { elem, .. } => *elem = f(*elem),
         HirExprKind::PresenceMatch { bindings, .. } => {
             for b in std::iter::once(&mut *bindings.head).chain(&mut bindings.tail) {
                 b.binding_ty = f(b.binding_ty);

@@ -1,9 +1,149 @@
-intrinsic class Vec<T> {
-    intrinsic fun push(value: T)
-    intrinsic fun pop(): T?
-    intrinsic fun get(index: i32): T
-    intrinsic fun set(index: i32, value: T)
-    intrinsic fun len(): i32
-    intrinsic fun capacity(): i32
-    intrinsic fun clear()
+// `Vec` (#285): written in Bork on `Buf<T>`.
+// Both classes are `opaque` (#350): user code cannot read their fields or construct them, so a `Buf` never leaves the prelude.
+// shortcut: each `vecNew` / `vecWithCapacity` call leaks one `VecSeed` in the program-lifetime arena, until an arena-less empty-`Buf` primitive exists.
+opaque class VecSeed<T> {
+    n: i32
+    // Zero bytes in the seed's arena: never read, and `bufGrow` copies 0 bytes from it.
+    unsafe fun empty(): Buf<T> {
+        return bufAlloc::<T>(arenaOf(this), 0)
+    }
+}
+opaque class Vec<T> {
+    buf: Buf<T>
+    n: i32
+    // Grows to exactly `cap` slots; the buffer is allocated in this vector's own arena.
+    fun reserveExact(cap: i32) {
+        unsafe {
+            val old = this.buf
+            this.buf = bufGrow(&old, cap)
+        }
+    }
+    // Makes room for `cap` elements without growing again; does nothing when there already is.
+    fun reserveAtLeast(cap: i32) {
+        var have = 0
+        unsafe {
+            have = this.buf.cap()
+        }
+        if (have < cap) {
+            this.reserveExact(cap)
+        }
+    }
+    fun push(v: T) {
+        var cap = 0
+        unsafe {
+            cap = this.buf.cap()
+        }
+        if (this.n == cap) {
+            var next = cap * 2
+            if (next == 0) {
+                next = 4
+            }
+            // `cap * 2` wraps past 2^30; clamp to the largest `i32` (a full vector then aborts in `bufGrow`).
+            if (cap > 1073741823) {
+                next = 2147483647
+            }
+            this.reserveExact(next)
+        }
+        unsafe {
+            val b = this.buf
+            slotStore(&b, this.n, v)
+        }
+        this.n = this.n + 1
+    }
+    fun pop(): T? {
+        if (this.n == 0) {
+            return None
+        }
+        this.n = this.n - 1
+        unsafe {
+            val b = this.buf
+            return Some(slotLoad(&b, this.n))
+        }
+    }
+    // `pop` of a `Ref` element (typeck rewrites `v.pop()` to this for `Vec<Ref<C>>`): the `Ref` itself, `None` when empty.
+    fun popRef(): T {
+        unsafe {
+            if (this.n == 0) {
+                return refNone::<T>()
+            }
+            this.n = this.n - 1
+            val b = this.buf
+            return slotTake(&b, this.n)
+        }
+    }
+    fun get(i: i32): T {
+        unsafe {
+            if (i < 0 || i >= this.n) {
+                abort()
+            }
+            val b = this.buf
+            return slotLoad(&b, i)
+        }
+    }
+    fun set(i: i32, v: T) {
+        unsafe {
+            if (i < 0 || i >= this.n) {
+                abort()
+            }
+            val b = this.buf
+            slotStore(&b, i, v)
+        }
+    }
+    // `outer = promote inner` / `outer = move inner` (typeck rewrites it to this call): `this` takes a copy of `src` in its own arena.
+    // A `String` is copied into that arena and a `Ref` is rehomed by `slotStore`, so the copy owns its elements.
+    fun assignFrom(src: &Vec<T>) {
+        // Release what `this` holds first, so a shorter source leaves no live `Ref` in the old tail.
+        this.clear()
+        var cap = 0
+        unsafe {
+            cap = this.buf.cap()
+        }
+        if (cap < src.len()) {
+            this.reserveExact(src.len())
+        }
+        var i = 0
+        while (i < src.len()) {
+            unsafe {
+                val b = this.buf
+                slotCopy(&b, i, src.get(i))
+            }
+            i = i + 1
+        }
+        this.n = src.len()
+    }
+    fun len(): i32 {
+        return this.n
+    }
+    fun capacity(): i32 {
+        unsafe {
+            return this.buf.cap()
+        }
+    }
+    fun clear() {
+        var i = 0
+        while (i < this.n) {
+            unsafe {
+                val b = this.buf
+                slotDrop(&b, i)
+            }
+            i = i + 1
+        }
+        this.n = 0
+    }
+}
+fun vecNew<T>(): Vec<T> {
+    val seed: VecSeed<T> = VecSeed(0)
+    unsafe {
+        return Vec(seed.empty(), 0)
+    }
+}
+fun vecWithCapacity<T>(n: i32): Vec<T> {
+    if (n < 0) {
+        unsafe {
+            abort()
+        }
+    }
+    val v: Vec<T> = vecNew()
+    v.reserveAtLeast(n)
+    return v
 }

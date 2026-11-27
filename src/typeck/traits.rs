@@ -6,12 +6,16 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::{generics, lower::lower_type, type_error};
+use super::{generics, type_error};
 use crate::ast::{Impl, Program, Trait};
 use crate::defs::{DefId, DefTable};
 use crate::diag::Diagnostic;
 use crate::infer::{InferCtxt, VarKind};
 use crate::span::Span;
+/// Trait and impl signatures are user code: the prelude's own `Buf` classes need none (#350).
+fn lower_type(ty: &crate::ast::Type, defs: &DefTable, scope: &super::lower::Scope, tcx: &mut TyCtx, diagnostics: &mut Vec<Diagnostic>, span: Option<Span>) -> TyId {
+    super::lower::lower_type(ty, defs, scope, tcx, diagnostics, span, false)
+}
 use crate::ty::{subst, FnSig, ParamIdx, Predicate, ProjectionPredicate, TraitRef, TyCtx, TyData, TyId};
 
 /// A trait method signature without the implicit `this: &Self`. In `params`/`ret`, `Param(0)` is
@@ -366,7 +370,7 @@ fn check_impl(
         tcx.set_param_names(Vec::new());
         return None;
     }
-    if !tcx.is_object_type(self_ty) {
+    if !tcx.is_object_type(self_ty) || tcx.record_def(self_ty).is_some_and(|d| Some(d) == defs.vec_class()) {
         let message = format!("`impl {trait_name} for {}`: only classes and enums can implement a trait yet", tcx.display(self_ty));
         diagnostics.push(type_error(message, Some(i.self_span)));
         tcx.set_param_names(Vec::new());

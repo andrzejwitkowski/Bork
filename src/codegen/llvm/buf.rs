@@ -2,7 +2,7 @@
 //! and size (`mir/build/buf.rs`), so these emit only the allocation, the slot access and the grow copy.
 
 use inkwell::types::StructType;
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue, StructValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue, StructValue};
 use inkwell::AddressSpace;
 
 use crate::diag::Diagnostic;
@@ -22,6 +22,23 @@ impl<'ctx> Codegen<'ctx> {
         let wide = self.builder.build_int_s_extend(cap, self.context.i64_type(), "buf.cap")?;
         let bytes = self.builder.build_int_mul(wide, self.word(stride as u64), "buf.bytes")?;
         let ptr = self.arena_alloc(arena, bytes, align)?;
+        if self.debug.is_some() {
+            // A zero-byte buffer is a placeholder: `bufGrow` copies 0 bytes from it.
+            self.debug_allocation(ptr, "", &format!("Buf<{}>", self.tcx.display(elem)), false)?;
+        }
+        if self.tcx.is_managed_ref(elem) {
+            // Zeroed slots are `None` handles: a slot that was never stored releases nothing. One drop per buffer
+            // (its header is `{ptr, cap}`), registered where the buffer lives.
+            self.builder.build_memset(ptr, 1, self.context.i8_type().const_zero(), bytes)?;
+            let header = self.arena_alloc(arena, self.word(16), 8)?;
+            if self.debug.is_some() {
+                self.debug_allocation(header, "", "BufHeader", false)?;
+            }
+            self.builder.build_store(header, ptr)?;
+            let cap_slot = unsafe { self.builder.build_in_bounds_gep(self.context.i8_type(), header, &[self.word(8)], "buf.hdr.cap")? };
+            self.builder.build_store(cap_slot, wide)?;
+            self.builder.build_call(self.arena_register_drop_fn(), &[arena.into(), header.into(), self.buf_drop_refs_fn().as_global_value().as_pointer_value().into()], "")?;
+        }
         self.buf_value(ptr, cap)
     }
 
@@ -48,6 +65,17 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
+    /// `buf_store` for an element that lives in `arena`: a `Ref` goes through `bork_ref_store_take` (releasing the slot's old
+    /// value), a `String` is copied into `arena` first.
+    pub(in crate::codegen::llvm) fn buf_store_in(&self, f: FunctionValue<'ctx>, arena: PointerValue<'ctx>, buf: StructValue<'ctx>, index: IntValue<'ctx>, elem: TyId, value: BasicValueEnum<'ctx>) -> Result<(), Diagnostic> {
+        if self.tcx.is_managed_ref(elem) {
+            let (slot, _) = self.buf_slot(buf, index, elem)?;
+            return self.ref_store(f, slot, arena, value);
+        }
+        let copied = self.copy_string_into(arena, value.into_struct_value())?;
+        self.buf_store(buf, index, elem, copied.into())
+    }
+
     /// A new buffer of `new_cap` (already known larger) in `arena` holding the old `cap` slots; the old one stays
     /// until its arena dies (no `bork_arena_grow`).
     pub(in crate::codegen::llvm) fn buf_grow(&self, arena: PointerValue<'ctx>, buf: StructValue<'ctx>, new_cap: IntValue<'ctx>, elem: TyId) -> Result<StructValue<'ctx>, Diagnostic> {
@@ -58,6 +86,10 @@ impl<'ctx> Codegen<'ctx> {
         let cap = self.builder.build_int_s_extend(self.buf_cap(buf)?, self.context.i64_type(), "buf.cap.old")?;
         let bytes = self.builder.build_int_mul(cap, self.word(stride as u64), "buf.bytes.old")?;
         self.builder.build_memcpy(new, align as u32, old, align as u32, bytes)?;
+        if self.tcx.is_managed_ref(elem) {
+            // The handles moved: zero the old slots so the old buffer's registered drop releases nothing twice.
+            self.builder.build_memset(old, 1, self.context.i8_type().const_zero(), bytes)?;
+        }
         Ok(grown)
     }
 

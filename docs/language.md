@@ -309,7 +309,7 @@ These are lexer tokens, so they cannot name a binding, parameter, field, functio
 - ownership: `move`, `promote`
 - type constructors: `Ref`
 
-`const` is an ordinary keyword. `Ref` is still reserved. `Vec` is an ordinary identifier (#276): the prelude declares it as `intrinsic class Vec<T>`, and `Vec::<T>(cap)` is an ordinary call. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
+`const` is an ordinary keyword. `Ref` is still reserved. `Vec` is an ordinary identifier (#276); since #285 the prelude writes it in Bork as `opaque class Vec<T>`, and `Vec::<T>(cap)` is an ordinary call. Near misses such as `vec`, `constant` or `Vector` are ordinary identifiers.
 
 ## Statements
 

@@ -27,8 +27,14 @@ pub(super) fn check_construct(
     env: &mut Env<'_>,
 ) -> Checked {
     if env.tcx.is_intrinsic_def(class.id) {
-        let hint = if Some(class.id) == env.tcx.vec_def() { "; write `Vec::<T>()` or `Vec::<T>(capacity)`" } else { "" };
-        env.error(format!("`{}` is a built-in type and cannot be constructed like a class{hint}", class.name), Some(span));
+        env.error(format!("`{}` is a built-in type and cannot be constructed like a class", class.name), Some(span));
+        return super::method::poisoned(args, span, return_ty, env);
+    }
+    if !env.in_prelude && Some(class.id) == env.defs.vec_class() {
+        env.error(format!("`{}` is a built-in type and cannot be constructed like a class; write `Vec::<T>()` or `Vec::<T>(capacity)`", class.name), Some(span));
+        return super::method::poisoned(args, span, return_ty, env);
+    }
+    if env.reject_opaque(class.id, || "construction".to_string(), span) {
         return super::method::poisoned(args, span, return_ty, env);
     }
     if args.len() > class.fields.len() {

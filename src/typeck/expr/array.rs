@@ -1,6 +1,6 @@
 use crate::ast::Expr;
 use crate::hir::{HirExpr, HirExprKind, UseKind};
-use crate::span::Span;
+use crate::span::{AstId, Span};
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
@@ -96,6 +96,11 @@ pub(super) fn check_array_lit(
     )
 }
 
+/// The prelude's Bork `Vec` (`Vec` until the switch, #285): an `opaque` class, so a user class of that name never matches.
+pub(in crate::typeck) fn is_vec_class(ty: TyId, env: &Env<'_>) -> bool {
+    env.tcx.is_vec_class(ty)
+}
+
 pub(super) fn check_index(
     receiver: &Expr,
     index: &Expr,
@@ -103,7 +108,40 @@ pub(super) fn check_index(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
+    check_index_as(receiver, index, span, return_ty, false, env)
+}
+
+/// `check_index`; with `keep_index` the Bork `Vec` stays an `Index` node (for `&v[i]`) instead of becoming `v.get(i)`.
+pub(super) fn check_index_as(
+    receiver: &Expr,
+    index: &Expr,
+    span: Span,
+    return_ty: TyId,
+    keep_index: bool,
+    env: &mut Env<'_>,
+) -> Checked {
+    // Peek at a plain name's type first: synthesizing it as a value would count as a use (a move, inside a loop).
+    let peeked = match receiver {
+        Expr::Ident { name, .. } => env.binding(name).map(|b| b.ty),
+        _ => None,
+    };
+    if !keep_index && peeked.is_some_and(|ty| is_vec_class(ty, env)) {
+        // `v[i]` on the Bork `Vec` is `v.get(i)`.
+        let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
+        return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
+    }
+    let diagnostics_before = env.diagnostics.len();
     let receiver_hir = synthesize(receiver, return_ty, env);
+    if !keep_index && is_vec_class(receiver_hir.ty, env) {
+        // The method call below checks a place receiver again, so what this first pass reported is dropped to report it once.
+        // A receiver that is not a place is rejected by the method check before it is looked at: keep its own errors.
+        if super::method::is_place(receiver) {
+            env.diagnostics.truncate(diagnostics_before);
+        }
+        // `v[i]` on the Bork `Vec` is `v.get(i)`.
+        let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
+        return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
+    }
     let i32_ty = env.tcx.i32();
     let index_hir = check(index, i32_ty, return_ty, env);
     let elem_ty = if env.tcx.is_text(receiver_hir.ty) {

@@ -1,4 +1,4 @@
-// diag: `Vec` element must be
+// diag: cannot be a type argument of `Vec`
 class P {
     x: i32
 }

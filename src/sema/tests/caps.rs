@@ -4,7 +4,7 @@ use crate::ty::TyCtx;
 
 #[test]
 fn ast_twin_agrees_with_ty_caps() {
-    let program = crate::parse_unnumbered("class Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nintrinsic class Vec<T> {}\nintrinsic class Range<T> {}\nfun main() {}\n").unwrap();
+    let program = crate::parse_unnumbered("class Node {\n y: i32\n}\nenum Option<T> {\n Some(value: T)\n None\n}\nopaque class Vec<T> {}\nintrinsic class Range<T> {}\nfun main() {}\n").unwrap();
     let defs = DefTable::build(&program);
     let mut c = TyCtx::new(&defs);
     let def = defs.lookup_class("Node").unwrap();

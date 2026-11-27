@@ -126,22 +126,6 @@ impl<'ctx> Codegen<'ctx> {
         Ok(self.descriptor(dst, len))
     }
 
-    /// A copy of a `Vec` of plain elements in `arena`: a new header whose buffer holds `len` elements.
-    pub(super) fn copy_plain_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let len = self.vec_load_word(source, super::vec::LEN)?;
-        let header = self.vec_alloc(llvm_fn, arena, elem_ty, Some(len))?;
-        let (_, stride, align) = self.elem_storage(elem_ty)?;
-        let from = self.vec_load_ptr(source, super::vec::BUF)?;
-        let to = self.vec_load_ptr(header, super::vec::BUF)?;
-        let bytes = self.builder.build_int_mul(len, self.word(stride as u64), "vec.copy.bytes")?;
-        // `vec_alloc` leaves `to` null for an empty source; a zero-byte copy touches nothing.
-        self.builder.build_memcpy(to, align as u32, from, align as u32, bytes).map_err(|err| codegen_error(format!("LLVM builder error: {err}"), None))?;
-        self.vec_store(header, super::vec::LEN, len)?;
-        self.debug_copy_origin(source, header)?;
-        self.debug_copy_origin(from, to)?;
-        Ok(header)
-    }
-
     pub(super) fn counted_loop(&self, llvm_fn: FunctionValue<'ctx>, count: IntValue<'ctx>, mut body: impl FnMut(IntValue<'ctx>) -> Result<(), Diagnostic>) -> Result<(), Diagnostic> {
         let ctx = self.context;
         let entry = self.builder.get_insert_block().expect("positioned");
@@ -163,43 +147,6 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
-    /// A copy of a `Vec` of `Ref`s or text in `arena`: `Ref` elements are cloned and stored with ownership,
-    /// text is copied.
-    pub(super) fn copy_owning_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let len = self.vec_load_word(source, super::vec::LEN)?;
-        let header = self.vec_alloc(llvm_fn, arena, elem_ty, Some(len))?;
-        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let from = self.vec_load_ptr(source, super::vec::BUF)?;
-        let to = self.vec_load_ptr(header, super::vec::BUF)?;
-        // `vec_alloc` leaves `to` null for an empty source; the loop never runs then.
-        self.counted_loop(llvm_fn, len, |i| {
-            self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, self.vec_slot(from, i, stride)?, self.vec_slot(to, i, stride)?, false)
-        })?;
-        self.vec_store(header, super::vec::LEN, len)?;
-        self.debug_copy_origin(source, header)?;
-        self.debug_copy_origin(from, to)?;
-        Ok(header)
-    }
-
-    /// A `Vec` of closures copied into `arena`: each environment is re-homed through its copy glue.
-    pub(super) fn copy_closure_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, source: PointerValue<'ctx>, elem_ty: TyId) -> Result<PointerValue<'ctx>, Diagnostic> {
-        let len = self.vec_load_word(source, super::vec::LEN)?;
-        let header = self.vec_alloc(llvm_fn, arena, elem_ty, Some(len))?;
-        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
-        let from = self.vec_load_ptr(source, super::vec::BUF)?;
-        let to = self.vec_load_ptr(header, super::vec::BUF)?;
-        self.counted_loop(llvm_fn, len, |i| {
-            let env = self.builder.build_load(llvm_elem, self.vec_slot(from, i, stride)?, "elem.env")?.into_pointer_value();
-            let copied = self.copy_closure_into(llvm_fn, arena, env)?;
-            self.builder.build_store(self.vec_slot(to, i, stride)?, copied)?;
-            Ok(())
-        })?;
-        self.vec_store(header, super::vec::LEN, len)?;
-        self.debug_copy_origin(source, header)?;
-        self.debug_copy_origin(from, to)?;
-        Ok(header)
-    }
-
     /// The closure environment `env` re-homed into `arena` by its glue (slot 1); no glue means a constant environment, shared as is.
     pub(super) fn copy_closure_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, env: PointerValue<'ctx>) -> Result<PointerValue<'ctx>, Diagnostic> {
         let ptr = self.context.ptr_type(inkwell::AddressSpace::default());
@@ -218,6 +165,49 @@ impl<'ctx> Codegen<'ctx> {
         let phi = self.builder.build_phi(ptr, "env.copied")?;
         phi.add_incoming(&[(&env, entry), (&copied, call_end)]);
         Ok(phi.as_basic_value().into_pointer_value())
+    }
+
+
+    /// A copy of a `Vec` (the Bork class) in `arena`: a new `{buf, n}` object whose buffer holds the `n` live elements, each
+    /// copied the way its type needs (bytes, a cloned `Ref`, a re-homed closure, a copied `String`).
+    pub(super) fn copy_vec_into(&self, llvm_fn: FunctionValue<'ctx>, arena: PointerValue<'ctx>, ty: TyId, value: StructValue<'ctx>) -> Result<StructValue<'ctx>, Diagnostic> {
+        let elem_ty = self.tcx.vec_elem(ty).ok_or_else(|| not_yet_supported("vec copy type", None))?;
+        let name = crate::mono::class_instance_name(&self.tcx, ty).ok_or_else(|| not_yet_supported("vec copy class", None))?;
+        let record = self.record_type(&name).ok_or_else(|| not_yet_supported("vec copy record", None))?;
+        let source = self.builder.build_extract_value(value, 1, "vec.src")?.into_pointer_value();
+        let field = |object: PointerValue<'ctx>, i: u32| self.builder.build_struct_gep(record, object, i, "vec.field");
+        let buf = self.builder.build_load(self.buf_type(), field(source, 0)?, "vec.buf")?.into_struct_value();
+        let n = self.builder.build_load(self.context.i32_type(), field(source, 1)?, "vec.n")?.into_int_value();
+        let size = record.size_of().ok_or_else(|| not_yet_supported("unsized record", None))?;
+        use inkwell::types::BasicType;
+        let align = record.get_alignment().get_zero_extended_constant().unwrap_or(8) as usize;
+        let object = self.arena_alloc(arena, size, align)?;
+        self.debug_allocation(object, "", &name, false)?;
+        let copied = self.buf_alloc(arena, elem_ty, n)?;
+        let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
+        let from = self.builder.build_extract_value(buf, 0, "vec.from")?.into_pointer_value();
+        let to = self.builder.build_extract_value(copied, 0, "vec.to")?.into_pointer_value();
+        let count = self.builder.build_int_s_extend(n, self.context.i64_type(), "vec.count")?;
+        self.counted_loop(llvm_fn, count, |i| {
+            let (src, dst) = (self.vec_slot(from, i, stride)?, self.vec_slot(to, i, stride)?);
+            if self.tcx.is_callable(elem_ty) {
+                let env = self.builder.build_load(self.context.ptr_type(inkwell::AddressSpace::default()), src, "vec.env")?.into_pointer_value();
+                let moved = self.copy_closure_into(llvm_fn, arena, env)?;
+                self.builder.build_store(dst, moved)?;
+                Ok(())
+            } else if self.tcx.is_managed_ref(elem_ty) || self.tcx.is_text(elem_ty) {
+                self.copy_owned_element(llvm_fn, arena, elem_ty, llvm_elem, src, dst, false)
+            } else {
+                let plain = self.builder.build_load(llvm_elem, src, "vec.elem")?;
+                self.builder.build_store(dst, plain)?;
+                Ok(())
+            }
+        })?;
+        self.builder.build_store(field(object, 0)?, copied)?;
+        self.builder.build_store(field(object, 1)?, n)?;
+        let handle = self.object_handle_type().const_named_struct(&[]);
+        let handle = self.builder.build_insert_value(handle, arena, 0, "vec.arena")?;
+        Ok(self.builder.build_insert_value(handle, object, 1, "vec.ptr")?.into_struct_value())
     }
 
     /// An object is not copied with its holder: keep its arena alive as long as `arena`. No-op for other types.
@@ -496,14 +486,8 @@ impl<'ctx> Codegen<'ctx> {
             }
             return Ok(self.copy_plain_array_into(arena, value.into_struct_value(), ty)?.into());
         }
-        if let Some(elem) = self.tcx.vec_elem(ty) {
-            if self.tcx.is_callable(elem) {
-                return Ok(self.copy_closure_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
-            }
-            if self.tcx.is_managed_ref(elem) || self.tcx.is_text(elem) {
-                return Ok(self.copy_owning_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
-            }
-            return Ok(self.copy_plain_vec_into(llvm_fn, arena, value.into_pointer_value(), elem)?.into());
+        if self.tcx.is_vec(ty) {
+            return Ok(self.copy_vec_into(llvm_fn, arena, ty, value.into_struct_value())?.into());
         }
         Ok(value)
     }

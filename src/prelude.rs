@@ -34,13 +34,13 @@ const CHUNKS: [Chunk; 13] = [
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
     Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
-    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec"], needs: &[], source: include_str!("prelude/vec.bork") },
+    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec", "VecSeed", "vecNew", "vecWithCapacity"], needs: &[BUF], source: include_str!("prelude/vec.bork") },
     // `F: Fn(A) -> R` bounds (RFC 0007); the solver gives closures and functions their impls.
     Chunk { path: "<bork-prelude>/fn.bork", names: &["Fn", "FnMut", "FnOnce"], needs: &[], source: include_str!("prelude/fn.bork") },
     Chunk { path: "<bork-prelude>/iter.bork", names: &["VecIter", "iter", "Map", "map", "Filter", "filter", "fold"], needs: &[OPTION, ITERATOR, VEC, FN], source: include_str!("prelude/iter.bork") },
     // `Buf<T>` and `Arena` (#285): the opaque types of the unsafe-only buffer primitives.
     Chunk { path: "<bork-prelude>/buf.bork", names: &["Buf", "Arena"], needs: &[], source: include_str!("prelude/buf.bork") },
-    // Internal `Stack<T>` (#285 step 1) on `Buf<T>`; step 2 replaces it with `Vec` written in Bork.
+    // Internal `Stack<T>` (#285 step 1) on `Buf<T>`.
     Chunk { path: "<bork-prelude>/stack.bork", names: &["Stack", "StackSeed", "newStack"], needs: &[BUF], source: include_str!("prelude/stack.bork") },
     // Always added (index >= ALWAYS_FROM): a literal `a..b` has the type `Range<i32>` without naming it.
     Chunk { path: "<bork-prelude>/range.bork", names: &["Range"], needs: &[], source: include_str!("prelude/range.bork") },
@@ -103,16 +103,34 @@ fn mentions(code: &str, name: &str) -> bool {
 pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
     let code = code_only(source);
     let shadowed = |chunk: &Chunk| chunk.names.iter().any(|name| defines(program, name));
+    // A chunk is blocked when the user defines one of its names, or a chunk it builds on is blocked (`iter` -> `Vec` -> `Buf`).
+    let mut blocked: [bool; CHUNKS.len()] = std::array::from_fn(|index| shadowed(&CHUNKS[index]));
+    loop {
+        let before = blocked;
+        for (index, chunk) in CHUNKS.iter().enumerate() {
+            blocked[index] |= chunk.needs.iter().any(|&need| blocked[need]);
+        }
+        if blocked == before {
+            break;
+        }
+    }
     let mut wanted = [false; CHUNKS.len()];
     for (index, chunk) in CHUNKS.iter().enumerate() {
         // A chunk is skipped when the user defines its names, or one it builds on: the user's
         // `Option` has its own shape, so the conversions written for the prelude's cannot work.
-        let blocked = shadowed(chunk) || chunk.needs.iter().any(|&need| shadowed(&CHUNKS[need]));
+        let blocked = blocked[index];
         wanted[index] = !blocked && (index == OPTION || index >= ALWAYS_FROM || chunk.names.iter().any(|name| mentions(&code, name)));
     }
-    for (index, chunk) in CHUNKS.iter().enumerate() {
-        if wanted[index] {
-            chunk.needs.iter().for_each(|&need| wanted[need] = true);
+    // Transitive: `iter` needs `Vec`, which needs `Buf`.
+    loop {
+        let before = wanted;
+        for (index, chunk) in CHUNKS.iter().enumerate() {
+            if wanted[index] {
+                chunk.needs.iter().filter(|&&need| !blocked[need]).for_each(|&need| wanted[need] = true);
+            }
+        }
+        if wanted == before {
+            break;
         }
     }
     let mut extra = Program { constants: Vec::new(), classes: Vec::new(), enums: Vec::new(), functions: Vec::new(), traits: Vec::new(), impls: Vec::new() };
@@ -129,6 +147,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         }));
         extra.impls.extend(parsed.impls);
     }
+    extra.mark_prelude();
     crate::ast_number::number_nodes_from(&mut extra, next_id);
     program.constants.extend(extra.constants);
     program.classes.extend(extra.classes);
@@ -237,6 +256,33 @@ mod tests {
         assert!(!none.iter().any(|c| c == "Buf" || c == "Arena"), "{none:?}");
         let named = classes("fun main(): i32 {\n    val s: Stack<i32> = newStack()\n    return s.len()\n}\n");
         assert!(["Stack", "StackSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+    }
+
+    #[test]
+    fn a_chunk_pulls_in_the_dependencies_of_its_dependencies() {
+        // `iter` -> `Vec` -> `Buf`: naming only `iter` must still load `Buf`.
+        let result = check("fun main(): i32 {\n    val iter = 1\n    return iter\n}\n");
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+    }
+
+    #[test]
+    fn a_user_buf_class_blocks_vec_and_what_builds_on_it() {
+        // `iter` -> `Vec` -> `Buf`: the user's `Buf` must not get a second, prelude `Buf` next to it.
+        let result = check("class Buf {\n    x: i32\n}\nfun main(): i32 {\n    val iter = 1\n    return iter\n}\n");
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+    }
+
+    #[test]
+    fn vec_comes_only_when_named() {
+        let classes = |code: &str| {
+            let result = check(code);
+            assert!(result.is_ok(), "{:?}", result.diagnostics);
+            result.hir.unwrap().classes.into_iter().map(|c| c.name).collect::<Vec<_>>()
+        };
+        let none = classes("fun main() {}\n");
+        assert!(!none.iter().any(|c| c.starts_with("Vec")), "{none:?}");
+        let named = classes("fun main(): i32 {\n    val v: Vec<i32> = vecNew()\n    return v.len()\n}\n");
+        assert!(["Vec", "VecSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
     }
 
     #[test]

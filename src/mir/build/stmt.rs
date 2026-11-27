@@ -50,6 +50,7 @@ impl<'a> FnBuilder<'a> {
                 let planned = self.planned_sinks.get(&value.id).cloned();
                 let (sink, v) = match planned {
                     // A call result outside a loop is allocated in the result sink (`call_result_sink`), so the binding lives there.
+                    None if matches!(&value.kind, HirExprKind::Call { callee, .. } if matches!(&callee.kind, HirExprKind::Ident { name, .. } if super::expr::is_vec_factory(name))) => (self.sink.clone(), self.expr(value)?),
                     None if matches!(value.kind, HirExprKind::Call { .. }) => (self.call_result_sink(value.id, value.ty), self.expr(value)?),
                     None => (self.sink.clone(), self.expr(value)?),
                     Some(Sink::Local) => (self.sink.clone(), self.expr(value)?),

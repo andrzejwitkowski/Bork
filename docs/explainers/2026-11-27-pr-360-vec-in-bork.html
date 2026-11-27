@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PR #360 - Vec&lt;T&gt; written in Bork: where it lives and how it grows</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#222;--muted:#666;--line:#d9d5cb;--accent:#2b5fa8;--ok:#1f7a3f;--bad:#b3261e;--warn:#fff3cd;--note:#e8f0fb;
+--c-obj:#cfe3ff;--c-buf:#d8f0d2;--c-old:#e7e2d6;--c-ref:#fde0c8;--c-arena:#f4efe3;--c-none:#f0f0f0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 Georgia,"Times New Roman",serif}
+main{max-width:860px;margin:0 auto;padding:24px 18px 80px}
+h1{font-size:2rem;line-height:1.2;margin:.2em 0}
+h2{margin-top:2.4em;border-top:2px solid var(--line);padding-top:.8em;font-size:1.5rem}
+h3{margin-top:1.8em;font-size:1.15rem}
+p.sub{color:var(--muted);margin-top:0}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+code{background:#efece4;padding:1px 4px;border-radius:3px}
+pre{background:#1f2430;color:#e6e6e6;padding:12px 14px;border-radius:6px;overflow-x:auto;white-space:pre;line-height:1.45}
+nav.toc{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 18px;margin:18px 0}
+nav.toc ol{margin:.3em 0;padding-left:1.2em}
+.callout{border-left:4px solid var(--accent);background:var(--note);padding:10px 14px;border-radius:0 6px 6px 0;margin:16px 0}
+.callout.warn{border-color:#c79100;background:var(--warn)}
+.callout b.t{display:block;margin-bottom:2px}
+details.skip{border:1px dashed var(--line);border-radius:8px;padding:6px 14px;margin:14px 0;background:#fff}
+details.skip>summary{cursor:pointer;color:var(--accent);font-weight:bold}
+.fig{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;margin:18px 0;overflow-x:auto}
+.fig .cap{color:var(--muted);font-size:.9rem;margin-top:8px}
+.row{display:flex;gap:0;align-items:stretch;margin:6px 0;flex-wrap:nowrap}
+.cell{border:1px solid #888;padding:6px 8px;text-align:center;font:13px/1.3 ui-monospace,Menlo,Consolas,monospace;min-width:54px;background:#fff}
+.cell small{display:block;color:var(--muted);font-size:11px}
+.obj{background:var(--c-obj)}.buf{background:var(--c-buf)}.old{background:var(--c-old);color:#777}.ref{background:var(--c-ref)}.none{background:var(--c-none);color:#999}
+.w2{flex:2}.w3{flex:3}.w4{flex:4}.w1{flex:1}
+.arena{background:var(--c-arena);border:2px solid #b8ad8f;border-radius:10px;padding:10px 12px;margin:10px 0}
+.arena>.title{font:bold 13px ui-monospace,monospace;color:#6b5f3e;margin-bottom:6px}
+.arena.dyn{border-style:dashed}
+.lbl{font:12px ui-monospace,monospace;color:var(--muted);margin:2px 0}
+.arrow{font:13px ui-monospace,monospace;color:var(--accent);margin:2px 0 2px 8px}
+.step{display:flex;gap:10px;align-items:flex-start;margin:10px 0}
+.step .n{background:var(--accent);color:#fff;border-radius:50%;min-width:26px;height:26px;text-align:center;font:bold 14px/26px sans-serif;margin-top:2px}
+table{border-collapse:collapse;width:100%;font-size:.93rem;background:#fff}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#f3f0e8}
+.q{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:16px 0}
+.q .opts button{display:block;width:100%;text-align:left;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#faf9f5;font:inherit;cursor:pointer}
+.q .opts button:hover{background:#eef3fb}
+.q .opts button.right{background:#dff3e5;border-color:var(--ok)}
+.q .opts button.wrong{background:#fbe3e1;border-color:var(--bad)}
+.q .fb{margin-top:8px;padding:8px 10px;border-radius:6px;display:none}
+.q .fb.show{display:block;background:#f3f0e8}
+#score{font-weight:bold}
+@media(max-width:560px){body{font-size:16px}.cell{min-width:38px;padding:5px 4px;font-size:11px}}
+</style>
+</head>
+<body>
+<main>
+<h1>Vec&lt;T&gt; is now an ordinary class: where it lives and how it grows</h1>
+<p class="sub">Explainer for PR #360 (issue #285) &middot; branch <code>feat/285-vec-in-bork</code> &middot; 2026-11-27</p>
+
+<p>For a long time <code>Vec</code> was a guest in the compiler: a type with no fields, a 32-byte header the code generator knew by heart, and a dozen special statements in the middle of the IR. This PR moves it into the prelude, as <code>src/prelude/vec.bork</code>, written in the language it serves. The interesting part is not the move itself. It is the question that follows: <em>where in memory does a <code>Vec</code> live now, and who owns which bytes?</em> That is what this page is about.</p>
+
+<nav class="toc"><b>Contents</b>
+<ol>
+<li><a href="#bg">Background</a>: arenas, handles, buffers</li>
+<li><a href="#intuition">Intuition</a>: one object, one buffer, one arena</li>
+<li><a href="#layout">Memory layout in detail</a></li>
+<li><a href="#growth">How it grows</a></li>
+<li><a href="#refs">Vectors of <code>Ref</code>, <code>String</code> and closures</a></li>
+<li><a href="#moves">Moving a vector between arenas</a></li>
+<li><a href="#code">Code walkthrough</a></li>
+<li><a href="#limits">Known limits</a></li>
+<li><a href="#quiz">Quiz</a></li>
+</ol></nav>
+
+<h2 id="bg">1. Background</h2>
+
+<details class="skip"><summary>New to Bork's memory model? Read this first (skip if you know arenas)</summary>
+<p>Bork has no garbage collector and no <code>free</code>. Memory is handed out by <strong>arenas</strong>. An arena is a pool of pages (4096 bytes each). Allocating means bumping a pointer inside a page, which is very cheap. You almost never free a single object. Instead, when the region of code that owns the arena ends (a block, a loop iteration, a function), the whole arena goes at once.</p>
+<p>Two consequences shape everything below. First, <strong>an object must never outlive its arena</strong>, so the compiler tracks which arena each value lives in and rejects code that would leave a dangling pointer. Second, <strong>an arena does not give memory back piece by piece</strong>: if you allocate a bigger buffer, the old one stays where it was until the arena dies.</p>
+<div class="fig">
+<div class="arena"><div class="title">arena of the block <code>{ ... }</code> (pages of 4096 B, bump allocation)</div>
+<div class="row"><div class="cell obj w2">obj A<small>40 B</small></div><div class="cell obj w3">obj B<small>100 B</small></div><div class="cell none w4">free tail</div></div>
+<div class="lbl">&#8594; offset moves right on every allocation; nothing is ever moved or freed on its own</div></div>
+<div class="cap">Allocations over 2048 bytes get their own system block instead of a slot in a page (<code>docs/arena-allocation.md</code>).</div>
+</div>
+</details>
+
+<h3>The pieces this PR builds on</h3>
+<ul>
+<li><strong>Objects are handles.</strong> A value of a class type is a 16-byte handle <code>{arena, object pointer}</code>. The handle remembers which arena the object lives in. That is how a method can say <code>arenaOf(this)</code>.</li>
+<li><strong><code>Buf&lt;T&gt;</code></strong> (PR #354) is a raw buffer handle <code>{ptr, cap: i32}</code>. It carries no arena. It is only usable inside <code>unsafe</code> code, and only the prelude can write <code>unsafe</code>. <code>opaque class</code> (PR #357) hides a class's fields and constructor from user code.</li>
+<li><strong>Primitives.</strong> <code>bufAlloc</code>, <code>bufGrow</code>, <code>slotLoad</code>, <code>slotStore</code>, <code>abort</code> and <code>arenaOf(this)</code> are the whole toolbox. Every index is bounds-checked and aborts on a bad one.</li>
+</ul>
+
+<h3>What <code>Vec</code> used to be</h3>
+<p>Before this PR a <code>Vec</code> value was a pointer to a 32-byte header <code>{buf, len, cap, arena}</code> allocated once in the owner arena, with compiler-built methods (<code>VecOp</code>) and a special drop function for <code>Vec&lt;Ref&lt;T&gt;&gt;</code>. Every new collection would have needed the same compiler code, and a user could not write <code>impl Trait for Vec&lt;T&gt;</code> because <code>Vec</code> was not a real class.</p>
+
+<h2 id="intuition">2. Intuition</h2>
+<p>The new design is a deliberately boring one: <strong>a <code>Vec</code> is a two-field class, and the elements live in a separate buffer that the class points to.</strong></p>
+
+<pre>opaque class Vec&lt;T&gt; {
+    buf: Buf&lt;T&gt;   // the elements: {ptr, cap}
+    n: i32        // how many slots are live
+}</pre>
+
+<p>Everything else follows from two rules. <strong>Rule one:</strong> the object is allocated in the arena of the place that declares it. <strong>Rule two:</strong> every method that needs memory (<code>push</code> growing the buffer) allocates in <code>arenaOf(this)</code>, which is that same arena. So the object and its buffer always share an arena, and they die together.</p>
+
+<div class="fig">
+<div class="arena"><div class="title">arena A (the block that wrote <code>var v = Vec::&lt;i32&gt;()</code>)</div>
+<div class="row"><div class="cell obj w4">Vec object<small>24 B: buf {ptr,cap}, n</small></div><div class="cell buf w4">buffer<small>cap &times; 4 B</small></div><div class="cell none w1">&hellip;</div></div>
+<div class="arrow">object.buf.ptr &#8594; the green block, in the same arena</div></div>
+<div class="row"><div class="cell obj w2">handle (in a local)<small>{arena = A, ptr}</small></div></div>
+<div class="cap">The handle you hold knows arena A. <code>push</code> reads it with <code>arenaOf(this)</code> to decide where a bigger buffer goes.</div>
+</div>
+
+<div class="callout"><b class="t">The one-sentence version</b>A <code>Vec</code> is a small object plus a buffer, both in the arena where the vector was declared, and growth allocates a bigger buffer in that same arena and abandons the old one until the arena ends.</div>
+
+<h2 id="layout">3. Memory layout in detail</h2>
+
+<h3>The object (24 bytes)</h3>
+<p>These numbers come straight from the layout golden (<code>tests/golden/mir_layout.txt</code>): <code>class Vec&lt;i32&gt; size=24 align=8 fields=[0, 16]</code>. The first field is a <code>Buf</code>, which is a pointer plus an <code>i32</code> capacity (16 bytes with padding). The second field is the live count.</p>
+<div class="fig">
+<div class="row" style="max-width:640px">
+<div class="cell obj w4">buf.ptr<small>offset 0, 8 B</small></div>
+<div class="cell obj w2">buf.cap<small>offset 8, 4 B</small></div>
+<div class="cell none w2">pad<small>offset 12</small></div>
+<div class="cell obj w2">n<small>offset 16, 4 B</small></div>
+<div class="cell none w2">pad<small>offset 20</small></div></div>
+<div class="cap"><code>n</code> is the number of live elements (<code>len()</code>). <code>buf.cap</code> is the number of slots allocated (<code>capacity()</code>). Always <code>n &le; cap</code>.</div>
+</div>
+
+<h3>The buffer</h3>
+<p>The buffer is <code>cap</code> slots of the element's size. Slots <code>0..n</code> are live, slots <code>n..cap</code> are allocated but never read: <code>get</code> and <code>set</code> check against <code>n</code>, not <code>cap</code>, and abort otherwise.</p>
+<div class="fig">
+<div class="lbl">Vec&lt;i32&gt; with n = 3, cap = 4</div>
+<div class="row" style="max-width:520px"><div class="cell buf w1">10</div><div class="cell buf w1">20</div><div class="cell buf w1">30</div><div class="cell none w1">spare</div></div>
+<div class="lbl">&uarr; slots 0..2 live (get/set allowed) &nbsp; &uarr; slot 3 allocated but not live (get aborts)</div>
+<div class="lbl" style="margin-top:10px">Vec&lt;String&gt;: each slot is a descriptor {ptr, len}; the bytes are copied into the vector's arena on store</div>
+<div class="row" style="max-width:520px"><div class="cell buf w2">{ptr,len=2}</div><div class="cell buf w2">{ptr,len=5}</div><div class="cell none w1">spare</div></div>
+</div>
+
+<h3>Which arena holds what</h3>
+<table>
+<tr><th>Thing</th><th>Arena</th><th>Why</th></tr>
+<tr><td>The <code>Vec</code> object (24 B)</td><td>The arena where it is declared. A returned <code>val v = Vec::&lt;T&gt;()</code> is hoisted to the function's <strong>result arena</strong>, so the caller can keep it.</td><td>Decided by <code>mir/build/stmt.rs</code> and <code>sinks.rs</code>: the factory call gets the declaring sink instead of the generic call-result sink.</td></tr>
+<tr><td>The element buffer</td><td><code>arenaOf(this)</code>, i.e. the object's own arena</td><td><code>bufGrow</code> is only legal inside a method and allocates in <code>this</code>'s arena.</td></tr>
+<tr><td>Bytes of a <code>String</code> element</td><td>The same arena (copied on <code>push</code>/<code>set</code>)</td><td><code>slotStore</code> of text copies into the buffer's arena.</td></tr>
+<tr><td>Environment of a closure element</td><td>The same arena (copied)</td><td>So the closure outlives the block that pushed it.</td></tr>
+<tr><td>Object a <code>Ref</code> element points to</td><td>Wherever that object lives. The <em>slot</em> is in the vector's arena; the handle's kind (strong or weak) is decided by which arena is older.</td><td><code>Ref</code> protocol: a back-edge to an older arena is weak.</td></tr>
+<tr><td>A <code>VecSeed</code> (temporary)</td><td>A fresh dynamic arena under the root</td><td>Needed to obtain an empty <code>Buf</code>; it is never freed (known limit, #358).</td></tr>
+</table>
+
+<div class="callout warn"><b class="t">Why not just free the old buffer?</b>The arena API in this path has no per-block free. <code>bork_arena_grow</code> exists but is not an IR operation, and a published buffer pointer may already be copied around. So the old buffer stays until the arena dies. It is bounded: with doubling, all abandoned buffers together are smaller than the current one (4 + 8 + &hellip; + cap/2 &lt; cap), so a vector wastes at most about as much memory as it uses.</div>
+
+<h2 id="growth">4. How it grows</h2>
+<p>Growth policy is copied byte for byte from the old implementation: nothing is allocated for an empty vector, the first <code>push</code> allocates 4 slots, and afterwards capacity doubles. <code>Vec::&lt;T&gt;(n)</code> allocates exactly <code>n</code> slots up front and then doubles from <code>n</code>. A negative <code>n</code> aborts.</p>
+
+<pre>fun push(v: T) {
+    cap = this.buf.cap()
+    if (this.n == cap) {
+        var next = cap * 2
+        if (next == 0) { next = 4 }
+        if (cap &gt; 1073741823) { next = 2147483647 }   // clamp: cap * 2 would wrap
+        this.reserveExact(next)          // bufGrow in arenaOf(this)
+    }
+    slotStore(&amp;b, this.n, v)
+    this.n = this.n + 1
+}</pre>
+
+<h3>A toy run: five pushes into an empty vector</h3>
+<div class="fig">
+<div class="step"><div class="n">1</div><div style="flex:1"><b>Empty.</b> <code>buf = {ptr = null, cap = 0}</code> (a zero-byte buffer made by the seed). <code>n = 0</code>.
+<div class="arena"><div class="title">arena A</div><div class="row"><div class="cell obj w3">Vec object</div></div></div></div></div>
+<div class="step"><div class="n">2</div><div style="flex:1"><b>First push.</b> <code>n == cap == 0</code>, so <code>next = 4</code>. <code>bufGrow</code> allocates 4 slots, copies 0 bytes.
+<div class="arena"><div class="title">arena A</div><div class="row"><div class="cell obj w2">Vec</div><div class="cell buf w1">1</div><div class="cell none w1">&nbsp;</div><div class="cell none w1">&nbsp;</div><div class="cell none w1">&nbsp;</div></div><div class="lbl">cap 4, n 1</div></div></div></div>
+<div class="step"><div class="n">3</div><div style="flex:1"><b>Pushes 2, 3, 4.</b> No allocation: the buffer has room.
+<div class="arena"><div class="title">arena A</div><div class="row"><div class="cell obj w2">Vec</div><div class="cell buf w1">1</div><div class="cell buf w1">2</div><div class="cell buf w1">3</div><div class="cell buf w1">4</div></div><div class="lbl">cap 4, n 4</div></div></div></div>
+<div class="step"><div class="n">4</div><div style="flex:1"><b>Fifth push.</b> <code>n == cap == 4</code>, so <code>next = 8</code>. A new 8-slot buffer is allocated <em>in the same arena</em>, the 4 old slots are copied over, and <code>this.buf</code> is overwritten with the new <code>{ptr, 8}</code>. The old buffer is still in the arena, now unreachable.
+<div class="arena"><div class="title">arena A</div>
+<div class="row"><div class="cell obj w2">Vec</div><div class="cell old w1">1</div><div class="cell old w1">2</div><div class="cell old w1">3</div><div class="cell old w1">4</div><div class="cell buf w1">1</div><div class="cell buf w1">2</div><div class="cell buf w1">3</div><div class="cell buf w1">4</div><div class="cell buf w1">5</div><div class="cell none w1">&nbsp;</div><div class="cell none w1">&nbsp;</div><div class="cell none w1">&nbsp;</div></div>
+<div class="lbl">grey = old buffer, abandoned until arena A ends &nbsp;|&nbsp; green = current buffer, cap 8, n 5</div></div></div></div>
+<div class="cap">The Vec <em>object</em> never moves, so every handle to it stays valid across growth. Only <code>buf</code>, inside the object, changes.</div>
+</div>
+
+<div class="callout"><b class="t">Large buffers</b>The arena puts blocks over 2048 bytes outside its pages, in their own system allocation. A <code>Vec&lt;i32&gt;</code> crosses that line at 513 elements (cap 1024 = 4096 B). It changes where the bytes live, not who owns them: the arena still releases the block when it ends.</div>
+
+<h3>Two vectors filled in one loop</h3>
+<p>A question worth asking: what if two vectors grow side by side?</p>
+<pre>val wektor  = Vec::&lt;i32&gt;()
+val wektor2 = Vec::&lt;i32&gt;()
+for (i in 0..10) {
+    wektor.push(x)
+    wektor2.push(y)
+}</pre>
+<p>(In real Bork both would be <code>var</code>, since <code>push</code> mutates. Assume ten iterations and <code>i32</code> elements.) Three things decide the layout.</p>
+<ol>
+<li><strong>Both objects live in the same arena.</strong> Both are declared in <code>main</code>'s block, so each 24-byte <code>Vec</code> object goes into that block's arena, call it A. Each <code>Vec::&lt;i32&gt;()</code> also creates a <code>VecSeed</code> in its own fresh dynamic arena, which stays empty and lives until exit (#358). Those seeds are not part of A.</li>
+<li><strong>Buffers go to <code>arenaOf(this)</code>, which is A, not the loop.</strong> The loop body has its own region that is reset after every iteration. A buffer allocated by <code>bufGrow</code> is placed in the vector's arena, so growth during iteration 4 does not land in the iteration's region and is not wiped when the iteration ends.</li>
+<li><strong>Growth is interleaved.</strong> Both vectors run the same schedule (4, 8, 16), so they grow in the same iterations, one right after the other, and the arena hands out addresses in call order.</li>
+</ol>
+<div class="fig">
+<div class="lbl">allocation order in arena A, left to right (bump allocation, nothing is freed)</div>
+<div class="arena"><div class="title">arena A (main's block)</div>
+<div class="row" style="min-width:760px">
+<div class="cell obj w2">wektor<small>obj 24 B</small></div>
+<div class="cell obj w2">wektor2<small>obj 24 B</small></div>
+<div class="cell old w1">w1 &middot; cap 4<small>16 B, i=0</small></div>
+<div class="cell old w1">w2 &middot; cap 4<small>16 B, i=0</small></div>
+<div class="cell old w2">w1 &middot; cap 8<small>32 B, i=4</small></div>
+<div class="cell old w2">w2 &middot; cap 8<small>32 B, i=4</small></div>
+<div class="cell buf w4">w1 &middot; cap 16<small>64 B, i=8, live</small></div>
+<div class="cell buf w4">w2 &middot; cap 16<small>64 B, i=8, live</small></div>
+</div></div>
+<div class="lbl">grey = abandoned old buffers, green = current buffers</div>
+<table style="margin-top:10px">
+<tr><th>iteration</th><th>wektor</th><th>wektor2</th><th>new allocation in A</th></tr>
+<tr><td>0</td><td>push &rarr; n=1, grows 0&rarr;4</td><td>push &rarr; n=1, grows 0&rarr;4</td><td>16 B + 16 B</td></tr>
+<tr><td>1&ndash;3</td><td>n=2, 3, 4</td><td>n=2, 3, 4</td><td>none</td></tr>
+<tr><td>4</td><td>n=5, grows 4&rarr;8, copies 4</td><td>n=5, grows 4&rarr;8, copies 4</td><td>32 B + 32 B</td></tr>
+<tr><td>5&ndash;7</td><td>n=6, 7, 8</td><td>n=6, 7, 8</td><td>none</td></tr>
+<tr><td>8</td><td>n=9, grows 8&rarr;16, copies 8</td><td>n=9, grows 8&rarr;16, copies 8</td><td>64 B + 64 B</td></tr>
+<tr><td>9</td><td>n=10</td><td>n=10</td><td>none</td></tr>
+</table>
+<div class="cap">After the loop: each vector has <code>n = 10</code>, <code>cap = 16</code>.</div>
+</div>
+<p>Totals in arena A, by the arithmetic above (arena page and alignment overhead not counted):</p>
+<ul>
+<li><strong>Objects:</strong> 2 &times; 24 = 48 B.</li>
+<li><strong>Live buffers:</strong> 2 &times; 64 = 128 B, of which 2 &times; 40 = 80 B hold data and 2 &times; 24 = 48 B are spare capacity.</li>
+<li><strong>Abandoned buffers:</strong> 2 &times; (16 + 32) = 96 B, unreachable but kept until A ends.</li>
+<li><strong>Total:</strong> 272 B in A. All blocks are well below the 2048-byte threshold, so they sit in A's first 4096-byte page.</li>
+</ul>
+<div class="callout"><b class="t">What interleaving costs</b>The two live buffers are not adjacent and each is separated from the other by abandoned blocks. For two small vectors this is harmless. With many vectors that grow together, the abandoned blocks make up a growing share of the arena, and a long-lived arena keeps them until it ends. A vector that is created and filled in its own short-lived block avoids this, because its arena goes away with it.</div>
+<div class="callout warn"><b class="t">One thing the loop does change</b>If a <code>for</code> body declared a <em>new</em> vector (<code>val tmp = Vec::&lt;i32&gt;()</code> inside the loop), that vector's object and buffers would be in the iteration's region and would be wiped on every reset. Here both vectors are declared outside the loop, so the loop only appends to them.</div>
+
+<h2 id="refs">5. Vectors of <code>Ref</code>, <code>String</code> and closures</h2>
+<p>For plain scalars a buffer is just bytes. The other element types own something, and that is what the buffer glue added in this PR is for.</p>
+
+<h3><code>Vec&lt;Ref&lt;T&gt;&gt;</code>: zeroed slots and one drop per buffer</h3>
+<p>A <code>Ref</code> slot holds a counted reference to an object elsewhere. When the arena dies, every live slot must be released exactly once. The old code registered one drop on the 32-byte header. Now <code>bufAlloc</code> does this for a buffer of <code>Ref</code>s:</p>
+<div class="fig">
+<div class="step"><div class="n">1</div><div>Allocate the slots and <b>zero them</b>: an all-zero handle is <code>None</code>, which releases nothing.</div></div>
+<div class="step"><div class="n">2</div><div>Allocate a 16-byte <b>header</b> <code>{ptr, cap}</code> in the same arena and <b>register one drop</b>, <code>bork_buf_drop_refs</code>, on it.</div></div>
+<div class="step"><div class="n">3</div><div>When the arena ends, the drop walks all <code>cap</code> slots and calls <code>bork_ref_drop</code> on each. Zero slots are no-ops.</div></div>
+<div class="arena"><div class="title">arena A, a Vec&lt;Ref&lt;Node&gt;&gt; with cap 4, n 2</div>
+<div class="row"><div class="cell obj w2">Vec object</div><div class="cell ref w2">Ref &rarr; node 1</div><div class="cell ref w2">Ref &rarr; node 2</div><div class="cell none w1">None</div><div class="cell none w1">None</div><div class="cell obj w2">header {ptr, cap=4}<small>drop registered</small></div></div></div>
+</div>
+<p>Growth must not release a handle twice, because both the old and the new buffer have a registered drop. So <code>bufGrow</code> copies the handles and then <strong>zeroes the old slots</strong>:</p>
+<div class="fig">
+<div class="lbl">after growing 4 &rarr; 8 (old buffer zeroed, new buffer holds the handles)</div>
+<div class="row"><div class="cell none w1">None</div><div class="cell none w1">None</div><div class="cell none w1">None</div><div class="cell none w1">None</div><div class="cell ref w1">Ref 1</div><div class="cell ref w1">Ref 2</div><div class="cell ref w1">Ref 3</div><div class="cell ref w1">Ref 4</div><div class="cell none w1">None</div><div class="cell none w1">None</div><div class="cell none w1">None</div><div class="cell none w1">None</div></div>
+<div class="cap">When arena A dies both drops run: the old one finds only <code>None</code>, the new one releases four references. Each exactly once.</div>
+</div>
+<p><code>pop</code> on a <code>Vec&lt;Ref&gt;</code> moves the handle out of its slot (<code>slotTake</code> leaves <code>None</code> behind), and <code>clear</code> releases live slots with <code>slotDrop</code>. A <code>push</code> over a live slot goes through <code>bork_ref_store_take</code>, which releases the old value first.</p>
+
+<h3><code>String</code> and closure elements</h3>
+<p>A <code>String</code> is a <code>{ptr, len}</code> descriptor. Storing one copies the bytes into the vector's arena, so the string survives the block that created it. A closure element has its captured environment copied into the vector's arena for the same reason, and an owned <code>Ref</code> capture is cloned and registered for release there.</p>
+
+<h2 id="moves">6. Moving a vector between arenas</h2>
+<p>A <code>Buf</code> holds a raw pointer into one arena, so you cannot simply copy a <code>Vec</code> handle to an outer arena: the buffer would be left behind in an arena that is about to die. Instead the PR copies the contents.</p>
+<table>
+<tr><th>Source code</th><th>What happens</th></tr>
+<tr><td><code>outer = promote inner</code><br><code>outer = move inner</code></td><td>Typeck rewrites it to <code>outer.assignFrom(&amp;inner)</code>. The prelude method <code>clear()</code>s <code>outer</code>, grows its buffer if too small (in <code>outer</code>'s arena), and copies every element with <code>slotCopy</code>. The capacity of <code>outer</code> is kept if it is already large enough.</td></tr>
+<tr><td><code>return v</code> where <code>v</code> was declared in the function</td><td>If <code>v</code> is the declaration the compiler hoisted to the result arena, the handle is returned as is. Otherwise <code>materialize</code> allocates a new <code>{buf, n}</code> in the result arena and copies the elements (<code>copy_vec_into</code>), with <code>cap = len</code>.</td></tr>
+<tr><td>A <code>move</code> closure capturing a <code>Vec</code></td><td>Same copy into the closure environment's arena.</td></tr>
+</table>
+<div class="fig">
+<div class="arena"><div class="title">arena A (inner block, about to end)</div><div class="row"><div class="cell obj w2">inner</div><div class="cell buf w3">1 2 3</div></div></div>
+<div class="arrow">outer = promote inner &nbsp; &darr; &nbsp; elements copied one by one</div>
+<div class="arena"><div class="title">arena B (outer scope, survives)</div><div class="row"><div class="cell obj w2">outer</div><div class="cell buf w3">1 2 3</div></div></div>
+<div class="cap">After the block ends, arena A and the original are gone. <code>outer</code> owns its own copy in arena B.</div>
+</div>
+
+<h2 id="code">7. Code walkthrough</h2>
+<h3>A. <code>Buf</code> learns about its elements (runtime and codegen)</h3>
+<ul>
+<li><code>codegen/llvm/buf.rs</code>: <code>buf_alloc</code> zeroes <code>Ref</code> buffers and registers <code>bork_buf_drop_refs</code>; <code>buf_grow</code> zeroes the old slots; <code>buf_store_in</code> stores a <code>Ref</code> through <code>bork_ref_store_take</code> or copies a <code>String</code> into the arena. Buffers and headers are labelled <code>Buf&lt;T&gt;</code> / <code>BufHeader</code> for the debug registry.</li>
+<li><code>bork_runtime/src/refs.rs</code>: <code>bork_buf_drop_refs</code> replaces <code>bork_vec_drop_refs</code>. A test grows a buffer, overwrites a slot, takes a handle out and checks the exact strong and weak counts after the arena ends.</li>
+<li>New primitives: <code>slotCopy</code>, <code>slotDrop</code>, <code>slotTake</code>, <code>refNone</code>, and the view ops used by <code>&amp;v[i]</code>.</li>
+</ul>
+<h3>B. <code>Vec</code> in the prelude</h3>
+<ul>
+<li><code>src/prelude/vec.bork</code>: <code>Vec</code>, <code>VecSeed</code>, <code>vecNew</code>, <code>vecWithCapacity</code>, and the methods <code>push pop get set len capacity clear</code> plus the private helpers <code>reserveExact reserveAtLeast assignFrom popRef</code> (user calls to them are rejected).</li>
+<li><code>src/prelude.rs</code>: the <code>Vec</code> chunk needs <code>Buf</code>; chunk dependencies are now resolved transitively, both for loading and for blocking when a user defines their own <code>Buf</code>.</li>
+</ul>
+<h3>C. The compiler learns that <code>Vec</code> is a class</h3>
+<ul>
+<li><strong>Typeck:</strong> <code>v[i]</code> and <code>v[i] = x</code> become <code>get</code>/<code>set</code>; <code>Vec::&lt;T&gt;()</code> calls <code>vecNew</code>; the old rules are kept (element set, <code>val</code> receiver, closure push, not nullable, <code>impl Trait for Vec</code> rejected); a mutating method inside a closure makes it <code>FnMut</code>; <code>pop</code> of a <code>Ref</code> element becomes <code>popRef</code>.</li>
+<li><strong>MIR:</strong> <code>&amp;v[i]</code> lowers to a slot-view intrinsic whose receiver operand names the vector, so <code>mir::borrows</code> locks the vector while the view lives; vector factories allocate where declared; <code>VecOp</code> is gone.</li>
+<li><strong>Memory plan:</strong> <code>Vec.push</code>/<code>set</code> mark their argument as outliving the call, as <code>VecOp::Push</code> used to.</li>
+<li><strong>Deleted:</strong> <code>VecOp</code>, <code>VecNew</code>, <code>AllocKind::Vec</code>, <code>DropGlue::Vec</code>, <code>LangItem::Vec</code>, <code>codegen/llvm/vec/</code>, the 32-byte header.</li>
+</ul>
+<h3>D. Tests</h3>
+<p>The existing corpus is the contract: every <code>programs/build/vec</code> program (exit code, stdout, plain and <code>-g</code> builds) and every <code>programs/check_fail/vec</code> diagnostic had to pass on the Bork <code>Vec</code> before the old one was deleted. New programs cover promote and move, returning from a function and from a loop, capacity growth, abort cases, <code>Ref</code> pop, and releasing the tail on promote.</p>
+
+<h2 id="limits">8. Known limits</h2>
+<ul>
+<li>Every <code>Vec::&lt;T&gt;()</code> allocates a throw-away <code>VecSeed</code> arena that lives until the program exits (#358).</li>
+<li><code>make()[0]</code> on a call result is rejected, as is a local named <code>vecNew</code> shadowing the factory (#361). Element-view locking is not field-sensitive (#362).</li>
+<li>Promote, move and closure capture copy element by element (not <code>memcpy</code>), and a copy made by <code>return</code>/closure capture has <code>cap = len</code>.</li>
+<li><code>impl Trait for Vec&lt;T&gt;</code> is still rejected on purpose; allowing it is #359.</li>
+</ul>
+
+<h2 id="quiz">9. Quiz <span id="score"></span></h2>
+<p>Five questions. Click an answer.</p>
+<div id="quizbox"></div>
+</main>
+<script>
+const Q=[
+{q:"A function declares <code>var v = Vec::&lt;i32&gt;()</code> in an inner block and pushes 100 elements. In which arena is the element buffer allocated?",
+ o:["The function's result arena","A fresh dynamic arena created by the first push","The arena of the inner block, because <code>bufGrow</code> allocates in <code>arenaOf(this)</code> and the object lives there","The root arena, so it survives the block"],
+ a:2,f:"Right. The object is allocated where it is declared, and every method that needs memory uses <code>arenaOf(this)</code>, which is the object's own arena. Object and buffer share one arena and die together."},
+{q:"A <code>Vec&lt;i32&gt;</code> has cap 4 and n 4. A fifth element is pushed. What happens to the old 4-slot buffer?",
+ o:["It is freed immediately and its memory reused","It stays in the arena, unreachable, until the arena ends","It is moved by the arena to the new address","It becomes the first half of the new buffer"],
+ a:1,f:"Right. A new 8-slot buffer is allocated, the 4 slots are copied, and <code>this.buf</code> is overwritten. The arena does not free single blocks here, so the old buffer is abandoned until the arena dies. The Vec object itself never moves."},
+{q:"Why does <code>bufGrow</code> zero the old slots of a <code>Buf&lt;Ref&lt;T&gt;&gt;</code> after copying the handles?",
+ o:["So the old memory can be given back to the operating system","Because both the old and the new buffer have a registered drop, and a handle left in the old one would be released twice","To make <code>get</code> abort when it reads a stale slot","Because <code>Ref</code> handles cannot be copied without clearing the source"],
+ a:1,f:"Right. Each buffer has its own <code>bork_buf_drop_refs</code> that walks all <code>cap</code> slots. A zero handle is <code>None</code> and releases nothing, so zeroing the moved-out slots keeps every reference released exactly once."},
+{q:"<code>get(i)</code> is called with <code>i == 3</code> on a vector with n = 3 and cap = 4. What happens?",
+ o:["It returns whatever is in the spare slot","It returns the default value of the element type","It aborts, because <code>get</code> checks against <code>n</code>, not <code>cap</code>","It grows the vector to make the slot valid"],
+ a:2,f:"Right. Slots between <code>n</code> and <code>cap</code> are allocated but not live. <code>get</code>, <code>set</code> and <code>&amp;v[i]</code> check <code>0 &le; i &lt; n</code>, and the pinned test <code>get_between_len_and_cap_aborts</code> covers exactly this."},
+{q:"<code>outer = promote inner</code> on two <code>Vec&lt;i32&gt;</code>, where <code>inner</code> lives in a block that is about to end. Why can't the compiler just copy the handle?",
+ o:["Handles are 16 bytes and do not fit in <code>outer</code>","Promotion is only allowed for <code>String</code>","The <code>Buf</code> inside the object points into the inner arena, which will be freed, so the elements have to be copied into <code>outer</code>'s arena","Because <code>outer</code> must be a <code>val</code>"],
+ a:2,f:"Right. A <code>Buf</code> carries no arena, only a raw pointer, so copying the handle would leave <code>outer</code> pointing into a dead arena. Typeck rewrites the statement to <code>outer.assignFrom(&amp;inner)</code>, which copies the elements into <code>arenaOf(outer)</code>."}
+];
+const box=document.getElementById('quizbox');let done=0,good=0;
+Q.forEach((it,i)=>{
+ const d=document.createElement('div');d.className='q';
+ d.innerHTML='<b>'+(i+1)+'.</b> '+it.q+'<div class="opts"></div><div class="fb"></div>';
+ const opts=d.querySelector('.opts'),fb=d.querySelector('.fb');let answered=false;
+ it.o.forEach((t,j)=>{const b=document.createElement('button');b.innerHTML=t;
+  b.onclick=()=>{if(answered)return;answered=true;done++;
+   const ok=j===it.a;if(ok)good++;
+   b.classList.add(ok?'right':'wrong');
+   if(!ok)opts.children[it.a].classList.add('right');
+   fb.className='fb show';fb.innerHTML=(ok?'<b style="color:var(--ok)">Correct.</b> ':'<b style="color:var(--bad)">Not quite.</b> ')+it.f;
+   document.getElementById('score').textContent=' ('+good+'/'+done+')';};
+  opts.appendChild(b);});
+ box.appendChild(d);
+});
+</script>
+</body>
+</html>

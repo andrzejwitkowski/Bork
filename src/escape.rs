@@ -265,22 +265,6 @@ impl<'h> Escape<'h, '_> {
                     .unwrap_or(0);
                 self.buffer_depth(sink).max(deepest)
             }
-            HirExprKind::VecNew { cap, .. } => {
-                if let Some(cap) = cap {
-                    self.place(cap, None);
-                }
-                self.buffer_depth(sink)
-            }
-            HirExprKind::VecOp { receiver, args, .. } => {
-                for arg in args {
-                    self.place(arg, None);
-                }
-                if !self.maybe_arena(expr.ty) {
-                    self.place(receiver, None);
-                    return 0;
-                }
-                self.array_value_depth(receiver)
-            }
             HirExprKind::Index { receiver, index, .. } => {
                 self.place(index, None);
                 if !self.maybe_arena(expr.ty) {

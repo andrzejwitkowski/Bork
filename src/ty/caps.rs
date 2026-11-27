@@ -67,8 +67,8 @@ impl<'a> TyCaps<'a> {
             // Unresolved: assume the worst (RFC 0002 section 4).
             TyData::Param(_) | TyData::Projection(..) | TyData::Infer(_) => true,
             TyData::Array { elem: e, .. } => self.drop_rec(*e, path),
-            // `Vec` and `Range` have no fields: what they hold is their element.
-            TyData::Class(_, args) if tcx.is_intrinsic_class(id) => self.drop_rec(args[0], path),
+            // `Range` and `Vec` hold their element through a buffer the type system cannot see: what they hold is their element.
+            TyData::Class(_, args) if tcx.is_intrinsic_class(id) || tcx.is_vec_class(id) => self.drop_rec(args[0], path),
             TyData::Class(..) | TyData::Enum(..) => {
                 // Revisiting a type on the current path is a cycle and adds nothing new. The path
                 // is popped on exit, so a sibling never sees a half-evaluated answer.

@@ -415,3 +415,18 @@ fn loop_call_in_initializer_block_does_not_pile_up() {
     let (short, long) = (total_arena_bytes(dir.path(), "short", &source(5)), total_arena_bytes(dir.path(), "long", &source(300)));
     assert_eq!(short, long, "an initializer-block call must not pile up per iteration");
 }
+
+#[test]
+fn debug_build_runs_the_bork_vec_and_registers_its_buffers() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("main.bork");
+    let binary = dir.path().join("main");
+    // Six pushes grow the buffer 4 -> 8; a `Ref` element exercises the registered buffer drop.
+    fs::write(&source, "class Node { id: i32 }\nfun main(): i32 {\n    val n = Node(1)\n    val r: Ref<Node> = n\n    var refs = Vec::<Ref<Node>>()\n    var nums = Vec::<i32>()\n    var i = 0\n    while (i < 6) {\n        refs.push(r)\n        nums.push(i)\n        i = i + 1\n    }\n    return nums.get(5) + refs.len()\n}\n").unwrap();
+    let build = Command::new(env!("CARGO_BIN_EXE_bork")).args(["build", "-g", "-o"]).arg(&binary).arg(&source).output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    assert_eq!(Command::new(&binary).status().unwrap().code(), Some(11));
+    let strings = Command::new("strings").arg(&binary).output().unwrap();
+    let strings = String::from_utf8_lossy(&strings.stdout);
+    assert!(strings.contains("Buf<i32>") && strings.contains("Buf<Ref<Node>>"), "buffers are labelled in the debug registry");
+}

@@ -1,0 +1,7 @@
+// exit: 1
+// Slots between `len` and `cap` are allocated but not live: reading one must abort, like any out-of-range index.
+fun main(): i32 {
+    var v: Vec<i32> = vecNew()
+    v.push(1)
+    return v.get(1)
+}

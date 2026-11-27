@@ -194,10 +194,6 @@ impl<'ctx> Codegen<'ctx> {
         if self.tcx.is_arena(ty) {
             return Some(self.context.ptr_type(AddressSpace::default()).into());
         }
-        if self.tcx.is_vec(ty) {
-            // Pointer to the arena-resident header `{ buf, len, cap, arena }`.
-            return Some(self.context.ptr_type(AddressSpace::default()).into());
-        }
         if self.tcx.class_def(ty).is_some() || matches!(self.tcx.data(ty), TyData::Enum(..)) {
             return Some(self.object_handle_type().into());
         }
@@ -368,6 +364,11 @@ impl<'ctx> Codegen<'ctx> {
         self.arena_handle_fn("bork_ref_release_observation_ptr")
     }
 
+    /// `void bork_ref_drop(ptr slot)`: releases the `Ref` in `slot` and leaves `None` there.
+    pub fn ref_drop_slot_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_ref_drop")
+    }
+
     pub fn ref_drop_value_fn(&self) -> FunctionValue<'ctx> {
         self.arena_handle_fn("bork_ref_drop_value_ptr")
     }
@@ -415,20 +416,6 @@ impl<'ctx> Codegen<'ctx> {
         self.runtime_fn("bork_arena_alloc", || ptr.fn_type(&params, false))
     }
 
-    /// `ptr bork_arena_grow(ptr arena, ptr block, i64 old_size, i64 new_size, i64 align)`.
-    pub fn arena_grow_fn(&self) -> FunctionValue<'ctx> {
-        let ptr = self.context.ptr_type(AddressSpace::default());
-        let i64_type = self.context.i64_type();
-        let params: [BasicMetadataTypeEnum; 5] = [
-            ptr.into(),
-            ptr.into(),
-            i64_type.into(),
-            i64_type.into(),
-            i64_type.into(),
-        ];
-        self.runtime_fn("bork_arena_grow", || ptr.fn_type(&params, false))
-    }
-
     /// `void bork_arena_register_drop(ptr arena, ptr value, ptr drop_fn)`.
     pub fn arena_register_drop_fn(&self) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
@@ -438,9 +425,9 @@ impl<'ctx> Codegen<'ctx> {
         })
     }
 
-    /// `void bork_vec_drop_refs(ptr header)`: the drop for a `Vec<Ref<T>>` header.
-    pub fn vec_drop_refs_fn(&self) -> FunctionValue<'ctx> {
-        self.arena_handle_fn("bork_vec_drop_refs")
+    /// `void bork_buf_drop_refs(ptr header)`: drop for a `Buf<Ref<T>>`, header `{ptr, cap}`.
+    pub fn buf_drop_refs_fn(&self) -> FunctionValue<'ctx> {
+        self.arena_handle_fn("bork_buf_drop_refs")
     }
 
     /// `i1 bork_arena_count_lease_retain(ptr arena)`.

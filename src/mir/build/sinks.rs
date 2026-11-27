@@ -293,7 +293,7 @@ fn result_hoists(body: &HirBlock, tcx: &TyCtx, out: &mut HashMap<NodeId, Sink>) 
     for ret in &tails {
         // Only a construct: a call's result may own bytes (a `String?`) that this does not move.
         if let HirExprKind::Ident { name, .. } = &ret.kind {
-            if decls.iter().any(|(n, v)| n == name && matches!(v.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } | HirExprKind::MakeClosure { .. })) {
+            if decls.iter().any(|(n, v)| n == name && (matches!(v.kind, HirExprKind::ObjectConstruct { .. } | HirExprKind::EnumConstruct { .. } | HirExprKind::MakeClosure { .. }) || is_vec_factory_call(v))) {
                 used.push(name.clone());
             }
         }
@@ -333,6 +333,11 @@ fn mark_decls(block: &HirBlock, used: &[String], in_loop: bool, out: &mut HashMa
             _ => {}
         }
     }
+}
+
+/// `vecNew()` / `vecWithCapacity(n)`: a construct for `result_hoists` (the vector is allocated where it is declared).
+fn is_vec_factory_call(e: &HirExpr) -> bool {
+    matches!(&e.kind, HirExprKind::Call { callee, .. } if matches!(&callee.kind, HirExprKind::Ident { name, .. } if super::expr::is_vec_factory(name)))
 }
 
 pub(crate) fn nested_blocks(stmt: &HirStmt) -> Vec<&HirBlock> {

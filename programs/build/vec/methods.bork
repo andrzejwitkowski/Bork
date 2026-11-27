@@ -1,0 +1,34 @@
+// exit: 0
+// `Vec` (#285) methods and capacity policy: nothing allocated until the first push (then 4, then doubling), an explicit
+// capacity is used as is (the next growth doubles from it), `pop` on an empty vector is `None`, `clear` keeps the capacity.
+// `code` is the number of the last failed check.
+fun main(): i32 {
+    var code = 0
+    var v: Vec<i32> = vecNew()
+    if (v.capacity() != 0) { code = 1 }
+    v.push(1)
+    if (v.capacity() != 4) { code = 2 }
+    v.push(2)
+    v.push(3)
+    v.push(4)
+    v.push(5)
+    if (v.capacity() != 8) { code = 3 }
+    v.set(0, 10)
+    if (v.get(0) != 10 || v.get(4) != 5 || v.len() != 5) { code = 4 }
+    val last = v.pop() ?: 0
+    if (last != 5 || v.len() != 4) { code = 5 }
+    v.clear()
+    if (v.len() != 0 || v.capacity() != 8) { code = 6 }
+    val none = v.pop() ?: 7
+    if (none != 7) { code = 7 }
+    var sized: Vec<i32> = vecWithCapacity(3)
+    if (sized.capacity() != 3) { code = 8 }
+    sized.push(1)
+    sized.push(2)
+    sized.push(3)
+    sized.push(4)
+    if (sized.capacity() != 6) { code = 9 }
+    var zero: Vec<i32> = vecWithCapacity(0)
+    if (zero.capacity() != 0) { code = 10 }
+    return code
+}

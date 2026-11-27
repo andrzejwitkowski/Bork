@@ -10,7 +10,6 @@ mod glue;
 mod lower;
 mod ref_ops;
 mod value_ops;
-mod vec;
 
 use std::path::Path;
 
@@ -568,7 +567,7 @@ mod tests {
              }\n",
         );
         assert_eq!(ir.matches("define internal void @bork.drop.Slot(").count(), 1, "{ir}");
-        assert!(ir.contains("@bork_vec_drop_refs"), "{ir}");
+        assert!(ir.contains("@bork_buf_drop_refs"), "{ir}");
     }
 
     #[test]

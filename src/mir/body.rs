@@ -1,7 +1,7 @@
 //! MIR data types (RFC 0006 3.1, 3.2, 3.2.1, 3.2.2). Plain data: no behaviour beyond small walkers.
 
 use crate::ast::{BinOp, PatLit};
-use crate::hir::{NodeId, VecOp};
+use crate::hir::NodeId;
 use crate::region_walk::RegionSite;
 use crate::span::Span;
 use crate::ty::TyId;
@@ -130,15 +130,12 @@ pub enum AllocKind {
     EnumSlot { enum_name: String, variant: u32 },
     String,
     Array,
-    /// A `Vec` header (and, with `cap`, its first buffer) owned by the arena.
-    Vec { cap: Option<Operand> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DropGlue {
     RefSlot,
     Enum(String),
-    Vec(TyId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -182,6 +179,13 @@ pub enum IntrinsicOp {
     SlotLoad,
     /// `(buf, i, v)`: writes slot `i`.
     SlotStore,
+    /// `(buf, i)`: moves the value out of slot `i`; a `Ref` slot is left `None`.
+    SlotTake,
+    /// `(buf, i)`: releases a `Ref` in slot `i` (leaving `None`); a no-op for other slot types.
+    SlotDrop,
+    /// `(receiver, buf, i)`: a view of slot `i` of a `Vec` (`&v[i]`, `&rw v[i]`); the receiver only names the locked vector.
+    SlotView,
+    SlotViewRw,
     /// `(buf, newCap)`: a new `Buf` in `arena` holding a copy of the old `cap` slots.
     BufGrow,
     /// `(buf)`: its slot count.
@@ -223,8 +227,6 @@ pub enum StmtKind {
     RegionEnter(RegionId),
     RegionExit(RegionId),
     RegionReset { region: RegionId, dst: Local },
-    /// `arena` holds the `Option` slot a scalar or text `pop` returns (`None` for every other op).
-    VecOp { dst: Option<Place>, op: VecOp, receiver: Operand, args: Vec<Operand>, arena: Option<ArenaRef> },
     /// `arena` is the allocation arena of ops that return fresh bytes (`concat`, `stringFromUtf8`).
     Intrinsic { dst: Option<Place>, op: IntrinsicOp, args: Vec<Operand>, arena: Option<ArenaRef> },
     StorageLive(Local),
@@ -395,10 +397,7 @@ impl StmtKind {
                 rvalue_uses(r, f);
                 f(Use::Def(dst));
             }
-            StmtKind::Alloc { dst, arena, kind } => {
-                if let AllocKind::Vec { cap: Some(cap) } = kind {
-                    f(Use::Op(cap));
-                }
+            StmtKind::Alloc { dst, arena, .. } => {
                 f(Use::Arena(arena));
                 f(Use::Def(dst));
             }
@@ -480,16 +479,6 @@ impl StmtKind {
             StmtKind::RegionReset { region, dst } => {
                 f(Use::Region(*region));
                 f(Use::Local(*dst));
-            }
-            StmtKind::VecOp { dst, receiver, args, arena, .. } => {
-                f(Use::Op(receiver));
-                args.iter().for_each(|a| f(Use::Op(a)));
-                if let Some(a) = arena {
-                    f(Use::Arena(a));
-                }
-                if let Some(d) = dst {
-                    f(Use::Def(d));
-                }
             }
             StmtKind::Intrinsic { dst, args, arena, .. } => {
                 args.iter().for_each(|a| f(Use::Op(a)));

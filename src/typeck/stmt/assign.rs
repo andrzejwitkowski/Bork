@@ -22,6 +22,17 @@ pub(super) fn check(target: &AssignTarget, value: &Expr, return_ty: TyId, env: &
                 return check_receiver_field(&this, name, *name_span, *id, value, return_ty, env);
             }
             let bound = assign_binding(env, name, *name_span, *id, false);
+            // `outer = promote inner` / `outer = move inner` on the Bork `Vec`: `outer` takes a copy of `inner` in its own
+            // arena (the prelude method allocates through `arenaOf(this)`); the source is moved by sema, as for any class.
+            if let (Expr::Promote { name: src, span, .. } | Expr::Move { name: src, span, .. }, true) =
+                (value, bound.is_some_and(|ty| expr::array::is_vec_class(ty, env)))
+            {
+                let target = Expr::Ident { name: name.clone(), span: *name_span, id: *id };
+                let method = Expr::Field { receiver: Box::new(target), name: "assignFrom".to_string(), safe: false, span: *span, id: AstId::DUMMY };
+                let source = Expr::Unary { op: crate::ast::UnaryOp::Borrow { rw: false }, expr: Box::new(Expr::Ident { name: src.clone(), span: *span, id: AstId::DUMMY }), span: *span };
+                let call = Expr::call(method, Vec::new(), vec![source], None, *span);
+                return HirStmt::Expr(expr::synthesize(&call, return_ty, env).hir);
+            }
             let value = expr::dispatch(value, bound, return_ty, env);
             if let Some(bound) = bound {
                 env.mismatch(&format!("assignment to `{name}`"), value.ty, bound, Some(*name_span));
@@ -58,6 +69,13 @@ fn check_index_assign(
     env: &mut Env<'_>,
 ) -> HirStmt {
     let bound = assign_binding(env, name, name_span, id, true);
+    if bound.is_some_and(|ty| expr::array::is_vec_class(ty, env)) {
+        // `v[i] = x` on the Bork `Vec` is `v.set(i, x)`.
+        let receiver = Expr::Ident { name: name.to_string(), span: name_span, id };
+        let set = Expr::Field { receiver: Box::new(receiver), name: "set".to_string(), safe: false, span: name_span, id: AstId::DUMMY };
+        let call = Expr::call(set, Vec::new(), vec![index.clone(), value.clone()], None, name_span);
+        return HirStmt::Expr(expr::synthesize(&call, return_ty, env).hir);
+    }
     let elem = bound.and_then(|ty| env.tcx.array_elem(ty).or_else(|| env.tcx.vec_elem(ty)));
     if bound.is_some_and(|ty| {
         !env.tcx.is_unknown(ty) && env.tcx.array_elem(ty).is_none() && env.tcx.vec_elem(ty).is_none()
@@ -112,6 +130,9 @@ fn check_receiver_field(
                 .map(|(field_index, info)| (field_index, info.ty))
         })
     });
+    if let (Some(class), true) = (env.tcx.record_def(receiver.ty), resolved.is_some()) {
+        env.reject_opaque(class, || format!("field `{field}`"), field_span);
+    }
     let resolved = resolved.map(|(index, ty)| (index, env.member_ty(receiver.ty, ty)));
     let Some((field_index, field_ty)) = resolved else {
         if !env.tcx.is_unknown(receiver.ty) {
@@ -162,7 +183,7 @@ fn assign_binding(
         if b.kind == BindingKind::Val {
             if env.tcx.is_ref(b.ty) {
                 if index_assign {
-                    let indexable = env.tcx.ref_inner(b.ty).is_some_and(|inner| env.tcx.is_array(inner) || env.tcx.is_vec(inner));
+                    let indexable = env.tcx.ref_inner(b.ty).is_some_and(|inner| env.tcx.is_array(inner) || env.tcx.is_vec(inner) || expr::array::is_vec_class(inner, env));
                     let message = match () {
                         _ if !b.explicit_ref => Some(format!("cannot index-assign through inferred view `{name}`")),
                         _ if !indexable => Some(format!("cannot index-assign through borrow `{name}`")),

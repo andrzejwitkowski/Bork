@@ -17,8 +17,9 @@ pub(crate) fn lower_type(
     tcx: &mut TyCtx,
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<Span>,
+    prelude: bool,
 ) -> TyId {
-    LowerCx { defs, scope, tcx, diagnostics, span }.lower(ty)
+    LowerCx { defs, scope, tcx, diagnostics, span, prelude }.lower(ty)
 }
 
 /// What lowering one written type reads and reports to: the definitions and type parameters in
@@ -29,6 +30,8 @@ struct LowerCx<'a> {
     tcx: &'a mut TyCtx,
     diagnostics: &'a mut Vec<Diagnostic>,
     span: Option<Span>,
+    /// Lowering prelude code; user code may not name the intrinsic `Buf` (#350).
+    prelude: bool,
 }
 
 impl LowerCx<'_> {
@@ -106,33 +109,9 @@ impl LowerCx<'_> {
         self.tcx.managed_ref(inner_ty)
     }
 
-    fn lower_vec(&mut self, elem: &Type) -> TyId {
-        let elem_ty = self.lower(elem);
-        let is_param = matches!(self.tcx.data(elem_ty), TyData::Param(_));
-        if !self.tcx.is_unknown(elem_ty) && !is_param && !self.tcx.is_vec_elem_supported(elem_ty) {
-            let message = self.tcx.vec_elem_message(elem_ty);
-            self.error(message);
-        }
-        self.tcx.vec_of(elem_ty)
-    }
-
     fn lower_named(&mut self, name: &str, args: &[Type], nullable: bool) -> TyId {
         if let Some(&(_, idx)) = self.scope.iter().find(|(param, _)| param == name) {
             return self.lower_param(name, idx, args, nullable);
-        }
-        // A program that defines its own `Vec` has no prelude one; its class is an ordinary class.
-        if name == "Vec" && self.tcx.vec_def().is_some() {
-            if nullable {
-                self.error("`Vec` cannot be nullable");
-                return self.tcx.error();
-            }
-            return match args {
-                [elem] => self.lower_vec(elem),
-                _ => {
-                    self.error("`Vec` takes one type argument");
-                    self.tcx.error()
-                }
-            };
         }
         let lowered: Vec<TyId> = args.iter().map(|arg| self.lower(arg)).collect();
         if name == "String" {
@@ -157,8 +136,25 @@ impl LowerCx<'_> {
     /// A class or enum name applied to the lowered type arguments `args`.
     fn lower_class(&mut self, name: &str, args: Vec<TyId>, nullable: bool) -> TyId {
         let Some((class, is_enum)) = self.resolve_class(name) else { return self.tcx.error() };
+        if !self.prelude && Some(class) == self.tcx.buf_def() {
+            self.error("`Buf` is private to the prelude");
+            return self.tcx.error();
+        }
         if !self.check_arity(name, self.defs.get(class).arity, args.len()) || !self.check_type_args(name, &args) {
             return self.tcx.error();
+        }
+        if Some(class) == self.defs.vec_class() {
+            // The Bork `Vec` keeps the rules of the compiler one: not nullable, and only the supported element types.
+            if nullable {
+                self.error("`Vec` cannot be nullable");
+                return self.tcx.error();
+            }
+            let elem = args[0];
+            let is_param = matches!(self.tcx.data(elem), TyData::Param(_));
+            if !self.tcx.is_unknown(elem) && !is_param && !self.tcx.is_vec_elem_supported(elem) {
+                let message = self.tcx.vec_elem_message(elem);
+                self.error(message);
+            }
         }
         let ty = if is_enum { self.tcx.enum_ty(class, args) } else { self.tcx.class(class, args) };
         self.nullable_if(ty, nullable)

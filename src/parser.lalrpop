@@ -24,6 +24,7 @@ match {
     "fun" => "fun",
     "intrinsic" => "intrinsic",
     "unsafe" => "unsafe",
+    "opaque" => "opaque",
     "val" => "val",
     "var" => "var",
     "for" => "for",
@@ -207,6 +208,9 @@ ClassDecl: Class = {
     "intrinsic" "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
         Class { intrinsic: true, ..Class::from_members(name, generics.unwrap_or_default(), members) }
     },
+    "opaque" "class" <name:Ident> <generics:TypeParams?> "{" <members:ClassBody> "}" => {
+        Class { opaque: true, ..Class::from_members(name, generics.unwrap_or_default(), members) }
+    },
 };
 
 EnumDecl: Enum = {
@@ -355,6 +359,7 @@ Function: Function = {
             body,
             intrinsic: false,
             unsafe_: unsafe_.is_some(),
+            prelude: false,
         })
     },
     "intrinsic" "fun" <name:SpannedIdent> <generics:TypeParams?> "(" <params:Comma<Param>?> ")" <ret:ReturnType> => Function {
@@ -367,6 +372,7 @@ Function: Function = {
         body: Block::default(),
         intrinsic: true,
         unsafe_: false,
+        prelude: false,
     },
 };
 

@@ -6,21 +6,20 @@
 use std::collections::{HashMap, HashSet};
 
 use inkwell::basic_block::BasicBlock;
-use inkwell::types::{BasicType, BasicTypeEnum};
+use inkwell::types::BasicType;
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{FloatPredicate, IntPredicate};
 
 use crate::ast::BinOp;
 use crate::diag::Diagnostic;
 use crate::ast::PatLit;
-use crate::hir::{HirFunction, Prim, VecOp};
+use crate::hir::{HirFunction, Prim};
 use crate::mir::*;
 use crate::ty::{TyData, TyId};
 
 use super::call_abi::CallAbi;
 use super::context::{is_unsigned, Codegen};
 use super::declare::Callees;
-use super::vec;
 use super::not_yet_supported;
 use super::value_ops::CLOSURE_ENV_HEAD;
 
@@ -42,13 +41,6 @@ fn is_unit(cx: &Codegen<'_>, ty: TyId) -> bool {
 
 fn is_float(cx: &Codegen<'_>, ty: TyId) -> bool {
     matches!(prim(cx, ty), Some(Prim::F32 | Prim::F64))
-}
-
-/// Element type of a `Vec` (or `&Vec`) of non-unit scalars, text or `Ref`s.
-fn plain_vec(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
-    let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
-    let elem = cx.tcx.vec_elem(ty)?;
-    ((prim(cx, elem).is_some() && !is_unit(cx, elem)) || cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem) || cx.tcx.is_callable(elem)).then_some(elem)
 }
 
 /// Element type of an array (or `&array`) of non-unit scalars, text or `Ref`s.
@@ -75,7 +67,6 @@ fn plain_value(cx: &Codegen<'_>, ty: TyId) -> bool {
         || cx.tcx.is_managed_ref(cx.tcx.deref_ty(ty))
         || cx.tcx.is_text(ty)
         || plain_array(cx, ty).is_some()
-        || plain_vec(cx, ty).is_some()
         || plain_buf(cx, ty).is_some()
         || cx.tcx.is_arena(ty)
         || plain_class(cx, ty).is_some()
@@ -89,7 +80,8 @@ fn plain_buf(cx: &Codegen<'_>, ty: TyId) -> Option<TyId> {
     // `buf_elem` also looks through `?`, but a `Buf?` is an enum slot handle, not `{ptr, cap}`.
     let ty = cx.tcx.ref_inner(ty).unwrap_or(ty);
     (!cx.tcx.is_nullable(ty)).then_some(())?;
-    cx.tcx.buf_elem(ty).filter(|&e| prim(cx, e).is_some() && !is_unit(cx, e))
+    // Scalars, text, `Ref`s and closures: the elements `Buf` has glue for.
+    cx.tcx.buf_elem(ty).filter(|&e| (prim(cx, e).is_some() && !is_unit(cx, e)) || cx.tcx.is_text(e) || cx.tcx.is_managed_ref(e) || cx.tcx.is_callable(e))
 }
 
 /// Answers depend only on the type, so they are memoised on `cx` (keyed with the reference
@@ -313,7 +305,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
         ArenaRef::Home(l) if homes.contains_key(l) => true,
         ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => body.local(*l).is_some_and(|d| {
             // A view of a class or enum (`&T`, observed `Ref`) is still the `{arena, object}` handle.
-            plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some() || plain_vec(cx, d.ty).is_some()
+            plain_class(cx, d.ty).is_some() || plain_enum(cx, d.ty).is_some()
         }),
     };
     for block in &body.blocks {
@@ -454,7 +446,6 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     match glue {
                         DropGlue::RefSlot => cx.tcx.is_managed_ref(t).then_some(())?,
                         DropGlue::Enum(n) => (plain_enum(cx, t)? == *n).then_some(())?,
-                        DropGlue::Vec(_) => plain_vec(cx, t).map(|_| ())?,
                     }
                 }
                 StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } if dst.is_bare() && arena_ok(arena) => {
@@ -467,55 +458,6 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     let ty = body.local(dst.local)?.ty;
                     if plain_class(cx, ty)? != *class {
                         return None;
-                    }
-                }
-                StmtKind::Alloc { dst, kind: AllocKind::Vec { cap }, arena } if dst.is_bare() && arena_ok(arena) => {
-                    plain_vec(cx, body.local(dst.local)?.ty)?;
-                    if let Some(c) = cap {
-                        operand(c)?;
-                    }
-                }
-                StmtKind::VecOp { dst, op, receiver, args, arena } => {
-                    if dst.as_ref().is_some_and(|d| !d.is_bare()) {
-                        return None;
-                    }
-                    let index = |op: &Operand| index_operand(cx, body, op);
-                    // An element to store: a scalar, text, or a `Ref` (or `None`) for a `Vec` of `Ref`s.
-                    let elem = plain_vec(cx, body.local(receiver.place().filter(|p| p.is_bare())?.local)?.ty)?;
-                    let element = |op: &Operand| -> Option<()> {
-                        if cx.tcx.is_managed_ref(elem) {
-                            match op {
-                                Operand::Const(Const::None) => Some(()),
-                                _ => general(op).and(place_ty(cx, body, op.place()?).filter(|t| cx.tcx.is_managed_ref(*t)).map(|_| ())),
-                            }
-                        } else if cx.tcx.is_text(elem) {
-                            text(op)
-                        } else if cx.tcx.is_callable(elem) {
-                            general(op).and(place_ty(cx, body, op.place()?).filter(|t| cx.tcx.is_callable(*t)).map(|_| ()))
-                        } else {
-                            operand(op)
-                        }
-                    };
-                    match (op, args.as_slice()) {
-                        (VecOp::Len | VecOp::Capacity | VecOp::Clear, []) => {}
-                        (VecOp::Pop, []) => {
-                            let d = dst.as_ref()?;
-                            let dty = body.local(d.local)?.ty;
-                            if cx.tcx.is_managed_ref(elem) {
-                                cx.tcx.is_managed_ref(dty).then_some(())?;
-                            } else {
-                                // The `Some` payload is the element, so the slot is a plain `Option<elem>` in an arena we can name.
-                                nullable_payload(cx, dty).filter(|p| *p == elem)?;
-                                arena.as_ref().filter(|a| arena_ok(a))?;
-                            }
-                        }
-                        (VecOp::Get | VecOp::View | VecOp::ViewRw, [i]) => index(i)?,
-                        (VecOp::Push, [v]) => element(v)?,
-                        (VecOp::Set, [i, v]) => {
-                            index(i)?;
-                            element(v)?;
-                        }
-                        _ => return None,
                     }
                 }
                 StmtKind::Alloc { dst, kind: AllocKind::Array, arena } if dst.is_bare() && arena_ok(arena) => {
@@ -536,7 +478,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         || cx.tcx.is_callable(t)
                         || (plain_enum(cx, t).is_some() && cx.enum_holds_ref(t))
                         || plain_array(cx, t).is_some()
-                        || plain_vec(cx, t).is_some()
+                        || (cx.tcx.is_vec(t) && plain_class(cx, t).is_some())
                         // The payload moves with the slot; handles pass through like `materialize_owned_value`.
                         || nullable_payload(cx, t).is_some_and(|p| !is_unit(cx, p));
                     if !copyable && trace() {
@@ -559,7 +501,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     operand(&args[1])?;
                     operand(&args[2])?;
                 }
-                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                     let dty = dst.as_ref().filter(|d| d.is_bare()).and_then(|d| body.local(d.local)).map(|l| l.ty);
                     let buf = |op: &Operand| op_place_ty(cx, body, op).and_then(|t| plain_buf(cx, t));
                     match (op, args.as_slice(), arena) {
@@ -573,15 +515,26 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                             buf(b)?;
                             scalar(dty?)?;
                         }
-                        (IntrinsicOp::SlotLoad, [b, i], None) => {
+                        (IntrinsicOp::SlotLoad | IntrinsicOp::SlotTake, [b, i], None) => {
                             (buf(b)? == dty?).then_some(())?;
                             operand(i)?;
                         }
-                        (IntrinsicOp::SlotStore, [b, i, v], None) if dst.is_none() => {
+                        (IntrinsicOp::SlotStore, [b, i, v], a) if dst.is_none() && a.as_ref().is_none_or(|a| arena_ok(a)) => {
                             let elem = buf(b)?;
+                            // A `String` is copied and a `Ref` stored through the buffer's arena: it has to be named.
+                            (a.is_some() || !(cx.tcx.is_text(elem) || cx.tcx.is_managed_ref(elem))).then_some(())?;
                             op_place_ty(cx, body, v).is_none_or(|t| t == elem).then_some(())?;
                             operand(i)?;
-                            operand(v)?;
+                            general(v)?;
+                        }
+                        // `(receiver, buf, i)`: the receiver only names the locked vector.
+                        (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw, [_, b, i], None) if dst.as_ref().is_some_and(|d| d.is_bare()) => {
+                            buf(b)?;
+                            operand(i)?;
+                        }
+                        (IntrinsicOp::SlotDrop, [b, i], None) if dst.is_none() => {
+                            buf(b)?;
+                            operand(i)?;
                         }
                         (IntrinsicOp::BufGrow, [b, c], Some(a)) if arena_ok(a) => {
                             (Some(buf(b)?) == plain_buf(cx, dty?)).then_some(())?;
@@ -1048,14 +1001,8 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             ArenaRef::Home(l) if self.capture_homes.contains_key(l) => Ok(self.capture_homes[l]),
             ArenaRef::Home(l) if self.ref_homes.contains_key(l) => self.arena_of(self.ref_homes[l]),
             ArenaRef::Home(l) | ArenaRef::ObjectArena(l) => {
-                let ty = self.body.local(*l).expect("checked local").ty;
-                if plain_vec(cx, ty).is_some() {
-                    let header = cx.builder.build_load(cx.context.ptr_type(inkwell::AddressSpace::default()), self.slots[l], "vec")?.into_pointer_value();
-                    cx.vec_load_ptr(header, vec::ARENA)
-                } else {
-                    let handle = cx.builder.build_load(cx.object_handle_type(), self.slots[l], "home")?.into_struct_value();
-                    Ok(cx.builder.build_extract_value(handle, 0, "home.arena")?.into_pointer_value())
-                }
+                let handle = cx.builder.build_load(cx.object_handle_type(), self.slots[l], "home")?.into_struct_value();
+                Ok(cx.builder.build_extract_value(handle, 0, "home.arena")?.into_pointer_value())
             }
             ArenaRef::Fresh(n) => self.load_ptr(self.slots[&Local(*n)]),
             ArenaRef::Root => Ok(cx
@@ -1244,8 +1191,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                             cx.builder.build_call(cx.arena_register_drop_fn(), &[owner.into(), object.into(), f.as_global_value().as_pointer_value().into()], "")?;
                         }
                     }
-                    // `vec_alloc` registers the glue with the header it allocates; the op only carries it for the plan.
-                    DropGlue::Vec(_) => {}
                 }
             }
             StmtKind::Alloc { dst, kind: AllocKind::EnumSlot { enum_name, variant }, arena } => {
@@ -1257,31 +1202,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let i64 = cx.context.i64_type();
                 let (size, align) = (i64.const_int(layout.size, false), i64.const_int(layout.align, false));
                 self.alloc_handle(dst, arena, size, align, Some((layout.variants[*variant as usize], *variant)), enum_name)?;
-            }
-            StmtKind::Alloc { dst, kind: AllocKind::Vec { cap }, arena } => {
-                let arena = self.arena_ref(arena, stmt.region)?;
-                let elem = plain_vec(cx, self.body.local(dst.local).expect("checked").ty).expect("checked vec");
-                let cap = match cap {
-                    Some(c) => Some(self.int_as(self.operand(c, cx.i32_ty())?, cx.i32_ty())?.into()),
-                    None => None,
-                };
-                let header = cx.vec_new(self.llvm_fn, arena, elem, cap)?;
-                self.store(dst, header.into())?;
-            }
-            StmtKind::VecOp { dst, op, receiver, args, arena } => {
-                let rty = self.op_ty(receiver).expect("checked");
-                let elem = plain_vec(cx, rty).expect("checked vec");
-                let header = self.operand(receiver, rty)?.into_pointer_value();
-                let result = if *op == VecOp::Pop {
-                    let arena = arena.as_ref().map(|a| self.arena_ref(a, stmt.region)).transpose()?;
-                    let dty = place_ty(cx, self.body, dst.as_ref().expect("checked pop result")).expect("checked place");
-                    Some(self.vec_pop(header, elem, dty, arena)?)
-                } else {
-                    self.vec_op(*op, header, elem, args)?
-                };
-                if let (Some(d), Some(v)) = (dst, result) {
-                    self.store(d, v)?;
-                }
             }
             StmtKind::Alloc { dst, kind: AllocKind::Object { class }, arena } => {
                 let arena = self.arena_ref(arena, stmt.region)?;
@@ -1472,7 +1392,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let out = cx.string_from_utf8(self.llvm_fn, arena, buffer, start, count, dty)?;
                 self.store(d, out.into())?;
             }
-            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                 self.buf_intrinsic(*op, dst.as_ref(), args, arena.as_ref(), stmt.region)?;
             }
             StmtKind::Intrinsic { op, args, .. } => {
@@ -1509,13 +1429,46 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 Some(cx.buf_alloc(arena, elem, int(cap)?)?.into())
             }
             (IntrinsicOp::BufCap, [b]) => Some(cx.buf_cap(buf(b)?.0)?.into()),
+            (IntrinsicOp::SlotTake, [b, i]) => {
+                let (b, elem) = buf(b)?;
+                let index = int(i)?;
+                let taken = cx.buf_load(b, index, elem)?;
+                if cx.tcx.is_managed_ref(elem) {
+                    // The handle moved out: the slot reads `None` now, so the buffer's drop releases nothing for it.
+                    let (slot, _) = cx.buf_slot(b, index, elem)?;
+                    cx.builder.build_store(slot, cx.ref_handle_type().const_zero())?;
+                }
+                Some(taken)
+            }
             (IntrinsicOp::SlotLoad, [b, i]) => {
                 let (b, elem) = buf(b)?;
-                Some(cx.buf_load(b, int(i)?, elem)?)
+                let loaded = cx.buf_load(b, int(i)?, elem)?;
+                // The slot keeps its own reference; the loaded value is a new one.
+                Some(if cx.tcx.is_managed_ref(elem) { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
             }
             (IntrinsicOp::SlotStore, [b, i, v]) => {
                 let (b, elem) = buf(b)?;
-                cx.buf_store(b, int(i)?, elem, self.operand(v, elem)?)?;
+                let (index, value) = (int(i)?, self.operand(v, elem)?);
+                if cx.tcx.is_managed_ref(elem) || cx.tcx.is_text(elem) {
+                    // Both live in the arena of the buffer's owner: a `Ref` is stored through it, a `String` is copied into it.
+                    let arena = self.arena_ref(arena.expect("checked arena"), region)?;
+                    cx.buf_store_in(self.llvm_fn, arena, b, index, elem, value)?;
+                } else {
+                    cx.buf_store(b, index, elem, value)?;
+                }
+                None
+            }
+            // A view borrows the slot, so it does not take a reference of its own.
+            (IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw, [_, b, i]) => {
+                let (b, elem) = buf(b)?;
+                Some(cx.buf_load(b, int(i)?, elem)?)
+            }
+            (IntrinsicOp::SlotDrop, [b, i]) => {
+                let (b, elem) = buf(b)?;
+                if cx.tcx.is_managed_ref(elem) {
+                    let (slot, _) = cx.buf_slot(b, int(i)?, elem)?;
+                    cx.builder.build_call(cx.ref_drop_slot_fn(), &[slot.into()], "")?;
+                }
                 None
             }
             (IntrinsicOp::BufGrow, [b, c]) => {
@@ -1592,122 +1545,6 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
             }
         }
         Ok(())
-    }
-
-    /// Built-in `Vec` method; `Ref` elements are cloned out and stored with
-    /// ownership, text is copied into the vector's arena.
-    fn vec_op(&self, op: VecOp, header: PointerValue<'ctx>, elem: TyId, args: &[Operand]) -> Result<Option<BasicValueEnum<'ctx>>, Diagnostic> {
-        let cx = self.cx;
-        let i32_ty = cx.i32_ty();
-        let (llvm_elem, stride, _) = cx.elem_storage(elem)?;
-        let is_ref = cx.tcx.is_managed_ref(elem);
-        // Bounds-checked address of element `args[0]`.
-        let slot = || -> Result<PointerValue<'ctx>, Diagnostic> {
-            let idx = self.int_as(self.operand(&args[0], i32_ty)?, i32_ty)?;
-            let idx = cx.builder.build_int_s_extend(idx, cx.context.i64_type(), "vec.idx")?;
-            cx.guard_index(self.llvm_fn, idx, cx.vec_load_word(header, vec::LEN)?)?;
-            cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, idx, stride)
-        };
-        let store = |slot: PointerValue<'ctx>, value: &Operand, fresh: bool| -> Result<(), Diagnostic> {
-            let arena = cx.vec_load_ptr(header, vec::ARENA)?;
-            if is_ref {
-                if fresh {
-                    cx.builder.build_store(slot, cx.ref_handle_type().const_zero())?;
-                }
-                return cx.ref_store(self.llvm_fn, slot, arena, self.ref_operand(value)?);
-            }
-            let value = self.operand(value, elem)?;
-            let value = if cx.tcx.is_text(elem) { cx.copy_string_into(arena, value.into_struct_value())?.into() } else { value };
-            cx.builder.build_store(slot, value)?;
-            Ok(())
-        };
-        Ok(match op {
-            VecOp::Len | VecOp::Capacity => {
-                let count = cx.vec_load_word(header, if op == VecOp::Len { vec::LEN } else { vec::CAP })?;
-                Some(cx.builder.build_int_truncate(count, cx.context.i32_type(), "vec.count")?.into())
-            }
-            VecOp::Get | VecOp::View | VecOp::ViewRw => {
-                let loaded = cx.builder.build_load(llvm_elem, slot()?, "vec.get")?;
-                // A view borrows the slot, so it does not take a reference of its own.
-                Some(if is_ref && op == VecOp::Get { cx.ref_clone(self.llvm_fn, loaded)? } else { loaded })
-            }
-            VecOp::Set => {
-                store(slot()?, &args[1], false)?;
-                None
-            }
-            VecOp::Push => {
-                cx.vec_reserve_one(self.llvm_fn, header, elem)?;
-                let len = cx.vec_load_word(header, vec::LEN)?;
-                let slot = cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, len, stride)?;
-                store(slot, &args[0], true)?;
-                cx.vec_store(header, vec::LEN, cx.builder.build_int_add(len, cx.word(1), "vec.len.new")?)?;
-                None
-            }
-            VecOp::Clear => {
-                if is_ref {
-                    self.release_elements(header, llvm_elem, stride)?;
-                }
-                cx.vec_store(header, vec::LEN, cx.word(0))?;
-                None
-            }
-            VecOp::Pop => unreachable!("`vec_pop`"),
-        })
-    }
-
-    /// `pop`: the last element, or none. A `Ref` moves out of its slot; anything else becomes `Some(elem)` in `arena`.
-    fn vec_pop(&self, header: PointerValue<'ctx>, elem: TyId, result_ty: TyId, arena: Option<PointerValue<'ctx>>) -> Result<BasicValueEnum<'ctx>, Diagnostic> {
-        let cx = self.cx;
-        let ctx = cx.context;
-        let len = cx.vec_load_word(header, vec::LEN)?;
-        let empty = cx.builder.build_int_compare(IntPredicate::EQ, len, cx.word(0), "vec.pop.empty")?;
-        let (present, absent, merge) = (ctx.append_basic_block(self.llvm_fn, "vec.pop.some"), ctx.append_basic_block(self.llvm_fn, "vec.pop.none"), ctx.append_basic_block(self.llvm_fn, "vec.pop.done"));
-        cx.builder.build_conditional_branch(empty, absent, present)?;
-
-        cx.position_at_end(present);
-        let last = cx.builder.build_int_sub(len, cx.word(1), "vec.last")?;
-        cx.vec_store(header, vec::LEN, last)?;
-        let (llvm_elem, stride, _) = cx.elem_storage(elem)?;
-        let slot = cx.vec_slot(cx.vec_load_ptr(header, vec::BUF)?, last, stride)?;
-        let (name, some_tag, none_tag) = if cx.tcx.is_managed_ref(elem) {
-            (String::new(), 0, 0)
-        } else {
-            let (name, _) = cx.option_parts(result_ty)?;
-            let tag = |v: &str| cx.enum_variant(&name, v).map(|(_, t)| t).ok_or_else(|| not_yet_supported("the prelude `Option`", None));
-            let tags = (tag("Some")?, tag("None")?);
-            (name, tags.0, tags.1)
-        };
-        let popped = if cx.tcx.is_managed_ref(elem) {
-            // The slot is past `len` now, so the handle moves out and the slot becomes `None`.
-            cx.ref_move_out(self.llvm_fn, slot)?
-        } else {
-            let loaded = cx.builder.build_load(llvm_elem, slot, "vec.pop")?;
-            cx.option_slot(arena.expect("checked pop arena"), &name, some_tag, Some(loaded))?.into()
-        };
-        let present_end = cx.builder.get_insert_block().expect("positioned");
-        cx.builder.build_unconditional_branch(merge)?;
-
-        cx.position_at_end(absent);
-        let none: BasicValueEnum<'ctx> = if cx.tcx.is_managed_ref(elem) {
-            cx.ref_handle_type().const_zero().into()
-        } else {
-            cx.option_slot(arena.expect("checked pop arena"), &name, none_tag, None)?.into()
-        };
-        let absent_end = cx.builder.get_insert_block().expect("positioned");
-        cx.builder.build_unconditional_branch(merge)?;
-
-        cx.position_at_end(merge);
-        let phi = cx.builder.build_phi(popped.get_type(), "vec.pop.value")?;
-        phi.add_incoming(&[(&popped, present_end), (&none, absent_end)]);
-        Ok(phi.as_basic_value())
-    }
-
-    fn release_elements(&self, header: PointerValue<'ctx>, llvm_elem: BasicTypeEnum<'ctx>, stride: usize) -> Result<(), Diagnostic> {
-        let cx = self.cx;
-        let (len, buf) = (cx.vec_load_word(header, vec::LEN)?, cx.vec_load_ptr(header, vec::BUF)?);
-        cx.counted_loop(self.llvm_fn, len, |i| {
-            let handle = cx.builder.build_load(llvm_elem, cx.vec_slot(buf, i, stride)?, "vec.drop")?;
-            cx.ref_drop(self.llvm_fn, handle)
-        })
     }
 
     fn binary(&self, op: &BinOp, a: &Operand, b: &Operand, dty: TyId) -> Result<BasicValueEnum<'ctx>, Diagnostic> {

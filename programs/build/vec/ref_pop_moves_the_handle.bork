@@ -1,0 +1,18 @@
+// exit: 189
+// `pop` of a `Vec<Ref<T>>` is the `Ref` itself (not an Option) and moves it out of the slot: the strong count does not change
+// by popping, and an empty vector pops a `None` Ref.
+class Node { id: i32 }
+fun main(): i32 {
+    val n = Node(7)
+    val r: Ref<Node> = n
+    var v = Vec::<Ref<Node>>()
+    v.push(r)
+    v.push(r)
+    val s0 = strongCount(r)
+    val p = v.pop()
+    val s1 = strongCount(r)
+    var id = 0
+    if val x = p { id = x.id }
+    // 7 * 100 + 0 * 10 + 1 left in the vector = 701, and 701 mod 256 = 189.
+    return id * 100 + (s0 - s1) * 10 + v.len()
+}

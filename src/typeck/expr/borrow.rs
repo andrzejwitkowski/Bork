@@ -72,7 +72,7 @@ pub(super) fn check_element_borrow(
     return_ty: TyId,
     env: &mut Env<'_>,
 ) -> Checked {
-    let element = super::array::check_index(receiver, index, index_span, return_ty, env);
+    let element = super::array::check_index_as(receiver, index, index_span, return_ty, true, env);
     let unknown = env.tcx.is_unknown(element.ty);
     let is_vec = matches!(&element.hir.kind, HirExprKind::Index { receiver, .. } if env.tcx.vec_elem(receiver.ty).is_some());
     let rejected = match (is_vec || unknown, env.tcx.is_trivially_copy(element.ty)) {

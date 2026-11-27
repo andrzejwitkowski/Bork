@@ -1,0 +1,42 @@
+// exit: 0
+// Internal prelude `Stack<Ref<Node>>` (#285). Ten pushes grow the buffer 4 -> 8 -> 16 and must neither lose nor double a reference.
+//   - a stack in an arena OLDER than the node's holds STRONG slots (checks 1-3);
+//   - a stack in a NEWER arena holds WEAK slots, and its buffer's single drop releases all ten when the block ends (checks 4-5).
+// `code` is the number of the last failed check.
+class Node {
+    id: i32
+}
+
+fun main(): i32 {
+    val older: Stack<Ref<Node>> = newStack()
+    val n = Node(1)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    var code = 0
+    var i = 0
+    while (i < 10) {
+        older.push(r)
+        i = i + 1
+    }
+    // Check 1: ten strong slots. Failing means a push or a growth lost or duplicated a reference.
+    if (strongCount(r) != s0 + 10) { code = 1 }
+    // Check 2: `get` hands out a clone and the slot keeps its own reference.
+    val g = older.get(3)
+    if (strongCount(r) != s0 + 11) { code = 2 }
+    // Check 3: no weak slots by mistake.
+    if (weakCount(r) != w0) { code = 3 }
+    {
+        val newer: Stack<Ref<Node>> = newStack()
+        var j = 0
+        while (j < 10) {
+            newer.push(r)
+            j = j + 1
+        }
+        // Check 4: ten weak back-edges, the strong count unchanged.
+        if (weakCount(r) != w0 + 10) { code = 4 }
+    }
+    // Check 5: the block's end released all ten weak slots.
+    if (weakCount(r) != w0) { code = 5 }
+    return code
+}

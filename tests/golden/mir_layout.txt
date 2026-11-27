@@ -16,6 +16,13 @@ class Stack<i32> size=24 align=8 fields=[0, 16]
 == programs/build/buf/stack_push_grow_get.bork
 class StackSeed<i32> size=4 align=4 fields=[0]
 class Stack<i32> size=24 align=8 fields=[0, 16]
+== programs/build/buf/stack_ref_elems_release.bork
+class Node size=4 align=4 fields=[0]
+class StackSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Stack<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/buf/stack_string_elems_grow.bork
+class StackSeed<String> size=4 align=4 fields=[0]
+class Stack<String> size=24 align=8 fields=[0, 16]
 == programs/build/classes/call_arg.bork
 class Point size=8 align=4 fields=[0, 4]
 == programs/build/classes/mutable_field.bork
@@ -56,6 +63,9 @@ class Node size=4 align=4 fields=[0]
 == programs/build/closures/fnonce_ref_released_once.bork
 class Node size=4 align=4 fields=[0]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/closures/move_assigned_to_outer_var.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/closures/move_nullable_capture.bork
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
@@ -66,12 +76,18 @@ class Node size=4 align=4 fields=[0]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/closures/move_vec_capture.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/closures/non_move_ref_capture.bork
 class Node size=4 align=4 fields=[0]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/closures/owned_values_with_refs.bork
 class Node size=4 align=4 fields=[0]
-class Holder size=8 align=8 fields=[0]
+class Holder size=16 align=8 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Link size=32 align=8 variants=[[0], [0, 8]]
 == programs/build/conditionals/nullable_assert.bork
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
@@ -222,10 +238,12 @@ enum F size=4 align=4 variants=[[0], [0]]
 enum E<i32> size=8 align=4 variants=[[0, 4]]
 == programs/build/generics/glue_no_leak.bork
 class Node size=4 align=4 fields=[0]
-class Holder size=8 align=8 fields=[0]
+class Holder size=16 align=8 fields=[0]
 class Outer size=40 align=8 fields=[0, 16]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
 class Pair<Ref<Node>,Link<i32>> size=40 align=8 fields=[0, 24]
 class Link<i32> size=32 align=8 fields=[0, 8]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 class Pair<Ref<Node>,String> size=40 align=8 fields=[0, 24]
 enum Wrapped size=24 align=8 variants=[[0], [0, 8]]
 == programs/build/generics/identity.bork
@@ -241,52 +259,78 @@ class Box<String> size=16 align=8 fields=[0]
 class Box<i32> size=4 align=4 fields=[0]
 == programs/build/generics/ref_local_wrapped_in_option.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/generics/tree_regions.bork
-class Node<i32> size=16 align=8 fields=[0, 8]
+class VecSeed<Ref<Node<i32>>> size=4 align=4 fields=[0]
+class Vec<Ref<Node<i32>>> size=24 align=8 fields=[0, 16]
+class Node<i32> size=24 align=8 fields=[0, 8]
 == programs/build/iter/filter_many_rejected.bork
-class VecIter<String> size=16 align=8 fields=[0, 8]
+class VecSeed<String> size=4 align=4 fields=[0]
+class VecIter<String> size=24 align=8 fields=[0, 16]
 class Filter<VecIter<String>,closure#0(String)->bool> size=24 align=8 fields=[0, 16]
+class Vec<String> size=24 align=8 fields=[0, 16]
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/iter/vec_chain.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
 class Filter<VecIter<i32>,closure#3(i32)->bool> size=24 align=8 fields=[0, 16]
-class VecIter<i32> size=16 align=8 fields=[0, 8]
+class VecIter<i32> size=24 align=8 fields=[0, 16]
 class Map<VecIter<i32>,closure#0(i32)->i32> size=24 align=8 fields=[0, 16]
 class Filter<Map<VecIter<i32>,closure#0(i32)->i32>,closure#1(i32)->bool> size=24 align=8 fields=[0, 16]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/iter/vec_ref_elems.bork
 class Node size=4 align=4 fields=[0]
-class VecIter<Ref<Node>> size=16 align=8 fields=[0, 8]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class VecIter<Ref<Node>> size=24 align=8 fields=[0, 16]
 class Filter<VecIter<Ref<Node>>,closure#0(Ref<Node>)->bool> size=24 align=8 fields=[0, 16]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/iter/vec_string_elems.bork
-class VecIter<String> size=16 align=8 fields=[0, 8]
+class VecSeed<String> size=4 align=4 fields=[0]
+class VecIter<String> size=24 align=8 fields=[0, 16]
 class Map<VecIter<String>,closure#0(String)->i32> size=24 align=8 fields=[0, 16]
+class Vec<String> size=24 align=8 fields=[0, 16]
 enum Option<String> size=24 align=8 variants=[[0, 8], [0]]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/loops/call_in_loop_alias_returned.bork
 class Node size=4 align=4 fields=[0]
 class Holder size=16 align=8 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_arg_to_reader.bork
 class Node size=4 align=4 fields=[0]
 class Holder size=16 align=8 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_arm_binding_returned.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_isnone_reader.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_return_id_of_arg.bork
 class Node size=4 align=4 fields=[0]
 class Holder size=16 align=8 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_bound_option_ref.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_call_directly.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_class_and_closure_enum.bork
 class Node size=4 align=4 fields=[0]
@@ -300,11 +344,15 @@ enum Out size=32 align=8 variants=[[0, 8, 24], [0]]
 enum WithObj size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_option_ref.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_returns_plain_enum.bork
 enum E size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/loops/call_in_loop_shadowed_name_returned.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<Ref<Node>> size=32 align=8 variants=[[0, 8], [0]]
 == programs/build/loops/call_in_loop_stored_in_returned_object.bork
 class Node size=4 align=4 fields=[0]
@@ -344,45 +392,52 @@ class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_enum_payload_obj.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 enum E size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/managed_refs/return_generic_box.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 class Box<RA> size=16 align=8 fields=[0]
 == programs/build/managed_refs/return_ifval_ref.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_loop_before_ref.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_loop_decl_ref.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_nested_loops_ref.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_nested_object_with_ref.bork
 class P size=4 align=4 fields=[0]
 class RA size=24 align=8 fields=[0]
@@ -399,39 +454,46 @@ class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_scalar_this.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
 class Counter size=4 align=4 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_this_ref.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
 class Holder size=24 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_two_paths_ref.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_vec_of_refs.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class VecSeed<Ref<P>> size=4 align=4 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 == programs/build/managed_refs/return_when_arms.bork
 class P size=4 align=4 fields=[0]
 class A size=16 align=8 fields=[0]
 class RA size=24 align=8 fields=[0]
 class Outer size=16 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class Vec<Ref<P>> size=24 align=8 fields=[0, 16]
 enum K size=4 align=4 variants=[[0], [0]]
 == programs/build/managed_refs/val_both_return_string_move.bork
 class Node size=40 align=8 fields=[0, 16]
@@ -661,68 +723,210 @@ class P size=4 align=4 fields=[0]
 class P size=4 align=4 fields=[0]
 enum E size=4 align=4 variants=[[0], [0]]
 == programs/build/traits/iterator_adapter_fn_return.bork
-class VecIter<i32> size=16 align=8 fields=[0, 8]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class VecIter<i32> size=24 align=8 fields=[0, 16]
 class Map<VecIter<i32>,closure#0(i32)->i32> size=24 align=8 fields=[0, 16]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/traits/iterator_adapter_generic_helper.bork
-class VecIter<i32> size=16 align=8 fields=[0, 8]
+class VecIter<i32> size=24 align=8 fields=[0, 16]
 class Map<VecIter<i32>,closure#0(i32)->i32> size=24 align=8 fields=[0, 16]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/traits/iterator_adapter_generic_return.bork
-class VecIter<i32> size=16 align=8 fields=[0, 8]
+class VecIter<i32> size=24 align=8 fields=[0, 16]
 class Map<VecIter<i32>,closure#0(i32)->i32> size=24 align=8 fields=[0, 16]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/traits/iterator_for.bork
 class Counter size=8 align=4 fields=[0, 4]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vec/assign_concat_through_borrowed_vec.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
+== programs/build/vec/closure_elems_grow.bork
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_inner_ref_capture.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/closure_elems_loop.bork
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/closure_elems_move.bork
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/closure_elems_promote.bork
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_promote_nullable_none.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 enum Option<Node> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/vec/closure_elems_promote_nullable_object.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 enum Option<Node> size=24 align=8 variants=[[0, 8], [0]]
 == programs/build/vec/closure_elems_promote_object_capture.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_promote_object_fields.bork
 class Inner size=4 align=4 fields=[0]
 class Outer size=56 align=8 fields=[0, 16, 32]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_promote_object_loop.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_promote_ref_capture.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/closure_elems_promote_string_bytes.bork
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_ref_capture.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_ref_capture_replace.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/closure_elems_set_pop_clear.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
 enum Option<()->i32> size=16 align=8 variants=[[0, 8], [0]]
+== programs/build/vec/closure_elems_via_param.bork
+class VecSeed<()->i32> size=4 align=4 fields=[0]
+class Vec<()->i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/element_rw_view_through_rw_param.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
+== programs/build/vec/element_shared_views_coexist.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
+== programs/build/vec/element_view_in_loop.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
 == programs/build/vec/element_view_of_ref.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vec/element_view_read.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
+== programs/build/vec/get_between_len_and_cap_aborts.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/get_negative_aborts.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/grow_past_page.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/index_through_field.bork
-class H size=8 align=8 fields=[0]
-== programs/build/vec/move_vec_field.bork
-class H size=8 align=8 fields=[0]
-== programs/build/vec/pop_set_clear.bork
+class H size=16 align=8 fields=[0]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/methods.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vec/move_into_outer.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/move_to_outer.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/move_vec_field.bork
+class H size=16 align=8 fields=[0]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/negative_capacity_aborts.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/pop_set_clear.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
+== programs/build/vec/promote_outlives_inner.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/promote_strings.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
+== programs/build/vec/push_grow_sum.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/ref_counts_across_arenas.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/vec/ref_nodes.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/vec/ref_pop_empty_is_none.bork
+class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/vec/ref_pop_moves_the_handle.bork
+class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/vec/ref_promote.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/vec/ref_promote_over_longer_releases_tail.bork
+class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/vec/ref_promote_strong.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
 == programs/build/vec/ref_weak_expires.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+== programs/build/vec/return_from_function.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/return_from_loop.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/return_vec_of_linked_refs.bork
 class A size=4 align=4 fields=[0]
 class B size=24 align=8 fields=[0]
-class Bag size=8 align=8 fields=[0]
+class Bag size=16 align=8 fields=[0]
+class VecSeed<Ref<B>> size=4 align=4 fields=[0]
+class Vec<Ref<B>> size=24 align=8 fields=[0, 16]
+== programs/build/vec/set_past_len_aborts.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/strings.bork
+class VecSeed<String> size=4 align=4 fields=[0]
+class Vec<String> size=24 align=8 fields=[0, 16]
 == programs/build/vec/vec_field_repeated.bork
-class H size=8 align=8 fields=[0]
+class H size=16 align=8 fields=[0]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/with_capacity.bork
 class Node size=4 align=4 fields=[0]
+class VecSeed<Ref<Node>> size=4 align=4 fields=[0]
+class VecSeed<String> size=4 align=4 fields=[0]
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<Ref<Node>> size=24 align=8 fields=[0, 16]
+class Vec<String> size=24 align=8 fields=[0, 16]
+class Vec<i32> size=24 align=8 fields=[0, 16]

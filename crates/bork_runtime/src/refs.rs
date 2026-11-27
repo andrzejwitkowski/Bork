@@ -426,29 +426,26 @@ pub unsafe extern "C" fn bork_ref_equal_ptr(lhs: *const RefHandle, rhs: *const R
     unsafe { bork_ref_equal(*lhs, *rhs) }
 }
 
-/// Header of a `Vec<Ref<T>>`: `{ buf, len, cap, arena }`. The field order is `BUF`/`LEN`/`CAP`/`ARENA` in `codegen/llvm/vec/mod.rs`.
+/// Header of a `Buf<Ref<T>>`: `{ ptr, cap }`.
 #[repr(C)]
-#[cfg_attr(not(test), allow(dead_code))]
-struct VecHeader {
-    buf: *mut RefHandle,
-    len: usize,
+struct BufHeader {
+    ptr: *mut RefHandle,
     cap: usize,
-    arena: *mut c_void,
 }
 
-/// Drop registered on a `Vec<Ref<T>>` header: releases every live slot. One drop per vector,
-/// because the buffer moves on growth and a per-slot registration would dangle.
+/// Drop registered on a `Buf<Ref<T>>`: releases every slot. Unwritten and moved-out slots are zeroed `None` handles,
+/// which release nothing, so no length is needed.
 #[no_mangle]
-pub unsafe extern "C" fn bork_vec_drop_refs(header: *mut c_void) {
+pub unsafe extern "C" fn bork_buf_drop_refs(header: *mut c_void) {
     #[cfg(feature = "debug-runtime")]
-    super::arena::debug::diag::check(header as usize, std::mem::size_of::<VecHeader>(), false);
-    // SAFETY: The registry holds a pointer to an initialized header whose first `len` slots are live.
-    let header = unsafe { &*header.cast::<VecHeader>() };
+    super::arena::debug::diag::check(header as usize, std::mem::size_of::<BufHeader>(), false);
+    // SAFETY: The registry holds a pointer to an initialized header whose `cap` slots are all initialized handles.
+    let header = unsafe { &*header.cast::<BufHeader>() };
     #[cfg(feature = "debug-runtime")]
-    super::arena::debug::diag::check(header.buf as usize, header.len.checked_mul(std::mem::size_of::<RefHandle>()).unwrap_or(usize::MAX), true);
-    for index in 0..header.len {
-        // SAFETY: Slots below `len` are initialized RefHandles inside the live buffer.
-        unsafe { bork_ref_drop(header.buf.add(index)) };
+    super::arena::debug::diag::check(header.ptr as usize, header.cap.checked_mul(std::mem::size_of::<RefHandle>()).unwrap_or(usize::MAX), true);
+    for index in 0..header.cap {
+        // SAFETY: Every slot of the live buffer is an initialized (possibly `None`) RefHandle.
+        unsafe { bork_ref_drop(header.ptr.add(index)) };
     }
 }
 
@@ -492,15 +489,13 @@ pub unsafe extern "C" fn bork_arena_register_observation_drop(
 }
 
 #[cfg(test)]
-mod vec_tests {
-    //! `Vec<Ref<T>>` as `codegen/llvm/vec.rs` builds it, driven through the same runtime calls:
-    //! header + buffer in the owner arena, `bork_arena_grow` on growth, `clone` + `store_take`
-    //! per slot on promotion, one `bork_vec_drop_refs` per header.
+mod buf_tests {
+    //! `Buf<Ref<T>>` as `codegen/llvm/buf.rs` builds it: a zeroed buffer plus one `{ptr, cap}` header carrying
+    //! `bork_buf_drop_refs`, slots filled through `store_take`, growth by copy and zeroing the old slots.
     use super::*;
     use crate::arena::{
-        bork_arena_alloc, bork_arena_create_dynamic, bork_arena_grow, bork_arena_pop,
-        bork_arena_push, bork_arena_register_drop, bork_arena_release_strong,
-        bork_arena_strong_count, control_count, weak_count_of,
+        bork_arena_alloc, bork_arena_create_dynamic, bork_arena_pop, bork_arena_push, bork_arena_register_drop,
+        bork_arena_release_strong, bork_arena_strong_count, control_count, weak_count_of,
     };
 
     const SLOT: usize = std::mem::size_of::<RefHandle>();
@@ -509,149 +504,74 @@ mod vec_tests {
         0x10 as *mut c_void
     }
 
-    unsafe fn vec_new(arena: *mut c_void) -> *mut VecHeader {
-        let header = bork_arena_alloc(arena, std::mem::size_of::<VecHeader>(), 8).cast::<VecHeader>();
-        header.write(VecHeader { buf: ptr::null_mut(), len: 0, cap: 0, arena });
-        bork_arena_register_drop(arena, header.cast(), Some(bork_vec_drop_refs));
-        header
+    /// A zeroed buffer of `cap` slots in `arena` with its drop registered.
+    unsafe fn buf_alloc(arena: *mut c_void, cap: usize) -> *mut RefHandle {
+        let ptr = bork_arena_alloc(arena, cap * SLOT, 8).cast::<RefHandle>();
+        std::ptr::write_bytes(ptr.cast::<u8>(), 0, cap * SLOT);
+        let header = bork_arena_alloc(arena, std::mem::size_of::<BufHeader>(), 8).cast::<BufHeader>();
+        header.write(BufHeader { ptr, cap });
+        bork_arena_register_drop(arena, header.cast(), Some(bork_buf_drop_refs));
+        ptr
     }
 
-    unsafe fn reserve(header: *mut VecHeader) {
-        let h = &mut *header;
-        if h.len < h.cap {
-            return;
-        }
-        let new_cap = if h.cap == 0 { 4 } else { h.cap * 2 };
-        h.buf = if h.cap == 0 {
-            bork_arena_alloc(h.arena, new_cap * SLOT, 8)
-        } else {
-            bork_arena_grow(h.arena, h.buf.cast(), h.cap * SLOT, new_cap * SLOT, 8)
-        }
-        .cast();
-        h.cap = new_cap;
+    /// `bufGrow`: a bigger buffer holding the same handles; the old slots are zeroed so its drop releases nothing.
+    unsafe fn buf_grow(arena: *mut c_void, old: *mut RefHandle, cap: usize, new_cap: usize) -> *mut RefHandle {
+        let new = buf_alloc(arena, new_cap);
+        std::ptr::copy_nonoverlapping(old, new, cap);
+        std::ptr::write_bytes(old.cast::<u8>(), 0, cap * SLOT);
+        new
     }
 
-    /// `v.push(Node(..))`: a fresh handle made in the vector's arena, stored into a new slot.
-    unsafe fn push(header: *mut VecHeader, target: *mut c_void) {
-        reserve(header);
-        let h = &mut *header;
-        let fresh = bork_ref_create(h.arena, target, object());
-        let slot = h.buf.add(h.len);
-        slot.write(RefHandle::none());
-        bork_ref_store_take(slot, h.arena, fresh);
-        h.len += 1;
+    unsafe fn store(arena: *mut c_void, slot: *mut RefHandle, target: *mut c_void) {
+        bork_ref_store_take(slot, arena, bork_ref_create(arena, target, object()));
     }
 
-    /// `promote v` into `dest`: new header, `cap = len` buffer, every slot cloned then rehomed.
-    unsafe fn promote(source: *mut VecHeader, dest: *mut c_void) -> *mut VecHeader {
-        let header = vec_new(dest);
-        let len = (*source).len;
-        if len > 0 {
-            (*header).buf = bork_arena_alloc(dest, len * SLOT, 8).cast();
-            (*header).cap = len;
-        }
-        for index in 0..len {
-            let cloned = bork_ref_clone_same_owner(*(*source).buf.add(index));
-            let slot = (*header).buf.add(index);
-            slot.write(RefHandle::none());
-            bork_ref_store_take(slot, dest, cloned);
-            (*header).len += 1;
-        }
-        header
-    }
-
-    unsafe fn kinds(header: *mut VecHeader) -> Vec<RefKind> {
-        (0..(*header).len).map(|i| (*(*header).buf.add(i)).kind).collect()
-    }
-
-    /// (strong, weak) counts of a target arena.
     unsafe fn counts(target: *mut c_void) -> (usize, usize) {
         (bork_arena_strong_count(target), weak_count_of(target))
     }
 
     #[test]
-    fn grown_vec_keeps_counts_exact_across_older_and_newer_arenas() {
+    fn grown_buffer_keeps_counts_exact_and_releases_each_slot_once() {
         unsafe {
             let base = control_count();
-            // Ids ascend in creation order: low < t1 < a < t2 < b.
-            let low = bork_arena_push();
+            // Ids ascend in creation order: t1 < a < t2. From `a`, t1 is a back-edge (weak) and t2 a forward edge (strong).
             let t1 = bork_arena_create_dynamic(ptr::null_mut(), 0);
             let a = bork_arena_push();
             let t2 = bork_arena_create_dynamic(ptr::null_mut(), 0);
-            let b = bork_arena_push();
             let (t1_base, t2_base) = (counts(t1), counts(t2));
 
-            // 10 pushes grow the buffer 4 -> 8 -> 16. In `a`, t1 is a back-edge (weak), t2 strong.
-            let in_a = vec_new(a);
-            for i in 0..10 {
-                push(in_a, if i % 2 == 0 { t1 } else { t2 });
+            let mut cap = 4;
+            let mut buf = buf_alloc(a, cap);
+            for i in 0..6 {
+                if i == cap {
+                    buf = buf_grow(a, buf, cap, cap * 2);
+                    cap *= 2;
+                }
+                store(a, buf.add(i), if i % 2 == 0 { t1 } else { t2 });
             }
-            assert_eq!((*in_a).cap, 16, "doubled twice past the first buffer");
-            assert_eq!((*in_a).len, 10);
-            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 5), "t1: five weak slots");
-            assert_eq!(counts(t2), (t2_base.0 + 5, t2_base.1), "t2: five strong slots");
-            assert_eq!(kinds(in_a)[..2], [RefKind::Weak, RefKind::Strong]);
+            assert_eq!(cap, 8, "one growth past the first buffer");
+            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 3), "t1: three weak slots, none doubled by the growth");
+            assert_eq!(counts(t2), (t2_base.0 + 3, t2_base.1), "t2: three strong slots");
 
-            // Promote to the newest arena: every edge is now a back-edge, so all become weak.
-            let in_b = promote(in_a, b);
-            assert!(kinds(in_b).iter().all(|k| *k == RefKind::Weak));
-            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 10), "both vectors alive");
-            assert_eq!(counts(t2), (t2_base.0 + 5, t2_base.1 + 5));
-            // Dropping the source vector (arena `a`) releases exactly its own slots.
+            // Overwriting a live slot releases its old value.
+            store(a, buf, t2);
+            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 2));
+            assert_eq!(counts(t2), (t2_base.0 + 4, t2_base.1));
+
+            // Taking a handle out leaves `None`: the buffer's drop must not release it again.
+            let taken = std::ptr::read(buf.add(1));
+            buf.add(1).write(RefHandle::none());
+            bork_ref_drop_value(taken);
+            assert_eq!(counts(t2), (t2_base.0 + 3, t2_base.1));
+
+            // Both buffers' drops run with the arena: the old one holds only zeroed slots, the new one the rest.
             bork_arena_pop(a);
-            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 5));
-            assert_eq!(counts(t2), (t2_base.0, t2_base.1 + 5), "t2 lost its strong slots");
+            assert_eq!(counts(t1), t1_base, "every weak slot released exactly once");
+            assert_eq!(counts(t2), t2_base, "every strong slot released exactly once");
 
-            // Promote to the oldest arena: every edge points forward, so all become strong.
-            let in_low = promote(in_b, low);
-            assert!(kinds(in_low).iter().all(|k| *k == RefKind::Strong));
-            assert_eq!(counts(t1), (t1_base.0 + 5, t1_base.1 + 5));
-            assert_eq!(counts(t2), (t2_base.0 + 5, t2_base.1 + 5));
-            bork_arena_pop(b);
-            assert_eq!(counts(t1), (t1_base.0 + 5, t1_base.1));
-            assert_eq!(counts(t2), (t2_base.0 + 5, t2_base.1));
-
-            // Back to a newest arena, then let the strong holder go: the owners' own references
-            // are the only thing left keeping t1 and t2 alive.
-            let b2 = bork_arena_push();
-            let in_b2 = promote(in_low, b2);
-            assert!(kinds(in_b2).iter().all(|k| *k == RefKind::Weak));
-            bork_arena_pop(low);
-            assert_eq!(counts(t1), (t1_base.0, t1_base.1 + 5));
-            assert_eq!(counts(t2), (t2_base.0, t2_base.1 + 5));
-
-            // t1's owner releases it: weak slots in `b2` observe it as expired, t2 stays live.
             bork_arena_release_strong(t1);
-            let dead = bork_ref_observe(*(*in_b2).buf);
-            assert!(dead.object.is_null(), "weak slot to a released arena reads as absent");
-            let live = bork_ref_observe(*(*in_b2).buf.add(1));
-            assert!(!live.object.is_null(), "t2 is still owned, so its weak slot upgrades");
-            bork_ref_release_observation(live);
-            assert_eq!(bork_arena_strong_count(t2), t2_base.0);
-
             bork_arena_release_strong(t2);
-            bork_arena_pop(b2);
-            assert_eq!(control_count(), base, "every arena and weak lease is released");
-        }
-    }
-
-    #[test]
-    fn clear_and_drop_release_each_slot_once() {
-        unsafe {
-            let base = control_count();
-            let owner = bork_arena_push();
-            let target = bork_arena_create_dynamic(ptr::null_mut(), 0);
-            let before = counts(target);
-            let vec = vec_new(owner);
-            for _ in 0..9 {
-                push(vec, target);
-            }
-            // `owner` is older than `target`, so the slots are strong.
-            assert_eq!(counts(target), (before.0 + 9, before.1));
-            bork_arena_pop(owner);
-            assert_eq!(counts(target), before, "one drop released all nine slots exactly once");
-            bork_arena_release_strong(target);
-            assert_eq!(control_count(), base);
+            assert_eq!(control_count(), base, "every arena and lease is released");
         }
     }
 }

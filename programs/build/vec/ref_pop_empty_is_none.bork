@@ -1,0 +1,10 @@
+// exit: 0
+// `pop` on an empty `Vec<Ref<T>>` gives a `None` Ref, so `if val` skips its branch.
+class Node { id: i32 }
+fun main(): i32 {
+    var v = Vec::<Ref<Node>>()
+    val p = v.pop()
+    var seen = 0
+    if val x = p { seen = x.id + 1 }
+    return seen
+}

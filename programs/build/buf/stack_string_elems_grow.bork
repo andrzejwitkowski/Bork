@@ -1,0 +1,15 @@
+// exit: 5
+// Internal prelude `Stack<String>` (#285): nine pushes grow the buffer past 4 and 8; every String survives with its length.
+fun main(): i32 {
+    val s: Stack<String> = newStack()
+    s.push("a")
+    s.push("hello")
+    s.push("xyz")
+    s.push("q")
+    s.push("zz")
+    s.push("b")
+    s.push("c")
+    s.push("d")
+    s.push("e")
+    return s.get(1).length
+}

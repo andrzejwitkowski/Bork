@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::body::*;
-use crate::hir::{NodeId, VecOp};
+use crate::hir::NodeId;
 use crate::sema::ArenaNode;
 use crate::span::Span;
 use crate::ty::{TyCtx, TyId};
@@ -121,6 +121,12 @@ fn analyse(body: &Body, id: usize, tcx: &TyCtx, st: &mut State, sites: &mut Hash
         if let Some(Terminator { kind: TermKind::Call { args, .. } | TermKind::CallClosure { args, .. }, .. }) = &block.term {
             pass.escape_args(args);
         }
+        // `Vec.push` / `.set` store their value arguments in a vector that outlives the call.
+        if let Some(Terminator { kind: TermKind::Call { callee, args, .. }, .. }) = &block.term {
+            if matches!(super::borrows::vec_method(callee), Some("push" | "set")) {
+                pass.vec_store(args);
+            }
+        }
     }
 }
 
@@ -177,7 +183,6 @@ impl Pass<'_> {
                 let v = self.origins(value);
                 self.add(*object, &v);
             }
-            StmtKind::VecOp { op: VecOp::Push | VecOp::Set, args, .. } => self.vec_store(args),
             StmtKind::Promote { dst, src, .. } | StmtKind::Move { dst, src } | StmtKind::Borrow { dst, src, .. } | StmtKind::CopyInto { dst, src, .. } => {
                 let v = self.local_origins(src.local);
                 self.add(dst.local, &v);
@@ -402,7 +407,7 @@ pub fn derive_push(body: &Body, bodies: &[Body]) -> HashSet<usize> {
             StmtKind::ArenaCreateDynamic { .. } => true,
             // A closure with captures allocates its environment (none: a constant global).
             StmtKind::Assign(_, Rvalue::Closure { captures, arena, .. }) => !captures.is_empty() && lands_here(arena),
-            StmtKind::Intrinsic { arena, .. } | StmtKind::VecOp { arena, .. } => arena.as_ref().is_some_and(lands_here),
+            StmtKind::Intrinsic { arena, .. } => arena.as_ref().is_some_and(lands_here),
             _ => false,
         };
         if needs || has_str(&s.kind) {
@@ -446,7 +451,7 @@ fn has_str(kind: &StmtKind) -> bool {
     match kind {
         StmtKind::Assign(_, Rvalue::Use(op)) => is_str(op),
         StmtKind::Assign(_, Rvalue::Binary(_, a, b)) => is_str(a) || is_str(b),
-        StmtKind::Intrinsic { args, .. } | StmtKind::VecOp { args, .. } => args.iter().any(is_str),
+        StmtKind::Intrinsic { args, .. } => args.iter().any(is_str),
         _ => false,
     }
 }
