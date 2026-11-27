@@ -103,11 +103,22 @@ fn mentions(code: &str, name: &str) -> bool {
 pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
     let code = code_only(source);
     let shadowed = |chunk: &Chunk| chunk.names.iter().any(|name| defines(program, name));
+    // A chunk is blocked when the user defines one of its names, or a chunk it builds on is blocked (`iter` -> `Vec` -> `Buf`).
+    let mut blocked: [bool; CHUNKS.len()] = std::array::from_fn(|index| shadowed(&CHUNKS[index]));
+    loop {
+        let before = blocked;
+        for (index, chunk) in CHUNKS.iter().enumerate() {
+            blocked[index] |= chunk.needs.iter().any(|&need| blocked[need]);
+        }
+        if blocked == before {
+            break;
+        }
+    }
     let mut wanted = [false; CHUNKS.len()];
     for (index, chunk) in CHUNKS.iter().enumerate() {
         // A chunk is skipped when the user defines its names, or one it builds on: the user's
         // `Option` has its own shape, so the conversions written for the prelude's cannot work.
-        let blocked = shadowed(chunk) || chunk.needs.iter().any(|&need| shadowed(&CHUNKS[need]));
+        let blocked = blocked[index];
         wanted[index] = !blocked && (index == OPTION || index >= ALWAYS_FROM || chunk.names.iter().any(|name| mentions(&code, name)));
     }
     // Transitive: `iter` needs `Vec`, which needs `Buf`.
@@ -115,7 +126,7 @@ pub fn add_prelude(program: &mut Program, source: &str, next_id: u32) {
         let before = wanted;
         for (index, chunk) in CHUNKS.iter().enumerate() {
             if wanted[index] {
-                chunk.needs.iter().for_each(|&need| wanted[need] = true);
+                chunk.needs.iter().for_each(|&need| wanted[need] = !blocked[need] || wanted[need]);
             }
         }
         if wanted == before {
@@ -251,6 +262,13 @@ mod tests {
     fn a_chunk_pulls_in_the_dependencies_of_its_dependencies() {
         // `iter` -> `Vec` -> `Buf`: naming only `iter` must still load `Buf`.
         let result = check("fun main(): i32 {\n    val iter = 1\n    return iter\n}\n");
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+    }
+
+    #[test]
+    fn a_user_buf_class_blocks_vec_and_what_builds_on_it() {
+        // `iter` -> `Vec` -> `Buf`: the user's `Buf` must not get a second, prelude `Buf` next to it.
+        let result = check("class Buf {\n    x: i32\n}\nfun main(): i32 {\n    val iter = 1\n    return iter\n}\n");
         assert!(result.is_ok(), "{:?}", result.diagnostics);
     }
 

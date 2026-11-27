@@ -532,7 +532,7 @@ fn check_closure_body(
     env.loop_depth = outer_loops;
 
     env.mismatch("closure body", body_ty, closure_ret, None);
-    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty) || env.is_literal_var(ty, crate::infer::VarKind::Int) || env.is_literal_var(ty, crate::infer::VarKind::Float), |ty| env.callable_kind(ty));
+    let (used, kind) = super::super::captures::analyze(&params, &body, |name| env.binding(name).map(|b| b.ty), |ty| env.tcx.is_trivially_copy(ty) || env.is_literal_var(ty, crate::infer::VarKind::Int) || env.is_literal_var(ty, crate::infer::VarKind::Float), |ty| env.callable_kind(ty), |ty| env.tcx.is_vec(env.tcx.deref_ty(ty)));
     if let Some(listed) = &closure.captures {
         check_capture_list(listed, &used, env);
     }

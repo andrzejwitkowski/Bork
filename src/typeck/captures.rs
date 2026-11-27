@@ -7,7 +7,9 @@ use crate::hir::{HirAssignTarget, HirBlock, HirExpr, HirExprKind, HirParam, HirP
 use crate::ty::{ClosureKind, TyId};
 
 #[derive(Default)]
-struct Scan {
+struct Scan<'a> {
+    /// Whether a receiver type is the prelude's `Vec`: only its mutating methods write what they borrow.
+    is_vec: Option<&'a dyn Fn(TyId) -> bool>,
     declared: HashSet<String>,
     /// Every name read or written.
     used: BTreeSet<String>,
@@ -24,8 +26,8 @@ struct Scan {
 
 /// Names the closure uses from outside (`outer_ty` gives the type of a binding outside it, `None`
 /// for any other name), in name order, and the strongest kind its body needs.
-pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&str) -> Option<TyId>, is_copy: impl Fn(TyId) -> bool, call_kind: impl Fn(TyId) -> ClosureKind) -> (Vec<(String, TyId)>, ClosureKind) {
-    let mut scan = Scan::default();
+pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&str) -> Option<TyId>, is_copy: impl Fn(TyId) -> bool, call_kind: impl Fn(TyId) -> ClosureKind, is_vec: impl Fn(TyId) -> bool) -> (Vec<(String, TyId)>, ClosureKind) {
+    let mut scan = Scan { is_vec: Some(&is_vec), ..Scan::default() };
     scan.declared.extend(params.iter().map(|p| p.name.clone()));
     scan.block(body);
     for name in std::mem::take(&mut scan.block_moved) {
@@ -61,7 +63,7 @@ pub(super) fn analyze(params: &[HirParam], body: &HirBlock, outer_ty: impl Fn(&s
     (captures, kind)
 }
 
-impl Scan {
+impl Scan<'_> {
     fn block(&mut self, b: &HirBlock) {
         // Names declared inside a block go out of scope with it, so an outer name or alias it shadowed is back.
         let (declared, aliases) = (self.declared.clone(), self.aliases.clone());
@@ -218,11 +220,13 @@ impl Scan {
                 self.expr(callee);
                 // A mutating `Vec` method writes the vector it borrows (`{ -> v.push(1) }` is an `FnMut`).
                 if let (K::Ident { name, .. }, Some(receiver)) = (&callee.kind, args.first()) {
-                    if crate::mir::borrows::vec_method(name).is_some_and(crate::mir::borrows::vec_mutates) {
-                        match &receiver.kind {
-                            K::Unary { expr, .. } => self.write_root(expr),
-                            _ => self.write_root(receiver),
-                        }
+                    let target = match &receiver.kind {
+                        K::Unary { expr, .. } => &**expr,
+                        _ => receiver,
+                    };
+                    let is_vec = self.is_vec.is_some_and(|f| f(target.ty));
+                    if is_vec && crate::mir::borrows::vec_method(name).is_some_and(crate::mir::borrows::vec_mutates) {
+                        self.write_root(target);
                     }
                 }
                 if let K::Ident { name, use_kind: UseKind::Copy } = &callee.kind {

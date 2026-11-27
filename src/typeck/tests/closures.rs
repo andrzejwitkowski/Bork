@@ -398,3 +398,17 @@ fn a_nested_closure_parameter_shadows_an_outer_alias() {
     let src = "fun once<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    var n = 0\n    val f = { -> n = n + 1\n        n }\n    return once({ ->\n        val h = f\n        val g: (() -> i32) -> i32 = { h -> h() }\n        0 })\n}";
     hir_of(src);
 }
+
+#[test]
+fn a_closure_that_pushes_into_a_vec_is_fnmut_and_a_read_only_one_is_fn() {
+    let hdr = "fun run<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\n";
+    let main = |body: &str| format!("{hdr}fun main(): i32 {{\n    var v = Vec::<i32>()\n    return {body}\n}}\n");
+    hir_of(&main("run({ -> v.len() })"));
+    assert!(diags_of(&main("run({ -> v.push(1)\n 0 })")).iter().any(|d| d.message.contains("FnMut")));
+}
+
+#[test]
+fn a_user_vec_class_with_its_own_push_does_not_make_a_closure_fnmut() {
+    let src = "class Vec {\n    n: i32\n    fun push(): i32 {\n        return this.n\n    }\n}\nfun run<F: Fn() -> i32>(f: F): i32 {\n    return f()\n}\nfun main(): i32 {\n    val v = Vec(3)\n    return run({ -> v.push() })\n}\n";
+    hir_of(src);
+}
