@@ -4792,37 +4792,20 @@ fn Vec.get<Ref<P>> (parent=true, sink=true) {
 fn vecNew<Ref<P>> (parent=true, sink=true) {
   let _0: Vec<Ref<P>> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: VecSeed<Ref<P>> [Temp]
-  let _4: VecSeed<Ref<P>> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &VecSeed<Ref<P>> [Temp]
-  let _7: Buf<Ref<P>> [Temp]
-  let _8: Vec<Ref<P>> [Temp]
-  let _9: Vec<Ref<P>> [Temp]
+  let _2: Buf<Ref<P>> [Temp]
+  let _3: Vec<Ref<P>> [Temp]
+  let _4: Vec<Ref<P>> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "VecSeed<Ref<P>>" } in fresh2  // label "VecSeed<Ref<P>>": VecSeed<Ref<P>>
-    _3.0 = 0  // label "VecSeed<Ref<P>>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": VecSeed<Ref<P>> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call VecSeed.empty<Ref<P>>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Vec<Ref<P>>" } in result_sink  // label "Vec<Ref<P>>": Vec<Ref<P>>
-    _8.0 = copy _7  // label "Vec<Ref<P>>.buf": Buf<Ref<P>> decl owner=result_sink
-    _8.1 = 0  // label "Vec<Ref<P>>.n": i32 decl owner=result_sink
-    _9 = copy_into _8 in result_sink
-    _0 = copy _9
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Vec<Ref<P>>" } in result_sink  // label "Vec<Ref<P>>": Vec<Ref<P>>
+    _3.0 = copy _2  // label "Vec<Ref<P>>.buf": Buf<Ref<P>> decl owner=result_sink
+    _3.1 = 0  // label "Vec<Ref<P>>.n": i32 decl owner=result_sink
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -4976,30 +4959,6 @@ fn churn (parent=true, sink=false) {
     register_drop current _19.0 RefSlot
     _20 = copy _19  // label "c": RA decl
     _0 = copy _1
-    storage_dead _2
-    region_exit r0
-    return
-}
-
-fn VecSeed.empty<Ref<P>> (parent=true, sink=true) {
-  let _0: Buf<Ref<P>> [Return]
-  let _1: &VecSeed<Ref<P>> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<Ref<P>> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
     storage_dead _2
     region_exit r0
     return

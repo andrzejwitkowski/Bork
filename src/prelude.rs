@@ -34,14 +34,14 @@ const CHUNKS: [Chunk; 13] = [
     Chunk { path: "<bork-prelude>/result.bork", names: &["Result"], needs: &[], source: include_str!("prelude/result.bork") },
     Chunk { path: "<bork-prelude>/option_conv.bork", names: &["optionFromRef", "optionToRef"], needs: &[OPTION], source: include_str!("prelude/option_conv.bork") },
     Chunk { path: "<bork-prelude>/iterator.bork", names: &["Iterator"], needs: &[OPTION], source: include_str!("prelude/iterator.bork") },
-    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec", "VecSeed", "vecNew", "vecWithCapacity"], needs: &[BUF], source: include_str!("prelude/vec.bork") },
+    Chunk { path: "<bork-prelude>/vec.bork", names: &["Vec", "vecNew", "vecWithCapacity"], needs: &[BUF], source: include_str!("prelude/vec.bork") },
     // `F: Fn(A) -> R` bounds (RFC 0007); the solver gives closures and functions their impls.
     Chunk { path: "<bork-prelude>/fn.bork", names: &["Fn", "FnMut", "FnOnce"], needs: &[], source: include_str!("prelude/fn.bork") },
     Chunk { path: "<bork-prelude>/iter.bork", names: &["VecIter", "iter", "Map", "map", "Filter", "filter", "fold"], needs: &[OPTION, ITERATOR, VEC, FN], source: include_str!("prelude/iter.bork") },
     // `Buf<T>` and `Arena` (#285): the opaque types of the unsafe-only buffer primitives.
     Chunk { path: "<bork-prelude>/buf.bork", names: &["Buf", "Arena"], needs: &[], source: include_str!("prelude/buf.bork") },
     // Internal `Stack<T>` (#285 step 1) on `Buf<T>`.
-    Chunk { path: "<bork-prelude>/stack.bork", names: &["Stack", "StackSeed", "newStack"], needs: &[BUF], source: include_str!("prelude/stack.bork") },
+    Chunk { path: "<bork-prelude>/stack.bork", names: &["Stack", "newStack"], needs: &[BUF], source: include_str!("prelude/stack.bork") },
     // Always added (index >= ALWAYS_FROM): a literal `a..b` has the type `Range<i32>` without naming it.
     Chunk { path: "<bork-prelude>/range.bork", names: &["Range"], needs: &[], source: include_str!("prelude/range.bork") },
     Chunk { path: "<bork-prelude>/eq.bork", names: &["Eq"], needs: &[], source: include_str!("prelude/eq.bork") },
@@ -255,7 +255,7 @@ mod tests {
         assert!(!none.iter().any(|c| c.starts_with("Stack")), "{none:?}");
         assert!(!none.iter().any(|c| c == "Buf" || c == "Arena"), "{none:?}");
         let named = classes("fun main(): i32 {\n    val s: Stack<i32> = newStack()\n    return s.len()\n}\n");
-        assert!(["Stack", "StackSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+        assert!(named.iter().any(|n| n == "Stack"), "{named:?}");
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
         let none = classes("fun main() {}\n");
         assert!(!none.iter().any(|c| c.starts_with("Vec")), "{none:?}");
         let named = classes("fun main(): i32 {\n    val v: Vec<i32> = vecNew()\n    return v.len()\n}\n");
-        assert!(["Vec", "VecSeed"].iter().all(|c| named.iter().any(|n| n == c)), "{named:?}");
+        assert!(named.iter().any(|n| n == "Vec"), "{named:?}");
     }
 
     #[test]

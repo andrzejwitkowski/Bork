@@ -1,13 +1,5 @@
 // `Vec` (#285): written in Bork on `Buf<T>`.
-// Both classes are `opaque` (#350): user code cannot read their fields or construct them, so a `Buf` never leaves the prelude.
-// shortcut: each `vecNew` / `vecWithCapacity` call leaks one `VecSeed` in the program-lifetime arena, until an arena-less empty-`Buf` primitive exists.
-opaque class VecSeed<T> {
-    n: i32
-    // Zero bytes in the seed's arena: never read, and `bufGrow` copies 0 bytes from it.
-    unsafe fun empty(): Buf<T> {
-        return bufAlloc::<T>(arenaOf(this), 0)
-    }
-}
+// The class is `opaque` (#350): user code cannot read its fields or construct them, so a `Buf` never leaves the prelude.
 opaque class Vec<T> {
     buf: Buf<T>
     n: i32
@@ -132,9 +124,8 @@ opaque class Vec<T> {
     }
 }
 fun vecNew<T>(): Vec<T> {
-    val seed: VecSeed<T> = VecSeed(0)
     unsafe {
-        return Vec(seed.empty(), 0)
+        return Vec(bufEmpty::<T>(), 0)
     }
 }
 fun vecWithCapacity<T>(n: i32): Vec<T> {

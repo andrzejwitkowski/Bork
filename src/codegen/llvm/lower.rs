@@ -501,7 +501,7 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                     operand(&args[1])?;
                     operand(&args[2])?;
                 }
-                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+                StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::BufEmpty | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                     let dty = dst.as_ref().filter(|d| d.is_bare()).and_then(|d| body.local(d.local)).map(|l| l.ty);
                     let buf = |op: &Operand| op_place_ty(cx, body, op).and_then(|t| plain_buf(cx, t));
                     match (op, args.as_slice(), arena) {
@@ -509,6 +509,9 @@ fn check(cx: &Codegen<'_>, callees: &Callees<'_, '_>, function: &HirFunction, bo
                         (IntrinsicOp::BufAlloc, [a, cap], None) => {
                             cx.tcx.is_arena(op_place_ty(cx, body, a)?).then_some(())?;
                             operand(cap)?;
+                            plain_buf(cx, dty?)?;
+                        }
+                        (IntrinsicOp::BufEmpty, [], None) => {
                             plain_buf(cx, dty?)?;
                         }
                         (IntrinsicOp::BufCap, [b], None) => {
@@ -1392,7 +1395,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let out = cx.string_from_utf8(self.llvm_fn, arena, buffer, start, count, dty)?;
                 self.store(d, out.into())?;
             }
-            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
+            StmtKind::Intrinsic { dst, op: op @ (IntrinsicOp::BufAlloc | IntrinsicOp::BufEmpty | IntrinsicOp::SlotLoad | IntrinsicOp::SlotStore | IntrinsicOp::SlotDrop | IntrinsicOp::SlotTake | IntrinsicOp::SlotView | IntrinsicOp::SlotViewRw | IntrinsicOp::BufGrow | IntrinsicOp::BufCap | IntrinsicOp::ArenaOf), args, arena } => {
                 self.buf_intrinsic(*op, dst.as_ref(), args, arena.as_ref(), stmt.region)?;
             }
             StmtKind::Intrinsic { op, args, .. } => {
@@ -1428,6 +1431,7 @@ impl<'a, 'ctx> Lower<'a, 'ctx> {
                 let elem = plain_buf(cx, self.body.local(dst.expect("checked").local).expect("checked").ty).expect("checked element");
                 Some(cx.buf_alloc(arena, elem, int(cap)?)?.into())
             }
+            (IntrinsicOp::BufEmpty, []) => Some(cx.buf_empty()?.into()),
             (IntrinsicOp::BufCap, [b]) => Some(cx.buf_cap(buf(b)?.0)?.into()),
             (IntrinsicOp::SlotTake, [b, i]) => {
                 let (b, elem) = buf(b)?;

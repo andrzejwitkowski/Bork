@@ -194,12 +194,7 @@ Arenas
 ├── fun main
 │   ├── s [Local]
 │   └── IfThen
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -234,12 +229,7 @@ Arenas
 ├── fun main
 │   ├── s [Local]
 │   └── x [Local]
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -276,12 +266,7 @@ Arenas
 │   ├── a [Local]
 │   ├── b [Local]
 │   └── c [Local]
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -316,12 +301,7 @@ Arenas
 ├── fun main
 │   ├── s [Local]
 │   └── x [Local]
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -355,12 +335,7 @@ Arenas
 Arenas
 ├── fun main
 │   └── s [Local]
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -404,12 +379,7 @@ Arenas
 │       ├── sum [Copy]
 │       ├── s [Shared ← fun main]
 │       └── j [Copy]
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -468,12 +438,7 @@ Arenas
 │   │   │   └── j [Copy]
 │   │   └── IfThen
 │   └── IfThen
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -507,12 +472,7 @@ Arenas
 Arenas
 ├── fun main
 │   └── s [Local]
-├── fun newStack
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun newStack]
-├── fun StackSeed.empty
-│   └── this [Borrow ← call site]
+├── fun newStack (compacted 1 brace)
 ├── fun Stack.push
 │   ├── this [Borrow ← call site]
 │   ├── v [Local]
@@ -843,16 +803,11 @@ Arenas
 │       └── Closure (move)
 │           ├── s [Moved ← Block]
 │           └── v [Moved ← Block]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -1061,16 +1016,11 @@ Arenas
 │   │       └── w2 [Moved ← Block]
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -1251,16 +1201,11 @@ Arenas
 │   │       └── l2 [Moved ← Block]
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -2247,16 +2192,11 @@ Arenas
 │   │   └── r [Shared ← fun main]
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -2390,16 +2330,11 @@ Arenas
 │   └── x [Local]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -2512,16 +2447,11 @@ Arenas
 │   │       └── total [Copy]
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -2623,10 +2553,7 @@ Arenas
 │           │   ├── s [Local]
 │           │   └── n [Copy]
 │           └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -2654,8 +2581,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -2786,10 +2711,7 @@ Arenas
 │       ├── a [Local]
 │       ├── x [Local]
 │       └── base [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -2817,8 +2739,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -2946,10 +2866,7 @@ Arenas
 │           │   ├── r [Local]
 │           │   └── seen [Copy]
 │           └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -2977,8 +2894,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3088,10 +3003,7 @@ Arenas
 │   └── Closure
 │       ├── a [Local]
 │       └── n [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -3119,8 +3031,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3252,16 +3162,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3396,16 +3301,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3512,16 +3412,11 @@ Arenas
 │   ├── r [Local]
 │   └── IfValSome
 │       └── x [Borrow ← presence guard]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3685,16 +3580,11 @@ Arenas
 │           └── seen [Copy]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3805,16 +3695,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -3923,16 +3808,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -4035,16 +3915,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -4255,16 +4130,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -4396,16 +4266,11 @@ Arenas
 │   │   └── IfValSome
 │   │       └── x [Borrow ← presence guard]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -4760,16 +4625,11 @@ Arenas
 ├── fun main
 │   ├── o [Local]
 │   └── r [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -4872,16 +4732,11 @@ Arenas
 │   ├── MatchArm
 │   │   └── r [Borrow ← pattern binding]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -4982,16 +4837,11 @@ Arenas
 ├── fun main
 │   ├── b [Local]
 │   └── r [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -5097,16 +4947,11 @@ Arenas
 ├── fun main
 │   ├── src [Local]
 │   └── a [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -5213,16 +5058,11 @@ Arenas
 │           └── keep [Shared ← fun find]
 ├── fun main
 │   └── a [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -5329,16 +5169,11 @@ Arenas
 │           └── p [Shared ← WhileLoop]
 ├── fun main
 │   └── a [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -5448,16 +5283,11 @@ Arenas
 │                   └── keep [Shared ← fun find]
 ├── fun main
 │   └── a [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -5610,16 +5440,11 @@ Arenas
 │   └── k [Local]
 ├── fun main
 │   └── a [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -5721,10 +5546,7 @@ Arenas
 │   ├── a [Local]
 │   ├── b [Local]
 │   └── r [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -5736,8 +5558,6 @@ Arenas
 │   └── IfThen
 │       └── p [Shared ← fun Counter.pick]
 ├── fun Counter.mkRef
-│   └── this [Borrow ← call site]
-├── fun VecSeed.empty
 │   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
@@ -5839,10 +5659,7 @@ Arenas
 │   ├── h [Local]
 │   ├── a [Local]
 │   └── b [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -5850,8 +5667,6 @@ Arenas
 ├── fun Holder.get
 │   └── this [Borrow ← call site]
 ├── fun Holder.fresh
-│   └── this [Borrow ← call site]
-├── fun VecSeed.empty
 │   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
@@ -5958,16 +5773,11 @@ Arenas
 ├── fun main
 │   ├── x [Local]
 │   └── y [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -6081,16 +5891,11 @@ Arenas
 │       └── IfValSome
 │           ├── p [Borrow ← presence guard]
 │           └── t [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -6198,16 +6003,11 @@ Arenas
 ├── fun main
 │   ├── x [Local]
 │   └── y [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -7875,16 +7675,11 @@ Arenas
 │   └── Closure
 │       ├── a [Local]
 │       └── x [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -7987,10 +7782,7 @@ Arenas
 │   ├── v [Moved ← fun main]
 │   └── Closure
 │       └── x [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -8018,8 +7810,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8133,10 +7923,7 @@ Arenas
 │   ├── MatchArm
 │   │   └── n [Local]
 │   └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -8164,8 +7951,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8295,16 +8080,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── c [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8398,16 +8178,11 @@ Arenas
 │   ├── Closure
 │   ├── Closure
 │   └── Closure
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8508,16 +8283,11 @@ Arenas
 │           ├── IfValSome
 │           │   └── n [Borrow ← presence guard]
 │           └── IfValNone
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8613,16 +8383,11 @@ Arenas
 │       └── Closure (move)
 │           ├── k [Moved ← WhileLoop]
 │           └── s [Moved ← WhileLoop]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8715,16 +8480,11 @@ Arenas
 │       ├── i [Copy]
 │       └── Closure (move)
 │           └── k [Moved ← WhileLoop]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8824,16 +8584,11 @@ Arenas
 │       │   ├── j [Moved ← Block]
 │       │   └── s [Moved ← Block]
 │       └── Closure
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -8928,16 +8683,11 @@ Arenas
 │           ├── MatchArm
 │           │   └── x [Borrow ← pattern binding]
 │           └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9032,16 +8782,11 @@ Arenas
 │           ├── MatchArm
 │           │   └── x [Borrow ← pattern binding]
 │           └── MatchArm
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9133,16 +8878,11 @@ Arenas
 │       ├── inner [Moved ← Block]
 │       └── Closure (move)
 │           └── n [Moved ← Block]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9237,16 +8977,11 @@ Arenas
 │           ├── IfValSome
 │           │   └── x [Borrow ← presence guard]
 │           └── IfValNone
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9340,16 +9075,11 @@ Arenas
 │       ├── inner [Moved ← WhileLoop]
 │       └── Closure (move)
 │           └── n [Moved ← WhileLoop]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9446,16 +9176,11 @@ Arenas
 │           ├── IfValSome
 │           │   └── n [Borrow ← presence guard]
 │           └── IfValNone
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9550,16 +9275,11 @@ Arenas
 │           ├── IfThen
 │           │   └── s [Shared ← Closure (move)]
 │           └── IfElse
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9653,16 +9373,11 @@ Arenas
 │           ├── IfValSome
 │           │   └── n [Borrow ← presence guard]
 │           └── IfValNone
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9761,16 +9476,11 @@ Arenas
 │       ├── IfValSome
 │       │   └── n [Borrow ← presence guard]
 │       └── IfValNone
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9871,16 +9581,11 @@ Arenas
 │   ├── Closure (move)
 │   │   └── k [Moved ← fun main]
 │   └── Closure
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -9971,16 +9676,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── f [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10069,16 +9769,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── n [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10165,16 +9860,11 @@ Arenas
 │   ├── v [Local]
 │   ├── a [Local]
 │   └── b [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10267,16 +9957,11 @@ Arenas
 │       ├── e [Local]
 │       ├── v [Borrow ← fun main]
 │       └── total [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10368,16 +10053,11 @@ Arenas
 │   ├── before [Local]
 │   ├── e [Local]
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10466,16 +10146,11 @@ Arenas
 │   ├── v [Local]
 │   ├── e [Local]
 │   └── n [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10566,16 +10241,11 @@ Arenas
 │   ├── Closure
 │   └── Closure
 │       └── n [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10660,16 +10330,11 @@ Arenas
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10754,16 +10419,11 @@ Arenas
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10858,16 +10518,11 @@ Arenas
 │       ├── total [Copy]
 │       ├── v [Borrow ← fun main]
 │       └── j [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -10960,16 +10615,11 @@ Arenas
 │   └── WhileLoop
 │       ├── s [Copy]
 │       └── i [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11060,16 +10710,11 @@ Arenas
 ├── fun main
 │   ├── h [Local]
 │   └── a [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11169,16 +10814,11 @@ Arenas
 │   ├── IfThen
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11266,16 +10906,11 @@ Arenas
 │   ├── Block
 │   │   └── inner [Moved ← Block]
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11369,16 +11004,11 @@ Arenas
 │       ├── total [Copy]
 │       ├── outer [Borrow ← fun main]
 │       └── j [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11465,16 +11095,11 @@ Arenas
 │   └── v [Local]
 ├── fun main
 │   └── h [Moved ← fun main]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11560,16 +11185,11 @@ Arenas
 ├── fun main
 │   ├── n [Local]
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11657,16 +11277,11 @@ Arenas
 │   ├── out [Local]
 │   ├── last [Local]
 │   └── none [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11760,16 +11375,11 @@ Arenas
 │       ├── total [Copy]
 │       ├── outer [Borrow ← fun main]
 │       └── j [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11857,16 +11467,11 @@ Arenas
 │   └── Block
 │       ├── inner [Local]
 │       └── inner [Moved ← Block]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -11961,16 +11566,11 @@ Arenas
 │       ├── total [Copy]
 │       ├── v [Borrow ← fun main]
 │       └── j [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12088,16 +11688,11 @@ Arenas
 │   ├── IfThen
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12194,16 +11789,11 @@ Arenas
 │   └── IfValSome
 │       ├── m [Borrow ← presence guard]
 │       └── out [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12292,16 +11882,11 @@ Arenas
 │   ├── seen [Local]
 │   └── IfValSome
 │       └── x [Borrow ← presence guard]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12394,16 +11979,11 @@ Arenas
 │   ├── id [Local]
 │   └── IfValSome
 │       └── x [Borrow ← presence guard]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12504,16 +12084,11 @@ Arenas
 │       └── IfValSome
 │           ├── n [Borrow ← presence guard]
 │           └── total [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12609,16 +12184,11 @@ Arenas
 │   │   ├── s0 [Copy]
 │   │   └── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12728,16 +12298,11 @@ Arenas
 │       └── IfValSome
 │           ├── node [Borrow ← presence guard]
 │           └── total [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12853,16 +12418,11 @@ Arenas
 │           └── IfValSome
 │               ├── node [Borrow ← presence guard]
 │               └── alive [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -12955,16 +12515,11 @@ Arenas
 │       ├── total [Copy]
 │       ├── v [Borrow ← fun main]
 │       └── j [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13057,16 +12612,11 @@ Arenas
 │           └── v [Moved ← WhileLoop]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13177,16 +12727,11 @@ Arenas
 │           └── IfValSome
 │               ├── a [Borrow ← presence guard]
 │               └── total [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13271,16 +12816,11 @@ Arenas
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13366,16 +12906,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── s [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13461,16 +12996,11 @@ Arenas
 ├── fun main
 │   ├── h [Local]
 │   └── n [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13579,16 +13109,11 @@ Arenas
 │   ├── IfThen
 │   ├── IfThen
 │   └── IfThen
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -13768,16 +13293,11 @@ Arenas
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -14453,10 +13973,7 @@ Arenas
 Arenas
 ├── fun main
 │   └── h [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -14464,8 +13981,6 @@ Arenas
 ├── fun H.add
 │   ├── this [Borrow ← call site]
 │   └── k [Local]
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -14618,16 +14133,11 @@ Arenas
 │   ├── v [Local]
 │   └── Closure
 │       └── v [Borrow ← fun main]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -14740,16 +14250,11 @@ Arenas
 ├── fun f
 │   └── v [Local]
 ├── fun main
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -14880,16 +14385,11 @@ Arenas
 │   └── h [Borrow ← call site]
 ├── fun main
 │   └── h [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -14977,16 +14477,11 @@ Arenas
 │   └── v [Borrow ← call site]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -15766,16 +15261,11 @@ Arenas
 │   ├── x [Local]
 │   └── v [Local]
 ├── fun main
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -15959,10 +15449,7 @@ Arenas
 ├── fun main
 │   ├── v [Moved ← fun main]
 │   └── it [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -15990,8 +15477,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -16100,10 +15585,7 @@ Arenas
 │   ├── m [Local]
 │   └── Closure
 │       └── x [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
@@ -16131,8 +15613,6 @@ Arenas
 │           │   ├── f [Shared ← fun fold]
 │           │   └── acc [Copy]
 │           └── MatchArm
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -16694,16 +16174,11 @@ Arenas
 ├── fun main
 │   ├── f [Local]
 │   └── x [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17022,16 +16497,11 @@ Arenas
 │   └── v [Borrow ← call site]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17118,16 +16588,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17214,16 +16679,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17309,16 +16769,11 @@ Type Error [89..92] `Vec` element must be a Copy type, a non-null `String`, a `R
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17410,16 +16865,11 @@ Arenas
 │       └── k [Moved ← fun fill]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17510,16 +16960,11 @@ Arenas
 │       └── k [Moved ← fun add]
 ├── fun main
 │   └── b [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17605,16 +17050,11 @@ Type Error [56..59] `Vec` element must be a Copy type, a non-null `String`, a `R
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17706,16 +17146,11 @@ Arenas
 │       └── n [Moved ← fun fill]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17804,16 +17239,11 @@ Arenas
 │   ├── k [Local]
 │   └── Closure
 │       └── k [Copy]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -17899,16 +17329,11 @@ Type Error [108..111] `Vec` is a built-in type and cannot be constructed like a 
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18001,16 +17426,11 @@ Arenas
 │   ├── v [Local]
 │   ├── e [Local]
 │   └── n [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18099,16 +17519,11 @@ Arenas
 │   └── e [Local]
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18196,16 +17611,11 @@ Arenas
 │   ├── v [Local]
 │   ├── a [Local]
 │   └── b [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18295,16 +17705,11 @@ Arenas
 │   ├── v [Local]
 │   ├── alias [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18391,16 +17796,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18488,16 +17888,11 @@ Arenas
 │   ├── v [Moved ← fun main]
 │   ├── e [Local]
 │   └── w [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18584,16 +17979,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18682,16 +18072,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18778,16 +18163,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18874,16 +18254,11 @@ Arenas
 ├── fun first
 │   └── v [Borrow ← call site]
 ├── fun main
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -18970,16 +18345,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19066,16 +18436,11 @@ Arenas
 ├── fun main
 │   ├── v [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19163,16 +18528,11 @@ Arenas
 │   ├── v [Local]
 │   ├── alias [Local]
 │   └── e [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19257,16 +18617,11 @@ Arenas
 Type Error [107..115] `impl Show for Vec<i32>`: only classes and enums can implement a trait yet
 Arenas
 ├── fun main
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19354,16 +18709,11 @@ Type Error [55..56] `Vec` cannot be nullable
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19449,16 +18799,11 @@ Type Error [82..96] `Vec.reserveExact` is private to the prelude
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19544,16 +18889,11 @@ Type Error [98..104] cannot mutate immutable `val` binding `v`
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19639,16 +18979,11 @@ Type Error [152..164] cannot mutate immutable `val` binding `h` (through a field
 Arenas
 ├── fun main
 │   └── h [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]
@@ -19734,16 +19069,11 @@ Type Error [81..84] `Vec` takes at most one argument, the capacity
 Arenas
 ├── fun main
 │   └── v [Local]
-├── fun vecNew
-│   ├── seed [Local]
-│   └── Block
-│       └── seed [Shared ← fun vecNew]
+├── fun vecNew (compacted 1 brace)
 ├── fun vecWithCapacity
 │   ├── n [Local]
 │   ├── v [Local]
 │   └── IfThen (compacted 1 brace)
-├── fun VecSeed.empty
-│   └── this [Borrow ← call site]
 ├── fun Vec.reserveExact (compacted 1 brace)
 │   ├── this [Borrow ← call site]
 │   ├── cap [Local]

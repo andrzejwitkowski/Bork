@@ -642,7 +642,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         return super::method::poisoned(site.args, span, site.return_ty, env);
     }
     let builtin = crate::builtins::resolve(name).expect("a buffer primitive is a builtin");
-    let generic = matches!(builtin, Builtin::BufAlloc | Builtin::RefNone);
+    let generic = matches!(builtin, Builtin::BufAlloc | Builtin::BufEmpty | Builtin::RefNone);
     if !type_args.is_empty() && !(generic && type_args.len() == 1) {
         let want = if generic { "one type argument" } else { "no type arguments" };
         env.error(format!("`{name}` takes {want}"), Some(span));
@@ -667,6 +667,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
         Builtin::SlotCopy => (3, unit, vec![i32_ty, elem]),
         Builtin::SlotTake => (2, elem, vec![i32_ty]),
         Builtin::RefNone => (0, elem, vec![]),
+        Builtin::BufEmpty => (0, buf, vec![]),
         Builtin::BufGrow => (2, buf, vec![i32_ty]),
         Builtin::Abort => (0, unit, vec![]),
         Builtin::ArenaOf => (1, arena, vec![]),
@@ -692,7 +693,7 @@ fn check_buf_primitive(name: &str, type_args: &[Type], site: CallSite<'_>, env: 
     check_builtin_call(name, site, env, arity, expected, result, |checked, env| {
         let typed = match builtin {
             Builtin::BufAlloc => vec![(&checked[0], arena), (&checked[1], i32_ty)],
-            Builtin::Abort | Builtin::ArenaOf | Builtin::RefNone => Vec::new(),
+            Builtin::Abort | Builtin::ArenaOf | Builtin::RefNone | Builtin::BufEmpty => Vec::new(),
             _ => {
                 let handle = &checked[0];
                 let borrowed = matches!(&handle.kind, HirExprKind::Unary { op: UnaryOp::Borrow { .. }, .. });
