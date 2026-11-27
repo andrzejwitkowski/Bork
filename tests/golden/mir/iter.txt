@@ -127,37 +127,20 @@ fn main (parent=false, sink=false) {
 fn vecNew<String> (parent=true, sink=true) {
   let _0: Vec<String> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: VecSeed<String> [Temp]
-  let _4: VecSeed<String> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &VecSeed<String> [Temp]
-  let _7: Buf<String> [Temp]
-  let _8: Vec<String> [Temp]
-  let _9: Vec<String> [Temp]
+  let _2: Buf<String> [Temp]
+  let _3: Vec<String> [Temp]
+  let _4: Vec<String> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "VecSeed<String>" } in fresh2  // label "VecSeed<String>": VecSeed<String>
-    _3.0 = 0  // label "VecSeed<String>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": VecSeed<String> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call VecSeed.empty<String>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Vec<String>" } in result_sink  // label "Vec<String>": Vec<String>
-    _8.0 = copy _7  // label "Vec<String>.buf": Buf<String> decl owner=result_sink
-    _8.1 = 0  // label "Vec<String>.n": i32 decl owner=result_sink
-    _9 = copy_into _8 in result_sink
-    _0 = copy _9
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Vec<String>" } in result_sink  // label "Vec<String>": Vec<String>
+    _3.0 = copy _2  // label "Vec<String>.buf": Buf<String> decl owner=result_sink
+    _3.1 = 0  // label "Vec<String>.n": i32 decl owner=result_sink
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -391,30 +374,6 @@ fn Iterator@2.next<VecIter<String>,closure#0(String)->bool> (parent=true, sink=t
     storage_dead _9
     region_exit r2
     goto bb6
-}
-
-fn VecSeed.empty<String> (parent=true, sink=true) {
-  let _0: Buf<String> [Return]
-  let _1: &VecSeed<String> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<String> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
-    region_exit r0
-    return
 }
 
 fn Vec.reserveExact<String> (parent=true, sink=false) {
@@ -771,37 +730,20 @@ fn main (parent=false, sink=false) {
 fn vecNew<i32> (parent=true, sink=true) {
   let _0: Vec<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: VecSeed<i32> [Temp]
-  let _4: VecSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &VecSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Vec<i32> [Temp]
-  let _9: Vec<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Vec<i32> [Temp]
+  let _4: Vec<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "VecSeed<i32>" } in fresh2  // label "VecSeed<i32>": VecSeed<i32>
-    _3.0 = 0  // label "VecSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": VecSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call VecSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Vec<i32>" } in result_sink  // label "Vec<i32>": Vec<i32>
-    _8.0 = copy _7  // label "Vec<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Vec<i32>.n": i32 decl owner=result_sink
-    _9 = copy_into _8 in result_sink
-    _0 = copy _9
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Vec<i32>" } in result_sink  // label "Vec<i32>": Vec<i32>
+    _3.0 = copy _2  // label "Vec<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Vec<i32>.n": i32 decl owner=result_sink
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -1221,30 +1163,6 @@ fn fold<VecIter<i32>,closure#4(i32,i32)->i32[i32]> (parent=true, sink=false) {
     _5 = copy _15
     storage_dead _14
     goto bb6
-}
-
-fn VecSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &VecSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
-    region_exit r0
-    return
 }
 
 fn Vec.reserveExact<i32> (parent=true, sink=false) {
@@ -1832,37 +1750,20 @@ fn main (parent=false, sink=false) {
 fn vecNew<Ref<Node>> (parent=true, sink=true) {
   let _0: Vec<Ref<Node>> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: VecSeed<Ref<Node>> [Temp]
-  let _4: VecSeed<Ref<Node>> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &VecSeed<Ref<Node>> [Temp]
-  let _7: Buf<Ref<Node>> [Temp]
-  let _8: Vec<Ref<Node>> [Temp]
-  let _9: Vec<Ref<Node>> [Temp]
+  let _2: Buf<Ref<Node>> [Temp]
+  let _3: Vec<Ref<Node>> [Temp]
+  let _4: Vec<Ref<Node>> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "VecSeed<Ref<Node>>" } in fresh2  // label "VecSeed<Ref<Node>>": VecSeed<Ref<Node>>
-    _3.0 = 0  // label "VecSeed<Ref<Node>>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": VecSeed<Ref<Node>> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call VecSeed.empty<Ref<Node>>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Vec<Ref<Node>>" } in result_sink  // label "Vec<Ref<Node>>": Vec<Ref<Node>>
-    _8.0 = copy _7  // label "Vec<Ref<Node>>.buf": Buf<Ref<Node>> decl owner=result_sink
-    _8.1 = 0  // label "Vec<Ref<Node>>.n": i32 decl owner=result_sink
-    _9 = copy_into _8 in result_sink
-    _0 = copy _9
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Vec<Ref<Node>>" } in result_sink  // label "Vec<Ref<Node>>": Vec<Ref<Node>>
+    _3.0 = copy _2  // label "Vec<Ref<Node>>.buf": Buf<Ref<Node>> decl owner=result_sink
+    _3.1 = 0  // label "Vec<Ref<Node>>.n": i32 decl owner=result_sink
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -2156,30 +2057,6 @@ fn Iterator@0.next<Ref<Node>> (parent=true, sink=true) {
     return
 }
 
-fn VecSeed.empty<Ref<Node>> (parent=true, sink=true) {
-  let _0: Buf<Ref<Node>> [Return]
-  let _1: &VecSeed<Ref<Node>> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<Ref<Node>> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
-    region_exit r0
-    return
-}
-
 fn Vec.reserveExact<Ref<Node>> (parent=true, sink=false) {
   let _0: unit [Return]
   let _1: &Vec<Ref<Node>> [Arg] this
@@ -2335,37 +2212,20 @@ fn main (parent=false, sink=false) {
 fn vecNew<String> (parent=true, sink=true) {
   let _0: Vec<String> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: VecSeed<String> [Temp]
-  let _4: VecSeed<String> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &VecSeed<String> [Temp]
-  let _7: Buf<String> [Temp]
-  let _8: Vec<String> [Temp]
-  let _9: Vec<String> [Temp]
+  let _2: Buf<String> [Temp]
+  let _3: Vec<String> [Temp]
+  let _4: Vec<String> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "VecSeed<String>" } in fresh2  // label "VecSeed<String>": VecSeed<String>
-    _3.0 = 0  // label "VecSeed<String>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": VecSeed<String> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call VecSeed.empty<String>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Vec<String>" } in result_sink  // label "Vec<String>": Vec<String>
-    _8.0 = copy _7  // label "Vec<String>.buf": Buf<String> decl owner=result_sink
-    _8.1 = 0  // label "Vec<String>.n": i32 decl owner=result_sink
-    _9 = copy_into _8 in result_sink
-    _0 = copy _9
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Vec<String>" } in result_sink  // label "Vec<String>": Vec<String>
+    _3.0 = copy _2  // label "Vec<String>.buf": Buf<String> decl owner=result_sink
+    _3.1 = 0  // label "Vec<String>.n": i32 decl owner=result_sink
+    _4 = copy_into _3 in result_sink
+    _0 = copy _4
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -2570,30 +2430,6 @@ fn fold<Map<VecIter<String>,closure#0(String)->i32>,closure#1(i32,i32)->i32> (pa
     _5 = copy _15
     storage_dead _14
     goto bb6
-}
-
-fn VecSeed.empty<String> (parent=true, sink=true) {
-  let _0: Buf<String> [Return]
-  let _1: &VecSeed<String> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<String> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
-    region_exit r0
-    return
 }
 
 fn Vec.reserveExact<String> (parent=true, sink=false) {

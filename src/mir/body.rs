@@ -175,6 +175,8 @@ pub enum IntrinsicOp {
     /// `Buf<T>` primitives (#285). The builder guards indexes and sizes first (`build/buf.rs`).
     /// `bufAlloc(arena, cap)`: a `Buf` of `cap` slots in the `Arena` operand.
     BufAlloc,
+    /// `bufEmpty()`: a `{null, 0}` `Buf`; owns no memory and registers no drop.
+    BufEmpty,
     /// `(buf, i)`: slot `i`.
     SlotLoad,
     /// `(buf, i, v)`: writes slot `i`.

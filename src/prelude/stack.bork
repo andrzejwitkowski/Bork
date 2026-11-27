@@ -1,15 +1,7 @@
-// Both classes are `opaque` (#350): user code cannot read their fields, construct them or call `StackSeed.empty`, so a `Buf` never leaves the prelude.
-// shortcut: each `newStack` call leaks one `StackSeed` in the program-lifetime arena, until an arena-less empty-`Buf` primitive exists.
+// The class is `opaque` (#350): user code cannot read its fields or construct them, so a `Buf` never leaves the prelude.
 // Internal `Stack<T>` (#285 step 1): proves `Buf<T>` and the unsafe primitives from Bork; step 2 replaces it with `Vec`.
 // shortcut: elements must be plain scalars (Buf slots are copied bitwise), until Buf learns to clone and drop them.
 // Lazy allocation: `newStack` starts on an empty buffer and the first `push` grows it in the Stack's own arena.
-opaque class StackSeed<T> {
-    n: i32
-    // Zero bytes in the seed's arena: never read, and `bufGrow` copies 0 bytes from it.
-    unsafe fun empty(): Buf<T> {
-        return bufAlloc::<T>(arenaOf(this), 0)
-    }
-}
 opaque class Stack<T> {
     buf: Buf<T>
     n: i32
@@ -58,8 +50,7 @@ opaque class Stack<T> {
     }
 }
 fun newStack<T>(): Stack<T> {
-    val seed: StackSeed<T> = StackSeed(0)
     unsafe {
-        return Stack(seed.empty(), 0)
+        return Stack(bufEmpty::<T>(), 0)
     }
 }

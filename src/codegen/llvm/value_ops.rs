@@ -183,6 +183,13 @@ impl<'ctx> Codegen<'ctx> {
         let align = record.get_alignment().get_zero_extended_constant().unwrap_or(8) as usize;
         let object = self.arena_alloc(arena, size, align)?;
         self.debug_allocation(object, "", &name, false)?;
+        // An empty vector keeps a `bufEmpty` buffer: no allocation, no drop registration.
+        let entry = self.builder.get_insert_block().expect("inside a function");
+        let fill = self.context.append_basic_block(llvm_fn, "vec.copy.fill");
+        let done = self.context.append_basic_block(llvm_fn, "vec.copy.done");
+        let nonempty = self.builder.build_int_compare(inkwell::IntPredicate::NE, n, self.context.i32_type().const_zero(), "vec.nonempty")?;
+        self.builder.build_conditional_branch(nonempty, fill, done)?;
+        self.position_at_end(fill);
         let copied = self.buf_alloc(arena, elem_ty, n)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
         let from = self.builder.build_extract_value(buf, 0, "vec.from")?.into_pointer_value();
@@ -203,7 +210,12 @@ impl<'ctx> Codegen<'ctx> {
                 Ok(())
             }
         })?;
-        self.builder.build_store(field(object, 0)?, copied)?;
+        let filled = self.builder.get_insert_block().expect("inside a function");
+        self.builder.build_unconditional_branch(done)?;
+        self.position_at_end(done);
+        let buf_phi = self.builder.build_phi(self.buf_type(), "vec.copied")?;
+        buf_phi.add_incoming(&[(&self.buf_empty()?, entry), (&copied, filled)]);
+        self.builder.build_store(field(object, 0)?, buf_phi.as_basic_value())?;
         self.builder.build_store(field(object, 1)?, n)?;
         let handle = self.object_handle_type().const_named_struct(&[]);
         let handle = self.builder.build_insert_value(handle, arena, 0, "vec.arena")?;

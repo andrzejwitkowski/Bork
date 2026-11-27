@@ -23,7 +23,7 @@ impl<'ctx> Codegen<'ctx> {
         let bytes = self.builder.build_int_mul(wide, self.word(stride as u64), "buf.bytes")?;
         let ptr = self.arena_alloc(arena, bytes, align)?;
         if self.debug.is_some() {
-            // A zero-byte buffer is a placeholder: `bufGrow` copies 0 bytes from it.
+            // A zero-byte allocation, still tracked for the debugger.
             self.debug_allocation(ptr, "", &format!("Buf<{}>", self.tcx.display(elem)), false)?;
         }
         if self.tcx.is_managed_ref(elem) {
@@ -85,12 +85,27 @@ impl<'ctx> Codegen<'ctx> {
         let new = self.builder.build_extract_value(grown, 0, "buf.new")?.into_pointer_value();
         let cap = self.builder.build_int_s_extend(self.buf_cap(buf)?, self.context.i64_type(), "buf.cap.old")?;
         let bytes = self.builder.build_int_mul(cap, self.word(stride as u64), "buf.bytes.old")?;
+        // An empty old buffer (possibly `bufEmpty`'s null pointer) has nothing to copy or zero.
+        let function = self.builder.get_insert_block().and_then(|b| b.get_parent()).ok_or_else(|| super::not_yet_supported("bufGrow outside a function", None))?;
+        let copy = self.context.append_basic_block(function, "buf.grow.copy");
+        let done = self.context.append_basic_block(function, "buf.grow.done");
+        let nonempty = self.builder.build_int_compare(inkwell::IntPredicate::NE, cap, self.word(0), "buf.nonempty")?;
+        self.builder.build_conditional_branch(nonempty, copy, done)?;
+        self.position_at_end(copy);
         self.builder.build_memcpy(new, align as u32, old, align as u32, bytes)?;
         if self.tcx.is_managed_ref(elem) {
             // The handles moved: zero the old slots so the old buffer's registered drop releases nothing twice.
             self.builder.build_memset(old, 1, self.context.i8_type().const_zero(), bytes)?;
         }
+        self.builder.build_unconditional_branch(done)?;
+        self.position_at_end(done);
         Ok(grown)
+    }
+
+    /// `{null, 0}`: no arena, no allocation, no drop registration.
+    pub(in crate::codegen::llvm) fn buf_empty(&self) -> Result<StructValue<'ctx>, Diagnostic> {
+        let null = self.context.ptr_type(AddressSpace::default()).const_null();
+        self.buf_value(null, self.context.i32_type().const_zero())
     }
 
     fn buf_value(&self, ptr: PointerValue<'ctx>, cap: IntValue<'ctx>) -> Result<StructValue<'ctx>, Diagnostic> {

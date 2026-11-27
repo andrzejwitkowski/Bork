@@ -38,35 +38,18 @@ fn main (parent=false, sink=false) {
 fn newStack<i32> (parent=true, sink=true) {
   let _0: Stack<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<i32> [Temp]
-  let _4: StackSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Stack<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Stack<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<i32>" } in fresh2  // label "StackSeed<i32>": StackSeed<i32>
-    _3.0 = 0  // label "StackSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
-    _8.0 = copy _7  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
+    _3.0 = copy _2  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -80,30 +63,6 @@ fn Stack.len<i32> (parent=true, sink=false) {
     storage_live _2
     region_enter r0
     _0 = copy _1.1
-    storage_dead _2
-    region_exit r0
-    return
-}
-
-fn StackSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &StackSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
     storage_dead _2
     region_exit r0
     return
@@ -143,35 +102,18 @@ fn main (parent=false, sink=false) {
 fn newStack<i32> (parent=true, sink=true) {
   let _0: Stack<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<i32> [Temp]
-  let _4: StackSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Stack<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Stack<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<i32>" } in fresh2  // label "StackSeed<i32>": StackSeed<i32>
-    _3.0 = 0  // label "StackSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
-    _8.0 = copy _7  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
+    _3.0 = copy _2  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -314,30 +256,6 @@ fn Stack.get<i32> (parent=true, sink=false) {
     _12 = intrinsic SlotLoad(reborrow _8, copy _2)
     _0 = copy _12
     storage_dead _3
-    region_exit r0
-    return
-}
-
-fn StackSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &StackSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
     region_exit r0
     return
 }
@@ -413,35 +331,18 @@ fn main (parent=false, sink=false) {
 fn newStack<i32> (parent=true, sink=true) {
   let _0: Stack<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<i32> [Temp]
-  let _4: StackSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Stack<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Stack<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<i32>" } in fresh2  // label "StackSeed<i32>": StackSeed<i32>
-    _3.0 = 0  // label "StackSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
-    _8.0 = copy _7  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
+    _3.0 = copy _2  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -595,30 +496,6 @@ fn Stack.len<i32> (parent=true, sink=false) {
     return
 }
 
-fn StackSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &StackSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
-    region_exit r0
-    return
-}
-
 == buf/stack_pop_empty_aborts.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
@@ -648,35 +525,18 @@ fn main (parent=false, sink=false) {
 fn newStack<i32> (parent=true, sink=true) {
   let _0: Stack<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<i32> [Temp]
-  let _4: StackSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Stack<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Stack<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<i32>" } in fresh2  // label "StackSeed<i32>": StackSeed<i32>
-    _3.0 = 0  // label "StackSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
-    _8.0 = copy _7  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
+    _3.0 = copy _2  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -720,30 +580,6 @@ fn Stack.pop<i32> (parent=true, sink=false) {
   bb5:
     _11 = intrinsic SlotLoad(reborrow _6, copy _7)
     _0 = copy _11
-    storage_dead _2
-    region_exit r0
-    return
-}
-
-fn StackSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &StackSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
     storage_dead _2
     region_exit r0
     return
@@ -808,35 +644,18 @@ fn main (parent=false, sink=false) {
 fn newStack<i32> (parent=true, sink=true) {
   let _0: Stack<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<i32> [Temp]
-  let _4: StackSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Stack<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Stack<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<i32>" } in fresh2  // label "StackSeed<i32>": StackSeed<i32>
-    _3.0 = 0  // label "StackSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
-    _8.0 = copy _7  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
+    _3.0 = copy _2  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -979,30 +798,6 @@ fn Stack.get<i32> (parent=true, sink=false) {
     _12 = intrinsic SlotLoad(reborrow _8, copy _2)
     _0 = copy _12
     storage_dead _3
-    region_exit r0
-    return
-}
-
-fn StackSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &StackSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
     region_exit r0
     return
 }
@@ -1093,35 +888,18 @@ fn main (parent=false, sink=false) {
 fn newStack<i32> (parent=true, sink=true) {
   let _0: Stack<i32> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<i32> [Temp]
-  let _4: StackSeed<i32> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<i32> [Temp]
-  let _7: Buf<i32> [Temp]
-  let _8: Stack<i32> [Temp]
+  let _2: Buf<i32> [Temp]
+  let _3: Stack<i32> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<i32>" } in fresh2  // label "StackSeed<i32>": StackSeed<i32>
-    _3.0 = 0  // label "StackSeed<i32>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<i32> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<i32>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
-    _8.0 = copy _7  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
-    _8.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<i32>" } in result_sink  // label "Stack<i32>": Stack<i32>
+    _3.0 = copy _2  // label "Stack<i32>.buf": Buf<i32> decl owner=result_sink
+    _3.1 = 0  // label "Stack<i32>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -1278,30 +1056,6 @@ fn Stack.get<i32> (parent=true, sink=false) {
     _12 = intrinsic SlotLoad(reborrow _8, copy _2)
     _0 = copy _12
     storage_dead _3
-    region_exit r0
-    return
-}
-
-fn StackSeed.empty<i32> (parent=true, sink=true) {
-  let _0: Buf<i32> [Return]
-  let _1: &StackSeed<i32> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<i32> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
     region_exit r0
     return
 }
@@ -1513,35 +1267,18 @@ fn main (parent=false, sink=false) {
 fn newStack<Ref<Node>> (parent=true, sink=true) {
   let _0: Stack<Ref<Node>> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<Ref<Node>> [Temp]
-  let _4: StackSeed<Ref<Node>> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<Ref<Node>> [Temp]
-  let _7: Buf<Ref<Node>> [Temp]
-  let _8: Stack<Ref<Node>> [Temp]
+  let _2: Buf<Ref<Node>> [Temp]
+  let _3: Stack<Ref<Node>> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<Ref<Node>>" } in fresh2  // label "StackSeed<Ref<Node>>": StackSeed<Ref<Node>>
-    _3.0 = 0  // label "StackSeed<Ref<Node>>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<Ref<Node>> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<Ref<Node>>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<Ref<Node>>" } in result_sink  // label "Stack<Ref<Node>>": Stack<Ref<Node>>
-    _8.0 = copy _7  // label "Stack<Ref<Node>>.buf": Buf<Ref<Node>> decl owner=result_sink
-    _8.1 = 0  // label "Stack<Ref<Node>>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<Ref<Node>>" } in result_sink  // label "Stack<Ref<Node>>": Stack<Ref<Node>>
+    _3.0 = copy _2  // label "Stack<Ref<Node>>.buf": Buf<Ref<Node>> decl owner=result_sink
+    _3.1 = 0  // label "Stack<Ref<Node>>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -1693,30 +1430,6 @@ fn Stack.get<Ref<Node>> (parent=true, sink=true) {
     return
 }
 
-fn StackSeed.empty<Ref<Node>> (parent=true, sink=true) {
-  let _0: Buf<Ref<Node>> [Return]
-  let _1: &StackSeed<Ref<Node>> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<Ref<Node>> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
-    region_exit r0
-    return
-}
-
 == buf/stack_string_elems_grow.bork
 fn main (parent=false, sink=false) {
   let _0: i32 [Return]
@@ -1791,35 +1504,18 @@ fn main (parent=false, sink=false) {
 fn newStack<String> (parent=true, sink=true) {
   let _0: Stack<String> [Return]
   let _1: unit [Hidden(DebugScope)]
-  let _2: unit [Hidden(DynamicArena)]
-  let _3: StackSeed<String> [Temp]
-  let _4: StackSeed<String> [Val] seed
-  let _5: unit [Hidden(DebugScope)]
-  let _6: &StackSeed<String> [Temp]
-  let _7: Buf<String> [Temp]
-  let _8: Stack<String> [Temp]
+  let _2: Buf<String> [Temp]
+  let _3: Stack<String> [Temp]
   region r0 Block
-  region r1 Block in r0
   bb0:
     storage_live _1
     region_enter r0
-    _2 = arena_create_dynamic parent=root scoped=false
-    register_strong_root result_sink <- _2
-    _3 = alloc Object { class: "StackSeed<String>" } in fresh2  // label "StackSeed<String>": StackSeed<String>
-    _3.0 = 0  // label "StackSeed<String>.n": i32 decl owner=fresh2
-    _4 = copy _3  // label "seed": StackSeed<String> decl
-    region_enter r1
-    storage_live _5
-    _6 = borrow _4
-    _7 = call StackSeed.empty<String>(copy _6) +current +result_sink -> bb1
-  bb1:
-    _8 = alloc Object { class: "Stack<String>" } in result_sink  // label "Stack<String>": Stack<String>
-    _8.0 = copy _7  // label "Stack<String>.buf": Buf<String> decl owner=result_sink
-    _8.1 = 0  // label "Stack<String>.n": i32 decl owner=result_sink
-    _0 = copy _8
-    storage_dead _5
+    _2 = intrinsic BufEmpty()
+    _3 = alloc Object { class: "Stack<String>" } in result_sink  // label "Stack<String>": Stack<String>
+    _3.0 = copy _2  // label "Stack<String>.buf": Buf<String> decl owner=result_sink
+    _3.1 = 0  // label "Stack<String>.n": i32 decl owner=result_sink
+    _0 = copy _3
     storage_dead _1
-    region_exit r1
     region_exit r0
     return
 }
@@ -1964,30 +1660,6 @@ fn Stack.get<String> (parent=true, sink=true) {
     _13 = copy_into _12 in result_sink
     _0 = copy _13
     storage_dead _3
-    region_exit r0
-    return
-}
-
-fn StackSeed.empty<String> (parent=true, sink=true) {
-  let _0: Buf<String> [Return]
-  let _1: &StackSeed<String> [Arg] this
-  let _2: unit [Hidden(DebugScope)]
-  let _3: Arena [Temp]
-  let _4: bool [Temp]
-  let _5: Buf<String> [Temp]
-  region r0 Block
-  bb0:
-    storage_live _2
-    region_enter r0
-    _3 = intrinsic ArenaOf() in object_arena(_1)
-    _4 = ge(0, 0)
-    switch copy _4 [ 1 -> bb2, else -> bb1]
-  bb1:
-    abort NegativeCapacity
-  bb2:
-    _5 = intrinsic BufAlloc(copy _3, 0)
-    _0 = copy _5
-    storage_dead _2
     region_exit r0
     return
 }

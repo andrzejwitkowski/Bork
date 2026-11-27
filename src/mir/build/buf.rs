@@ -31,6 +31,7 @@ impl<'a> FnBuilder<'a> {
             }
             // The `None` handle of a `Ref` type: all zero.
             ("refNone", []) => return Ok(Operand::Const(Const::None)),
+            ("bufEmpty", []) => (IntrinsicOp::BufEmpty, None),
             ("Buf.cap", [_]) => (IntrinsicOp::BufCap, None),
             ("bufAlloc", [_, cap]) => {
                 self.abort_unless(&[(BinOp::Ge, cap.clone(), zero)], AbortReason::NegativeCapacity, span, e);

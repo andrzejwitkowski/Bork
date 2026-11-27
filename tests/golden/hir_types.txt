@@ -45,56 +45,48 @@ programs/build/borrow/store_scalar_into_borrowed_array.bork::set(buf: &rw [i32; 
 programs/build/borrow/store_scalar_into_borrowed_array.bork::main() -> i32
 programs/build/buf/stack_empty.bork::main() -> i32
 programs/build/buf/stack_empty.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_empty.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_empty.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_empty.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_empty.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_empty.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_get_past_len_aborts.bork::main() -> i32
 programs/build/buf/stack_get_past_len_aborts.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_get_past_len_aborts.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_get_past_len_aborts.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_get_past_len_aborts.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_get_past_len_aborts.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_get_past_len_aborts.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_pop.bork::main() -> i32
 programs/build/buf/stack_pop.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_pop.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_pop.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_pop.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_pop.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_pop.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_pop_empty_aborts.bork::main() -> i32
 programs/build/buf/stack_pop_empty_aborts.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_pop_empty_aborts.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_pop_empty_aborts.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_pop_empty_aborts.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_pop_empty_aborts.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_pop_empty_aborts.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_push_at_capacity_boundary.bork::main() -> i32
 programs/build/buf/stack_push_at_capacity_boundary.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_push_at_capacity_boundary.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_push_at_capacity_boundary.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_push_grow_get.bork::main() -> i32
 programs/build/buf/stack_push_grow_get.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_push_grow_get.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_push_grow_get.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_push_grow_get.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_push_grow_get.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_push_grow_get.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_ref_elems_release.bork::main() -> i32
 programs/build/buf/stack_ref_elems_release.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_ref_elems_release.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_ref_elems_release.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_ref_elems_release.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_ref_elems_release.bork::Stack.pop(this: &Stack<T0>) -> T0
 programs/build/buf/stack_ref_elems_release.bork::Stack.len(this: &Stack<T0>) -> i32
 programs/build/buf/stack_string_elems_grow.bork::main() -> i32
 programs/build/buf/stack_string_elems_grow.bork::newStack() -> Stack<T0>
-programs/build/buf/stack_string_elems_grow.bork::StackSeed.empty(this: &StackSeed<T0>) -> Buf<T0>
 programs/build/buf/stack_string_elems_grow.bork::Stack.push(this: &Stack<T0>, v: T0) -> unit
 programs/build/buf/stack_string_elems_grow.bork::Stack.get(this: &Stack<T0>, i: i32) -> T0
 programs/build/buf/stack_string_elems_grow.bork::Stack.pop(this: &Stack<T0>) -> T0
@@ -155,7 +147,6 @@ programs/build/closures/loop_variable_shadows_capture_only_in_loop.bork::main() 
 programs/build/closures/move_assigned_to_outer_var.bork::main() -> i32
 programs/build/closures/move_assigned_to_outer_var.bork::vecNew() -> Vec<T0>
 programs/build/closures/move_assigned_to_outer_var.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/closures/move_assigned_to_outer_var.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/closures/move_assigned_to_outer_var.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/closures/move_assigned_to_outer_var.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/closures/move_assigned_to_outer_var.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -190,7 +181,6 @@ programs/build/closures/move_vec_capture.bork::make() -> ()->i32
 programs/build/closures/move_vec_capture.bork::main() -> i32
 programs/build/closures/move_vec_capture.bork::vecNew() -> Vec<T0>
 programs/build/closures/move_vec_capture.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/closures/move_vec_capture.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/closures/move_vec_capture.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/closures/move_vec_capture.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/closures/move_vec_capture.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -216,7 +206,6 @@ programs/build/closures/owned_values_with_refs.bork::eatl(l: Link) -> i32
 programs/build/closures/owned_values_with_refs.bork::main() -> i32
 programs/build/closures/owned_values_with_refs.bork::vecNew() -> Vec<T0>
 programs/build/closures/owned_values_with_refs.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/closures/owned_values_with_refs.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/closures/owned_values_with_refs.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/closures/owned_values_with_refs.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/closures/owned_values_with_refs.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -376,7 +365,6 @@ programs/build/generics/borrow_infers_enum_arg.bork::main() -> i32
 programs/build/generics/glue_no_leak.bork::main() -> i32
 programs/build/generics/glue_no_leak.bork::vecNew() -> Vec<T0>
 programs/build/generics/glue_no_leak.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/generics/glue_no_leak.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/generics/glue_no_leak.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/generics/glue_no_leak.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/generics/glue_no_leak.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -400,7 +388,6 @@ programs/build/generics/ref_local_wrapped_in_option.bork::first(v: &Vec<T0>) -> 
 programs/build/generics/ref_local_wrapped_in_option.bork::main() -> i32
 programs/build/generics/ref_local_wrapped_in_option.bork::vecNew() -> Vec<T0>
 programs/build/generics/ref_local_wrapped_in_option.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/generics/ref_local_wrapped_in_option.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/generics/ref_local_wrapped_in_option.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/generics/ref_local_wrapped_in_option.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/generics/ref_local_wrapped_in_option.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -415,7 +402,6 @@ programs/build/generics/ref_local_wrapped_in_option.bork::Vec.clear(this: &Vec<T
 programs/build/generics/tree_regions.bork::main() -> i32
 programs/build/generics/tree_regions.bork::vecNew() -> Vec<T0>
 programs/build/generics/tree_regions.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/generics/tree_regions.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/generics/tree_regions.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/generics/tree_regions.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/generics/tree_regions.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -434,7 +420,6 @@ programs/build/iter/filter_many_rejected.bork::iter(v: Vec<T0>) -> VecIter<T0>
 programs/build/iter/filter_many_rejected.bork::map(it: T0, f: T1) -> Map<T0, T1>
 programs/build/iter/filter_many_rejected.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
 programs/build/iter/filter_many_rejected.bork::fold(it: T0, init: i32, f: T1) -> i32
-programs/build/iter/filter_many_rejected.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/iter/filter_many_rejected.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/filter_many_rejected.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/filter_many_rejected.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -456,7 +441,6 @@ programs/build/iter/vec_chain.bork::iter(v: Vec<T0>) -> VecIter<T0>
 programs/build/iter/vec_chain.bork::map(it: T0, f: T1) -> Map<T0, T1>
 programs/build/iter/vec_chain.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
 programs/build/iter/vec_chain.bork::fold(it: T0, init: i32, f: T1) -> i32
-programs/build/iter/vec_chain.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/iter/vec_chain.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/vec_chain.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/vec_chain.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -478,7 +462,6 @@ programs/build/iter/vec_ref_elems.bork::iter(v: Vec<T0>) -> VecIter<T0>
 programs/build/iter/vec_ref_elems.bork::map(it: T0, f: T1) -> Map<T0, T1>
 programs/build/iter/vec_ref_elems.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
 programs/build/iter/vec_ref_elems.bork::fold(it: T0, init: i32, f: T1) -> i32
-programs/build/iter/vec_ref_elems.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/iter/vec_ref_elems.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/vec_ref_elems.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/vec_ref_elems.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -500,7 +483,6 @@ programs/build/iter/vec_string_elems.bork::iter(v: Vec<T0>) -> VecIter<T0>
 programs/build/iter/vec_string_elems.bork::map(it: T0, f: T1) -> Map<T0, T1>
 programs/build/iter/vec_string_elems.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
 programs/build/iter/vec_string_elems.bork::fold(it: T0, init: i32, f: T1) -> i32
-programs/build/iter/vec_string_elems.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/iter/vec_string_elems.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/vec_string_elems.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/iter/vec_string_elems.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -522,7 +504,6 @@ programs/build/loops/call_in_loop_alias_returned.bork::find(v: &Vec<Ref<Node>>) 
 programs/build/loops/call_in_loop_alias_returned.bork::main() -> i32
 programs/build/loops/call_in_loop_alias_returned.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_alias_returned.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_alias_returned.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_alias_returned.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_alias_returned.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_alias_returned.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -545,7 +526,6 @@ programs/build/loops/call_in_loop_arg_to_reader.bork::find(v: &Vec<Ref<Node>>) -
 programs/build/loops/call_in_loop_arg_to_reader.bork::main() -> i32
 programs/build/loops/call_in_loop_arg_to_reader.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_arg_to_reader.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_arg_to_reader.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_arg_to_reader.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_arg_to_reader.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_arg_to_reader.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -562,7 +542,6 @@ programs/build/loops/call_in_loop_arm_binding_returned.bork::find(v: &Vec<Ref<No
 programs/build/loops/call_in_loop_arm_binding_returned.bork::main() -> i32
 programs/build/loops/call_in_loop_arm_binding_returned.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_arm_binding_returned.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_arm_binding_returned.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_arm_binding_returned.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_arm_binding_returned.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_arm_binding_returned.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -592,7 +571,6 @@ programs/build/loops/call_in_loop_isnone_reader.bork::count(v: &Vec<Ref<Node>>) 
 programs/build/loops/call_in_loop_isnone_reader.bork::main() -> i32
 programs/build/loops/call_in_loop_isnone_reader.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_isnone_reader.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_isnone_reader.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_isnone_reader.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_isnone_reader.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_isnone_reader.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -611,7 +589,6 @@ programs/build/loops/call_in_loop_return_id_of_arg.bork::find(v: &Vec<Ref<Node>>
 programs/build/loops/call_in_loop_return_id_of_arg.bork::main() -> i32
 programs/build/loops/call_in_loop_return_id_of_arg.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_return_id_of_arg.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_return_id_of_arg.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_return_id_of_arg.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_return_id_of_arg.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_return_id_of_arg.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -628,7 +605,6 @@ programs/build/loops/call_in_loop_returns_bound_option_ref.bork::find(v: &Vec<Re
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_returns_bound_option_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_returns_bound_option_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -645,7 +621,6 @@ programs/build/loops/call_in_loop_returns_call_directly.bork::find(v: &Vec<Ref<N
 programs/build/loops/call_in_loop_returns_call_directly.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_call_directly.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_returns_call_directly.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_returns_call_directly.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_returns_call_directly.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_returns_call_directly.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_returns_call_directly.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -678,7 +653,6 @@ programs/build/loops/call_in_loop_returns_option_ref.bork::find(v: &Vec<Ref<Node
 programs/build/loops/call_in_loop_returns_option_ref.bork::main() -> i32
 programs/build/loops/call_in_loop_returns_option_ref.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_returns_option_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_returns_option_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_returns_option_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_returns_option_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_returns_option_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -700,7 +674,6 @@ programs/build/loops/call_in_loop_shadowed_name_returned.bork::find(v: &Vec<Ref<
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::main() -> i32
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::vecNew() -> Vec<T0>
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/loops/call_in_loop_shadowed_name_returned.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/loops/call_in_loop_shadowed_name_returned.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -745,7 +718,6 @@ programs/build/managed_refs/return_chain_local_ref.bork::make() -> Outer
 programs/build/managed_refs/return_chain_local_ref.bork::main() -> i32
 programs/build/managed_refs/return_chain_local_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_chain_local_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_chain_local_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_chain_local_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_chain_local_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_chain_local_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -764,7 +736,6 @@ programs/build/managed_refs/return_enum_payload_obj.bork::make() -> E
 programs/build/managed_refs/return_enum_payload_obj.bork::main() -> i32
 programs/build/managed_refs/return_enum_payload_obj.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_enum_payload_obj.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_enum_payload_obj.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_enum_payload_obj.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_enum_payload_obj.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_enum_payload_obj.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -783,7 +754,6 @@ programs/build/managed_refs/return_generic_box.bork::make() -> Box<RA>
 programs/build/managed_refs/return_generic_box.bork::main() -> i32
 programs/build/managed_refs/return_generic_box.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_generic_box.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_generic_box.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_generic_box.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_generic_box.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_generic_box.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -802,7 +772,6 @@ programs/build/managed_refs/return_ifval_ref.bork::make(o: Ref<P>) -> RA
 programs/build/managed_refs/return_ifval_ref.bork::main() -> i32
 programs/build/managed_refs/return_ifval_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_ifval_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_ifval_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_ifval_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_ifval_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_ifval_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -821,7 +790,6 @@ programs/build/managed_refs/return_loop_before_ref.bork::find(limit: i32) -> RA
 programs/build/managed_refs/return_loop_before_ref.bork::main() -> i32
 programs/build/managed_refs/return_loop_before_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_loop_before_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_loop_before_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_loop_before_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_loop_before_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_loop_before_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -840,7 +808,6 @@ programs/build/managed_refs/return_loop_decl_ref.bork::find(limit: i32) -> RA
 programs/build/managed_refs/return_loop_decl_ref.bork::main() -> i32
 programs/build/managed_refs/return_loop_decl_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_loop_decl_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_loop_decl_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_loop_decl_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_loop_decl_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_loop_decl_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -859,7 +826,6 @@ programs/build/managed_refs/return_nested_loops_ref.bork::find() -> RA
 programs/build/managed_refs/return_nested_loops_ref.bork::main() -> i32
 programs/build/managed_refs/return_nested_loops_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_nested_loops_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_nested_loops_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_nested_loops_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_nested_loops_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_nested_loops_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -888,7 +854,6 @@ programs/build/managed_refs/return_ref_from_call.bork::wrap(k: i32) -> RA
 programs/build/managed_refs/return_ref_from_call.bork::main() -> i32
 programs/build/managed_refs/return_ref_from_call.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_ref_from_call.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_ref_from_call.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_ref_from_call.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_ref_from_call.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_ref_from_call.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -908,7 +873,6 @@ programs/build/managed_refs/return_scalar_this.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_scalar_this.bork::vecWithCapacity(n: i32) -> Vec<T0>
 programs/build/managed_refs/return_scalar_this.bork::Counter.pick(this: &Counter, flag: bool) -> A
 programs/build/managed_refs/return_scalar_this.bork::Counter.mkRef(this: &Counter) -> RA
-programs/build/managed_refs/return_scalar_this.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_scalar_this.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_scalar_this.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_scalar_this.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -928,7 +892,6 @@ programs/build/managed_refs/return_this_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_this_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
 programs/build/managed_refs/return_this_ref.bork::Holder.get(this: &Holder) -> RA
 programs/build/managed_refs/return_this_ref.bork::Holder.fresh(this: &Holder) -> RA
-programs/build/managed_refs/return_this_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_this_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_this_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_this_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -947,7 +910,6 @@ programs/build/managed_refs/return_two_paths_ref.bork::make(flag: bool) -> RA
 programs/build/managed_refs/return_two_paths_ref.bork::main() -> i32
 programs/build/managed_refs/return_two_paths_ref.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_two_paths_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_two_paths_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_two_paths_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_two_paths_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_two_paths_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -966,7 +928,6 @@ programs/build/managed_refs/return_vec_of_refs.bork::make() -> Bag
 programs/build/managed_refs/return_vec_of_refs.bork::main() -> i32
 programs/build/managed_refs/return_vec_of_refs.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_vec_of_refs.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_vec_of_refs.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_vec_of_refs.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_vec_of_refs.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_vec_of_refs.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -985,7 +946,6 @@ programs/build/managed_refs/return_when_arms.bork::make(k: K) -> RA
 programs/build/managed_refs/return_when_arms.bork::main() -> i32
 programs/build/managed_refs/return_when_arms.bork::vecNew() -> Vec<T0>
 programs/build/managed_refs/return_when_arms.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/managed_refs/return_when_arms.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/managed_refs/return_when_arms.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_when_arms.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/managed_refs/return_when_arms.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1269,7 +1229,6 @@ programs/build/traits/iterator_adapter_fn_return.bork::fold(it: T0, init: i32, f
 programs/build/traits/iterator_adapter_fn_return.bork::main() -> i32
 programs/build/traits/iterator_adapter_fn_return.bork::vecNew() -> Vec<T0>
 programs/build/traits/iterator_adapter_fn_return.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/traits/iterator_adapter_fn_return.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/traits/iterator_adapter_fn_return.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/traits/iterator_adapter_fn_return.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/traits/iterator_adapter_fn_return.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1291,7 +1250,6 @@ programs/build/traits/iterator_adapter_generic_helper.bork::iter(v: Vec<T0>) -> 
 programs/build/traits/iterator_adapter_generic_helper.bork::map(it: T0, f: T1) -> Map<T0, T1>
 programs/build/traits/iterator_adapter_generic_helper.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
 programs/build/traits/iterator_adapter_generic_helper.bork::fold(it: T0, init: i32, f: T1) -> i32
-programs/build/traits/iterator_adapter_generic_helper.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/traits/iterator_adapter_generic_helper.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/traits/iterator_adapter_generic_helper.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/traits/iterator_adapter_generic_helper.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1314,7 +1272,6 @@ programs/build/traits/iterator_adapter_generic_return.bork::iter(v: Vec<T0>) -> 
 programs/build/traits/iterator_adapter_generic_return.bork::map(it: T0, f: T1) -> Map<T0, T1>
 programs/build/traits/iterator_adapter_generic_return.bork::filter(it: T0, p: T1) -> Filter<T0, T1>
 programs/build/traits/iterator_adapter_generic_return.bork::fold(it: T0, init: i32, f: T1) -> i32
-programs/build/traits/iterator_adapter_generic_return.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/traits/iterator_adapter_generic_return.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/traits/iterator_adapter_generic_return.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/traits/iterator_adapter_generic_return.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1336,7 +1293,6 @@ programs/build/vec/assign_concat_through_borrowed_vec.bork::set(v: &rw Vec<Strin
 programs/build/vec/assign_concat_through_borrowed_vec.bork::main() -> i32
 programs/build/vec/assign_concat_through_borrowed_vec.bork::vecNew() -> Vec<T0>
 programs/build/vec/assign_concat_through_borrowed_vec.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/assign_concat_through_borrowed_vec.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/assign_concat_through_borrowed_vec.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/assign_concat_through_borrowed_vec.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/assign_concat_through_borrowed_vec.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1351,7 +1307,6 @@ programs/build/vec/assign_concat_through_borrowed_vec.bork::Vec.clear(this: &Vec
 programs/build/vec/closure_elems_grow.bork::main() -> i32
 programs/build/vec/closure_elems_grow.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_grow.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_grow.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_grow.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_grow.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_grow.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1366,7 +1321,6 @@ programs/build/vec/closure_elems_grow.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/closure_elems_inner_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_inner_ref_capture.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_inner_ref_capture.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_inner_ref_capture.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_inner_ref_capture.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_inner_ref_capture.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_inner_ref_capture.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1381,7 +1335,6 @@ programs/build/vec/closure_elems_inner_ref_capture.bork::Vec.clear(this: &Vec<T0
 programs/build/vec/closure_elems_loop.bork::main() -> i32
 programs/build/vec/closure_elems_loop.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_loop.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_loop.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_loop.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_loop.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_loop.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1396,7 +1349,6 @@ programs/build/vec/closure_elems_loop.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/closure_elems_move.bork::main() -> i32
 programs/build/vec/closure_elems_move.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_move.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_move.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_move.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_move.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_move.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1411,7 +1363,6 @@ programs/build/vec/closure_elems_move.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/closure_elems_promote.bork::main() -> i32
 programs/build/vec/closure_elems_promote.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1426,7 +1377,6 @@ programs/build/vec/closure_elems_promote.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/closure_elems_promote_nullable_none.bork::main() -> i32
 programs/build/vec/closure_elems_promote_nullable_none.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_nullable_none.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_nullable_none.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_nullable_none.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_nullable_none.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_nullable_none.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1441,7 +1391,6 @@ programs/build/vec/closure_elems_promote_nullable_none.bork::Vec.clear(this: &Ve
 programs/build/vec/closure_elems_promote_nullable_object.bork::main() -> i32
 programs/build/vec/closure_elems_promote_nullable_object.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_nullable_object.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_nullable_object.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_nullable_object.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_nullable_object.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_nullable_object.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1456,7 +1405,6 @@ programs/build/vec/closure_elems_promote_nullable_object.bork::Vec.clear(this: &
 programs/build/vec/closure_elems_promote_object_capture.bork::main() -> i32
 programs/build/vec/closure_elems_promote_object_capture.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_object_capture.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_object_capture.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_object_capture.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_object_capture.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_object_capture.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1471,7 +1419,6 @@ programs/build/vec/closure_elems_promote_object_capture.bork::Vec.clear(this: &V
 programs/build/vec/closure_elems_promote_object_fields.bork::main() -> i32
 programs/build/vec/closure_elems_promote_object_fields.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_object_fields.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_object_fields.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_object_fields.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_object_fields.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_object_fields.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1486,7 +1433,6 @@ programs/build/vec/closure_elems_promote_object_fields.bork::Vec.clear(this: &Ve
 programs/build/vec/closure_elems_promote_object_loop.bork::main() -> i32
 programs/build/vec/closure_elems_promote_object_loop.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_object_loop.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_object_loop.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_object_loop.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_object_loop.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_object_loop.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1501,7 +1447,6 @@ programs/build/vec/closure_elems_promote_object_loop.bork::Vec.clear(this: &Vec<
 programs/build/vec/closure_elems_promote_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_promote_ref_capture.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_ref_capture.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_ref_capture.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_ref_capture.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_ref_capture.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_ref_capture.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1516,7 +1461,6 @@ programs/build/vec/closure_elems_promote_ref_capture.bork::Vec.clear(this: &Vec<
 programs/build/vec/closure_elems_promote_string_bytes.bork::main() -> i32
 programs/build/vec/closure_elems_promote_string_bytes.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_promote_string_bytes.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_promote_string_bytes.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_promote_string_bytes.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_string_bytes.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_promote_string_bytes.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1531,7 +1475,6 @@ programs/build/vec/closure_elems_promote_string_bytes.bork::Vec.clear(this: &Vec
 programs/build/vec/closure_elems_ref_capture.bork::main() -> i32
 programs/build/vec/closure_elems_ref_capture.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_ref_capture.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_ref_capture.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_ref_capture.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_ref_capture.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_ref_capture.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1546,7 +1489,6 @@ programs/build/vec/closure_elems_ref_capture.bork::Vec.clear(this: &Vec<T0>) -> 
 programs/build/vec/closure_elems_ref_capture_replace.bork::main() -> i32
 programs/build/vec/closure_elems_ref_capture_replace.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_ref_capture_replace.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_ref_capture_replace.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_ref_capture_replace.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_ref_capture_replace.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_ref_capture_replace.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1561,7 +1503,6 @@ programs/build/vec/closure_elems_ref_capture_replace.bork::Vec.clear(this: &Vec<
 programs/build/vec/closure_elems_set_pop_clear.bork::main() -> i32
 programs/build/vec/closure_elems_set_pop_clear.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_set_pop_clear.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_set_pop_clear.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_set_pop_clear.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_set_pop_clear.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_set_pop_clear.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1577,7 +1518,6 @@ programs/build/vec/closure_elems_via_param.bork::fill(v: &rw Vec<()->i32>) -> un
 programs/build/vec/closure_elems_via_param.bork::main() -> i32
 programs/build/vec/closure_elems_via_param.bork::vecNew() -> Vec<T0>
 programs/build/vec/closure_elems_via_param.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/closure_elems_via_param.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/closure_elems_via_param.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_via_param.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/closure_elems_via_param.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1593,7 +1533,6 @@ programs/build/vec/element_rw_view_through_rw_param.bork::width(v: &rw Vec<Strin
 programs/build/vec/element_rw_view_through_rw_param.bork::main() -> i32
 programs/build/vec/element_rw_view_through_rw_param.bork::vecNew() -> Vec<T0>
 programs/build/vec/element_rw_view_through_rw_param.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/element_rw_view_through_rw_param.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/element_rw_view_through_rw_param.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_rw_view_through_rw_param.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_rw_view_through_rw_param.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1608,7 +1547,6 @@ programs/build/vec/element_rw_view_through_rw_param.bork::Vec.clear(this: &Vec<T
 programs/build/vec/element_shared_views_coexist.bork::main() -> i32
 programs/build/vec/element_shared_views_coexist.bork::vecNew() -> Vec<T0>
 programs/build/vec/element_shared_views_coexist.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/element_shared_views_coexist.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/element_shared_views_coexist.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_shared_views_coexist.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_shared_views_coexist.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1624,7 +1562,6 @@ programs/build/vec/element_view_in_loop.bork::size(s: &String) -> i32
 programs/build/vec/element_view_in_loop.bork::main() -> i32
 programs/build/vec/element_view_in_loop.bork::vecNew() -> Vec<T0>
 programs/build/vec/element_view_in_loop.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/element_view_in_loop.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/element_view_in_loop.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_view_in_loop.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_view_in_loop.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1640,7 +1577,6 @@ programs/build/vec/element_view_of_ref.bork::look(r: &Ref<Node>) -> i32
 programs/build/vec/element_view_of_ref.bork::main() -> i32
 programs/build/vec/element_view_of_ref.bork::vecNew() -> Vec<T0>
 programs/build/vec/element_view_of_ref.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/element_view_of_ref.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/element_view_of_ref.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_view_of_ref.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_view_of_ref.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1656,7 +1592,6 @@ programs/build/vec/element_view_read.bork::size(s: &String) -> i32
 programs/build/vec/element_view_read.bork::main() -> i32
 programs/build/vec/element_view_read.bork::vecNew() -> Vec<T0>
 programs/build/vec/element_view_read.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/element_view_read.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/element_view_read.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_view_read.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/element_view_read.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1671,7 +1606,6 @@ programs/build/vec/element_view_read.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/factory_names_shadowed.bork::main() -> i32
 programs/build/vec/factory_names_shadowed.bork::vecNew() -> Vec<T0>
 programs/build/vec/factory_names_shadowed.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/factory_names_shadowed.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/factory_names_shadowed.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/factory_names_shadowed.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/factory_names_shadowed.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1686,7 +1620,6 @@ programs/build/vec/factory_names_shadowed.bork::Vec.clear(this: &Vec<T0>) -> uni
 programs/build/vec/get_between_len_and_cap_aborts.bork::main() -> i32
 programs/build/vec/get_between_len_and_cap_aborts.bork::vecNew() -> Vec<T0>
 programs/build/vec/get_between_len_and_cap_aborts.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/get_between_len_and_cap_aborts.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/get_between_len_and_cap_aborts.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/get_between_len_and_cap_aborts.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/get_between_len_and_cap_aborts.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1701,7 +1634,6 @@ programs/build/vec/get_between_len_and_cap_aborts.bork::Vec.clear(this: &Vec<T0>
 programs/build/vec/get_negative_aborts.bork::main() -> i32
 programs/build/vec/get_negative_aborts.bork::vecNew() -> Vec<T0>
 programs/build/vec/get_negative_aborts.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/get_negative_aborts.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/get_negative_aborts.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/get_negative_aborts.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/get_negative_aborts.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1716,7 +1648,6 @@ programs/build/vec/get_negative_aborts.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/grow_past_page.bork::vecNew() -> Vec<T0>
 programs/build/vec/grow_past_page.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/grow_past_page.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/grow_past_page.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/grow_past_page.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/grow_past_page.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1733,7 +1664,6 @@ programs/build/vec/index_call_result.bork::idx() -> i32
 programs/build/vec/index_call_result.bork::main() -> i32
 programs/build/vec/index_call_result.bork::vecNew() -> Vec<T0>
 programs/build/vec/index_call_result.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/index_call_result.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/index_call_result.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/index_call_result.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/index_call_result.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1749,7 +1679,6 @@ programs/build/vec/index_from_element.bork::main() -> i32
 programs/build/vec/index_through_field.bork::main() -> i32
 programs/build/vec/index_through_field.bork::vecNew() -> Vec<T0>
 programs/build/vec/index_through_field.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/index_through_field.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/index_through_field.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/index_through_field.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/index_through_field.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1764,7 +1693,6 @@ programs/build/vec/index_through_field.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/methods.bork::main() -> i32
 programs/build/vec/methods.bork::vecNew() -> Vec<T0>
 programs/build/vec/methods.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/methods.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/methods.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/methods.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/methods.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1779,7 +1707,6 @@ programs/build/vec/methods.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/move_into_outer.bork::main() -> i32
 programs/build/vec/move_into_outer.bork::vecNew() -> Vec<T0>
 programs/build/vec/move_into_outer.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/move_into_outer.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/move_into_outer.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/move_into_outer.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/move_into_outer.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1794,7 +1721,6 @@ programs/build/vec/move_into_outer.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/move_to_outer.bork::main() -> i32
 programs/build/vec/move_to_outer.bork::vecNew() -> Vec<T0>
 programs/build/vec/move_to_outer.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/move_to_outer.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/move_to_outer.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/move_to_outer.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/move_to_outer.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1810,7 +1736,6 @@ programs/build/vec/move_vec_field.bork::take(v: Vec<i32>) -> i32
 programs/build/vec/move_vec_field.bork::main() -> i32
 programs/build/vec/move_vec_field.bork::vecNew() -> Vec<T0>
 programs/build/vec/move_vec_field.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/move_vec_field.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/move_vec_field.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/move_vec_field.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/move_vec_field.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1825,7 +1750,6 @@ programs/build/vec/move_vec_field.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/negative_capacity_aborts.bork::main() -> i32
 programs/build/vec/negative_capacity_aborts.bork::vecNew() -> Vec<T0>
 programs/build/vec/negative_capacity_aborts.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/negative_capacity_aborts.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/negative_capacity_aborts.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/negative_capacity_aborts.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/negative_capacity_aborts.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1840,7 +1764,6 @@ programs/build/vec/negative_capacity_aborts.bork::Vec.clear(this: &Vec<T0>) -> u
 programs/build/vec/pop_set_clear.bork::main() -> i32
 programs/build/vec/pop_set_clear.bork::vecNew() -> Vec<T0>
 programs/build/vec/pop_set_clear.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/pop_set_clear.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/pop_set_clear.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/pop_set_clear.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/pop_set_clear.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1855,7 +1778,6 @@ programs/build/vec/pop_set_clear.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/promote_outlives_inner.bork::main() -> i32
 programs/build/vec/promote_outlives_inner.bork::vecNew() -> Vec<T0>
 programs/build/vec/promote_outlives_inner.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/promote_outlives_inner.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/promote_outlives_inner.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/promote_outlives_inner.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/promote_outlives_inner.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1870,7 +1792,6 @@ programs/build/vec/promote_outlives_inner.bork::Vec.clear(this: &Vec<T0>) -> uni
 programs/build/vec/promote_strings.bork::main() -> i32
 programs/build/vec/promote_strings.bork::vecNew() -> Vec<T0>
 programs/build/vec/promote_strings.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/promote_strings.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/promote_strings.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/promote_strings.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/promote_strings.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1885,7 +1806,6 @@ programs/build/vec/promote_strings.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/push_grow_sum.bork::main() -> i32
 programs/build/vec/push_grow_sum.bork::vecNew() -> Vec<T0>
 programs/build/vec/push_grow_sum.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/push_grow_sum.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/push_grow_sum.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/push_grow_sum.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/push_grow_sum.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1900,7 +1820,6 @@ programs/build/vec/push_grow_sum.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/ref_counts_across_arenas.bork::main() -> i32
 programs/build/vec/ref_counts_across_arenas.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_counts_across_arenas.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_counts_across_arenas.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_counts_across_arenas.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_counts_across_arenas.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_counts_across_arenas.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1915,7 +1834,6 @@ programs/build/vec/ref_counts_across_arenas.bork::Vec.clear(this: &Vec<T0>) -> u
 programs/build/vec/ref_nodes.bork::main() -> i32
 programs/build/vec/ref_nodes.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_nodes.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_nodes.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_nodes.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_nodes.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_nodes.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1930,7 +1848,6 @@ programs/build/vec/ref_nodes.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/ref_pop_empty_is_none.bork::main() -> i32
 programs/build/vec/ref_pop_empty_is_none.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_pop_empty_is_none.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_pop_empty_is_none.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_pop_empty_is_none.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_pop_empty_is_none.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_pop_empty_is_none.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1945,7 +1862,6 @@ programs/build/vec/ref_pop_empty_is_none.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/ref_pop_moves_the_handle.bork::main() -> i32
 programs/build/vec/ref_pop_moves_the_handle.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_pop_moves_the_handle.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_pop_moves_the_handle.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_pop_moves_the_handle.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_pop_moves_the_handle.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_pop_moves_the_handle.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1960,7 +1876,6 @@ programs/build/vec/ref_pop_moves_the_handle.bork::Vec.clear(this: &Vec<T0>) -> u
 programs/build/vec/ref_promote.bork::main() -> i32
 programs/build/vec/ref_promote.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_promote.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_promote.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_promote.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_promote.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_promote.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1975,7 +1890,6 @@ programs/build/vec/ref_promote.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/ref_promote_over_longer_releases_tail.bork::main() -> i32
 programs/build/vec/ref_promote_over_longer_releases_tail.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_promote_over_longer_releases_tail.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_promote_over_longer_releases_tail.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -1990,7 +1904,6 @@ programs/build/vec/ref_promote_over_longer_releases_tail.bork::Vec.clear(this: &
 programs/build/vec/ref_promote_strong.bork::main() -> i32
 programs/build/vec/ref_promote_strong.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_promote_strong.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_promote_strong.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_promote_strong.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_promote_strong.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_promote_strong.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2005,7 +1918,6 @@ programs/build/vec/ref_promote_strong.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/ref_weak_expires.bork::main() -> i32
 programs/build/vec/ref_weak_expires.bork::vecNew() -> Vec<T0>
 programs/build/vec/ref_weak_expires.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/ref_weak_expires.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/ref_weak_expires.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_weak_expires.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/ref_weak_expires.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2021,7 +1933,6 @@ programs/build/vec/return_from_function.bork::build() -> Vec<i32>
 programs/build/vec/return_from_function.bork::main() -> i32
 programs/build/vec/return_from_function.bork::vecNew() -> Vec<T0>
 programs/build/vec/return_from_function.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/return_from_function.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/return_from_function.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/return_from_function.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/return_from_function.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2037,7 +1948,6 @@ programs/build/vec/return_from_loop.bork::first(n: i32) -> Vec<i32>
 programs/build/vec/return_from_loop.bork::main() -> i32
 programs/build/vec/return_from_loop.bork::vecNew() -> Vec<T0>
 programs/build/vec/return_from_loop.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/return_from_loop.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/return_from_loop.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/return_from_loop.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/return_from_loop.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2054,7 +1964,6 @@ programs/build/vec/return_vec_of_linked_refs.bork::make() -> Bag
 programs/build/vec/return_vec_of_linked_refs.bork::main() -> i32
 programs/build/vec/return_vec_of_linked_refs.bork::vecNew() -> Vec<T0>
 programs/build/vec/return_vec_of_linked_refs.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/return_vec_of_linked_refs.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/return_vec_of_linked_refs.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/return_vec_of_linked_refs.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/return_vec_of_linked_refs.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2069,7 +1978,6 @@ programs/build/vec/return_vec_of_linked_refs.bork::Vec.clear(this: &Vec<T0>) -> 
 programs/build/vec/set_past_len_aborts.bork::main() -> i32
 programs/build/vec/set_past_len_aborts.bork::vecNew() -> Vec<T0>
 programs/build/vec/set_past_len_aborts.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/set_past_len_aborts.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/set_past_len_aborts.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/set_past_len_aborts.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/set_past_len_aborts.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2084,7 +1992,6 @@ programs/build/vec/set_past_len_aborts.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/strings.bork::main() -> i32
 programs/build/vec/strings.bork::vecNew() -> Vec<T0>
 programs/build/vec/strings.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/strings.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/strings.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/strings.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/strings.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2099,7 +2006,6 @@ programs/build/vec/strings.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/vec_field_repeated.bork::main() -> i32
 programs/build/vec/vec_field_repeated.bork::vecNew() -> Vec<T0>
 programs/build/vec/vec_field_repeated.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/vec_field_repeated.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/vec_field_repeated.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/vec_field_repeated.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/vec_field_repeated.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2114,7 +2020,6 @@ programs/build/vec/vec_field_repeated.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/with_capacity.bork::main() -> i32
 programs/build/vec/with_capacity.bork::vecNew() -> Vec<T0>
 programs/build/vec/with_capacity.bork::vecWithCapacity(n: i32) -> Vec<T0>
-programs/build/vec/with_capacity.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/build/vec/with_capacity.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/with_capacity.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/build/vec/with_capacity.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
@@ -2283,7 +2188,6 @@ programs/check/vec/push_via_this_field.bork::main() -> i32
 programs/check/vec/push_via_this_field.bork::vecNew() -> Vec<T0>
 programs/check/vec/push_via_this_field.bork::vecWithCapacity(n: i32) -> Vec<T0>
 programs/check/vec/push_via_this_field.bork::H.add(this: &H, k: i32) -> i32
-programs/check/vec/push_via_this_field.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
 programs/check/vec/push_via_this_field.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
 programs/check/vec/push_via_this_field.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
 programs/check/vec/push_via_this_field.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit

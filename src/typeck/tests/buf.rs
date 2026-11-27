@@ -59,6 +59,7 @@ fn each_primitive_outside_unsafe_is_rejected() {
         ("bufGrow", "val g: Buf<i32> = bufGrow(&b, 8)"),
         ("abort", "abort()"),
         ("bufAlloc", "val g: Buf<i32> = bufAlloc::<i32>(a, 4)"),
+        ("bufEmpty", "val g: Buf<i32> = bufEmpty::<i32>()"),
     ] {
         let source = format!("fun f(b: &Buf<i32>, a: Arena) {{\n    {call}\n}}\nfun main() {{}}\n");
         let d = prelude_diags(&source);
@@ -119,8 +120,8 @@ fn user_cannot_write_a_stack_field() {
 
 #[test]
 fn user_cannot_construct_an_opaque_class() {
-    let d = super::diags_of("fun main() {\n    val t: StackSeed<i32> = StackSeed(0)\n}\n");
-    assert!(d.iter().any(|d| d.message.contains("construction of `StackSeed` is private to the prelude")), "{d:?}");
+    let d = super::diags_of("fun main() {\n    val t: Stack<i32> = Stack(0, 0)\n}\n");
+    assert!(d.iter().any(|d| d.message.contains("construction of `Stack` is private to the prelude")), "{d:?}");
 }
 
 #[test]

@@ -511,9 +511,9 @@ fn is_builtin_type_name(name: &str) -> bool {
 }
 
 /// Builtin functions, registered as `Intrinsic` definitions (mirrors `builtins::resolve`).
-const INTRINSICS: [&str; 12] = [
+const INTRINSICS: [&str; 13] = [
     "print", "println", "concat", "stringFromUtf8", "strongCount", "weakCount",
-    "bufAlloc", "slotLoad", "slotStore", "bufGrow", "abort", "arenaOf",
+    "bufAlloc", "bufEmpty", "slotLoad", "slotStore", "bufGrow", "abort", "arenaOf",
 ];
 
 /// A builtin redefinition is reported at the first parameter (the AST keeps no span for the keyword).
@@ -597,7 +597,7 @@ mod tests {
         for name in INTRINSICS {
             assert!(crate::builtins::is_intrinsic(name), "{name}");
         }
-        for name in ["bufAlloc", "slotLoad", "slotStore", "bufGrow", "abort", "arenaOf"] {
+        for name in ["bufAlloc", "bufEmpty", "slotLoad", "slotStore", "bufGrow", "abort", "arenaOf"] {
             assert!(INTRINSICS.contains(&name) && crate::builtins::is_intrinsic(name), "{name}");
         }
         assert!(!crate::builtins::is_intrinsic("notABuiltin"));
