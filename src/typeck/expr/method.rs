@@ -20,8 +20,22 @@ pub(super) fn check_method_call(
     site: CallSite<'_>,
     env: &mut Env<'_>,
 ) -> Checked {
+    check_method_call_on(receiver, method, safe, id, site, false, env)
+}
+
+/// `check_method_call`; with `temp_receiver` a non-place receiver (`make()[i]`) is allowed: MIR lowers the borrow of an
+/// rvalue into a temporary, evaluated once where the expression stands.
+pub(super) fn check_method_call_on(
+    receiver: &Expr,
+    method: &str,
+    safe: bool,
+    id: AstId,
+    site: CallSite<'_>,
+    temp_receiver: bool,
+    env: &mut Env<'_>,
+) -> Checked {
     let CallSite { span, args, return_ty, .. } = site;
-    if !is_place(receiver) {
+    if !temp_receiver && !is_place(receiver) {
         env.error(
             "method receiver must be a named value; bind it to a `val` first",
             Some(span),

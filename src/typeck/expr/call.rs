@@ -141,7 +141,7 @@ pub(super) fn check_call(
     env: &mut Env<'_>,
 ) -> Checked {
     // `Vec::<T>()` / `Vec::<T>(capacity)` (the Bork `Vec`): the factory function builds it.
-    if let (Expr::Ident { name, span, id }, [_]) = (callee, type_args) {
+    if let (Expr::Ident { name, span, .. }, [_]) = (callee, type_args) {
         if env.defs.vec_class().is_some_and(|vec| env.defs.lookup_class(name) == Some(vec)) {
             if args.len() > 1 {
                 env.error("`Vec` takes at most one argument, the capacity", Some(*span));
@@ -153,9 +153,7 @@ pub(super) fn check_call(
                 return super::method::poisoned(args, *span, return_ty, env);
             }
             let factory = if args.is_empty() { "vecNew" } else { "vecWithCapacity" };
-            let callee = Expr::Ident { name: factory.to_string(), span: *span, id: *id };
-            let call = Expr::Call { callee: Box::new(callee), type_args: type_args.to_vec(), args: args.to_vec() };
-            return dispatch(&call, expected, return_ty, env);
+            return check_factory_call(factory, *span, type_args, args, expected, return_ty, env);
         }
     }
     // Before the type-argument check below: `bufAlloc::<T>(..)` is generic though it has no `FunSig`.
@@ -260,6 +258,34 @@ pub(super) fn check_call(
         env.same(call_return_ty, expected);
     }
     finish_call(name, params, call_return_ty, None, CallSite { span, args, return_ty }, env)
+}
+
+/// A call of the prelude factory `Vec::<T>(..)` expands to, resolved by the global function and never by scope:
+/// a local (or a method) named like the factory must not capture it.
+fn check_factory_call(
+    factory: &str,
+    span: Span,
+    type_args: &[Type],
+    args: &[Expr],
+    expected: Option<TyId>,
+    return_ty: TyId,
+    env: &mut Env<'_>,
+) -> Checked {
+    let signature = env.fun_sig(factory).cloned().expect("the prelude defines the Vec factories");
+    let Some((params, ret)) = instantiate(factory, span, &signature, type_args, env) else {
+        return super::method::poisoned(args, span, return_ty, env);
+    };
+    if let Some(expected) = expected {
+        env.same(ret, expected);
+    }
+    let mut call = finish_call(factory.to_string(), params, ret, None, CallSite { span, args, return_ty }, env);
+    // `build_call` marks a call through a same-named local closure as `Copy`; this one is the global function.
+    if let HirExprKind::Call { callee, .. } = &mut call.hir.kind {
+        if let HirExprKind::Ident { use_kind, .. } = &mut callee.kind {
+            *use_kind = UseKind::Local;
+        }
+    }
+    call
 }
 
 /// Whether `callee` names a user function with type parameters (not shadowed by a method or class).

@@ -1,0 +1,25 @@
+// exit: 3
+// stdout: 0\n0\n100\n1\n1\n100\n2\n2\n100\n3\n
+// #361: indexing a call result runs the call once, where the expression stands (also in a `while` condition), before the index
+fun make(n: i32): Vec<i32> {
+    println(n)
+    var v = Vec::<i32>()
+    v.push(n)
+    v.push(n + 1)
+    return v
+}
+
+fun idx(): i32 {
+    println(100)
+    return 1
+}
+
+fun main(): i32 {
+    var i = 0
+    var s = 0
+    while (make(i)[0] < 3) {
+        s = s + make(i)[idx()] - i
+        i = i + 1
+    }
+    return s
+}

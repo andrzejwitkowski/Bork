@@ -4,6 +4,7 @@ use crate::span::{AstId, Span};
 use crate::ty::TyId;
 
 use super::super::env::{Checked, Env};
+use super::call::CallSite;
 use super::{check, dispatch, synthesize};
 
 fn const_i32(expr: &HirExpr) -> Option<i32> {
@@ -133,14 +134,11 @@ pub(super) fn check_index_as(
     let diagnostics_before = env.diagnostics.len();
     let receiver_hir = synthesize(receiver, return_ty, env);
     if !keep_index && is_vec_class(receiver_hir.ty, env) {
-        // The method call below checks a place receiver again, so what this first pass reported is dropped to report it once.
-        // A receiver that is not a place is rejected by the method check before it is looked at: keep its own errors.
-        if super::method::is_place(receiver) {
-            env.diagnostics.truncate(diagnostics_before);
-        }
-        // `v[i]` on the Bork `Vec` is `v.get(i)`.
-        let get = Expr::Field { receiver: Box::new(receiver.clone()), name: "get".to_string(), safe: false, span, id: AstId::DUMMY };
-        return dispatch(&Expr::call(get, Vec::new(), vec![index.clone()], None, span), None, return_ty, env);
+        // The method call below checks the receiver again, so what this first pass reported is dropped to report it once.
+        env.diagnostics.truncate(diagnostics_before);
+        // `v[i]` on the Bork `Vec` is `v.get(i)`; a receiver that is not a place (`make()[i]`) is borrowed through a temporary.
+        let site = CallSite { span, args: std::slice::from_ref(index), return_ty };
+        return super::method::check_method_call_on(receiver, "get", false, AstId::DUMMY, site, true, env);
     }
     let i32_ty = env.tcx.i32();
     let index_hir = check(index, i32_ty, return_ty, env);

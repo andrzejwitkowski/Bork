@@ -308,9 +308,11 @@ programs/build/vec/element_shared_views_coexist.bork: hits=17 hash=b969e0964f52d
 programs/build/vec/element_view_in_loop.bork: hits=51 hash=3c3f44bfc8fe8799
 programs/build/vec/element_view_of_ref.bork: hits=82 hash=5975323252104df8
 programs/build/vec/element_view_read.bork: hits=35 hash=60a4a45168922f86
+programs/build/vec/factory_names_shadowed.bork: hits=64 hash=dcaa5b6d7b4a40e3
 programs/build/vec/get_between_len_and_cap_aborts.bork: hits=16 hash=f1389f64e42a5524
 programs/build/vec/get_negative_aborts.bork: hits=10 hash=87d3a34260b4031b
 programs/build/vec/grow_past_page.bork: hits=32 hash=73d0bd5055d70e56
+programs/build/vec/index_call_result.bork: hits=38 hash=1507fd40c7cf3032
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90
 programs/build/vec/index_through_field.bork: hits=24 hash=cac08d67edb6cf80
 programs/build/vec/methods.bork: hits=207 hash=b026ccb2983f1a0f

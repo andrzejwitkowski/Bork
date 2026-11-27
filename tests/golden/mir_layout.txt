@@ -825,6 +825,9 @@ enum Option<i32> size=8 align=4 variants=[[0, 4], [0]]
 == programs/build/vec/element_view_read.bork
 class VecSeed<String> size=4 align=4 fields=[0]
 class Vec<String> size=24 align=8 fields=[0, 16]
+== programs/build/vec/factory_names_shadowed.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/get_between_len_and_cap_aborts.bork
 class VecSeed<i32> size=4 align=4 fields=[0]
 class Vec<i32> size=24 align=8 fields=[0, 16]
@@ -832,6 +835,9 @@ class Vec<i32> size=24 align=8 fields=[0, 16]
 class VecSeed<i32> size=4 align=4 fields=[0]
 class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/grow_past_page.bork
+class VecSeed<i32> size=4 align=4 fields=[0]
+class Vec<i32> size=24 align=8 fields=[0, 16]
+== programs/build/vec/index_call_result.bork
 class VecSeed<i32> size=4 align=4 fields=[0]
 class Vec<i32> size=24 align=8 fields=[0, 16]
 == programs/build/vec/index_through_field.bork
