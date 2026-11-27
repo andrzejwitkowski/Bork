@@ -543,6 +543,12 @@ fn unknown_named_type_is_type_error() {
 }
 
 #[test]
+fn own_new_stack_explains_why_stack_is_unknown() {
+    let errors = diags_of("fun newStack(): i32 { return 0 }\nfun main(s: Stack<i32>) {}\n");
+    assert!(errors.iter().any(|e| e.message.contains("unknown named type `Stack`") && e.message.contains("`newStack`")), "{errors:?}");
+}
+
+#[test]
 fn unknown_string_field_is_type_error() {
     let errors = diags_of(
         r#"fun main(): i32 {

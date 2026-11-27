@@ -53,6 +53,11 @@ pub(crate) fn source_file(name: &str) -> Option<&'static str> {
     CHUNKS.iter().find(|c| c.names.contains(&name)).map(|c| c.path)
 }
 
+/// Every name of the chunk that `name` belongs to (a user definition of any of them turns the chunk off).
+pub(crate) fn chunk_names(name: &str) -> Option<&'static [&'static str]> {
+    CHUNKS.iter().find(|c| c.names.contains(&name)).map(|c| c.names)
+}
+
 pub(crate) fn source_text(path: &str) -> &'static str {
     CHUNKS.iter().find(|c| c.path == path).expect("prelude source file").source
 }

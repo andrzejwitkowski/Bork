@@ -324,6 +324,18 @@ impl TyCtx {
         format!("array element type `{}` is not supported", self.display(elem))
     }
 
+    /// The element of a `Buf<T>` that `Buf` cannot hold (same set as `Vec`).
+    fn buf_elem_unsupported(&self, id: TyId) -> Option<TyId> {
+        self.buf_elem(id).filter(|&e| !self.is_unknown(e) && !self.is_vec_elem_supported(e))
+    }
+
+    pub fn buf_elem_message(&self, elem: TyId) -> String {
+        format!(
+            "`Buf` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `{}`",
+            self.display(elem)
+        )
+    }
+
     pub fn vec_elem_message(&self, elem: TyId) -> String {
         format!(
             "`Vec` element must be a Copy type, a non-null `String`, a `Ref<T>` or a function type, got `{}`",
@@ -383,6 +395,7 @@ impl TyCtx {
                 Some(self.managed_ref_target_message(*inner))
             }
             TyData::Class(..) if self.vec_elem_unsupported(id) => self.vec_elem(id).map(|elem| self.vec_elem_message(elem)),
+            TyData::Class(..) if self.buf_elem_unsupported(id).is_some() => self.buf_elem_unsupported(id).map(|elem| self.buf_elem_message(elem)),
             data => self.borrow_arg_at(data).or_else(|| data.children().into_iter().find_map(|child| self.ill_formed(child))),
         }
     }
