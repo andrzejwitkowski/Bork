@@ -1646,6 +1646,7 @@ programs/build/vec/get_negative_aborts.bork::Vec.len(this: &Vec<T0>) -> i32
 programs/build/vec/get_negative_aborts.bork::Vec.capacity(this: &Vec<T0>) -> i32
 programs/build/vec/get_negative_aborts.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/grow_frees_old_buffer.bork::build() -> Vec<i32>
+programs/build/vec/grow_frees_old_buffer.bork::promoted() -> Vec<i32>
 programs/build/vec/grow_frees_old_buffer.bork::main() -> i32
 programs/build/vec/grow_frees_old_buffer.bork::vecNew() -> Vec<T0>
 programs/build/vec/grow_frees_old_buffer.bork::vecWithCapacity(n: i32) -> Vec<T0>

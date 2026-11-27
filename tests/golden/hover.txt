@@ -311,7 +311,7 @@ programs/build/vec/element_view_read.bork: hits=35 hash=60a4a45168922f86
 programs/build/vec/factory_names_shadowed.bork: hits=64 hash=dcaa5b6d7b4a40e3
 programs/build/vec/get_between_len_and_cap_aborts.bork: hits=16 hash=f1389f64e42a5524
 programs/build/vec/get_negative_aborts.bork: hits=10 hash=87d3a34260b4031b
-programs/build/vec/grow_frees_old_buffer.bork: hits=191 hash=f7a910ca94ce0c2d
+programs/build/vec/grow_frees_old_buffer.bork: hits=214 hash=608bb5b3c07d0b48
 programs/build/vec/grow_past_page.bork: hits=32 hash=73d0bd5055d70e56
 programs/build/vec/index_call_result.bork: hits=38 hash=1507fd40c7cf3032
 programs/build/vec/index_from_element.bork: hits=4 hash=a01a16811fb85a90

@@ -1,7 +1,7 @@
 // exit: 0
 // WHAT THIS TESTS
 // Growing a `Vec` frees the old backing storage (#363). Many pushes cross several growth steps; contents survive each
-// copy, a later allocation reuses the freed block, and the `-g` build finds no access to a freed range. Covers a scalar
+// copy, and the `-g` build finds no access to a freed range (block reuse itself is not asserted). Covers a scalar
 // element, a `String` element (24-byte stride) and a `Ref` element (old slots zeroed, not freed).
 class Node {
     id: i32
@@ -17,8 +17,27 @@ fun build(): Vec<i32> {
     return v
 }
 
+// Declared in a loop body and returned from inside it: copied into the result arena (`copy_into`).
+fun promoted(): Vec<i32> {
+    var i = 0
+    while (i < 3) {
+        var v = Vec::<i32>()
+        v.push(i)
+        if (i == 2) { return move v }
+        i = i + 1
+    }
+    return Vec::<i32>()
+}
+
 fun main(): i32 {
-    // A returned (promoted) Vec is copied into the caller's arena; growing it afterwards frees in that arena.
+    var p = promoted()
+    var y = 0
+    while (y < 100) {
+        p.push(y)
+        y = y + 1
+    }
+    if (p.len() != 101) { return 6 }
+    // Allocated directly in the caller's sink (no copy); growth frees in that same arena.
     var moved = build()
     var z = 0
     while (z < 100) {

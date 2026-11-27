@@ -10512,7 +10512,16 @@ Arenas
 │   └── WhileLoop
 │       ├── v [Borrow ← fun build]
 │       └── i [Copy]
+├── fun promoted
+│   ├── i [Local]
+│   └── WhileLoop
+│       ├── v [Local]
+│       ├── i [Copy]
+│       └── IfThen
+│           └── v [Moved ← WhileLoop]
 ├── fun main
+│   ├── p [Local]
+│   ├── y [Local]
 │   ├── moved [Local]
 │   ├── z [Local]
 │   ├── v [Local]
@@ -10527,6 +10536,10 @@ Arenas
 │   ├── r [Local]
 │   ├── s0 [Local]
 │   ├── w0 [Local]
+│   ├── WhileLoop
+│   │   ├── p [Borrow ← fun main]
+│   │   └── y [Copy]
+│   ├── IfThen
 │   ├── WhileLoop
 │   │   ├── moved [Borrow ← fun main]
 │   │   └── z [Copy]

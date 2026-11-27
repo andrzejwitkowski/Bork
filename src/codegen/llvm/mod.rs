@@ -201,7 +201,11 @@ mod tests {
             body[..body.find("\n}\n").expect("end of function")].to_string()
         };
         let scalar = reserve_exact("i32", "1");
-        assert!(scalar.contains("call void @bork_arena_free(ptr %") && scalar.contains("i64 %buf.bytes.old)"), "{scalar}");
+        // The free takes the old pointer and the same byte count the memcpy copies, `old_cap * stride` (4 for `i32`).
+        for line in ["%buf.bytes.old = mul i64 %buf.cap.old, 4", "call void @bork_arena_free(ptr %home.arena, ptr %buf.old, i64 %buf.bytes.old)",
+            "call void @llvm.memcpy.p0.p0.i64(ptr align 4 %buf.new, ptr align 4 %buf.old, i64 %buf.bytes.old, i1 false)"] {
+            assert!(scalar.contains(line), "missing `{line}`: {scalar}");
+        }
         let managed = reserve_exact("Ref<C>", "C(1)");
         assert!(!managed.contains("@bork_arena_free"), "{managed}");
         assert!(managed.contains("@llvm.memset"), "old Ref slots are zeroed instead: {managed}");
