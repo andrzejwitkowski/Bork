@@ -91,14 +91,14 @@ impl<'ctx> Codegen<'ctx> {
         let done = self.context.append_basic_block(function, "buf.grow.done");
         let nonempty = self.builder.build_int_compare(inkwell::IntPredicate::NE, cap, self.word(0), "buf.nonempty")?;
         self.builder.build_conditional_branch(nonempty, copy, done)?;
-        self.builder.position_at_end(copy);
+        self.position_at_end(copy);
         self.builder.build_memcpy(new, align as u32, old, align as u32, bytes)?;
         if self.tcx.is_managed_ref(elem) {
             // The handles moved: zero the old slots so the old buffer's registered drop releases nothing twice.
             self.builder.build_memset(old, 1, self.context.i8_type().const_zero(), bytes)?;
         }
         self.builder.build_unconditional_branch(done)?;
-        self.builder.position_at_end(done);
+        self.position_at_end(done);
         Ok(grown)
     }
 

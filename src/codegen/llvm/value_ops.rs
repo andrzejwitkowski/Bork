@@ -189,7 +189,7 @@ impl<'ctx> Codegen<'ctx> {
         let done = self.context.append_basic_block(llvm_fn, "vec.copy.done");
         let nonempty = self.builder.build_int_compare(inkwell::IntPredicate::NE, n, self.context.i32_type().const_zero(), "vec.nonempty")?;
         self.builder.build_conditional_branch(nonempty, fill, done)?;
-        self.builder.position_at_end(fill);
+        self.position_at_end(fill);
         let copied = self.buf_alloc(arena, elem_ty, n)?;
         let (llvm_elem, stride, _) = self.elem_storage(elem_ty)?;
         let from = self.builder.build_extract_value(buf, 0, "vec.from")?.into_pointer_value();
@@ -212,7 +212,7 @@ impl<'ctx> Codegen<'ctx> {
         })?;
         let filled = self.builder.get_insert_block().expect("inside a function");
         self.builder.build_unconditional_branch(done)?;
-        self.builder.position_at_end(done);
+        self.position_at_end(done);
         let buf_phi = self.builder.build_phi(self.buf_type(), "vec.copied")?;
         buf_phi.add_incoming(&[(&self.buf_empty()?, entry), (&copied, filled)]);
         self.builder.build_store(field(object, 0)?, buf_phi.as_basic_value())?;
