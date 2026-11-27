@@ -187,4 +187,21 @@ fn indexing_a_call_result_keeps_the_errors_inside_the_receiver() {
     let src = "fun make(n: i32): Vec<i32> {\n    var v = Vec::<i32>()\n    return v\n}\nfun main(): i32 {\n    return make(true)[0]\n}\n";
     let diags = super::diags_of(src);
     assert!(diags.iter().any(|d| d.message.contains("argument") || d.message.contains("expected")), "the receiver's own error survives: {diags:?}");
+    assert_eq!(diags.len(), 1, "and is reported once: {diags:?}");
+}
+
+#[test]
+fn indexing_a_call_result_of_vec_type_checks() {
+    super::hir_of("fun make(): Vec<i32> {\n    var v = Vec::<i32>()\n    return v\n}\nfun main(): i32 {\n    return make()[0]\n}\n");
+}
+
+#[test]
+fn locals_named_like_the_vec_factories_do_not_shadow_them() {
+    let src = "fun main(): i32 {\n    val vecNew = { -> 7 }\n    val vecWithCapacity = { n -> n }\n    var v = Vec::<i32>()\n    var w = Vec::<i32>(4)\n    return vecNew() + vecWithCapacity(1) + v.len() + w.len()\n}\n";
+    super::hir_of(src);
+}
+
+#[test]
+fn indexing_a_generic_call_result_infers_the_type_parameter_once() {
+    super::hir_of("fun empty<T>(): Vec<T> {\n    return Vec::<T>()\n}\nfun main(): i32 {\n    val x: i32 = empty()[0]\n    return x\n}\n");
 }

@@ -1,0 +1,11 @@
+// exit: 111
+// #361: locals named like the prelude's generated `Vec` factories do not capture `Vec::<T>(..)`, and still call as closures
+fun main(): i32 {
+    val vecNew = { -> 7 }
+    val vecWithCapacity = { n -> n + 100 }
+    var v = Vec::<i32>()
+    v.push(1)
+    var w = Vec::<i32>(4)
+    w.push(2)
+    return vecNew() + vecWithCapacity(1) + v.get(0) + w.get(0)
+}

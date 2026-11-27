@@ -1668,6 +1668,21 @@ programs/build/vec/element_view_read.bork::Vec.assignFrom(this: &Vec<T0>, src: &
 programs/build/vec/element_view_read.bork::Vec.len(this: &Vec<T0>) -> i32
 programs/build/vec/element_view_read.bork::Vec.capacity(this: &Vec<T0>) -> i32
 programs/build/vec/element_view_read.bork::Vec.clear(this: &Vec<T0>) -> unit
+programs/build/vec/factory_names_shadowed.bork::main() -> i32
+programs/build/vec/factory_names_shadowed.bork::vecNew() -> Vec<T0>
+programs/build/vec/factory_names_shadowed.bork::vecWithCapacity(n: i32) -> Vec<T0>
+programs/build/vec/factory_names_shadowed.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
+programs/build/vec/factory_names_shadowed.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/factory_names_shadowed.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/factory_names_shadowed.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
+programs/build/vec/factory_names_shadowed.bork::Vec.pop(this: &Vec<T0>) -> T0?
+programs/build/vec/factory_names_shadowed.bork::Vec.popRef(this: &Vec<T0>) -> T0
+programs/build/vec/factory_names_shadowed.bork::Vec.get(this: &Vec<T0>, i: i32) -> T0
+programs/build/vec/factory_names_shadowed.bork::Vec.set(this: &Vec<T0>, i: i32, v: T0) -> unit
+programs/build/vec/factory_names_shadowed.bork::Vec.assignFrom(this: &Vec<T0>, src: &Vec<T0>) -> unit
+programs/build/vec/factory_names_shadowed.bork::Vec.len(this: &Vec<T0>) -> i32
+programs/build/vec/factory_names_shadowed.bork::Vec.capacity(this: &Vec<T0>) -> i32
+programs/build/vec/factory_names_shadowed.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/get_between_len_and_cap_aborts.bork::main() -> i32
 programs/build/vec/get_between_len_and_cap_aborts.bork::vecNew() -> Vec<T0>
 programs/build/vec/get_between_len_and_cap_aborts.bork::vecWithCapacity(n: i32) -> Vec<T0>
@@ -1713,6 +1728,23 @@ programs/build/vec/grow_past_page.bork::Vec.assignFrom(this: &Vec<T0>, src: &Vec
 programs/build/vec/grow_past_page.bork::Vec.len(this: &Vec<T0>) -> i32
 programs/build/vec/grow_past_page.bork::Vec.capacity(this: &Vec<T0>) -> i32
 programs/build/vec/grow_past_page.bork::Vec.clear(this: &Vec<T0>) -> unit
+programs/build/vec/index_call_result.bork::make(n: i32) -> Vec<i32>
+programs/build/vec/index_call_result.bork::idx() -> i32
+programs/build/vec/index_call_result.bork::main() -> i32
+programs/build/vec/index_call_result.bork::vecNew() -> Vec<T0>
+programs/build/vec/index_call_result.bork::vecWithCapacity(n: i32) -> Vec<T0>
+programs/build/vec/index_call_result.bork::VecSeed.empty(this: &VecSeed<T0>) -> Buf<T0>
+programs/build/vec/index_call_result.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/index_call_result.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/index_call_result.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
+programs/build/vec/index_call_result.bork::Vec.pop(this: &Vec<T0>) -> T0?
+programs/build/vec/index_call_result.bork::Vec.popRef(this: &Vec<T0>) -> T0
+programs/build/vec/index_call_result.bork::Vec.get(this: &Vec<T0>, i: i32) -> T0
+programs/build/vec/index_call_result.bork::Vec.set(this: &Vec<T0>, i: i32, v: T0) -> unit
+programs/build/vec/index_call_result.bork::Vec.assignFrom(this: &Vec<T0>, src: &Vec<T0>) -> unit
+programs/build/vec/index_call_result.bork::Vec.len(this: &Vec<T0>) -> i32
+programs/build/vec/index_call_result.bork::Vec.capacity(this: &Vec<T0>) -> i32
+programs/build/vec/index_call_result.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/index_from_element.bork::main() -> i32
 programs/build/vec/index_through_field.bork::main() -> i32
 programs/build/vec/index_through_field.bork::vecNew() -> Vec<T0>

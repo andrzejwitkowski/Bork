@@ -1132,12 +1132,16 @@ programs/build/vec/element_view_of_ref.bork: 3901..3908 VecSeed<Ref<Node>> Dynam
 programs/build/vec/element_view_of_ref.bork: 3940..3943 Vec<Ref<Node>> Lexical LexicalScope(4)
 programs/build/vec/element_view_read.bork: 3901..3908 VecSeed<String> Dynamic Program
 programs/build/vec/element_view_read.bork: 3940..3943 Vec<String> Lexical LexicalScope(3)
+programs/build/vec/factory_names_shadowed.bork: 3901..3908 VecSeed<i32> Dynamic Program
+programs/build/vec/factory_names_shadowed.bork: 3940..3943 Vec<i32> Lexical LexicalScope(4)
 programs/build/vec/get_between_len_and_cap_aborts.bork: 3901..3908 VecSeed<i32> Dynamic Program
 programs/build/vec/get_between_len_and_cap_aborts.bork: 3940..3943 Vec<i32> Lexical LexicalScope(2)
 programs/build/vec/get_negative_aborts.bork: 3901..3908 VecSeed<i32> Dynamic Program
 programs/build/vec/get_negative_aborts.bork: 3940..3943 Vec<i32> Lexical LexicalScope(2)
 programs/build/vec/grow_past_page.bork: 3901..3908 VecSeed<i32> Dynamic Program
 programs/build/vec/grow_past_page.bork: 3940..3943 Vec<i32> Lexical LexicalScope(4)
+programs/build/vec/index_call_result.bork: 3901..3908 VecSeed<i32> Dynamic Program
+programs/build/vec/index_call_result.bork: 3940..3943 Vec<i32> Lexical LexicalScope(5)
 programs/build/vec/index_through_field.bork: 170..171 H Dynamic Program
 programs/build/vec/index_through_field.bork: 3901..3908 VecSeed<i32> Dynamic Program
 programs/build/vec/index_through_field.bork: 3940..3943 Vec<i32> Lexical LexicalScope(2)
