@@ -296,7 +296,7 @@ fn open_view(body: &Body, st: &mut Loans, dst: &Place, receiver: &Operand, rw: b
 /// Mutating `Vec` operations, moves and overwrites of a `Vec` while a live view of one of its elements exists
 /// (`push` may reallocate the buffer the view points into). Reads are fine under a shared view; an `&rw` view
 /// is exclusive.
-/// Whether `local` is `root` or holds a loan on it (`val alias = &rw v` reaches `v`; `v.push(..)` passes `&v` in a temporary).
+/// Whether `place` overlaps `root`, or its local holds a loan whose root does (`val alias = &rw v` reaches `v`; `v.push(..)` passes `&v` in a temporary).
 fn reaches(st: &Loans, place: &Place, root: &Place) -> bool {
     overlap(place, root) || st.get(&place.local).is_some_and(|ls| ls.iter().any(|l| overlap(&l.root, root)))
 }
