@@ -1645,6 +1645,22 @@ programs/build/vec/get_negative_aborts.bork::Vec.assignFrom(this: &Vec<T0>, src:
 programs/build/vec/get_negative_aborts.bork::Vec.len(this: &Vec<T0>) -> i32
 programs/build/vec/get_negative_aborts.bork::Vec.capacity(this: &Vec<T0>) -> i32
 programs/build/vec/get_negative_aborts.bork::Vec.clear(this: &Vec<T0>) -> unit
+programs/build/vec/grow_frees_old_buffer.bork::build() -> Vec<i32>
+programs/build/vec/grow_frees_old_buffer.bork::promoted() -> Vec<i32>
+programs/build/vec/grow_frees_old_buffer.bork::main() -> i32
+programs/build/vec/grow_frees_old_buffer.bork::vecNew() -> Vec<T0>
+programs/build/vec/grow_frees_old_buffer.bork::vecWithCapacity(n: i32) -> Vec<T0>
+programs/build/vec/grow_frees_old_buffer.bork::Vec.reserveExact(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/grow_frees_old_buffer.bork::Vec.reserveAtLeast(this: &Vec<T0>, cap: i32) -> unit
+programs/build/vec/grow_frees_old_buffer.bork::Vec.push(this: &Vec<T0>, v: T0) -> unit
+programs/build/vec/grow_frees_old_buffer.bork::Vec.pop(this: &Vec<T0>) -> T0?
+programs/build/vec/grow_frees_old_buffer.bork::Vec.popRef(this: &Vec<T0>) -> T0
+programs/build/vec/grow_frees_old_buffer.bork::Vec.get(this: &Vec<T0>, i: i32) -> T0
+programs/build/vec/grow_frees_old_buffer.bork::Vec.set(this: &Vec<T0>, i: i32, v: T0) -> unit
+programs/build/vec/grow_frees_old_buffer.bork::Vec.assignFrom(this: &Vec<T0>, src: &Vec<T0>) -> unit
+programs/build/vec/grow_frees_old_buffer.bork::Vec.len(this: &Vec<T0>) -> i32
+programs/build/vec/grow_frees_old_buffer.bork::Vec.capacity(this: &Vec<T0>) -> i32
+programs/build/vec/grow_frees_old_buffer.bork::Vec.clear(this: &Vec<T0>) -> unit
 programs/build/vec/grow_past_page.bork::main() -> i32
 programs/build/vec/grow_past_page.bork::vecNew() -> Vec<T0>
 programs/build/vec/grow_past_page.bork::vecWithCapacity(n: i32) -> Vec<T0>

@@ -416,6 +416,13 @@ impl<'ctx> Codegen<'ctx> {
         self.runtime_fn("bork_arena_alloc", || ptr.fn_type(&params, false))
     }
 
+    /// `void bork_arena_free(ptr arena, ptr p, i64 size)`: `size` is what `p` was allocated with.
+    pub fn arena_free_fn(&self) -> FunctionValue<'ctx> {
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let params: [BasicMetadataTypeEnum; 3] = [ptr.into(), ptr.into(), self.context.i64_type().into()];
+        self.runtime_fn("bork_arena_free", || self.context.void_type().fn_type(&params, false))
+    }
+
     /// `void bork_arena_register_drop(ptr arena, ptr value, ptr drop_fn)`.
     pub fn arena_register_drop_fn(&self) -> FunctionValue<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());

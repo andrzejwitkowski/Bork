@@ -1,0 +1,92 @@
+// exit: 0
+// WHAT THIS TESTS
+// Growing a `Vec` frees the old backing storage (#363). Many pushes cross several growth steps; contents survive each
+// copy, and the `-g` build finds no access to a freed range (block reuse itself is not asserted). Covers a scalar
+// element, a `String` element (24-byte stride) and a `Ref` element (old slots zeroed, not freed).
+class Node {
+    id: i32
+}
+
+fun build(): Vec<i32> {
+    var v = Vec::<i32>()
+    var i = 0
+    while (i < 5) {
+        v.push(i)
+        i = i + 1
+    }
+    return v
+}
+
+// Declared in a loop body and returned from inside it: copied into the result arena (`copy_into`).
+fun promoted(): Vec<i32> {
+    var i = 0
+    while (i < 3) {
+        var v = Vec::<i32>()
+        v.push(i)
+        if (i == 2) { return move v }
+        i = i + 1
+    }
+    return Vec::<i32>()
+}
+
+fun main(): i32 {
+    var p = promoted()
+    var y = 0
+    while (y < 100) {
+        p.push(y)
+        y = y + 1
+    }
+    if (p.len() != 101) { return 6 }
+    // Allocated directly in the caller's sink (no copy); growth frees in that same arena.
+    var moved = build()
+    var z = 0
+    while (z < 100) {
+        moved.push(z)
+        z = z + 1
+    }
+    if (moved.len() != 105) { return 5 }
+    var v = Vec::<i32>()
+    var i = 0
+    while (i < 1000) {
+        v.push(i)
+        i = i + 1
+    }
+    var sum = 0
+    var j = 0
+    while (j < v.len()) {
+        sum = sum + v[j]
+        j = j + 1
+    }
+    if (sum != 499500) { return 1 }
+
+    var s = Vec::<String>()
+    var k = 0
+    while (k < 50) {
+        s.push("abcdef")
+        k = k + 1
+    }
+    var total = 0
+    var m = 0
+    while (m < s.len()) {
+        val e = &s[m]
+        total = total + e.length
+        m = m + 1
+    }
+    if (total != 300) { return 2 }
+
+    val n = Node(7)
+    val r: Ref<Node> = n
+    val s0 = strongCount(r)
+    val w0 = weakCount(r)
+    {
+        var w = Vec::<Ref<Node>>()
+        var q = 0
+        while (q < 40) {
+            w.push(r)
+            q = q + 1
+        }
+        if (strongCount(r) + weakCount(r) != s0 + w0 + 40) { return 3 }
+    }
+    if (strongCount(r) != s0 || weakCount(r) != w0) { return 4 }
+    return 0
+}
